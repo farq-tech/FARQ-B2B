@@ -6,6 +6,8 @@ import type { LiveEngine, Tone } from './engine'
  * Dev-only preview: /live-bg shows the three tones; /live-bg?tone=deep&full=1 fills the window with one
  * tone (used for the QA recordings). Each stage reports its draw time per frame (avg · p95 · max).
  */
+// QA hook (dev page only): window.__liveBg[tone].simulate(100) / .stats()
+const expose = (tone: Tone, e: LiveEngine | null) => { const w = window as unknown as { __liveBg?: Record<string, LiveEngine | null> }; (w.__liveBg ??= {})[tone] = e }
 const TONES: Array<[Tone, string]> = [['light', 'فاتح'], ['deep', 'غامق'], ['accent', 'نعناعي']]
 
 function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: boolean | undefined }) {
@@ -15,7 +17,7 @@ function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: bo
   useEffect(() => {
     const id = window.setInterval(() => {
       const s = engine.current?.stats()
-      if (s && s.frames) setStat(`${s.frames} إطار · متوسط ${s.avg.toFixed(2)}ms · p95 ${s.p95.toFixed(2)}ms · أعلى ${s.max.toFixed(2)}ms`)
+      if (s && s.frames) setStat(`${s.frames} إطار · متوسط ${s.avg.toFixed(2)}ms · p95 ${s.p95.toFixed(2)}ms · أعلى ${s.max.toFixed(2)}ms · جولات ${s.rounds} · أحمد أقرب ${s.near} · قعد ${s.sits}`)
     }, 1000)
     return () => window.clearInterval(id)
   }, [])
@@ -23,7 +25,7 @@ function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: bo
     <section ref={setScope} className="flex flex-col gap-2">
       {!full && <p className="text-[13px] text-ink-2">{TONES.find((t) => t[0] === tone)?.[1]} — <span dir="ltr" data-stat>{stat}</span></p>}
       <div data-tone={tone === 'light' ? undefined : tone} className={full ? 'relative h-screen w-full overflow-hidden' : 'relative aspect-[390/600] w-full overflow-hidden rounded-[20px] border border-line sm:aspect-[1440/800]'}>
-        {scope && <LiveBackgroundCanvas scope={scope} tone={tone} fixed={false} reducedMotion={reduced} onEngine={(e) => { engine.current = e }} />}
+        {scope && <LiveBackgroundCanvas scope={scope} tone={tone} fixed={false} reducedMotion={reduced} onEngine={(e) => { engine.current = e; expose(tone, e) }} />}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-[14px] p-6 text-center">
           <h1 className="font-display text-[clamp(24px,4.2vw,48px)] leading-tight font-bold text-ink">وش تبي نسعّر لك اليوم؟</h1>
           <div className="w-[min(520px,100%)] rounded-[14px] border border-line bg-surface px-[18px] py-[14px] text-right text-[16px] shadow-md" style={{ color: 'var(--color-text-tertiary)' }}>اكتب اللي تبيه… مثال: 500 حبة بلك أسمنتي</div>

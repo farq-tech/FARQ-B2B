@@ -135,6 +135,12 @@
   --live-base: #ffffff;
   --live-go: #6b8e3d;     /* زيتوني  — Light default: زيتوني ← شامبين */
   --live-back: #c6ae82;   /* شامبين */
+  /* Facet shades — five per tone, as in the reference prototype (TONES.*.shades) */
+  --live-facet-1: #ffffff;
+  --live-facet-2: #fcfcfc;
+  --live-facet-3: #fafbfb;
+  --live-facet-4: #f7f8f8;
+  --live-facet-5: #f4f6f6;
 }
 
 /* Section tones — hero and dark bands. Not a theme: they only re-point surface/text. */
@@ -142,6 +148,11 @@
   --live-base: #121212;
   --live-go: #62bfa9;     /* نعناعي هادئ */
   --live-back: #c6ae82;   /* شامبين */
+  --live-facet-1: #121212;
+  --live-facet-2: #141414;
+  --live-facet-3: #161616;
+  --live-facet-4: #111111;
+  --live-facet-5: #181818;
   --color-bg-canvas: var(--brand-deep);
   --color-text-primary: var(--color-text-on-inverse);
   --color-text-secondary: var(--color-text-on-inverse-secondary);
@@ -150,6 +161,11 @@
   --live-base: #3ddc97;
   --live-go: #3a4047;     /* فحمي */
   --live-back: #ffffff;   /* أبيض */
+  --live-facet-1: #3ddc97;
+  --live-facet-2: #42dd9a;
+  --live-facet-3: #48df9e;
+  --live-facet-4: #3ad893;
+  --live-facet-5: #4de0a1;
   --color-bg-canvas: var(--brand-band);
   --color-text-primary: var(--brand-on-band);
   --color-text-secondary: var(--brand-on-band);
