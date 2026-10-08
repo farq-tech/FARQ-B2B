@@ -1,6 +1,6 @@
-{"viewport":"1440x900","screen":"tracking","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.5},"frames":1618,"avg":0.159,"p95":0.3,"max":0.9,"rounds":3,"sits":3}
-{"viewport":"1440x900","screen":"comparison","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.6},"frames":1617,"avg":0.334,"p95":0.5,"max":1,"rounds":3,"sits":3}
-{"viewport":"1440x900","screen":"new","sim100":{"long":99,"near":0,"sit":1,"anyClear":99,"planMaxMs":0.7},"frames":1593,"avg":0.368,"p95":0.6,"max":1.6,"rounds":2,"sits":0}
-{"viewport":"390x844","screen":"tracking","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.4},"frames":1593,"avg":0.295,"p95":0.5,"max":0.8,"rounds":4,"sits":4}
-{"viewport":"390x844","screen":"comparison","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.3},"frames":1617,"avg":0.237,"p95":0.4,"max":0.6,"rounds":4,"sits":4}
-{"viewport":"390x844","screen":"new","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.6},"frames":1619,"avg":0.272,"p95":0.4,"max":0.7,"rounds":4,"sits":4}
+{"viewport":"1440x900","screen":"tracking","ahmad100":{"far":0,"near":0,"none":100,"rerolls":800},"frames":1583,"avg":0.175,"p95":0.3,"max":0.5,"rounds":3,"far":0,"near":0,"none":3,"sync":0,"p99":0.3}
+{"viewport":"1440x900","screen":"comparison","ahmad100":{"far":0,"near":0,"none":100,"rerolls":800},"frames":1088,"avg":0.176,"p95":0.3,"max":0.4,"rounds":2,"far":0,"near":0,"none":2,"sync":0,"p99":0.3}
+{"viewport":"1440x900","screen":"new","ahmad100":{"far":76,"near":24,"none":0,"rerolls":427},"frames":1600,"avg":0.202,"p95":0.3,"max":0.5,"rounds":2,"far":2,"near":0,"none":0,"sync":0,"p99":0.4}
+{"viewport":"390x844","screen":"tracking","ahmad100":{"far":0,"near":0,"none":100,"rerolls":800},"frames":1583,"avg":0.143,"p95":0.2,"max":0.8,"rounds":4,"far":0,"near":0,"none":4,"sync":0,"p99":0.3}
+{"viewport":"390x844","screen":"comparison","ahmad100":{"far":0,"near":0,"none":100,"rerolls":800},"frames":1607,"avg":0.156,"p95":0.3,"max":0.8,"rounds":4,"far":0,"near":0,"none":4,"sync":0,"p99":0.3}
+{"viewport":"390x844","screen":"new","ahmad100":{"far":0,"near":0,"none":100,"rerolls":800},"frames":1584,"avg":0.165,"p95":0.3,"max":0.7,"rounds":5,"far":0,"near":0,"none":5,"sync":0,"p99":0.3}
