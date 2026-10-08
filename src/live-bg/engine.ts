@@ -125,13 +125,7 @@ export function readObstacles(host: HTMLElement, scope: Element = document.body,
   return { boxes, title }
 }
 
-/**
- * story: the layer fills its host (app screens).
- * page: one world the size of the whole page (landing): a viewport-sized fixed canvas draws the part of the world
- * on screen (translate by scrollY); dots at the mesh vertices instead of facets, one head office for the page.
- */
-export type Mode = 'story' | 'page'
-export type EngineOpts = { mode?: Mode; reduced: boolean; /** where to look for page elements (default: the whole page) */ scope?: Element }
+export type EngineOpts = { reduced: boolean; /** where to look for page elements (default: the whole page) */ scope?: Element }
 export type FrameStats = { frames: number; avg: number; p95: number; p99: number; max: number; rounds: number; far: number; near: number; none: number; sync: number }
 
 export class LiveEngine {
@@ -154,8 +148,6 @@ export class LiveEngine {
   private host: HTMLElement; private bg: HTMLCanvasElement; private fx: HTMLCanvasElement; private opts: EngineOpts
 
   private get story() { return true }
-  private get page() { return this.opts.mode === 'page' }
-  private vw = 0; private vh = 0; private sy = 0
   private tris: number[][] = []; private shades: string[] = []
   constructor(host: HTMLElement, bg: HTMLCanvasElement, fx: HTMLCanvasElement, opts: EngineOpts) {
     this.host = host; this.bg = bg; this.fx = fx; this.opts = opts
@@ -170,14 +162,13 @@ export class LiveEngine {
     let rt = 0
     const ro = new ResizeObserver(() => { clearTimeout(rt); rt = window.setTimeout(() => this.reset(), 120) })
     ro.observe(host)
-    if (this.page) ro.observe(document.body)
     // the page changes under us (route, data, scroll): re-read what to avoid while idle; move the head office only if it got covered
     let mt = 0
     const recheck = () => { clearTimeout(mt); mt = window.setTimeout(() => this.recheck(), 300) }
     // ignore our own probes (readColor appends to the host) — otherwise a covered hub resets in a loop
     const mo = new MutationObserver((rs) => { if (rs.some((r) => !host.contains(r.target))) recheck() })
     mo.observe(document.body, { childList: true, subtree: true, characterData: true })
-    if (!this.page) window.addEventListener('scroll', recheck, { passive: true, capture: true })
+    window.addEventListener('scroll', recheck, { passive: true, capture: true })
     this.cleanup.push(() => { io.disconnect(); ro.disconnect(); mo.disconnect(); clearTimeout(rt); clearTimeout(mt); window.removeEventListener('scroll', recheck, { capture: true }) })
     this.reset()
   }
@@ -192,7 +183,7 @@ export class LiveEngine {
 
   private recheck() {
     if (!this.alive || !this.V.length) return
-    const o = readObstacles(this.host, this.opts.scope, this.page)
+    const o = readObstacles(this.host, this.opts.scope)
     const changed = JSON.stringify(o.boxes.map((b) => b.map(Math.round))) !== JSON.stringify(this.boxes.map((b) => b.map(Math.round)))
     this.boxes = o.boxes; this.title = o.title
     if (changed) this.paintStatic()
@@ -222,14 +213,12 @@ export class LiveEngine {
 
   // ---------- mesh + head office (static layer, painted once per build) ----------
   private build() {
-    const r = this.host.getBoundingClientRect(), de = document.documentElement
-    // page mode: the world is the whole page; the canvases stay the size of the screen (never page-tall: DPR 2 would blow up)
-    const W = (this.W = Math.max(1, this.page ? de.clientWidth : r.width)), H = (this.H = Math.max(1, this.page ? de.scrollHeight : r.height))
-    this.vw = Math.max(1, r.width); this.vh = Math.max(1, r.height)
+    const r = this.host.getBoundingClientRect()
+    const W = (this.W = Math.max(1, r.width)), H = (this.H = Math.max(1, r.height))
     this.DPR = Math.min(2, window.devicePixelRatio || 1); this.scale = this.DPR > 1 ? 2 : 1
-    for (const c of [this.bg, this.fx]) { c.width = Math.round((this.page ? this.vw : W) * this.DPR); c.height = Math.round((this.page ? this.vh : H) * this.DPR) }
+    for (const c of [this.bg, this.fx]) { c.width = Math.round(W * this.DPR); c.height = Math.round(H * this.DPR) }
     this.readColors()
-    const o = readObstacles(this.host, this.opts.scope, this.page); this.boxes = o.boxes; this.title = o.title
+    const o = readObstacles(this.host, this.opts.scope); this.boxes = o.boxes; this.title = o.title
     const cell = W < 640 ? 56 : 72, rnd = mulberry(11), jit = 0.28
     const cols = Math.ceil(W / cell) + 1, rows = Math.ceil(H / cell) + 1, cw = W / (cols - 1), chh = H / (rows - 1)
     const V: Vert[] = (this.V = []), id = (r: number, c: number) => r * cols + c
@@ -250,21 +239,7 @@ export class LiveEngine {
     let hub = -1
     const hit = (r: number[]) => this.boxes.some((b) => r[0] < b[2] && r[2] > b[0] && r[1] < b[3] && r[3] > b[1])
     const gapOf = (v: Vert) => this.boxes.reduce((m, b) => Math.min(m, Math.hypot(Math.max(b[0] - v.x, 0, v.x - b[2]), Math.max(b[1] - v.y, 0, v.y - b[3]))), Math.min(v.x, W - v.x, v.y, H - v.y))
-    if (this.page) {
-      // the widest free spot of the first screen (≥ 40 px from every text, card and button, room for «أرخص سعر»),
-      // so the visitor sees the head office on arrival
-      // no room on the first screen (a full phone hero): the highest valid spot, so it is met as early as possible
-      let first = -1, fs = -1, top = -1
-      V.forEach((v, i) => {
-        // «أرخص سعر» is ≈ 150 × 30 px, 58 px above the office; «مقر الشركة» ≈ 30 px below it
-        if (v.x < 80 || v.x > W - 80 || v.y < 44 || hit([v.x - 80, v.y - 92, v.x + 80, v.y + 46])) return
-        const g = gapOf(v); if (g < 40) return
-        if (top < 0 || v.y < V[top].y) top = i
-        if (v.y < this.vh - 80 && g > fs) { fs = g; first = i }
-      })
-      hub = first >= 0 ? first : top
-    }
-    for (const [mx, my] of hub >= 0 ? [] : [[96, 80], [60, 56], [40, 40]]) {
+    for (const [mx, my] of [[96, 80], [60, 56], [40, 40]]) {
       const ui = this.boxes.map((b) => [b[0] - mx, b[1] - my, b[2] + mx, b[3] + my])
       // the «أرخص سعر» chip (≈ 180×30, 58 px above) and the «مقر الشركة» label below must clear text too
       const ok = (v: Vert) => v.x > 60 && v.x < W - 60 && v.y > 44 && v.y < H - 60 && !ui.some((b) => v.x > b[0] && v.x < b[2] && v.y > b[1] && v.y < b[3]) && !hit([v.x - 95, v.y - 100, v.x + 95, v.y + 48])
@@ -309,7 +284,6 @@ export class LiveEngine {
   /** Facets + mesh lines; under every text / control / card the mesh drops to 30 % (readability). */
   private paintStatic() {
     const b = this.bctx, { V, E, W, H } = this
-    if (this.page) { b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, this.bg.width, this.bg.height); this.dotsByRow(); return }
     b.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); b.globalCompositeOperation = 'source-over'; b.clearRect(0, 0, W, H)
     b.fillStyle = this.base0; b.fillRect(0, 0, W, H)
     this.tris.forEach((q, i) => { b.beginPath(); b.moveTo(V[q[0]].x, V[q[0]].y); b.lineTo(V[q[1]].x, V[q[1]].y); b.lineTo(V[q[2]].x, V[q[2]].y); b.closePath(); b.fillStyle = this.shades[i]; b.fill() })
@@ -324,20 +298,10 @@ export class LiveEngine {
     b.setTransform(1, 0, 0, 1, 0, 0); b.drawImage(L, 0, 0); b.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)
   }
   private lines: HTMLCanvasElement | null = null
-  private stillOn = false
-  private rows: number[][] = [] // page mode: vertex ids bucketed by 100 px band, to draw only what is on screen
-  private dotsByRow() { this.rows = []; this.V.forEach((v, i) => { const r = Math.floor(v.y / 100); (this.rows[r] ??= []).push(i) }) }
-  private drawDots(ctx: CanvasRenderingContext2D) {
-    const r0 = Math.max(0, Math.floor(this.sy / 100) - 1), r1 = Math.floor((this.sy + this.vh) / 100) + 1
-    ctx.fillStyle = rgba(this.go, 0.28); ctx.beginPath()
-    for (let r = r0; r <= r1; r++) for (const i of this.rows[r] || []) { const v = this.V[i]; ctx.moveTo(v.x + 1.3, v.y); ctx.arc(v.x, v.y, 1.3, 0, TAU) }
-    ctx.fill()
-  }
   /** Readability: the layer keeps ≤ 30 % of its opacity under every element it avoids (text, controls, cards). */
   private shield(c: CanvasRenderingContext2D) {
     c.save(); c.globalCompositeOperation = 'destination-out'; c.fillStyle = rgba([0, 0, 0], 0.7) // destination-out: only the alpha counts
-    const y0 = this.page ? this.sy - 20 : -1e9, y1 = this.page ? this.sy + this.vh + 20 : 1e9
-    for (const x of this.boxes) if (x[3] > y0 && x[1] < y1) c.fillRect(x[0] - 6, x[1] - 6, x[2] - x[0] + 12, x[3] - x[1] + 12)
+    for (const x of this.boxes) c.fillRect(x[0] - 6, x[1] - 6, x[2] - x[0] + 12, x[3] - x[1] + 12)
     c.restore()
   }
 
@@ -365,10 +329,10 @@ export class LiveEngine {
   private planRound(k: number): Plan {
     try {
       const rolls: Walker[][] = []
-      for (let i = 0; i < (this.page ? 3 : 8); i++) {
+      for (let i = 0; i < 8; i++) {
         rand = mulberry(seedOf(k, i)) // geometry: the same roll on the same layout is always the same
         const ws = this.routes(); rolls.push(ws)
-        const r = this.page ? this.pickNear(ws) : this.pickFar(ws); if (r) return this.finish(ws, r, this.page ? 'near' : 'far', i, k)
+        const r = this.pickFar(ws); if (r) return this.finish(ws, r, 'far', i, k)
       }
       rand = mulberry(seedOf(k, 99))
       for (const ws of rolls) { const r = this.pickNear(ws) || this.pickRoute(ws); if (r) return this.finish(ws, r, 'near', 8, k) }
@@ -376,41 +340,8 @@ export class LiveEngine {
     } finally { rand = Math.random }
   }
 
-  /**
-   * Page mode: six non-crossing paths from the one head office to suppliers spread over the whole page height
-   * (alternating sides), so the requests travel through the sections and come back. Suppliers only on free points.
-   */
-  private routesPage(): Walker[] {
-    const { V, W, H } = this, C = V[this.HUB], walkers: Walker[] = []
-    const tb = this.boxes.map((b) => [b[0] - 16, b[1] - 18, b[2] + 16, b[3] + 46])
-    const inT = (v: Vert) => tb.some((b) => v.x > b[0] && v.x < b[2] && v.y > b[1] && v.y < b[3])
-    const owner = new Int16Array(V.length).fill(-1); owner[this.HUB] = 999
-    const base = 3000 + rand() * 9000, side0 = rand() < 0.5 ? 0 : 1
-    // one supplier per sixth of the page height, sides alternating; the farthest bands are routed first so the
-    // long paths are not walled off by the short ones (paths never share a point)
-    const bands = [0, 1, 2, 3, 4, 5].map((k) => ({ k, ty: ((k + 0.25 + rand() * 0.5) / 6) * H, jx: rand() }))
-    bands.sort((a, b) => Math.abs(b.ty - C.y) - Math.abs(a.ty - C.y))
-    for (const { k, ty, jx } of bands) {
-      const left = (k + side0) % 2 === 0
-      const tx = left ? jx * W * 0.3 : W * (0.7 + jx * 0.3)
-      const cand: Array<[number, number]> = []
-      for (let i = 0; i < V.length; i++) { const v = V[i]; if (owner[i] >= 0 || inT(v) || v.y < 30 || Math.hypot(v.x - C.x, v.y - C.y) < 160) continue; cand.push([Math.hypot(v.x - tx, v.y - ty), i]) }
-      cand.sort((x, y) => x[0] - y[0])
-      let path: number[] | null = null, target = -1
-      for (const [, i] of cand.slice(0, 10)) { const r = this.routeV(this.HUB, i, (v) => owner[v] >= 0); if (r) { path = [this.HUB, ...r]; target = i; break } }
-      if (!path) continue
-      path.slice(1).forEach((v) => (owner[v] = k))
-      const cum = [0]
-      for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(V[path[i]].x - V[path[i - 1]].x, V[path[i]].y - V[path[i - 1]].y))
-      const ang = Math.atan2(V[target].y - C.y, V[target].x - C.x)
-      walkers.push({ k, ch: k % CHANNELS.length, runner: false, rest: false, target, path, cum, len: cum[cum.length - 1], far0: Math.hypot(V[target].x - C.x, V[target].y - C.y), ang, start: 0, arrive: 9, tc: 10, home: 16, done: 16, price: Math.round((base * (0.82 + rand() * 0.36)) / 10) * 10, prof: NO_PROF })
-    }
-    return walkers
-  }
-
   /** Six non-crossing paths from the head office, one per direction, each to the farthest reachable point. */
   private routes(): Walker[] {
-    if (this.page) return this.routesPage()
     const { V, E, adj } = this
     const S_client = this.HUB
     const base = 3000 + rand() * 9000, C = V[S_client]
@@ -430,15 +361,15 @@ export class LiveEngine {
       const cand: Array<[number, number]> = []
       for (let i = 0; i < V.length; i++) { if (owner[i] >= 0) continue; const v = V[i], an = Math.atan2(v.y - C.y, v.x - C.x), da = Math.abs(Math.atan2(Math.sin(an - ang), Math.cos(an - ang))); if (da <= sec) cand.push([Math.hypot(v.x - C.x, v.y - C.y), i]) }
       cand.sort((x, y) => y[0] - x[0])
-      if (!this.page && inT(V[nb])) return // this direction starts behind text: one request fewer this round
+      if (inT(V[nb])) return // this direction starts behind text: one request fewer this round
       const far = cand.filter((c) => c[0] >= (cand[0]?.[0] ?? 0) * 0.82)
       let path: number[] | null = null, target = -1
       for (const [, i] of [...shuffle(far), ...cand].slice(0, 24)) {
         if (i === nb || inT(V[i])) continue
-        const r = this.routeV(nb, i, (v) => owner[v] >= 0 || (!this.page && inT(V[v])))
+        const r = this.routeV(nb, i, (v) => owner[v] >= 0 || inT(V[v]))
         if (!r) continue
         const p = [S_client, nb, ...r]
-        if (!this.page && !clearOf(p)) continue // an edge between two clear points can still cut through a line of text
+        if (!clearOf(p)) continue // an edge between two clear points can still cut through a line of text
         path = p; target = i; break
       }
       if (!path) return // no clear path in this direction: drop it rather than draw behind text
@@ -470,8 +401,7 @@ export class LiveEngine {
         const v = this.V[w.path[i]]
         if (w.cum[i] >= stop - 8 || v.y <= 90) continue
         const dv = Math.hypot(v.x - C.x, v.y - C.y)
-        if (this.page && dv > 1.5 * this.vh) continue // page: Ahmad stays within ~1.5 screens of the head office
-        if (this.page ? dv >= 200 : dv >= 0.6 * w.far0) ok.push([w, i])
+        if (dv >= 0.6 * w.far0) ok.push([w, i])
         break
       }
     }
@@ -497,7 +427,7 @@ export class LiveEngine {
       for (let i = 0; i < V.length; i++) {
         if (i === nb || (owner[i] >= 0 && owner[i] !== w.k)) continue
         const v = V[i], an = Math.atan2(v.y - C.y, v.x - C.x), d = Math.hypot(v.x - C.x, v.y - C.y)
-        if (v.y <= 90 || inB(v) || (this.page ? d < 200 || d > 1.5 * this.vh : d < 0.6 * w.far0) || Math.abs(Math.atan2(Math.sin(an - w.ang), Math.cos(an - w.ang))) > sec) continue
+        if (v.y <= 90 || inB(v) || d < 0.6 * w.far0 || Math.abs(Math.atan2(Math.sin(an - w.ang), Math.cos(an - w.ang))) > sec) continue
         cand.push([d, i])
       }
       cand.sort((x, y) => y[0] - x[0])
@@ -645,11 +575,6 @@ export class LiveEngine {
     return e
   }
   private blit(e: Chip, ax: number, ay: number) {
-    if (this.page) { // off screen: skip; over text or a card: never drawn
-      const x0 = ax + e.x, y0 = ay + e.y, x1 = x0 + e.w, y1 = y0 + e.h
-      if (y1 < this.sy || y0 > this.sy + this.vh) return
-      if (this.boxes.some((b) => x0 < b[2] + 4 && x1 > b[0] - 4 && y0 < b[3] + 4 && y1 > b[1] - 4)) return
-    }
     const s = this.DPR, X = Math.round((ax + e.x - PAD) * s) / s, Y = Math.round((ay + e.y - PAD) * s) / s // whole device pixels: no resampling blur
     this.ctx.drawImage(e.c, X, Y, e.w + PAD * 2, e.h + PAD * 2)
   }
@@ -784,15 +709,10 @@ export class LiveEngine {
 
   private draw(t: number) {
     const { ctx, V, E, FLOW, W, H, S, go, back } = this
-    if (this.page) {
-      this.sy = window.scrollY
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, this.fx.width, this.fx.height)
-      ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, -Math.round(this.sy * this.DPR)) // the world, scrolled
-      this.drawDots(ctx)
-    } else ctx.clearRect(0, 0, W, H)
+    ctx.clearRect(0, 0, W, H)
     // ambient: a soft pulse on every edge, forever
     ctx.lineCap = 'round'; ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(go, 0.22); ctx.beginPath()
-    for (let i = 0; i < (this.page ? 0 : E.length); i++) {
+    for (let i = 0; i < E.length; i++) {
       const e = E[i], f = FLOW[i], per = e.L + 60, pos = ((t * f.sp + f.ph) % per) - 30
       const p0 = Math.max(0, pos - 7) / e.L, p1 = Math.min(e.L, pos + 7) / e.L
       if (p1 <= 0 || p0 >= 1) continue
@@ -868,15 +788,7 @@ export class LiveEngine {
   }
   private run() {
     cancelAnimationFrame(this.raf); this.raf = 0
-    if (!this.alive || this.opts.reduced) {
-      this.ctx.clearRect(0, 0, this.W, this.H)
-      if (this.alive && this.page) { // reduced motion on the landing: the still dot grid, redrawn only when scrolled
-        const still = () => { if (!this.alive || !this.opts.reduced) return; this.sy = window.scrollY; const c = this.ctx; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.fx.width, this.fx.height); c.setTransform(this.DPR, 0, 0, this.DPR, 0, -Math.round(this.sy * this.DPR)); this.drawDots(c) }
-        if (!this.stillOn) { this.stillOn = true; window.addEventListener('scroll', still, { passive: true }); this.cleanup.push(() => window.removeEventListener('scroll', still)) }
-        this.fx.style.opacity = '1'; still()
-      }
-      return
-    }
+    if (!this.alive || this.opts.reduced) { this.ctx.clearRect(0, 0, this.W, this.H); return }
     if (!this.warmed) { this.warm(); return } // starts the loop when done
     if (!document.hidden && this.onScreen) {
       this.simT = wall(); if (this.story) this.sync(this.simT, false) // back from a hidden tab: join the current round outside a frame

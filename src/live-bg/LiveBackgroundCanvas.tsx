@@ -1,10 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { LiveEngine, type Mode } from './engine'
+import { LiveEngine } from './engine'
 import './live-bg.css'
 
 type Props = {
-  /** story (default): the full round. ambient: mesh + pulses only, lighter. */
-  mode?: Mode
   /** false = fill the nearest positioned parent instead of the viewport (dev page). */
   fixed?: boolean
   /** Dev only: force reduced motion regardless of the OS setting. */
@@ -18,7 +16,7 @@ type Props = {
  * The one living-background layer, used unchanged on every screen and section. It has no tone: the background
  * under it (base + facets) comes from the nearest [data-tone] around it; paths, chips, Ahmad and colours are the same.
  */
-export default function LiveBackgroundCanvas({ mode = 'story', fixed = true, reducedMotion, onEngine, scope }: Props) {
+export default function LiveBackgroundCanvas({ fixed = true, reducedMotion, onEngine, scope }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const bg = useRef<HTMLCanvasElement>(null)
   const fx = useRef<HTMLCanvasElement>(null)
@@ -27,7 +25,7 @@ export default function LiveBackgroundCanvas({ mode = 'story', fixed = true, red
   useEffect(() => {
     if (!host.current || !bg.current || !fx.current) return
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const e = new LiveEngine(host.current, bg.current, fx.current, { mode, reduced: reducedMotion ?? mq.matches, scope: scope ?? undefined })
+    const e = new LiveEngine(host.current, bg.current, fx.current, { reduced: reducedMotion ?? mq.matches, scope: scope ?? undefined })
     engine.current = e
     onEngine?.(e)
     // QA hook in dev builds only: window.__liveBg.app.stats() / .simulate(100)
@@ -43,9 +41,9 @@ export default function LiveBackgroundCanvas({ mode = 'story', fixed = true, red
       if (fixed) document.documentElement.classList.remove('has-live-bg')
       e.destroy(); engine.current = null; onEngine?.(null)
     }
-    // mode/fixed/scope rebuild the engine; reducedMotion is applied in place below
+    // fixed/scope rebuild the engine; reducedMotion is applied in place below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, fixed, scope])
+  }, [fixed, scope])
 
   useEffect(() => {
     const e = engine.current
@@ -53,7 +51,7 @@ export default function LiveBackgroundCanvas({ mode = 'story', fixed = true, red
   }, [reducedMotion])
 
   return (
-    <div ref={host} className={mode === 'page' ? 'live-bg live-bg--page' : fixed ? 'live-bg' : 'live-bg live-bg--local'} aria-hidden="true">
+    <div ref={host} className={fixed ? 'live-bg' : 'live-bg live-bg--local'} aria-hidden="true">
       <canvas ref={bg} />
       <canvas ref={fx} />
     </div>
