@@ -9,7 +9,11 @@ test('URL ⇄ screen mapping (shareable links)', () => {
   expect(parseRoute(`/requests/${id}`)).toEqual({ view: 'rfq-detail', rfqId: id })
   expect(parseRoute(`/requests/${id}/compare/`)).toEqual({ view: 'comparison', rfqId: id })
   expect(parseRoute('/', `?rfq=${id}`)).toEqual({ view: 'rfq-detail', rfqId: id })
-  for (const [v, r] of [['rfq-list', null], ['create-upload', null], ['rfq-detail', id], ['comparison', id]] as const) {
+  expect(parseRoute(`/requests/${id}/award`)).toEqual({ view: 'award', rfqId: id })
+  expect(parseRoute(`/requests/${id}/review`)).toEqual({ view: 'rfq-detail', rfqId: id }) // 02 is a step of /new
+  expect(parseRoute('/inbox')).toEqual({ view: 'inbox', rfqId: null })
+  expect(parseRoute('/login')).toEqual({ view: 'login', rfqId: null })
+  for (const [v, r] of [['rfq-list', null], ['create-upload', null], ['rfq-detail', id], ['comparison', id], ['award', id], ['inbox', null], ['login', null]] as const) {
     expect(parseRoute(routePath(v, r))).toEqual({ view: v, rfqId: r })
   }
 })

@@ -8,31 +8,42 @@ import type { AppView } from './types'
  *   /new                      طلب جديد
  *   /requests/:id             متابعة الطلب
  *   /requests/:id/compare     مقارنة العروض
- * `/` opens the list for now (the public landing takes `/` in M5). The legacy
- * `?rfq=<id>` link still opens that request. The dev harness (`?harness=`) is left alone.
+ *   /requests/:id/award       تأكيد الترسية (05) — deep link; 04 opens the same sheet in place
+ *   /requests/:id/review      → متابعة الطلب: review (02) is a step of /new, before the request has an id
+ *   /inbox                    صندوق الوارد (06)
+ *   /login                    دخول فرق (the app shows the login on any route while signed out)
+ * `/` is the public landing (main.tsx); the app never renders there except for the legacy
+ * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
+/** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
+export type View = AppView | 'inbox'
 type Ctx = {
-  view: AppView
-  navigate: (v: AppView) => void
+  view: View
+  navigate: (v: View) => void
   selectedRfqId: string | null
   setSelectedRfqId: (id: string | null) => void
 }
 const C = createContext<Ctx | null>(null)
 
-type Route = { view: AppView; rfqId: string | null }
+type Route = { view: View; rfqId: string | null }
 
 export function parseRoute(pathname: string, search = ''): Route {
   const legacy = new URLSearchParams(search).get('rfq')
   const p = pathname.replace(/\/+$/, '') || '/'
   if (p === '/new') return { view: 'create-upload', rfqId: null }
-  const m = /^\/requests\/([^/]+)(\/compare)?$/.exec(p)
-  if (m) return { view: m[2] ? 'comparison' : 'rfq-detail', rfqId: decodeURIComponent(m[1]) }
+  if (p === '/inbox') return { view: 'inbox', rfqId: null }
+  if (p === '/login') return { view: 'login', rfqId: null }
+  const m = /^\/requests\/([^/]+)(?:\/(compare|award|review))?$/.exec(p)
+  if (m) return { view: m[2] === 'compare' ? 'comparison' : m[2] === 'award' ? 'award' : 'rfq-detail', rfqId: decodeURIComponent(m[1]) }
   if (legacy) return { view: 'rfq-detail', rfqId: legacy }
   return { view: 'rfq-list', rfqId: null }
 }
 
-export function routePath(view: AppView, rfqId: string | null): string {
+export function routePath(view: View, rfqId: string | null): string {
   if (view === 'create-upload') return '/new'
+  if (view === 'inbox') return '/inbox'
+  if (view === 'login') return '/login'
+  if (view === 'award' && rfqId) return `/requests/${encodeURIComponent(rfqId)}/award`
   if (view === 'rfq-detail' && rfqId) return `/requests/${encodeURIComponent(rfqId)}`
   if (view === 'comparison' && rfqId) return `/requests/${encodeURIComponent(rfqId)}/compare`
   return '/requests'
@@ -42,11 +53,11 @@ const syncUrl = () => typeof window !== 'undefined' && !new URLSearchParams(wind
 
 export function ProcurementProvider({ children }: { children: ReactNode }) {
   const initial = useRef<Route>(syncUrl() ? parseRoute(window.location.pathname, window.location.search) : { view: 'rfq-list', rfqId: null })
-  const [view, setView] = useState<AppView>(initial.current.view)
+  const [view, setView] = useState<View>(initial.current.view)
   const [selectedRfqId, setSelectedRfqId] = useState<string | null>(initial.current.rfqId)
   const fromHistory = useRef(false)
 
-  const navigate = useCallback((v: AppView) => { setView(v); window.scrollTo({ top: 0 }) }, [])
+  const navigate = useCallback((v: View) => { setView(v); window.scrollTo({ top: 0 }) }, [])
 
   // State → URL (push for user navigation, replace for the first render and history moves).
   const first = useRef(true)

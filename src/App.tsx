@@ -1,14 +1,20 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { ProcurementProvider, useProcurement } from './procurementContext'
 import { useFarqSession } from './api/useFarqSession'
 import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
-import { RfqListV2 } from './views/RfqListV2'
-import { RequestTrackingV2 } from './views/RequestTrackingV2'
-import { ComparisonV2 } from './views/ComparisonV2'
-import { NewRequestV2 } from './views/NewRequestV2'
 import { Button, MobileBottomNav, NavItem, Sidebar as UiSidebar, useIsMobile } from './ui'
 import LiveBackground from './live-bg'
+
+// Each screen is its own chunk (routes in procurementContext.tsx).
+const RfqListV2 = lazy(() => import('./views/RfqListV2').then((m) => ({ default: m.RfqListV2 })))
+const RequestTrackingV2 = lazy(() => import('./views/RequestTrackingV2').then((m) => ({ default: m.RequestTrackingV2 })))
+const ComparisonV2 = lazy(() => import('./views/ComparisonV2').then((m) => ({ default: m.ComparisonV2 })))
+const NewRequestV2 = lazy(() => import('./views/NewRequestV2').then((m) => ({ default: m.NewRequestV2 })))
+const AwardPage = lazy(() => import('./pages/award'))
+const InboxPage = lazy(() => import('./pages/inbox'))
+
+const Loading = () => <div className="p-8 text-right" role="status" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحميل…</div>
 
 /*
  * «فرق تسعير» — owner-only. Two gates: the hosting server asks for the site
@@ -24,12 +30,13 @@ function Sidebar() {
   const { view, navigate } = useProcurement()
   const session = useFarqSession()
   const email = String(session.user?.email || '')
-  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison'
+  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison' || view === 'award'
   return (
     <UiSidebar
       onNewRequest={() => navigate('create-upload')}
       nav={<>
         <NavItem icon="list" label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
+        <NavItem icon="inbox" label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
         <NavItem icon="map-pin" label="الاستهداف" href={TARGETING_URL} external />
       </>}
       account={{ name: email || '—', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
@@ -38,7 +45,7 @@ function Sidebar() {
 }
 
 function Routes() {
-  const { view, navigate } = useProcurement()
+  const { view, navigate, selectedRfqId, setSelectedRfqId } = useProcurement()
   const session = useFarqSession()
   const [checked, setChecked] = useState<'pending' | 'ok' | 'denied'>('pending')
   const mobile = useIsMobile()
@@ -49,6 +56,8 @@ function Routes() {
     if (!email) return
     setChecked(ALLOWED.includes(email) ? 'ok' : 'denied')
   }, [session.isAuthenticated, session.user])
+  // /login while already signed in → the requests list
+  useEffect(() => { if (session.isAuthenticated && view === 'login') navigate('rfq-list') }, [session.isAuthenticated, view, navigate])
 
   if (!session.isAuthenticated) return <LoginV2 navigate={navigate} />
   if (checked === 'denied') {
@@ -62,21 +71,30 @@ function Routes() {
   }
   if (checked === 'pending') return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحقق من الحساب…</div>
   // The new-request flow is a full-page wizard (Figma 01/02 have no sidebar).
-  if (view === 'create-upload') return <NewRequestV2 navigate={navigate} />
-  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison'
+  if (view === 'create-upload') return <Suspense fallback={<Loading />}><NewRequestV2 navigate={navigate} /></Suspense>
+  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison' || view === 'award'
+  const openRequest = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
   return (
     <div className="flex min-h-screen">
       {mobile ? null : <Sidebar />}
       <main className={mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
-        {view === 'rfq-detail' && <RequestTrackingV2 navigate={navigate} />}
-        {view === 'comparison' && <ComparisonV2 navigate={navigate} />}
-        {view !== 'rfq-detail' && view !== 'comparison' && <RfqListV2 navigate={navigate} />}
+        <Suspense fallback={<Loading />}>
+          {view === 'rfq-detail' && <RequestTrackingV2 navigate={navigate} />}
+          {view === 'comparison' && <ComparisonV2 navigate={navigate} />}
+          {view === 'award' && selectedRfqId && (
+            <AwardPage rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')}
+              onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />
+          )}
+          {view === 'inbox' && <InboxPage onOpenRequest={openRequest} />}
+          {(view === 'rfq-list' || view === 'login' || (view === 'award' && !selectedRfqId)) && <RfqListV2 navigate={navigate} />}
+        </Suspense>
       </main>
       {mobile ? (
         // Figma «Mobile Bottom Nav» (55:551): only the sections that exist are shown.
         <MobileBottomNav tabs={[
           { label: 'الطلبات', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
           { label: 'طلب جديد', icon: 'plus', onClick: () => navigate('create-upload') },
+          { label: 'الوارد', icon: 'inbox', active: view === 'inbox', onClick: () => navigate('inbox') },
           { label: 'الاستهداف', icon: 'map-pin', href: TARGETING_URL },
         ]} />
       ) : null}
