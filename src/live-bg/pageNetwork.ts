@@ -19,7 +19,7 @@ type Vert = { x: number; y: number; r: number; c: number }
 type Edge = { a: number; b: number; L: number }
 type Walker = {
   k: number; ch: number; runner: boolean; rest: boolean; target: number; pts: number[][]; fd: number[]; cum: number[]; len: number
-  start: number; arrive: number; tc: number; home: number; done: number; price: number
+  start: number; arrive: number; tc: number; home: number; done: number; price: number; near?: boolean
 }
 type Round = { walkers: Walker[]; allHome: number; best: number; end: number; ahmadHome: boolean }
 export type PageStats = { frames: number; avg: number; p95: number; p99: number; max: number; rounds: number; sync: number }
@@ -64,6 +64,9 @@ const SPEED = 150, DEPTH = 1800
  * (distance actually covered), so the return trip plays the cycle forwards, not in reverse.
  */
 const STRIDE = 17, CONTACT = new Set([0, 1, 3, 4])
+// What each messenger is, in words — the first thing a visitor must read (owner, 2026-10-08)
+const CH_LABEL: Record<string, string> = { whatsapp: 'واتساب · طلب عرض سعر', haraj: 'حراج · طلب عرض سعر', sms: 'رسالة نصية · طلب سعر', call: 'مكالمة · نسأل عن السعر', mail: 'إيميل · طلب عرض سعر' }
+const AHMAD_LABEL = 'أحمد · يدور بنفسه'
 /** Trapezoid speed profile on [0,1]: accelerate over `ra`, cruise, slow down over `rd`. Returns [position, speed/cruise]. */
 function trap(x: number, ra: number, rd: number): [number, number] {
   x = Math.max(0, Math.min(1, x)); ra = Math.min(ra, 0.45); rd = Math.min(rd, 0.45)
@@ -87,6 +90,7 @@ export class PageNetwork {
   private mouse = { x: 0, y: 0, on: false }
   private times = new Float32Array(8192); private nTimes = 0; private rounds = 0; private sync = 0
   private cleanup: Array<() => void> = []
+  private played = 0 // rounds that ran to the end: only the very first one is the short «see it whole» round
   private buckets = new Map<number, number[]>()
   private widths = new Map<string, number>()
   /** measureText once per (font, text): the chips repeat every frame */
@@ -131,7 +135,7 @@ export class PageNetwork {
     if (!this.alive) return
     this.build()
     this.next = null
-    if (!this.reduced) this.commit(this.plan(), this.simT)
+    if (!this.reduced) this.commit(this.plan(this.played === 0), this.simT)
     this.run()
   }
 
@@ -208,8 +212,29 @@ export class PageNetwork {
     const path: number[] = []; let v = to; while (v !== from) { path.unshift(v); v = pv[v] } return path
   }
 
+  /** Smooth route from the head office along `plan`: a cubic launch down to the first point ≥ 90 px away, then Chaikin ×3. */
+  private shape(plan: number[], launch = true) {
+    const { V } = this, C = V[this.HUB]
+    if (!launch) return this.smooth([[C.x, C.y], ...plan.map((i) => [V[i].x, V[i].y])])
+    const rest = plan.slice(); while (rest.length > 3 && V[rest[0]].y < C.y + 90) rest.shift()
+    const P = V[rest[0]], N = V[rest[1]] || P, tl = Math.hypot(N.x - P.x, N.y - P.y) || 1, tx = (N.x - P.x) / tl, ty = (N.y - P.y) / tl, dy = Math.max(40, P.y - C.y)
+    let pts: number[][] = []
+    const c1 = [C.x + (P.x - C.x) * 0.08, C.y + dy * 0.55], c2 = [P.x - tx * dy * 0.45, P.y - ty * dy * 0.45]
+    for (let i = 0; i <= 18; i++) { const u = i / 18, a = (1 - u) ** 3, b = 3 * (1 - u) ** 2 * u, c = 3 * (1 - u) * u * u, d = u ** 3; pts.push([a * C.x + b * c1[0] + c * c2[0] + d * P.x, a * C.y + b * c1[1] + c * c2[1] + d * P.y]) }
+    for (const i of rest.slice(1)) pts.push([V[i].x, V[i].y])
+    return this.smooth(pts)
+  }
+  /** Chaikin ×3, cumulative length, and the line strength along the route (soft behind content, never cut). */
+  private smooth(pts: number[][]) {
+    for (let it = 0; it < 3; it++) { const q = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]) } q.push(pts[pts.length - 1]); pts = q }
+    const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+    // line strength along the route: soft behind content (0.12), full in open space — never cut
+    const fd = pts.map(([x, y]) => Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, (this.dist(x, y) - 2) / 30))) * 6) / 6)
+    return { pts, fd, cum }
+  }
+
   /** Plans a round with times relative to its start (0). Runs in idle time for the next round. */
-  private plan(tries = 0): Round {
+  private plan(first = false, tries = 0): Round {
     const { V, E, adj, W, VW, VH } = this, S_client = this.HUB
     const base = 3000 + Math.random() * 9000, C = V[S_client]
     const NB = (ei: number) => { const e = E[ei]; return e.a === S_client ? e.b : e.a }, ANG = (ei: number) => Math.atan2(V[NB(ei)].y - C.y, V[NB(ei)].x - C.x)
@@ -217,15 +242,23 @@ export class PageNetwork {
     const out = [...new Set(Array.from({ length: M }, (_, k) => all[Math.round((k * (all.length - 1)) / Math.max(1, M - 1))]))]
     const CW = W / out.length, jit = (Math.random() - 0.5) * CW * 0.3 // each request owns one column below the head office
     const RK = (Math.random() * out.length) | 0, RMAX = Math.max(360, Math.min(VH * 0.9, 760)) // Ahmad: a shorter track
+    // the first round after the page opens is short, and the two columns nearest the head office keep their supplier on
+    // the first screen — a visitor sees a whole trip (out, price, back) without scrolling
+    const depth = first ? Math.min(DEPTH, VH * 1.4) : DEPTH
+    const cx = (k: number) => W - k * CW + jit - CW / 2
+    const near = new Set(out.map((_, k) => k).filter((k) => k !== RK).sort((a, b) => Math.abs(cx(a) - C.x) - Math.abs(cx(b) - C.x)).slice(0, 2))
+    // launch order: from the head office outwards, half a second apart, so every label can be read
+    const launch = out.map((_, k) => k).sort((a, b) => Math.abs(cx(a) - C.x) - Math.abs(cx(b) - C.x))
     const owner = new Int16Array(V.length).fill(-1); owner[S_client] = 999
     const walkers: Walker[] = []
     out.forEach((ei, k) => { owner[NB(ei)] = k })
     out.forEach((ei, k) => {
       const nb = NB(ei), x1 = W - k * CW + jit, x0 = x1 - CW // first edges sorted right→left, so columns run right→left
-      const cand: Array<[number, number]> = []
-      for (let i = 0; i < V.length; i++) {
+      const cand: Array<[number, number]> = [], onFirst = near.has(k)
+      for (let pass = 0; pass < 2 && !cand.length; pass++) for (let i = 0; i < V.length; i++) {
         if (owner[i] >= 0) continue; const v = V[i]
-        if (v.y < C.y + 70 || v.y > C.y + DEPTH || v.x < x0 - CW * 0.35 || v.x > x1 + CW * 0.35 || this.inUI(v.x, v.y, 30)) continue // suppliers below, in open space
+        if (pass === 0 && onFirst && (v.y > VH - 90 || v.y < C.y + 140)) continue // a supplier the visitor can see
+        if (v.y < C.y + 70 || v.y > C.y + depth || v.x < x0 - CW * 0.35 || v.x > x1 + CW * 0.35 || this.inUI(v.x, v.y, 30)) continue // suppliers below, in open space
         if (k === RK && Math.hypot(v.x - C.x, v.y - C.y) > RMAX) continue
         cand.push([v.y, i]) // the deepest points of the column: every trip is about as long
       }
@@ -238,35 +271,41 @@ export class PageNetwork {
         if (r) { plan = [nb, ...r]; target = i; break }
       }
       this.LAST[k] = target; plan.forEach((v) => (owner[v] = k))
-      // smooth route: a cubic launch down from the head office to the first point ≥ 90 px away, then Chaikin ×3
-      const rest = plan.slice(); while (rest.length > 3 && V[rest[0]].y < C.y + 90) rest.shift()
-      const P = V[rest[0]], N = V[rest[1]] || P, tl = Math.hypot(N.x - P.x, N.y - P.y) || 1, tx = (N.x - P.x) / tl, ty = (N.y - P.y) / tl, dy = Math.max(40, P.y - C.y)
-      let pts: number[][] = []
-      const c1 = [C.x + (P.x - C.x) * 0.08, C.y + dy * 0.55], c2 = [P.x - tx * dy * 0.45, P.y - ty * dy * 0.45]
-      for (let i = 0; i <= 18; i++) { const u = i / 18, a = (1 - u) ** 3, b = 3 * (1 - u) ** 2 * u, c = 3 * (1 - u) * u * u, d = u ** 3; pts.push([a * C.x + b * c1[0] + c * c2[0] + d * P.x, a * C.y + b * c1[1] + c * c2[1] + d * P.y]) }
-      for (const i of rest.slice(1)) pts.push([V[i].x, V[i].y])
-      for (let it = 0; it < 3; it++) { const q = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]) } q.push(pts[pts.length - 1]); pts = q }
-      const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
-      // line strength along the route: soft behind content (0.12), full in open space — never cut
-      const fd = pts.map(([x, y]) => Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, (this.dist(x, y) - 2) / 30))) * 6) / 6)
-      const start = Math.random() * 0.3
-      walkers.push({ k, ch: 0, runner: false, rest: false, target, pts, fd, cum, len: cum[cum.length - 1], start, arrive: start, tc: 0, home: 0, done: 0, price: Math.round((base * (0.82 + Math.random() * 0.36)) / 10) * 10 })
+      const { pts, fd, cum } = this.shape(plan)
+      const start = launch.indexOf(k) * 0.5 + Math.random() * 0.1
+      walkers.push({ near: onFirst, k, ch: 0, runner: false, rest: false, target, pts, fd, cum, len: cum[cum.length - 1], start, arrive: start, tc: 0, home: 0, done: 0, price: Math.round((base * (0.82 + Math.random() * 0.36)) / 10) * 10 })
     })
     { // a request that couldn't get through this round sits it out: trips stay about equal
       const ls = walkers.filter((w) => w.k !== RK).map((w) => w.len).sort((a, b) => a - b), med = ls[ls.length >> 1] || 0
-      for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].k !== RK && walkers[i].len < med * 0.55) walkers.splice(i, 1)
+      for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].k !== RK && !walkers[i].near && walkers[i].len < med * 0.55) walkers.splice(i, 1)
     }
     { // one shared outbound time D = clamp(longest ÷ 320, 6, 9) s (±4 %), return 0.62·D
-      const maxL = Math.max(...walkers.map((w) => w.len)), D = Math.max(8, Math.min(14, maxL / SPEED)), Rt = Math.max(6, D * 0.8)
+      const maxL = Math.max(...walkers.map((w) => w.len)), D = first ? Math.max(7, Math.min(10, maxL / SPEED)) : Math.max(8, Math.min(14, maxL / SPEED)), Rt = Math.max(first ? 5 : 6, D * 0.8)
       for (const w of walkers) { w.arrive = w.start + D * (0.96 + Math.random() * 0.08); w.tc = w.arrive + 0.6 + Math.random() * 0.3; w.home = w.tc + Rt * (0.96 + Math.random() * 0.08); w.done = w.home }
     }
     const clear = (w: Walker) => { if (V[w.target].y <= 90) return false; for (let d = 40; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (this.inUI(x, y, 22)) return false } return true }
     let pick = walkers.filter((w) => w.k === RK && w.len > Math.min(VW, VH) * 0.3 && clear(w))
-    if (!pick.length && tries < 8) return this.plan(tries + 1)
+    if (!pick.length && tries < 8) return this.plan(first, tries + 1)
     if (!pick.length) pick = walkers.filter((w) => w.len < RMAX * 1.6 && clear(w))
     let r: Walker | null = pick[(Math.random() * pick.length) | 0] ?? null, ahmadHome = false
     // no clean track: he waits next to the head office (present) — never runs behind text
-    if (!r || r.len < 200 || !clear(r)) { const i = walkers.findIndex((w) => w.k === RK); if (i >= 0) walkers.splice(i, 1); r = null; ahmadHome = true }
+    if (!r || r.len < 200 || !clear(r)) {
+      // no clean track down his column: his own way through the free space of the first screen (any direction),
+      // never behind text; only if there is none, he waits next to the head office
+      const blockV = (v: number) => (owner[v] >= 0 && owner[v] !== RK) || this.inUI(V[v].x, V[v].y, 24)
+      const cand: Array<[number, number]> = []
+      for (let i = 0; i < V.length; i++) { const v = V[i]; if (blockV(i) || this.inUI(v.x, v.y, 40) || v.y <= 90 || v.y > VH - 90) continue; const d = Math.hypot(v.x - C.x, v.y - C.y); if (d >= 260 && d <= RMAX) cand.push([d, i]) }
+      cand.sort((a, b) => b[0] - a[0])
+      let alt: Walker | null = null
+      for (const [, i] of cand.slice(0, 16)) {
+        const route = this.routeV(S_client, i, blockV); if (!route) continue
+        const { pts, fd, cum } = this.shape(route, false), len = cum[cum.length - 1]
+        const w: Walker = { k: RK, ch: 0, runner: false, rest: false, target: i, pts, fd, cum, len, start: launch.indexOf(RK) * 0.5, arrive: 0, tc: 0, home: 0, done: 0, price: Math.round((base * (0.82 + Math.random() * 0.36)) / 10) * 10 }
+        if (len >= 200 && clear(w)) { alt = w; break }
+      }
+      const i0 = walkers.findIndex((w) => w.k === RK); if (i0 >= 0) walkers.splice(i0, 1)
+      if (alt) { walkers.push(alt); r = alt } else { r = null; ahmadHome = true }
+    }
     if (r) { r.runner = true; r.rest = false; r.arrive = r.start + Math.max(4, r.len / 115); r.tc = r.arrive + 2.2; r.home = r.tc + Math.max(4, r.len / 110); r.done = r.home + 1.2 }
     const order = shuffle(CHANNELS.map((_, i) => i)); let j = 0
     for (const w of walkers) if (!w.runner) w.ch = order[j++ % order.length]
@@ -351,13 +390,13 @@ export class PageNetwork {
     c.restore()
   }
   private doc(x: number, y: number, k = 0, lift = 6, noIcon = false) {
-    const c = this.ctx, label = 'طلب عرض سعر'
-    c.save(); c.font = `700 11px ${FONT}`; c.direction = 'rtl'; c.textBaseline = 'middle'
-    const tw = this.tw(c.font, label), w = tw + (noIcon ? 18 : 38), h = 22, X = x - w / 2, Y = y - h - lift
+    const c = this.ctx, label = noIcon ? AHMAD_LABEL : CH_LABEL[CHANNELS[k % CHANNELS.length]] ?? 'طلب عرض سعر'
+    c.save(); c.font = `700 12px ${FONT}`; c.direction = 'rtl'; c.textBaseline = 'middle'
+    const tw = this.tw(c.font, label), w = tw + (noIcon ? 18 : 38), h = 24, X = x - w / 2, Y = y - h - lift
     if (!this.freeBox(X, Y, w, h + lift)) { c.restore(); return }
     this.rr(X, Y, w, h, 11); c.fillStyle = col(this.surface, 0.97); c.fill(); c.lineWidth = 1; c.strokeStyle = col(this.go, 0.6); c.stroke()
     c.textAlign = 'right'; c.fillStyle = col(this.go, 1); c.fillText(label, X + w - 9, Y + h / 2 + 1)
-    const im = img('channel-' + CHANNELS[k % CHANNELS.length], this.scale); if (!noIcon && ready(im)) c.drawImage(im, X + 3, Y + 1, 20, 20)
+    const im = img('channel-' + CHANNELS[k % CHANNELS.length], this.scale); if (!noIcon && ready(im)) c.drawImage(im, X + 3, Y + 2, 20, 20)
     c.restore()
     if (lift === 6) { c.fillStyle = col(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, TAU); c.fill() }
   }
@@ -494,7 +533,7 @@ export class PageNetwork {
         if (pos[1] > this.SY - 90 && pos[1] < this.SY + this.VH + 90) {
           this.runner(pos[0], pos[1] + 1, RS.odo, state, t)
           const cy = pos[1] - 76
-          if (t >= w.start && t < w.arrive) this.doc(pos[0], cy, 0, 0, true)
+          if (t >= w.start && t < w.arrive) this.doc(pos[0], cy, 0, 0, true) // «أحمد · يدور بنفسه»
           else if (t >= w.arrive && t < w.arrive + 1.1) this.pill(pos[0], cy + 6, 'وصل… يلتقط أنفاسه', false, false)
           else if (t >= w.arrive && t < w.tc - 0.9) this.pill(pos[0], cy + 6, 'يسعّر عند المورد…', false, false)
           else if (t >= w.arrive && t < w.home) this.pill(pos[0], cy + 6, fmt(w.price), true, false)
@@ -505,6 +544,19 @@ export class PageNetwork {
     const C = V[this.HUB]
     if (S.ahmadHome && this.freeBox(C.x + 16, C.y - 60, 30, 64)) this.pose('present', 0, C.x + 32, C.y + 4, 1)
     this.hq(C.x, C.y)
+    { // what is happening, in one line under the head office
+      const arrived = S.walkers.filter((w) => t >= w.arrive).length, back = S.walkers.filter((w) => t >= w.home).length, n0 = S.walkers.length
+      const line = t >= S.allHome ? '' : back ? `وصلت ${back} من ${n0} أسعار` : arrived ? 'الموردين يسعّرون…' : `نرسل طلبك لـ${n0} موردين بكل القنوات`
+      if (line) {
+        ctx.save(); ctx.font = `600 13px ${FONT}`; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        const lw = this.tw(ctx.font, line) + 22, lh = 26, X = C.x - lw / 2, Y = C.y + 46
+        if (this.freeBox(X, Y, lw, lh)) {
+          this.rr(X, Y, lw, lh, 13); ctx.fillStyle = col(this.surface, 0.96); ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = col(this.go, 0.45); ctx.stroke()
+          ctx.fillStyle = col(this.ink, 1); ctx.fillText(line, C.x, Y + lh / 2 + 1)
+        }
+        ctx.restore()
+      }
+    }
     const n = S.walkers.length; ctx.lineWidth = 2; ctx.strokeStyle = col(this.back, 0.9)
     for (let k = 0; k < got; k++) { const a0 = -Math.PI / 2 + (k * TAU) / n + 0.08, a1 = a0 + TAU / n - 0.16; ctx.beginPath(); ctx.arc(C.x, C.y, 22, a0, a1); ctx.stroke() }
     if (t >= S.allHome && n) {
@@ -524,7 +576,7 @@ export class PageNetwork {
   private loop = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.simT += dt
     const t0 = performance.now()
-    if (this.simT > this.S.end) { let R = this.next; this.next = null; if (!R) { R = this.plan(); this.sync++ } this.commit(R, this.simT) }
+    if (this.simT > this.S.end) { this.played++; let R = this.next; this.next = null; if (!R) { R = this.plan(); this.sync++ } this.commit(R, this.simT) }
     this.draw(this.simT)
     this.times[this.nTimes++ % this.times.length] = performance.now() - t0
     this.raf = requestAnimationFrame(this.loop)
@@ -533,7 +585,7 @@ export class PageNetwork {
     cancelAnimationFrame(this.raf); this.raf = 0
     if (!this.alive) return
     if (this.reduced) { this.drawStatic(); return } // reduced motion: the still grid and the head office
-    if (!this.S) this.commit(this.plan(), this.simT)
+    if (!this.S) this.commit(this.plan(this.played === 0), this.simT)
     if (!document.hidden) { this.last = performance.now(); this.raf = requestAnimationFrame(this.loop) }
   }
 }
