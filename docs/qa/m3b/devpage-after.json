@@ -1,0 +1,122 @@
+[
+ {
+  "viewport": "1440x900",
+  "tone": "light",
+  "sim100": {
+   "far": 100,
+   "near": 0,
+   "none": 0,
+   "rerolls": 12
+  },
+  "frames": 1204,
+  "avg": 0.311,
+  "p95": 0.6,
+  "max": 1.2,
+  "rounds": 2,
+  "far": 2,
+  "near": 0,
+  "none": 0,
+  "sync": 0,
+  "p99": 0.800000011920929
+ },
+ {
+  "viewport": "1440x900",
+  "tone": "deep",
+  "sim100": {
+   "far": 100,
+   "near": 0,
+   "none": 0,
+   "rerolls": 29
+  },
+  "frames": 1210,
+  "avg": 0.363,
+  "p95": 0.6,
+  "max": 1.4,
+  "rounds": 2,
+  "far": 2,
+  "near": 0,
+  "none": 0,
+  "sync": 0,
+  "p99": 0.800000011920929
+ },
+ {
+  "viewport": "1440x900",
+  "tone": "accent",
+  "sim100": {
+   "far": 100,
+   "near": 0,
+   "none": 0,
+   "rerolls": 15
+  },
+  "frames": 1207,
+  "avg": 0.377,
+  "p95": 0.6,
+  "max": 20.5,
+  "rounds": 2,
+  "far": 2,
+  "near": 0,
+  "none": 0,
+  "sync": 0,
+  "p99": 0.699999988079071
+ },
+ {
+  "viewport": "390x844",
+  "tone": "light",
+  "sim100": {
+   "far": 100,
+   "near": 0,
+   "none": 0,
+   "rerolls": 50
+  },
+  "frames": 1213,
+  "avg": 0.292,
+  "p95": 0.5,
+  "max": 1.8,
+  "rounds": 3,
+  "far": 3,
+  "near": 0,
+  "none": 0,
+  "sync": 0,
+  "p99": 0.6000000238418579
+ },
+ {
+  "viewport": "390x844",
+  "tone": "deep",
+  "sim100": {
+   "far": 100,
+   "near": 0,
+   "none": 0,
+   "rerolls": 61
+  },
+  "frames": 1216,
+  "avg": 0.37,
+  "p95": 0.6,
+  "max": 2.3,
+  "rounds": 3,
+  "far": 3,
+  "near": 0,
+  "none": 0,
+  "sync": 0,
+  "p99": 0.800000011920929
+ },
+ {
+  "viewport": "390x844",
+  "tone": "accent",
+  "sim100": {
+   "far": 100,
+   "near": 0,
+   "none": 0,
+   "rerolls": 63
+  },
+  "frames": 1211,
+  "avg": 0.411,
+  "p95": 0.7,
+  "max": 21.1,
+  "rounds": 3,
+  "far": 3,
+  "near": 0,
+  "none": 0,
+  "sync": 0,
+  "p99": 0.800000011920929
+ }
+]
