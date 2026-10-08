@@ -60,6 +60,17 @@ function img(stem: string, scale: 1 | 2) {
 }
 const ready = (im: HTMLImageElement) => im.complete && im.naturalWidth > 0
 
+// ---------- chips: every label is rendered once into its own small canvas, the frame loop only blits ----------
+type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+/** A pre-rendered chip; x/y/w/h is its box relative to the anchor point it is drawn at. */
+type Chip = { c: CanvasImageSource; x: number; y: number; w: number; h: number }
+const PAD = 2
+const surface = (w: number, h: number) => (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }))
+function rr(c: Ctx2D, X: number, Y: number, w: number, h: number, r: number) {
+  c.beginPath(); c.moveTo(X + r, Y); c.arcTo(X + w, Y, X + w, Y + h, r); c.arcTo(X + w, Y + h, X, Y + h, r); c.arcTo(X, Y + h, X, Y, r); c.arcTo(X, Y, X + w, Y, r); c.closePath()
+}
+const RUNNER_LABELS = ['وصل… يلتقط أنفاسه', 'يسعّر عند المورد…', 'سلّم السعر ✓']
+
 function mulberry(seed: number) {
   let a = seed
   return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
@@ -122,6 +133,7 @@ export class LiveEngine {
   private raf = 0; private simT = 0; private last = 0; private onScreen = true; private alive = true
   private times = new Float32Array(8192); private nTimes = 0
   private next: Plan | null = null; private gen = 0; private warmed = false; private warming = false
+  private chips = new Map<string, Chip>(); private mctx = surface(1, 1).getContext('2d') as Ctx2D
   private counts = { rounds: 0, far: 0, near: 0, none: 0, rerolls: 0, sync: 0 }
   private cleanup: Array<() => void> = []
   private host: HTMLElement; private bg: HTMLCanvasElement; private fx: HTMLCanvasElement; private opts: EngineOpts
@@ -129,6 +141,7 @@ export class LiveEngine {
   constructor(host: HTMLElement, bg: HTMLCanvasElement, fx: HTMLCanvasElement, opts: EngineOpts) {
     this.host = host; this.bg = bg; this.fx = fx; this.opts = opts
     this.bctx = bg.getContext('2d')!
+    fx.style.opacity = '0' // fades in once the warm-up is done
     this.ctx = fx.getContext('2d')!
     const run = () => this.run()
     document.addEventListener('visibilitychange', run)
@@ -170,7 +183,8 @@ export class LiveEngine {
     if (!this.alive) return
     this.build()
     this.gen++; this.next = null
-    if (!this.opts.reduced) { this.commit(this.planRound(), this.simT); this.schedulePlan(); this.draw(this.simT) } // first paint here, not in the loop
+    this.chips.clear() // colours / DPR may have changed
+    if (!this.opts.reduced) { const p = this.planRound(); this.prerender(p.walkers); this.commit(p, this.simT); this.schedulePlan() }
     this.run()
   }
 
@@ -384,10 +398,13 @@ export class LiveEngine {
     this.S = { walkers: p.walkers, allHome, best: Math.min(...p.walkers.map((w) => w.price)), end: allHome + 2.8 } // next round leaves right away
   }
   /**
-   * The first time a frame meets a new state (a sprite's GPU upload, a label's shaping, a code path V8 has not seen —
-   * arrival, «أرخص سعر») it costs 5–20 ms on a slow CPU. So before the animation starts: decode every sprite, then,
-   * in idle slices, draw every sprite and label once and replay the whole round's timeline, and clear. The static
-   * layer and the first paint are already on screen meanwhile.
+   * Warm-up before the first animated frame (the first time a frame meets a new state — an image's GPU upload, a
+   * label's shaping, a code path V8 has not optimised — it can cost 5–30 ms on a slow CPU):
+   *   1. await img.decode() for every sprite (Ahmad + channels);
+   *   2. render every chip once (fonts shaped and measured, off-screen canvases);
+   *   3. replay the round's timeline (run, tired, chips, prices) on the effects layer while it is still invisible
+   *      (opacity 0), in idle slices, so V8 optimises draw() and the GPU has every texture;
+   *   4. one more idle turn, then the loop starts and the layer fades in over 300 ms.
    */
   private warm() {
     if (this.warmed || this.warming) return
@@ -395,32 +412,35 @@ export class LiveEngine {
     const stems = [CYCLE.f, ...Object.values(POSES).flat().map((p) => p.f), ...CHANNELS.map((c) => 'channel-' + c)]
     const ims = stems.map((s) => img(s, this.scale))
     const idle = (f: () => void) => ('requestIdleCallback' in window ? window.requestIdleCallback(f, { timeout: 1000 }) : setTimeout(f, 16))
-    // one more idle turn before the loop starts, so the garbage the warm-up made is collected outside an animation frame
-    const done = () => idle(() => { this.warming = false; this.warmed = true; this.run() })
+    const done = () => idle(() => {
+      this.warming = false; this.warmed = true
+      this.ctx.clearRect(0, 0, this.W, this.H)
+      this.fx.style.transition = 'opacity 300ms ease-out'; this.fx.style.opacity = '1'
+      this.run()
+    })
     void Promise.all(ims.map((im) => im.decode().catch(() => {}))).then(() => idle(() => {
       if (!this.alive) return
+      if (this.opts.reduced || !this.S) { done(); return }
+      this.chips.clear(); this.prerender(this.S.walkers) // icons are decoded now: chips carry their channel mark
       const c = this.ctx; c.save(); c.globalAlpha = 0.01
       for (const im of ims) if (ready(im)) c.drawImage(im, 0, 0, 2, 2)
-      c.direction = 'rtl'
-      for (const [font, text] of [[`700 11px ${FONT}`, 'طلب عرض سعر وصل… يلتقط أنفاسه يسعّر عند المورد… سلّم السعر ✓ 0123456789, ر.س'], [`500 11px ${FONT}`, 'مقر الشركة مورد'], [`500 12px ${FONT}`, 'أرخص سعر'], [`700 14px ${FONT_NUM}`, '0123456789, ر.س']]) { c.font = font; c.fillText(text, 0, 8) }
       c.restore()
-      // replay the current round's timeline (Ahmad's steering state is saved and restored)
       const S = this.S, RS = { ...this.RS }, t0 = S.walkers[0]?.start ?? this.simT, ts: number[] = []
       for (let t = t0; t <= S.end; t += 0.25) ts.push(t)
       const slice = () => {
         if (!this.alive) return
         for (const t of ts.splice(0, 12)) this.draw(t)
         if (ts.length) { idle(slice); return }
-        this.RS = RS; this.draw(this.simT); done()
+        this.RS = RS; done()
       }
-      if (S && !this.opts.reduced) slice(); else done()
+      slice()
     }))
   }
 
   /** Plan the next round while this one plays: requestIdleCallback, setTimeout where it is missing. */
   private schedulePlan() {
     const gen = this.gen
-    const job = () => { if (this.alive && gen === this.gen && !this.next) this.next = this.planRound() }
+    const job = () => { if (this.alive && gen === this.gen && !this.next) { this.next = this.planRound(); this.prerender(this.next.walkers) } }
     if ('requestIdleCallback' in window) window.requestIdleCallback(job, { timeout: 3000 })
     else setTimeout(job, 200)
   }
@@ -459,41 +479,104 @@ export class LiveEngine {
     for (let i = 1; i < w.cum.length; i++) if (w.cum[i] > d0 && w.cum[i] < d1) { const v = this.V[w.path[i]]; ctx.lineTo(v.x, v.y) }
     ;[x, y] = this.at(w, d1); ctx.lineTo(x, y); ctx.stroke()
   }
-  private rr(X: number, Y: number, w: number, h: number, r: number) {
-    const c = this.ctx; c.beginPath(); c.moveTo(X + r, Y); c.arcTo(X + w, Y, X + w, Y + h, r); c.arcTo(X + w, Y + h, X, Y + h, r); c.arcTo(X, Y + h, X, Y, r); c.arcTo(X, Y, X + w, Y, r); c.closePath()
+  private chip(key: string, make: (m: Ctx2D) => [number, number, number, number, (c: Ctx2D) => void]): Chip {
+    let e = this.chips.get(key)
+    if (e) return e
+    if (this.chips.size > 400) this.chips.clear() // prices accumulate round after round
+    const [x, y, w, h, paint] = make(this.mctx)
+    const s = this.DPR, cv = surface(Math.ceil((w + PAD * 2) * s), Math.ceil((h + PAD * 2) * s)), c = cv.getContext('2d') as Ctx2D
+    c.scale(s, s); c.translate(PAD - x, PAD - y); paint(c)
+    e = { c: cv, x, y, w, h }; this.chips.set(key, e)
+    return e
+  }
+  private blit(e: Chip, ax: number, ay: number) {
+    const s = this.DPR, X = Math.round((ax + e.x - PAD) * s) / s, Y = Math.round((ay + e.y - PAD) * s) / s // whole device pixels: no resampling blur
+    this.ctx.drawImage(e.c, X, Y, e.w + PAD * 2, e.h + PAD * 2)
+  }
+  private pillChip(text: string, solid: boolean) {
+    return this.chip(`p${solid ? 1 : 0}|${text}`, (m) => {
+      m.font = `700 11px ${FONT}`; m.direction = 'rtl'
+      const w = m.measureText(text).width + 14, h = 18
+      return [-w / 2, -h - 6, w, h, (c) => {
+        rr(c, -w / 2, -h - 6, w, h, 9); c.fillStyle = solid ? rgba(this.back, 0.95) : rgba(this.surface, 0.95); c.fill()
+        c.lineWidth = 1; c.strokeStyle = solid ? rgba(this.back, 0.95) : rgba(this.go, 0.55); c.stroke()
+        c.font = `700 11px ${FONT}`; c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle'
+        c.fillStyle = solid ? rgba(this.contrastOn(this.back), 1) : rgba(this.go, 0.95); c.fillText(text, 0, -h - 6 + h / 2 + 1)
+      }]
+    })
   }
   private pill(x: number, y: number, text: string, solid: boolean, dot = true) {
-    const c = this.ctx; c.save(); c.font = `700 11px ${FONT}`; c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle'
-    const w = c.measureText(text).width + 14, h = 18, X = x - w / 2, Y = y - h - 6
-    this.rr(X, Y, w, h, 9); c.fillStyle = solid ? rgba(this.back, 0.95) : rgba(this.surface, 0.95); c.fill()
-    c.lineWidth = 1; c.strokeStyle = solid ? rgba(this.back, 0.95) : rgba(this.go, 0.55); c.stroke()
-    c.fillStyle = solid ? rgba(this.contrastOn(this.back), 1) : rgba(this.go, 0.95); c.fillText(text, x, Y + h / 2 + 1)
-    if (dot) { c.fillStyle = solid ? rgba(this.back, 0.95) : rgba(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill() }
-    c.restore()
+    this.blit(this.pillChip(text, solid), x, y)
+    if (dot) { const c = this.ctx; c.fillStyle = solid ? rgba(this.back, 0.95) : rgba(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill() }
   }
   /** Text on a filled return-colour chip: white in the prototype; on a white return colour (accent tone) use ink. */
   private contrastOn(c: RGB): RGB { return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] > 200 ? this.ink : this.surface }
-  private doc(x: number, y: number, k: number, lift = 6, noIcon = false) {
-    const c = this.ctx, label = 'طلب عرض سعر'
-    c.save(); c.font = `700 11px ${FONT}`; c.direction = 'rtl'; c.textBaseline = 'middle'
-    const tw = c.measureText(label).width, w = tw + (noIcon ? 18 : 38), h = 22, X = x - w / 2, Y = y - h - lift
-    this.rr(X, Y, w, h, 11); c.fillStyle = rgba(this.surface, 0.97); c.fill(); c.lineWidth = 1; c.strokeStyle = rgba(this.go, 0.6); c.stroke()
-    c.textAlign = 'right'; c.fillStyle = rgba(this.go, 1); c.fillText(label, X + w - 9, Y + h / 2 + 1)
-    const im = img('channel-' + CHANNELS[k % CHANNELS.length], this.scale)
-    if (!noIcon && ready(im)) c.drawImage(im, X + 3, Y + 1, 20, 20)
-    c.restore()
-    if (lift === 6) { c.fillStyle = rgba(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill() }
+  private docChip(k: number, lift: number, noIcon: boolean) {
+    const im = img('channel-' + CHANNELS[k % CHANNELS.length], this.scale), icon = !noIcon && ready(im)
+    return this.chip(`d${noIcon ? '-' : k}|${lift}|${icon ? 'i' : ''}`, (m) => {
+      const label = 'طلب عرض سعر'
+      m.font = `700 11px ${FONT}`; m.direction = 'rtl'
+      const w = m.measureText(label).width + (noIcon ? 18 : 38), h = 22, X = -w / 2, Y = -h - lift
+      return [X, Y, w, h, (c) => {
+        rr(c, X, Y, w, h, 11); c.fillStyle = rgba(this.surface, 0.97); c.fill(); c.lineWidth = 1; c.strokeStyle = rgba(this.go, 0.6); c.stroke()
+        c.font = `700 11px ${FONT}`; c.direction = 'rtl'; c.textBaseline = 'middle'; c.textAlign = 'right'; c.fillStyle = rgba(this.go, 1); c.fillText(label, X + w - 9, Y + h / 2 + 1)
+        if (icon) c.drawImage(im, X + 3, Y + 1, 20, 20)
+      }]
+    })
   }
-  private hq(x: number, y: number) {
-    const c = this.ctx; c.save(); c.translate(x, y)
-    this.rr(-15, -15, 30, 30, 7); c.fillStyle = rgba(this.surface, 1); c.fill(); c.lineWidth = 1.4; c.strokeStyle = rgba(this.go, 0.9); c.stroke()
-    c.fillStyle = rgba(this.go, 0.9); c.fillRect(-7, -8, 9, 16); c.fillRect(3, -2, 5, 10)
-    c.fillStyle = rgba(this.surface, 1)
-    for (const [wx, wy] of [[-5, -6], [-1.5, -6], [-5, -2.5], [-1.5, -2.5], [-5, 1], [-1.5, 1]]) c.fillRect(wx, wy, 2, 2)
-    c.fillRect(-3.5, 4.5, 2.5, 3.5); c.fillRect(4.5, 0, 2, 2); c.fillRect(4.5, 3.5, 2, 2)
-    c.font = `500 11px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'top'; c.direction = 'rtl'
-    c.fillStyle = rgba(this.surface, 0.9); const lw = c.measureText('مقر الشركة').width + 10; c.fillRect(-lw / 2, 26, lw, 15)
-    c.fillStyle = rgba(this.ink2, 1); c.fillText('مقر الشركة', 0, 28); c.restore()
+  private doc(x: number, y: number, k: number, lift = 6, noIcon = false) {
+    this.blit(this.docChip(k, lift, noIcon), x, y)
+    if (lift === 6) { const c = this.ctx; c.fillStyle = rgba(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill() }
+  }
+  private supplierChip() {
+    return this.chip('m', (m) => {
+      m.font = `500 11px ${FONT}`; m.direction = 'rtl'
+      const lw = m.measureText('مورد').width + 8
+      return [-lw / 2, -1, lw, 14, (c) => {
+        c.fillStyle = rgba(this.surface, 0.85); c.fillRect(-lw / 2, -1, lw, 14)
+        c.font = `500 11px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'top'; c.direction = 'rtl'; c.fillStyle = rgba(this.ink2, 1); c.fillText('مورد', 0, 0)
+      }]
+    })
+  }
+  private hqChip() {
+    return this.chip('hq', (m) => {
+      m.font = `500 11px ${FONT}`; m.direction = 'rtl'
+      const lw = m.measureText('مقر الشركة').width + 10, half = Math.max(16, lw / 2)
+      return [-half, -16, half * 2, 58, (c) => {
+        rr(c, -15, -15, 30, 30, 7); c.fillStyle = rgba(this.surface, 1); c.fill(); c.lineWidth = 1.4; c.strokeStyle = rgba(this.go, 0.9); c.stroke()
+        c.fillStyle = rgba(this.go, 0.9); c.fillRect(-7, -8, 9, 16); c.fillRect(3, -2, 5, 10)
+        c.fillStyle = rgba(this.surface, 1)
+        for (const [wx, wy] of [[-5, -6], [-1.5, -6], [-5, -2.5], [-1.5, -2.5], [-5, 1], [-1.5, 1]]) c.fillRect(wx, wy, 2, 2)
+        c.fillRect(-3.5, 4.5, 2.5, 3.5); c.fillRect(4.5, 0, 2, 2); c.fillRect(4.5, 3.5, 2, 2)
+        c.font = `500 11px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'top'; c.direction = 'rtl'
+        c.fillStyle = rgba(this.surface, 0.9); c.fillRect(-lw / 2, 26, lw, 15)
+        c.fillStyle = rgba(this.ink2, 1); c.fillText('مقر الشركة', 0, 28)
+      }]
+    })
+  }
+  private bestChip(val: string) {
+    return this.chip(`b|${val}`, (m) => {
+      const lab = 'أرخص سعر'
+      m.direction = 'rtl'; m.font = `500 12px ${FONT}`; const w1 = m.measureText(lab).width
+      m.font = `700 14px ${FONT_NUM}`; const w2 = m.measureText(val).width
+      const w = w1 + w2 + 34, h = 30, X = -w / 2, Y = -58
+      return [X, Y, w, h, (c) => {
+        rr(c, X, Y, w, h, 15); c.fillStyle = rgba(this.surface, 1); c.fill(); c.lineWidth = 1.2; c.strokeStyle = rgba(this.back, 0.95); c.stroke()
+        c.direction = 'rtl'; c.textBaseline = 'middle'
+        c.textAlign = 'right'; c.font = `500 12px ${FONT}`; c.fillStyle = rgba(this.ink2, 1); c.fillText(lab, X + w - 12, Y + h / 2 + 1)
+        c.textAlign = 'left'; c.font = `700 14px ${FONT_NUM}`; c.fillStyle = rgba(this.ink, 1); c.fillText(val, X + 12, Y + h / 2 + 1)
+      }]
+    })
+  }
+  /** Render every chip a round can show — before it is on screen (idle time, or reset), never inside a frame. */
+  private prerender(walkers: Walker[] | null) {
+    for (let k = 0; k < CHANNELS.length; k++) this.docChip(k, 6, false)
+    this.docChip(0, 0, true); this.supplierChip(); this.hqChip()
+    for (const t of RUNNER_LABELS) this.pillChip(t, t === 'سلّم السعر ✓')
+    this.pillChip(RUNNER_LABELS[0], false); this.pillChip(RUNNER_LABELS[1], false)
+    if (!walkers) return
+    for (const w of walkers) this.pillChip(fmt(w.price), true)
+    this.bestChip(fmt(Math.min(...walkers.map((w) => w.price))))
   }
 
   // ---------- Ahmad ----------
@@ -571,10 +654,7 @@ export class LiveEngine {
         const v = V[w.target], hit = t >= w.arrive, gold = t >= w.tc
         ctx.lineWidth = 1.2; ctx.strokeStyle = gold ? rgba(back, 0.9) : hit ? rgba(go, 0.75) : rgba(go, 0.5); ctx.fillStyle = gold ? rgba(back, 0.8) : hit ? rgba(go, 0.6) : rgba(this.surface, 1)
         ctx.beginPath(); ctx.arc(v.x, v.y, 5, 0, 7); ctx.fill(); ctx.stroke()
-        ctx.save(); ctx.font = `500 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.direction = 'rtl'
-        const lx = Math.min(W - 16, Math.max(16, v.x)), ly = v.y > H - 24 ? v.y - 22 : v.y + 8
-        ctx.fillStyle = rgba(this.surface, 0.85); const lw = ctx.measureText('مورد').width + 8; ctx.fillRect(lx - lw / 2, ly - 1, lw, 14)
-        ctx.fillStyle = rgba(this.ink2, 1); ctx.fillText('مورد', lx, ly); ctx.restore()
+        this.blit(this.supplierChip(), Math.min(W - 16, Math.max(16, v.x)), v.y > H - 24 ? v.y - 22 : v.y + 8)
       }
       if (w.runner) { RUN = w; continue }
       if (t >= w.start && t < w.arrive) { const [x, y] = this.at(w, dOut); this.doc(x, y, w.ch) }
@@ -604,19 +684,10 @@ export class LiveEngine {
         else if (t >= w.home && t < w.done) this.pill(pos[0], cy + 6, 'سلّم السعر ✓', true, false)
       }
     }
-    const C = V[this.S_client]; this.hq(C.x, C.y)
+    const C = V[this.S_client]; this.blit(this.hqChip(), C.x, C.y)
     const n = S.walkers.length; ctx.lineWidth = 2; ctx.strokeStyle = rgba(back, 0.9)
     for (let k = 0; k < got; k++) { const a0 = -Math.PI / 2 + (k * TAU) / n + 0.08, a1 = a0 + TAU / n - 0.16; ctx.beginPath(); ctx.arc(C.x, C.y, 22, a0, a1); ctx.stroke() }
-    if (t >= S.allHome) { // «أرخص سعر»
-      ctx.save(); ctx.direction = 'rtl'; ctx.textBaseline = 'middle'
-      const lab = 'أرخص سعر', val = fmt(S.best)
-      ctx.font = `500 12px ${FONT}`; const w1 = ctx.measureText(lab).width
-      ctx.font = `700 14px ${FONT_NUM}`; const w2 = ctx.measureText(val).width
-      const w = w1 + w2 + 34, h = 30, X = C.x - w / 2, Y = C.y - 58
-      this.rr(X, Y, w, h, 15); ctx.fillStyle = rgba(this.surface, 1); ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = rgba(back, 0.95); ctx.stroke()
-      ctx.textAlign = 'right'; ctx.font = `500 12px ${FONT}`; ctx.fillStyle = rgba(this.ink2, 1); ctx.fillText(lab, X + w - 12, Y + h / 2 + 1)
-      ctx.textAlign = 'left'; ctx.font = `700 14px ${FONT_NUM}`; ctx.fillStyle = rgba(this.ink, 1); ctx.fillText(val, X + 12, Y + h / 2 + 1); ctx.restore()
-    }
+    if (t >= S.allHome) this.blit(this.bestChip(fmt(S.best)), C.x, C.y) // «أرخص سعر»
   }
 
   // ---------- clock: pauses with the page / off-screen; reduced motion = static mesh only ----------
