@@ -12,7 +12,7 @@ import {
 import { CELL_LABEL, cheapestPerLineTotal, lowestPerLine, matrixTotals, quoteCoverage } from '../lib/requestFile'
 import { rfqProjectName } from '../lib/rfqIdentity'
 import { awardBlockReason, type AwardOffer } from '../lib/awardFlow'
-import AwardDialog from '../components/procurement/AwardDialog'
+import AwardConfirmSheet from '../pages/award/AwardConfirmSheet'
 import { Badge, Button, Chip, Icon, PriceCell, TopBar, useIsMobile, type PriceCellState } from '../ui'
 
 /*
@@ -152,7 +152,12 @@ export function ComparisonV2({ navigate }: NavProps) {
   const title = rfqProjectName({ delivery: payload.delivery }) || formatRfqTitle({ id: rfq.id, engineering_department: rfq.engineering_department, delivery: payload.delivery, buyer: payload.buyer })
   const currency = basket?.currency || bestSingle?.currency || 'SAR'
   const bestOffer = lowest ? offerForSupplier(lowest) : null
-  const blocked = bestOffer ? awardBlockReason(rfq, bestOffer) : 'لا يوجد مورد سعّر كل البنود بعد'
+  // 05 entry: why «ترسية» is off. The rule is unchanged (matrixTotals names a supplier only with ≥ 2
+  // complete offers); with exactly one complete offer the reason now says so instead of «no complete offer».
+  const blocked = bestOffer ? awardBlockReason(rfq, bestOffer)
+    : complete.length === 1 ? 'نحتاج عرضين كاملين على الأقل للمقارنة — وصل عرض واحد'
+    : complete.length >= 2 ? 'العروض الكاملة لا تُقارن (ضريبة أو عملة مختلفة)'
+    : 'لا يوجد مورد سعّر كل البنود بعد'
 
   const chips: Array<[Filter, string]> = [['all', `كل البنود ${counts.all}`], ['big', `فيها فرق كبير ${counts.big}`], ['incomparable', `غير قابلة للمقارنة ${counts.incomparable}`], ['none', `ما وصلها عرض ${counts.none}`]]
   const figures = [
@@ -201,7 +206,7 @@ export function ComparisonV2({ navigate }: NavProps) {
   )
   const awardLabel = bestSingle ? `رسِّ على ${nameOf(bestSingle.supplier_id)}` : 'ترسية'
   const awardDialog = awarding ? (
-    <AwardDialog rfq={rfq} comparison={comparison} offer={awarding} coverage={quoteCoverage(summaryBySupplier.get(String(awarding.supplier.id)), lines.length)} onClose={() => setAwarding(null)}
+    <AwardConfirmSheet rfq={rfq} comparison={comparison} offer={awarding} coverage={quoteCoverage(summaryBySupplier.get(String(awarding.supplier.id)), lines.length)} onClose={() => setAwarding(null)}
       onDone={async () => { setAwarding(null); setNotice(`تمت الترسية على ${awarding.supplier.name_ar || awarding.supplier.name_en}.`); await load(rfq.id).catch(() => {}) }} />
   ) : null
 

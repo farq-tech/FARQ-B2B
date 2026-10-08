@@ -27,9 +27,13 @@
 | Reading confidence per extracted line (High/Medium/Low) | 02 review table column «ثقة القراءة» and phone cards | Column not shown (parse-pdf/scan return no confidence) |
 | Qualified-supplier count for the request | 03 stat «تم التواصل معهم» basis «موردين مؤهلين لبنود الطلب» | Basis uses the invited count |
 
-## 4. Award dialog keyboard (copied legacy, rebuilt in M6 as Confirm Sheet)
-- Found by the Playwright test: the dialog does not move focus into itself, has no Escape-to-close and no focus trap.
-  It is usable by keyboard (Tab reaches «رجوع للمقارنة», Enter closes) but focus starts behind it. Fix in M6 (Confirm Sheet 25:210).
+## 4. Award dialog keyboard — FIXED (track D, Confirm Sheet)
+- Was: the copied AwardDialog did not move focus into itself, had no Escape-to-close and no focus trap.
+- Now: screen 04 opens `src/pages/award/AwardConfirmSheet.tsx` (Figma 49:2168 / M05 58:356) instead. On open focus moves to the
+  sheet heading; Tab / Shift+Tab stay inside; Escape closes (not while saving); focus returns to the button that opened it.
+  role=dialog, aria-modal, aria-labelledby/-describedby. Proven by Playwright: `docs/qa/screens-b/screens-b.spec.ts`
+  («05 · ترسية opens the sheet…», «05 · phone…») and `tests/keyboard.spec.ts` («04 · enabled ترسية…», updated).
+- API calls unchanged (same reads, guards, order and payloads as AwardDialog): `docs/qa/screens-b/award-calls.md`.
 
 ## 5. Landing page (track B) — content not available, shown as placeholders
 - Trust strip (Figma 35:218 `{suppliers_count}` `{regions_count}` `{avg_first_reply}` `{quotes_count}`): shown as «[رقم يُحدَّد]». Needs real figures from the system at publish time.
@@ -42,3 +46,20 @@
 - Brand marks: WhatsApp / Haraj / Farq call-centre logos appear only inside the living background (handoff assets/channels, used by the Lead's component). Brand-usage terms for WhatsApp and Haraj need confirmation before launch.
 - Deferred by decision: targeting tool (link only — no public URL given; the internal one in App.tsx was not exposed), dark mode, Ahmad's missing drawings.
 - No `og:image` share image in Figma.
+
+## 6. Figma Confirm Sheet copy not used (track D)
+- Figma 05 says «برسل لكل مورد البنود اللي رسّت عليه، ونبلّغ الباقين بلطف إن العرض ما رسى. تقدر تلغي خلال 30 دقيقة».
+  The award API does not notify the other suppliers and there is no undo window, so the sheet keeps AwardDialog's accurate text.
+- Figma 05 awards the split basket («رسِّ على 3 موردين»). The API awards one supplier quote version per call; split awards are not built.
+
+## 7. Inbox (screen 06) — API gaps and limits (track D)
+
+| Needed by Figma 06 | State in the API / app |
+|---|---|
+| «عرض مستخرج»: lines, unit prices, total, delivery, tax, confidence («ثقة عالية»), source quote from the chat | Not in `GET /inbox/threads/:id`. Panel shows `reply_kind` + `reply_summary_ar` + `reply_contacts` only and says prices are not extracted. No «اعتمد في المقارنة» / «عدّل» buttons. |
+| Channel of a thread row (واتساب / إيميل badge in the list) | Thread rows have no channel; shown per message (`channel`) in the conversation only. |
+| Evidence badge in the conversation header («سبق سعّر نفس البند») | Not in the API (same as item 3). |
+| Reply composer, quick replies («أبشر», «متى التوريد؟», «أرسل عرض رسمي») | Endpoints exist (claim owner, reply, broadcast) but «فرق تسعير» is read-only for supplier messaging; composer shown disabled with the reason. Needs an owner decision before any send path is wired. |
+| Read / unread | `POST /inbox/threads/read-state` exists; not called (no writes from this screen). Unread counts are shown as the API reports them. |
+| Sidebar counter «صندوق الوارد 5» | Same as item 3 (no counter endpoint used). |
+| Live test «اختبار صندوق الوارد» to +966 51 019 7017 | Not run by track D: the real API needs a signed-in session. Needs the Lead/owner (steps in `docs/qa/screens-b/README.md`). |
