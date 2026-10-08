@@ -8,7 +8,8 @@
  *  - what to avoid is read from the page itself (readObstacles: text, controls, cards), not from a CSS selector list;
  *  - the next round is planned ahead in idle time (requestIdleCallback, setTimeout fallback), never inside a frame;
  *  - no debug UI. Owner rules: head office in the top half of the first screen (≥ 38 px from content, centre first);
- *    requests only go down, each in its own column (±0.8 column); a request shorter than 55 % of the median sits out.
+ *    requests only go down, each in its own column (±0.8 column); a request shorter than 55 % of the median sits out;
+ *    pace ~150 px/s with suppliers within ~2 screens of the head office (SPEED / DEPTH below).
  */
 import { CHANNELS, CYCLE, POSES, url, type Pose } from './sprites'
 import { readObstacles } from './engine'
@@ -54,6 +55,10 @@ function img(stem: string, scale: 1 | 2) {
   return im
 }
 const ready = (im: HTMLImageElement) => im.complete && im.naturalWidth > 0
+// Pace (owner, 2026-10-08): a request must read as «a request walking to a supplier», not a streak. ~150 px/s,
+// suppliers within ~2 screens below the head office, peak speed 1.3× the average (not 2×), calmer return.
+const SPEED = 150, DEPTH = 1800
+const calm = (x: number) => 0.7 * x + 0.3 * (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2)
 
 export class PageNetwork {
   private ctx: CanvasRenderingContext2D
@@ -206,7 +211,7 @@ export class PageNetwork {
       const cand: Array<[number, number]> = []
       for (let i = 0; i < V.length; i++) {
         if (owner[i] >= 0) continue; const v = V[i]
-        if (v.y < C.y + 70 || v.x < x0 - CW * 0.35 || v.x > x1 + CW * 0.35 || this.inUI(v.x, v.y, 30)) continue // suppliers below, in open space
+        if (v.y < C.y + 70 || v.y > C.y + DEPTH || v.x < x0 - CW * 0.35 || v.x > x1 + CW * 0.35 || this.inUI(v.x, v.y, 30)) continue // suppliers below, in open space
         if (k === RK && Math.hypot(v.x - C.x, v.y - C.y) > RMAX) continue
         cand.push([v.y, i]) // the deepest points of the column: every trip is about as long
       }
@@ -238,7 +243,7 @@ export class PageNetwork {
       for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].k !== RK && walkers[i].len < med * 0.55) walkers.splice(i, 1)
     }
     { // one shared outbound time D = clamp(longest ÷ 320, 6, 9) s (±4 %), return 0.62·D
-      const maxL = Math.max(...walkers.map((w) => w.len)), D = Math.max(6, Math.min(9, maxL / 320)), Rt = Math.max(4, D * 0.62)
+      const maxL = Math.max(...walkers.map((w) => w.len)), D = Math.max(8, Math.min(14, maxL / SPEED)), Rt = Math.max(6, D * 0.8)
       for (const w of walkers) { w.arrive = w.start + D * (0.96 + Math.random() * 0.08); w.tc = w.arrive + 0.6 + Math.random() * 0.3; w.home = w.tc + Rt * (0.96 + Math.random() * 0.08); w.done = w.home }
     }
     const clear = (w: Walker) => { if (V[w.target].y <= 90) return false; for (let d = 40; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (this.inUI(x, y, 22)) return false } return true }
@@ -401,7 +406,7 @@ export class PageNetwork {
 
   private prep(t: number) {
     this.F = this.S.walkers.map((w) => {
-      const ease = w.runner ? (x: number) => x : (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2)
+      const ease = w.runner ? (x: number) => x : calm
       const dOut = w.runner ? this.runD(w, t) : t < w.start ? 0 : w.len * ease(Math.min(1, (t - w.start) / (w.arrive - w.start)))
       const dBack = t >= w.tc ? w.len * (1 - ease(Math.min(1, (t - w.tc) / (w.home - w.tc)))) : null
       return { w, dOut, dBack }
