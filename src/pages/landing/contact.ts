@@ -15,8 +15,8 @@ export const EMAIL = 'info@farq.sa'
 export const EMAIL_HREF = `mailto:${EMAIL}`
 export const ENTERPRISE_EMAIL_HREF = `mailto:${EMAIL}?subject=${encodeURIComponent('فرق تسعير — خطة المؤسسات')}`
 
-/** The protected app. The landing takes «/», so the app must live elsewhere — see docs/qa/requests.md. */
-export const APP_LOGIN_HREF = '/app'
+/** The protected app's home (route table in procurementContext, ba28798): «/requests» shows the login when signed out. */
+export const APP_LOGIN_HREF = '/requests'
 
 /** Start/sign-up CTA target (WhatsApp until a public sign-up endpoint exists). */
 export const START_HREF = WHATSAPP_HREF

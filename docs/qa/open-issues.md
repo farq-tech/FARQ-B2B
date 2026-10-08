@@ -30,3 +30,15 @@
 ## 4. Award dialog keyboard (copied legacy, rebuilt in M6 as Confirm Sheet)
 - Found by the Playwright test: the dialog does not move focus into itself, has no Escape-to-close and no focus trap.
   It is usable by keyboard (Tab reaches «رجوع للمقارنة», Enter closes) but focus starts behind it. Fix in M6 (Confirm Sheet 25:210).
+
+## 5. Landing page (track B) — content not available, shown as placeholders
+- Trust strip (Figma 35:218 `{suppliers_count}` `{regions_count}` `{avg_first_reply}` `{quotes_count}`): shown as «[رقم يُحدَّد]». Needs real figures from the system at publish time.
+- Pricing (37:203): `{trial_price}` `{business_price}` → «[سعر يُحدَّد]»; plan limits «حتى 3 طلبات» and «حتى 5 مستخدمين» → «[عدد يُحدَّد]» (not confirmed as product limits).
+- FAQ (37:284): Figma has an answer only for «كم ياخذ وقت أول رد؟». The other five show «الإجابة قيد الإعداد» + WhatsApp link.
+- Footer (37:327): `{CR_number}` `{VAT_number}` → «[يُحدَّد]». «من نحن · الخصوصية · الشروط» and «للموردين» have no pages yet — rendered as text, not links.
+- Sign-up: no public subscriber sign-up endpoint. `farqSession.signUp` (POST /signup) is for invited colleagues of a فرق بناء account, so all start/sign-up CTAs open WhatsApp with «هلا، أبي أجرب فرق تسعير». Decide whether a public sign-up should exist.
+- Enterprise plan «تواصل معنا» uses `mailto:info@farq.sa` (subject «فرق تسعير — خطة المؤسسات»).
+- Illustrative figures (hero cards, split blocks, comparison table, inbox example) are Figma's example data and are labelled «توضيحية».
+- Brand marks: WhatsApp / Haraj / Farq call-centre logos appear only inside the living background (handoff assets/channels, used by the Lead's component). Brand-usage terms for WhatsApp and Haraj need confirmation before launch.
+- Deferred by decision: targeting tool (link only — no public URL given; the internal one in App.tsx was not exposed), dark mode, Ahmad's missing drawings.
+- No `og:image` share image in Figma.
