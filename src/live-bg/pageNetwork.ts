@@ -17,10 +17,9 @@ import { readObstacles } from './engine'
 type RGB = [number, number, number]
 type Vert = { x: number; y: number; r: number; c: number }
 type Edge = { a: number; b: number; L: number }
-type Prof = { n: number; cum: number[]; tot: number; g: (t: number) => number }
 type Walker = {
   k: number; ch: number; runner: boolean; rest: boolean; target: number; pts: number[][]; fd: number[]; cum: number[]; len: number
-  start: number; arrive: number; tc: number; home: number; done: number; price: number; prof?: Prof
+  start: number; arrive: number; tc: number; home: number; done: number; price: number
 }
 type Round = { walkers: Walker[]; allHome: number; best: number; end: number; ahmadHome: boolean }
 export type PageStats = { frames: number; avg: number; p95: number; p99: number; max: number; rounds: number; sync: number }
@@ -58,6 +57,21 @@ const ready = (im: HTMLImageElement) => im.complete && im.naturalWidth > 0
 // Pace (owner, 2026-10-08): a request must read as «a request walking to a supplier», not a streak. ~150 px/s,
 // suppliers within ~2 screens below the head office, peak speed 1.3× the average (not 2×), calmer return.
 const SPEED = 150, DEPTH = 1800
+/*
+ * Ahmad's gait, measured on the run-cycle sheet (ahmad-cycle, 6 frames): the planted foot travels back 17 px per frame
+ * inside the drawing, so he must advance 17 px per frame for the foot to stay put (it was 13: a 4 px backward slide every
+ * frame). The flight frames (2, 5) already lift him 1.5 px, so the side run gets no extra bob. Frames follow an odometer
+ * (distance actually covered), so the return trip plays the cycle forwards, not in reverse.
+ */
+const STRIDE = 17, CONTACT = new Set([0, 1, 3, 4])
+/** Trapezoid speed profile on [0,1]: accelerate over `ra`, cruise, slow down over `rd`. Returns [position, speed/cruise]. */
+function trap(x: number, ra: number, rd: number): [number, number] {
+  x = Math.max(0, Math.min(1, x)); ra = Math.min(ra, 0.45); rd = Math.min(rd, 0.45)
+  const v = 1 / (1 - ra / 2 - rd / 2)
+  if (x < ra) return [(v * x * x) / (2 * ra), x / ra]
+  if (x > 1 - rd) return [1 - (v * (1 - x) ** 2) / (2 * rd), (1 - x) / rd]
+  return [v * (ra / 2 + (x - ra)), 1]
+}
 const calm = (x: number) => 0.7 * x + 0.3 * (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2)
 
 export class PageNetwork {
@@ -67,7 +81,7 @@ export class PageNetwork {
   private VF: number[] = []; private BLK: boolean[] = []; private UI: number[][] = []; private HUB = 0
   private pings: Array<{ i: number; t0: number }> = []
   private S!: Round; private next: Round | null = null; private LAST: Record<number, number> = {}
-  private RS = { ang: 0, bucket: 'E', prev: null as string | null, fade: 1, lastT: 0, lastState: null as string | null, tilt: 0 }
+  private RS = { ang: 0, bucket: 'E', prev: null as string | null, want: null as string | null, fade: 1, lastT: 0, lastState: null as string | null, tilt: 0, odo: 0, lastD: -1, frame: -1, v: 0 }
   private go: RGB = [107, 142, 61]; private back: RGB = [198, 174, 130]; private surface: RGB = [255, 255, 255]; private ink: RGB = [0, 0, 0]; private ink2: RGB = [0, 0, 0]
   private raf = 0; private simT = 0; private last = 0; private alive = true; private reduced: boolean
   private mouse = { x: 0, y: 0, on: false }
@@ -260,23 +274,16 @@ export class PageNetwork {
     return { walkers, allHome, best: Math.min(...walkers.map((w) => w.price)), end: allHome + 2.4, ahmadHome }
   }
   private commit(R: Round, t: number) {
-    for (const w of R.walkers) { w.start += t; w.arrive += t; w.tc += t; w.home += t; w.done += t; if (w.runner) this.profile(w) }
+    for (const w of R.walkers) { w.start += t; w.arrive += t; w.tc += t; w.home += t; w.done += t }
     R.allHome += t; R.end += t; this.S = R; this.rounds++
     // the round after this one, planned while this one plays
     const job = () => { if (this.alive && !this.next) this.next = this.plan() }
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 300)); idle(job, { timeout: 4000 })
   }
-  private profile(w: Walker) {
-    const D = w.arrive - w.start, a = w.rest ? w.start + 0.45 * (D - 2.7) : null
-    const g = (t: number) => { if (a === null || t < a) return 1; if (t < a + 0.5) return 0.5 + 0.5 * Math.cos(((t - a) / 0.5) * Math.PI); if (t < a + 2.1) return 0; if (t < a + 2.7) return 0.5 - 0.5 * Math.cos(((t - a - 2.1) / 0.6) * Math.PI); return 1 }
-    const n = Math.max(2, Math.ceil(D * 60)), cum = [0]; for (let i = 1; i <= n; i++) cum.push(cum[i - 1] + g(w.start + (D * (i - 0.5)) / n))
-    w.prof = { n, cum, tot: cum[n], g }
-  }
-  private runD(w: Walker, t: number) {
-    if (t <= w.start) return 0; if (t >= w.arrive) return w.len
-    const P = w.prof!, u = ((t - w.start) / (w.arrive - w.start)) * P.n, i = Math.floor(u), f = u - i
-    return (w.len * (P.cum[i] + (P.cum[Math.min(P.n, i + 1)] - P.cum[i]) * f)) / P.tot
-  }
+  /** Ahmad's position on his trip: 2–3 steps to get going (0.5 s), cruise, ease into the supplier (0.6 s). */
+  private outD(w: Walker, t: number): [number, number] { const D = w.arrive - w.start, [p, v] = trap((t - w.start) / D, 0.5 / D, 0.6 / D); return [w.len * p, v] }
+  /** Back home: quick start, then a long slow-down (1.2 s) — he comes in walking, out of breath. */
+  private backD(w: Walker, t: number): [number, number] { const R = w.home - w.tc, [p, v] = trap((t - w.tc) / R, 0.4 / R, 1.2 / R); return [w.len * (1 - p), v] }
   private at(w: Walker, d: number): [number, number] {
     d = Math.max(0, Math.min(w.len, d)); let lo = 1, hi = w.cum.length - 1
     while (lo < hi) { const m = (lo + hi) >> 1; if (w.cum[m] < d) lo = m + 1; else hi = m }
@@ -372,15 +379,16 @@ export class PageNetwork {
     const dt = Math.min(0.1, Math.max(0, t - RS.lastT)); RS.lastT = t
     const target = Math.atan2(hy, hx), diff = Math.atan2(Math.sin(target - RS.ang), Math.cos(target - RS.ang)); RS.ang += diff * Math.min(1, dt * 7)
     const deg = (RS.ang * 180) / Math.PI, b = this.bucketOf(deg)
-    if (b !== RS.bucket && this.bucketOf(deg - 12) === b && this.bucketOf(deg + 12) === b) { RS.prev = RS.bucket; RS.bucket = b; RS.fade = 0 }
-    RS.fade = Math.min(1, RS.fade + dt / 0.22)
+    if (this.bucketOf(deg - 12) === b && this.bucketOf(deg + 12) === b) RS.want = b !== RS.bucket ? b : null // switched on the next planted foot
+    RS.fade = Math.min(1, RS.fade + dt / 0.12)
     let rel = 0; if (RS.bucket === 'E') rel = RS.ang; else if (RS.bucket === 'W') rel = Math.atan2(Math.sin(RS.ang - Math.PI), Math.cos(RS.ang - Math.PI))
     const want = Math.max(-0.34, Math.min(0.34, rel * 0.45)); RS.tilt += (want - RS.tilt) * Math.min(1, dt * 6)
   }
   private cycle(i: number, x: number, y: number, alpha: number, mirror: boolean) {
     const im = img(CYCLE.f, this.scale); if (!ready(im)) return
     const fw = im.naturalWidth / CYCLE.n, f = ((i % 6) + 6) % 6, c = this.ctx
-    c.save(); c.globalAlpha = alpha; c.translate(x, y); c.rotate(this.RS.tilt); if (mirror) c.scale(-1, 1)
+    const lean = 0.1 * this.RS.v // ≈ 6° forward at cruise, upright when starting / stopping
+    c.save(); c.globalAlpha = alpha; c.translate(x, y); c.rotate(this.RS.tilt + (mirror ? -lean : lean)); if (mirror) c.scale(-1, 1)
     c.drawImage(im, f * fw, 0, fw, im.naturalHeight, -CYCLE.w / 2, -CYCLE.h, CYCLE.w, CYCLE.h); c.restore()
   }
   private pose(g: string, i: number, x: number, y: number, alpha: number, breath = 0) {
@@ -393,10 +401,14 @@ export class PageNetwork {
     const c = this.ctx, RS = this.RS
     c.save(); c.fillStyle = col(this.ink, 0.13); c.beginPath(); c.ellipse(x, y, 13, 3, 0, 0, TAU); c.fill(); c.restore()
     if (state === 'run') {
-      const u = d / 13, fi = Math.floor(u), bob = Math.abs(Math.sin((u / 3) * Math.PI)) * 1.6, vi = Math.floor(u / 3)
+      const u = d / STRIDE, fi = Math.floor(u), vi = Math.floor(u / 3)
+      // turn only on a planted foot, never mid-stride
+      if (fi !== RS.frame) { RS.frame = fi; if (RS.want && RS.want !== RS.bucket && CONTACT.has(((fi % 6) + 6) % 6)) { RS.prev = RS.bucket; RS.bucket = RS.want; RS.want = null; RS.fade = 0 } }
+      // the side cycle carries its own rise; the single-frame views (S/NE/NW) get a step bob, scaled by speed
+      const bob = (g: string) => (g === 'E' || g === 'W' ? 0 : Math.abs(Math.sin((u / 3) * Math.PI)) * 1.6 * RS.v)
       const idx = (g: string) => (g === 'E' || g === 'W' ? fi : vi)
-      if (RS.prev && RS.fade < 1) this.pose(RS.prev, idx(RS.prev), x, y - bob, 1 - RS.fade)
-      this.pose(RS.bucket, idx(RS.bucket), x, y - bob, RS.prev && RS.fade < 1 ? RS.fade : 1); return
+      if (RS.prev && RS.fade < 1) this.pose(RS.prev, idx(RS.prev), x, y - bob(RS.prev), 1 - RS.fade)
+      this.pose(RS.bucket, idx(RS.bucket), x, y - bob(RS.bucket), RS.prev && RS.fade < 1 ? RS.fade : 1); return
     }
     const side = RS.bucket === 'E' ? 'tiredR' : RS.bucket === 'W' ? 'tiredL' : 'tiredF'
     if (state === 'tired') this.pose(side, Math.floor(t * 0.7), x, y, 1, Math.sin(t * 5.5) * 0.012)
@@ -407,7 +419,7 @@ export class PageNetwork {
   private prep(t: number) {
     this.F = this.S.walkers.map((w) => {
       const ease = w.runner ? (x: number) => x : calm
-      const dOut = w.runner ? this.runD(w, t) : t < w.start ? 0 : w.len * ease(Math.min(1, (t - w.start) / (w.arrive - w.start)))
+      const dOut = w.runner ? (t <= w.start ? 0 : t >= w.arrive ? w.len : this.outD(w, t)[0]) : t < w.start ? 0 : w.len * ease(Math.min(1, (t - w.start) / (w.arrive - w.start)))
       const dBack = t >= w.tc ? w.len * (1 - ease(Math.min(1, (t - w.tc) / (w.home - w.tc)))) : null
       return { w, dOut, dBack }
     })
@@ -463,20 +475,24 @@ export class PageNetwork {
       else if (t >= w.tc && t < w.home && dBack !== null) { const [x, y] = this.at(w, dBack); this.pill(x, y, fmt(w.price), true) }
     }
     if (RUN) {
-      const w = RUN, RS = this.RS, dBack = t >= w.tc ? w.len * (1 - Math.min(1, (t - w.tc) / (w.home - w.tc))) : 0
+      const w = RUN, RS = this.RS, [dBack, vBack] = t >= w.tc && t < w.home ? this.backD(w, t) : [0, 0]
       let d = 0, state: string | null = null, head: [number, number] | null = null
       if (t < w.start) { d = 0; state = 'present' }
-      else if (t < w.arrive) { d = this.runD(w, t); state = w.prof!.g(t) < 0.12 ? 'tired' : 'run'; const a2 = this.at(w, Math.min(w.len, d + 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
+      else if (t < w.arrive) { const [dd, vv] = this.outD(w, t); d = dd; RS.v = vv; state = 'run'; const a2 = this.at(w, Math.min(w.len, d + 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
       else if (t < w.arrive + 1.1) { d = w.len; state = 'tiredFront' }
       else if (t < w.tc) { d = w.len; state = 'present' }
-      else if (t < w.home) { d = dBack; state = 'run'; const a2 = this.at(w, Math.max(0, d - 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
+      else if (t < w.home) { d = dBack; RS.v = vBack; state = 'run'; const a2 = this.at(w, Math.max(0, d - 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
       else if (t < w.done) { d = Math.min(w.len, 30); state = 'tiredFront' }
       if (state) {
         if (head && (head[0] || head[1])) this.steer(t, head[0], head[1], state === 'run' && RS.lastState !== 'run' && RS.lastState !== 'tired'); else { RS.lastT = t; RS.tilt *= 0.85 }
         RS.lastState = state
+        if (state !== 'run') RS.v = 0
+        // odometer: distance actually covered, either way — the stride always plays forwards
+        if (RS.lastD >= 0 && Math.abs(d - RS.lastD) < 80) RS.odo += Math.abs(d - RS.lastD)
+        RS.lastD = d
         const pos = this.at(w, d)
         if (pos[1] > this.SY - 90 && pos[1] < this.SY + this.VH + 90) {
-          this.runner(pos[0], pos[1] + 1, d, state, t)
+          this.runner(pos[0], pos[1] + 1, RS.odo, state, t)
           const cy = pos[1] - 76
           if (t >= w.start && t < w.arrive) this.doc(pos[0], cy, 0, 0, true)
           else if (t >= w.arrive && t < w.arrive + 1.1) this.pill(pos[0], cy + 6, 'وصل… يلتقط أنفاسه', false, false)

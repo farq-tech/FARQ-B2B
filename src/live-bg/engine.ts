@@ -138,7 +138,7 @@ export class LiveEngine {
   private boxes: Box[] = []; private title: Box | null = null
   private go: RGB = [0, 0, 0]; private back: RGB = [0, 0, 0]; private base: RGB = [255, 255, 255]; private meshLine: RGB = [0, 0, 0]
   private surface: RGB = [255, 255, 255]; private ink: RGB = [0, 0, 0]; private ink2: RGB = [0, 0, 0]
-  private RS = { ang: D0, bucket: 'E', prev: null as string | null, fade: 1.5, lastT: D0, lastState: null as string | null, tilt: D0 }
+  private RS = { ang: D0, bucket: 'E', prev: null as string | null, fade: 1.5, lastT: D0, lastState: null as string | null, tilt: D0, odo: D0, lastD: -1 }
   private raf = 0; private simT = 0; private last = 0; private onScreen = true; private alive = true
   private times = new Float32Array(8192); private nTimes = 0
   private next: Plan | null = null; private gen = 0; private warmed = false; private warming = false
@@ -696,10 +696,12 @@ export class LiveEngine {
     const c = this.ctx, RS = this.RS
     c.save(); c.fillStyle = rgba(this.ink, 0.13); c.beginPath(); c.ellipse(x, y, 13, 3, 0, 0, 7); c.fill(); c.restore()
     if (state === 'run') {
-      const u = d / 13, fi = Math.floor(u), bob = Math.abs(Math.sin((u / 3) * Math.PI)) * 1.6 // 6 frames per ~78 px stride
-      const vi = Math.floor(u / 3), idx = (g: string) => (g === 'E' || g === 'W' ? fi : vi)
-      if (RS.prev && RS.fade < 1) this.pose(RS.prev, idx(RS.prev), x, y - bob, 1 - RS.fade)
-      this.pose(RS.bucket, idx(RS.bucket), x, y - bob, RS.prev && RS.fade < 1 ? RS.fade : 1); return
+      // measured on the run-cycle sheet: the planted foot moves back 17 px per frame → advance 17 px per frame (no slide);
+      // the side cycle already rises in its flight frames, so only the single-frame views get a step bob
+      const u = d / 17, fi = Math.floor(u), vi = Math.floor(u / 3), idx = (g: string) => (g === 'E' || g === 'W' ? fi : vi)
+      const bob = (g: string) => (g === 'E' || g === 'W' ? 0 : Math.abs(Math.sin((u / 3) * Math.PI)) * 1.6)
+      if (RS.prev && RS.fade < 1) this.pose(RS.prev, idx(RS.prev), x, y - bob(RS.prev), 1 - RS.fade)
+      this.pose(RS.bucket, idx(RS.bucket), x, y - bob(RS.bucket), RS.prev && RS.fade < 1 ? RS.fade : 1); return
     }
     const side = RS.bucket === 'E' ? 'tiredR' : RS.bucket === 'W' ? 'tiredL' : 'tiredF'
     if (state === 'tired') this.pose(side, Math.floor(t * 0.7), x, y, 1, Math.sin(t * 5.5) * 0.012)
@@ -761,7 +763,10 @@ export class LiveEngine {
         if (head && (head[0] || head[1])) this.steer(t, head[0], head[1], state === 'run' && RS.lastState !== 'run' && RS.lastState !== 'tired')
         else { RS.lastT = t; RS.tilt *= 0.85 }
         RS.lastState = state
-        const pos = this.at(w, d); this.runner(pos[0], pos[1] + 1, d, state, t)
+        // odometer: distance actually covered either way, so the stride plays forwards on the way back too
+        if (RS.lastD >= 0 && Math.abs(d - RS.lastD) < 80) RS.odo += Math.abs(d - RS.lastD)
+        RS.lastD = d
+        const pos = this.at(w, d); this.runner(pos[0], pos[1] + 1, RS.odo, state, t)
         const cy = Math.max(30, pos[1] - 76)
         if (t >= w.start && t < w.arrive) this.doc(pos[0], cy, 0, 0, true)
         else if (t >= w.arrive && t < w.arrive + 1.1) this.pill(pos[0], cy + 6, 'وصل… يلتقط أنفاسه', false, false)
