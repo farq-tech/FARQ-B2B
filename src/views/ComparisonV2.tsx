@@ -241,7 +241,7 @@ export function ComparisonV2({ navigate }: NavProps) {
                 </div>
               )
             })}
-            {visible.length > shown.length ? <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} بند إضافي</button> : null}
+            {visible.length > shown.length ? <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} بند إضافي</button> : null}
           </div>
 
           <aside aria-label="التوصية" className="flex w-[300px] shrink-0 flex-col items-start gap-4 rounded-[var(--radius-xl)] border-[1.5px] border-[var(--color-border-success)] bg-[var(--color-bg-surface)] p-6 text-start">

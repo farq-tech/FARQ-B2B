@@ -79,3 +79,26 @@ export const comparison = {
 
 export const outcomes = { events: [{ id: 'e1', event_type: 'LINE_DECLINED', supplier_id: 's5', created_at: iso(40), details: { line_id: 'l4' } }] }
 export const FIXED_NOW = NOW
+
+/*
+ * Variant for the keyboard test (`?harness=comparison-award`): receipt closed and
+ * two complete offers, so «ترسية» is enabled. Same suppliers; s3 also prices l2 and l4.
+ */
+const closedRfq = { ...rfq, status: 'CLOSED', submission_closed_at: iso(10) }
+const awardLines = comparison.quote_matrix.lines.map((line) => ({
+  ...line,
+  offers: line.offers.map((c) => (c.supplier_id === 's3' && c.status !== 'PRICED'
+    ? { ...c, status: 'PRICED', line_total: line.id === 'l2' ? 3410 : 6890, unit_price: (line.id === 'l2' ? 3410 : 6890) / line.quantity }
+    : c)),
+}))
+export const comparisonAward = {
+  ...comparison,
+  rfq: closedRfq,
+  quote_matrix: {
+    ...comparison.quote_matrix,
+    complete_quote_count: 2,
+    lines: awardLines,
+    supplier_summaries: comparison.quote_matrix.supplier_summaries.map((s) => (s.supplier_id === 's3' ? { ...s, coverage: { requested: 5, priced: 5, complete: true } } : s)),
+  },
+}
+export const rfqClosed = closedRfq

@@ -23,7 +23,7 @@ export function Input({ label, helper, error, suffix, disabled, className, id, .
       <div className={cx(
         'flex items-center gap-2 rounded-[var(--radius-md)] border px-4 py-3 transition-colors',
         disabled ? 'bg-[var(--color-bg-surface-2)] border-[var(--color-border-default)]' : 'bg-[var(--color-bg-surface)]',
-        !disabled && (error ? 'border-[var(--color-border-danger)] focus-within:outline-2 focus-within:outline-[var(--color-border-danger)] focus-within:-outline-offset-1' : 'border-[var(--color-border-default)] hover:border-[var(--color-border-strong)] focus-within:border-transparent focus-within:outline-2 focus-within:outline-[var(--color-border-primary)] focus-within:-outline-offset-1'),
+        !disabled && (error ? 'border-[var(--color-border-danger)] focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-danger)] focus-within:-outline-offset-1' : 'border-[var(--color-border-default)] hover:border-[var(--color-border-strong)] focus-within:border-transparent focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)] focus-within:-outline-offset-1'),
       )}>
         <input
           id={inputId}

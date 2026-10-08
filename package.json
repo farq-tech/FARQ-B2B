@@ -8,13 +8,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "node scripts/lint-tokens.mjs && oxlint -c .oxlintrc.json src"
+    "lint": "node scripts/lint-tokens.mjs && oxlint -c .oxlintrc.json src",
+    "test:keyboard": "playwright test"
   },
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

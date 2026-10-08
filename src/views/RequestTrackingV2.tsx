@@ -228,7 +228,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
               })}
             </ul>
             {visible.length > shown.length ? (
-              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} مورد إضافي</button>
+              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} مورد إضافي</button>
             ) : null}
           </section>
 
@@ -245,7 +245,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
             <section aria-labelledby="latest-h" className="flex w-full flex-col items-stretch gap-3">
               <div className="flex items-center gap-2">
                 <h2 id="latest-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">آخر العروض</h2>
-                <button type="button" aria-label="تحديث العروض" title="تحديث" onClick={() => selectedRfqId && void load(selectedRfqId)} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--color-border-primary)]"><Icon name="refresh" size={18} /></button>
+                <button type="button" aria-label="تحديث العروض" title="تحديث" onClick={() => selectedRfqId && void load(selectedRfqId)} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-primary)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]"><Icon name="refresh" size={18} /></button>
               </div>
               {offers.length === 0 ? <p className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-start text-[14px] text-[var(--color-text-secondary)]">ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
               {offers.slice(0, 2).map((o, i) => {

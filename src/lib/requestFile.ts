@@ -1,7 +1,11 @@
 // Copied from فرق بناء (read-only source): farqconstraction/src/lib/requestFile.ts — ios-app@5147808, from working tree on top of 5147808 (uncommitted changes there). Do not edit business logic here.
-// TODO(owner decision, 2026-10-08): this copy was taken from the UNCOMMITTED working tree of
-// فرق بناء (ios-app on top of 5147808). We do not build on uncommitted source. Decide: revert to the
-// committed 5147808 version, or wait until the change is committed there. Diff: docs/qa/m2/source-diffs/
+// SOURCE FINGERPRINT — copied from the UNCOMMITTED working tree of فرق بناء (read-only):
+//   source: farqconstraction/src/lib/requestFile.ts on branch ios-app, base commit 5147808 + local changes
+//   source sha256: f6c3b98973ea6bed206e1a673244a197117b5cd6758098528ec4dc7349569937
+//   source git blob: a70410e5898cf197e063bf40d944f6b0d06e51b0   (committed 5147808 blob: 8e4f63a0a6a68997a4b6105702b564491fb6523b)
+//   this file = source byte-for-byte below this header. Uncommitted part: quoteCoverage(summary, requestedLineCount?) and invitesForMessage.
+// TODO(owner decision, 2026-10-08): commit the change in فرق بناء, or revert this copy to blob 8e4f63a0a6a6.
+//   Until then: keep as a copy, build NO new logic on the uncommitted part. Diff: docs/qa/m2/source-diffs/
 import type {
   ConstructionComparison,
   ConstructionInvitation,

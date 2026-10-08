@@ -20,10 +20,10 @@ type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> & {
   children?: ReactNode
 }
 
-const SIZE: Record<ButtonSize, { box: string; text: string; icon: number }> = {
-  S: { box: 'h-8 px-3 gap-1', text: 'text-[14px] leading-[22px]', icon: 16 },
-  M: { box: 'h-10 px-4 gap-2', text: 'text-[16px] leading-[26px]', icon: 20 },
-  L: { box: 'h-12 px-6 gap-2', text: 'text-[16px] leading-[26px]', icon: 20 },
+const SIZE: Record<ButtonSize, { box: string; wide: string; text: string; icon: number }> = {
+  S: { box: 'h-8 px-3 gap-1', wide: 'min-h-8 py-1 px-3 gap-1', text: 'text-[14px] leading-[22px]', icon: 16 },
+  M: { box: 'h-10 px-4 gap-2', wide: 'min-h-10 py-1.5 px-4 gap-2', text: 'text-[16px] leading-[26px]', icon: 20 },
+  L: { box: 'h-12 px-6 gap-2', wide: 'min-h-12 py-2 px-6 gap-2', text: 'text-[16px] leading-[26px]', icon: 20 },
 }
 
 const STYLE: Record<ButtonStyle, string> = {
@@ -45,11 +45,11 @@ export function Button({ variant = 'Primary', size = 'M', icon, loading, loading
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx('inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] font-medium whitespace-nowrap transition-[transform,box-shadow,background-color] duration-150 disabled:cursor-not-allowed', loading ? 'disabled:opacity-100' : 'disabled:opacity-40', s.box, s.text, STYLE[variant], FOCUS_RING, fullWidth && 'w-full', className)}
+      className={cx('inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] font-medium transition-[transform,box-shadow,background-color] duration-150 disabled:cursor-not-allowed', loading ? 'disabled:opacity-100' : 'disabled:opacity-40', fullWidth ? s.wide : s.box, s.text, STYLE[variant], FOCUS_RING, fullWidth ? 'w-full text-center' : 'whitespace-nowrap', className)}
       {...rest}
     >
       {loading ? <Spinner size={16} /> : icon ? <Icon name={icon} size={s.icon} /> : null}
-      {loading ? loadingLabel : children}
+      {fullWidth ? <span className="min-w-0">{loading ? loadingLabel : children}</span> : loading ? loadingLabel : children}
     </button>
   )
 }

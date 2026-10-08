@@ -1,7 +1,11 @@
 // Copied from فرق بناء (read-only source): farqconstraction/src/api/constructionClient.ts — ios-app@5147808, from working tree on top of 5147808 (uncommitted changes there). Do not edit business logic here.
-// TODO(owner decision, 2026-10-08): this copy was taken from the UNCOMMITTED working tree of
-// فرق بناء (ios-app on top of 5147808). We do not build on uncommitted source. Decide: revert to the
-// committed 5147808 version, or wait until the change is committed there. Diff: docs/qa/m2/source-diffs/
+// SOURCE FINGERPRINT — copied from the UNCOMMITTED working tree of فرق بناء (read-only):
+//   source: farqconstraction/src/api/constructionClient.ts on branch ios-app, base commit 5147808 + local changes
+//   source sha256: bf112d854d4dbd53104896649285c070180e42dd8190eb9c750c9e15a53a69b2
+//   source git blob: 5e1364e8a180f2df880b018a2088d0dfdcf17479   (committed 5147808 blob: 0f0ac5b24b2254a473641e04aeb1776d04cc3e52)
+//   this file = source byte-for-byte below this header. Uncommitted part: listConstructionInboxThreads({ request_number }).
+// TODO(owner decision, 2026-10-08): commit the change in فرق بناء, or revert this copy to blob 0f0ac5b24b22.
+//   Until then: keep as a copy, build NO new logic on the uncommitted part. Diff: docs/qa/m2/source-diffs/
 /**
  * Thin Farq construction API client for this Figma Make UI.
  * Mirrors Frontend/src/services/constructionService.ts — browser → `/_api` →

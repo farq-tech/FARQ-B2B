@@ -29,7 +29,7 @@ export function TopBar({ parent, onParent, title, actions, className }: { parent
 /** Top Bar «Search» field (320×40, surface-2). */
 export function SearchField({ placeholder = 'ابحث في الطلبات والموردين', value, onChange }: { placeholder?: string; value: string; onChange: (v: string) => void }) {
   return (
-    <label className="flex h-10 w-[320px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 focus-within:outline-2 focus-within:outline-[var(--color-border-primary)]">
+    <label className="flex h-10 w-[320px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
       <Icon name="search" size={18} className="text-[var(--color-icon-secondary)]" />
       <span className="sr-only">{placeholder}</span>
       <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent text-[14px] leading-[22px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
