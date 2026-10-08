@@ -102,3 +102,39 @@ export const comparisonAward = {
   },
 }
 export const rfqClosed = closedRfq
+
+/*
+ * New-request flow (`?harness=new`): local answers for the calls that flow makes.
+ * Built from the request body so every typed line gets suppliers. Nothing is sent.
+ */
+const FLOW_SUPPLIERS = [
+  { id: 'fx-s1', name_ar: 'مستودع الرياض للكهرباء', city: 'الرياض', evidence: 'دليل مباشر', channel: 'واتساب', contact_channels: { whatsapp: true } },
+  { id: 'fx-s2', name_ar: 'مؤسسة النور للكهرباء', city: 'الرياض', evidence: 'نشاط متطابق', channel: 'بريد', contact_channels: { email: true } },
+  { id: 'fx-s3', name_ar: 'شركة الخليج للكابلات', city: 'الدمام', evidence: 'دليل مباشر', channel: 'واتساب', contact_channels: { whatsapp: true } },
+  { id: 'fx-s4', name_ar: 'مؤسسة البناء الحديث', city: 'الرياض', evidence: 'من الكتالوج', channel: 'واتساب', contact_channels: { whatsapp: true } },
+]
+export function flowMatch(body: { rows?: Array<{ key?: string; name?: string }> }) {
+  return {
+    rows: (body.rows || []).map((r, i) => ({
+      key: r.key,
+      kind: 'MATCH',
+      match: /خرسانة|مزدوج/.test(String(r.name || '')) ? null : {
+        farq_spec_id: `fx-spec-${i}`,
+        name_ar: r.name,
+        rfq_eligible_supplier_ids: FLOW_SUPPLIERS.slice(0, 3 + (i % 2)).map((s) => s.id),
+        suppliers: FLOW_SUPPLIERS.slice(0, 3 + (i % 2)),
+      },
+    })),
+  }
+}
+export const flowCatalog = { suppliers: FLOW_SUPPLIERS.map((s) => ({ ...s, has_whatsapp: Boolean(s.contact_channels.whatsapp), has_email: Boolean(s.contact_channels.email) })), supplier_total: FLOW_SUPPLIERS.length }
+export const flowScan = {
+  request: {
+    is_purchase_request: true, project: 'فيلا النرجس', request_number: null, request_date: null, requester: null, pages_read: 1, pages_failed: 0,
+    items: [
+      { description: 'كيبل نحاس 4×16 مم² مسلّح', quantity: 500, unit: 'متر', specification: 'XLPE/SWA · 0.6/1kV' },
+      { description: 'قاطع كهربائي 32 أمبير', quantity: 40, unit: 'حبة', specification: '3 أقطاب · 10kA' },
+      { description: 'مفتاح إنارة مزدوج', quantity: 120, unit: 'حبة', specification: null },
+    ],
+  },
+}

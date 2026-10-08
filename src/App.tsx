@@ -6,6 +6,7 @@ import { LoginV2 } from './views/LoginV2'
 import { RfqListV2 } from './views/RfqListV2'
 import { RequestTrackingV2 } from './views/RequestTrackingV2'
 import { ComparisonV2 } from './views/ComparisonV2'
+import { NewRequestV2 } from './views/NewRequestV2'
 import { Button, NavItem, Sidebar as UiSidebar } from './ui'
 
 /*
@@ -25,6 +26,7 @@ function Sidebar() {
   const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison'
   return (
     <UiSidebar
+      onNewRequest={() => navigate('create-upload')}
       nav={<>
         <NavItem icon="list" label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
         <NavItem icon="map-pin" label="الاستهداف" href={TARGETING_URL} external />
@@ -57,6 +59,8 @@ function Routes() {
     )
   }
   if (checked === 'pending') return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحقق من الحساب…</div>
+  // The new-request flow is a full-page wizard (Figma 01/02 have no sidebar).
+  if (view === 'create-upload') return <NewRequestV2 navigate={navigate} />
   return (
     <div className="flex min-h-screen">
       <Sidebar />

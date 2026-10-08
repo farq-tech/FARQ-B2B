@@ -8,7 +8,8 @@ import { useEffect } from 'react'
 import { ProcurementProvider, useProcurement } from '../procurementContext'
 import { RequestTrackingV2 } from '../views/RequestTrackingV2'
 import { ComparisonV2 } from '../views/ComparisonV2'
-import { RFQ_ID, rfq, rfqClosed, comparison, comparisonAward, outcomes, FIXED_NOW } from './fixtures'
+import { RFQ_ID, rfq, rfqClosed, comparison, comparisonAward, outcomes, FIXED_NOW, flowMatch, flowCatalog, flowScan } from './fixtures'
+import { NewRequestV2 } from '../views/NewRequestV2'
 
 Date.now = () => FIXED_NOW + 60_000
 const awardVariant = new URLSearchParams(window.location.search).get('harness') === 'comparison-award'
@@ -18,20 +19,26 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
   const ok = (data: unknown) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { 'content-type': 'application/json' } })
+  // new-request flow (harness=new): matching, catalogue check and scan answered locally.
+  if (method === 'POST' && url.includes('/boq/match')) return ok(flowMatch(JSON.parse(String(init?.body || '{}'))))
+  if (method === 'GET' && url.includes('/api/construction/catalog')) return new Response(JSON.stringify({ ok: true, data: flowCatalog }), { status: 200, headers: { 'content-type': 'application/json' } })
+  if (method === 'POST' && url.includes('/purchase-requests/scan')) return ok(flowScan)
   if (method === 'GET' && url.includes(`/rfqs/${RFQ_ID}/comparison`)) return ok(awardVariant ? comparisonAward : comparison)
   if (method === 'GET' && url.includes(`/rfqs/${RFQ_ID}/supplier-outcomes`)) return ok(outcomes)
   if (method === 'GET' && url.includes(`/rfqs/${RFQ_ID}`)) return ok(awardVariant ? rfqClosed : rfq)
+  console.warn('[harness] refused', method, url)
   return new Response(JSON.stringify({ ok: false, error: { message: 'harness: network disabled' } }), { status: 503, headers: { 'content-type': 'application/json' } })
 }
 
 function Screen({ which }: { which: string }) {
   const { setSelectedRfqId, navigate } = useProcurement()
   useEffect(() => { setSelectedRfqId(RFQ_ID) }, [setSelectedRfqId])
+  if (which === 'new') return <NewRequestV2 navigate={navigate} />
   return which.startsWith('comparison') ? <ComparisonV2 navigate={navigate} /> : <RequestTrackingV2 navigate={navigate} />
 }
 
 export function mountHarness(which: string) {
   createRoot(document.getElementById('root')!).render(
-    <ProcurementProvider><div style={{ width: 1176 }}><Screen which={which} /></div></ProcurementProvider>,
+    <ProcurementProvider><div style={{ width: which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
   )
 }

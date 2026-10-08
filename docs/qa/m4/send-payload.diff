@@ -1,0 +1,53 @@
+--- /private/tmp/claude-501/-Users-m4pro-farqconstraction-farqconstraction/f98fd15e-6299-4f6f-8ac2-57b1973a982f/scratchpad/send-src.txt	2026-10-08 14:04:46
++++ /private/tmp/claude-501/-Users-m4pro-farqconstraction-farqconstraction/f98fd15e-6299-4f6f-8ac2-57b1973a982f/scratchpad/send-new.txt	2026-10-08 14:04:46
+@@ -1,7 +1,8 @@
+ async function send() {
+-if (blockers.length) return
+-setStep('sending')
++if (blockers.length || sending) return
++setSending(true)
+ setError(null)
++let created: string | null = null
+ try {
+ setProgress({ text: 'نجهّز البنود…', done: 0, total: 0 })
+ const needSpec = readyItems.filter((i) => !i.farqSpecId)
+@@ -61,10 +62,10 @@
+ }
+ const haraj = countHarajSupplierIds(supplierIds)
+ if (haraj > 0) body.haraj_limit = haraj
+-const created = await createConstructionRfq(body, { timeoutMs: 90_000 })
+-setCreatedId(created.id)
+-if (draftKey) deleteDraft(draftKey)
+-const detail = await getConstructionRfq(created.id)
++const rfq = await createConstructionRfq(body, { timeoutMs: 90_000 })
++created = rfq.id
++setCreatedId(rfq.id)
++const detail = await getConstructionRfq(rfq.id)
+ const invites = detail.invitations || []
+ const waCount = invites.filter((i) => invitePreferredChannel(i) === 'WHATSAPP').length
+ let waPaid = false
+@@ -75,11 +76,11 @@
+ setWaAsk(null)
+ }
+ }
+-await startConstructionDispatch(created.id, { whatsappPaid: waPaid, includeHaraj: true })
++await startConstructionDispatch(rfq.id, { whatsappPaid: waPaid, includeHaraj: true })
+ let total = invites.length
+ for (let guard = 0; guard < 240; guard += 1) {
+ await new Promise((r) => window.setTimeout(r, 2500))
+-const job = await getConstructionDispatch(created.id).catch(() => null)
++const job = await getConstructionDispatch(rfq.id).catch(() => null)
+ if (!job) continue
+ total = job.total || total
+ setProgress({ text: `نرسل للموردين: ${job.processed || 0} من ${total}`, done: job.processed || 0, total })
+@@ -88,9 +89,8 @@
+ break
+ }
+ }
+-setStep('done')
+ } catch (e) {
+ setError(e instanceof Error ? e.message : 'تعذّر إرسال الطلب.')
+-setStep(createdId ? 'done' : 'details')
++if (!created) setSending(false)
+ }
+ }
