@@ -25,10 +25,10 @@ export function LoginV2({ navigate }: NavProps) {
           <p className="text-[14px]" style={{ color: 'var(--color-text-tertiary)' }}>صفحة خاصة بالمالك</p>
         </div>
         {error ? <p className="mb-4 rounded-[12px] px-4 py-3 text-[14px] font-medium" style={{ background: 'var(--color-bg-danger)', color: 'var(--color-text-danger)' }}>{error}</p> : null}
-        <label className="mb-1 block text-[14px] font-medium">البريد</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" className="mb-4 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />
-        <label className="mb-1 block text-[14px] font-medium">كلمة المرور</label>
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" className="mb-6 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />
+        <label htmlFor="login-email" className="mb-1 block text-[14px] font-medium">البريد</label>
+        <input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" className="mb-4 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />
+        <label htmlFor="login-password" className="mb-1 block text-[14px] font-medium">كلمة المرور</label>
+        <input id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" className="mb-6 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />
         <button type="submit" disabled={loading || !email.trim() || !password} className="h-12 w-full rounded-[12px] text-[16px] font-medium text-white disabled:opacity-40" style={{ background: 'var(--color-bg-cta)' }}>{loading ? 'جارٍ الدخول…' : 'دخول'}</button>
       </form>
     </div>
