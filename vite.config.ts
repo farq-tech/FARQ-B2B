@@ -12,5 +12,6 @@ export default defineConfig({
     port: 5180,
     proxy: { '/_api': { target: process.env.VITE_API_PROXY_TARGET || 'https://api.farq.sa', changeOrigin: true, rewrite: (p) => p.replace(/^\/_api/, '') } },
   },
-  build: { sourcemap: false },
+  // manifest: server.py reads it to serve only the landing's own files without the site password
+  build: { sourcemap: false, manifest: true },
 })

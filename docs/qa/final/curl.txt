@@ -1,0 +1,56 @@
+$ curl /
+200 
+$ curl /robots.txt
+200 
+$ curl /sitemap.xml
+200 
+$ curl /assets/index-DShCVLas.js
+200 
+$ curl /assets/Below-DC66X2d-.js
+200 
+$ curl /assets/LiveBackgroundCanvas-DYR2Y-5j.js
+200 
+$ curl /assets/App-BCLi9HYe.js
+401 
+$ curl /assets/constructionClient-BRVbrWSO.js
+401 
+$ curl /assets/ComparisonV2-Bc6wyp3J.js
+401 
+$ curl /.vite/manifest.json
+401 
+$ curl /requests
+303 /__gate?next=%2Frequests
+$ curl /requests/x
+303 /__gate?next=%2Frequests%2Fx
+$ curl /requests/x/compare
+303 /__gate?next=%2Frequests%2Fx%2Fcompare
+$ curl /inbox
+303 /__gate?next=%2Finbox
+$ curl /login
+303 /__gate?next=%2Flogin
+$ curl /?rfq=x
+303 /__gate?next=%2F%3Frfq%3Dx
+$ curl /_api/api/construction/rfqs
+401 
+$ curl -X POST /_api/api/construction/rfqs
+401 
+$ curl /__gate?next=//evil.com
+200 
+--- POST wrong password, then right password (cookie)
+$ curl -X POST -d p=wrong /__gate?next=%2Frequests%2Fx
+303 /requests/x
+POST right password → 303 /requests/x
+--- landing head
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://127.0.0.1:8099/" />
+User-agent: *
+Allow: /$
+Disallow: /
+Sitemap: https://127.0.0.1:8099/sitemap.xml
+--- with gate cookie (after the right password)
+/requests/x 200
+/inbox 200
+App chunk 200
+constructionClient chunk 200
+/_api/x (upstream unreachable in this test → 502 = proxied) 502
+/ (still the landing) 200
