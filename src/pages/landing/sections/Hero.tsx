@@ -3,7 +3,7 @@ import { Logo } from '../../../ui/Logo'
 import { Icon } from '../../../ui/Icon'
 import { cx, FOCUS_RING } from '../../../ui/cx'
 import { APP_LOGIN_HREF, START_HREF } from '../contact'
-import { Container, DEEP_FOCUS, LIGHT_SURFACE, LinkButton, LiveBgSlot, T, TextLink } from '../kit'
+import { Container, LIGHT_SURFACE, LinkButton, T, TextLink } from '../kit'
 
 /* Figma: Nav 33:3 + Hero 47:1714 (desktop) · Hero 60:729 (mobile). Above the fold: no images, text first. */
 
@@ -11,7 +11,6 @@ export const NAV_LINKS = [
   { href: '#how', label: 'كيف تعمل' },
   { href: '#difference', label: 'وش الفرق؟' },
   { href: '#audience', label: 'لمين' },
-  { href: '#pricing', label: 'الأسعار' },
   { href: '#faq', label: 'الأسئلة' },
 ] as const
 
@@ -38,26 +37,26 @@ function Nav() {
     <div className="relative z-20">
       <Container className="flex h-[64px] items-center justify-between md:h-[80px]">
         <a href="#main" aria-label="فرق تسعير — أعلى الصفحة" className={cx('rounded-[var(--radius-sm)]', FOCUS_RING)}>
-          <Logo surface="Inverse" height={40} />
+          <Logo height={40} />
         </a>
         <nav aria-label="الأقسام" className="hidden lg:block">
-          <ul className="flex items-center gap-[var(--space-32)] text-[16px] leading-[26px] text-[var(--color-text-on-inverse-secondary)]">
+          <ul className="flex items-center gap-[var(--space-32)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">
             {NAV_LINKS.map((l) => (
               <li key={l.href}>
-                <TextLink href={l.href} className="hover:text-[var(--color-text-on-inverse)]">{l.label}</TextLink>
+                <TextLink href={l.href} className="hover:text-[var(--color-text-primary)]">{l.label}</TextLink>
               </li>
             ))}
           </ul>
         </nav>
         <div className="flex items-center gap-[var(--space-8)]">
-          <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-on-inverse)] sm:inline')}>دخول</TextLink>
+          <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-primary)] sm:inline')}>دخول</TextLink>
           <span className="hidden sm:block">
             <LinkButton href={START_HREF} external variant="Accent" size="M">ابدأ التسعير</LinkButton>
           </span>
           <button
             ref={buttonRef}
             type="button"
-            className={cx('inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-on-inverse)] lg:hidden', FOCUS_RING)}
+            className={cx('inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-primary)] lg:hidden', FOCUS_RING)}
             aria-expanded={open}
             aria-controls={menuId}
             aria-label={open ? 'إغلاق القائمة' : 'فتح القائمة'}
@@ -67,14 +66,14 @@ function Nav() {
           </button>
         </div>
       </Container>
-      <nav id={menuId} aria-label="القائمة" hidden={!open} className="border-t border-[var(--white-a8)] bg-[var(--color-bg-canvas)] lg:hidden">
+      <nav id={menuId} aria-label="القائمة" hidden={!open} className="border-t border-[var(--color-border-default)] bg-[var(--color-bg-canvas)] lg:hidden">
         <Container className="flex flex-col gap-[var(--space-4)] py-[var(--space-16)]">
           {NAV_LINKS.map((l) => (
-            <TextLink key={l.href} href={l.href} onClick={() => setOpen(false)} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-on-inverse)]')}>
+            <TextLink key={l.href} href={l.href} onClick={() => setOpen(false)} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-primary)]')}>
               {l.label}
             </TextLink>
           ))}
-          <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-on-inverse)] sm:hidden')}>دخول</TextLink>
+          <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-primary)] sm:hidden')}>دخول</TextLink>
           <span className="mt-[var(--space-8)] block sm:hidden">
             <LinkButton href={START_HREF} external variant="Accent" fullWidth>ابدأ التسعير</LinkButton>
           </span>
@@ -135,7 +134,7 @@ function Collage() {
 
 export function SiteHeader() {
   return (
-    <header data-tone="deep" className={cx(DEEP_FOCUS, 'relative bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]')}>
+    <header className="relative bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
       <Nav />
     </header>
   )
@@ -143,11 +142,10 @@ export function SiteHeader() {
 
 export function Hero() {
   return (
-    <section id="top" data-tone="deep" aria-labelledby="hero-title" className={cx(DEEP_FOCUS, 'relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]')}>
-        <LiveBgSlot tone="deep" />
+    <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
         <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[330px] lg:grid-cols-2 lg:pb-[var(--space-80)] lg:pt-[170px]">
           <div className="flex flex-col items-start gap-[var(--space-12)]">
-            <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--white-a16)] bg-[var(--white-a8)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">
+            <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">
               <span aria-hidden="true" className="size-2 rounded-full bg-[var(--color-bg-brand)]" />
               منصة تسعير لمشتريات الشركات
             </p>
@@ -155,7 +153,7 @@ export function Hero() {
               قبل ما تشتري،
               <br />
               شوف{' '}
-              <span className="relative inline-block text-[var(--color-bg-brand)]">
+              <span className="relative inline-block text-[var(--brand-action-strong)]">
                 <span aria-hidden="true" className="absolute inset-x-0 bottom-[0.06em] h-[0.17em] rounded-[7px] bg-[var(--color-bg-brand)] opacity-35" />
                 <span className="relative">الفرق.</span>
               </span>
@@ -165,7 +163,7 @@ export function Hero() {
             </p>
             <div className="flex flex-wrap gap-[var(--space-12)] pt-[var(--space-16)]">
               <LinkButton href={START_HREF} external variant="Accent" icon="arrow-forward">ابدأ التسعير</LinkButton>
-              <LinkButton href="#how" variant="GhostOnDark">شاهد كيف تعمل</LinkButton>
+              <LinkButton href="#how" variant="Secondary">شاهد كيف تعمل</LinkButton>
             </div>
           </div>
           <Collage />

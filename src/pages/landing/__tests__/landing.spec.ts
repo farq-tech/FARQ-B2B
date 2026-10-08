@@ -78,16 +78,16 @@ test('keyboard: skip link, nav links, hero CTA with a visible focus ring on the 
   expect(f.outline).toMatch(/solid [2-9]/)
   f = await tabUntil(page, (x) => x.text.includes('ابدأ التسعير') && x.href === WA)
   expect(f.outline).toMatch(/solid [2-9]/)
-  // On the deep (charcoal) bands the ring switches to mint so it stays visible.
-  const mint = await page.evaluate(() => {
+  // The header and hero are light now (one calm light page): the ring keeps the shared focus colour, visible on light.
+  const ring = await page.evaluate(() => {
     const probe = document.createElement('span')
-    probe.style.color = 'var(--brand-accent)'
+    probe.style.color = 'var(--color-border-primary)'
     document.body.appendChild(probe)
     const c = getComputedStyle(probe).color
     probe.remove()
     return c
   })
-  expect(f.outlineColor).toBe(mint)
+  expect(f.outlineColor).toBe(ring)
   await page.screenshot({ path: 'docs/qa/landing/after-keyboard-focus-1440.png' })
 })
 

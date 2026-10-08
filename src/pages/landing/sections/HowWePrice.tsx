@@ -1,8 +1,8 @@
 import { cx } from '../../../ui/cx'
-import { Container, T } from '../kit'
+import { T } from '../kit'
 
 /*
- * «كيف نسعّر لك؟» — Figma 85:1351 (desktop) · 86:629 (mobile).
+ * «كيف نسعّر لك؟» — Figma 85:1351 (desktop) · 86:629 (mobile). Now the second half of «كيف تعمل» (one section, owner 2026-10-08).
  * The living background runs inside the rounded frame (data-live-bg="light"); the Lead mounts <LiveBackground>.
  * Legend: dashed = request going out (live-go), solid = price coming back (live-back) — same colours as the canvas.
  */
@@ -23,10 +23,9 @@ function LegendLine({ dashed }: { dashed?: boolean }) {
 
 export function HowWePrice() {
   return (
-    <section id="how-we-price" aria-labelledby="how-we-price-title" className="bg-[var(--color-bg-surface)] py-[var(--space-48)] md:py-[var(--space-96)]">
-      <Container className="flex flex-col gap-[var(--space-24)] md:gap-[var(--space-40)]">
+    <div id="how-we-price" className="flex w-full flex-col gap-[var(--space-24)] pt-[var(--space-24)] md:gap-[var(--space-32)] md:pt-[var(--space-48)]">
         <div className="flex flex-col gap-[var(--space-12)]">
-          <h2 id="how-we-price-title" className={cx(T.h2, 'text-[var(--color-text-primary)]')}>كيف نسعّر لك؟</h2>
+          <h3 id="how-we-price-title" className={cx(T.h3, 'text-[var(--color-text-primary)]')}>كيف نسعّر لك؟</h3>
           <p className={cx(T.bodyL, 'max-w-[760px] text-[var(--color-text-secondary)]')}>
             اللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.
           </p>
@@ -65,7 +64,6 @@ export function HowWePrice() {
           </p>
           <p className={cx(T.caption, 'text-[var(--color-text-secondary)]')}>· الأسعار في الرسم توضيحية</p>
         </div>
-      </Container>
-    </section>
+    </div>
   )
 }

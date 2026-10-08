@@ -1,24 +1,24 @@
-import { Badge, ChannelBadge } from '../../../ui/Badge'
+import { Badge } from '../../../ui/Badge'
 import { PriceCell } from '../../../ui/PriceCell'
-import { Confidence } from '../../../ui/Confidence'
 import { Icon } from '../../../ui/Icon'
 import { Logo } from '../../../ui/Logo'
 import { cx, FOCUS_RING } from '../../../ui/cx'
 import booklet from '../../../assets/spot/booklet.svg'
 import list from '../../../assets/spot/list.svg'
 import photo from '../../../assets/spot/photo.svg'
-import { EMAIL, EMAIL_HREF, ENTERPRISE_EMAIL_HREF, START_HREF, WHATSAPP_HREF, WHATSAPP_NUMBER_DISPLAY } from '../contact'
-import { Container, DEEP_FOCUS, LIGHT_SURFACE, LinkButton, LiveBgSlot, T, TextLink } from '../kit'
+import { EMAIL, EMAIL_HREF, START_HREF, WHATSAPP_HREF, WHATSAPP_NUMBER_DISPLAY } from '../contact'
+import { Container, DEEP_FOCUS, LinkButton, LiveBgSlot, T, TextLink } from '../kit'
 import { HowWePrice } from './HowWePrice'
 
 /*
  * Everything below the hero — one lazily loaded chunk so the hero paints first.
  * Figma desktop 33:2 children (34:59 … 37:327), mobile 60:728.
  * Prices, supplier names and quantities in the mock cards/table are Figma's illustration, labelled «توضيحية».
- * Marketing figures that are not decided are placeholders «[… يُحدَّد]» (decision 5; docs/qa/open-issues.md).
+ * Seven sections (owner, 2026-10-08): hero · how it works (+ how we price) · the difference · who it is for · FAQ ·
+ * start · footer. The trust figures, the pricing plans, the split bands and the inbox showcase are out until they
+ * have real numbers and copy (docs/qa/open-issues.md §5). One calm light page; the footer is the only dark band.
  */
 
-const PLACEHOLDER_NUM = '[رقم يُحدَّد]'
 
 function SectionTitle({ id, title, sub, className }: { id: string; title: string; sub?: string; className?: string }) {
   return (
@@ -30,53 +30,6 @@ function SectionTitle({ id, title, sub, className }: { id: string; title: string
 }
 
 /* ── Split blocks 34:59 (desktop) · Block / Deep 60:765 + Block / Accent 60:773 (mobile) ── */
-function SplitBlocks() {
-  return (
-    <div className="grid lg:grid-cols-2">
-      <section data-tone="deep" aria-labelledby="split-replies" className={cx(DEEP_FOCUS, 'relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]')}>
-        <LiveBgSlot tone="deep" />
-        <div className="relative flex flex-col items-center gap-[var(--space-16)] px-[var(--space-16)] pt-[var(--space-48)] text-center lg:h-[560px] lg:px-[var(--space-80)] lg:pt-[var(--space-64)]">
-          <h2 id="split-replies" className={T.h1}>كل الردود في مكان واحد</h2>
-          <p className={cx(T.bodyL, 'max-w-[440px] text-[var(--color-text-secondary)]')}>واتساب، إيميل، أو بوابة الموردين — نجمع الردود ونحوّلها لعروض مرتبة بدون ما تلاحق أحد.</p>
-          <div aria-hidden="true" className="flex-1" />
-          <div className={cx(LIGHT_SURFACE, 'mt-[var(--space-24)] hidden w-full max-w-[460px] flex-col rounded-t-[var(--radius-xl)] bg-[var(--color-bg-surface)] px-[var(--space-8)] pt-[var(--space-8)] text-start shadow-[var(--elevation-lg)] md:flex md:h-[200px] lg:mt-0')}>
-            {[
-              { name: 'مستودع الرياض للكهرباء', ch: 'WhatsApp' as const, tone: 'Success' as const, label: 'أرسل سعر' },
-              { name: 'مؤسسة النور للكهرباء', ch: 'Email' as const, tone: 'Info' as const, label: 'رد · يسأل عن الكمية' },
-              { name: 'شركة الخليج للكابلات', ch: 'WhatsApp' as const, tone: 'Warning' as const, label: 'بانتظار الرد' },
-            ].map((r) => (
-              <div key={r.name} className="flex items-center gap-[var(--space-8)] p-[var(--space-16)]">
-                <span className={cx(T.bodyM, 'min-w-0 flex-1 text-[var(--color-text-primary)]')}>{r.name}</span>
-                <ChannelBadge channel={r.ch} />
-                <Badge tone={r.tone} label={r.label} />
-              </div>
-            ))}
-          </div>
-          <div className="h-[var(--space-48)] md:hidden" />
-        </div>
-      </section>
-      <section data-tone="accent" aria-labelledby="split-difference" className="relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
-        <LiveBgSlot tone="accent" />
-        <div className="relative flex flex-col items-center gap-[var(--space-16)] px-[var(--space-16)] pt-[var(--space-48)] text-center lg:h-[560px] lg:px-[var(--space-80)] lg:pt-[var(--space-64)]">
-          <h2 id="split-difference" className={T.h1}>شوف الفرق قبل ما تقرر</h2>
-          <p className={cx(T.bodyL, 'max-w-[440px]')}>نحسب التكلفة الواصلة، ونبرز اللي يختلف بين العروض بس — والعرض اللي وحدته مختلفة ننبهك عليه.</p>
-          <div aria-hidden="true" className="flex-1" />
-          <div className={cx(LIGHT_SURFACE, 'mt-[var(--space-24)] hidden w-full max-w-[460px] flex-col gap-[var(--space-12)] rounded-t-[var(--radius-xl)] bg-[var(--color-bg-surface)] px-[var(--space-20)] pt-[var(--space-20)] text-start shadow-[var(--elevation-lg)] md:flex md:h-[200px] lg:mt-0')}>
-            <p className={cx(T.bodyM, 'text-[var(--color-text-primary)]')}>قاطع كهربائي 32 أمبير — 40 حبة</p>
-            <div className="flex gap-[var(--space-12)]">
-              <PriceCell state="Best" price="2,840 ر.س" delta="الأقل سعرًا" className="w-auto flex-1" />
-              <PriceCell state="Normal" price="3,120 ر.س" delta="+280 ر.س (9.9%)" className="w-auto flex-1" />
-            </div>
-            <PriceCell state="Not comparable" price="7,200 ر.س" delta="السعر لكرتون 12 حبة — نحتاج تأكيد" className="w-full" />
-          </div>
-          <div className="h-[var(--space-48)] md:hidden" />
-        </div>
-      </section>
-    </div>
-  )
-}
-
-/* ── How it works 34:132 · mobile 60:781 ── */
 const METHODS = [
   { n: '01', spot: booklet, title: 'ارفع الكراسة', body: 'ملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.' },
   { n: '02', spot: list, title: 'اكتب الطلبات', body: 'سطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.' },
@@ -107,6 +60,7 @@ function HowItWorks() {
           <Icon name="check" size={20} style={{ color: 'var(--color-icon-success)' }} />
           كلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.
         </p>
+        <HowWePrice />
       </Container>
     </section>
   )
@@ -206,33 +160,6 @@ function Difference() {
 }
 
 /* ── Trust strip 35:218 — real figures are not available: placeholders (decision 5) ── */
-const STATS = [
-  { label: 'مورد في قاعدة فرق', basis: 'عدد فعلي من النظام وقت النشر' },
-  { label: 'منطقة مغطاة' },
-  { label: 'متوسط أول رد', basis: 'من آخر 90 يوم' },
-  { label: 'عرض سعر تم مقارنته' },
-]
-
-function TrustStrip() {
-  return (
-    <section aria-label="فرق بالأرقام" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-64)]">
-      <LiveBgSlot tone="light" />
-      <Container>
-        <dl className="grid grid-cols-2 gap-[var(--space-24)] lg:grid-cols-4">
-          {STATS.map((s) => (
-            <div key={s.label} className="flex flex-col gap-[var(--space-4)]">
-              <dt className={cx(T.bodyM, 'order-2 text-[var(--color-text-primary)]')}>{s.label}</dt>
-              <dd className={cx(T.numL, 'order-1 text-[var(--color-text-tertiary)]')}>{PLACEHOLDER_NUM}</dd>
-              {s.basis ? <dd className={cx(T.caption, 'order-3 text-[var(--color-text-tertiary)]')}>{s.basis}</dd> : null}
-            </div>
-          ))}
-        </dl>
-      </Container>
-    </section>
-  )
-}
-
-/* ── Audience 35:233 ── */
 const AUDIENCE = [
   { icon: 'building' as const, title: 'المقاولون', body: 'كراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.' },
   { icon: 'layers' as const, title: 'المصانع', body: 'قطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.' },
@@ -263,131 +190,6 @@ function Audience() {
 }
 
 /* ── Inbox showcase 37:135 ── */
-function InboxShowcase() {
-  const row = 'flex items-center justify-between gap-[var(--space-12)]'
-  return (
-    <section data-tone="deep" aria-labelledby="inbox-title" className={cx(DEEP_FOCUS, 'relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] text-[var(--color-text-primary)] md:py-[var(--space-96)]')}>
-      <LiveBgSlot tone="deep" />
-      <Container className="grid items-center gap-[var(--space-40)] lg:grid-cols-2">
-        <div className="flex flex-col items-start gap-[var(--space-16)]">
-          <h2 id="inbox-title" className={T.displayL}>الردود توصلك جاهزة</h2>
-          <p className={cx(T.bodyL, 'max-w-[480px] text-[var(--color-text-secondary)]')}>
-            المورد يرد بطريقته — رسالة واتساب، إيميل، أو ملف. نفهم الرد ونطلع منه السعر والوحدة والتوصيل، ونوريك وش فهمنا قبل ما يدخل المقارنة.
-          </p>
-          <div className="flex flex-wrap gap-[var(--space-8)]">
-            <ChannelBadge channel="WhatsApp" />
-            <ChannelBadge channel="Email" />
-            <Badge tone="Neutral" label="بوابة الموردين" showDot={false} />
-          </div>
-        </div>
-        <figure aria-label="مثال توضيحي: رد مورد على واتساب يتحول لعرض مستخرج" className="flex flex-col items-end gap-[var(--space-16)] lg:items-end">
-          <blockquote className="w-full max-w-[380px] self-start rounded-[20px] rounded-ee-[6px] border border-[var(--white-a16)] bg-[var(--white-a8)] px-[18px] py-[14px] lg:self-auto">
-            <p className={cx(T.caption, 'flex items-center gap-[6px] text-[var(--color-text-secondary)]')}>
-              <Icon name="whatsapp" size={14} />
-              مستودع الرياض للكهرباء · واتساب
-            </p>
-            <p className={cx(T.body, 'mt-[6px]')}>
-              هلا والله، الكيبل متوفر عندنا
-              <br />
-              المتر بـ 82.40 والتوصيل علينا للرياض
-              <br />
-              نقدر نسلّم خلال 3 أيام
-            </p>
-          </blockquote>
-          <p className={cx(T.caption, 'flex items-center gap-[6px] self-start text-[var(--color-text-secondary)] lg:self-auto')}>
-            فرق فهم الرد
-            <Icon name="arrow-forward" size={18} />
-          </p>
-          <div className={cx(LIGHT_SURFACE, 'flex w-full max-w-[420px] flex-col gap-[var(--space-12)] self-start rounded-[var(--radius-xl)] bg-[var(--color-bg-surface)] p-[var(--space-20)] text-[var(--color-text-primary)] shadow-[var(--glow-success)] lg:self-auto')}>
-            <div className={row}>
-              <span className={T.bodyM}>عرض مستخرج</span>
-              <Confidence level="High" />
-            </div>
-            {[
-              ['سعر الوحدة', '82.40 ر.س / متر'],
-              ['الكمية', '500 متر'],
-            ].map(([k, v]) => (
-              <div key={k} className={cx(row, T.small)}>
-                <span className="text-[var(--color-text-secondary)]">{k}</span>
-                <span className="font-medium">{v}</span>
-              </div>
-            ))}
-            <div className={row}>
-              <span className={cx(T.small, 'text-[var(--color-text-secondary)]')}>الإجمالي قبل الضريبة</span>
-              <span className={T.numBase}>41,200.00 ر.س</span>
-            </div>
-            {[
-              ['التوصيل', 'مجاني · الرياض'],
-              ['التوريد', '3 أيام'],
-            ].map(([k, v]) => (
-              <div key={k} className={cx(row, T.small)}>
-                <span className="text-[var(--color-text-secondary)]">{k}</span>
-                <span className="font-medium">{v}</span>
-              </div>
-            ))}
-            {/* Static illustration of the app's review step — not interactive on the landing page. */}
-            <div aria-hidden="true" className="flex justify-end gap-[var(--space-8)]">
-              <span className="inline-flex h-8 items-center gap-[var(--space-4)] rounded-[var(--radius-md)] bg-[var(--color-bg-cta)] px-[var(--space-12)] text-[14px] font-medium leading-[22px] text-[var(--color-text-on-cta)]">
-                <Icon name="check" size={16} />
-                اعتمد في المقارنة
-              </span>
-              <span className="inline-flex h-8 items-center rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-[var(--space-12)] text-[14px] font-medium leading-[22px]">عدّل</span>
-            </div>
-          </div>
-        </figure>
-      </Container>
-    </section>
-  )
-}
-
-/* ── Pricing 37:203 — prices and plan limits are not decided: placeholders ── */
-const PLANS = [
-  { name: 'تجربة', price: '[سعر يُحدَّد]', note: 'للتعرّف على فرق', features: ['حتى [عدد يُحدَّد] طلبات تسعير', 'مقارنة التكلفة الواصلة', 'ردود واتساب وإيميل'], cta: 'ابدأ التجربة', href: START_HREF, featured: false, external: true },
-  { name: 'أعمال', price: '[سعر يُحدَّد]', note: 'لفرق المشتريات النشطة', features: ['طلبات غير محدودة', 'موردين مقترحين بالأدلة', 'تصدير المقارنة PDF وExcel', 'حتى [عدد يُحدَّد] مستخدمين'], cta: 'ابدأ التسعير', href: START_HREF, featured: true, external: true, badge: 'الأكثر طلبًا' },
-  { name: 'مؤسسات', price: 'تواصل معنا', note: 'للجهات الكبيرة', features: ['صلاحيات وموافقات', 'تكامل مع أنظمتكم', 'مدير حساب'], cta: 'تواصل معنا', href: ENTERPRISE_EMAIL_HREF, featured: false, external: false },
-]
-
-function Pricing() {
-  return (
-    <section id="pricing" aria-labelledby="pricing-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
-      <LiveBgSlot tone="light" />
-      <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-40)]">
-        <SectionTitle id="pricing-title" title="خطط بسيطة" sub="ادفع على قد استخدامك — وتقدر تغيّر خطتك متى ما بغيت." />
-        <ul className="grid w-full gap-[var(--space-16)] lg:grid-cols-3 lg:gap-[var(--space-24)]">
-          {PLANS.map((p) => (
-            <li
-              key={p.name}
-              data-tone={p.featured ? 'deep' : undefined}
-              className={cx(
-                'flex flex-col gap-[var(--space-20)] rounded-[var(--radius-xl)] p-[var(--space-32)] text-[var(--color-text-primary)] lg:h-[480px]',
-                p.featured ? cx(DEEP_FOCUS, 'bg-[var(--color-bg-canvas)]') : 'border border-[var(--color-border-default)] bg-[var(--color-bg-canvas)]',
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className={T.h3}>{p.name}</h3>
-                {p.badge ? <Badge tone="Success" label={p.badge} showDot={false} /> : null}
-              </div>
-              <p className={cx(T.numL, p.price.startsWith('[') && 'text-[var(--color-text-secondary)]')}>{p.price}</p>
-              <p className={cx(T.small, 'text-[var(--color-text-secondary)]')}>{p.note}</p>
-              <ul className="flex flex-col gap-[var(--space-12)]">
-                {p.features.map((f) => (
-                  <li key={f} className={cx(T.body, 'flex items-center gap-[var(--space-8)]')}>
-                    <Icon name="check" size={18} style={{ color: 'var(--color-icon-success)' }} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <div aria-hidden="true" className="flex-1" />
-              <LinkButton href={p.href} external={p.external} variant="Secondary" fullWidth aria-label={`${p.cta} — خطة ${p.name}`}>{p.cta}</LinkButton>
-            </li>
-          ))}
-        </ul>
-      </Container>
-    </section>
-  )
-}
-
-/* ── FAQ 37:284 — only the first answer exists in Figma; the rest are pending (open-issues) ── */
 const FAQ = [
   { q: 'كم ياخذ وقت أول رد؟', a: 'يعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.' },
   { q: 'هل أقدر أرفع كراسة PDF ممسوحة؟' },
@@ -432,7 +234,7 @@ function Faq() {
 /* ── Final CTA 37:317 (accent) ── */
 function FinalCta() {
   return (
-    <section data-tone="accent" aria-labelledby="final-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] text-[var(--color-text-primary)] md:py-[var(--space-80)]">
+    <section aria-labelledby="final-title" className="relative overflow-hidden border-t border-[var(--color-border-default)] bg-[var(--color-bg-canvas)] py-[var(--space-48)] text-[var(--color-text-primary)] md:py-[var(--space-80)]">
       <LiveBgSlot tone="accent" />
       <Container className="flex flex-col items-center gap-[var(--space-16)] text-center md:gap-[var(--space-24)]">
         <h2 id="final-title" className={T.displayL}>طلب الشراء الجاي؟ خلّه علينا.</h2>
@@ -457,7 +259,6 @@ export function Footer() {
           <nav aria-label="المنتج" className="flex flex-col gap-[var(--space-12)]">
             <h2 className={T.bodyM}>المنتج</h2>
             <TextLink href="#how" className={muted}>كيف تعمل</TextLink>
-            <TextLink href="#pricing" className={muted}>الأسعار</TextLink>
             <span className={muted}>للموردين <span className="text-[var(--color-text-tertiary)]">(قريبًا)</span></span>
           </nav>
           <div className="flex flex-col gap-[var(--space-12)]">
@@ -492,14 +293,9 @@ export function Footer() {
 export default function Below() {
   return (
     <>
-      <SplitBlocks />
       <HowItWorks />
-      <HowWePrice />
       <Difference />
-      <TrustStrip />
       <Audience />
-      <InboxShowcase />
-      <Pricing />
       <Faq />
       <FinalCta />
     </>

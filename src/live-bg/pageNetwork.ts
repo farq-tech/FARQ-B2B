@@ -229,7 +229,7 @@ export class PageNetwork {
     for (let it = 0; it < 3; it++) { const q = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]) } q.push(pts[pts.length - 1]); pts = q }
     const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
     // line strength along the route: soft behind content (0.12), full in open space — never cut
-    const fd = pts.map(([x, y]) => Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, (this.dist(x, y) - 2) / 30))) * 6) / 6)
+    const fd = pts.map(([x, y]) => Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, (this.dist(x, y) - 2) / 30))) * (y > this.VH ? 0.55 : 1) * 6) / 6) // fainter below the first screen
     return { pts, fd, cum }
   }
 
@@ -335,11 +335,12 @@ export class PageNetwork {
     const { ctx, V, VF, VD, PH, mouse } = this, SP = 320, PER = 3 * SP, mx = mouse.on ? mouse.x : -1e4, my = mouse.y, y0 = this.SY - 12, y1 = this.SY + this.VH + 12
     for (let i = 0; i < V.length; i++) {
       const v = V[i]; if (v.y < y0 || v.y > y1 || VF[i] <= 0) continue
-      let a = 0.26, r = 1.4
+      const below = v.y > this.VH ? 0.5 : 1 // the story lives on the first screen; below it the grid just breathes
+      let a = 0.18 * below, r = 1.3
       if (live) { // a search wave sweeps out from the head office every 3 s; points answer
         const ph = t * SP - VD[i]
-        if (ph > 0) { const q = ph % PER, f = Math.exp(-(((q - 18) / 26) ** 2)) * (1 - 0.7 * Math.min(1, VD[i] / 1800)); a += 0.5 * f; r += 1.1 * f }
-        a += 0.06 * Math.sin(t * 1.4 + PH[i])
+        if (ph > 0) { const q = ph % PER, f = Math.exp(-(((q - 18) / 26) ** 2)) * (1 - 0.7 * Math.min(1, VD[i] / 1800)) * below; a += 0.32 * f; r += 0.8 * f }
+        a += 0.04 * below * Math.sin(t * 1.4 + PH[i])
         const dm = Math.hypot(v.x - mx, v.y - my); if (dm < 150) { const k = (1 - dm / 150) ** 1.5; a += 0.35 * k; r += 0.8 * k }
       }
       const key = Math.round(Math.min(0.9, a) * VF[i] * 50) * 64 + Math.round(r * 4) // alpha in 1/50, radius in 1/4 px
@@ -357,7 +358,7 @@ export class PageNetwork {
     ctx.lineWidth = 1
     for (let k = this.pings.length - 1; k >= 0; k--) {
       const p = this.pings[k], u = (t - p.t0) / 1.1; if (u > 1 || u < 0) { this.pings.splice(k, 1); continue }
-      const v = V[p.i]; ctx.strokeStyle = col(this.go, 0.45 * (1 - u)); ctx.beginPath(); ctx.arc(v.x, v.y, 2 + 12 * u, 0, TAU); ctx.stroke()
+      const v = V[p.i]; ctx.strokeStyle = col(this.go, 0.3 * (v.y > this.VH ? 0.5 : 1) * (1 - u)); ctx.beginPath(); ctx.arc(v.x, v.y, 2 + 12 * u, 0, TAU); ctx.stroke()
     }
   }
   /** Strokes part of a route; its strength fades smoothly where it passes behind content (batched by level). */
@@ -474,7 +475,7 @@ export class PageNetwork {
     for (const { w, dOut, dBack } of this.F) {
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'
       const isBack = dBack !== null
-      this.sline(w, 0, dOut, go, (isBack ? 0.22 : 0.5) * FE, 1.3, [1.5, 4.5]) // outbound: thin dotted
+      this.sline(w, 0, dOut, go, (isBack ? 0.18 : 0.42) * FE, 1.3, [1.5, 4.5]) // outbound: thin dotted
       if (t >= w.start && t < w.arrive) { // the head: a tail (last 70 px, then 28 px) and a glowing point
         this.sline(w, Math.max(0, dOut - 70), dOut, go, 0.35 * FE, 1.6); this.sline(w, Math.max(0, dOut - 28), dOut, go, 0.8 * FE, 1.9)
         const [hx, hy] = this.at(w, dOut), hi = w.cum.findIndex((c) => c >= dOut), hf = w.fd[Math.min(w.fd.length - 1, Math.max(0, hi))] || 1
@@ -483,7 +484,7 @@ export class PageNetwork {
       }
       if (w.runner && t < w.arrive) { ctx.fillStyle = col(go, 0.45); for (let d = Math.ceil((dOut + 6) / 12) * 12; d < w.len; d += 12) { const [px, py] = this.at(w, d); if (py < this.SY - 10 || py > this.SY + this.VH + 10) continue; ctx.beginPath(); ctx.arc(px, py, 1.6, 0, TAU); ctx.fill() } }
       if (dBack !== null) { // return: champagne 1.5 px with a 4.5 px glow
-        this.sline(w, dBack, w.len, back, 0.12 * FE, 4.5); this.sline(w, dBack, w.len, back, 0.85 * FE, 1.5)
+        this.sline(w, dBack, w.len, back, 0.08 * FE, 4.5); this.sline(w, dBack, w.len, back, 0.7 * FE, 1.5)
         if (t < w.home) { const [hx, hy] = this.at(w, dBack); ctx.fillStyle = col(back, 0.95); ctx.beginPath(); ctx.arc(hx, hy, 2.6, 0, TAU); ctx.fill() }
       }
       const v = V[w.target], hit = t >= w.arrive, gold = t >= w.tc
