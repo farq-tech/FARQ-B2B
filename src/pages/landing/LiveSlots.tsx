@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { Tone } from '../../live-bg/engine'
 
 /*
- * Mounts the living background into every `data-live-bg="deep|accent|light"` slot of the page
+ * Mounts the one living-background layer into every `data-live-bg` slot of the page (the slot's section
+ * sets the background through its data-tone; the layer itself is the same everywhere)
  * (docs/qa/requests.md B5). Only slots near the viewport get an engine, so a long page runs one or
  * two canvases at a time; the engine itself pauses off-screen and follows prefers-reduced-motion.
  * The canvas chunk is requested after the hero has painted (lazy), so it never competes with LCP.
@@ -18,9 +18,8 @@ function Slot({ el }: { el: HTMLElement }) {
     return () => io.disconnect()
   }, [el])
   if (!near) return null
-  const tone = (el.dataset.liveBg as Tone) || 'light'
   // obstacles: the section that holds the slot (its text and cards stay clear of the network)
-  return createPortal(<Suspense fallback={null}><Canvas tone={tone} fixed={false} scope={el.parentElement ?? undefined} /></Suspense>, el)
+  return createPortal(<Suspense fallback={null}><Canvas fixed={false} scope={el.parentElement ?? undefined} /></Suspense>, el)
 }
 
 export default function LiveSlots({ root }: { root: HTMLElement | null }) {

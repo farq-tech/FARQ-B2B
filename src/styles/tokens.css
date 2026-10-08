@@ -133,8 +133,9 @@
   /* ── Living background (Living BG collection + approved defaults) ── */
   --live-mesh-line: #8a94a0;
   --live-base: #ffffff;
-  --live-go: #6b8e3d;     /* زيتوني  — Light default: زيتوني ← شامبين */
-  --live-back: #c6ae82;   /* شامبين */
+  /* One layer on every background: same paths, chips, Ahmad and colours (owner, 2026-10-08) — only the base and facets below change per tone */
+  --live-go: #6b8e3d;     /* زيتوني — الطلب الرايح */
+  --live-back: #c6ae82;   /* شامبين — السعر الراجع */
   /* Facet shades — five per tone, as in the reference prototype (TONES.*.shades) */
   --live-facet-1: #ffffff;
   --live-facet-2: #fcfcfc;
@@ -146,8 +147,6 @@
 /* Section tones — hero and dark bands. Not a theme: they only re-point surface/text. */
 [data-tone="deep"] {
   --live-base: #121212;
-  --live-go: #62bfa9;     /* نعناعي هادئ */
-  --live-back: #c6ae82;   /* شامبين */
   --live-facet-1: #121212;
   --live-facet-2: #141414;
   --live-facet-3: #161616;
@@ -159,8 +158,6 @@
 }
 [data-tone="accent"] {
   --live-base: #3ddc97;
-  --live-go: #3a4047;     /* فحمي */
-  --live-back: #ffffff;   /* أبيض */
   --live-facet-1: #3ddc97;
   --live-facet-2: #42dd9a;
   --live-facet-3: #48df9e;

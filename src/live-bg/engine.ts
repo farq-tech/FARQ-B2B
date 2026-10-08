@@ -21,8 +21,8 @@ type Walker = {
   k: number; ch: number; runner: boolean; rest: boolean; target: number; path: number[]; cum: number[]; len: number
   far0: number; ang: number; start: number; arrive: number; tc: number; home: number; done: number; price: number; prof: Prof
 }
-type Plan = { walkers: Walker[]; mode: 'far' | 'near' | 'none'; rerolls: number; gen: number }
-type Round = { walkers: Walker[]; allHome: number; best: number; end: number }
+type Plan = { walkers: Walker[]; mode: 'far' | 'near' | 'none'; rerolls: number; gen: number; k: number }
+type Round = { walkers: Walker[]; allHome: number; best: number; end: number; k: number }
 
 const FONT = 'Tajawal, "Readex Pro", system-ui, sans-serif'
 const FONT_NUM = '"Readex Pro", Tajawal, system-ui, sans-serif'
@@ -79,7 +79,15 @@ function heapPop(h: Array<[number, number]>) {
   if (h.length) { h[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < h.length && h[l][0] < h[m][0]) m = l; if (r < h.length && h[r][0] < h[m][0]) m = r; if (m === i) break; [h[m], h[i]] = [h[i], h[m]]; i = m } }
   return top
 }
-const shuffle = <T,>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]] } return a }
+// Rounds are seeded from the shared clock (round number), so every screen plays the same round: `rand` is
+// re-pointed to a seeded generator while a round is planned.
+let rand: () => number = Math.random
+const shuffle = <T,>(a: T[], r: () => number = rand) => { for (let i = a.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]] } return a }
+/** One shared clock for every page and tab: wall time in seconds. A round is ROUND seconds; round k starts at k·ROUND. */
+export const ROUND = 24
+const ALL_HOME = 20.6 // every request (and Ahmad) is back by then; «أرخص سعر» shows until the next round
+const wall = () => (performance.timeOrigin + performance.now()) / 1000
+const seedOf = (k: number, salt: number) => (Math.imul(k | 0, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b)) | 0
 const fmt = (n: number) => n.toLocaleString('en-US') + ' ر.س'
 
 // ---------- page elements the network must keep clear of ----------
@@ -113,7 +121,7 @@ export function readObstacles(host: HTMLElement, scope: Element = document.body)
   return { boxes, title }
 }
 
-export type EngineOpts = { tone: Tone; reduced: boolean; /** where to look for page elements (default: the whole page) */ scope?: Element }
+export type EngineOpts = { reduced: boolean; /** where to look for page elements (default: the whole page) */ scope?: Element }
 export type FrameStats = { frames: number; avg: number; p95: number; p99: number; max: number; rounds: number; far: number; near: number; none: number; sync: number }
 
 export class LiveEngine {
@@ -123,7 +131,6 @@ export class LiveEngine {
   private V: Vert[] = []; private E: Edge[] = []; private adj: number[][] = []
   private FLOW: Array<{ sp: number; ph: number; rev: boolean }> = []
   private HUB = 0; private S!: Round; private S_client = 0
-  private LAST: Record<number, number> = {}
   private boxes: Box[] = []; private title: Box | null = null
   private go: RGB = [0, 0, 0]; private back: RGB = [0, 0, 0]; private base: RGB = [255, 255, 255]; private meshLine: RGB = [0, 0, 0]
   private surface: RGB = [255, 255, 255]; private ink: RGB = [0, 0, 0]; private ink2: RGB = [0, 0, 0]
@@ -183,7 +190,7 @@ export class LiveEngine {
     this.build()
     this.gen++; this.next = null
     this.chips.clear() // colours / DPR may have changed
-    if (!this.opts.reduced) { const p = this.planRound(); this.prerender(p.walkers); this.commit(p, this.simT); this.schedulePlan() }
+    if (!this.opts.reduced) { this.S = undefined as unknown as Round; this.simT = wall(); this.sync(this.simT, false) }
     this.run()
   }
 
@@ -249,7 +256,8 @@ export class LiveEngine {
     }
     this.E = E
     this.adj = V.map(() => []); E.forEach((e, i) => { this.adj[e.a].push(i); this.adj[e.b].push(i) })
-    this.FLOW = E.map((e) => ({ sp: 14 + Math.random() * 22, ph: Math.random() * (e.L + 60), rev: Math.random() < 0.5 }))
+    const fr = mulberry(29) // ambient pulse seeded like the mesh: the same on every page of the same size
+    this.FLOW = E.map((e) => ({ sp: 14 + fr() * 22, ph: fr() * (e.L + 60), rev: fr() < 0.5 }))
     // static layer: facets + the faint mesh, once
     const b = this.bctx
     const shades = FACETS.map((v) => rgba(readColor(this.host, v), 1))
@@ -268,7 +276,7 @@ export class LiveEngine {
     d[from] = 0; heapPush(h, [0, from])
     while (h.length) {
       const [x, u] = heapPop(h); if (x > d[u]) continue; if (u === to) break
-      for (const ei of adj[u]) { const e = E[ei], v = e.a === u ? e.b : e.a; if (v !== to && blocked(v)) continue; const nx = x + e.L * (0.3 + Math.random() * 2.7); if (nx < d[v]) { d[v] = nx; pv[v] = u; heapPush(h, [nx, v]) } }
+      for (const ei of adj[u]) { const e = E[ei], v = e.a === u ? e.b : e.a; if (v !== to && blocked(v)) continue; const nx = x + e.L * (0.3 + rand() * 2.7); if (nx < d[v]) { d[v] = nx; pv[v] = u; heapPush(h, [nx, v]) } }
     }
     if (!isFinite(d[to])) return null
     const path: number[] = []; let v = to; while (v !== from) { path.unshift(v); v = pv[v] } return path
@@ -282,23 +290,27 @@ export class LiveEngine {
    *              farthest point in its direction (and still never touching another request's path)
    *   3. none  — last resort: he sits the round out (counted in stats)
    */
-  private planRound(): Plan {
-    const rolls: Walker[][] = []
-    for (let i = 0; i < 8; i++) {
-      const ws = this.routes(); rolls.push(ws)
-      const r = this.pickFar(ws); if (r) return this.finish(ws, r, 'far', i)
-    }
-    for (const ws of rolls) { const r = this.pickNear(ws) || this.pickRoute(ws); if (r) return this.finish(ws, r, 'near', 8) }
-    return this.finish(rolls[rolls.length - 1], null, 'none', 8)
+  private planRound(k: number): Plan {
+    try {
+      const rolls: Walker[][] = []
+      for (let i = 0; i < 8; i++) {
+        rand = mulberry(seedOf(k, i)) // geometry: the same roll on the same layout is always the same
+        const ws = this.routes(); rolls.push(ws)
+        const r = this.pickFar(ws); if (r) return this.finish(ws, r, 'far', i, k)
+      }
+      rand = mulberry(seedOf(k, 99))
+      for (const ws of rolls) { const r = this.pickNear(ws) || this.pickRoute(ws); if (r) return this.finish(ws, r, 'near', 8, k) }
+      return this.finish(rolls[rolls.length - 1], null, 'none', 8, k)
+    } finally { rand = Math.random }
   }
 
   /** Six non-crossing paths from the head office, one per direction, each to the farthest reachable point. */
   private routes(): Walker[] {
     const { V, E, adj } = this
     const S_client = this.HUB
-    const base = 3000 + Math.random() * 9000, C = V[S_client]
+    const base = 3000 + rand() * 9000, C = V[S_client]
     const NB = (ei: number) => { const e = E[ei]; return e.a === S_client ? e.b : e.a }, ANG = (ei: number) => Math.atan2(V[NB(ei)].y - C.y, V[NB(ei)].x - C.x)
-    const all = [...adj[S_client]].sort((a, b) => ANG(a) - ANG(b)), M = Math.min(6, all.length), rot = Math.random()
+    const all = [...adj[S_client]].sort((a, b) => ANG(a) - ANG(b)), M = Math.min(6, all.length), rot = rand()
     const out = [...new Set(Array.from({ length: M }, (_, k) => all[Math.floor(((k + rot) * all.length) / M) % all.length]))], sec = Math.PI / out.length
     const owner = new Int16Array(V.length).fill(-1); owner[S_client] = 999
     const walkers: Walker[] = []
@@ -310,14 +322,13 @@ export class LiveEngine {
       for (let i = 0; i < V.length; i++) { if (owner[i] >= 0) continue; const v = V[i], an = Math.atan2(v.y - C.y, v.x - C.x), da = Math.abs(Math.atan2(Math.sin(an - ang), Math.cos(an - ang))); if (da <= sec) cand.push([Math.hypot(v.x - C.x, v.y - C.y), i]) }
       cand.sort((x, y) => y[0] - x[0])
       let plan = [nb], target = nb
-      const far = cand.filter((c) => c[0] >= (cand[0]?.[0] ?? 0) * 0.82 && c[1] !== this.LAST[k])
+      const far = cand.filter((c) => c[0] >= (cand[0]?.[0] ?? 0) * 0.82)
       for (const [, i] of [...shuffle(far), ...cand].slice(0, 16)) { if (i === nb) continue; const r = this.routeV(nb, i, (v) => owner[v] >= 0); if (r) { plan = [nb, ...r]; target = i; break } }
-      this.LAST[k] = target
       plan.forEach((v) => (owner[v] = k))
       const path = [S_client, ...plan], cum = [0]
       for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(V[path[i]].x - V[path[i - 1]].x, V[path[i]].y - V[path[i - 1]].y))
-      const start = Math.random() * 0.6, arrive = start + 8.5 + Math.random() * 1.2, tc = arrive + 0.8 + Math.random() * 0.6, home = tc + 5.5 + Math.random() * 0.8
-      walkers.push({ k, ch: k % CHANNELS.length, runner: false, rest: false, target, path, cum, len: cum[cum.length - 1], far0: cand[0]?.[0] ?? 0, ang, start, arrive, tc, home, done: home, price: Math.round((base * (0.82 + Math.random() * 0.36)) / 10) * 10, prof: NO_PROF })
+      const start = 0, arrive = 9, tc = 10, home = 16 // placeholders: finish() sets the round's timeline from the clock seed
+      walkers.push({ k, ch: k % CHANNELS.length, runner: false, rest: false, target, path, cum, len: cum[cum.length - 1], far0: cand[0]?.[0] ?? 0, ang, start, arrive, tc, home, done: home, price: Math.round((base * (0.82 + rand() * 0.36)) / 10) * 10, prof: NO_PROF })
     })
     return walkers
   }
@@ -331,7 +342,7 @@ export class LiveEngine {
   private pickFar(ws: Walker[]) {
     const boxes = this.runnerBoxes(), long = Math.min(this.W, this.H) * 0.35
     const ok = ws.filter((w) => w.len > long && this.V[w.target].y > 90 && this.blockedAt(w, boxes) === Infinity)
-    return ok.length ? ok[(Math.random() * ok.length) | 0] : null
+    return ok.length ? ok[(rand() * ok.length) | 0] : null
   }
   private pickNear(ws: Walker[]) {
     const boxes = this.runnerBoxes(), C = this.V[this.HUB], ok: Array<[Walker, number]> = []
@@ -345,8 +356,8 @@ export class LiveEngine {
       }
     }
     if (!ok.length) return null
-    const [w, i] = ok[(Math.random() * ok.length) | 0]
-    w.path = w.path.slice(0, i + 1); w.cum = w.cum.slice(0, i + 1); w.len = w.cum[i]; w.target = w.path[i]; this.LAST[w.k] = w.target
+    const [w, i] = ok[(rand() * ok.length) | 0]
+    w.path = w.path.slice(0, i + 1); w.cum = w.cum.slice(0, i + 1); w.len = w.cum[i]; w.target = w.path[i]
     return w
   }
   /** A dedicated route for Ahmad in one walker's direction that steers around every element (vertex-disjoint from the others). */
@@ -377,30 +388,49 @@ export class LiveEngine {
         for (let j = 1; j < path.length; j++) cum.push(cum[j - 1] + Math.hypot(V[path[j]].x - V[path[j - 1]].x, V[path[j]].y - V[path[j - 1]].y))
         const t: Walker = { ...w, path, cum, len: cum[cum.length - 1], target: i }
         if (this.blockedAt(t, boxes) !== Infinity) continue // an edge between two clear points can still clip a corner
-        Object.assign(w, { path, cum, len: t.len, target: i }); this.LAST[w.k] = i
+        Object.assign(w, { path, cum, len: t.len, target: i })
         return w
       }
       }
     }
     return null
   }
-  private finish(walkers: Walker[], r: Walker | null, mode: Plan['mode'], rerolls: number): Plan {
+  private finish(walkers: Walker[], r: Walker | null, mode: Plan['mode'], rerolls: number, k: number): Plan {
+    // Everything the eye compares between screens comes from the round number alone: when each request leaves,
+    // arrives and returns, the prices (so «أرخص سعر» is the same), the channel order and Ahmad's timeline.
+    // Only the geometry (where the head office is, which way each path goes) follows each screen's layout.
+    const c = mulberry(seedOf(k, 1000)), base = 3000 + c() * 9000
+    walkers.forEach((w, i) => {
+      const s0 = c() * 0.6, a0 = c(), t0 = c(), h0 = c(), p0 = c()
+      w.start = s0; w.arrive = s0 + 8.5 + a0 * 1.2; w.tc = w.arrive + 0.8 + t0 * 0.6; w.home = w.tc + 5.5 + h0 * 0.8; w.done = w.home
+      w.price = Math.round((base * (0.82 + p0 * 0.36)) / 10) * 10; w.ch = i % CHANNELS.length
+    })
     if (r) {
-      r.runner = true; r.rest = r.len > Math.min(this.W, this.H) * 0.5
-      const run = Math.max(4.5, r.len / 92); r.arrive = r.start + run + (r.rest ? 2.7 : 0); r.tc = r.arrive + 1.1 + 1.8; r.home = r.tc + Math.max(4, r.len / 80); r.done = r.home + 1.5
+      // fixed timeline on every screen (speed follows the path length): run 9.5 s with a catch-breath half-way,
+      // 2.9 s at the supplier, 6 s back, 1.5 s next to the head office
+      r.runner = true; r.rest = true
+      r.arrive = r.start + 9.5; r.tc = r.arrive + 2.9; r.home = r.tc + 6; r.done = r.home + 1.5
     }
     // the other paths: one channel each, never repeated (a 6th path only when Ahmad sits out)
-    const order = shuffle(CHANNELS.map((_, i) => i)); let j = 0
+    const order = shuffle(CHANNELS.map((_, i) => i), c); let j = 0
     for (const w of walkers) if (!w.runner) w.ch = order[j++ % order.length]
-    return { walkers, mode, rerolls, gen: this.gen }
+    return { walkers, mode, rerolls, gen: this.gen, k }
   }
-  /** Start a planned round at time t (cheap: shifts times, builds Ahmad's speed profile). */
-  private commit(p: Plan, t: number) {
+  /** Start planned round k at its clock time k·ROUND (cheap: shifts times, builds Ahmad's speed profile). */
+  private commit(p: Plan) {
+    const t = p.k * ROUND
     for (const w of p.walkers) { w.start += t; w.arrive += t; w.tc += t; w.home += t; w.done += t; if (w.runner) this.profile(w) }
     this.counts.rounds++; this.counts[p.mode]++; this.counts.rerolls += p.rerolls
     this.S_client = this.HUB
-    const allHome = Math.max(...p.walkers.map((w) => w.done))
-    this.S = { walkers: p.walkers, allHome, best: Math.min(...p.walkers.map((w) => w.price)), end: allHome + 2.8 } // next round leaves right away
+    this.S = { walkers: p.walkers, allHome: t + ALL_HOME, best: Math.min(...p.walkers.map((w) => w.price)), end: t + ROUND, k: p.k }
+  }
+  /** Make the live round the one the shared clock is in (a page opened mid-round joins it where it is). */
+  private sync(t: number, inFrame: boolean) {
+    const k = Math.floor(t / ROUND)
+    if (this.S && this.S.k === k) return
+    let p = this.next; this.next = null
+    if (!p || p.gen !== this.gen || p.k !== k) { p = this.planRound(k); this.prerender(p.walkers); if (inFrame) this.counts.sync++ } // only if the idle plan did not run in time
+    this.commit(p); this.schedulePlan()
   }
   /**
    * Warm-up before the first animated frame (the first time a frame meets a new state — an image's GPU upload, a
@@ -445,15 +475,15 @@ export class LiveEngine {
   /** Plan the next round while this one plays: requestIdleCallback, setTimeout where it is missing. */
   private schedulePlan() {
     const gen = this.gen
-    const job = () => { if (this.alive && gen === this.gen && !this.next) { this.next = this.planRound(); this.prerender(this.next.walkers) } }
+    const k = (this.S?.k ?? Math.floor(wall() / ROUND)) + 1
+    const job = () => { if (this.alive && gen === this.gen && !this.next) { this.next = this.planRound(k); this.prerender(this.next.walkers) } }
     if ('requestIdleCallback' in window) window.requestIdleCallback(job, { timeout: 3000 })
     else setTimeout(job, 200)
   }
   /** Dev/QA: plan n rounds on the current layout and count how Ahmad was placed (does not touch the live round). */
   sampleRounds(n: number) {
-    const c = { far: 0, near: 0, none: 0, rerolls: 0 }, last = { ...this.LAST }
-    for (let i = 0; i < n; i++) { const p = this.planRound(); c[p.mode]++; c.rerolls += p.rerolls }
-    this.LAST = last
+    const c = { far: 0, near: 0, none: 0, rerolls: 0 }, k0 = Math.floor(wall() / ROUND)
+    for (let i = 0; i < n; i++) { const p = this.planRound(k0 + i); c[p.mode]++; c.rerolls += p.rerolls }
     return c
   }
 
@@ -697,13 +727,9 @@ export class LiveEngine {
 
   // ---------- clock: pauses with the page / off-screen; reduced motion = static mesh only ----------
   private loop = (now: number) => {
-    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.simT += dt
+    this.last = now; this.simT = (performance.timeOrigin + now) / 1000 // the shared clock, not time since this page loaded
     const t0 = performance.now()
-    if (this.simT > this.S.end) {
-      let p = this.next; this.next = null
-      if (!p || p.gen !== this.gen) { p = this.planRound(); this.counts.sync++ } // only if the idle plan did not run in time
-      this.commit(p, this.simT); this.schedulePlan()
-    }
+    if (this.simT >= this.S.end) this.sync(this.simT, true)
     this.draw(this.simT)
     this.times[this.nTimes++ % this.times.length] = performance.now() - t0
     this.raf = requestAnimationFrame(this.loop)
@@ -712,6 +738,9 @@ export class LiveEngine {
     cancelAnimationFrame(this.raf); this.raf = 0
     if (!this.alive || this.opts.reduced) { this.ctx.clearRect(0, 0, this.W, this.H); return }
     if (!this.warmed) { this.warm(); return } // starts the loop when done
-    if (!document.hidden && this.onScreen) { this.last = performance.now(); this.raf = requestAnimationFrame(this.loop) }
+    if (!document.hidden && this.onScreen) {
+      this.simT = wall(); this.sync(this.simT, false) // back from a hidden tab: join the current round outside a frame
+      this.last = performance.now(); this.raf = requestAnimationFrame(this.loop)
+    }
   }
 }

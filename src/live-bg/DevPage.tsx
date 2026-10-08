@@ -24,7 +24,7 @@ function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: bo
     <section ref={setScope} className="flex flex-col gap-2">
       {!full && <p className="text-[13px] text-ink-2">{TONES.find((t) => t[0] === tone)?.[1]} — <span dir="ltr" data-stat>{stat}</span></p>}
       <div data-tone={tone === 'light' ? undefined : tone} className={full ? 'relative h-screen w-full overflow-hidden' : 'relative aspect-[390/600] w-full overflow-hidden rounded-[20px] border border-line sm:aspect-[1440/800]'}>
-        {scope && <LiveBackgroundCanvas scope={scope} tone={tone} fixed={false} reducedMotion={reduced} onEngine={(e) => { engine.current = e; (window as unknown as { __liveBg?: Record<string, unknown> }).__liveBg = { ...(window as unknown as { __liveBg?: Record<string, unknown> }).__liveBg, [tone]: e } }} />}
+        {scope && <LiveBackgroundCanvas scope={scope} fixed={false} reducedMotion={reduced} onEngine={(e) => { engine.current = e; (window as unknown as { __liveBg?: Record<string, unknown> }).__liveBg = { ...(window as unknown as { __liveBg?: Record<string, unknown> }).__liveBg, [tone]: e } }} />}
         {cards ? (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-end gap-6 p-8">
             <h1 className="font-display text-[32px] leading-[48px] font-bold text-ink">طلبات التسعير</h1>

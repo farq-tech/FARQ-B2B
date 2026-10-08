@@ -1,16 +1,16 @@
-{"page":"live-bg light","w":1440,"hub":[702,260],"covered":0,"frames":729,"p95":0.5,"p99":0.6000000238418579,"max":1,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"live-bg deep","w":1440,"hub":[702,260],"covered":0,"frames":730,"p95":0.5,"p99":0.6000000238418579,"max":0.800000011920929,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"live-bg accent","w":1440,"hub":[702,260],"covered":0,"frames":729,"p95":0.6000000238418579,"p99":0.699999988079071,"max":2.4000000953674316,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"/login","w":1440,"hub":[722,72],"covered":0,"frames":346,"p95":0.5,"p99":0.6000000238418579,"max":0.699999988079071,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"/?harness=tracking&bg=1","w":1440,"hub":[988,153],"covered":0,"frames":352,"p95":0.30000001192092896,"p99":0.4000000059604645,"max":0.4000000059604645,"rounds":2,"far":0,"near":0,"none":2,"sync":0}
-{"page":"/?harness=comparison&bg=1","w":1440,"hub":[1072,135],"covered":0,"frames":371,"p95":0.30000001192092896,"p99":0.4000000059604645,"max":0.4000000059604645,"rounds":2,"far":0,"near":0,"none":2,"sync":0}
-{"page":"/?harness=new&bg=1","w":1440,"hub":[1080,70],"covered":0,"frames":346,"p95":0.4000000059604645,"p99":0.5,"max":0.6000000238418579,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
+{"page":"live-bg light","w":1440,"hub":[702,260],"covered":0,"frames":731,"p95":0.30000001192092896,"p99":0.5,"max":0.6000000238418579,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
+{"page":"live-bg deep","w":1440,"hub":[702,260],"covered":0,"frames":729,"p95":0.3999999761581421,"p99":0.5,"max":0.699999988079071,"rounds":3,"far":3,"near":0,"none":0,"sync":0}
+{"page":"live-bg accent","w":1440,"hub":[702,260],"covered":0,"frames":730,"p95":0.6000000238418579,"p99":0.800000011920929,"max":1.2000000476837158,"rounds":3,"far":3,"near":0,"none":0,"sync":0}
+{"page":"/login","w":1440,"hub":[722,72],"covered":0,"frames":351,"p95":0.4000000059604645,"p99":0.4000000059604645,"max":0.6000000238418579,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
+{"page":"/?harness=tracking&bg=1","w":1440,"hub":[988,153],"covered":0,"frames":349,"p95":0.5,"p99":0.699999988079071,"max":0.8999999761581421,"rounds":2,"far":0,"near":0,"none":2,"sync":0}
+{"page":"/?harness=comparison&bg=1","w":1440,"hub":[1072,135],"covered":0,"frames":352,"p95":0.4000000059604645,"p99":0.5,"max":0.6000000238418579,"rounds":2,"far":0,"near":0,"none":2,"sync":0}
+{"page":"/?harness=new&bg=1","w":1440,"hub":[1080,70],"covered":0,"frames":373,"p95":0.4000000059604645,"p99":0.6000000238418579,"max":0.6000000238418579,"rounds":3,"far":3,"near":0,"none":0,"sync":0}
 {"page":"reduced-motion deep","w":1440,"frames":0,"identicalAfter2s":true}
-{"page":"live-bg light","w":390,"hub":[169,259],"covered":0,"frames":736,"p95":0.5,"p99":0.6000000238418579,"max":0.800000011920929,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"live-bg deep","w":390,"hub":[169,259],"covered":0,"frames":733,"p95":0.4000000059604645,"p99":0.5,"max":0.8999999761581421,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"live-bg accent","w":390,"hub":[169,259],"covered":0,"frames":737,"p95":0.5,"p99":0.6000000238418579,"max":0.8999999761581421,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"/login","w":390,"hub":[231,100],"covered":0,"frames":351,"p95":0.3999999761581421,"p99":0.5,"max":0.5,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
-{"page":"/?harness=tracking&bg=1","w":390,"hub":[207,527],"covered":0,"frames":352,"p95":0.30000001192092896,"p99":0.5,"max":0.699999988079071,"rounds":3,"far":0,"near":0,"none":3,"sync":0}
-{"page":"/?harness=comparison&bg=1","w":390,"hub":[114,103],"covered":0,"frames":367,"p95":0.30000001192092896,"p99":0.30000001192092896,"max":0.800000011920929,"rounds":3,"far":0,"near":0,"none":3,"sync":0}
-{"page":"/?harness=new&bg=1","w":390,"hub":[178,50],"covered":0,"frames":368,"p95":0.30000001192092896,"p99":0.30000001192092896,"max":0.699999988079071,"rounds":3,"far":0,"near":0,"none":3,"sync":0}
+{"page":"live-bg light","w":390,"hub":[169,259],"covered":0,"frames":733,"p95":0.4000000059604645,"p99":0.5,"max":0.699999988079071,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
+{"page":"live-bg deep","w":390,"hub":[169,259],"covered":0,"frames":732,"p95":0.3999999761581421,"p99":0.4000000059604645,"max":0.800000011920929,"rounds":3,"far":3,"near":0,"none":0,"sync":0}
+{"page":"live-bg accent","w":390,"hub":[169,259],"covered":0,"frames":735,"p95":0.4000000059604645,"p99":0.4000000059604645,"max":0.5,"rounds":2,"far":2,"near":0,"none":0,"sync":0}
+{"page":"/login","w":390,"hub":[231,100],"covered":0,"frames":351,"p95":0.3999999761581421,"p99":0.4000000059604645,"max":0.800000011920929,"rounds":3,"far":3,"near":0,"none":0,"sync":0}
+{"page":"/?harness=tracking&bg=1","w":390,"hub":[207,527],"covered":0,"frames":350,"p95":0.5,"p99":0.699999988079071,"max":0.800000011920929,"rounds":3,"far":0,"near":0,"none":3,"sync":0}
+{"page":"/?harness=comparison&bg=1","w":390,"hub":[114,103],"covered":0,"frames":365,"p95":0.4000000059604645,"p99":0.5,"max":1.2000000476837158,"rounds":3,"far":0,"near":0,"none":3,"sync":0}
+{"page":"/?harness=new&bg=1","w":390,"hub":[178,50],"covered":0,"frames":371,"p95":0.30000001192092896,"p99":0.4000000059604645,"max":1.100000023841858,"rounds":4,"far":0,"near":0,"none":4,"sync":0}
 {"page":"reduced-motion deep","w":390,"frames":0,"identicalAfter2s":true}
