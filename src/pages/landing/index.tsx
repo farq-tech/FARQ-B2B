@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { cx, FOCUS_RING } from '../../ui/cx'
 import { applySeo } from './seo'
 import { Hero, SiteHeader } from './sections/Hero'
@@ -12,6 +12,7 @@ import { Container, T } from './kit'
  * Routing: the Lead mounts this default export at «/» (docs/qa/requests.md).
  */
 
+const LiveSlots = lazy(() => import('./LiveSlots'))
 const loadBelow = () => import('./sections/Below')
 const Below = lazy(loadBelow)
 const Footer = lazy(() => loadBelow().then((m) => ({ default: m.Footer })))
@@ -59,8 +60,9 @@ class BelowBoundary extends Component<{ children: ReactNode; silent?: boolean },
 
 export default function LandingPage() {
   useEffect(() => applySeo(), [])
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
-    <div lang="ar" dir="rtl" className="min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
+    <div ref={setRoot} lang="ar" dir="rtl" className="min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
       <a href="#main" className={cx('sr-only focus:not-sr-only focus:fixed focus:start-[var(--space-16)] focus:top-[var(--space-16)] focus:z-50 focus:rounded-[var(--radius-md)] focus:bg-[var(--color-bg-surface)] focus:px-[var(--space-16)] focus:py-[var(--space-8)] focus:text-[var(--brand-text)]', FOCUS_RING)}>
         تخطَّ إلى المحتوى
       </a>
@@ -76,6 +78,11 @@ export default function LandingPage() {
       <BelowBoundary silent>
         <Suspense fallback={null}>
           <Footer />
+        </Suspense>
+      </BelowBoundary>
+      <BelowBoundary silent>
+        <Suspense fallback={null}>
+          <LiveSlots root={root} />
         </Suspense>
       </BelowBoundary>
     </div>
