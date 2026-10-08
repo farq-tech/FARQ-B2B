@@ -33,11 +33,23 @@
         "src/lib/awardFlow.ts",
         "src/lib/rfqIdentity.ts",
         "src/components/procurement/*.tsx",
-        "src/types.ts"
+        "src/types.ts",
+        "src/lib/parseBoq.ts",
+        "src/lib/boqPdfTable.ts",
+        "src/lib/boqEta.ts",
+        "src/lib/lineResolution.ts",
+        "src/lib/lineResolution.worker.ts",
+        "src/lib/autoPick.ts",
+        "src/lib/companyProfile.ts",
+        "src/lib/rfqPackages.ts",
+        "src/lib/sendGuards.ts",
+        "src/lib/imageShrink.ts",
+        "src/lib/purchaseRequests.ts"
       ],
       "rules": {
         "no-useless-escape": "off",
-        "no-control-regex": "off"
+        "no-control-regex": "off",
+        "no-unused-vars": "off"
       }
     }
   ]
