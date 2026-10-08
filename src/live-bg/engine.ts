@@ -38,14 +38,18 @@ function readColor(parent: HTMLElement, value: string): RGB {
 const FACETS = [1, 2, 3, 4, 5].map((i) => `var(--live-facet-${i})`)
 
 // ---------- sprites (WebP 1x/2x, loaded lazily, never inlined) ----------
-const IMGS = new Map<string, HTMLImageElement>()
-function img(stem: string, scale: 1 | 2) {
+// Each sprite becomes an ImageBitmap off the main thread before it is ever drawn: the first drawImage of a
+// plain <img> decodes/uploads it inside the frame (~15 ms measured), an ImageBitmap is ready to blit.
+const BMPS = new Map<string, ImageBitmap | null>()
+function img(stem: string, scale: 1 | 2): ImageBitmap | null {
   const key = `${stem}@${scale}`
-  let im = IMGS.get(key)
-  if (!im) { im = new Image(); im.decoding = 'async'; im.src = url(stem, scale); IMGS.set(key, im) }
-  return im
+  if (!BMPS.has(key)) {
+    BMPS.set(key, null)
+    const el = new Image(); el.decoding = 'async'; el.src = url(stem, scale)
+    el.decode().then(() => createImageBitmap(el)).then((bm) => { BMPS.set(key, bm) }, () => {})
+  }
+  return BMPS.get(key) ?? null
 }
-const ready = (im: HTMLImageElement) => im.complete && im.naturalWidth > 0
 
 function mulberry(seed: number) {
   let a = seed
@@ -110,7 +114,7 @@ export class LiveEngine {
   private times = new Float32Array(600); private nTimes = 0
   private cleanup: Array<() => void> = []
   private next: Round | null = null; private idle = 0; private gen = 0
-  private rounds = 0; private nears = 0; private sits = 0
+  private rounds = 0; private nears = 0; private sits = 0; private anyClearLast = false; private coveredAt = -1
   private host: HTMLElement; private bg: HTMLCanvasElement; private fx: HTMLCanvasElement; private opts: EngineOpts
 
   constructor(host: HTMLElement, bg: HTMLCanvasElement, fx: HTMLCanvasElement, opts: EngineOpts) {
@@ -128,7 +132,8 @@ export class LiveEngine {
     // the page changes under us (route, data, scroll): re-read what to avoid while idle; move the head office only if it got covered
     let mt = 0
     const recheck = () => { clearTimeout(mt); mt = window.setTimeout(() => this.recheck(), 300) }
-    const mo = new MutationObserver(recheck)
+    // ignore our own probes (readColor appends to the host) — otherwise a covered hub resets in a loop
+    const mo = new MutationObserver((rs) => { if (rs.some((r) => !host.contains(r.target))) recheck() })
     mo.observe(document.body, { childList: true, subtree: true, characterData: true })
     window.addEventListener('scroll', recheck, { passive: true, capture: true })
     this.cleanup.push(() => { io.disconnect(); ro.disconnect(); mo.disconnect(); clearTimeout(rt); clearTimeout(mt); window.removeEventListener('scroll', recheck, { capture: true }) })
@@ -148,7 +153,7 @@ export class LiveEngine {
     this.boxes = o.boxes; this.title = o.title
     if (this.next || this.idle) this.planNext() // obstacles may have moved: re-plan the queued round against them
     const h = this.V[this.HUB]
-    if (o.boxes.some((b) => h.x > b[0] - 24 && h.x < b[2] + 24 && h.y > b[1] - 24 && h.y < b[3] + 24)) this.reset()
+    if (o.boxes.some((b) => h.x > b[0] - 24 && h.x < b[2] + 24 && h.y > b[1] - 24 && h.y < b[3] + 24) && o.boxes.length !== this.coveredAt) { this.coveredAt = o.boxes.length; this.reset() } // same layout still covering it: no rebuild loop
   }
 
   private reset() {
@@ -224,6 +229,10 @@ export class LiveEngine {
     b.lineCap = 'round'; b.lineWidth = 0.8; b.strokeStyle = rgba(this.go, this.opts.reduced ? 0.14 : 0.07); b.beginPath()
     for (const e of E) { b.moveTo(V[e.a].x, V[e.a].y); b.lineTo(V[e.b].x, V[e.b].y) } b.stroke()
     this.ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)
+    // shape the Arabic labels once here, outside any frame: the first fillText in a font costs ~15 ms
+    for (const f of [`700 11px ${FONT}`, `500 11px ${FONT}`, `500 12px ${FONT}`, `700 14px ${FONT_NUM}`]) { this.ctx.font = f; this.ctx.direction = 'rtl'; this.ctx.fillText('طلب عرض سعر مقر الشركة أرخص سعر ١٢٣ 0123456789 ر.س ✓…', -9999, -9999) }
+    // first image blit onto this canvas switches it to the image path (~15 ms once): do it here, not in a frame
+    const one = document.createElement('canvas'); one.width = one.height = 1; this.ctx.drawImage(one, 0, 0)
     this.ctx.clearRect(0, 0, W, H)
   }
 
@@ -246,7 +255,7 @@ export class LiveEngine {
    * Ahmad: re-roll the round up to 8 times for a long clear track; then accept a nearer target (≥ 60 % of
    * that length) from the best roll; he sits the round out only when no roll has any clear track at all.
    */
-  private roll(): { walkers: Walker[]; long: Walker[]; near: Walker[] } {
+  private roll(): { walkers: Walker[]; long: Walker[]; near: Walker[]; any: number } {
     const { V, E, adj } = this
     const S_client = this.HUB
     const base = 3000 + Math.random() * 9000, C = V[S_client]
@@ -277,7 +286,7 @@ export class LiveEngine {
     const clear = (w: Walker) => { if (V[w.target].y <= 90) return false; for (let d = 46; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (inBox(x, y)) return false } return true }
     const long = Math.min(this.W, this.H) * 0.35
     const ok = walkers.filter(clear)
-    return { walkers, long: ok.filter((w) => w.len > long), near: ok.filter((w) => w.len >= long * 0.6) }
+    return { walkers, long: ok.filter((w) => w.len > long), near: ok.filter((w) => w.len >= long * 0.6), any: ok.length }
   }
 
   /** Plans one round (relative times). Re-rolls are spread over idle slices by the caller via `step`. */
@@ -300,7 +309,7 @@ export class LiveEngine {
     }
     /** One roll per call; returns the round once decided. */
     return (): Round | null => {
-      const r = this.roll(); rolls++
+      const r = this.roll(); rolls++; if (rolls === 1) this.anyClearLast = false; if (r.any) this.anyClearLast = true
       if (r.long.length) return finish(r, 'long')
       if (r.near.length && (!best || !best.near.length)) best = r
       else if (!best) best = r
@@ -344,12 +353,13 @@ export class LiveEngine {
 
   /** Dev/QA: plan n rounds on the current layout without drawing; how often Ahmad ran far / near / sat out. */
   simulate(n = 100) {
-    const out = { long: 0, near: 0, sit: 0, maxMs: 0, avgMs: 0 }
+    // anyClear: rounds where some clear track existed at all (the old rule ran him on it, however short)
+    const out = { long: 0, near: 0, sit: 0, maxMs: 0, avgMs: 0, anyClear: 0 }
     let sum = 0
     for (let i = 0; i < n; i++) {
       const step = this.planner(); let r: Round | null = null, worst = 0
       while (!r) { const a = performance.now(); r = step(); worst = Math.max(worst, performance.now() - a) }
-      out[r.ahmad]++; out.maxMs = Math.max(out.maxMs, worst); sum += worst
+      out[r.ahmad]++; if (r.walkers.length && this.anyClearLast) out.anyClear++; out.maxMs = Math.max(out.maxMs, worst); sum += worst
     }
     out.avgMs = sum / n
     return out
@@ -403,7 +413,7 @@ export class LiveEngine {
     this.rr(X, Y, w, h, 11); c.fillStyle = rgba(this.surface, 0.97); c.fill(); c.lineWidth = 1; c.strokeStyle = rgba(this.go, 0.6); c.stroke()
     c.textAlign = 'right'; c.fillStyle = rgba(this.go, 1); c.fillText(label, X + w - 9, Y + h / 2 + 1)
     const im = img('channel-' + CHANNELS[k % CHANNELS.length], this.scale)
-    if (!noIcon && ready(im)) c.drawImage(im, X + 3, Y + 1, 20, 20)
+    if (!noIcon && im) c.drawImage(im, X + 3, Y + 1, 20, 20)
     c.restore()
     if (lift === 6) { c.fillStyle = rgba(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill() }
   }
@@ -436,15 +446,15 @@ export class LiveEngine {
     const want = Math.max(-0.34, Math.min(0.34, rel * 0.45)); RS.tilt += (want - RS.tilt) * Math.min(1, dt * 6) // soft lean, capped ≈20°
   }
   private cycle(i: number, x: number, y: number, alpha: number, mirror: boolean) {
-    const im = img(CYCLE.f, this.scale); if (!ready(im)) return
-    const fw = im.naturalWidth / CYCLE.n, f = ((i % 6) + 6) % 6, c = this.ctx
+    const im = img(CYCLE.f, this.scale); if (!im) return
+    const fw = im.width / CYCLE.n, f = ((i % 6) + 6) % 6, c = this.ctx
     c.save(); c.globalAlpha = alpha; c.translate(x, y); c.rotate(this.RS.tilt); if (mirror) c.scale(-1, 1)
-    c.drawImage(im, f * fw, 0, fw, im.naturalHeight, -CYCLE.w / 2, -CYCLE.h, CYCLE.w, CYCLE.h); c.restore()
+    c.drawImage(im, f * fw, 0, fw, im.height, -CYCLE.w / 2, -CYCLE.h, CYCLE.w, CYCLE.h); c.restore()
   }
   private pose(g: string, i: number, x: number, y: number, alpha: number, breath = 0) {
     if (g === 'E' || g === 'W') { this.cycle(i, x, y, alpha, g === 'W'); return }
     const set = POSES[g]; if (!set) return
-    const f: Pose = set[i % set.length], im = img(f.f, this.scale); if (!ready(im)) return
+    const f: Pose = set[i % set.length], im = img(f.f, this.scale); if (!im) return
     const c = this.ctx; c.save(); c.globalAlpha = alpha; c.translate(x, y); if (breath) c.scale(1, 1 + breath); c.drawImage(im, -f.ax, -f.ay, f.w, f.h); c.restore()
   }
   private runner(x: number, y: number, d: number, state: string, t: number) {

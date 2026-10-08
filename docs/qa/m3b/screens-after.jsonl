@@ -1,0 +1,6 @@
+{"viewport":"1440x900","screen":"tracking","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.5},"frames":1618,"avg":0.159,"p95":0.3,"max":0.9,"rounds":3,"sits":3}
+{"viewport":"1440x900","screen":"comparison","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.6},"frames":1617,"avg":0.334,"p95":0.5,"max":1,"rounds":3,"sits":3}
+{"viewport":"1440x900","screen":"new","sim100":{"long":99,"near":0,"sit":1,"anyClear":99,"planMaxMs":0.7},"frames":1593,"avg":0.368,"p95":0.6,"max":1.6,"rounds":2,"sits":0}
+{"viewport":"390x844","screen":"tracking","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.4},"frames":1593,"avg":0.295,"p95":0.5,"max":0.8,"rounds":4,"sits":4}
+{"viewport":"390x844","screen":"comparison","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.3},"frames":1617,"avg":0.237,"p95":0.4,"max":0.6,"rounds":4,"sits":4}
+{"viewport":"390x844","screen":"new","sim100":{"long":0,"near":0,"sit":100,"anyClear":0,"planMaxMs":0.6},"frames":1619,"avg":0.272,"p95":0.4,"max":0.7,"rounds":4,"sits":4}

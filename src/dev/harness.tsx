@@ -10,6 +10,7 @@ import { RequestTrackingV2 } from '../views/RequestTrackingV2'
 import { ComparisonV2 } from '../views/ComparisonV2'
 import { RFQ_ID, rfq, rfqClosed, comparison, comparisonAward, outcomes, FIXED_NOW, flowMatch, flowCatalog, flowScan } from './fixtures'
 import { NewRequestV2 } from '../views/NewRequestV2'
+import LiveBackground from '../live-bg'
 
 Date.now = () => FIXED_NOW + 60_000
 const awardVariant = new URLSearchParams(window.location.search).get('harness') === 'comparison-award'
@@ -37,8 +38,11 @@ function Screen({ which }: { which: string }) {
   return which.startsWith('comparison') ? <ComparisonV2 navigate={navigate} /> : <RequestTrackingV2 navigate={navigate} />
 }
 
+// ?bg=1 mounts the living background behind the screen (QA: Ahmad sit-outs, frame times)
+const withBg = new URLSearchParams(window.location.search).has('bg')
+
 export function mountHarness(which: string) {
   createRoot(document.getElementById('root')!).render(
-    <ProcurementProvider><div style={{ width: window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
+    <ProcurementProvider>{withBg ? <LiveBackground /> : null}<div style={{ width: withBg || window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
   )
 }

@@ -25,6 +25,8 @@ export default function LiveBackgroundCanvas({ tone = 'light', fixed = true, red
     const e = new LiveEngine(host.current, bg.current, fx.current, { tone, reduced: reducedMotion ?? mq.matches, scope: scope ?? undefined })
     engine.current = e
     onEngine?.(e)
+    // QA hook in dev builds only: window.__liveBg.app.stats() / .simulate(100)
+    if (import.meta.env.DEV && fixed) ((window as unknown as { __liveBg?: Record<string, LiveEngine> }).__liveBg ??= {}).app = e
     const onMq = () => { if (reducedMotion === undefined) e.setReduced(mq.matches) }
     mq.addEventListener('change', onMq)
     if (fixed) document.documentElement.classList.add('has-live-bg')
