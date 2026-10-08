@@ -8,7 +8,7 @@ import type { LiveEngine, Tone } from './engine'
  */
 const TONES: Array<[Tone, string]> = [['light', 'فاتح'], ['deep', 'غامق'], ['accent', 'نعناعي']]
 
-function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: boolean }) {
+function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: boolean | undefined }) {
   const engine = useRef<LiveEngine | null>(null)
   const [stat, setStat] = useState('')
   const [scope, setScope] = useState<HTMLElement | null>(null)
@@ -20,15 +20,15 @@ function Stage({ tone, full, reduced }: { tone: Tone; full: boolean; reduced: bo
     return () => window.clearInterval(id)
   }, [])
   return (
-    <section ref={setScope} className="flex flex-col gap-2" data-tone={tone === 'light' ? undefined : tone}>
+    <section ref={setScope} className="flex flex-col gap-2">
       {!full && <p className="text-[13px] text-ink-2">{TONES.find((t) => t[0] === tone)?.[1]} — <span dir="ltr" data-stat>{stat}</span></p>}
-      <div className={full ? 'relative h-screen w-full overflow-hidden' : 'relative aspect-[390/600] w-full overflow-hidden rounded-[20px] border border-line sm:aspect-[1440/800]'}>
+      <div data-tone={tone === 'light' ? undefined : tone} className={full ? 'relative h-screen w-full overflow-hidden' : 'relative aspect-[390/600] w-full overflow-hidden rounded-[20px] border border-line sm:aspect-[1440/800]'}>
         {scope && <LiveBackgroundCanvas scope={scope} tone={tone} fixed={false} reducedMotion={reduced} onEngine={(e) => { engine.current = e }} />}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-[14px] p-6 text-center">
           <h1 className="font-display text-[clamp(24px,4.2vw,48px)] leading-tight font-bold text-ink">وش تبي نسعّر لك اليوم؟</h1>
           <div className="w-[min(520px,100%)] rounded-[14px] border border-line bg-surface px-[18px] py-[14px] text-right text-[16px] shadow-md" style={{ color: 'var(--color-text-tertiary)' }}>اكتب اللي تبيه… مثال: 500 حبة بلك أسمنتي</div>
         </div>
-        {full && <p className="absolute bottom-2 left-3 text-[12px] text-ink-2" dir="ltr" data-stat>{stat}</p>}
+        {full && <p className="absolute bottom-2 left-3 text-[12px] text-ink-2 opacity-70" dir="ltr" data-stat>{stat}</p>}
       </div>
     </section>
   )
@@ -38,7 +38,8 @@ export default function DevPage() {
   const q = new URLSearchParams(window.location.search)
   const only = q.get('tone') as Tone | null
   const full = q.get('full') === '1'
-  const [reduced, setReduced] = useState(q.get('reduced') === '1')
+  // undefined = follow the OS setting (prefers-reduced-motion); true = forced on from the toggle or ?reduced=1
+  const [reduced, setReduced] = useState<boolean | undefined>(q.get('reduced') === '1' ? true : undefined)
   const tones = TONES.filter(([t]) => !only || t === only)
   return (
     <div className="fixed inset-0 z-[1000] overflow-auto bg-canvas" dir="rtl">
@@ -46,7 +47,7 @@ export default function DevPage() {
         {!full && (
           <header className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-display text-[20px] font-bold">الخلفية الحية — صفحة تطوير</h2>
-            <button type="button" className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[14px]" aria-pressed={reduced} onClick={() => setReduced((r) => !r)}>
+            <button type="button" className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[14px]" aria-pressed={!!reduced} onClick={() => setReduced((r) => (r ? undefined : true))}>
               {reduced ? 'تقليل الحركة: مفعّل' : 'تقليل الحركة: مطفأ'}
             </button>
           </header>
