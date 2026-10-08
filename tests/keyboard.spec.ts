@@ -90,10 +90,11 @@ test('04 · enabled «ترسية»: focus ring, Enter opens the award dialog, ke
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/04-award-dialog.png` })
-  // The copied dialog has no focus management yet (M6 Confirm Sheet): Tab until a control inside it, then cancel.
-  await tabTo(page, (e) => e.text === 'رجوع للمقارنة')
-  await page.keyboard.press('Enter')
+  // Confirm Sheet (track D): focus moves inside, Escape closes, focus returns to «ترسية».
+  await expect(page.getByRole('heading', { name: 'تأكيد الترسية' })).toBeFocused()
+  await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
+  await expect(page.getByRole('button', { name: 'ترسية', exact: true }).first()).toBeFocused()
   expect(writes).toEqual([]) // nothing was submitted
 })
 
