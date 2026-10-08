@@ -7,10 +7,10 @@ for (const [w, h] of [[1440, 900], [390, 844]]) for (const tone of ['light', 'de
   const page = await browser.newPage({ viewport: { width: w, height: h } })
   await page.goto(`${base}/live-bg?tone=${tone}&full=1`)
   await page.waitForFunction((t) => window.__liveBg?.[t], tone)
-  const sim = await page.evaluate((t) => window.__liveBg[t].simulate(100), tone)
+  const sim = await page.evaluate((t) => window.__liveBg[t].sampleRounds(100), tone)
   await page.waitForTimeout(secs * 1000)
   const st = await page.evaluate((t) => window.__liveBg[t].stats(), tone)
-  out.push({ viewport: `${w}x${h}`, tone, sim100: sim, frames: st.frames, avg: +st.avg.toFixed(3), p95: +st.p95.toFixed(3), max: +st.max.toFixed(3), rounds: st.rounds, near: st.near, sits: st.sits })
+  out.push({ viewport: `${w}x${h}`, tone, sim100: sim, frames: st.frames, avg: +st.avg.toFixed(3), p95: +st.p95.toFixed(3), max: +st.max.toFixed(3), rounds: st.rounds, far: st.far, near: st.near, none: st.none, sync: st.sync, p99: st.p99 })
   await page.close()
 }
 await browser.close()

@@ -12,19 +12,30 @@ type RGB = [number, number, number]
 type Vert = { x: number; y: number; r: number; c: number }
 type Edge = { a: number; b: number; L: number }
 type Box = [number, number, number, number]
-type Prof = { n: number; cum: number[]; tot: number; g: (t: number) => number }
+type Prof = { n: number; cum: Float64Array; tot: number; g: (t: number) => number }
+const NO_PROF: Prof = { n: 0, cum: new Float64Array(1), tot: 1, g: () => 1 }
+// -0 is a heap number: fields that start at 0 and turn fractional keep one (double) representation, so V8 never
+// deoptimises the draw loop the first time Ahmad turns or a round's timings change shape.
+const D0 = -0
 type Walker = {
   k: number; ch: number; runner: boolean; rest: boolean; target: number; path: number[]; cum: number[]; len: number
-  start: number; arrive: number; tc: number; home: number; done: number; price: number; prof?: Prof
+  far0: number; ang: number; start: number; arrive: number; tc: number; home: number; done: number; price: number; prof: Prof
 }
-type Round = { walkers: Walker[]; allHome: number; best: number; end: number; ahmad: 'long' | 'near' | 'sit' }
+type Plan = { walkers: Walker[]; mode: 'far' | 'near' | 'none'; rerolls: number; gen: number }
+type Round = { walkers: Walker[]; allHome: number; best: number; end: number }
 
 const FONT = 'Tajawal, "Readex Pro", system-ui, sans-serif'
 const FONT_NUM = '"Readex Pro", Tajawal, system-ui, sans-serif'
 const TAU = 6.283
 
 // ---------- colour: tokens → RGB (computed once per build) ----------
-const rgba = (c: RGB, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`
+// colour strings are built once per (colour, alpha): no string garbage in the frame loop
+const RGBA = new WeakMap<RGB, Map<number, string>>()
+const rgba = (c: RGB, a: number) => {
+  let m = RGBA.get(c); if (!m) RGBA.set(c, (m = new Map()))
+  let v = m.get(a); if (v === undefined) m.set(a, (v = `rgba(${c[0]},${c[1]},${c[2]},${a})`))
+  return v
+}
 function readColor(parent: HTMLElement, value: string): RGB {
   const p = document.createElement('i')
   p.style.cssText = 'position:absolute;width:0;height:0;visibility:hidden'
@@ -38,18 +49,14 @@ function readColor(parent: HTMLElement, value: string): RGB {
 const FACETS = [1, 2, 3, 4, 5].map((i) => `var(--live-facet-${i})`)
 
 // ---------- sprites (WebP 1x/2x, loaded lazily, never inlined) ----------
-// Each sprite becomes an ImageBitmap off the main thread before it is ever drawn: the first drawImage of a
-// plain <img> decodes/uploads it inside the frame (~15 ms measured), an ImageBitmap is ready to blit.
-const BMPS = new Map<string, ImageBitmap | null>()
-function img(stem: string, scale: 1 | 2): ImageBitmap | null {
+const IMGS = new Map<string, HTMLImageElement>()
+function img(stem: string, scale: 1 | 2) {
   const key = `${stem}@${scale}`
-  if (!BMPS.has(key)) {
-    BMPS.set(key, null)
-    const el = new Image(); el.decoding = 'async'; el.src = url(stem, scale)
-    el.decode().then(() => createImageBitmap(el)).then((bm) => { BMPS.set(key, bm) }, () => {})
-  }
-  return BMPS.get(key) ?? null
+  let im = IMGS.get(key)
+  if (!im) { im = new Image(); im.decoding = 'async'; im.src = url(stem, scale); IMGS.set(key, im) }
+  return im
 }
+const ready = (im: HTMLImageElement) => im.complete && im.naturalWidth > 0
 
 function mulberry(seed: number) {
   let a = seed
@@ -96,7 +103,7 @@ export function readObstacles(host: HTMLElement, scope: Element = document.body)
 }
 
 export type EngineOpts = { tone: Tone; reduced: boolean; /** where to look for page elements (default: the whole page) */ scope?: Element }
-export type FrameStats = { frames: number; avg: number; p95: number; max: number; rounds: number; near: number; sits: number }
+export type FrameStats = { frames: number; avg: number; p95: number; p99: number; max: number; rounds: number; far: number; near: number; none: number; sync: number }
 
 export class LiveEngine {
   private bctx: CanvasRenderingContext2D
@@ -109,12 +116,12 @@ export class LiveEngine {
   private boxes: Box[] = []; private title: Box | null = null
   private go: RGB = [0, 0, 0]; private back: RGB = [0, 0, 0]; private base: RGB = [255, 255, 255]; private meshLine: RGB = [0, 0, 0]
   private surface: RGB = [255, 255, 255]; private ink: RGB = [0, 0, 0]; private ink2: RGB = [0, 0, 0]
-  private RS = { ang: 0, bucket: 'E', prev: null as string | null, fade: 1, lastT: 0, lastState: null as string | null, tilt: 0 }
+  private RS = { ang: D0, bucket: 'E', prev: null as string | null, fade: 1.5, lastT: D0, lastState: null as string | null, tilt: D0 }
   private raf = 0; private simT = 0; private last = 0; private onScreen = true; private alive = true
-  private times = new Float32Array(600); private nTimes = 0
+  private times = new Float32Array(8192); private nTimes = 0
+  private next: Plan | null = null; private gen = 0; private warmed = false; private warming = false
+  private counts = { rounds: 0, far: 0, near: 0, none: 0, rerolls: 0, sync: 0 }
   private cleanup: Array<() => void> = []
-  private next: Round | null = null; private idle = 0; private gen = 0
-  private rounds = 0; private nears = 0; private sits = 0; private anyClearLast = false; private coveredAt = -1
   private host: HTMLElement; private bg: HTMLCanvasElement; private fx: HTMLCanvasElement; private opts: EngineOpts
 
   constructor(host: HTMLElement, bg: HTMLCanvasElement, fx: HTMLCanvasElement, opts: EngineOpts) {
@@ -140,27 +147,29 @@ export class LiveEngine {
     this.reset()
   }
 
-  destroy() { this.alive = false; cancelAnimationFrame(this.raf); this.cancelNext(); this.cleanup.forEach((f) => f()) }
+  destroy() { this.alive = false; cancelAnimationFrame(this.raf); this.cleanup.forEach((f) => f()) }
   setReduced(r: boolean) { if (r !== this.opts.reduced) { this.opts.reduced = r; this.reset() } }
   stats(): FrameStats {
     const n = Math.min(this.nTimes, this.times.length), a = Array.from(this.times.subarray(0, n)).sort((x, y) => x - y)
-    return { frames: this.nTimes, avg: n ? a.reduce((s, x) => s + x, 0) / n : 0, p95: n ? a[Math.floor(n * 0.95)] : 0, max: n ? a[n - 1] : 0, rounds: this.rounds, near: this.nears, sits: this.sits }
+    const q = (f: number) => (n ? a[Math.min(n - 1, Math.floor(n * f))] : 0), c = this.counts
+    return { frames: this.nTimes, avg: n ? a.reduce((s, x) => s + x, 0) / n : 0, p95: q(0.95), p99: q(0.99), max: n ? a[n - 1] : 0, rounds: c.rounds, far: c.far, near: c.near, none: c.none, sync: c.sync }
   }
 
   private recheck() {
     if (!this.alive || !this.V.length) return
     const o = readObstacles(this.host, this.opts.scope)
+    const changed = JSON.stringify(o.boxes.map((b) => b.map(Math.round))) !== JSON.stringify(this.boxes.map((b) => b.map(Math.round)))
     this.boxes = o.boxes; this.title = o.title
-    if (this.next || this.idle) this.planNext() // obstacles may have moved: re-plan the queued round against them
+    if (changed && !this.opts.reduced) { this.gen++; this.next = null; this.schedulePlan() } // the pre-planned round may now pass behind something
     const h = this.V[this.HUB]
-    if (o.boxes.some((b) => h.x > b[0] - 24 && h.x < b[2] + 24 && h.y > b[1] - 24 && h.y < b[3] + 24) && o.boxes.length !== this.coveredAt) { this.coveredAt = o.boxes.length; this.reset() } // same layout still covering it: no rebuild loop
+    if (o.boxes.some((b) => h.x > b[0] - 24 && h.x < b[2] + 24 && h.y > b[1] - 24 && h.y < b[3] + 24) && changed) this.reset() // same layout still covering it: a rebuild would land here again
   }
 
   private reset() {
     if (!this.alive) return
-    this.cancelNext()
     this.build()
-    if (!this.opts.reduced) this.newCycle(this.simT)
+    this.gen++; this.next = null
+    if (!this.opts.reduced) { this.commit(this.planRound(), this.simT); this.schedulePlan(); this.draw(this.simT) } // first paint here, not in the loop
     this.run()
   }
 
@@ -194,7 +203,8 @@ export class LiveEngine {
       for (const q of rnd() < 0.5 ? [[a, b, d], [a, d, e]] : [[a, b, e], [b, d, e]]) { tris.push(q); add(q[0], q[1]); add(q[1], q[2]); add(q[2], q[0]) }
     }
     // head office: nearest clear vertex above the screen title — never under any element, away from the edges
-    const ui = this.boxes.map((b) => [b[0] - 46, b[1] - 46, b[2] + 46, b[3] + 46])
+    // room for the six «طلب عرض سعر» chips that fan out around it (≈ one mesh cell + a chip)
+    const ui = this.boxes.map((b) => [b[0] - 96, b[1] - 80, b[2] + 96, b[3] + 80])
     const t = this.title
     const pref = t ? [(t[0] + t[2]) / 2, Math.max(40, t[1] - 48)] : [W / 2, Math.min(H * 0.3, 140)]
     const ok = (v: Vert) => v.x > 60 && v.x < W - 60 && v.y > 44 && v.y < H - 60 && !ui.some((b) => v.x > b[0] && v.x < b[2] && v.y > b[1] && v.y < b[3])
@@ -229,10 +239,6 @@ export class LiveEngine {
     b.lineCap = 'round'; b.lineWidth = 0.8; b.strokeStyle = rgba(this.go, this.opts.reduced ? 0.14 : 0.07); b.beginPath()
     for (const e of E) { b.moveTo(V[e.a].x, V[e.a].y); b.lineTo(V[e.b].x, V[e.b].y) } b.stroke()
     this.ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)
-    // shape the Arabic labels once here, outside any frame: the first fillText in a font costs ~15 ms
-    for (const f of [`700 11px ${FONT}`, `500 11px ${FONT}`, `500 12px ${FONT}`, `700 14px ${FONT_NUM}`]) { this.ctx.font = f; this.ctx.direction = 'rtl'; this.ctx.fillText('طلب عرض سعر مقر الشركة أرخص سعر ١٢٣ 0123456789 ر.س ✓…', -9999, -9999) }
-    // first image blit onto this canvas switches it to the image path (~15 ms once): do it here, not in a frame
-    const one = document.createElement('canvas'); one.width = one.height = 1; this.ctx.drawImage(one, 0, 0)
     this.ctx.clearRect(0, 0, W, H)
   }
 
@@ -249,13 +255,26 @@ export class LiveEngine {
     const path: number[] = []; let v = to; while (v !== from) { path.unshift(v); v = pv[v] } return path
   }
 
-  /*
-   * A round is planned at t = 0 and shifted onto the clock when it starts, so the next one can be planned
-   * ahead in idle time (requestIdleCallback, setTimeout where it is missing) instead of inside a frame.
-   * Ahmad: re-roll the round up to 8 times for a long clear track; then accept a nearer target (≥ 60 % of
-   * that length) from the best roll; he sits the round out only when no roll has any clear track at all.
+  /**
+   * Plans one round (times relative to its start). Runs ahead of time in an idle callback, so the frame
+   * that starts a round only shifts times. Ahmad's track, in order of preference:
+   *   1. far   — a long path whose whole track (and his 70 px of height) stays clear; up to 8 re-rolls (as the reference)
+   *   2. near  — on any of those rolls: a clear prefix of a path, or a fresh route around the elements, ending ≥ 60% of the
+   *              farthest point in its direction (and still never touching another request's path)
+   *   3. none  — last resort: he sits the round out (counted in stats)
    */
-  private roll(): { walkers: Walker[]; long: Walker[]; near: Walker[]; any: number } {
+  private planRound(): Plan {
+    const rolls: Walker[][] = []
+    for (let i = 0; i < 8; i++) {
+      const ws = this.routes(); rolls.push(ws)
+      const r = this.pickFar(ws); if (r) return this.finish(ws, r, 'far', i)
+    }
+    for (const ws of rolls) { const r = this.pickNear(ws) || this.pickRoute(ws); if (r) return this.finish(ws, r, 'near', 8) }
+    return this.finish(rolls[rolls.length - 1], null, 'none', 8)
+  }
+
+  /** Six non-crossing paths from the head office, one per direction, each to the farthest reachable point. */
+  private routes(): Walker[] {
     const { V, E, adj } = this
     const S_client = this.HUB
     const base = 3000 + Math.random() * 9000, C = V[S_client]
@@ -274,108 +293,156 @@ export class LiveEngine {
       let plan = [nb], target = nb
       const far = cand.filter((c) => c[0] >= (cand[0]?.[0] ?? 0) * 0.82 && c[1] !== this.LAST[k])
       for (const [, i] of [...shuffle(far), ...cand].slice(0, 16)) { if (i === nb) continue; const r = this.routeV(nb, i, (v) => owner[v] >= 0); if (r) { plan = [nb, ...r]; target = i; break } }
+      this.LAST[k] = target
       plan.forEach((v) => (owner[v] = k))
       const path = [S_client, ...plan], cum = [0]
       for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(V[path[i]].x - V[path[i - 1]].x, V[path[i]].y - V[path[i - 1]].y))
       const start = Math.random() * 0.6, arrive = start + 8.5 + Math.random() * 1.2, tc = arrive + 0.8 + Math.random() * 0.6, home = tc + 5.5 + Math.random() * 0.8
-      walkers.push({ k, ch: k % CHANNELS.length, runner: false, rest: false, target, path, cum, len: cum[cum.length - 1], start, arrive, tc, home, done: home, price: Math.round((base * (0.82 + Math.random() * 0.36)) / 10) * 10 })
+      walkers.push({ k, ch: k % CHANNELS.length, runner: false, rest: false, target, path, cum, len: cum[cum.length - 1], far0: cand[0]?.[0] ?? 0, ang, start, arrive, tc, home, done: home, price: Math.round((base * (0.82 + Math.random() * 0.36)) / 10) * 10, prof: NO_PROF })
     })
-    // Ahmad's whole track (and his 70 px of height) must stay clear of every element
-    const boxes = this.boxes.map((b) => [b[0] - 40, b[1] - 30, b[2] + 40, b[3] + 70])
-    const inBox = (x: number, y: number) => boxes.some((b) => x > b[0] && x < b[2] && y > b[1] && y < b[3])
-    const clear = (w: Walker) => { if (V[w.target].y <= 90) return false; for (let d = 46; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (inBox(x, y)) return false } return true }
-    const long = Math.min(this.W, this.H) * 0.35
-    const ok = walkers.filter(clear)
-    return { walkers, long: ok.filter((w) => w.len > long), near: ok.filter((w) => w.len >= long * 0.6), any: ok.length }
+    return walkers
   }
 
-  /** Plans one round (relative times). Re-rolls are spread over idle slices by the caller via `step`. */
-  private planner() {
-    let best: ReturnType<LiveEngine['roll']> | null = null, rolls = 0
-    const finish = (r: ReturnType<LiveEngine['roll']>, mode: 'long' | 'near' | 'sit'): Round => {
-      const { walkers } = r
-      const pick = mode === 'long' ? r.long : mode === 'near' ? r.near : []
-      const w = pick[(Math.random() * pick.length) | 0]
-      if (w) {
-        w.runner = true; w.rest = w.len > Math.min(this.W, this.H) * 0.5
-        const run = Math.max(4.5, w.len / 92); w.arrive = w.start + run + (w.rest ? 2.7 : 0); w.tc = w.arrive + 1.1 + 1.8; w.home = w.tc + Math.max(4, w.len / 80); w.done = w.home + 1.5
+  private runnerBoxes() { return this.boxes.map((b) => [b[0] - 40, b[1] - 30, b[2] + 40, b[3] + 70]) }
+  /** Distance along the path of the first point where Ahmad would be behind an element (Infinity = clear all the way). */
+  private blockedAt(w: Walker, boxes: number[][]) {
+    for (let d = 46; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (boxes.some((b) => x > b[0] && x < b[2] && y > b[1] && y < b[3])) return d }
+    return Infinity
+  }
+  private pickFar(ws: Walker[]) {
+    const boxes = this.runnerBoxes(), long = Math.min(this.W, this.H) * 0.35
+    const ok = ws.filter((w) => w.len > long && this.V[w.target].y > 90 && this.blockedAt(w, boxes) === Infinity)
+    return ok.length ? ok[(Math.random() * ok.length) | 0] : null
+  }
+  private pickNear(ws: Walker[]) {
+    const boxes = this.runnerBoxes(), C = this.V[this.HUB], ok: Array<[Walker, number]> = []
+    for (const w of ws) {
+      const stop = this.blockedAt(w, boxes)
+      for (let i = w.path.length - 1; i >= 2; i--) {
+        const v = this.V[w.path[i]]
+        if (w.cum[i] >= stop - 8 || v.y <= 90) continue
+        if (Math.hypot(v.x - C.x, v.y - C.y) >= 0.6 * w.far0) ok.push([w, i])
+        break
       }
-      walkers.forEach((x) => (this.LAST[x.k] = x.target))
-      // the other paths: one channel each, never repeated (a 6th path only when Ahmad sits out)
-      const order = shuffle(CHANNELS.map((_, i) => i)); let j = 0
-      for (const x of walkers) if (!x.runner) x.ch = order[j++ % order.length]
-      const allHome = Math.max(...walkers.map((x) => x.done))
-      return { walkers, allHome, best: Math.min(...walkers.map((x) => x.price)), end: allHome + 2.8, ahmad: mode }
     }
-    /** One roll per call; returns the round once decided. */
-    return (): Round | null => {
-      const r = this.roll(); rolls++; if (rolls === 1) this.anyClearLast = false; if (r.any) this.anyClearLast = true
-      if (r.long.length) return finish(r, 'long')
-      if (r.near.length && (!best || !best.near.length)) best = r
-      else if (!best) best = r
-      if (rolls < 9) return null // first roll + up to 8 re-rolls
-      return finish(best, best.near.length ? 'near' : 'sit')
-    }
+    if (!ok.length) return null
+    const [w, i] = ok[(Math.random() * ok.length) | 0]
+    w.path = w.path.slice(0, i + 1); w.cum = w.cum.slice(0, i + 1); w.len = w.cum[i]; w.target = w.path[i]; this.LAST[w.k] = w.target
+    return w
   }
-
-  private planSync(): Round { const step = this.planner(); let r: Round | null = null; while (!r) r = step(); return r }
-
-  private cancelIdle() { if (this.idle) { (window.cancelIdleCallback ?? clearTimeout)(this.idle); this.idle = 0 } }
-  /** The mesh changed: a queued round points at old vertices. */
-  private cancelNext() { this.cancelIdle(); this.gen++; this.next = null }
-  /** Plans the next round in idle slices. A queued round is kept until the new one replaces it. */
-  private planNext() {
-    this.cancelIdle()
-    const step = this.planner(), gen = ++this.gen
-    const ric = window.requestIdleCallback ?? ((cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 50)) // no idle API: one roll per task
-    const tick = (d: IdleDeadline) => {
-      this.idle = 0
-      if (!this.alive || gen !== this.gen) return
-      let r: Round | null = null
-      do r = step(); while (!r && d.timeRemaining() > 6)
-      if (r) this.next = r
-      else this.idle = ric(tick, { timeout: 2000 })
+  /** A dedicated route for Ahmad in one walker's direction that steers around every element (vertex-disjoint from the others). */
+  private pickRoute(ws: Walker[]) {
+    const V = this.V, C = V[this.HUB], boxes = this.runnerBoxes(), sec = Math.PI / ws.length
+    const inB = (v: Vert) => boxes.some((b) => v.x > b[0] && v.x < b[2] && v.y > b[1] && v.y < b[3])
+    const owner = new Int16Array(V.length).fill(-1); owner[this.HUB] = 999
+    for (const w of ws) for (const v of w.path.slice(1)) owner[v] = w.k
+    for (const w of shuffle([...ws])) {
+      const firsts = this.adj[this.HUB].map((ei) => (this.E[ei].a === this.HUB ? this.E[ei].b : this.E[ei].a)).filter((v) => {
+        if (owner[v] >= 0 && owner[v] !== w.k) return false
+        const an = Math.atan2(V[v].y - C.y, V[v].x - C.x)
+        return !inB(V[v]) && Math.abs(Math.atan2(Math.sin(an - w.ang), Math.cos(an - w.ang))) <= sec
+      })
+      for (const nb of firsts) {
+      const cand: Array<[number, number]> = []
+      for (let i = 0; i < V.length; i++) {
+        if (i === nb || (owner[i] >= 0 && owner[i] !== w.k)) continue
+        const v = V[i], an = Math.atan2(v.y - C.y, v.x - C.x), d = Math.hypot(v.x - C.x, v.y - C.y)
+        if (v.y <= 90 || inB(v) || d < 0.6 * w.far0 || Math.abs(Math.atan2(Math.sin(an - w.ang), Math.cos(an - w.ang))) > sec) continue
+        cand.push([d, i])
+      }
+      cand.sort((x, y) => y[0] - x[0])
+      for (const [, i] of cand.slice(0, 12)) {
+        const r = this.routeV(nb, i, (v) => (owner[v] >= 0 && owner[v] !== w.k) || inB(V[v]))
+        if (!r) continue
+        const path = [this.HUB, nb, ...r], cum = [0]
+        for (let j = 1; j < path.length; j++) cum.push(cum[j - 1] + Math.hypot(V[path[j]].x - V[path[j - 1]].x, V[path[j]].y - V[path[j - 1]].y))
+        const t: Walker = { ...w, path, cum, len: cum[cum.length - 1], target: i }
+        if (this.blockedAt(t, boxes) !== Infinity) continue // an edge between two clear points can still clip a corner
+        Object.assign(w, { path, cum, len: t.len, target: i }); this.LAST[w.k] = i
+        return w
+      }
+      }
     }
-    this.idle = ric(tick, { timeout: 2000 })
+    return null
   }
-
-  /** Starts a round at clock time t (planned ahead when possible) and plans the one after in idle time. */
-  private newCycle(t: number): void {
-    const R = this.next ?? this.planSync()
-    this.next = null
+  private finish(walkers: Walker[], r: Walker | null, mode: Plan['mode'], rerolls: number): Plan {
+    if (r) {
+      r.runner = true; r.rest = r.len > Math.min(this.W, this.H) * 0.5
+      const run = Math.max(4.5, r.len / 92); r.arrive = r.start + run + (r.rest ? 2.7 : 0); r.tc = r.arrive + 1.1 + 1.8; r.home = r.tc + Math.max(4, r.len / 80); r.done = r.home + 1.5
+    }
+    // the other paths: one channel each, never repeated (a 6th path only when Ahmad sits out)
+    const order = shuffle(CHANNELS.map((_, i) => i)); let j = 0
+    for (const w of walkers) if (!w.runner) w.ch = order[j++ % order.length]
+    return { walkers, mode, rerolls, gen: this.gen }
+  }
+  /** Start a planned round at time t (cheap: shifts times, builds Ahmad's speed profile). */
+  private commit(p: Plan, t: number) {
+    for (const w of p.walkers) { w.start += t; w.arrive += t; w.tc += t; w.home += t; w.done += t; if (w.runner) this.profile(w) }
+    this.counts.rounds++; this.counts[p.mode]++; this.counts.rerolls += p.rerolls
     this.S_client = this.HUB
-    for (const w of R.walkers) { w.start += t; w.arrive += t; w.tc += t; w.home += t; w.done += t; if (w.runner) this.profile(w) }
-    R.allHome += t; R.end += t
-    this.S = R
-    this.rounds++; if (R.ahmad === 'sit') this.sits++; else if (R.ahmad === 'near') this.nears++
-    this.planNext()
+    const allHome = Math.max(...p.walkers.map((w) => w.done))
+    this.S = { walkers: p.walkers, allHome, best: Math.min(...p.walkers.map((w) => w.price)), end: allHome + 2.8 } // next round leaves right away
+  }
+  /**
+   * The first time a frame meets a new state (a sprite's GPU upload, a label's shaping, a code path V8 has not seen —
+   * arrival, «أرخص سعر») it costs 5–20 ms on a slow CPU. So before the animation starts: decode every sprite, then,
+   * in idle slices, draw every sprite and label once and replay the whole round's timeline, and clear. The static
+   * layer and the first paint are already on screen meanwhile.
+   */
+  private warm() {
+    if (this.warmed || this.warming) return
+    this.warming = true
+    const stems = [CYCLE.f, ...Object.values(POSES).flat().map((p) => p.f), ...CHANNELS.map((c) => 'channel-' + c)]
+    const ims = stems.map((s) => img(s, this.scale))
+    const idle = (f: () => void) => ('requestIdleCallback' in window ? window.requestIdleCallback(f, { timeout: 1000 }) : setTimeout(f, 16))
+    // one more idle turn before the loop starts, so the garbage the warm-up made is collected outside an animation frame
+    const done = () => idle(() => { this.warming = false; this.warmed = true; this.run() })
+    void Promise.all(ims.map((im) => im.decode().catch(() => {}))).then(() => idle(() => {
+      if (!this.alive) return
+      const c = this.ctx; c.save(); c.globalAlpha = 0.01
+      for (const im of ims) if (ready(im)) c.drawImage(im, 0, 0, 2, 2)
+      c.direction = 'rtl'
+      for (const [font, text] of [[`700 11px ${FONT}`, 'طلب عرض سعر وصل… يلتقط أنفاسه يسعّر عند المورد… سلّم السعر ✓ 0123456789, ر.س'], [`500 11px ${FONT}`, 'مقر الشركة مورد'], [`500 12px ${FONT}`, 'أرخص سعر'], [`700 14px ${FONT_NUM}`, '0123456789, ر.س']]) { c.font = font; c.fillText(text, 0, 8) }
+      c.restore()
+      // replay the current round's timeline (Ahmad's steering state is saved and restored)
+      const S = this.S, RS = { ...this.RS }, t0 = S.walkers[0]?.start ?? this.simT, ts: number[] = []
+      for (let t = t0; t <= S.end; t += 0.25) ts.push(t)
+      const slice = () => {
+        if (!this.alive) return
+        for (const t of ts.splice(0, 12)) this.draw(t)
+        if (ts.length) { idle(slice); return }
+        this.RS = RS; this.draw(this.simT); done()
+      }
+      if (S && !this.opts.reduced) slice(); else done()
+    }))
   }
 
-  /** Dev/QA: plan n rounds on the current layout without drawing; how often Ahmad ran far / near / sat out. */
-  simulate(n = 100) {
-    // anyClear: rounds where some clear track existed at all (the old rule ran him on it, however short)
-    const out = { long: 0, near: 0, sit: 0, maxMs: 0, avgMs: 0, anyClear: 0 }
-    let sum = 0
-    for (let i = 0; i < n; i++) {
-      const step = this.planner(); let r: Round | null = null, worst = 0
-      while (!r) { const a = performance.now(); r = step(); worst = Math.max(worst, performance.now() - a) }
-      out[r.ahmad]++; if (r.walkers.length && this.anyClearLast) out.anyClear++; out.maxMs = Math.max(out.maxMs, worst); sum += worst
-    }
-    out.avgMs = sum / n
-    return out
+  /** Plan the next round while this one plays: requestIdleCallback, setTimeout where it is missing. */
+  private schedulePlan() {
+    const gen = this.gen
+    const job = () => { if (this.alive && gen === this.gen && !this.next) this.next = this.planRound() }
+    if ('requestIdleCallback' in window) window.requestIdleCallback(job, { timeout: 3000 })
+    else setTimeout(job, 200)
+  }
+  /** Dev/QA: plan n rounds on the current layout and count how Ahmad was placed (does not touch the live round). */
+  sampleRounds(n: number) {
+    const c = { far: 0, near: 0, none: 0, rerolls: 0 }, last = { ...this.LAST }
+    for (let i = 0; i < n; i++) { const p = this.planRound(); c[p.mode]++; c.rerolls += p.rerolls }
+    this.LAST = last
+    return c
   }
 
   // speed profile: run → slow to a stop half-way on long trips (catches his breath) → pick up again
   private profile(w: Walker) {
     const D = w.arrive - w.start, a = w.rest ? w.start + 0.45 * (D - 2.7) : null
     const g = (t: number) => { if (a === null) return 1; if (t < a) return 1; if (t < a + 0.5) return 0.5 + 0.5 * Math.cos(((t - a) / 0.5) * Math.PI); if (t < a + 2.1) return 0; if (t < a + 2.7) return 0.5 - 0.5 * Math.cos(((t - a - 2.1) / 0.6) * Math.PI); return 1 }
-    const n = Math.max(2, Math.ceil(D * 60)), cum = [0]
-    for (let i = 1; i <= n; i++) cum.push(cum[i - 1] + g(w.start + (D * (i - 0.5)) / n))
+    const n = Math.max(2, Math.ceil(D * 60)), cum = new Float64Array(n + 1)
+    for (let i = 1; i <= n; i++) cum[i] = cum[i - 1] + g(w.start + (D * (i - 0.5)) / n)
     w.prof = { n, cum, tot: cum[n], g }
   }
   private runD(w: Walker, t: number) {
     if (t <= w.start) return 0; if (t >= w.arrive) return w.len
-    const P = w.prof!, u = ((t - w.start) / (w.arrive - w.start)) * P.n, i = Math.floor(u), f = u - i
+    const P = w.prof, u = ((t - w.start) / (w.arrive - w.start)) * P.n, i = Math.floor(u), f = u - i
     return (w.len * (P.cum[i] + (P.cum[Math.min(P.n, i + 1)] - P.cum[i]) * f)) / P.tot
   }
   private at(w: Walker, d: number): [number, number] {
@@ -413,7 +480,7 @@ export class LiveEngine {
     this.rr(X, Y, w, h, 11); c.fillStyle = rgba(this.surface, 0.97); c.fill(); c.lineWidth = 1; c.strokeStyle = rgba(this.go, 0.6); c.stroke()
     c.textAlign = 'right'; c.fillStyle = rgba(this.go, 1); c.fillText(label, X + w - 9, Y + h / 2 + 1)
     const im = img('channel-' + CHANNELS[k % CHANNELS.length], this.scale)
-    if (!noIcon && im) c.drawImage(im, X + 3, Y + 1, 20, 20)
+    if (!noIcon && ready(im)) c.drawImage(im, X + 3, Y + 1, 20, 20)
     c.restore()
     if (lift === 6) { c.fillStyle = rgba(this.go, 0.6); c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill() }
   }
@@ -446,15 +513,15 @@ export class LiveEngine {
     const want = Math.max(-0.34, Math.min(0.34, rel * 0.45)); RS.tilt += (want - RS.tilt) * Math.min(1, dt * 6) // soft lean, capped ≈20°
   }
   private cycle(i: number, x: number, y: number, alpha: number, mirror: boolean) {
-    const im = img(CYCLE.f, this.scale); if (!im) return
-    const fw = im.width / CYCLE.n, f = ((i % 6) + 6) % 6, c = this.ctx
+    const im = img(CYCLE.f, this.scale); if (!ready(im)) return
+    const fw = im.naturalWidth / CYCLE.n, f = ((i % 6) + 6) % 6, c = this.ctx
     c.save(); c.globalAlpha = alpha; c.translate(x, y); c.rotate(this.RS.tilt); if (mirror) c.scale(-1, 1)
-    c.drawImage(im, f * fw, 0, fw, im.height, -CYCLE.w / 2, -CYCLE.h, CYCLE.w, CYCLE.h); c.restore()
+    c.drawImage(im, f * fw, 0, fw, im.naturalHeight, -CYCLE.w / 2, -CYCLE.h, CYCLE.w, CYCLE.h); c.restore()
   }
   private pose(g: string, i: number, x: number, y: number, alpha: number, breath = 0) {
     if (g === 'E' || g === 'W') { this.cycle(i, x, y, alpha, g === 'W'); return }
     const set = POSES[g]; if (!set) return
-    const f: Pose = set[i % set.length], im = img(f.f, this.scale); if (!im) return
+    const f: Pose = set[i % set.length], im = img(f.f, this.scale); if (!ready(im)) return
     const c = this.ctx; c.save(); c.globalAlpha = alpha; c.translate(x, y); if (breath) c.scale(1, 1 + breath); c.drawImage(im, -f.ax, -f.ay, f.w, f.h); c.restore()
   }
   private runner(x: number, y: number, d: number, state: string, t: number) {
@@ -519,7 +586,7 @@ export class LiveEngine {
       const dBack = t >= w.tc ? w.len * (1 - Math.min(1, (t - w.tc) / (w.home - w.tc))) : 0
       let d = 0, state: string | null = null, head: [number, number] | null = null
       if (t < w.start) { d = 0; state = 'present' }
-      else if (t < w.arrive) { d = this.runD(w, t); state = w.prof!.g(t) < 0.12 ? 'tired' : 'run'; const a2 = this.at(w, Math.min(w.len, d + 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
+      else if (t < w.arrive) { d = this.runD(w, t); state = w.prof.g(t) < 0.12 ? 'tired' : 'run'; const a2 = this.at(w, Math.min(w.len, d + 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
       else if (t < w.arrive + 1.1) { d = w.len; state = 'tiredFront' }
       else if (t < w.tc) { d = w.len; state = 'present' }
       else if (t < w.home) { d = dBack; state = 'run'; const a2 = this.at(w, Math.max(0, d - 16)), p2 = this.at(w, d); head = [a2[0] - p2[0], a2[1] - p2[1]] }
@@ -556,7 +623,11 @@ export class LiveEngine {
   private loop = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.simT += dt
     const t0 = performance.now()
-    if (this.simT > this.S.end) this.newCycle(this.simT)
+    if (this.simT > this.S.end) {
+      let p = this.next; this.next = null
+      if (!p || p.gen !== this.gen) { p = this.planRound(); this.counts.sync++ } // only if the idle plan did not run in time
+      this.commit(p, this.simT); this.schedulePlan()
+    }
     this.draw(this.simT)
     this.times[this.nTimes++ % this.times.length] = performance.now() - t0
     this.raf = requestAnimationFrame(this.loop)
@@ -564,6 +635,7 @@ export class LiveEngine {
   private run() {
     cancelAnimationFrame(this.raf); this.raf = 0
     if (!this.alive || this.opts.reduced) { this.ctx.clearRect(0, 0, this.W, this.H); return }
+    if (!this.warmed) { this.warm(); return } // starts the loop when done
     if (!document.hidden && this.onScreen) { this.last = performance.now(); this.raf = requestAnimationFrame(this.loop) }
   }
 }

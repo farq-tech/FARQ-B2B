@@ -7,10 +7,10 @@ for (const [w, h] of [[1440, 900], [390, 844]]) for (const which of ['tracking',
   await page.goto(`${base}/?harness=${which}&bg=1`)
   await page.waitForFunction(() => window.__liveBg?.app, null, { timeout: 15000 })
   await page.waitForTimeout(1500)
-  const sim = await page.evaluate(() => window.__liveBg.app.simulate(100))
+  const sim = await page.evaluate(() => window.__liveBg.app.sampleRounds(100))
   await page.waitForTimeout(secs * 1000)
   const st = await page.evaluate(() => window.__liveBg.app.stats())
-  console.log(JSON.stringify({ viewport: `${w}x${h}`, screen: which, sim100: { long: sim.long, near: sim.near, sit: sim.sit, anyClear: sim.anyClear, planMaxMs: +sim.maxMs.toFixed(2) }, frames: st.frames, avg: +st.avg.toFixed(3), p95: +st.p95.toFixed(3), max: +st.max.toFixed(3), rounds: st.rounds, sits: st.sits }))
+  console.log(JSON.stringify({ viewport: `${w}x${h}`, screen: which, ahmad100: sim, frames: st.frames, avg: +st.avg.toFixed(3), p95: +st.p95.toFixed(3), max: +st.max.toFixed(3), rounds: st.rounds, far: st.far, near: st.near, none: st.none, sync: st.sync, p99: +st.p99.toFixed(3) }))
   await page.close()
 }
 await browser.close()
