@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NavProps } from '../types'
 import { useProcurement } from '../procurementContext'
 import {
@@ -23,7 +23,7 @@ import { cleanLineName, parseQty, readQty } from '../lib/sendGuards'
 import { shrinkImage } from '../lib/imageShrink'
 import { scanPurchaseRequest } from '../lib/purchaseRequests'
 import type { BOQItem, Supplier } from '../types'
-import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, Icon, Input, OptionCard, Tabs, type EvidenceLevel } from '../ui'
+import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, Icon, Input, OptionCard, Tabs, useIsMobile, type EvidenceLevel } from '../ui'
 
 /*
  * «01 طلب جديد ← 02 مراجعة البنود ← التوصيل ← الإرسال» — Figma 38:2 and 42:44.
@@ -74,6 +74,9 @@ function fileToBase64(file: File): Promise<string> {
 export function NewRequestV2({ navigate }: NavProps) {
   const { setSelectedRfqId } = useProcurement()
   const [step, setStep] = useState<Step>(0)
+  const mobile = useIsMobile()
+  // Each step starts at the top (the footer button sits at the bottom of a long page).
+  useEffect(() => { window.scrollTo({ top: 0 }) }, [step])
   const [method, setMethod] = useState<Method>('booklet')
   const [lines, setLines] = useState<ParsedLine[]>([])
   const nextId = useRef(1)
@@ -238,6 +241,28 @@ export function NewRequestV2({ navigate }: NavProps) {
     })
   }
 
+  function supplierPicker(i: BOQItem) {
+    const picked = selected[i.id] || []
+    const cands = candidatesFor(i)
+    return (
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-[14px] font-medium">موردين «{i.name}»</legend>
+        {cands.length === 0 ? <p className="text-[14px] text-[var(--color-text-secondary)]">ما لقينا مورد لهذا البند في السجل.</p> : null}
+        {cands.map((s) => {
+          const lvl = evidenceLevel(s.evidence)
+          return (
+            <label key={s.id} className="flex cursor-pointer items-center gap-3 text-[14px]">
+              <input type="checkbox" checked={picked.includes(s.id)} onChange={() => toggle(i.id, s.id)} className="size-4 accent-[var(--color-bg-primary)]" />
+              <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+              <span className="text-[12px] text-[var(--color-text-secondary)]">{s.city}</span>
+              {lvl ? <EvidenceBadge level={lvl} label={s.evidence} /> : <Badge tone="Neutral" label={s.evidence} showDot={false} />}
+            </label>
+          )
+        })}
+      </fieldset>
+    )
+  }
+
   /* ---------- step 2/3: delivery and send (same blockers and payload as the source) ---------- */
 
   const blockers: string[] = []
@@ -361,27 +386,27 @@ export function NewRequestV2({ navigate }: NavProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
-      <FlowHeader steps={STEPS} current={step} onClose={close} />
+      <FlowHeader steps={STEPS} current={step} onClose={close} mobileTitle={step === 0 ? undefined : step === 1 ? 'مراجعة البنود' : STEPS[step]} onBack={sending ? undefined : () => setStep((s) => (s - 1) as Step)} />
 
-      <main className="flex-1 px-12 pb-10">
+      <main className={mobile ? 'flex-1 px-4 pb-6' : 'flex-1 px-12 pb-10'}>
         {error ? <p role="alert" className="mx-auto mb-4 max-w-[752px] rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-4 py-3 text-[14px] text-[var(--color-text-danger)]">{error}</p> : null}
 
         {step === 0 ? (
-          <section aria-labelledby="q-h" className="mx-auto flex max-w-[760px] flex-col items-center gap-8 pt-12">
-            <div className="flex flex-col items-center gap-2 text-center">
+          <section aria-labelledby="q-h" className={mobile ? 'flex flex-col items-stretch gap-4 pt-2' : 'mx-auto flex max-w-[760px] flex-col items-center gap-8 pt-12'}>
+            <div className={mobile ? 'flex flex-col items-start gap-1' : 'flex flex-col items-center gap-2 text-center'}>
               {greeting ? <p className="text-[18px] leading-[30px] text-[var(--color-text-secondary)]">هلا {greeting}</p> : null}
-              <h1 id="q-h" className="font-[family-name:var(--font-display)] text-[40px] leading-[60px] font-bold tracking-[-0.5px]">وش تبي نسعّر لك اليوم؟</h1>
-              <p className="text-[16px] leading-[26px] text-[var(--color-text-secondary)]">اختر الطريقة الأسهل — تقدر تجمع بينها في نفس الطلب.</p>
+              <h1 id="q-h" className={`font-[family-name:var(--font-display)] font-bold tracking-[-0.5px] ${mobile ? 'text-[32px] leading-[48px]' : 'text-[40px] leading-[60px]'}`}>وش تبي نسعّر لك اليوم؟</h1>
+              {mobile ? null : <p className="text-[16px] leading-[26px] text-[var(--color-text-secondary)]">اختر الطريقة الأسهل — تقدر تجمع بينها في نفس الطلب.</p>}
             </div>
-            <div role="radiogroup" aria-label="طريقة إدخال الطلب" className="flex gap-4">
-              <OptionCard spot="كراسة" title="ارفع الكراسة" hint="Excel أو PDF" selected={method === 'booklet'} onSelect={() => setMethod('booklet')} />
-              <OptionCard spot="قائمة" title="اكتب الطلبات" hint="سطر لكل بند" selected={method === 'typed'} onSelect={() => setMethod('typed')} />
-              <OptionCard spot="صورة" title="صوّرها" hint="كراسة ورقية أو قطعة" selected={method === 'photo'} onSelect={() => setMethod('photo')} />
+            <div role="radiogroup" aria-label="طريقة إدخال الطلب" className={mobile ? 'flex flex-col gap-3' : 'flex gap-4'}>
+              <OptionCard spot="كراسة" title="ارفع الكراسة" layout={mobile ? 'row' : 'tile'} hint="Excel أو PDF" selected={method === 'booklet'} onSelect={() => setMethod('booklet')} />
+              <OptionCard spot="قائمة" title="اكتب الطلبات" layout={mobile ? 'row' : 'tile'} hint="سطر لكل بند" selected={method === 'typed'} onSelect={() => setMethod('typed')} />
+              <OptionCard spot="صورة" title="صوّرها" layout={mobile ? 'row' : 'tile'} hint="كراسة ورقية أو قطعة" selected={method === 'photo'} onSelect={() => setMethod('photo')} />
             </div>
 
             {method === 'typed' ? (
               <form className="flex w-full flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6" onSubmit={(e) => { e.preventDefault(); addTyped() }}>
-                <div className="grid grid-cols-[1fr_140px_140px] items-end gap-3">
+                <div className={mobile ? 'grid grid-cols-2 items-end gap-3 [&>*:first-child]:col-span-2' : 'grid grid-cols-[1fr_140px_140px] items-end gap-3'}>
                   <Input label="البند" placeholder="مثال: كيبل نحاس 4×16 مم²" value={name} onChange={(e) => setName(e.target.value)} />
                   <Input label="الكمية" inputMode="decimal" placeholder="0" value={qty} onChange={(e) => setQty(e.target.value)} />
                   <div className="flex flex-col gap-2">
@@ -433,16 +458,54 @@ export function NewRequestV2({ navigate }: NavProps) {
         ) : null}
 
         {step === 1 ? (
-          <div className="flex items-start gap-6 pt-8">
+          <div className={mobile ? 'flex flex-col gap-6 pt-4' : 'flex items-start gap-6 pt-8'}>
             <section aria-labelledby="items-h" className="flex min-w-0 flex-1 flex-col gap-4">
               <div className="flex items-end justify-between gap-4">
                 <div className="flex flex-col items-start gap-1">
                   <h1 id="items-h" className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold">{sourceKind === 'typed' ? `${items.length} بند في الطلب` : `قرأنا ${items.length} بند ${sourceKind === 'photo' ? 'من الصور' : 'من الكراسة'}`}</h1>
-                  <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">راجع البنود اللي تحتاج تأكيد قبل ما نكمّل{source ? ` · ${source}` : ''}</p>
+                  {mobile
+                    ? (needsCheck.length ? <p className="text-[14px] leading-[22px] text-[var(--color-text-warning)]">{needsCheck.length} تحتاج تأكيدك قبل الإرسال</p> : null)
+                    : <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">راجع البنود اللي تحتاج تأكيد قبل ما نكمّل{source ? ` · ${source}` : ''}</p>}
                 </div>
-                <Button variant="Secondary" icon="plus" onClick={() => { setMethod('typed'); setStep(0) }}>أضف بند</Button>
+                <Button variant="Secondary" size={mobile ? 'S' : 'M'} icon="plus" onClick={() => { setMethod('typed'); setStep(0) }}>أضف بند</Button>
               </div>
-              <Tabs label="تصفية البنود" value={tab} onChange={(k) => { setTab(k); setShowAll(false) }} items={tabs} />
+              {mobile ? (
+                // Figma M02: two filter chips instead of tabs.
+                <div role="group" aria-label="تصفية البنود" className="flex gap-2">
+                  <Chip label={`تحتاج تأكيد ${needsCheck.length}`} selected={tab === 'check'} onClick={() => { setTab('check'); setShowAll(false) }} />
+                  <Chip label={`الكل ${items.length}`} selected={tab !== 'check'} onClick={() => { setTab('all'); setShowAll(false) }} />
+                </div>
+              ) : <Tabs label="تصفية البنود" value={tab} onChange={(k) => { setTab(k); setShowAll(false) }} items={tabs} />}
+              {mobile ? (
+                // Figma M02: one card per item; flagged items tinted with a «تأكد» button.
+                <ul className="flex flex-col gap-3">
+                  {shown.map((i) => {
+                    const picked = selected[i.id] || []
+                    const flagged = needsCheck.includes(i)
+                    return (
+                      <li key={i.id} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] p-4" style={{ background: flagged ? 'var(--color-bg-warning)' : 'var(--color-bg-surface)' }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 text-[16px] leading-[26px] font-medium">{i.name}</p>
+                          <p className="shrink-0 font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{i.qty} <span className="text-[14px] font-normal">{i.unit}</span></p>
+                        </div>
+                        {i.workOnly ? <p className="text-[12px] text-[var(--color-text-warning)]">عمل فقط — ما فيه مواد تُشترى</p>
+                          : !picked.length ? <p className="text-[12px] text-[var(--color-text-warning)]">ما فيه مورد مختار — ما ينرسل</p>
+                            : i.spec ? <p className="text-[12px] text-[var(--color-text-secondary)]">{i.spec}</p> : null}
+                        {i.workOnly ? null : (
+                          <div className="flex items-center justify-between gap-3">
+                            {departmentForBoqItem(i) ? <Badge tone="Neutral" label={DEPT_LABEL[departmentForBoqItem(i)!]} showDot={false} /> : <span />}
+                            <Button variant={flagged ? 'Secondary' : 'Ghost'} size="S" aria-expanded={open === i.id} aria-controls={`sup-${i.id}`} onClick={() => setOpen(open === i.id ? null : i.id)}>
+                              {flagged ? 'تأكد' : `${picked.length} من ${candidatesFor(i).length} مورد`}
+                            </Button>
+                          </div>
+                        )}
+                        {open === i.id ? <div id={`sup-${i.id}`} className="rounded-[var(--radius-md)] bg-[var(--color-bg-canvas)] p-3">{supplierPicker(i)}</div> : null}
+                      </li>
+                    )
+                  })}
+                  {visible.length > shown.length ? <li><Button variant="Ghost" fullWidth onClick={() => setShowAll(true)}>عرض {visible.length - shown.length} بند إضافي</Button></li> : null}
+                </ul>
+              ) : (
               <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
                 <table className="w-full table-fixed border-collapse text-start">
                   <caption className="sr-only">بنود الطلب</caption>
@@ -485,21 +548,7 @@ export function NewRequestV2({ navigate }: NavProps) {
                         {open === i.id ? (
                           <tr id={`sup-${i.id}`}>
                             <td colSpan={6} className="bg-[var(--color-bg-canvas)] px-6 py-4">
-                              <fieldset className="flex flex-col gap-2">
-                                <legend className="mb-1 text-[14px] font-medium">موردين «{i.name}»</legend>
-                                {cands.length === 0 ? <p className="text-[14px] text-[var(--color-text-secondary)]">ما لقينا مورد لهذا البند في السجل.</p> : null}
-                                {cands.map((s) => {
-                                  const lvl = evidenceLevel(s.evidence)
-                                  return (
-                                    <label key={s.id} className="flex cursor-pointer items-center gap-3 text-[14px]">
-                                      <input type="checkbox" checked={picked.includes(s.id)} onChange={() => toggle(i.id, s.id)} className="size-4 accent-[var(--color-bg-primary)]" />
-                                      <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
-                                      <span className="text-[12px] text-[var(--color-text-secondary)]">{s.city}</span>
-                                      {lvl ? <EvidenceBadge level={lvl} label={s.evidence} /> : <Badge tone="Neutral" label={s.evidence} showDot={false} />}
-                                    </label>
-                                  )
-                                })}
-                              </fieldset>
+                              {supplierPicker(i)}
                             </td>
                           </tr>
                         ) : null}
@@ -509,9 +558,10 @@ export function NewRequestV2({ navigate }: NavProps) {
                 </table>
                 {visible.length > shown.length ? <button type="button" onClick={() => setShowAll(true)} className="w-full border-t border-[var(--color-border-default)] p-4 text-center text-[14px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} بند إضافي</button> : null}
               </div>
+              )}
             </section>
 
-            <aside aria-labelledby="est-h" className="flex w-[360px] shrink-0 flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6">
+            <aside aria-labelledby="est-h" className={`flex shrink-0 flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6 ${mobile ? 'w-full' : 'w-[360px]'}`}>
               <h2 id="est-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">الموردين المتوقعين</h2>
               <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">نرشّح الموردين لكل بند من سجل فرق. تقدر تغيّر الاختيار من عمود الموردين.</p>
               {byDept.map(([k, v]) => (
@@ -536,9 +586,9 @@ export function NewRequestV2({ navigate }: NavProps) {
         ) : null}
 
         {step === 2 ? (
-          <section aria-labelledby="dl-h" className="mx-auto flex max-w-[752px] flex-col gap-6 pt-12">
+          <section aria-labelledby="dl-h" className={mobile ? 'flex flex-col gap-4 pt-4' : 'mx-auto flex max-w-[752px] flex-col gap-6 pt-12'}>
             <h1 id="dl-h" className="font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">وين ومتى التوريد؟</h1>
-            <div className="grid grid-cols-2 gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6">
+            <div className={`grid gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'grid-cols-1 p-4' : 'grid-cols-2 p-6'}`}>
               <Input label="اسم المشروع" placeholder="مثال: فيلا النرجس" value={project} onChange={(e) => setProject(e.target.value)} helper="يظهر للموردين مع المدينة" />
               <Input label="مدينة التسليم" value={city} onChange={(e) => setCity(e.target.value)} error={!city.trim() ? 'اكتب مدينة التسليم.' : undefined} />
               <Input label="موعد التوريد" type="date" value={requiredDate} onChange={(e) => setRequiredDate(e.target.value)} />
@@ -561,9 +611,9 @@ export function NewRequestV2({ navigate }: NavProps) {
         ) : null}
 
         {step === 3 ? (
-          <section aria-labelledby="sd-h" className="mx-auto flex max-w-[752px] flex-col gap-6 pt-12">
+          <section aria-labelledby="sd-h" className={mobile ? 'flex flex-col gap-4 pt-4' : 'mx-auto flex max-w-[752px] flex-col gap-6 pt-12'}>
             <h1 id="sd-h" className="font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{summary ? 'وصل طلبك للموردين' : createdId ? 'نرسل الطلب…' : 'جاهز للإرسال'}</h1>
-            <dl className="grid grid-cols-3 gap-4">
+            <dl className={mobile ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-3 gap-4'}>
               {[['البنود', `${readyItems.length} بند`], ['الموردين', `${allPicked.length} مورد`], ['التسليم', `${city} · ${requiredDate}`]].map(([k, v]) => (
                 <div key={k} className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-5 py-4">
                   <dt className="text-[14px] font-medium text-[var(--color-text-secondary)]">{k}</dt>

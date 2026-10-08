@@ -39,6 +39,6 @@ function Screen({ which }: { which: string }) {
 
 export function mountHarness(which: string) {
   createRoot(document.getElementById('root')!).render(
-    <ProcurementProvider><div style={{ width: which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
+    <ProcurementProvider><div style={{ width: window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
   )
 }

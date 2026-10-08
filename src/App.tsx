@@ -7,7 +7,7 @@ import { RfqListV2 } from './views/RfqListV2'
 import { RequestTrackingV2 } from './views/RequestTrackingV2'
 import { ComparisonV2 } from './views/ComparisonV2'
 import { NewRequestV2 } from './views/NewRequestV2'
-import { Button, NavItem, Sidebar as UiSidebar } from './ui'
+import { Button, MobileBottomNav, NavItem, Sidebar as UiSidebar, useIsMobile } from './ui'
 
 /*
  * «فرق تسعير» — owner-only. Two gates: the hosting server asks for the site
@@ -40,6 +40,7 @@ function Routes() {
   const { view, navigate } = useProcurement()
   const session = useFarqSession()
   const [checked, setChecked] = useState<'pending' | 'ok' | 'denied'>('pending')
+  const mobile = useIsMobile()
 
   useEffect(() => {
     if (!session.isAuthenticated) { setChecked('pending'); return }
@@ -61,14 +62,23 @@ function Routes() {
   if (checked === 'pending') return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحقق من الحساب…</div>
   // The new-request flow is a full-page wizard (Figma 01/02 have no sidebar).
   if (view === 'create-upload') return <NewRequestV2 navigate={navigate} />
+  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison'
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="min-w-0 flex-1">
+      {mobile ? null : <Sidebar />}
+      <main className={mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
         {view === 'rfq-detail' && <RequestTrackingV2 navigate={navigate} />}
         {view === 'comparison' && <ComparisonV2 navigate={navigate} />}
         {view !== 'rfq-detail' && view !== 'comparison' && <RfqListV2 navigate={navigate} />}
       </main>
+      {mobile ? (
+        // Figma «Mobile Bottom Nav» (55:551): only the sections that exist are shown.
+        <MobileBottomNav tabs={[
+          { label: 'الطلبات', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
+          { label: 'طلب جديد', icon: 'plus', onClick: () => navigate('create-upload') },
+          { label: 'الاستهداف', icon: 'map-pin', href: TARGETING_URL },
+        ]} />
+      ) : null}
     </div>
   )
 }

@@ -13,7 +13,7 @@ import { CELL_LABEL, cheapestPerLineTotal, lowestPerLine, matrixTotals, quoteCov
 import { rfqProjectName } from '../lib/rfqIdentity'
 import { awardBlockReason, type AwardOffer } from '../lib/awardFlow'
 import AwardDialog from '../components/procurement/AwardDialog'
-import { Badge, Button, Chip, Icon, PriceCell, TopBar, type PriceCellState } from '../ui'
+import { Badge, Button, Chip, Icon, PriceCell, TopBar, useIsMobile, type PriceCellState } from '../ui'
 
 /*
  * «04 · وش الفرق؟» — the Figma comparison screen on the real quote matrix.
@@ -49,9 +49,9 @@ function cellState(cell: Cell | undefined, winner: string | null, best: number |
   return { state: pct >= BIG_DIFF ? 'Higher' : 'Normal', delta: `${ltr(`+${Number(diff).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)} ${cell.currency === 'SAR' || !cell.currency ? 'ر.س' : cell.currency} ${ltr(`(${(pct * 100).toFixed(1)}%)`)}` }
 }
 
-function MatrixCell({ cell, winner, best }: { cell: Cell | undefined; winner: string | null; best: number | null }) {
+function MatrixCell({ cell, winner, best, fluid }: { cell: Cell | undefined; winner: string | null; best: number | null; fluid?: boolean }) {
   const { state, delta } = cellState(cell, winner, best)
-  return <PriceCell state={state} delta={delta} price={cell && cell.line_total != null ? money(cell.line_total, cell.currency) : null} />
+  return <PriceCell fluid={fluid} state={state} delta={delta} price={cell && cell.line_total != null ? money(cell.line_total, cell.currency) : null} />
 }
 
 export function ComparisonV2({ navigate }: NavProps) {
@@ -63,6 +63,7 @@ export function ComparisonV2({ navigate }: NavProps) {
   const [showAll, setShowAll] = useState(false)
   const [awarding, setAwarding] = useState<AwardOffer | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const mobile = useIsMobile()
 
   const load = useCallback(async (id: string) => {
     try {
@@ -167,6 +168,122 @@ export function ComparisonV2({ navigate }: NavProps) {
     { label: 'أعلى عرض', value: highest ? money(highest.total, highest.currency) : '—', basis: highest ? `${nameOf(highest.supplier_id)} · على كل البنود` : 'لا يوجد عرض كامل بعد', mint: false },
   ]
 
+  const recommendation = (
+    <>
+      <Badge tone="Success" label="التوصية" showDot={false} />
+      {basket && basket.suppliers > 1 ? (
+        <>
+          <p className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">وزّع على {basket.suppliers} موردين</p>
+          <p className="w-full text-[14px] leading-[22px] text-[var(--color-text-secondary)]">كل بند يروح لأوفر مورد سعّره على نفس الأساس. {basket.covered < basket.requested ? `${basket.requested - basket.covered} بند بلا أوفر مؤكد.` : ''}</p>
+          <ul className="flex w-full flex-col gap-3">
+            {basketLines.map(([id, n]) => (
+              <li key={id} className="flex w-full items-center justify-between gap-3">
+                <p className="min-w-0 truncate text-[14px] leading-[22px] font-medium">{nameOf(id)}</p>
+                <p className="shrink-0 font-[family-name:var(--font-display)] text-[16px] leading-[24px] font-semibold">{n} {n === 1 ? 'بند' : n === 2 ? 'بندان' : n <= 10 ? 'بنود' : 'بند'}</p>
+              </li>
+            ))}
+          </ul>
+          <span className="h-px w-full bg-[var(--color-border-default)]" />
+          <p className="w-full text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{basket.bestSingle && basket.saving != null ? `البديل الأبسط: مورد واحد (${nameOf(basket.bestSingle.supplier_id)}) بزيادة ${money(basket.saving, basket.currency)}.` : 'لا يوجد مورد واحد سعّر كل البنود حتى الآن.'}</p>
+        </>
+      ) : bestSingle ? (
+        <>
+          <p className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">مورد واحد يكفي</p>
+          <p className="w-full text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{nameOf(bestSingle.supplier_id)} هو الأوفر على كل البنود المسعّرة.</p>
+        </>
+      ) : (
+        <>
+          <p className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">بانتظار عروض أكثر</p>
+          <p className="w-full text-[14px] leading-[22px] text-[var(--color-text-secondary)]">تظهر التوصية عندما يصل عرضان قابلان للمقارنة على نفس البند.</p>
+        </>
+      )}
+    </>
+  )
+  const awardLabel = bestSingle ? `رسِّ على ${nameOf(bestSingle.supplier_id)}` : 'ترسية'
+  const awardDialog = awarding ? (
+    <AwardDialog rfq={rfq} comparison={comparison} offer={awarding} coverage={quoteCoverage(summaryBySupplier.get(String(awarding.supplier.id)), lines.length)} onClose={() => setAwarding(null)}
+      onDone={async () => { setAwarding(null); setNotice(`تمت الترسية على ${awarding.supplier.name_ar || awarding.supplier.name_en}.`); await load(rfq.id).catch(() => {}) }} />
+  ) : null
+
+  if (mobile) {
+    // Figma M04 (58:216): summary card, filter chips, one card per item, award bar above the bottom nav.
+    return (
+      <div className="pricing-v2 min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+        <TopBar parent={title} onParent={() => navigate('rfq-detail')} title="وش الفرق؟" />
+        <div className="flex flex-col gap-4 p-4 pb-40">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{responses.length} عرض من {supplierIds.length} موردين · {pricedLines} من {lines.length} بند وصلها سعر</p>
+            <Button variant="Ghost" size="S" icon="file" onClick={exportCsv}>تصدير</Button>
+          </div>
+          {notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-4 py-3 text-[14px] text-[var(--color-text-success)]">{notice}</p> : null}
+          <section aria-label="ملخص الأسعار" data-tone="deep" className="flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-4">
+            <div className="flex flex-col items-start gap-0.5">
+              <p className="text-[14px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].label}</p>
+              <p className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-bg-brand)]">{figures[0].value}</p>
+              <p className="text-[12px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].basis}</p>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--color-bg-brand)] px-4 py-3 text-[var(--color-text-on-brand)]">
+              <p className="text-[14px] font-medium">الوفر <span className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency) : '—'}</span></p>
+              <p className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingPct != null ? ltr(`${savingPct.toFixed(1)}%`) : '—'}</p>
+            </div>
+            {/* Not in the Figma phone frame; kept so the phone shows the same figures as the desktop. */}
+            <dl className="grid grid-cols-2 gap-3">
+              {figures.slice(1).map((f) => (
+                <div key={f.label} className="flex min-w-0 flex-col gap-0.5">
+                  <dt className="text-[12px] font-medium text-[var(--color-text-on-inverse-secondary)]">{f.label}</dt>
+                  <dd className="truncate font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums text-[var(--color-text-on-inverse)]">{f.value}</dd>
+                  <dd className="text-[11px] leading-[16px] text-[var(--color-text-on-inverse-secondary)]">{f.basis}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+          <section aria-label="الموردين" className="flex flex-col divide-y divide-[var(--color-border-default)] rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
+            {supplierIds.map((id) => {
+              const cov = quoteCoverage(summaryBySupplier.get(id), lines.length)
+              return (
+                <div key={id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <p className="min-w-0 truncate text-[14px] font-medium">{nameOf(id)}</p>
+                  <p className="shrink-0 text-[12px] font-medium text-[var(--color-text-tertiary)]">{channelOf(id)} · {cov ? `${cov.priced} بند` : '—'}</p>
+                </div>
+              )
+            })}
+          </section>
+          <div role="group" aria-label="تصفية البنود" className="-mx-4 flex gap-2 overflow-x-auto px-4">
+            {chips.map(([k, label]) => <Chip key={k} label={label} selected={filter === k} onClick={() => { setFilter(k); setShowAll(false) }} />)}
+          </div>
+          {shown.length === 0 ? <p className="text-[14px] text-[var(--color-text-secondary)]">لا يوجد بنود في هذا التصنيف.</p> : null}
+          {shown.map((line) => {
+            const winner = winners.get(line.id) || null
+            const best = bestOfLine(line)
+            return (
+              <section key={line.id} aria-label={line.name_ar} className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 text-[16px] leading-[26px] font-medium">{line.name_ar}</p>
+                  <p className="shrink-0 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{line.quantity} {line.uom}</p>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {supplierIds.map((id) => (
+                    <li key={id} className="flex items-center gap-3">
+                      <span className="w-28 shrink-0 text-[13px] leading-[18px] font-medium text-[var(--color-text-secondary)] [overflow-wrap:anywhere]">{nameOf(id)}</span>
+                      <MatrixCell fluid cell={(line.offers || []).find((c) => c && c.supplier_id === id)} winner={winner} best={best} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )
+          })}
+          {visible.length > shown.length ? <Button variant="Ghost" fullWidth onClick={() => setShowAll(true)}>عرض {visible.length - shown.length} بند إضافي</Button> : null}
+          <aside aria-label="التوصية" className="flex flex-col items-start gap-4 rounded-[var(--radius-xl)] border-[1.5px] border-[var(--color-border-success)] bg-[var(--color-bg-surface)] p-4 text-start">{recommendation}</aside>
+          {blocked ? <p className="text-[12px] text-[var(--color-text-secondary)]">{blocked}</p> : null}
+        </div>
+        <div className="fixed inset-x-0 bottom-[72px] z-10 border-t border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-3">
+          <Button variant="Primary" size="L" icon="award" fullWidth disabled={Boolean(blocked)} onClick={() => bestOffer && setAwarding(bestOffer)}>{awardLabel}</Button>
+        </div>
+        {awardDialog}
+      </div>
+    )
+  }
+
   return (
     <div className="pricing-v2 min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
       <TopBar parent={title} onParent={() => navigate('rfq-detail')} title="مقارنة العروض" />
@@ -245,33 +362,7 @@ export function ComparisonV2({ navigate }: NavProps) {
           </div>
 
           <aside aria-label="التوصية" className="flex w-[300px] shrink-0 flex-col items-start gap-4 rounded-[var(--radius-xl)] border-[1.5px] border-[var(--color-border-success)] bg-[var(--color-bg-surface)] p-6 text-start">
-            <Badge tone="Success" label="التوصية" showDot={false} />
-            {basket && basket.suppliers > 1 ? (
-              <>
-                <p className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">وزّع على {basket.suppliers} موردين</p>
-                <p className="w-full text-[14px] leading-[22px] text-[var(--color-text-secondary)]">كل بند يروح لأوفر مورد سعّره على نفس الأساس. {basket.covered < basket.requested ? `${basket.requested - basket.covered} بند بلا أوفر مؤكد.` : ''}</p>
-                <ul className="flex w-full flex-col gap-3">
-                  {basketLines.map(([id, n]) => (
-                    <li key={id} className="flex w-full items-center justify-between gap-3">
-                      <p className="min-w-0 truncate text-[14px] leading-[22px] font-medium">{nameOf(id)}</p>
-                      <p className="shrink-0 font-[family-name:var(--font-display)] text-[16px] leading-[24px] font-semibold">{n} {n === 1 ? 'بند' : n === 2 ? 'بندان' : n <= 10 ? 'بنود' : 'بند'}</p>
-                    </li>
-                  ))}
-                </ul>
-                <span className="h-px w-full bg-[var(--color-border-default)]" />
-                <p className="w-full text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{basket.bestSingle && basket.saving != null ? `البديل الأبسط: مورد واحد (${nameOf(basket.bestSingle.supplier_id)}) بزيادة ${money(basket.saving, basket.currency)}.` : 'لا يوجد مورد واحد سعّر كل البنود حتى الآن.'}</p>
-              </>
-            ) : bestSingle ? (
-              <>
-                <p className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">مورد واحد يكفي</p>
-                <p className="w-full text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{nameOf(bestSingle.supplier_id)} هو الأوفر على كل البنود المسعّرة.</p>
-              </>
-            ) : (
-              <>
-                <p className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">بانتظار عروض أكثر</p>
-                <p className="w-full text-[14px] leading-[22px] text-[var(--color-text-secondary)]">تظهر التوصية عندما يصل عرضان قابلان للمقارنة على نفس البند.</p>
-              </>
-            )}
+            {recommendation}
             <Button variant="Primary" size="L" icon="check" fullWidth disabled={Boolean(blocked)} title={blocked || undefined} onClick={() => bestOffer && setAwarding(bestOffer)}>
               {bestSingle ? `رسِّ على ${nameOf(bestSingle.supplier_id)}` : 'ترسية'}
             </Button>
@@ -281,10 +372,7 @@ export function ComparisonV2({ navigate }: NavProps) {
         </div>
       </div>
 
-      {awarding ? (
-        <AwardDialog rfq={rfq} comparison={comparison} offer={awarding} coverage={quoteCoverage(summaryBySupplier.get(String(awarding.supplier.id)), lines.length)} onClose={() => setAwarding(null)}
-          onDone={async () => { setAwarding(null); setNotice(`تمت الترسية على ${awarding.supplier.name_ar || awarding.supplier.name_en}.`); await load(rfq.id).catch(() => {}) }} />
-      ) : null}
+      {awardDialog}
     </div>
   )
 }

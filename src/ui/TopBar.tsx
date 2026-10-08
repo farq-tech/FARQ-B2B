@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { cx, FOCUS_RING } from './cx'
 import { Icon } from './Icon'
+import { useIsMobile } from './useIsMobile'
+import { MobileAppBar } from './MobileNav'
 
 /*
  * Top Bar — Figma «Top Bar» (26:600). Breadcrumb on the start side, actions on the end.
@@ -8,6 +10,8 @@ import { Icon } from './Icon'
  * `actions` only when the feature exists (nothing decorative is rendered).
  */
 export function TopBar({ parent, onParent, title, actions, className }: { parent?: string; onParent?: () => void; title: string; actions?: ReactNode; className?: string }) {
+  // Phones: Figma «Mobile App Bar» — back to the parent, centred title.
+  if (useIsMobile()) return <MobileAppBar title={title} onBack={onParent} />
   return (
     <header className={cx('flex h-[72px] items-center justify-between gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-8 py-4', className)}>
       <nav aria-label="مسار الصفحة" className="min-w-0">

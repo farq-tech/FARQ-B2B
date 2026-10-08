@@ -24,6 +24,7 @@
 | Decline reason breakdown (not stocked / quantity too large) | 03 stat «اعتذروا» basis «2 ما عندهم البند · 1 الكمية كبيرة» | Basis shows a generic sentence |
 | Sidebar counters: open requests, unread inbox threads | Sidebar «طلبات التسعير 3», «صندوق الوارد 5» | No counters shown |
 | Structured offer facts: delivery cost/included, warranty, delivery days | 03 Quote Card facts «توصيل مجاني · التوريد 3 أيام · ضمان سنة»; 04 note «التوصيل والضريبة في بطاقة كل عرض» | Lead time from `leadTimeLabel`; notes text shown as-is |
+| Reading confidence per extracted line (High/Medium/Low) | 02 review table column «ثقة القراءة» and phone cards | Column not shown (parse-pdf/scan return no confidence) |
 | Qualified-supplier count for the request | 03 stat «تم التواصل معهم» basis «موردين مؤهلين لبنود الطلب» | Basis uses the invited count |
 
 ## 4. Award dialog keyboard (copied legacy, rebuilt in M6 as Confirm Sheet)

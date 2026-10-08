@@ -14,7 +14,7 @@ import {
 } from '../api/constructionClient'
 import { leadTimeLabel, requestProgress, requestState, supplierState } from '../lib/requestFile'
 import { rfqProjectName } from '../lib/rfqIdentity'
-import { Badge, Button, ChannelBadge, Icon, QuoteCard, Stat, Tabs, TimelineStep, Toast, TopBar, channelFromApi, type BadgeTone, type QuoteFact, type TimelineStatus } from '../ui'
+import { Badge, Button, ChannelBadge, Icon, QuoteCard, Stat, Tabs, TimelineStep, Toast, TopBar, channelFromApi, useIsMobile, type BadgeTone, type QuoteFact, type TimelineStatus } from '../ui'
 
 /*
  * «03 · متابعة الطلب» — the Figma «فرق تسعير» request-tracking screen, wired to
@@ -86,6 +86,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const [showAll, setShowAll] = useState(false)
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null)
   const [seenQuotes, setSeenQuotes] = useState<Set<string> | null>(null)
+  const mobile = useIsMobile()
 
   const load = useCallback(async (id: string) => {
     try {
@@ -174,87 +175,100 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const contactStep: TimelineStatus = progress.reached === 0 ? 'Pending' : progress.reached >= invites.length ? 'Done' : 'Active'
   const compareStep: TimelineStatus = state.key === 'AWARDED' ? 'Done' : progress.quoted > 0 ? 'Active' : 'Pending'
 
+  const suppliersSection = (
+    <section aria-labelledby="suppliers-h" className="flex min-w-0 flex-1 flex-col items-stretch overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
+      <div className="flex w-full flex-col items-start gap-3 px-6 py-5">
+        <div className="flex items-baseline gap-2">
+          <h2 id="suppliers-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">الموردين</h2>
+          <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-tertiary)]">مرتبين حسب حالة الرد</p>
+        </div>
+        <Tabs className="max-w-full overflow-x-auto" label="تصفية الموردين حسب حالة الرد" value={filter} onChange={(k) => { setFilter(k); setShowAll(false) }}
+          items={[{ key: 'all', label: `الكل ${counts.all}` }, { key: 'quoted', label: `أرسلوا سعر ${counts.quoted}` }, { key: 'replied', label: `ردّوا بدون سعر ${counts.replied}` }, { key: 'waiting', label: `بانتظار ${counts.waiting}` }, { key: 'declined', label: `اعتذروا ${counts.declined}` }]} />
+      </div>
+      {shown.length === 0 ? <p className="w-full p-6 text-start text-[14px] text-[var(--color-text-secondary)]">لا يوجد موردون في هذه الحالة.</p> : null}
+      <ul>
+        {shown.map(({ inv, badge, channel }) => {
+          const name = inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
+          const ch = channelFromApi(channel)
+          return (
+            <li key={inv.id} className={`flex w-full items-center border-b border-[var(--color-border-default)] ${mobile ? 'flex-wrap gap-x-3 gap-y-2 px-4 py-3' : 'gap-4 px-5 py-4'}`}>
+              <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] text-[16px] font-medium text-[var(--color-text-secondary)]">{name.trim().charAt(0)}</span>
+              <div className={`flex min-w-0 flex-1 flex-col items-start gap-1 ${mobile ? 'basis-[calc(100%-56px)]' : ''}`}>
+                <p className="max-w-full truncate text-[16px] leading-[26px] font-medium">{name}</p>
+                <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{inv.supplier?.city || '—'}</p>
+              </div>
+              {ch ? <ChannelBadge channel={ch} /> : null}
+              <Badge tone={badge.tone} label={badge.label} />
+            </li>
+          )
+        })}
+      </ul>
+      {visible.length > shown.length ? (
+        <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} مورد إضافي</button>
+      ) : null}
+    </section>
+  )
+  const timelineSection = (
+    <section aria-labelledby="track-h" className="flex w-full flex-col items-start gap-1 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-5">
+      <h2 id="track-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">مسار الطلب</h2>
+      <ol className="w-full">
+        <TimelineStep title="رفع الطلب" detail={`${progress.items} بند`} status="Done" />
+        <TimelineStep title="قراءة البنود" detail={`${progress.items} بند جاهز للإرسال`} status="Done" />
+        <TimelineStep title="التواصل مع الموردين" detail={progress.reached ? `تم التواصل مع ${progress.reached} مورد` : 'لم يبدأ الإرسال'} status={contactStep} />
+        <TimelineStep title="المقارنة والترسية" detail={state.key === 'AWARDED' ? 'تمت الترسية' : progress.quoted ? `تقدر تبدأ الحين — ${progress.quoted} عرض جاهز` : 'بانتظار أول عرض'} status={compareStep} showConnector={false} />
+      </ol>
+    </section>
+  )
+  const offersSection = (
+    <section aria-labelledby="latest-h" className="flex w-full flex-col items-stretch gap-3">
+      <div className="flex items-center gap-2">
+        <h2 id="latest-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">آخر العروض</h2>
+        <button type="button" aria-label="تحديث العروض" title="تحديث" onClick={() => selectedRfqId && void load(selectedRfqId)} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-primary)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]"><Icon name="refresh" size={18} /></button>
+      </div>
+      {offers.length === 0 ? <p className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-start text-[14px] text-[var(--color-text-secondary)]">ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
+      {offers.slice(0, 2).map((o, i) => {
+        const cov = summaryBySupplier.get(String(o.supplier.id || ''))?.coverage || null
+        return <OfferCard key={String(o.offer.quoteVersionId || o.offer.offerId || i)} offer={o} invites={invites} coverage={cov} fresh={i === 0 && Date.now() - Date.parse(String(o.offer.submittedAt || 0)) < 60 * 60 * 1000} />
+      })}
+    </section>
+  )
+
   return (
     <div className="pricing-v2 relative min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
       <TopBar parent="طلبات التسعير" onParent={() => navigate('rfq-list')} title={title} />
 
-      <div className="flex flex-col gap-6 p-8">
+      <div className={mobile ? 'flex flex-col gap-4 p-4 pb-24' : 'flex flex-col gap-6 p-8'}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col items-start gap-1.5">
-            <div className="flex min-w-0 items-center gap-3">
-              <h1 className="truncate font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{title}</h1>
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              {/* On phones the title lives in the app bar (Figma M03). */}
+              {mobile ? null : <h1 className="truncate font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{title}</h1>}
               <Badge tone={stateBadge.tone} label={stateBadge.label} />
             </div>
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
               {[rfq.created_at ? `أُنشئ ${timeAgo(rfq.created_at)}` : null, `${progress.items} بند`, delivery?.city ? `التوصيل لـ${delivery.city}${delivery.required_date ? ` قبل ${delivery.required_date}` : ''}` : null].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <Button variant="Primary" size="L" icon="layers" onClick={() => navigate('comparison')} disabled={!progress.quoted}>قارن العروض ({progress.quoted})</Button>
+          {mobile ? null : <Button variant="Primary" size="L" icon="layers" onClick={() => navigate('comparison')} disabled={!progress.quoted}>قارن العروض ({progress.quoted})</Button>}
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
+        <div className={mobile ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-4 gap-4'}>
           <Stat label="تم التواصل معهم" value={progress.reached} basis={`من ${invites.length} مورد مدعو`} />
           <Stat label="ردّوا" value={repliedCount} basis={progress.reached ? `${Math.round((repliedCount / progress.reached) * 100)}% من اللي تواصلنا معهم` : 'لم يُرسل الطلب بعد'} />
           <Stat label="أرسلوا سعر" value={progress.quoted} basis={coveredLines != null ? `يغطّون ${coveredLines} من ${progress.items} بند` : 'عروض مستلمة'} tone="Success" />
           <Stat label="اعتذروا" value={counts.declined} basis={counts.declined ? 'أفادوا بعدم توفر بند أو أكثر' : 'لا اعتذارات حتى الآن'} tone="Danger" />
         </div>
+        {mobile ? <Button variant="Primary" size="L" fullWidth icon="layers" onClick={() => navigate('comparison')} disabled={!progress.quoted}>قارن العروض ({progress.quoted})</Button> : null}
 
-        <div className="flex items-start gap-6">
-          <section aria-labelledby="suppliers-h" className="flex min-w-0 flex-1 flex-col items-stretch overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
-            <div className="flex w-full flex-col items-start gap-3 px-6 py-5">
-              <div className="flex items-baseline gap-2">
-                <h2 id="suppliers-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">الموردين</h2>
-                <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-tertiary)]">مرتبين حسب حالة الرد</p>
-              </div>
-              <Tabs label="تصفية الموردين حسب حالة الرد" value={filter} onChange={(k) => { setFilter(k); setShowAll(false) }}
-                items={[{ key: 'all', label: `الكل ${counts.all}` }, { key: 'quoted', label: `أرسلوا سعر ${counts.quoted}` }, { key: 'replied', label: `ردّوا بدون سعر ${counts.replied}` }, { key: 'waiting', label: `بانتظار ${counts.waiting}` }, { key: 'declined', label: `اعتذروا ${counts.declined}` }]} />
-            </div>
-            {shown.length === 0 ? <p className="w-full p-6 text-start text-[14px] text-[var(--color-text-secondary)]">لا يوجد موردون في هذه الحالة.</p> : null}
-            <ul>
-              {shown.map(({ inv, badge, channel }) => {
-                const name = inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
-                const ch = channelFromApi(channel)
-                return (
-                  <li key={inv.id} className="flex w-full items-center gap-4 border-b border-[var(--color-border-default)] px-5 py-4">
-                    <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] text-[16px] font-medium text-[var(--color-text-secondary)]">{name.trim().charAt(0)}</span>
-                    <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-                      <p className="max-w-full truncate text-[16px] leading-[26px] font-medium">{name}</p>
-                      <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{inv.supplier?.city || '—'}</p>
-                    </div>
-                    {ch ? <ChannelBadge channel={ch} /> : null}
-                    <Badge tone={badge.tone} label={badge.label} />
-                  </li>
-                )
-              })}
-            </ul>
-            {visible.length > shown.length ? (
-              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} مورد إضافي</button>
-            ) : null}
-          </section>
-
-          <div className="flex w-[380px] shrink-0 flex-col gap-6">
-            <section aria-labelledby="track-h" className="flex w-full flex-col items-start gap-1 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-5">
-              <h2 id="track-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">مسار الطلب</h2>
-              <ol className="w-full">
-                <TimelineStep title="رفع الطلب" detail={`${progress.items} بند`} status="Done" />
-                <TimelineStep title="قراءة البنود" detail={`${progress.items} بند جاهز للإرسال`} status="Done" />
-                <TimelineStep title="التواصل مع الموردين" detail={progress.reached ? `تم التواصل مع ${progress.reached} مورد` : 'لم يبدأ الإرسال'} status={contactStep} />
-                <TimelineStep title="المقارنة والترسية" detail={state.key === 'AWARDED' ? 'تمت الترسية' : progress.quoted ? `تقدر تبدأ الحين — ${progress.quoted} عرض جاهز` : 'بانتظار أول عرض'} status={compareStep} showConnector={false} />
-              </ol>
-            </section>
-            <section aria-labelledby="latest-h" className="flex w-full flex-col items-stretch gap-3">
-              <div className="flex items-center gap-2">
-                <h2 id="latest-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">آخر العروض</h2>
-                <button type="button" aria-label="تحديث العروض" title="تحديث" onClick={() => selectedRfqId && void load(selectedRfqId)} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-primary)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]"><Icon name="refresh" size={18} /></button>
-              </div>
-              {offers.length === 0 ? <p className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-start text-[14px] text-[var(--color-text-secondary)]">ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
-              {offers.slice(0, 2).map((o, i) => {
-                const cov = summaryBySupplier.get(String(o.supplier.id || ''))?.coverage || null
-                return <OfferCard key={String(o.offer.quoteVersionId || o.offer.offerId || i)} offer={o} invites={invites} coverage={cov} fresh={i === 0 && Date.now() - Date.parse(String(o.offer.submittedAt || 0)) < 60 * 60 * 1000} />
-              })}
-            </section>
+        {mobile ? (
+          // Figma M03 order: latest offers, then the track, then the supplier list.
+          <div className="flex flex-col gap-6">{offersSection}{timelineSection}{suppliersSection}</div>
+        ) : (
+          <div className="flex items-start gap-6">
+            {suppliersSection}
+            <div className="flex w-[380px] shrink-0 flex-col gap-6">{timelineSection}{offersSection}</div>
           </div>
-        </div>
+        )}
       </div>
 
       {toast ? <Toast tone="Success" title={toast.title} body={toast.body} onClose={() => setToast(null)} /> : null}

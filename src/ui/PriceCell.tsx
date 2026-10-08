@@ -22,9 +22,10 @@ const DELTA: Record<PriceCellState, string> = {
   Pending: 'var(--color-text-tertiary)',
 }
 
-export function PriceCell({ state, price, delta, className }: { state: PriceCellState; price?: string | null; delta: string; className?: string }) {
+/** `fluid`: fills its container (phone cards) instead of the 176px table cell. */
+export function PriceCell({ state, price, delta, fluid, className }: { state: PriceCellState; price?: string | null; delta: string; fluid?: boolean; className?: string }) {
   return (
-    <div className={cx('flex w-[176px] flex-col items-start gap-1 rounded-[var(--radius-md)] border px-4 py-3 text-start', BOX[state], className)}>
+    <div className={cx('flex flex-col items-start gap-1 rounded-[var(--radius-md)] border px-4 py-3 text-start', fluid ? 'w-full min-w-0' : 'w-[176px]', BOX[state], className)}>
       {state === 'Pending' ? (
         <>
           <p className="text-[14px] leading-[22px] font-medium text-[var(--color-text-tertiary)]">{delta}</p>
