@@ -7,6 +7,7 @@ import { RfqListV2 } from './views/RfqListV2'
 import { RequestTrackingV2 } from './views/RequestTrackingV2'
 import { ComparisonV2 } from './views/ComparisonV2'
 import mark from './assets/pricing-v2/mark.svg'
+import LiveBackground from './live-bg'
 
 /*
  * «فرق تسعير» — owner-only. Two gates: the hosting server asks for the site
@@ -86,6 +87,7 @@ function Routes() {
 export default function App() {
   return (
     <ProcurementProvider>
+      <LiveBackground />
       <Routes />
     </ProcurementProvider>
   )
