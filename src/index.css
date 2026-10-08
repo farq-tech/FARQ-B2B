@@ -1,14 +1,35 @@
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
+@import './styles/tokens.css';
 
-@theme {
-  --font-sans: 'Tajawal', system-ui, sans-serif;
+/* Tailwind utilities that resolve to the Figma tokens (bg-canvas, text-ink-2, rounded-lg, shadow-sm …). */
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --color-canvas: var(--color-bg-canvas);
+  --color-surface: var(--color-bg-surface);
+  --color-surface-2: var(--color-bg-surface-2);
+  --color-inverse: var(--color-bg-inverse);
+  --color-cta: var(--color-bg-cta);
+  --color-brand: var(--color-bg-brand);
+  --color-ink: var(--color-text-primary);
+  --color-ink-2: var(--color-text-secondary);
+  --color-ink-3: var(--color-text-tertiary);
+  --color-line: var(--color-border-default);
+  --color-line-strong: var(--color-border-strong);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
 }
 
 html, body, #root {
   min-height: 100%;
-  font-family: 'Tajawal', system-ui, sans-serif;
+  font-family: var(--font-body);
   direction: rtl;
-  background-color: #f7f7f5;
-  color: #161616;
+  background-color: var(--color-bg-canvas);
+  color: var(--color-text-primary);
 }

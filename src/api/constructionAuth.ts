@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/api/constructionAuth.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 /**
  * How this UI identifies itself to `/api/construction/*` — one definition for
  * the whole app.

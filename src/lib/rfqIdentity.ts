@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/lib/rfqIdentity.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 import type { RFQSummary } from '../types'
 import {
   formatArDate,

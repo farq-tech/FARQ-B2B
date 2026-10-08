@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/lib/awardFlow.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 import type { ConstructionComparison, ConstructionRfq } from '../api/constructionClient'
 const isHeldOffer = (cell: { status?: string; price_review?: unknown }) => cell.status === 'PRICE_REVIEW' || cell.price_review != null
 import { requestState } from './requestFile'

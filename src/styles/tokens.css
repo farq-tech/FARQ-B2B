@@ -1,0 +1,192 @@
+/*
+ * «فرق تسعير» design tokens — generated from Figma file 9QCDDpoILFHMkWkmHtIJ0m
+ * (collections Primitives · Color[Light|Dark] · Brand[«Onyx × Mint (معتمد)»] ·
+ * Spacing · Radius · Typography · Living BG, text styles, effect styles), read
+ * 2026-10-08. Names follow Figma: color/bg/canvas → --color-bg-canvas.
+ *
+ * Modes:
+ *   :root                  Light (the only active app mode)
+ *   [data-theme="dark"]    Dark — defined, NOT activated anywhere yet
+ * Section tones (not dark mode — used now for hero / dark bands):
+ *   [data-tone="deep"]     charcoal band, light text   (BG / Facets · Deep)
+ *   [data-tone="accent"]   mint band, charcoal text    (BG / Facets · Accent)
+ */
+
+:root {
+  /* ── Brand (Onyx × Mint) ─────────────────────────────────────────── */
+  --brand-deep: #121212;
+  --brand-action: #121212;
+  --brand-on-action: #ffffff;
+  --brand-action-strong: #0f8a5f;
+  --brand-action-light: #8fe6bf;
+  --brand-action-subtle: #e3f8ee;
+  --brand-accent: #3ddc97;
+  --brand-accent-light: #a8f0ce;
+  --brand-on-accent: #121212;
+  --brand-canvas: #f7f7f5;
+  --brand-surface-2: #efefec;
+  --brand-text: #161616;
+  --brand-text-2: #5e5e5b;
+  --brand-text-3: #8f8f8b;
+  --brand-border: #e6e6e2;
+  --brand-border-strong: #cfcfca;
+  --brand-night: #0a0a0a;
+  --brand-night-surface: #141414;
+  --brand-night-surface-2: #1e1e1e;
+  --brand-night-action: #3ddc97;
+  --brand-on-night-action: #0a0a0a;
+  --brand-band: #3ddc97;
+  --brand-on-band: #121212;
+
+  /* ── Primitives ──────────────────────────────────────────────────── */
+  --white: #ffffff;
+  --white-a6: rgba(255, 255, 255, 0.06);
+  --white-a8: rgba(255, 255, 255, 0.08);
+  --white-a16: rgba(255, 255, 255, 0.16);
+  --orange-100: #ffe8df;
+  --orange-400: #ff8a5c;
+  --orange-500: #ff652f;
+  --orange-700: #c2410c;
+  --orange-a14: rgba(255, 101, 47, 0.14);
+  --pink-100: #f8e4e8;
+  --pink-400: #e07a8e;
+  --pink-500: #c94f66;
+  --pink-700: #a3364b;
+  --pink-a14: rgba(201, 79, 102, 0.14);
+  --green-100: #e4f5ea;
+  --green-300: #6fd39a;
+  --green-500: #22a55b;
+  --green-700: #17703c;
+  --green-a14: rgba(34, 165, 91, 0.16);
+
+  /* ── Color · Light ───────────────────────────────────────────────── */
+  --color-bg-canvas: var(--brand-canvas);
+  --color-bg-surface: var(--white);
+  --color-bg-surface-2: var(--brand-surface-2);
+  --color-bg-inverse: var(--brand-deep);
+  --color-bg-glass: var(--white-a6);
+  --color-bg-primary: var(--brand-action-strong);
+  --color-bg-primary-subtle: var(--brand-action-subtle);
+  --color-bg-success: var(--green-100);
+  --color-bg-warning: var(--orange-100);
+  --color-bg-danger: var(--pink-100);
+  --color-bg-neutral: var(--brand-surface-2);
+  --color-bg-info: var(--brand-action-subtle);
+  --color-bg-brand: var(--brand-band);
+  --color-bg-cta: var(--brand-action);
+
+  --color-border-default: var(--brand-border);
+  --color-border-strong: var(--brand-border-strong);
+  --color-border-primary: var(--brand-action);
+  --color-border-success: var(--green-500);
+  --color-border-warning: var(--orange-500);
+  --color-border-danger: var(--pink-500);
+
+  --color-text-primary: var(--brand-text);
+  --color-text-secondary: var(--brand-text-2);
+  --color-text-tertiary: var(--brand-text-3);
+  --color-text-on-primary: var(--white);
+  --color-text-on-inverse: var(--brand-canvas);
+  --color-text-on-inverse-secondary: var(--brand-border-strong);
+  --color-text-link: var(--brand-action-strong);
+  --color-text-success: var(--green-700);
+  --color-text-warning: var(--orange-700);
+  --color-text-danger: var(--pink-700);
+  --color-text-info: var(--brand-action-strong);
+  --color-text-neutral: var(--brand-text-2);
+  --color-text-on-brand: var(--brand-on-band);
+  --color-text-on-cta: var(--brand-on-action);
+
+  --color-icon-success: var(--green-500);
+  --color-icon-warning: var(--orange-500);
+  --color-icon-danger: var(--pink-500);
+  --color-icon-primary: var(--brand-action-strong);
+  --color-icon-accent: var(--brand-accent);
+  --color-icon-secondary: var(--brand-text-3);
+  --color-icon-info: var(--brand-action-strong);
+
+  --color-illus-main: var(--brand-action);
+  --color-illus-light: var(--brand-action-light);
+  --color-illus-deep: var(--brand-deep);
+  --color-illus-accent: var(--brand-accent);
+  --color-illus-accent-light: var(--brand-accent-light);
+  --color-illus-soft: var(--brand-action-subtle);
+
+  /* ── Spacing · Radius ────────────────────────────────────────────── */
+  --space-0: 0px;  --space-4: 4px;  --space-8: 8px;  --space-12: 12px; --space-16: 16px;
+  --space-20: 20px; --space-24: 24px; --space-32: 32px; --space-40: 40px; --space-48: 48px;
+  --space-64: 64px; --space-80: 80px; --space-96: 96px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px; --radius-full: 999px;
+
+  /* ── Typography ──────────────────────────────────────────────────── */
+  --font-body: 'Tajawal', system-ui, sans-serif;
+  --font-display: 'Readex Pro', 'Tajawal', system-ui, sans-serif;
+
+  /* ── Effects ─────────────────────────────────────────────────────── */
+  --elevation-sm: 0 1px 2px rgba(36, 26, 64, 0.06), 0 1px 3px rgba(36, 26, 64, 0.04);
+  --elevation-md: 0 8px 24px -4px rgba(36, 26, 64, 0.08);
+  --elevation-lg: 0 24px 48px -12px rgba(36, 26, 64, 0.16);
+  --glow-primary: 0 8px 24px -6px rgba(70, 52, 122, 0.35);
+  --glow-success: 0 0 18px rgba(200, 243, 107, 0.6);
+  --glass-blur: 20px;
+
+  /* ── Living background (Living BG collection + approved defaults) ── */
+  --live-mesh-line: #8a94a0;
+  --live-base: #ffffff;
+  --live-go: #6b8e3d;     /* زيتوني  — Light default: زيتوني ← شامبين */
+  --live-back: #c6ae82;   /* شامبين */
+}
+
+/* Section tones — hero and dark bands. Not a theme: they only re-point surface/text. */
+[data-tone="deep"] {
+  --live-base: #121212;
+  --live-go: #62bfa9;     /* نعناعي هادئ */
+  --live-back: #c6ae82;   /* شامبين */
+  --color-bg-canvas: var(--brand-deep);
+  --color-text-primary: var(--color-text-on-inverse);
+  --color-text-secondary: var(--color-text-on-inverse-secondary);
+}
+[data-tone="accent"] {
+  --live-base: #3ddc97;
+  --live-go: #3a4047;     /* فحمي */
+  --live-back: #ffffff;   /* أبيض */
+  --color-bg-canvas: var(--brand-band);
+  --color-text-primary: var(--brand-on-band);
+  --color-text-secondary: var(--brand-on-band);
+}
+
+/* Dark mode — defined from Figma «Color · Dark», intentionally not activated. */
+[data-theme="dark"] {
+  --color-bg-canvas: var(--brand-night);
+  --color-bg-surface: var(--brand-night-surface);
+  --color-bg-surface-2: var(--brand-night-surface-2);
+  --color-bg-inverse: var(--brand-night);
+  --color-bg-primary: var(--brand-night-action);
+  --color-bg-primary-subtle: var(--brand-night-surface-2);
+  --color-bg-success: var(--green-a14);
+  --color-bg-warning: var(--orange-a14);
+  --color-bg-danger: var(--pink-a14);
+  --color-bg-neutral: var(--white-a6);
+  --color-bg-info: var(--brand-night-surface-2);
+  --color-bg-cta: var(--brand-night-action);
+  --color-border-default: var(--white-a8);
+  --color-border-strong: var(--white-a16);
+  --color-border-primary: var(--brand-night-action);
+  --color-text-primary: var(--brand-canvas);
+  --color-text-secondary: var(--brand-border-strong);
+  --color-text-on-primary: var(--brand-on-night-action);
+  --color-text-link: var(--brand-night-action);
+  --color-text-success: var(--green-300);
+  --color-text-warning: var(--orange-400);
+  --color-text-danger: var(--pink-400);
+  --color-text-info: var(--brand-night-action);
+  --color-text-neutral: var(--brand-border-strong);
+  --color-text-on-cta: var(--brand-on-night-action);
+  --color-icon-success: var(--green-300);
+  --color-icon-primary: var(--brand-night-action);
+  --color-icon-secondary: var(--brand-border-strong);
+  --color-icon-info: var(--brand-night-action);
+  --color-illus-main: var(--brand-night-action);
+  --color-illus-deep: var(--brand-night-surface-2);
+  --color-illus-soft: var(--brand-night-surface-2);
+}

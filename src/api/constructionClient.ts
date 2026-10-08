@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/api/constructionClient.ts — ios-app@5147808, from working tree on top of 5147808 (uncommitted changes there). Do not edit business logic here.
 /**
  * Thin Farq construction API client for this Figma Make UI.
  * Mirrors Frontend/src/services/constructionService.ts — browser → `/_api` →

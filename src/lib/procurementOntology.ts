@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/lib/procurementOntology.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 /**
  * Compositional Procurement Ontology (CPO) — resolver cascade.
  *

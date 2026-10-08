@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/components/procurement/AwardDialog.tsx — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 import { useEffect, useRef, useState } from 'react'
 import { ConstructionApiError, createConstructionAward, createConstructionProject, formatRfqTitle, getConstructionComparison, getConstructionProjects, getConstructionRfq, openConstructionRfqEnvelopes, type ConstructionComparison, type ConstructionProject, type ConstructionRfq } from '../../api/constructionClient'
 import { awardBlockReason, awardReviewSignature, pricedAwardLineIds, type AwardOffer } from '../../lib/awardFlow'

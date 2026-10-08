@@ -56,21 +56,21 @@ function cellState(cell: Cell | undefined, winner: string | null, best: number |
 
 function PriceCell({ cell, winner, best }: { cell: Cell | undefined; winner: string | null; best: number | null }) {
   const { state, delta } = cellState(cell, winner, best)
-  const box = state === 'best' ? { background: '#e4f5ea', borderColor: '#22a55b' } : state === 'incomparable' ? { background: '#efefec', borderColor: '#e6e6e2' } : { background: '#fff', borderColor: '#e6e6e2' }
+  const box = state === 'best' ? { background: 'var(--color-bg-success)', borderColor: 'var(--color-border-success)' } : state === 'incomparable' ? { background: 'var(--color-bg-surface-2)', borderColor: 'var(--color-border-default)' } : { background: 'var(--color-bg-surface)', borderColor: 'var(--color-border-default)' }
   const price = cell && cell.line_total != null ? money(cell.line_total, cell.currency) : null
   return (
     <div className="flex w-[176px] flex-col items-end gap-1 rounded-[12px] border px-4 py-3 text-right" style={box}>
       {state === 'pending' ? (
         <>
-          <p className="text-[14px] leading-[22px] font-medium" style={{ color: '#8f8f8b' }}>{delta}</p>
-          <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#8f8f8b' }}>—</p>
+          <p className="text-[14px] leading-[22px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>{delta}</p>
+          <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>—</p>
         </>
       ) : (
         <>
-          <p className="font-[Readex_Pro] text-[16px] leading-[24px] font-semibold tabular-nums" style={{ color: state === 'incomparable' ? '#8f8f8b' : '#161616' }}>{price}</p>
+          <p className="font-[Readex_Pro] text-[16px] leading-[24px] font-semibold tabular-nums" style={{ color: state === 'incomparable' ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)' }}>{price}</p>
           <div className="flex w-full items-center justify-end gap-1">
             {state === 'best' ? <img src={iconBest} alt="" width={14} height={14} /> : state === 'incomparable' ? <img src={iconNotComparable} alt="" width={14} height={14} /> : null}
-            <p className="min-w-0 flex-1 text-[12px] leading-[18px] font-medium" style={{ color: state === 'best' ? '#17703c' : state === 'higher' ? '#a3364b' : state === 'normal' ? '#c2410c' : '#5e5e5b' }}>{delta}</p>
+            <p className="min-w-0 flex-1 text-[12px] leading-[18px] font-medium" style={{ color: state === 'best' ? 'var(--color-text-success)' : state === 'higher' ? 'var(--color-text-danger)' : state === 'normal' ? 'var(--color-text-warning)' : 'var(--color-text-secondary)' }}>{delta}</p>
           </div>
         </>
       )}
@@ -80,7 +80,7 @@ function PriceCell({ cell, winner, best }: { cell: Cell | undefined; winner: str
 
 function Chip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] leading-[22px] font-medium" style={selected ? { background: '#e3f8ee', borderColor: '#121212', color: '#0f8a5f' } : { background: '#fff', borderColor: '#e6e6e2', color: '#5e5e5b' }}>
+    <button type="button" onClick={onClick} className="flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] leading-[22px] font-medium" style={selected ? { background: 'var(--color-bg-info)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-link)' } : { background: 'var(--color-bg-surface)', borderColor: 'var(--color-border-default)', color: 'var(--color-text-secondary)' }}>
       {label}
       {selected ? <img src={iconChipCheck} alt="" width={16} height={16} /> : null}
     </button>
@@ -177,8 +177,8 @@ export function ComparisonV2({ navigate }: NavProps) {
   }
 
   if (!selectedRfqId) return <div className="p-8 text-right">اختر طلبًا أولًا.</div>
-  if (error) return <div className="p-8 text-right text-[#a3364b]">{error}</div>
-  if (!rfq || !comparison) return <div className="p-8 text-right" style={{ color: '#5e5e5b' }}>جارٍ تحميل العروض…</div>
+  if (error) return <div className="p-8 text-right text-[var(--color-text-danger)]">{error}</div>
+  if (!rfq || !comparison) return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ تحميل العروض…</div>
 
   const payload = rfq.current_version?.payload || {}
   const title = rfqProjectName({ delivery: payload.delivery }) || formatRfqTitle({ id: rfq.id, engineering_department: rfq.engineering_department, delivery: payload.delivery, buyer: payload.buyer })
@@ -187,32 +187,32 @@ export function ComparisonV2({ navigate }: NavProps) {
   const blocked = bestOffer ? awardBlockReason(rfq, bestOffer) : 'لا يوجد مورد سعّر كل البنود بعد'
 
   return (
-    <div className="pricing-v2 min-h-full" style={{ background: '#f7f7f5', fontFamily: "'Tajawal', 'Cairo', system-ui, sans-serif", color: '#161616' }}>
-      <div className="flex h-[72px] items-center justify-between border-b bg-white px-8" style={{ borderColor: '#e6e6e2' }}>
+    <div className="pricing-v2 min-h-full" style={{ background: 'var(--color-bg-canvas)', fontFamily: "'Tajawal', 'Cairo', system-ui, sans-serif", color: 'var(--color-text-primary)' }}>
+      <div className="flex h-[72px] items-center justify-between border-b bg-white px-8" style={{ borderColor: 'var(--color-border-default)' }}>
         <div />
         <div className="flex items-center gap-2">
           <p className="text-[16px] leading-[26px] font-medium">وش الفرق؟</p>
           <img src={iconChevron} alt="" width={16} height={16} />
-          <button type="button" onClick={() => navigate('rfq-detail')} className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>{title}</button>
+          <button type="button" onClick={() => navigate('rfq-detail')} className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{title}</button>
         </div>
       </div>
 
       <div className="flex flex-col gap-6 p-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button type="button" disabled={Boolean(blocked)} title={blocked || undefined} onClick={() => bestOffer && setAwarding(bestOffer)} className="flex h-12 items-center gap-2 rounded-[12px] px-6 text-[16px] font-medium text-white disabled:opacity-40" style={{ background: '#121212' }}>ترسية <img src={iconAward} alt="" width={20} height={20} /></button>
-            <button type="button" onClick={exportCsv} className="flex h-12 items-center gap-2 rounded-[12px] border bg-white px-6 text-[16px] font-medium" style={{ borderColor: '#cfcfca' }}>تصدير <img src={iconExport} alt="" width={20} height={20} /></button>
+            <button type="button" disabled={Boolean(blocked)} title={blocked || undefined} onClick={() => bestOffer && setAwarding(bestOffer)} className="flex h-12 items-center gap-2 rounded-[12px] px-6 text-[16px] font-medium text-white disabled:opacity-40" style={{ background: 'var(--color-bg-cta)' }}>ترسية <img src={iconAward} alt="" width={20} height={20} /></button>
+            <button type="button" onClick={exportCsv} className="flex h-12 items-center gap-2 rounded-[12px] border bg-white px-6 text-[16px] font-medium" style={{ borderColor: 'var(--color-border-strong)' }}>تصدير <img src={iconExport} alt="" width={20} height={20} /></button>
           </div>
           <div className="flex flex-col items-end gap-1 text-right">
             <h1 className="font-[Readex_Pro] text-[32px] leading-[48px] font-bold">وش الفرق؟</h1>
-            <p className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>{responses.length} عرض من {supplierIds.length} موردين · {pricedLines} من {lines.length} بند وصلها سعر</p>
+            <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{responses.length} عرض من {supplierIds.length} موردين · {pricedLines} من {lines.length} بند وصلها سعر</p>
           </div>
         </div>
 
-        {notice ? <p className="rounded-[12px] px-4 py-3 text-right text-[14px]" style={{ background: '#e4f5ea', color: '#17703c' }}>{notice}</p> : null}
+        {notice ? <p className="rounded-[12px] px-4 py-3 text-right text-[14px]" style={{ background: 'var(--color-bg-success)', color: 'var(--color-text-success)' }}>{notice}</p> : null}
 
-        <div className="flex items-start justify-end gap-6 rounded-[24px] px-8 py-7 text-right" style={{ background: '#121212' }}>
-          <div className="flex flex-col items-end gap-1 rounded-[16px] px-5 py-4" style={{ background: '#3ddc97', color: '#121212' }}>
+        <div className="flex items-start justify-end gap-6 rounded-[24px] px-8 py-7 text-right" style={{ background: 'var(--color-bg-cta)' }}>
+          <div className="flex flex-col items-end gap-1 rounded-[16px] px-5 py-4" style={{ background: 'var(--color-bg-brand)', color: 'var(--color-text-on-brand)' }}>
             <p className="text-[14px] leading-[22px] font-medium">الوفر</p>
             <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency) : '—'}</p>
             <p className="text-[12px] leading-[18px] font-medium">{savingPct != null ? `${savingPct.toFixed(1)}% أقل من أعلى عرض` : 'يُحسب عند اكتمال عرضين على الأقل'}</p>
@@ -223,16 +223,16 @@ export function ComparisonV2({ navigate }: NavProps) {
             { label: 'أوفر توزيعة', value: basket ? money(basket.total, basket.currency) : '—', basis: basket ? `${basket.suppliers} موردين · ${basket.covered} من ${basket.requested} بند` : 'لا يوجد بند له أوفر مورد مؤكد', mint: true },
           ].map((s) => (
             <div key={s.label} className="flex min-w-0 flex-1 flex-col items-end gap-1">
-              <p className="text-[14px] leading-[22px] font-medium" style={{ color: '#cfcfca' }}>{s.label}</p>
-              <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: s.mint ? '#3ddc97' : '#f7f7f5' }}>{s.value}</p>
-              <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#cfcfca' }}>{s.basis}</p>
+              <p className="text-[14px] leading-[22px] font-medium" style={{ color: 'var(--color-text-on-inverse-secondary)' }}>{s.label}</p>
+              <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: s.mint ? 'var(--color-bg-brand)' : 'var(--color-text-on-inverse)' }}>{s.value}</p>
+              <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-on-inverse-secondary)' }}>{s.basis}</p>
             </div>
           ))}
         </div>
 
         <div className="flex items-center justify-end gap-1.5">
           <img src={iconInfo} alt="" width={16} height={16} />
-          <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#5e5e5b' }}>الأرقام هنا إجمالي البنود المسعّرة كما وردت من المورد ({matrix?.basis === 'INCLUSIVE' ? 'شاملة الضريبة' : 'حسب ما ذكره كل مورد'})؛ التوصيل والضريبة النهائية في بطاقة كل عرض. الفرق محسوب مقابل أوفر عرض قابل للمقارنة لنفس البند.</p>
+          <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>الأرقام هنا إجمالي البنود المسعّرة كما وردت من المورد ({matrix?.basis === 'INCLUSIVE' ? 'شاملة الضريبة' : 'حسب ما ذكره كل مورد'})؛ التوصيل والضريبة النهائية في بطاقة كل عرض. الفرق محسوب مقابل أوفر عرض قابل للمقارنة لنفس البند.</p>
         </div>
 
         <div className="flex items-center justify-end gap-2">
@@ -243,57 +243,57 @@ export function ComparisonV2({ navigate }: NavProps) {
         </div>
 
         <div className="flex items-start justify-end gap-6">
-          <div className="flex w-[300px] shrink-0 flex-col items-end gap-4 rounded-[24px] bg-white p-6 text-right" style={{ border: '1.5px solid #22a55b' }}>
-            <span className="rounded-full px-2.5 py-1 text-[14px] font-medium" style={{ background: '#e4f5ea', color: '#17703c' }}>التوصية</span>
+          <div className="flex w-[300px] shrink-0 flex-col items-end gap-4 rounded-[24px] bg-white p-6 text-right" style={{ border: '1.5px solid var(--color-border-success)' }}>
+            <span className="rounded-full px-2.5 py-1 text-[14px] font-medium" style={{ background: 'var(--color-bg-success)', color: 'var(--color-text-success)' }}>التوصية</span>
             {basket && basket.suppliers > 1 ? (
               <>
                 <p className="font-[Readex_Pro] text-[20px] leading-[30px] font-semibold">وزّع على {basket.suppliers} موردين</p>
-                <p className="w-full text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>كل بند يروح لأوفر مورد سعّره على نفس الأساس. {basket.covered < basket.requested ? `${basket.requested - basket.covered} بند بلا أوفر مؤكد.` : ''}</p>
+                <p className="w-full text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>كل بند يروح لأوفر مورد سعّره على نفس الأساس. {basket.covered < basket.requested ? `${basket.requested - basket.covered} بند بلا أوفر مؤكد.` : ''}</p>
                 {basketLines.map(([id, n]) => (
                   <div key={id} className="flex w-full items-center justify-between">
                     <p className="font-[Readex_Pro] text-[16px] leading-[24px] font-semibold">{n} {n === 1 ? 'بند' : n === 2 ? 'بندان' : n <= 10 ? 'بنود' : 'بند'}</p>
                     <p className="text-[14px] leading-[22px] font-medium">{nameOf(id)}</p>
                   </div>
                 ))}
-                <span className="h-px w-full" style={{ background: '#e6e6e2' }} />
-                <p className="w-full text-[12px] leading-[18px] font-medium" style={{ color: '#5e5e5b' }}>{basket.bestSingle && basket.saving != null ? `البديل الأبسط: مورد واحد (${nameOf(basket.bestSingle.supplier_id)}) بزيادة ${money(basket.saving, basket.currency)}.` : 'لا يوجد مورد واحد سعّر كل البنود حتى الآن.'}</p>
+                <span className="h-px w-full" style={{ background: 'var(--color-border-default)' }} />
+                <p className="w-full text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{basket.bestSingle && basket.saving != null ? `البديل الأبسط: مورد واحد (${nameOf(basket.bestSingle.supplier_id)}) بزيادة ${money(basket.saving, basket.currency)}.` : 'لا يوجد مورد واحد سعّر كل البنود حتى الآن.'}</p>
               </>
             ) : bestSingle ? (
               <>
                 <p className="font-[Readex_Pro] text-[20px] leading-[30px] font-semibold">مورد واحد يكفي</p>
-                <p className="w-full text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>{nameOf(bestSingle.supplier_id)} هو الأوفر على كل البنود المسعّرة.</p>
+                <p className="w-full text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{nameOf(bestSingle.supplier_id)} هو الأوفر على كل البنود المسعّرة.</p>
               </>
             ) : (
               <>
                 <p className="font-[Readex_Pro] text-[20px] leading-[30px] font-semibold">بانتظار عروض أكثر</p>
-                <p className="w-full text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>تظهر التوصية عندما يصل عرضان قابلان للمقارنة على نفس البند.</p>
+                <p className="w-full text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>تظهر التوصية عندما يصل عرضان قابلان للمقارنة على نفس البند.</p>
               </>
             )}
-            <button type="button" disabled={Boolean(blocked)} title={blocked || undefined} onClick={() => bestOffer && setAwarding(bestOffer)} className="flex h-12 w-full items-center justify-center gap-2 rounded-[12px] text-[16px] font-medium text-white disabled:opacity-40" style={{ background: '#121212' }}>
+            <button type="button" disabled={Boolean(blocked)} title={blocked || undefined} onClick={() => bestOffer && setAwarding(bestOffer)} className="flex h-12 w-full items-center justify-center gap-2 rounded-[12px] text-[16px] font-medium text-white disabled:opacity-40" style={{ background: 'var(--color-bg-cta)' }}>
               {bestSingle ? `رسِّ على ${nameOf(bestSingle.supplier_id)}` : 'ترسية'} <img src={iconAwardCheck} alt="" width={20} height={20} />
             </button>
-            {basket && basket.suppliers > 1 ? <p className="w-full text-[12px] leading-[18px]" style={{ color: '#8f8f8b' }}>الترسية هنا على مورد واحد؛ التوزيعة على عدة موردين تحتاج ترسية لكل مورد على حدة.</p> : null}
+            {basket && basket.suppliers > 1 ? <p className="w-full text-[12px] leading-[18px]" style={{ color: 'var(--color-text-tertiary)' }}>الترسية هنا على مورد واحد؛ التوزيعة على عدة موردين تحتاج ترسية لكل مورد على حدة.</p> : null}
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col items-end overflow-x-auto rounded-[24px] border bg-white" style={{ borderColor: '#e6e6e2' }}>
-            <div className="flex w-full min-w-max items-center justify-end" style={{ background: '#efefec' }}>
+          <div className="flex min-w-0 flex-1 flex-col items-end overflow-x-auto rounded-[24px] border bg-white" style={{ borderColor: 'var(--color-border-default)' }}>
+            <div className="flex w-full min-w-max items-center justify-end" style={{ background: 'var(--color-bg-surface-2)' }}>
               {[...supplierIds].reverse().map((id) => {
                 const cov = quoteCoverage(summaryBySupplier.get(id), lines.length)
                 return (
                   <div key={id} className="flex h-16 w-[196px] shrink-0 flex-col items-end justify-center gap-0.5 p-3 text-right">
                     <p className="truncate text-[14px] leading-[22px] font-medium">{nameOf(id)}</p>
-                    <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#8f8f8b' }}>{channelOf(id)} · {cov ? `${cov.priced} بند` : '—'}</p>
+                    <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>{channelOf(id)} · {cov ? `${cov.priced} بند` : '—'}</p>
                   </div>
                 )
               })}
-              <div className="flex h-16 w-[200px] shrink-0 items-center justify-end p-3"><p className="text-[12px] leading-[18px] font-medium" style={{ color: '#5e5e5b' }}>البند</p></div>
+              <div className="flex h-16 w-[200px] shrink-0 items-center justify-end p-3"><p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>البند</p></div>
             </div>
-            {shown.length === 0 ? <p className="w-full p-6 text-right text-[14px]" style={{ color: '#5e5e5b' }}>لا يوجد بنود في هذا التصنيف.</p> : null}
+            {shown.length === 0 ? <p className="w-full p-6 text-right text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>لا يوجد بنود في هذا التصنيف.</p> : null}
             {shown.map((line) => {
               const winner = winners.get(line.id) || null
               const best = bestOfLine(line)
               return (
-                <div key={line.id} className="flex w-full min-w-max items-center justify-end border-t" style={{ borderColor: '#e6e6e2' }}>
+                <div key={line.id} className="flex w-full min-w-max items-center justify-end border-t" style={{ borderColor: 'var(--color-border-default)' }}>
                   {[...supplierIds].reverse().map((id) => (
                     <div key={id} className="flex h-24 w-[196px] shrink-0 items-center justify-end p-3">
                       <PriceCell cell={(line.offers || []).find((c) => c && c.supplier_id === id)} winner={winner} best={best} />
@@ -301,12 +301,12 @@ export function ComparisonV2({ navigate }: NavProps) {
                   ))}
                   <div className="flex h-24 w-[200px] shrink-0 flex-col items-end justify-center gap-0.5 p-3 text-right">
                     <p className="truncate text-[16px] leading-[26px] font-medium" title={line.name_ar}>{line.name_ar}</p>
-                    <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#5e5e5b' }}>{line.quantity} {line.uom}</p>
+                    <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{line.quantity} {line.uom}</p>
                   </div>
                 </div>
               )
             })}
-            {visible.length > shown.length ? <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] font-medium" style={{ color: '#0f8a5f' }}>عرض {visible.length - shown.length} بند إضافي</button> : null}
+            {visible.length > shown.length ? <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] font-medium" style={{ color: 'var(--color-text-link)' }}>عرض {visible.length - shown.length} بند إضافي</button> : null}
           </div>
         </div>
       </div>

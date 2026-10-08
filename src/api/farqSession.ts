@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/api/farqSession.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 /**
  * Real per-account sessions for فرق للبناء, against Farq's own Postgres-backed
  * identity (`POST /api/auth/login|refresh|logout`, `GET /api/auth/me`).

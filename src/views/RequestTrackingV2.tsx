@@ -37,11 +37,11 @@ import iconToast from '../assets/pricing-v2/toast-check.svg'
 type Offer = ConstructionComparison['supplier_responses'][number]
 type Tone = 'success' | 'info' | 'neutral' | 'warning' | 'danger'
 const TONE: Record<Tone, { bg: string; fg: string; dot: string }> = {
-  success: { bg: '#e4f5ea', fg: '#17703c', dot: '#22a55b' },
-  info: { bg: '#e3f8ee', fg: '#0f8a5f', dot: '#0f8a5f' },
-  neutral: { bg: '#efefec', fg: '#5e5e5b', dot: '#8f8f8b' },
-  warning: { bg: '#ffe8df', fg: '#c2410c', dot: '#f97316' },
-  danger: { bg: '#f8e4e8', fg: '#a3364b', dot: '#d9456a' },
+  success: { bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)', dot: 'var(--color-icon-success)' },
+  info: { bg: 'var(--color-bg-info)', fg: 'var(--color-text-link)', dot: 'var(--color-icon-info)' },
+  neutral: { bg: 'var(--color-bg-surface-2)', fg: 'var(--color-text-secondary)', dot: 'var(--color-icon-secondary)' },
+  warning: { bg: 'var(--color-bg-warning)', fg: 'var(--color-text-warning)', dot: 'var(--color-icon-warning)' },
+  danger: { bg: 'var(--color-bg-danger)', fg: 'var(--color-text-danger)', dot: 'var(--color-icon-danger)' },
 }
 const POLL_MS = 30_000
 
@@ -56,19 +56,19 @@ function Badge({ tone, label, small }: { tone: Tone; label: string; small?: bool
 }
 
 function ChannelBadge({ channel }: { channel: string | null }) {
-  if (channel === 'WHATSAPP') return <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: '#e4f5ea', color: '#17703c' }}><img src={iconWhatsapp} alt="" width={14} height={14} />واتساب</span>
-  if (channel === 'EMAIL') return <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: '#e3f8ee', color: '#0f8a5f' }}><img src={iconMail} alt="" width={14} height={14} />إيميل</span>
-  if (channel === 'HARAJ') return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: '#efefec', color: '#5e5e5b' }}>حراج</span>
+  if (channel === 'WHATSAPP') return <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: 'var(--color-bg-success)', color: 'var(--color-text-success)' }}><img src={iconWhatsapp} alt="" width={14} height={14} />واتساب</span>
+  if (channel === 'EMAIL') return <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: 'var(--color-bg-info)', color: 'var(--color-text-link)' }}><img src={iconMail} alt="" width={14} height={14} />إيميل</span>
+  if (channel === 'HARAJ') return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: 'var(--color-bg-surface-2)', color: 'var(--color-text-secondary)' }}>حراج</span>
   return null
 }
 
 function Stat({ label, value, basis, tone = 'neutral' }: { label: string; value: number | string; basis: string; tone?: 'neutral' | 'success' | 'danger' }) {
-  const color = tone === 'success' ? '#17703c' : tone === 'danger' ? '#a3364b' : '#161616'
+  const color = tone === 'success' ? 'var(--color-text-success)' : tone === 'danger' ? 'var(--color-text-danger)' : 'var(--color-text-primary)'
   return (
-    <div className="flex min-w-0 flex-1 flex-col items-end gap-1 rounded-[16px] border px-5 py-4" style={{ background: '#fff', borderColor: '#e6e6e2' }}>
-      <p className="w-full text-right text-[14px] leading-[22px] font-medium" style={{ color: '#5e5e5b' }}>{label}</p>
+    <div className="flex min-w-0 flex-1 flex-col items-end gap-1 rounded-[16px] border px-5 py-4" style={{ background: 'var(--color-bg-surface)', borderColor: 'var(--color-border-default)' }}>
+      <p className="w-full text-right text-[14px] leading-[22px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{label}</p>
       <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color }}>{value}</p>
-      <p className="w-full text-right text-[12px] leading-[18px] font-medium" style={{ color: '#8f8f8b' }}>{basis}</p>
+      <p className="w-full text-right text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>{basis}</p>
     </div>
   )
 }
@@ -77,14 +77,14 @@ function TimelineStep({ title, detail, status, last }: { title: string; detail: 
   return (
     <div className="flex h-[72px] w-full items-start justify-end gap-3">
       <div className="flex min-w-0 flex-1 flex-col items-end gap-1 text-right">
-        <p className="text-[16px] leading-[26px] font-medium" style={{ color: status === 'pending' ? '#5e5e5b' : '#161616' }}>{title}</p>
-        <p className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>{detail}</p>
+        <p className="text-[16px] leading-[26px] font-medium" style={{ color: status === 'pending' ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}>{title}</p>
+        <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{detail}</p>
       </div>
       <div className="flex flex-col items-center gap-1">
-        {status === 'done' && <span className="flex size-7 items-center justify-center rounded-full" style={{ background: '#e4f5ea' }}><img src={stepDone} alt="" width={16} height={16} /></span>}
-        {status === 'active' && <span className="flex size-7 items-center justify-center rounded-full border-2" style={{ background: '#e3f8ee', borderColor: '#121212' }}><img src={stepActive} alt="" width={16} height={16} /></span>}
+        {status === 'done' && <span className="flex size-7 items-center justify-center rounded-full" style={{ background: 'var(--color-bg-success)' }}><img src={stepDone} alt="" width={16} height={16} /></span>}
+        {status === 'active' && <span className="flex size-7 items-center justify-center rounded-full border-2" style={{ background: 'var(--color-bg-info)', borderColor: 'var(--color-border-primary)' }}><img src={stepActive} alt="" width={16} height={16} /></span>}
         {status === 'pending' && <img src={stepPending} alt="" width={28} height={28} />}
-        {!last && <span className="h-9 w-0.5" style={{ background: status === 'done' ? '#22a55b' : '#e6e6e2' }} />}
+        {!last && <span className="h-9 w-0.5" style={{ background: status === 'done' ? 'var(--color-border-success)' : 'var(--color-border-default)' }} />}
       </div>
     </div>
   )
@@ -122,19 +122,19 @@ function QuoteCard({ offer, invites, coverage, fresh }: { offer: Offer; invites:
   const incl = offer.offer.prices_include_tax
   const lead = leadTimeLabel(offer.offer)
   return (
-    <div className="flex w-full flex-col items-end gap-4 rounded-[16px] bg-white p-5" style={fresh ? { border: '1.5px solid #22a55b', boxShadow: '0 0 18px rgba(200,243,107,0.6)' } : { border: '1px solid #e6e6e2', boxShadow: '0 1px 2px rgba(36,26,64,0.06), 0 1px 3px rgba(36,26,64,0.04)' }}>
+    <div className="flex w-full flex-col items-end gap-4 rounded-[16px] bg-white p-5" style={fresh ? { border: '1.5px solid var(--color-border-success)', boxShadow: 'var(--glow-success)' } : { border: '1px solid var(--color-border-default)', boxShadow: 'var(--elevation-sm)' }}>
       <div className="flex w-full items-center justify-between gap-3">
         {fresh ? <Badge tone="info" label="جديد" /> : coverage ? <Badge tone="neutral" label={`${coverage.priced} من ${coverage.requested} بند`} /> : <span />}
         <div className="flex min-w-0 flex-col items-end gap-1 text-right">
-          <p className="truncate text-[16px] leading-[26px] font-medium" style={{ color: '#161616' }}>{name}</p>
-          <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#5e5e5b' }}>{[timeAgo(offer.offer.submittedAt), channel === 'WHATSAPP' ? 'واتساب' : channel === 'EMAIL' ? 'إيميل' : channel === 'HARAJ' ? 'حراج' : 'البوابة'].filter(Boolean).join(' · ')}</p>
+          <p className="truncate text-[16px] leading-[26px] font-medium" style={{ color: 'var(--color-text-primary)' }}>{name}</p>
+          <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{[timeAgo(offer.offer.submittedAt), channel === 'WHATSAPP' ? 'واتساب' : channel === 'EMAIL' ? 'إيميل' : channel === 'HARAJ' ? 'حراج' : 'البوابة'].filter(Boolean).join(' · ')}</p>
         </div>
       </div>
       <div className="flex items-baseline justify-end gap-2 text-right">
-        <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#5e5e5b' }}>{incl === false ? 'قبل الضريبة' : incl ? 'شامل الضريبة' : ''}</p>
-        <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: '#161616' }}>{total || '—'}</p>
+        <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{incl === false ? 'قبل الضريبة' : incl ? 'شامل الضريبة' : ''}</p>
+        <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{total || '—'}</p>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-4 text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>
+      <div className="flex flex-wrap items-center justify-end gap-4 text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>
         {offer.offer.notes ? <span className="inline-flex items-center gap-1"><img src={iconShield} alt="" width={16} height={16} />{String(offer.offer.notes).slice(0, 40)}</span> : null}
         {lead ? <span className="inline-flex items-center gap-1"><img src={iconClock} alt="" width={16} height={16} />{lead}</span> : null}
         {coverage && coverage.priced === coverage.requested ? <span className="inline-flex items-center gap-1"><img src={iconTruck} alt="" width={16} height={16} />يغطّي كل البنود</span> : null}
@@ -230,8 +230,8 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const shown = showAll ? visible : visible.slice(0, 8)
 
   if (!selectedRfqId) return <div className="p-8 text-right">اختر طلبًا من قائمة الطلبات.</div>
-  if (error) return <div className="p-8 text-right text-[#a3364b]">{error}</div>
-  if (!rfq || !progress || !state) return <div className="p-8 text-right" style={{ color: '#5e5e5b' }}>جارٍ تحميل الطلب…</div>
+  if (error) return <div className="p-8 text-right text-[var(--color-text-danger)]">{error}</div>
+  if (!rfq || !progress || !state) return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ تحميل الطلب…</div>
 
   const payload = rfq.current_version?.payload || {}
   const title = rfqProjectName({ delivery: payload.delivery }) || formatRfqTitle({ id: rfq.id, engineering_department: rfq.engineering_department, delivery: payload.delivery, buyer: payload.buyer })
@@ -244,27 +244,27 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const compareStep: 'done' | 'active' | 'pending' = state.key === 'AWARDED' ? 'done' : progress.quoted > 0 ? 'active' : 'pending'
 
   return (
-    <div className="pricing-v2 relative min-h-full" style={{ background: '#f7f7f5', fontFamily: "'Tajawal', 'Cairo', system-ui, sans-serif", color: '#161616' }}>
-      <div className="flex h-[72px] items-center justify-between border-b bg-white px-8" style={{ borderColor: '#e6e6e2' }}>
+    <div className="pricing-v2 relative min-h-full" style={{ background: 'var(--color-bg-canvas)', fontFamily: "'Tajawal', 'Cairo', system-ui, sans-serif", color: 'var(--color-text-primary)' }}>
+      <div className="flex h-[72px] items-center justify-between border-b bg-white px-8" style={{ borderColor: 'var(--color-border-default)' }}>
         <div />
         <div className="flex items-center gap-2">
           <p className="text-[16px] leading-[26px] font-medium">{title}</p>
           <img src={iconChevron} alt="" width={16} height={16} />
-          <button type="button" onClick={() => navigate('rfq-list')} className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>طلبات التسعير</button>
+          <button type="button" onClick={() => navigate('rfq-list')} className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>طلبات التسعير</button>
         </div>
       </div>
 
       <div className="flex flex-col gap-6 p-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate('comparison')} disabled={!progress.quoted} className="flex h-12 items-center gap-2 rounded-[12px] px-6 text-[16px] font-medium text-white disabled:opacity-40" style={{ background: '#121212' }}>قارن العروض ({progress.quoted}) <img src={iconCompare} alt="" width={20} height={20} /></button>
+            <button type="button" onClick={() => navigate('comparison')} disabled={!progress.quoted} className="flex h-12 items-center gap-2 rounded-[12px] px-6 text-[16px] font-medium text-white disabled:opacity-40" style={{ background: 'var(--color-bg-cta)' }}>قارن العروض ({progress.quoted}) <img src={iconCompare} alt="" width={20} height={20} /></button>
           </div>
           <div className="flex min-w-0 flex-col items-end gap-1.5 text-right">
             <div className="flex items-center gap-3">
               <Badge tone={stateBadge.tone} label={stateBadge.label} />
               <h1 className="truncate font-[Readex_Pro] text-[32px] leading-[48px] font-bold">{title}</h1>
             </div>
-            <p className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>
+            <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>
               {[rfq.created_at ? `أُنشئ ${timeAgo(rfq.created_at)}` : null, `${progress.items} بند`, delivery?.city ? `التوصيل لـ${delivery.city}${delivery.required_date ? ` قبل ${delivery.required_date}` : ''}` : null].filter(Boolean).join(' · ')}
             </p>
           </div>
@@ -279,7 +279,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
 
         <div className="flex items-start gap-6">
           <div className="flex w-[380px] shrink-0 flex-col gap-6">
-            <div className="flex w-full flex-col items-end gap-1 rounded-[24px] border bg-white px-6 py-5" style={{ borderColor: '#e6e6e2' }}>
+            <div className="flex w-full flex-col items-end gap-1 rounded-[24px] border bg-white px-6 py-5" style={{ borderColor: 'var(--color-border-default)' }}>
               <p className="font-[Readex_Pro] text-[18px] leading-[28px] font-medium">مسار الطلب</p>
               <TimelineStep title="رفع الطلب" detail={`${progress.items} بند`} status="done" />
               <TimelineStep title="قراءة البنود" detail={`${progress.items} بند جاهز للإرسال`} status="done" />
@@ -291,7 +291,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
                 <img src={iconRefresh} alt="" width={18} height={18} />
                 <span className="font-[Readex_Pro] text-[18px] leading-[28px] font-medium">آخر العروض</span>
               </button>
-              {offers.length === 0 ? <p className="w-full rounded-[16px] border bg-white p-5 text-right text-[14px]" style={{ borderColor: '#e6e6e2', color: '#5e5e5b' }}>ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
+              {offers.length === 0 ? <p className="w-full rounded-[16px] border bg-white p-5 text-right text-[14px]" style={{ borderColor: 'var(--color-border-default)', color: 'var(--color-text-secondary)' }}>ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
               {offers.slice(0, 2).map((o, i) => {
                 const cov = summaryBySupplier.get(String(o.supplier.id || ''))?.coverage || null
                 return <QuoteCard key={String(o.offer.quoteVersionId || o.offer.offerId || i)} offer={o} invites={invites} coverage={cov} fresh={i === 0 && Date.now() - Date.parse(String(o.offer.submittedAt || 0)) < 60 * 60 * 1000} />
@@ -299,49 +299,49 @@ export function RequestTrackingV2({ navigate }: NavProps) {
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col items-end overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: '#e6e6e2' }}>
+          <div className="flex min-w-0 flex-1 flex-col items-end overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: 'var(--color-border-default)' }}>
             <div className="flex w-full flex-col items-end gap-3 px-6 py-5">
               <div className="flex items-baseline gap-2 text-right">
-                <p className="text-[12px] leading-[18px] font-medium" style={{ color: '#8f8f8b' }}>مرتبين حسب حالة الرد</p>
+                <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>مرتبين حسب حالة الرد</p>
                 <p className="font-[Readex_Pro] text-[18px] leading-[28px] font-medium">الموردين</p>
               </div>
               <div className="flex items-center gap-5">
                 {([['declined', `اعتذروا ${counts.declined}`], ['waiting', `بانتظار ${counts.waiting}`], ['replied', `ردّوا بدون سعر ${counts.replied}`], ['quoted', `أرسلوا سعر ${counts.quoted}`], ['all', `الكل ${counts.all}`]] as [Filter, string][]).map(([k, label]) => (
                   <button type="button" key={k} onClick={() => { setFilter(k); setShowAll(false) }} className="flex flex-col items-center gap-2 pt-2.5">
-                    <span className={`text-[16px] leading-[26px] ${filter === k ? 'font-medium' : ''}`} style={{ color: filter === k ? '#161616' : '#5e5e5b' }}>{label}</span>
-                    <span className="h-[3px] w-full rounded-[2px]" style={{ background: filter === k ? '#3ddc97' : 'transparent' }} />
+                    <span className={`text-[16px] leading-[26px] ${filter === k ? 'font-medium' : ''}`} style={{ color: filter === k ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>{label}</span>
+                    <span className="h-[3px] w-full rounded-[2px]" style={{ background: filter === k ? 'var(--color-bg-brand)' : 'transparent' }} />
                   </button>
                 ))}
               </div>
             </div>
-            {shown.length === 0 ? <p className="w-full p-6 text-right text-[14px]" style={{ color: '#5e5e5b' }}>لا يوجد موردون في هذه الحالة.</p> : null}
+            {shown.length === 0 ? <p className="w-full p-6 text-right text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>لا يوجد موردون في هذه الحالة.</p> : null}
             {shown.map(({ inv, badge, channel }) => {
               const name = inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
               return (
-                <div key={inv.id} className="flex w-full items-center justify-end gap-4 border-b px-5 py-4" style={{ borderColor: '#e6e6e2' }}>
+                <div key={inv.id} className="flex w-full items-center justify-end gap-4 border-b px-5 py-4" style={{ borderColor: 'var(--color-border-default)' }}>
                   <Badge tone={badge.tone} label={badge.label} />
                   <ChannelBadge channel={channel} />
                   <div className="flex min-w-0 flex-1 flex-col items-end gap-1">
                     <p className="truncate text-[16px] leading-[26px] font-medium">{name}</p>
-                    <p className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>{inv.supplier?.city || '—'}</p>
+                    <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{inv.supplier?.city || '—'}</p>
                   </div>
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] text-[16px] font-medium" style={{ background: '#efefec', color: '#5e5e5b' }}>{name.trim().charAt(0)}</span>
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] text-[16px] font-medium" style={{ background: 'var(--color-bg-surface-2)', color: 'var(--color-text-secondary)' }}>{name.trim().charAt(0)}</span>
                 </div>
               )
             })}
             {visible.length > shown.length ? (
-              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium" style={{ color: '#0f8a5f' }}>عرض {visible.length - shown.length} مورد إضافي</button>
+              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium" style={{ color: 'var(--color-text-link)' }}>عرض {visible.length - shown.length} مورد إضافي</button>
             ) : null}
           </div>
         </div>
       </div>
 
       {toast ? (
-        <div className="fixed bottom-8 left-8 flex w-[380px] items-start gap-3 rounded-[16px] border bg-white p-4" style={{ borderColor: '#e6e6e2', boxShadow: '0 24px 48px -12px rgba(36,26,64,0.16)' }}>
+        <div className="fixed bottom-8 left-8 flex w-[380px] items-start gap-3 rounded-[16px] border bg-white p-4" style={{ borderColor: 'var(--color-border-default)', boxShadow: 'var(--elevation-lg)' }}>
           <button type="button" onClick={() => setToast(null)} aria-label="إغلاق"><img src={iconClose} alt="" width={18} height={18} /></button>
           <div className="flex min-w-0 flex-1 flex-col items-end gap-1 text-right">
             <p className="text-[16px] leading-[26px] font-medium">{toast.title}</p>
-            <p className="text-[14px] leading-[22px]" style={{ color: '#5e5e5b' }}>{toast.body}</p>
+            <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{toast.body}</p>
           </div>
           <img src={iconToast} alt="" width={20} height={20} />
         </div>

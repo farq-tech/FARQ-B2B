@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/api/apiBase.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 /**
  * Where this browser reaches the Farq Express API.
  *

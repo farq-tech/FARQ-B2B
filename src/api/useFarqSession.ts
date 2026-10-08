@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/api/useFarqSession.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 /**
  * React binding for the one `farqSession` instance.
  *

@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/api/readOnlyMode.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 /**
  * Read-only mode for the testing deployment.
  *

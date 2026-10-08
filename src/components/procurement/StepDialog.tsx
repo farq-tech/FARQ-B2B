@@ -1,3 +1,4 @@
+// Copied from فرق بناء (read-only source): farqconstraction/src/components/procurement/StepDialog.tsx — ios-app@5147808, identical to 5147808. Do not edit business logic here.
 import { useRef, useState } from 'react'
 import { ConstructionApiError, closeConstructionRfqSubmissions, openConstructionRfqEnvelopes, type ConstructionRfq } from '../../api/constructionClient'
 export default function StepDialog({ openEnvelopes = false, step, rfq, deadlinePassed, quoted, onClose, onDone }: {
