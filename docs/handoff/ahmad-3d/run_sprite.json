@@ -1,0 +1,74 @@
+{
+ "fw": 111,
+ "fh": 160,
+ "n": 16,
+ "dirs": [
+  "S",
+  "SE",
+  "E",
+  "NE",
+  "N",
+  "NW",
+  "W",
+  "SW"
+ ],
+ "stand": [
+  "S",
+  "SE",
+  "SW"
+ ],
+ "anchor": {
+  "S": [
+   55.3,
+   143.6
+  ],
+  "SE": [
+   57.2,
+   143.3
+  ],
+  "E": [
+   58.0,
+   142.5
+  ],
+  "NE": [
+   57.2,
+   141.8
+  ],
+  "N": [
+   55.2,
+   141.5
+  ],
+  "NW": [
+   53.3,
+   141.8
+  ],
+  "W": [
+   52.5,
+   142.6
+  ],
+  "SW": [
+   53.3,
+   143.3
+  ],
+  "stand_S": [
+   55.0,
+   143.1
+  ],
+  "stand_SE": [
+   56.0,
+   143.0
+  ],
+  "stand_SW": [
+   54.1,
+   142.8
+  ]
+ },
+ "sheet": "run_sheet.webp",
+ "notes": {
+  "rows": "0-7 run dirs in order of dirs; row 8 = stand frames for S,SE,SW",
+  "display_height_px": 82,
+  "stride_css_px_per_frame": 7.2,
+  "camera": "ortho 2.05, elevation 22deg, fixed for all dirs",
+  "anchor": "feet ground point in sheet px (frame-local)"
+ }
+}

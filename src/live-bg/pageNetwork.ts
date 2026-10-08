@@ -12,6 +12,7 @@
  *    pace ~150 px/s with suppliers within ~2 screens of the head office (SPEED / DEPTH below).
  */
 import { CHANNELS, CYCLE, POSES, url, type Pose } from './sprites'
+import { AHMAD, bucket8, run3, stand3, sheet3, type Dir8 } from './ahmad3d'
 import { readObstacles } from './engine'
 
 type RGB = [number, number, number]
@@ -144,6 +145,7 @@ export class PageNetwork {
     this.VW = window.innerWidth; this.VH = window.innerHeight; this.W = de.clientWidth; this.H = de.scrollHeight
     this.DPR = Math.min(2, window.devicePixelRatio || 1); this.scale = this.DPR > 1 ? 2 : 1
     this.canvas.width = Math.round(this.VW * this.DPR); this.canvas.height = Math.round(this.VH * this.DPR)
+    if (AHMAD === '3d') void sheet3().decode?.().catch(() => {}) // decoded before he first appears
     this.go = readColor('var(--live-go)'); this.back = readColor('var(--live-back)')
     this.surface = readColor('var(--color-bg-surface)'); this.ink = readColor('var(--color-text-primary)'); this.ink2 = readColor('var(--color-text-secondary)')
     this.UI = readObstacles(this.canvas.parentElement as HTMLElement, this.scope, true).boxes
@@ -283,7 +285,7 @@ export class PageNetwork {
       const maxL = Math.max(...walkers.map((w) => w.len)), D = first ? Math.max(7, Math.min(10, maxL / SPEED)) : Math.max(8, Math.min(14, maxL / SPEED)), Rt = Math.max(first ? 5 : 6, D * 0.8)
       for (const w of walkers) { w.arrive = w.start + D * (0.96 + Math.random() * 0.08); w.tc = w.arrive + 0.6 + Math.random() * 0.3; w.home = w.tc + Rt * (0.96 + Math.random() * 0.08); w.done = w.home }
     }
-    const clear = (w: Walker) => { if (V[w.target].y <= 90) return false; for (let d = 40; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (this.inUI(x, y, 22)) return false } return true }
+    const clear = (w: Walker) => { if (V[w.target].y <= 90) return false; for (let d = 40; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (this.inUI(x, y, 22) || this.inUI(x, y - 42, 10) || this.inUI(x, y - 80, 6)) return false } return true } // feet, body and head (82 px) all clear
     let pick = walkers.filter((w) => w.k === RK && w.len > Math.min(VW, VH) * 0.3 && clear(w))
     if (!pick.length && tries < 8) return this.plan(first, tries + 1)
     if (!pick.length) pick = walkers.filter((w) => w.len < RMAX * 1.6 && clear(w))
@@ -294,7 +296,7 @@ export class PageNetwork {
       // never behind text; only if there is none, he waits next to the head office
       const blockV = (v: number) => (owner[v] >= 0 && owner[v] !== RK) || this.inUI(V[v].x, V[v].y, 24)
       const cand: Array<[number, number]> = []
-      for (let i = 0; i < V.length; i++) { const v = V[i]; if (blockV(i) || this.inUI(v.x, v.y, 40) || v.y <= 90 || v.y > VH - 90) continue; const d = Math.hypot(v.x - C.x, v.y - C.y); if (d >= Math.min(260, W * 0.55) && d <= RMAX) cand.push([d, i]) } // a phone is narrow: a shorter clean run still counts
+      for (let pass = 0; pass < 2 && cand.length < 4; pass++) for (let i = 0; i < V.length; i++) { const v = V[i]; if (blockV(i) || this.inUI(v.x, v.y, 40) || v.y <= 90 || v.y > (pass ? VH * 1.5 : VH - 90)) continue; /* first screen first, then down to 1.5 screens */ const d = Math.hypot(v.x - C.x, v.y - C.y); if (d >= Math.min(260, W * 0.55) && d <= RMAX) cand.push([d, i]) } // a phone is narrow: a shorter clean run still counts
       cand.sort((a, b) => b[0] - a[0])
       let alt: Walker | null = null
       for (const [, i] of cand.slice(0, 16)) {
@@ -415,6 +417,15 @@ export class PageNetwork {
   private bucketOf(deg: number) { if (deg > -30 && deg <= 50) return 'E'; if (deg > 50 && deg <= 130) return 'S'; if (deg > 130 || deg <= -150) return 'W'; if (deg > -150 && deg <= -90) return 'NW'; return 'NE' }
   private steer(t: number, hx: number, hy: number, snap: boolean) {
     const RS = this.RS
+    if (AHMAD === '3d') { // 8 directions straight from the path angle (0 = E, 90 = S); the model needs no tilt
+      if (snap) { RS.ang = Math.atan2(hy, hx); RS.bucket = bucket8((RS.ang * 180) / Math.PI); RS.prev = null; RS.fade = 1; RS.lastT = t; return }
+      const dt = Math.min(0.1, Math.max(0, t - RS.lastT)); RS.lastT = t
+      const target = Math.atan2(hy, hx), diff = Math.atan2(Math.sin(target - RS.ang), Math.cos(target - RS.ang)); RS.ang += diff * Math.min(1, dt * 6)
+      const deg = (RS.ang * 180) / Math.PI, b = bucket8(deg)
+      if (b !== RS.bucket && bucket8(deg - 10) === b && bucket8(deg + 10) === b) { RS.prev = RS.bucket; RS.bucket = b; RS.fade = 0 } // hysteresis ±10°: no flicker on a 45° border
+      RS.fade = Math.min(1, RS.fade + dt / 0.14); RS.tilt = 0
+      return
+    }
     if (snap) { RS.ang = Math.atan2(hy, hx); RS.bucket = this.bucketOf((RS.ang * 180) / Math.PI); RS.prev = null; RS.fade = 1; RS.lastT = t; return }
     const dt = Math.min(0.1, Math.max(0, t - RS.lastT)); RS.lastT = t
     const target = Math.atan2(hy, hx), diff = Math.atan2(Math.sin(target - RS.ang), Math.cos(target - RS.ang)); RS.ang += diff * Math.min(1, dt * 7)
@@ -439,6 +450,14 @@ export class PageNetwork {
   }
   private runner(x: number, y: number, d: number, state: string, t: number) {
     const c = this.ctx, RS = this.RS
+    if (AHMAD === '3d') {
+      c.save(); c.fillStyle = col(this.ink, 0.14); c.beginPath(); c.ellipse(x, y, 14, 3.4, 0, 0, TAU); c.fill(); c.restore()
+      if (state === 'run' || state === 'tired') {
+        if (RS.prev && RS.fade < 1) run3(c, RS.prev as Dir8, d, x, y, 1 - RS.fade)
+        run3(c, RS.bucket as Dir8, d, x, y, RS.prev && RS.fade < 1 ? RS.fade : 1)
+      } else stand3(c, x, y, RS.bucket as Dir8) // at the supplier and next to the head office
+      return
+    }
     c.save(); c.fillStyle = col(this.ink, 0.13); c.beginPath(); c.ellipse(x, y, 13, 3, 0, 0, TAU); c.fill(); c.restore()
     if (state === 'run') {
       const u = d / STRIDE, fi = Math.floor(u), vi = Math.floor(u / 3)
@@ -533,7 +552,7 @@ export class PageNetwork {
         const pos = this.at(w, d)
         if (pos[1] > this.SY - 90 && pos[1] < this.SY + this.VH + 90) {
           this.runner(pos[0], pos[1] + 1, RS.odo, state, t)
-          const cy = pos[1] - 76
+          const cy = pos[1] - (AHMAD === '3d' ? 88 : 76)
           if (t >= w.start && t < w.arrive) this.doc(pos[0], cy, 0, 0, true) // «أحمد · يدور بنفسه»
           else if (t >= w.arrive && t < w.arrive + 1.1) this.pill(pos[0], cy + 6, 'وصل… يلتقط أنفاسه', false, false)
           else if (t >= w.arrive && t < w.tc - 0.9) this.pill(pos[0], cy + 6, 'يسعّر عند المورد…', false, false)
@@ -543,7 +562,7 @@ export class PageNetwork {
       }
     }
     const C = V[this.HUB]
-    if (S.ahmadHome && this.freeBox(C.x + 16, C.y - 60, 30, 64)) this.pose('present', 0, C.x + 32, C.y + 4, 1)
+    if (S.ahmadHome && this.freeBox(C.x + 16, C.y - 72, 34, 76)) { if (AHMAD === '3d') stand3(ctx, C.x + 34, C.y + 4, 'SW'); else this.pose('present', 0, C.x + 32, C.y + 4, 1) }
     this.hq(C.x, C.y)
     { // what is happening, in one line under the head office
       const arrived = S.walkers.filter((w) => t >= w.arrive).length, back = S.walkers.filter((w) => t >= w.home).length, n0 = S.walkers.length

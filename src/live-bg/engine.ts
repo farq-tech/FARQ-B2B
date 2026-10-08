@@ -6,6 +6,7 @@
  * and Ahmad's track avoid the real page elements (not a fixed overlay), and there is no pointer input.
  */
 import { CHANNELS, CYCLE, POSES, url, type Pose } from './sprites'
+import { AHMAD, bucket8, run3, stand3, sheet3, type Dir8 } from './ahmad3d'
 
 export type Tone = 'light' | 'deep' | 'accent'
 type RGB = [number, number, number]
@@ -203,6 +204,7 @@ export class LiveEngine {
   }
 
   private readColors() {
+    if (AHMAD === '3d') void sheet3().decode?.().catch(() => {}) // decoded before he first appears
     const h = this.host
     this.go = readColor(h, 'var(--live-go)'); this.back = readColor(h, 'var(--live-back)')
     this.base = readColor(h, 'var(--live-base)'); this.meshLine = readColor(h, 'var(--live-mesh-line)')
@@ -382,7 +384,7 @@ export class LiveEngine {
     return walkers
   }
 
-  private runnerBoxes() { return this.boxes.map((b) => [b[0] - 40, b[1] - 30, b[2] + 40, b[3] + 70]) }
+  private runnerBoxes() { const tall = AHMAD === '3d' ? 84 : 70; return this.boxes.map((b) => [b[0] - 40, b[1] - 30, b[2] + 40, b[3] + tall]) } // his height above the path
   /** Distance along the path of the first point where Ahmad would be behind an element (Infinity = clear all the way). */
   private blockedAt(w: Walker, boxes: number[][]) {
     for (let d = 46; d <= w.len; d += 8) { const [x, y] = this.at(w, d); if (boxes.some((b) => x > b[0] && x < b[2] && y > b[1] && y < b[3])) return d }
@@ -670,6 +672,15 @@ export class LiveEngine {
   }
   private steer(t: number, hx: number, hy: number, snap: boolean) {
     const RS = this.RS
+    if (AHMAD === '3d') { // 8 directions from the path angle (0 = E, 90 = S), ±10° hysteresis, 0.14 s crossfade, no tilt
+      if (snap) { RS.ang = Math.atan2(hy, hx); RS.bucket = bucket8((RS.ang * 180) / Math.PI); RS.prev = null; RS.fade = 1; RS.lastT = t; return }
+      const dt = Math.min(0.1, Math.max(0, t - RS.lastT)); RS.lastT = t
+      const target = Math.atan2(hy, hx), diff = Math.atan2(Math.sin(target - RS.ang), Math.cos(target - RS.ang)); RS.ang += diff * Math.min(1, dt * 6)
+      const deg = (RS.ang * 180) / Math.PI, b = bucket8(deg)
+      if (b !== RS.bucket && bucket8(deg - 10) === b && bucket8(deg + 10) === b) { RS.prev = RS.bucket; RS.bucket = b; RS.fade = 0 }
+      RS.fade = Math.min(1, RS.fade + dt / 0.14); RS.tilt = 0
+      return
+    }
     if (snap) { RS.ang = Math.atan2(hy, hx); RS.bucket = this.bucketOf((RS.ang * 180) / Math.PI); RS.prev = null; RS.fade = 1; RS.lastT = t; return }
     const dt = Math.min(0.1, Math.max(0, t - RS.lastT)); RS.lastT = t
     const target = Math.atan2(hy, hx), diff = Math.atan2(Math.sin(target - RS.ang), Math.cos(target - RS.ang)); RS.ang += diff * Math.min(1, dt * 7)
@@ -694,6 +705,14 @@ export class LiveEngine {
   }
   private runner(x: number, y: number, d: number, state: string, t: number) {
     const c = this.ctx, RS = this.RS
+    if (AHMAD === '3d') { // the Meshy model: frames follow the distance covered, standing row at stops
+      c.save(); c.fillStyle = rgba(this.ink, 0.14); c.beginPath(); c.ellipse(x, y, 14, 3.4, 0, 0, 7); c.fill(); c.restore()
+      if (state === 'run' || state === 'tired') {
+        if (RS.prev && RS.fade < 1) run3(c, RS.prev as Dir8, d, x, y, 1 - RS.fade)
+        run3(c, RS.bucket as Dir8, d, x, y, RS.prev && RS.fade < 1 ? RS.fade : 1)
+      } else stand3(c, x, y, RS.bucket as Dir8)
+      return
+    }
     c.save(); c.fillStyle = rgba(this.ink, 0.13); c.beginPath(); c.ellipse(x, y, 13, 3, 0, 0, 7); c.fill(); c.restore()
     if (state === 'run') {
       // measured on the run-cycle sheet: the planted foot moves back 17 px per frame → advance 17 px per frame (no slide);
@@ -767,7 +786,7 @@ export class LiveEngine {
         if (RS.lastD >= 0 && Math.abs(d - RS.lastD) < 80) RS.odo += Math.abs(d - RS.lastD)
         RS.lastD = d
         const pos = this.at(w, d); this.runner(pos[0], pos[1] + 1, RS.odo, state, t)
-        const cy = Math.max(30, pos[1] - 76)
+        const cy = Math.max(30, pos[1] - (AHMAD === '3d' ? 88 : 76))
         if (t >= w.start && t < w.arrive) this.doc(pos[0], cy, 0, 0, true)
         else if (t >= w.arrive && t < w.arrive + 1.1) this.pill(pos[0], cy + 6, 'وصل… يلتقط أنفاسه', false, false)
         else if (t >= w.arrive && t < w.tc - 0.9) this.pill(pos[0], cy + 6, 'يسعّر عند المورد…', false, false)
