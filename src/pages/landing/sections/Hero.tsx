@@ -145,7 +145,7 @@ export function Hero() {
   return (
     <section id="top" data-tone="deep" aria-labelledby="hero-title" className={cx(DEEP_FOCUS, 'relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]')}>
         <LiveBgSlot tone="deep" />
-        <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[var(--space-24)] lg:grid-cols-2 lg:pb-[var(--space-80)] lg:pt-[70px]">
+        <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[150px] lg:grid-cols-2 lg:pb-[var(--space-80)] lg:pt-[170px]">
           <div className="flex flex-col items-start gap-[var(--space-12)]">
             <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--white-a16)] bg-[var(--white-a8)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">
               <span aria-hidden="true" className="size-2 rounded-full bg-[var(--color-bg-brand)]" />

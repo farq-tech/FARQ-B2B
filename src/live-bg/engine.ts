@@ -305,7 +305,7 @@ export class LiveEngine {
     this.ctx.clearRect(0, 0, W, H)
   }
 
-  private base0 = '#fff'
+  private base0 = 'transparent'
   /** Facets + mesh lines; under every text / control / card the mesh drops to 30 % (readability). */
   private paintStatic() {
     const b = this.bctx, { V, E, W, H } = this
@@ -335,7 +335,7 @@ export class LiveEngine {
   }
   /** Readability: the layer keeps ≤ 30 % of its opacity under every element it avoids (text, controls, cards). */
   private shield(c: CanvasRenderingContext2D) {
-    c.save(); c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.7)'
+    c.save(); c.globalCompositeOperation = 'destination-out'; c.fillStyle = rgba([0, 0, 0], 0.7) // destination-out: only the alpha counts
     const y0 = this.page ? this.sy - 20 : -1e9, y1 = this.page ? this.sy + this.vh + 20 : 1e9
     for (const x of this.boxes) if (x[3] > y0 && x[1] < y1) c.fillRect(x[0] - 6, x[1] - 6, x[2] - x[0] + 12, x[3] - x[1] + 12)
     c.restore()

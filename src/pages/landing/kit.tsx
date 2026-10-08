@@ -11,7 +11,8 @@ import { Icon, type IconName } from '../../ui/Icon'
  * Former per-section background slot. The page now has ONE living layer for the whole landing (PageLive, owner
  * 2026-10-08): no copy per section, so this renders nothing. Kept so the sections' markup stays unchanged.
  */
-export function LiveBgSlot(_: { tone: 'deep' | 'accent' | 'light'; className?: string }) {
+export function LiveBgSlot(props: { tone: 'deep' | 'accent' | 'light'; className?: string }) {
+  void props
   return null
 }
 
