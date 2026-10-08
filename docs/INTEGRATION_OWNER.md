@@ -1,8 +1,8 @@
 # integration/today — owner
 
-الدمج في integration/today لهذه الجلسة فقط.
+الدمج في integration/today لجلسة واحدة فقط: جلسة Claude Code «farqconstraction-7e» (الـLead، فرق تسعير — Figma sync)، بتكليف من المالك 2026-10-08.
 
-- المالك: جلسة Claude Code «farqconstraction-60» (فرق تسعير — Figma sync)، بتكليف من المالك 2026-10-08.
-- نقطة البداية: a3b3cef (14:47:29، 2026-10-08). أي commit من غير هذه الجلسة بعدها يُبلَّغ للمالك فورًا ويوقف الدمج.
-- قبل كل دمج: `git fetch` (لا يوجد remote حاليًا) ثم `git log` للتحقق من عدم وجود commits من غيرنا.
-- الجلسات الأخرى: تعمل على فروعها (design/*) فقط، ولا تكتب في هذا الفرع ولا في مجلده.
+- تصحيح: commit 7d8b42a نسب الدمج لجلسة «farqconstraction-60» بالغلط (وصلتها رسالة الـLead بالخطأ). هذه الجلسة ما تدمج هنا.
+- الجلسات الأخرى ووكلاؤها: يشتغلون على فروعهم (design/*) فقط، ولا يكتبون في هذا الفرع ولا في مجلده (~/farq-pricing-wt/integration). أي تعديل يحتاجونه هنا: طلب في docs/qa/requests.md.
+- قبل كل دمج: `git log` للتحقق إن ما فيه commits من غير الـLead.
+- لا push. الـpush والـPR بقرار المالك.
