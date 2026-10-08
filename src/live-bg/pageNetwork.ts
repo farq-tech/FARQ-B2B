@@ -294,7 +294,7 @@ export class PageNetwork {
       // never behind text; only if there is none, he waits next to the head office
       const blockV = (v: number) => (owner[v] >= 0 && owner[v] !== RK) || this.inUI(V[v].x, V[v].y, 24)
       const cand: Array<[number, number]> = []
-      for (let i = 0; i < V.length; i++) { const v = V[i]; if (blockV(i) || this.inUI(v.x, v.y, 40) || v.y <= 90 || v.y > VH - 90) continue; const d = Math.hypot(v.x - C.x, v.y - C.y); if (d >= 260 && d <= RMAX) cand.push([d, i]) }
+      for (let i = 0; i < V.length; i++) { const v = V[i]; if (blockV(i) || this.inUI(v.x, v.y, 40) || v.y <= 90 || v.y > VH - 90) continue; const d = Math.hypot(v.x - C.x, v.y - C.y); if (d >= Math.min(260, W * 0.55) && d <= RMAX) cand.push([d, i]) } // a phone is narrow: a shorter clean run still counts
       cand.sort((a, b) => b[0] - a[0])
       let alt: Walker | null = null
       for (const [, i] of cand.slice(0, 16)) {
