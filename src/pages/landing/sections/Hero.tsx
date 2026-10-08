@@ -51,7 +51,9 @@ function Nav() {
         </nav>
         <div className="flex items-center gap-[var(--space-8)]">
           <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-on-inverse)] sm:inline')}>دخول</TextLink>
-          <LinkButton href={START_HREF} external variant="Accent" size="M" className="hidden sm:inline-flex">ابدأ التسعير</LinkButton>
+          <span className="hidden sm:block">
+            <LinkButton href={START_HREF} external variant="Accent" size="M">ابدأ التسعير</LinkButton>
+          </span>
           <button
             ref={buttonRef}
             type="button"
@@ -73,7 +75,9 @@ function Nav() {
             </TextLink>
           ))}
           <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-on-inverse)] sm:hidden')}>دخول</TextLink>
-          <LinkButton href={START_HREF} external variant="Accent" fullWidth className="mt-[var(--space-8)] sm:hidden">ابدأ التسعير</LinkButton>
+          <span className="mt-[var(--space-8)] block sm:hidden">
+            <LinkButton href={START_HREF} external variant="Accent" fullWidth>ابدأ التسعير</LinkButton>
+          </span>
         </Container>
       </nav>
     </div>

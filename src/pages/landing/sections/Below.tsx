@@ -91,7 +91,7 @@ function HowItWorks() {
         <SectionTitle id="how-title" title="ثلاث طرق، طلب واحد" sub="اختار الأسهل لك — والباقي علينا." />
         <ul className="grid w-full gap-[var(--space-12)] md:grid-cols-3 md:gap-[var(--space-24)]">
           {METHODS.map((m) => (
-            <li key={m.n} className="flex items-center gap-[var(--space-16)] rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-[var(--space-20)] md:h-[300px] md:flex-col md:items-start md:border-0 md:bg-[var(--color-bg-canvas)] md:p-[var(--space-32)]">
+            <li key={m.n} className="flex items-center gap-[var(--space-16)] rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-[var(--space-20)] md:h-[300px] md:flex-col md:items-start md:bg-[var(--color-bg-canvas)] md:p-[var(--space-32)]">
               <div className="flex shrink-0 items-start justify-between md:w-full">
                 <img src={m.spot} alt="" width={64} height={64} loading="lazy" className="size-12 md:size-16" />
                 <span aria-hidden="true" className={cx(T.numBase, 'hidden text-[var(--color-text-tertiary)] md:block')}>{m.n}</span>
