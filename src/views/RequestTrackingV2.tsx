@@ -14,19 +14,7 @@ import {
 } from '../api/constructionClient'
 import { leadTimeLabel, requestProgress, requestState, supplierState } from '../lib/requestFile'
 import { rfqProjectName } from '../lib/rfqIdentity'
-import iconCompare from '../assets/pricing-v2/compare.svg'
-import iconRefresh from '../assets/pricing-v2/refresh.svg'
-import iconWhatsapp from '../assets/pricing-v2/whatsapp.svg'
-import iconMail from '../assets/pricing-v2/mail.svg'
-import iconShield from '../assets/pricing-v2/shield.svg'
-import iconClock from '../assets/pricing-v2/clock.svg'
-import iconTruck from '../assets/pricing-v2/truck.svg'
-import stepDone from '../assets/pricing-v2/step-done.svg'
-import stepActive from '../assets/pricing-v2/step-active.svg'
-import stepPending from '../assets/pricing-v2/step-pending.svg'
-import iconChevron from '../assets/pricing-v2/chevron.svg'
-import iconClose from '../assets/pricing-v2/close.svg'
-import iconToast from '../assets/pricing-v2/toast-check.svg'
+import { Badge, Button, ChannelBadge, Icon, QuoteCard, Stat, Tabs, TimelineStep, Toast, TopBar, channelFromApi, type BadgeTone, type QuoteFact, type TimelineStatus } from '../ui'
 
 /*
  * «03 · متابعة الطلب» — the Figma «فرق تسعير» request-tracking screen, wired to
@@ -35,60 +23,8 @@ import iconToast from '../assets/pricing-v2/toast-check.svg'
  */
 
 type Offer = ConstructionComparison['supplier_responses'][number]
-type Tone = 'success' | 'info' | 'neutral' | 'warning' | 'danger'
-const TONE: Record<Tone, { bg: string; fg: string; dot: string }> = {
-  success: { bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)', dot: 'var(--color-icon-success)' },
-  info: { bg: 'var(--color-bg-info)', fg: 'var(--color-text-link)', dot: 'var(--color-icon-info)' },
-  neutral: { bg: 'var(--color-bg-surface-2)', fg: 'var(--color-text-secondary)', dot: 'var(--color-icon-secondary)' },
-  warning: { bg: 'var(--color-bg-warning)', fg: 'var(--color-text-warning)', dot: 'var(--color-icon-warning)' },
-  danger: { bg: 'var(--color-bg-danger)', fg: 'var(--color-text-danger)', dot: 'var(--color-icon-danger)' },
-}
+type Tone = BadgeTone
 const POLL_MS = 30_000
-
-function Badge({ tone, label, small }: { tone: Tone; label: string; small?: boolean }) {
-  const t = TONE[tone]
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${small ? 'text-[12px] leading-[18px]' : 'text-[14px] leading-[22px]'} font-medium whitespace-nowrap`} style={{ background: t.bg, color: t.fg }}>
-      <span className="size-1.5 rounded-full" style={{ background: t.dot }} />
-      {label}
-    </span>
-  )
-}
-
-function ChannelBadge({ channel }: { channel: string | null }) {
-  if (channel === 'WHATSAPP') return <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: 'var(--color-bg-success)', color: 'var(--color-text-success)' }}><img src={iconWhatsapp} alt="" width={14} height={14} />واتساب</span>
-  if (channel === 'EMAIL') return <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: 'var(--color-bg-info)', color: 'var(--color-text-link)' }}><img src={iconMail} alt="" width={14} height={14} />إيميل</span>
-  if (channel === 'HARAJ') return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium" style={{ background: 'var(--color-bg-surface-2)', color: 'var(--color-text-secondary)' }}>حراج</span>
-  return null
-}
-
-function Stat({ label, value, basis, tone = 'neutral' }: { label: string; value: number | string; basis: string; tone?: 'neutral' | 'success' | 'danger' }) {
-  const color = tone === 'success' ? 'var(--color-text-success)' : tone === 'danger' ? 'var(--color-text-danger)' : 'var(--color-text-primary)'
-  return (
-    <div className="flex min-w-0 flex-1 flex-col items-end gap-1 rounded-[16px] border px-5 py-4" style={{ background: 'var(--color-bg-surface)', borderColor: 'var(--color-border-default)' }}>
-      <p className="w-full text-right text-[14px] leading-[22px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{label}</p>
-      <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color }}>{value}</p>
-      <p className="w-full text-right text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>{basis}</p>
-    </div>
-  )
-}
-
-function TimelineStep({ title, detail, status, last }: { title: string; detail: string; status: 'done' | 'active' | 'pending'; last?: boolean }) {
-  return (
-    <div className="flex h-[72px] w-full items-start justify-end gap-3">
-      <div className="flex min-w-0 flex-1 flex-col items-end gap-1 text-right">
-        <p className="text-[16px] leading-[26px] font-medium" style={{ color: status === 'pending' ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}>{title}</p>
-        <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{detail}</p>
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        {status === 'done' && <span className="flex size-7 items-center justify-center rounded-full" style={{ background: 'var(--color-bg-success)' }}><img src={stepDone} alt="" width={16} height={16} /></span>}
-        {status === 'active' && <span className="flex size-7 items-center justify-center rounded-full border-2" style={{ background: 'var(--color-bg-info)', borderColor: 'var(--color-border-primary)' }}><img src={stepActive} alt="" width={16} height={16} /></span>}
-        {status === 'pending' && <img src={stepPending} alt="" width={28} height={28} />}
-        {!last && <span className="h-9 w-0.5" style={{ background: status === 'done' ? 'var(--color-border-success)' : 'var(--color-border-default)' }} />}
-      </div>
-    </div>
-  )
-}
 
 function timeAgo(iso?: string | null): string {
   if (!iso) return ''
@@ -115,31 +51,26 @@ function offerChannel(offer: Offer, invites: ConstructionInvitation[]): string |
   return inv ? invitePreferredChannel(inv) : null
 }
 
-function QuoteCard({ offer, invites, coverage, fresh }: { offer: Offer; invites: ConstructionInvitation[]; coverage: { priced: number; requested: number } | null; fresh: boolean }) {
+/** Maps a recorded offer to the Figma Quote Card. Facts are only what the offer says. */
+function OfferCard({ offer, invites, coverage, fresh }: { offer: Offer; invites: ConstructionInvitation[]; coverage: { priced: number; requested: number } | null; fresh: boolean }) {
   const name = offer.supplier.name_ar || offer.supplier.name_en || 'مورد'
   const channel = offerChannel(offer, invites)
-  const total = money(offer.offer.totals?.total)
   const incl = offer.offer.prices_include_tax
   const lead = leadTimeLabel(offer.offer)
+  const facts: QuoteFact[] = []
+  if (offer.offer.notes) facts.push({ icon: 'shield', label: String(offer.offer.notes).slice(0, 40) })
+  if (lead) facts.push({ icon: 'clock', label: lead })
+  if (coverage && coverage.priced === coverage.requested) facts.push({ icon: 'truck', label: 'يغطّي كل البنود' })
   return (
-    <div className="flex w-full flex-col items-end gap-4 rounded-[16px] bg-white p-5" style={fresh ? { border: '1.5px solid var(--color-border-success)', boxShadow: 'var(--glow-success)' } : { border: '1px solid var(--color-border-default)', boxShadow: 'var(--elevation-sm)' }}>
-      <div className="flex w-full items-center justify-between gap-3">
-        {fresh ? <Badge tone="info" label="جديد" /> : coverage ? <Badge tone="neutral" label={`${coverage.priced} من ${coverage.requested} بند`} /> : <span />}
-        <div className="flex min-w-0 flex-col items-end gap-1 text-right">
-          <p className="truncate text-[16px] leading-[26px] font-medium" style={{ color: 'var(--color-text-primary)' }}>{name}</p>
-          <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{[timeAgo(offer.offer.submittedAt), channel === 'WHATSAPP' ? 'واتساب' : channel === 'EMAIL' ? 'إيميل' : channel === 'HARAJ' ? 'حراج' : 'البوابة'].filter(Boolean).join(' · ')}</p>
-        </div>
-      </div>
-      <div className="flex items-baseline justify-end gap-2 text-right">
-        <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{incl === false ? 'قبل الضريبة' : incl ? 'شامل الضريبة' : ''}</p>
-        <p className="font-[Readex_Pro] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{total || '—'}</p>
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-4 text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>
-        {offer.offer.notes ? <span className="inline-flex items-center gap-1"><img src={iconShield} alt="" width={16} height={16} />{String(offer.offer.notes).slice(0, 40)}</span> : null}
-        {lead ? <span className="inline-flex items-center gap-1"><img src={iconClock} alt="" width={16} height={16} />{lead}</span> : null}
-        {coverage && coverage.priced === coverage.requested ? <span className="inline-flex items-center gap-1"><img src={iconTruck} alt="" width={16} height={16} />يغطّي كل البنود</span> : null}
-      </div>
-    </div>
+    <QuoteCard
+      state={fresh ? 'New' : 'Default'}
+      supplier={name}
+      meta={[timeAgo(offer.offer.submittedAt), channel === 'WHATSAPP' ? 'واتساب' : channel === 'EMAIL' ? 'إيميل' : channel === 'HARAJ' ? 'حراج' : 'البوابة'].filter(Boolean).join(' · ')}
+      amount={money(offer.offer.totals?.total) || '—'}
+      amountNote={incl === false ? 'قبل الضريبة' : incl ? 'شامل الضريبة' : undefined}
+      coverageLabel={coverage ? `${coverage.priced} من ${coverage.requested} بند` : null}
+      facts={facts}
+    />
   )
 }
 
@@ -208,14 +139,14 @@ export function RequestTrackingV2({ navigate }: NavProps) {
     const opened = Boolean(inv.opened_at)
     const key: Filter = st.key === 'QUOTED' || st.key === 'AWARDED' ? 'quoted' : declined ? 'declined' : opened && st.key === 'SENT' ? 'replied' : st.key === 'SENT' ? 'waiting' : 'waiting'
     const badge: { tone: Tone; label: string } =
-      st.key === 'AWARDED' ? { tone: 'success', label: 'تمت الترسية' }
-      : st.key === 'QUOTED' ? { tone: 'success', label: 'أرسل سعر' }
-      : declined ? { tone: 'danger', label: 'اعتذر · البند غير متوفر' }
-      : opened && st.key === 'SENT' ? { tone: 'info', label: 'فتح الطلب · بانتظار السعر' }
-      : st.key === 'SENT' ? { tone: 'warning', label: 'بانتظار الرد' }
-      : st.key === 'FAILED' ? { tone: 'danger', label: 'تعذر الإرسال' }
-      : st.key === 'MANUAL' ? { tone: 'warning', label: 'بانتظار إرسال واتساب يدويًا' }
-      : { tone: 'neutral', label: 'لم يُرسل' }
+      st.key === 'AWARDED' ? { tone: 'Success', label: 'تمت الترسية' }
+      : st.key === 'QUOTED' ? { tone: 'Success', label: 'أرسل سعر' }
+      : declined ? { tone: 'Danger', label: 'اعتذر · البند غير متوفر' }
+      : opened && st.key === 'SENT' ? { tone: 'Info', label: 'فتح الطلب · بانتظار السعر' }
+      : st.key === 'SENT' ? { tone: 'Warning', label: 'بانتظار الرد' }
+      : st.key === 'FAILED' ? { tone: 'Danger', label: 'تعذر الإرسال' }
+      : st.key === 'MANUAL' ? { tone: 'Warning', label: 'بانتظار إرسال واتساب يدويًا' }
+      : { tone: 'Neutral', label: 'لم يُرسل' }
     return { inv, key, badge, channel: invitePreferredChannel(inv) }
   }), [invites, awardedInviteId, declinedSuppliers])
 
@@ -239,113 +170,94 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const coveredLines = comparison?.quote_matrix?.lines?.filter((l) => (l.offers || []).some((c) => c && c.unit_price != null)).length ?? null
   const reachedNotQuoted = Math.max(0, progress.reached - progress.quoted)
   const repliedCount = progress.quoted + counts.replied
-  const stateBadge: { tone: Tone; label: string } = state.key === 'AWARDED' ? { tone: 'success', label: 'تمت الترسية' } : state.key === 'CLOSED' ? { tone: 'neutral', label: 'أُغلق الاستلام' } : state.key === 'DRAFT' ? { tone: 'neutral', label: 'مسودة' } : state.key === 'CANCELLED' ? { tone: 'danger', label: 'ملغي' } : { tone: 'success', label: 'يستقبل العروض' }
-  const contactStep: 'done' | 'active' | 'pending' = progress.reached === 0 ? 'pending' : progress.reached >= invites.length ? 'done' : 'active'
-  const compareStep: 'done' | 'active' | 'pending' = state.key === 'AWARDED' ? 'done' : progress.quoted > 0 ? 'active' : 'pending'
+  const stateBadge: { tone: Tone; label: string } = state.key === 'AWARDED' ? { tone: 'Success', label: 'تمت الترسية' } : state.key === 'CLOSED' ? { tone: 'Neutral', label: 'أُغلق الاستلام' } : state.key === 'DRAFT' ? { tone: 'Neutral', label: 'مسودة' } : state.key === 'CANCELLED' ? { tone: 'Danger', label: 'ملغي' } : { tone: 'Success', label: 'يستقبل العروض' }
+  const contactStep: TimelineStatus = progress.reached === 0 ? 'Pending' : progress.reached >= invites.length ? 'Done' : 'Active'
+  const compareStep: TimelineStatus = state.key === 'AWARDED' ? 'Done' : progress.quoted > 0 ? 'Active' : 'Pending'
 
   return (
-    <div className="pricing-v2 relative min-h-full" style={{ background: 'var(--color-bg-canvas)', fontFamily: "'Tajawal', 'Cairo', system-ui, sans-serif", color: 'var(--color-text-primary)' }}>
-      <div className="flex h-[72px] items-center justify-between border-b bg-white px-8" style={{ borderColor: 'var(--color-border-default)' }}>
-        <div />
-        <div className="flex items-center gap-2">
-          <p className="text-[16px] leading-[26px] font-medium">{title}</p>
-          <img src={iconChevron} alt="" width={16} height={16} />
-          <button type="button" onClick={() => navigate('rfq-list')} className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>طلبات التسعير</button>
-        </div>
-      </div>
+    <div className="pricing-v2 relative min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+      <TopBar parent="طلبات التسعير" onParent={() => navigate('rfq-list')} title={title} />
 
       <div className="flex flex-col gap-6 p-8">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate('comparison')} disabled={!progress.quoted} className="flex h-12 items-center gap-2 rounded-[12px] px-6 text-[16px] font-medium text-white disabled:opacity-40" style={{ background: 'var(--color-bg-cta)' }}>قارن العروض ({progress.quoted}) <img src={iconCompare} alt="" width={20} height={20} /></button>
-          </div>
-          <div className="flex min-w-0 flex-col items-end gap-1.5 text-right">
-            <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-col items-start gap-1.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <h1 className="truncate font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{title}</h1>
               <Badge tone={stateBadge.tone} label={stateBadge.label} />
-              <h1 className="truncate font-[Readex_Pro] text-[32px] leading-[48px] font-bold">{title}</h1>
             </div>
-            <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
               {[rfq.created_at ? `أُنشئ ${timeAgo(rfq.created_at)}` : null, `${progress.items} بند`, delivery?.city ? `التوصيل لـ${delivery.city}${delivery.required_date ? ` قبل ${delivery.required_date}` : ''}` : null].filter(Boolean).join(' · ')}
             </p>
           </div>
+          <Button variant="Primary" size="L" icon="layers" onClick={() => navigate('comparison')} disabled={!progress.quoted}>قارن العروض ({progress.quoted})</Button>
         </div>
 
-        <div className="flex gap-4">
-          <Stat label="اعتذروا" value={counts.declined} basis={counts.declined ? 'أفادوا بعدم توفر بند أو أكثر' : 'لا اعتذارات حتى الآن'} tone="danger" />
-          <Stat label="أرسلوا سعر" value={progress.quoted} basis={coveredLines != null ? `يغطّون ${coveredLines} من ${progress.items} بند` : 'عروض مستلمة'} tone="success" />
-          <Stat label="ردّوا" value={repliedCount} basis={progress.reached ? `${Math.round((repliedCount / progress.reached) * 100)}% من اللي تواصلنا معهم` : 'لم يُرسل الطلب بعد'} />
+        <div className="grid grid-cols-4 gap-4">
           <Stat label="تم التواصل معهم" value={progress.reached} basis={`من ${invites.length} مورد مدعو`} />
+          <Stat label="ردّوا" value={repliedCount} basis={progress.reached ? `${Math.round((repliedCount / progress.reached) * 100)}% من اللي تواصلنا معهم` : 'لم يُرسل الطلب بعد'} />
+          <Stat label="أرسلوا سعر" value={progress.quoted} basis={coveredLines != null ? `يغطّون ${coveredLines} من ${progress.items} بند` : 'عروض مستلمة'} tone="Success" />
+          <Stat label="اعتذروا" value={counts.declined} basis={counts.declined ? 'أفادوا بعدم توفر بند أو أكثر' : 'لا اعتذارات حتى الآن'} tone="Danger" />
         </div>
 
         <div className="flex items-start gap-6">
-          <div className="flex w-[380px] shrink-0 flex-col gap-6">
-            <div className="flex w-full flex-col items-end gap-1 rounded-[24px] border bg-white px-6 py-5" style={{ borderColor: 'var(--color-border-default)' }}>
-              <p className="font-[Readex_Pro] text-[18px] leading-[28px] font-medium">مسار الطلب</p>
-              <TimelineStep title="رفع الطلب" detail={`${progress.items} بند`} status="done" />
-              <TimelineStep title="قراءة البنود" detail={`${progress.items} بند جاهز للإرسال`} status="done" />
-              <TimelineStep title="التواصل مع الموردين" detail={progress.reached ? `تم التواصل مع ${progress.reached} مورد` : 'لم يبدأ الإرسال'} status={contactStep} />
-              <TimelineStep title="المقارنة والترسية" detail={state.key === 'AWARDED' ? 'تمت الترسية' : progress.quoted ? `تقدر تبدأ الحين — ${progress.quoted} عرض جاهز` : 'بانتظار أول عرض'} status={compareStep} last />
+          <section aria-labelledby="suppliers-h" className="flex min-w-0 flex-1 flex-col items-stretch overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
+            <div className="flex w-full flex-col items-start gap-3 px-6 py-5">
+              <div className="flex items-baseline gap-2">
+                <h2 id="suppliers-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">الموردين</h2>
+                <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-tertiary)]">مرتبين حسب حالة الرد</p>
+              </div>
+              <Tabs label="تصفية الموردين حسب حالة الرد" value={filter} onChange={(k) => { setFilter(k); setShowAll(false) }}
+                items={[{ key: 'all', label: `الكل ${counts.all}` }, { key: 'quoted', label: `أرسلوا سعر ${counts.quoted}` }, { key: 'replied', label: `ردّوا بدون سعر ${counts.replied}` }, { key: 'waiting', label: `بانتظار ${counts.waiting}` }, { key: 'declined', label: `اعتذروا ${counts.declined}` }]} />
             </div>
-            <div className="flex w-full flex-col items-end gap-3">
-              <button type="button" onClick={() => selectedRfqId && void load(selectedRfqId)} className="flex items-center gap-2">
-                <img src={iconRefresh} alt="" width={18} height={18} />
-                <span className="font-[Readex_Pro] text-[18px] leading-[28px] font-medium">آخر العروض</span>
-              </button>
-              {offers.length === 0 ? <p className="w-full rounded-[16px] border bg-white p-5 text-right text-[14px]" style={{ borderColor: 'var(--color-border-default)', color: 'var(--color-text-secondary)' }}>ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
+            {shown.length === 0 ? <p className="w-full p-6 text-start text-[14px] text-[var(--color-text-secondary)]">لا يوجد موردون في هذه الحالة.</p> : null}
+            <ul>
+              {shown.map(({ inv, badge, channel }) => {
+                const name = inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
+                const ch = channelFromApi(channel)
+                return (
+                  <li key={inv.id} className="flex w-full items-center gap-4 border-b border-[var(--color-border-default)] px-5 py-4">
+                    <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] text-[16px] font-medium text-[var(--color-text-secondary)]">{name.trim().charAt(0)}</span>
+                    <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                      <p className="max-w-full truncate text-[16px] leading-[26px] font-medium">{name}</p>
+                      <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{inv.supplier?.city || '—'}</p>
+                    </div>
+                    {ch ? <ChannelBadge channel={ch} /> : null}
+                    <Badge tone={badge.tone} label={badge.label} />
+                  </li>
+                )
+              })}
+            </ul>
+            {visible.length > shown.length ? (
+              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} مورد إضافي</button>
+            ) : null}
+          </section>
+
+          <div className="flex w-[380px] shrink-0 flex-col gap-6">
+            <section aria-labelledby="track-h" className="flex w-full flex-col items-start gap-1 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-5">
+              <h2 id="track-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">مسار الطلب</h2>
+              <ol className="w-full">
+                <TimelineStep title="رفع الطلب" detail={`${progress.items} بند`} status="Done" />
+                <TimelineStep title="قراءة البنود" detail={`${progress.items} بند جاهز للإرسال`} status="Done" />
+                <TimelineStep title="التواصل مع الموردين" detail={progress.reached ? `تم التواصل مع ${progress.reached} مورد` : 'لم يبدأ الإرسال'} status={contactStep} />
+                <TimelineStep title="المقارنة والترسية" detail={state.key === 'AWARDED' ? 'تمت الترسية' : progress.quoted ? `تقدر تبدأ الحين — ${progress.quoted} عرض جاهز` : 'بانتظار أول عرض'} status={compareStep} showConnector={false} />
+              </ol>
+            </section>
+            <section aria-labelledby="latest-h" className="flex w-full flex-col items-stretch gap-3">
+              <div className="flex items-center gap-2">
+                <h2 id="latest-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">آخر العروض</h2>
+                <button type="button" aria-label="تحديث العروض" title="تحديث" onClick={() => selectedRfqId && void load(selectedRfqId)} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--color-border-primary)]"><Icon name="refresh" size={18} /></button>
+              </div>
+              {offers.length === 0 ? <p className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-start text-[14px] text-[var(--color-text-secondary)]">ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
               {offers.slice(0, 2).map((o, i) => {
                 const cov = summaryBySupplier.get(String(o.supplier.id || ''))?.coverage || null
-                return <QuoteCard key={String(o.offer.quoteVersionId || o.offer.offerId || i)} offer={o} invites={invites} coverage={cov} fresh={i === 0 && Date.now() - Date.parse(String(o.offer.submittedAt || 0)) < 60 * 60 * 1000} />
+                return <OfferCard key={String(o.offer.quoteVersionId || o.offer.offerId || i)} offer={o} invites={invites} coverage={cov} fresh={i === 0 && Date.now() - Date.parse(String(o.offer.submittedAt || 0)) < 60 * 60 * 1000} />
               })}
-            </div>
-          </div>
-
-          <div className="flex min-w-0 flex-1 flex-col items-end overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: 'var(--color-border-default)' }}>
-            <div className="flex w-full flex-col items-end gap-3 px-6 py-5">
-              <div className="flex items-baseline gap-2 text-right">
-                <p className="text-[12px] leading-[18px] font-medium" style={{ color: 'var(--color-text-tertiary)' }}>مرتبين حسب حالة الرد</p>
-                <p className="font-[Readex_Pro] text-[18px] leading-[28px] font-medium">الموردين</p>
-              </div>
-              <div className="flex items-center gap-5">
-                {([['declined', `اعتذروا ${counts.declined}`], ['waiting', `بانتظار ${counts.waiting}`], ['replied', `ردّوا بدون سعر ${counts.replied}`], ['quoted', `أرسلوا سعر ${counts.quoted}`], ['all', `الكل ${counts.all}`]] as [Filter, string][]).map(([k, label]) => (
-                  <button type="button" key={k} onClick={() => { setFilter(k); setShowAll(false) }} className="flex flex-col items-center gap-2 pt-2.5">
-                    <span className={`text-[16px] leading-[26px] ${filter === k ? 'font-medium' : ''}`} style={{ color: filter === k ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>{label}</span>
-                    <span className="h-[3px] w-full rounded-[2px]" style={{ background: filter === k ? 'var(--color-bg-brand)' : 'transparent' }} />
-                  </button>
-                ))}
-              </div>
-            </div>
-            {shown.length === 0 ? <p className="w-full p-6 text-right text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>لا يوجد موردون في هذه الحالة.</p> : null}
-            {shown.map(({ inv, badge, channel }) => {
-              const name = inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
-              return (
-                <div key={inv.id} className="flex w-full items-center justify-end gap-4 border-b px-5 py-4" style={{ borderColor: 'var(--color-border-default)' }}>
-                  <Badge tone={badge.tone} label={badge.label} />
-                  <ChannelBadge channel={channel} />
-                  <div className="flex min-w-0 flex-1 flex-col items-end gap-1">
-                    <p className="truncate text-[16px] leading-[26px] font-medium">{name}</p>
-                    <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{inv.supplier?.city || '—'}</p>
-                  </div>
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] text-[16px] font-medium" style={{ background: 'var(--color-bg-surface-2)', color: 'var(--color-text-secondary)' }}>{name.trim().charAt(0)}</span>
-                </div>
-              )
-            })}
-            {visible.length > shown.length ? (
-              <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium" style={{ color: 'var(--color-text-link)' }}>عرض {visible.length - shown.length} مورد إضافي</button>
-            ) : null}
+            </section>
           </div>
         </div>
       </div>
 
-      {toast ? (
-        <div className="fixed bottom-8 left-8 flex w-[380px] items-start gap-3 rounded-[16px] border bg-white p-4" style={{ borderColor: 'var(--color-border-default)', boxShadow: 'var(--elevation-lg)' }}>
-          <button type="button" onClick={() => setToast(null)} aria-label="إغلاق"><img src={iconClose} alt="" width={18} height={18} /></button>
-          <div className="flex min-w-0 flex-1 flex-col items-end gap-1 text-right">
-            <p className="text-[16px] leading-[26px] font-medium">{toast.title}</p>
-            <p className="text-[14px] leading-[22px]" style={{ color: 'var(--color-text-secondary)' }}>{toast.body}</p>
-          </div>
-          <img src={iconToast} alt="" width={20} height={20} />
-        </div>
-      ) : null}
+      {toast ? <Toast tone="Success" title={toast.title} body={toast.body} onClose={() => setToast(null)} /> : null}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { LoginV2 } from './views/LoginV2'
 import { RfqListV2 } from './views/RfqListV2'
 import { RequestTrackingV2 } from './views/RequestTrackingV2'
 import { ComparisonV2 } from './views/ComparisonV2'
-import mark from './assets/pricing-v2/mark.svg'
+import { Button, NavItem, Sidebar as UiSidebar } from './ui'
 
 /*
  * «فرق تسعير» — owner-only. Two gates: the hosting server asks for the site
@@ -15,36 +15,22 @@ import mark from './assets/pricing-v2/mark.svg'
  */
 const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean)
 
+// Targeting (screens 07–10) is not ported; the approved plan links to the hosted tool instead.
+const TARGETING_URL = 'https://farq-targeting-production-4687.up.railway.app'
+
 function Sidebar() {
   const { view, navigate } = useProcurement()
   const session = useFarqSession()
   const email = String(session.user?.email || '')
-  const items: Array<[string, () => void, boolean]> = [
-    ['طلبات التسعير', () => navigate('rfq-list'), view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison'],
-  ]
+  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison'
   return (
-    <aside className="flex h-screen w-[264px] shrink-0 flex-col items-end gap-6 border-l bg-white px-4 py-6" style={{ borderColor: 'var(--color-border-default)' }}>
-      <div className="flex items-center justify-end gap-2 px-2">
-        <div className="flex items-baseline gap-1">
-          <span className="text-[16px] leading-[26px]" style={{ color: 'var(--color-text-secondary)' }}>تسعير</span>
-          <span className="font-[Readex_Pro] text-[20px] leading-[30px] font-semibold">فرق</span>
-        </div>
-        <img src={mark} alt="" width={32} height={32} />
-      </div>
-      <nav className="flex w-full flex-col gap-1">
-        {items.map(([label, go, active]) => (
-          <button key={label} type="button" onClick={go} className="flex h-11 w-full items-center justify-end rounded-[12px] px-3 text-[16px]" style={active ? { background: 'var(--color-bg-info)', color: 'var(--color-text-link)', fontWeight: 500 } : { color: 'var(--color-text-secondary)' }}>{label}</button>
-        ))}
-      </nav>
-      <div className="flex-1" />
-      <div className="flex w-full items-center justify-end gap-3 rounded-[12px] p-3" style={{ background: 'var(--color-bg-surface-2)' }}>
-        <div className="flex min-w-0 flex-1 flex-col items-end text-right">
-          <p className="truncate text-[14px] leading-[22px] font-medium">{email || '—'}</p>
-          <button type="button" onClick={() => void farqSession.signOut()} className="text-[12px] leading-[18px]" style={{ color: 'var(--color-text-secondary)' }}>تسجيل الخروج</button>
-        </div>
-        <span className="flex size-9 items-center justify-center rounded-full text-[16px] font-medium" style={{ background: 'var(--color-bg-info)', color: 'var(--color-text-link)' }}>{(email[0] || 'ف').toUpperCase()}</span>
-      </div>
-    </aside>
+    <UiSidebar
+      nav={<>
+        <NavItem icon="list" label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
+        <NavItem icon="map-pin" label="الاستهداف" href={TARGETING_URL} external />
+      </>}
+      account={{ name: email || '—', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
+    />
   )
 }
 
@@ -66,7 +52,7 @@ function Routes() {
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
         <p className="font-[Readex_Pro] text-[24px] font-semibold">هذه الصفحة خاصة</p>
         <p style={{ color: 'var(--color-text-secondary)' }}>الحساب الذي سجّلت به غير مصرّح له بدخول «فرق تسعير».</p>
-        <button type="button" onClick={() => void farqSession.signOut()} className="rounded-[12px] px-6 py-3 text-white" style={{ background: 'var(--color-bg-cta)' }}>تسجيل الخروج</button>
+        <Button variant="Primary" size="L" onClick={() => void farqSession.signOut()}>تسجيل الخروج</Button>
       </div>
     )
   }
