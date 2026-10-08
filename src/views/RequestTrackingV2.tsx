@@ -234,7 +234,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   )
 
   return (
-    <div className="pricing-v2 relative min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <div className="pricing-v2 relative min-h-full text-[var(--color-text-primary)]">{/* transparent: the living background (BG / Facets) shows around the cards */}
       <TopBar parent="طلبات التسعير" onParent={() => navigate('rfq-list')} title={title} />
 
       <div className={mobile ? 'flex flex-col gap-4 p-4 pb-24' : 'flex flex-col gap-6 p-8'}>

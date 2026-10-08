@@ -17,7 +17,7 @@ export function LoginV2({ navigate }: NavProps) {
     finally { setLoading(false) }
   }
   return (
-    <div className="flex min-h-screen items-center justify-center px-4" style={{ background: 'var(--color-bg-canvas)' }}>
+    <div className="flex min-h-screen items-center justify-center px-4">{/* transparent: the living background (BG / Facets) shows around the card */}
       <form className="w-full max-w-sm rounded-[24px] border bg-white p-7" style={{ borderColor: 'var(--color-border-default)' }} onSubmit={(e) => { e.preventDefault(); void submit() }}>
         <div className="mb-8 flex flex-col items-center gap-3">
           <img src={mark} alt="" width={48} height={48} />

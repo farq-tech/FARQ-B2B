@@ -213,7 +213,7 @@ export function ComparisonV2({ navigate }: NavProps) {
   if (mobile) {
     // Figma M04 (58:216): summary card, filter chips, one card per item, award bar above the bottom nav.
     return (
-      <div className="pricing-v2 min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+      <div className="pricing-v2 min-h-full text-[var(--color-text-primary)]">{/* transparent: the living background (BG / Facets) shows around the cards */}
         <TopBar parent={title} onParent={() => navigate('rfq-detail')} title="وش الفرق؟" />
         <div className="flex flex-col gap-4 p-4 pb-40">
           <div className="flex items-center justify-between gap-3">
@@ -290,7 +290,7 @@ export function ComparisonV2({ navigate }: NavProps) {
   }
 
   return (
-    <div className="pricing-v2 min-h-full bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <div className="pricing-v2 min-h-full text-[var(--color-text-primary)]">{/* transparent: the living background (BG / Facets) shows around the cards */}
       <TopBar parent={title} onParent={() => navigate('rfq-detail')} title="مقارنة العروض" />
 
       <div className="flex flex-col gap-6 p-8">
