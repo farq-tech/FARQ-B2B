@@ -1,0 +1,18 @@
+diff --git a/src/api/constructionClient.ts b/src/api/constructionClient.ts
+index 0f0ac5b..5e1364e 100644
+--- a/src/api/constructionClient.ts
++++ b/src/api/constructionClient.ts
+@@ -1119,10 +1119,13 @@ export async function listConstructionInboxThreads(query: {
+   /** API only accepts needs_reply | all. Use client helpers for inbound vs مرسل. */
+   filter?: 'needs_reply' | 'all'
+   cursor?: string
++  /** Substring of the request reference, applied by the server across the mailbox. */
++  request_number?: string
+ } = {}) {
+   const params = new URLSearchParams()
+   if (query.filter) params.set('filter', query.filter)
+   if (query.cursor) params.set('cursor', query.cursor)
++  if (query.request_number) params.set('request_number', query.request_number)
+   const qs = params.toString()
+   return request<ConstructionInboxThreadsResult>(
+     `/api/construction/inbox/threads${qs ? `?${qs}` : ''}`,

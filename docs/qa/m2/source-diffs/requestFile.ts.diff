@@ -1,0 +1,44 @@
+diff --git a/src/lib/requestFile.ts b/src/lib/requestFile.ts
+index 8e4f63a..a70410e 100644
+--- a/src/lib/requestFile.ts
++++ b/src/lib/requestFile.ts
+@@ -69,6 +69,27 @@ export function supplierState(invite: ConstructionInvitation, awardedInviteId?:
+   return { key: 'NOT_SENT', label: 'لم يُرسل', cls: 'bg-amber-50 text-amber-700' }
+ }
+ 
++export type MessageSupplierFilter = 'all' | 'waiting' | 'quoted' | 'unreached'
++
++/** Suppliers a buyer can address after the request is out: by name and by where the invite stands. */
++export function invitesForMessage(
++  invites: readonly ConstructionInvitation[],
++  query: string,
++  status: MessageSupplierFilter,
++  awardedInviteId?: string | null,
++): ConstructionInvitation[] {
++  const needle = query.trim().toLowerCase()
++  return invites.filter((invite) => {
++    const state = supplierState(invite, awardedInviteId).key
++    if (status === 'waiting' && state !== 'SENT') return false
++    if (status === 'quoted' && state !== 'QUOTED' && state !== 'AWARDED') return false
++    if (status === 'unreached' && state !== 'FAILED' && state !== 'NOT_SENT' && state !== 'MANUAL') return false
++    if (!needle) return true
++    const name = `${invite.supplier?.name_ar || ''} ${invite.supplier?.name_en || ''} ${invite.supplier?.city || ''}`.toLowerCase()
++    return name.includes(needle)
++  })
++}
++
+ export type Progress = { items: number; reached: number; quoted: number; percent: number }
+ 
+ /** Header figures: lines requested, suppliers the request reached, suppliers that quoted. */
+@@ -83,8 +104,9 @@ export function requestProgress(rfq: ConstructionRfq): Progress {
+ export type Coverage = { requested: number; priced: number; complete: boolean; label: string }
+ 
+ /** «يغطي جميع البنود» or «عرض جزئي — 3 من 5 بنود», against the lines this supplier was asked for. */
+-export function quoteCoverage(summary?: { coverage?: { requested: number; priced: number; complete: boolean } } | null): Coverage | null {
+-  const c = summary?.coverage
++export function quoteCoverage(summary?: { coverage?: { requested: number; priced: number; complete: boolean } } | null, requestedLineCount?: number): Coverage | null {
++  const raw = summary?.coverage
++  const c = raw && { ...raw, requested: requestedLineCount ?? raw.requested, complete: raw.priced >= (requestedLineCount ?? raw.requested) }
+   if (!c || !c.requested) return null
+   if (c.complete) return { ...c, label: 'يغطي جميع البنود' }
+   return { ...c, label: `عرض جزئي — ${c.priced} من ${c.requested} ${c.requested === 1 ? 'بند' : 'بنود'}` }

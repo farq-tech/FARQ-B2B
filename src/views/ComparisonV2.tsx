@@ -219,7 +219,14 @@ export function ComparisonV2({ navigate }: NavProps) {
           </div>
           {[
             { label: 'أعلى عرض', value: highest ? money(highest.total, highest.currency) : '—', basis: highest ? `${nameOf(highest.supplier_id)} · على كل البنود` : 'لا يوجد عرض كامل بعد', mint: false },
-            { label: 'أوفر مورد واحد', value: bestSingle ? money(bestSingle.total, bestSingle.currency) : '—', basis: bestSingle ? `${nameOf(bestSingle.supplier_id)} · ${bestSingle.priced} بند` : lowest === null && complete.length >= 2 ? 'العروض الكاملة لا تُقارن (ضريبة/عملة مختلفة)' : 'لا يوجد مورد سعّر كل البنود', mint: false },
+            { label: 'أوفر مورد واحد', ...(bestSingle
+              ? { value: money(bestSingle.total, bestSingle.currency), basis: `${nameOf(bestSingle.supplier_id)} · ${bestSingle.priced} بند` }
+              : complete.length === 1
+                // matrixTotals needs two complete offers to name a cheapest one; say so instead of a blank figure.
+                ? { value: 'عرض كامل واحد', basis: `نحتاج عرضين كاملين على الأقل للمقارنة — وصل عرض واحد (${nameOf(complete[0].supplier_id)})` }
+                : complete.length >= 2
+                  ? { value: '—', basis: 'العروض الكاملة لا تُقارن (ضريبة أو عملة مختلفة)' }
+                  : { value: 'لا يوجد بعد', basis: 'نحتاج عرضين كاملين على الأقل للمقارنة — ما وصل أي عرض كامل' }), mint: false },
             { label: 'أوفر توزيعة', value: basket ? money(basket.total, basket.currency) : '—', basis: basket ? `${basket.suppliers} موردين · ${basket.covered} من ${basket.requested} بند` : 'لا يوجد بند له أوفر مورد مؤكد', mint: true },
           ].map((s) => (
             <div key={s.label} className="flex min-w-0 flex-1 flex-col items-end gap-1">

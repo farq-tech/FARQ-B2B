@@ -1,4 +1,7 @@
 // Copied from فرق بناء (read-only source): farqconstraction/src/lib/requestFile.ts — ios-app@5147808, from working tree on top of 5147808 (uncommitted changes there). Do not edit business logic here.
+// TODO(owner decision, 2026-10-08): this copy was taken from the UNCOMMITTED working tree of
+// فرق بناء (ios-app on top of 5147808). We do not build on uncommitted source. Decide: revert to the
+// committed 5147808 version, or wait until the change is committed there. Diff: docs/qa/m2/source-diffs/
 import type {
   ConstructionComparison,
   ConstructionInvitation,
