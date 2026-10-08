@@ -217,13 +217,18 @@ export class LiveEngine {
       for (const q of rnd() < 0.5 ? [[a, b, d], [a, d, e]] : [[a, b, e], [b, d, e]]) { tris.push(q); add(q[0], q[1]); add(q[1], q[2]); add(q[2], q[0]) }
     }
     // head office: nearest clear vertex above the screen title — never under any element, away from the edges
-    // room for the six «طلب عرض سعر» chips that fan out around it (≈ one mesh cell + a chip)
-    const ui = this.boxes.map((b) => [b[0] - 96, b[1] - 80, b[2] + 96, b[3] + 80])
     const t = this.title
     const pref = t ? [(t[0] + t[2]) / 2, Math.max(40, t[1] - 48)] : [W / 2, Math.min(H * 0.3, 140)]
-    const ok = (v: Vert) => v.x > 60 && v.x < W - 60 && v.y > 44 && v.y < H - 60 && !ui.some((b) => v.x > b[0] && v.x < b[2] && v.y > b[1] && v.y < b[3])
-    const pick = (above: boolean) => { let best = -1, bd = 1e18; V.forEach((v, i) => { if (!ok(v) || (above && t && v.y > t[1] - 20)) return; const d = (v.x - pref[0]) ** 2 + (v.y - pref[1]) ** 2; if (d < bd) { bd = d; best = i } }); return best }
-    let hub = pick(true); if (hub < 0) hub = pick(false)
+    // margin around every element, widest first: room for the six «طلب عرض سعر» chips (≈ one mesh cell + a chip),
+    // then the reference's 46 px, then just outside it — never under an element while any free vertex exists
+    let hub = -1
+    for (const [mx, my] of [[96, 80], [46, 46], [8, 8]]) {
+      const ui = this.boxes.map((b) => [b[0] - mx, b[1] - my, b[2] + mx, b[3] + my])
+      const ok = (v: Vert) => v.x > 60 && v.x < W - 60 && v.y > 44 && v.y < H - 60 && !ui.some((b) => v.x > b[0] && v.x < b[2] && v.y > b[1] && v.y < b[3])
+      const pick = (above: boolean) => { let best = -1, bd = 1e18; V.forEach((v, i) => { if (!ok(v) || (above && t && v.y > t[1] - 20)) return; const d = (v.x - pref[0]) ** 2 + (v.y - pref[1]) ** 2; if (d < bd) { bd = d; best = i } }); return best }
+      hub = pick(true); if (hub < 0) hub = pick(false)
+      if (hub >= 0) break
+    }
     if (hub < 0) { let bd = 1e18; V.forEach((v, i) => { const d = (v.x - pref[0]) ** 2 + (v.y - pref[1]) ** 2; if (d < bd) { bd = d; hub = i } }) }
     // open the mesh around the hub: drop its ring and fan straight to the outer rim, so paths leave in every direction
     {
