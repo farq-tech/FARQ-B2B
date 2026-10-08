@@ -4,7 +4,7 @@ import './index.css'
 
 /*
  * Two separate bundles behind one index.html:
- *   /            public landing (src/pages/landing) — imports no app code and no API client
+ *   / and /landing   public landing (src/pages/landing) — imports no app code and no API client
  *   everything else  the owner-only app (src/App) — server.py keeps these chunks behind the site gate
  * Dev only (dropped from `vite build`): /ui component gallery, /live-bg background preview, ?harness= fixtures.
  */
@@ -23,7 +23,7 @@ if (import.meta.env.DEV && path === '/ui') {
   void import('./dev/harness').then((m) => m.mountHarness(harness))
 } else {
   // `/?rfq=<id>` is the legacy request link: it still opens the app.
-  const isLanding = path === '/' && !search.has('rfq')
+  const isLanding = (path === '/' && !search.has('rfq')) || path === '/landing'
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Suspense fallback={null}>{isLanding ? <Landing /> : <App />}</Suspense>

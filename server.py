@@ -3,7 +3,7 @@
 (same origin, so the browser needs no CORS). Nothing is cached; every API call carries the user's own
 Authorization header from the Farq login, so the API still decides what this person may see.
 
-Public without the password: the landing page at / and only the files it loads (computed from the Vite
+Public without the password: the landing page at / (and /landing) and only the files it loads (computed from the Vite
 manifest: index.html and its imports, minus the App chunk and everything only the app uses), plus
 robots.txt, sitemap.xml and the favicon. Every app route, every app chunk and /_api/* stay behind the gate."""
 import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
@@ -87,7 +87,7 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         u = urllib.parse.urlparse(self.path); p = u.path
         # public: the landing, its own files, robots / sitemap / favicon
-        if p == '/' and 'rfq=' not in u.query: return self._landing()
+        if (p == '/' and 'rfq=' not in u.query) or p.rstrip('/') == '/landing': return self._landing()
         if p == '/robots.txt':
             return self._send(200, f'User-agent: *\nAllow: /$\nDisallow: /\nSitemap: {self._origin()}/sitemap.xml\n'.encode(), 'text/plain; charset=utf-8')
         if p == '/sitemap.xml':
