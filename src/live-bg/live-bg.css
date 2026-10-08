@@ -4,3 +4,5 @@
 .live-bg canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 /* body/#root paint --color-bg-canvas over a z-index:-1 layer; let the root background + the canvas show through. */
 html.has-live-bg body, html.has-live-bg #root { background-color: transparent; }
+/* landing (page mode): above the section backgrounds, below their content (content: position relative + z-index 1) */
+.live-bg--page { z-index: 0; }

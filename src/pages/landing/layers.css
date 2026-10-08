@@ -1,0 +1,3 @@
+/* Landing layers: section backgrounds (no z-index) → living layer (fixed, z-index 0) → section content (z-index 1). */
+.landing-layers :is(header, section, footer) > :not(.absolute, .fixed, .sticky) { position: relative; }
+.landing-layers :is(header, section, footer) > * { z-index: 1; }

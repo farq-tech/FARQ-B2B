@@ -7,9 +7,12 @@ import { Icon, type IconName } from '../../ui/Icon'
  * these exist because the landing CTAs are links (<a>), while src/ui Button renders <button>.
  */
 
-/** Living background slot (Figma «BG / Facets», 30:2321). The Lead mounts <LiveBackground> here by tone. */
-export function LiveBgSlot({ tone, className }: { tone: 'deep' | 'accent' | 'light'; className?: string }) {
-  return <div data-live-bg={tone} aria-hidden="true" className={cx('pointer-events-none absolute inset-0', className)} />
+/**
+ * Former per-section background slot. The page now has ONE living layer for the whole landing (PageLive, owner
+ * 2026-10-08): no copy per section, so this renders nothing. Kept so the sections' markup stays unchanged.
+ */
+export function LiveBgSlot(_: { tone: 'deep' | 'accent' | 'light'; className?: string }) {
+  return null
 }
 
 /** Inside deep (charcoal) sections the shared focus colour (charcoal) would be invisible — switch it to mint. */

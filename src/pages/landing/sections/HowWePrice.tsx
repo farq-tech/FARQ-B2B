@@ -1,5 +1,5 @@
 import { cx } from '../../../ui/cx'
-import { Container, LiveBgSlot, T } from '../kit'
+import { Container, T } from '../kit'
 
 /*
  * «كيف نسعّر لك؟» — Figma 85:1351 (desktop) · 86:629 (mobile).
@@ -32,10 +32,7 @@ export function HowWePrice() {
           </p>
         </div>
 
-        <figure className="relative h-[420px] overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-canvas)] md:h-[620px]">
-          <LiveBgSlot tone="light" className="rounded-[var(--radius-xl)]" />
-          <figcaption className="sr-only">رسم متحرك: طلب عرض السعر يطلع من مقر شركتك إلى الموردين عبر قنوات مختلفة، ويرجع لك بالسعر.</figcaption>
-        </figure>
+        {/* The animation is the page's own living layer now (one network for the whole page) — no framed copy here. */}
 
         <ol className="grid gap-[var(--space-24)] md:grid-cols-2 xl:grid-cols-4">
           {STEPS.map((s, i) => (

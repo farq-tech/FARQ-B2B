@@ -12,7 +12,7 @@ import { Container, T } from './kit'
  * Routing: the Lead mounts this default export at «/» (docs/qa/requests.md).
  */
 
-const LiveSlots = lazy(() => import('./LiveSlots'))
+const PageLive = lazy(() => import('./PageLive'))
 const loadBelow = () => import('./sections/Below')
 const Below = lazy(loadBelow)
 const Footer = lazy(() => loadBelow().then((m) => ({ default: m.Footer })))
@@ -62,7 +62,7 @@ export default function LandingPage() {
   useEffect(() => applySeo(), [])
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
-    <div ref={setRoot} lang="ar" dir="rtl" className="min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
+    <div ref={setRoot} lang="ar" dir="rtl" className="landing-layers min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
       <a href="#main" className={cx('sr-only focus:not-sr-only focus:fixed focus:start-[var(--space-16)] focus:top-[var(--space-16)] focus:z-50 focus:rounded-[var(--radius-md)] focus:bg-[var(--color-bg-surface)] focus:px-[var(--space-16)] focus:py-[var(--space-8)] focus:text-[var(--brand-text)]', FOCUS_RING)}>
         تخطَّ إلى المحتوى
       </a>
@@ -82,7 +82,7 @@ export default function LandingPage() {
       </BelowBoundary>
       <BelowBoundary silent>
         <Suspense fallback={null}>
-          <LiveSlots root={root} />
+          <PageLive root={root} />
         </Suspense>
       </BelowBoundary>
     </div>
