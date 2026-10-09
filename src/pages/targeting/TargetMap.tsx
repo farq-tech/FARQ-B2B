@@ -24,7 +24,7 @@ function hull(ps: { x: number; y: number }[]) {
   return lo.slice(0, -1).concat(up.slice(0, -1))
 }
 
-export default function TargetMap({ rows, selected, onToggle }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void }) {
+export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; legend?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [zoom, setZoom] = useState<string[] | null>(null)
@@ -48,12 +48,12 @@ export default function TargetMap({ rows, selected, onToggle }: { rows: TargetRo
     const cut = view.length > 20 ? 0.02 : 0
     const x0 = q(lons, cut), x1 = q(lons, 1 - cut), y0 = q(lats, cut), y1 = q(lats, 1 - cut)
     const k = Math.cos(((y0 + y1) / 2) * Math.PI / 180)
-    const pad = 56, top = 72, bottom = 56
+    const pad = 56, top = topInset, bottom = 56
     const spanX = Math.max((x1 - x0) * k, 0.01), spanY = Math.max(y1 - y0, 0.01)
     const s = Math.min((size.w - pad * 2) / spanX, (size.h - top - bottom) / spanY)
     const ox = (size.w - spanX * s) / 2, oy = top + (size.h - top - bottom - spanY * s) / 2
     const all: Pt[] = view.map((r) => ({ r, x: ox + (r.longitude! - x0) * k * s, y: oy + (y1 - r.latitude!) * s }))
-    const inside = all.filter((p) => p.x > 12 && p.x < size.w - 12 && p.y > 56 && p.y < size.h - 12)
+    const inside = all.filter((p) => p.x > 12 && p.x < size.w - 12 && p.y > (legend ? 56 : topInset - 24) && p.y < size.h - 12)
     // greedy clustering: a place joins the first group whose centre is closer than CELL
     const groups: { x: number; y: number; ps: Pt[] }[] = []
     for (const p of inside) {
@@ -64,7 +64,7 @@ export default function TargetMap({ rows, selected, onToggle }: { rows: TargetRo
     for (const g of groups) { if (g.ps.length === 1) single.push(g.ps[0]); else many.push(g.ps) }
     outside = view.length - inside.length
     return { pts: single, clusters: many, outside }
-  }, [geo, zoom, size])
+  }, [geo, zoom, size, topInset, legend])
 
   const seg = useMemo(() => {
     const ch = [...pts, ...clusters.flat()].filter((p) => selected.has(p.r.poi_key))
@@ -93,13 +93,13 @@ export default function TargetMap({ rows, selected, onToggle }: { rows: TargetRo
             style={{ left: x, top: y, background: colorOf(r) }} />
         )
       })}
-      <div className="absolute start-auto end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
+      {legend ? <div className="absolute start-auto end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
         {[['واتساب', COLOR.wa], ['إيميل', COLOR.email], ['لا يمكن', COLOR.none]].map(([l, c]) => (
           <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
         ))}
-      </div>
+      </div> : null}
       {zoom ? (
-        <button type="button" onClick={() => setZoom(null)} className={`absolute start-4 top-4 rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[12px] leading-[18px] font-medium ${FOCUS_RING}`}>عرض الكل</button>
+        <button type="button" onClick={() => setZoom(null)} style={{ top: legend ? 16 : topInset - 40 }} className={`absolute start-4 rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[12px] leading-[18px] font-medium ${FOCUS_RING}`}>عرض الكل</button>
       ) : null}
       {!rows.length ? <p className="absolute inset-0 flex items-center justify-center text-[14px] leading-[22px] text-[var(--color-text-on-inverse-secondary)]">الخريطة تظهر بعد البحث</p> : geo.length < rows.length || outside > 0 ? (
         <p className="absolute bottom-3 end-4 text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">

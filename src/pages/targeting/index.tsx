@@ -41,6 +41,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
   const [tplError, setTplError] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLUListElement>(null)
@@ -174,6 +175,102 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   )
 
   const basisOf = truncated ? `من أول ${n(rows.length)} نتيجة` : null
+  const confirmSheet = confirming && holder ? (
+    <CampaignConfirmSheet holderRfqId={holder} rows={chosen} message={message.trim()} query={query} cost={cost}
+      onClose={() => setConfirming(false)}
+      onDone={(sent, failed) => { setConfirming(false); setComposeOpen(false); setNotice(`أُرسلت ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
+  ) : null
+
+  // Phones: Figma M07 (59:439) — the map fills the screen under a floating search; counters, results and the
+  // campaign button sit in a bottom sheet; the message opens in its own sheet, then the confirm sheet (10).
+  if (mobile) {
+    const mini = (label: string, value: number, color: string) => (
+      <div className="flex flex-col items-center rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] py-2">
+        <span className="font-[family-name:var(--font-display)] text-[18px] leading-[26px] font-semibold tabular-nums" style={{ color }}>{n(value)}</span>
+        <span className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{label}</span>
+      </div>
+    )
+    return (
+      <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
+        <h1 className="sr-only">الاستهداف</h1>
+        <div className="absolute inset-x-0 top-0 h-[50%]">
+          <TargetMap rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={chips.length ? 140 : 96} legend={false} />
+        </div>
+        <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
+          <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
+            <Icon name="search" size={18} className="text-[var(--color-icon-secondary)]" />
+            <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
+            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="محلات سباكة في الرياض"
+              className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+            <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || busy} loading={busy} loadingLabel="…">ابحث</Button>
+          </form>
+          {chips.length ? (
+            <div className="flex flex-wrap gap-2">
+              {chips.map((c) => <button key={c} type="button" onClick={() => input.current?.focus()} className={`rounded-full bg-[var(--color-bg-surface)] px-4 py-1.5 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>{c.replace(/^[^:]+:\s*/, '')}</button>)}
+            </div>
+          ) : null}
+          {error ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{error}</p> : null}
+        </div>
+        <section aria-label="النتائج" className="absolute inset-x-0 bottom-0 flex h-[52%] flex-col rounded-t-[var(--radius-xl)] bg-[var(--color-bg-surface)] shadow-[var(--elevation-lg)]">
+          <div className="flex items-center justify-between px-4 pt-2">
+            <span aria-hidden className="mx-auto h-1 w-10 rounded-full bg-[var(--color-border-strong)]" />
+          </div>
+          <div className="flex items-center justify-between gap-2 px-4 pt-2">
+            <p className="text-[14px] leading-[22px] font-medium">{res ? `${n(res.total)} نتيجة` : 'ابحث عن نشاط ومدينة'}</p>
+            <div className="flex items-center gap-3">
+              {res && counts.wa ? (
+                <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] ${FOCUS_RING}`}
+                  onClick={() => setSelected(chosen.length ? new Set() : new Set(rows.filter((r) => waNumber(r)).map((r) => r.poi_key)))}>
+                  {chosen.length ? 'إلغاء التحديد' : 'حدد واتساب'}
+                </button>
+              ) : null}
+              <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
+            </div>
+          </div>
+          {res ? (
+            <div className="grid grid-cols-4 gap-2 px-4 py-3">
+              {mini('وُجد', res.total, 'var(--color-text-primary)')}
+              {mini('واتساب', counts.wa, 'var(--color-text-success)')}
+              {mini('إيميل', counts.emailOnly, 'var(--color-text-info)')}
+              {mini('لا يمكن', counts.none, 'var(--color-text-tertiary)')}
+            </div>
+          ) : null}
+          <ul ref={list} className="min-h-0 flex-1 overflow-y-auto">
+            {rows.slice(0, shown).map((r) => {
+              const ch = channelOf(r), can = ch === 'WhatsApp'
+              return (
+                <li key={r.poi_key} data-key={r.poi_key}>
+                  <label className="flex items-center gap-3 px-4 py-2.5">
+                    <input type="checkbox" checked={selected.has(r.poi_key)} disabled={!can} onChange={() => toggle(r)} className={`size-5 shrink-0 accent-[var(--color-bg-primary)] ${FOCUS_RING}`} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className={`truncate text-[16px] leading-[24px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
+                      <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}</span>
+                    </span>
+                    <ChannelBadge channel={ch} />
+                  </label>
+                </li>
+              )
+            })}
+            {shown < rows.length ? <li className="px-4 py-2"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, rows.length - shown))} أكثر</Button></li> : null}
+          </ul>
+          {notice ? <p role="status" className="mx-4 mb-2 rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null}
+          <div className="border-t border-[var(--color-border-default)] p-4">
+            <Button variant="Primary" size="L" icon="send" fullWidth disabled={!chosen.length} onClick={() => setComposeOpen(true)}>اكتب رسالة الحملة لـ {n(chosen.length)} جهة</Button>
+          </div>
+        </section>
+        {composeOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end bg-[var(--color-bg-inverse)]/40" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setComposeOpen(false) }}>
+            <div role="dialog" aria-modal="true" aria-label="رسالة الحملة" className="w-full">
+              {compose}
+              <div className="bg-[var(--color-bg-surface)] px-5 pb-5"><Button variant="Secondary" size="M" fullWidth onClick={() => setComposeOpen(false)}>رجوع</Button></div>
+            </div>
+          </div>
+        ) : null}
+        {confirmSheet}
+      </div>
+    )
+  }
+
   return (
     <div className={`flex min-w-0 flex-col ${mobile ? '' : 'h-dvh'}`}>
       <header className={`flex flex-col gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 ${mobile ? 'px-4 py-4' : 'px-8 py-6'}`}>
@@ -223,11 +320,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         {mobile ? <div className="p-4">{compose}</div> : null}
       </div>
 
-      {confirming && holder ? (
-        <CampaignConfirmSheet holderRfqId={holder} rows={chosen} message={message.trim()} query={query} cost={cost}
-          onClose={() => setConfirming(false)}
-          onDone={(sent, failed) => { setConfirming(false); setNotice(`أُرسلت ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
-      ) : null}
+      {confirmSheet}
     </div>
   )
 }

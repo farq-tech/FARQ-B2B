@@ -39,6 +39,7 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
     name: '', label: '', language: 'ar', category: 'MARKETING', header: 'TEXT', headerText: '', body: '', examples: {}, footer: 'للإيقاف أرسل: إيقاف', buttons: [{ text: 'مهتم', kind: 'QUICK_REPLY' }, { text: 'إيقاف الرسائل', kind: 'OPT_OUT' }],
   })
   const [saved, setSaved] = useState<string | null>(null)
+  const [tab, setTab] = useState<'edit' | 'preview'>('edit')
   const body = useRef<HTMLTextAreaElement>(null)
   const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => { setD((x) => ({ ...x, [k]: v })); setSaved(null) }
 
@@ -98,28 +99,9 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
     </section>
   )
 
-  return (
-    <div className="flex min-w-0 flex-col">
-      <TopBar parent="قوالب واتساب" onParent={onBack} title="قالب جديد" />
-      <div className={mobile ? 'flex flex-col gap-4 px-4 py-5' : 'flex flex-col gap-6 px-8 py-8'}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <h1 className="font-[family-name:var(--font-display)] text-[32px] leading-[44px] font-semibold">{d.label || 'قالب جديد'}</h1>
-              <Badge tone="Neutral" label="مسودة" />
-            </div>
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">القوالب لازم تعتمدها Meta قبل أول إرسال — غالبًا خلال دقائق، وأحيانًا تاخذ لين 24 ساعة.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="Secondary" size="L" disabled={!canSave} onClick={save}>احفظ مسودة</Button>
-            <Button variant="Primary" size="L" icon="send" disabled title="إرسال القالب لـMeta يحتاج ربط ما هو موجود في الخدمة بعد">أرسل للاعتماد</Button>
-          </div>
-        </div>
-        {saved ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{saved}</p> : null}
-        <p className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><Icon name="info" size={18} />«أرسل للاعتماد» يشتغل لما نربط الخدمة بقوالب حساب واتساب للأعمال. الحين تقدر تكتب القالب وتحفظه.</p>
-
-        <div className={mobile ? 'flex flex-col gap-4' : 'grid grid-cols-[minmax(0,1fr)_330px] items-start gap-6'}>
-          <form onSubmit={(e) => { e.preventDefault(); save() }} className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6">
+  const formRef = useRef<HTMLFormElement>(null)
+  const FORM = (
+          <form ref={formRef} onSubmit={(e) => { e.preventDefault(); save() }} className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6">
             <div className={mobile ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-4'}>
               <label className="flex flex-col gap-2">
                 <Label>اسم القالب</Label>
@@ -194,6 +176,62 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
               ) : null}
             </div>
           </form>
+  )
+  if (mobile) {
+    return (
+      <div className="flex min-w-0 flex-col pb-[96px]">
+        <TopBar parent="قوالب واتساب" onParent={onBack} title={d.label || 'قالب جديد'} />
+        <div className="flex flex-col gap-4 px-4 py-4">
+          <div role="tablist" aria-label="القالب" className="grid grid-cols-2 gap-1 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] p-1">
+            {([['preview', 'المعاينة'], ['edit', 'التحرير']] as const).map(([k, l]) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                className={`rounded-[var(--radius-sm)] py-2 text-[16px] leading-[26px] font-medium ${tab === k ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[var(--elevation-sm)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>{l}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge tone="Neutral" label="مسودة" className="text-[12px] leading-[18px]" />
+            <span className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{CATEGORY_LABEL[d.category]} · {d.language === 'ar' ? 'العربية' : 'English'}</span>
+          </div>
+          {saved ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{saved}</p> : null}
+          {tab === 'preview' ? (
+            <>
+              {preview}
+              <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">القوالب لازم تعتمدها Meta قبل أول إرسال — عادةً خلال دقائق.</p>
+              {checklist}
+            </>
+          ) : FORM}
+        </div>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4">
+          {tab === 'preview'
+            ? <Button variant="Secondary" size="L" icon="edit" fullWidth onClick={() => setTab('edit')}>عدّل القالب</Button>
+            : <Button variant="Primary" size="L" fullWidth disabled={!canSave} onClick={save}>احفظ مسودة</Button>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col">
+      <TopBar parent="قوالب واتساب" onParent={onBack} title="قالب جديد" />
+      <div className={mobile ? 'flex flex-col gap-4 px-4 py-5' : 'flex flex-col gap-6 px-8 py-8'}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <h1 className="font-[family-name:var(--font-display)] text-[32px] leading-[44px] font-semibold">{d.label || 'قالب جديد'}</h1>
+              <Badge tone="Neutral" label="مسودة" />
+            </div>
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">القوالب لازم تعتمدها Meta قبل أول إرسال — غالبًا خلال دقائق، وأحيانًا تاخذ لين 24 ساعة.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="Secondary" size="L" disabled={!canSave} onClick={save}>احفظ مسودة</Button>
+            <Button variant="Primary" size="L" icon="send" disabled title="إرسال القالب لـMeta يحتاج ربط ما هو موجود في الخدمة بعد">أرسل للاعتماد</Button>
+          </div>
+        </div>
+        {saved ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{saved}</p> : null}
+        <p className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><Icon name="info" size={18} />«أرسل للاعتماد» يشتغل لما نربط الخدمة بقوالب حساب واتساب للأعمال. الحين تقدر تكتب القالب وتحفظه.</p>
+
+        <div className={mobile ? 'flex flex-col gap-4' : 'grid grid-cols-[minmax(0,1fr)_330px] items-start gap-6'}>
+          {FORM}
           <div className="flex flex-col gap-4">{preview}{checklist}</div>
         </div>
       </div>

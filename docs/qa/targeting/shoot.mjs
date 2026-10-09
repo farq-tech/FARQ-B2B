@@ -20,11 +20,13 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.click('button[type=submit]')
   await page.waitForSelector('#results-title + *, ul li[data-key]', { timeout: 90000 })
   await page.waitForTimeout(400)
-  await page.screenshot({ path: `${OUT}07-results-${w}.png`, fullPage: w < 768 })
-  const stats = await page.$$eval('.grid > div p:nth-child(2)', (els) => els.map((e) => e.textContent))
+  await page.screenshot({ path: `${OUT}07-results-${w}.png`, })
+  const stats = await page.$$eval('.grid > div > :first-child', (els) => els.map((e) => e.textContent))
   const picked = await page.$$eval('ul li[data-key] input:checked', (els) => els.length)
   report.push(`${w}: stats ${stats.join(' / ')} · checked rows shown ${picked}`)
-  await page.getByRole("button", { name: "حدد اللي عندهم واتساب" }).click(); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}07-selected-${w}.png`, fullPage: w < 768 }); await page.getByRole("button", { name: "أرسل الحملة" }).click()
+  await page.getByRole("button", { name: w < 768 ? "حدد واتساب" : "حدد اللي عندهم واتساب" }).click(); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}07-selected-${w}.png` })
+  if (w < 768) { await page.getByRole("button", { name: /اكتب رسالة الحملة/ }).click(); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}07-compose-${w}.png` }) }
+  await page.getByRole("button", { name: "أرسل الحملة" }).click()
   await page.waitForSelector('[role=dialog]')
   await page.screenshot({ path: `${OUT}10-confirm-${w}.png` })
   await page.getByRole('button', { name: /نعم، أرسل/ }).click()
@@ -41,6 +43,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
       for (const [i, v] of ['أدوات صحية المصدر', 'السباكة', 'الرياض'].entries()) await ex[i]?.fill(v)
     }
     await page.screenshot({ path: `${OUT}${s === 'templates' ? '09' : '08'}-${s}-${w}.png`, fullPage: true })
+    if (s === 'template-new' && w < 768) { await page.getByRole('tab', { name: 'المعاينة' }).click(); await page.screenshot({ path: `${OUT}08-preview-${w}.png`, fullPage: true }) }
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
   report.push(`${w}: horizontal overflow on 08 = ${overflow}px`)
