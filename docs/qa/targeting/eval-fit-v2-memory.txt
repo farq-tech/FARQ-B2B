@@ -1,0 +1,7 @@
+label × AI fit (L likely · M maybe · N not · None = not judged):
+  sells    n=  95  L=  61  M=  32  N=   2  none=  0
+  no       n=  24  L=   9  M=  12  N=   3  none=  0
+  weak_no  n=  80  L=  24  M=  46  N=  10  none=  0
+sellers kept (L or M): 93/95  ·  as L: 61/95
+non-sellers rejected (N): 3/24
+mistakes (sellers judged N):

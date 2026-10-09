@@ -99,40 +99,6 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const truncated = res ? rows.length < res.total : false
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.poi_key)), [rows, selected])
   const hasAi = Boolean(res?.ai_checked)
-  const fileField = (
-    <input ref={fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden
-      accept=".pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*"
-      onChange={(e) => void onBooklet([...(e.target.files || [])])} />
-  )
-  const uploadButton = (label: string, variant: 'Secondary' | 'Ghost') => (
-    <Button variant={variant} size="S" icon="upload" disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => fileInput.current?.click()}>{label}</Button>
-  )
-  const linesPanel = (row: boolean) => (reading || readErr || lines.length) ? (
-    <section aria-label="بنود الكراسة" className="flex flex-col gap-2">
-      {reading ? <p role="status" className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{reading}</p> : null}
-      {readErr ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{readErr}</p> : null}
-      {lines.length ? (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <p className={`text-[14px] leading-[22px] font-medium ${row ? 'text-[var(--color-text-on-inverse)]' : ''}`}>بنود الكراسة ({n(lines.length)}){booklet ? <span className={row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'}> · <bdi>{booklet}</bdi></span> : null}</p>
-            <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] ${row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'} hover:underline ${FOCUS_RING}`}>إزالة</button>
-          </div>
-          <ul className={row ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
-            {lines.map((l, i) => (
-              <li key={i} className="shrink-0">
-                <button type="button" onClick={() => void searchLine(i)} disabled={busy} aria-pressed={activeLine === i} title={l.name}
-                  className={`flex max-w-[280px] items-center gap-2 rounded-full border px-3 py-1.5 text-start text-[14px] leading-[22px] disabled:opacity-60 ${activeLine === i ? 'border-[var(--color-border-primary)] bg-[var(--color-bg-primary-subtle)] text-[var(--color-text-info)]' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] hover:border-[var(--color-border-strong)]'} ${FOCUS_RING}`}>
-                  <span className="truncate">{l.name}</span>
-                  {l.qty ? <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{l.qty} {l.unit}</span> : null}
-                  {l.found != null ? <span className="shrink-0 rounded-full bg-[var(--color-bg-success)] px-1.5 text-[12px] text-[var(--color-text-success)]">{n(l.found)}</span> : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-    </section>
-  ) : null
   const citySelect = (cls: string) => (
     <>
       <label className="sr-only" htmlFor="targeting-city">المدينة</label>
@@ -190,6 +156,41 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       return null
     } finally { setBusy(false) }
   }
+
+  const fileField = (
+    <input ref={fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden
+      accept=".pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*"
+      onChange={(e) => void onBooklet([...(e.target.files || [])])} />
+  )
+  const uploadButton = (label: string, variant: 'Secondary' | 'Ghost') => (
+    <Button variant={variant} size="S" icon="upload" disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => fileInput.current?.click()}>{label}</Button>
+  )
+  const linesPanel = (row: boolean) => (reading || readErr || lines.length) ? (
+    <section aria-label="بنود الكراسة" className="flex flex-col gap-2">
+      {reading ? <p role="status" className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{reading}</p> : null}
+      {readErr ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{readErr}</p> : null}
+      {lines.length ? (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <p className={`text-[14px] leading-[22px] font-medium ${row ? 'text-[var(--color-text-on-inverse)]' : ''}`}>بنود الكراسة ({n(lines.length)}){booklet ? <span className={row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'}> · <bdi>{booklet}</bdi></span> : null}</p>
+            <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] ${row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'} hover:underline ${FOCUS_RING}`}>إزالة</button>
+          </div>
+          <ul className={row ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
+            {lines.map((l, i) => (
+              <li key={i} className="shrink-0">
+                <button type="button" onClick={() => void searchLine(i)} disabled={busy} aria-pressed={activeLine === i} title={l.name}
+                  className={`flex max-w-[280px] items-center gap-2 rounded-full border px-3 py-1.5 text-start text-[14px] leading-[22px] disabled:opacity-60 ${activeLine === i ? 'border-[var(--color-border-primary)] bg-[var(--color-bg-primary-subtle)] text-[var(--color-text-info)]' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] hover:border-[var(--color-border-strong)]'} ${FOCUS_RING}`}>
+                  <span className="truncate">{l.name}</span>
+                  {l.qty ? <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{l.qty} {l.unit}</span> : null}
+                  {l.found != null ? <span className="shrink-0 rounded-full bg-[var(--color-bg-success)] px-1.5 text-[12px] text-[var(--color-text-success)]">{n(l.found)}</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </section>
+  ) : null
 
   const toggle = (r: TargetRow) => {
     if (!waNumber(r)) return
