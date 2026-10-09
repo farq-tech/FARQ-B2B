@@ -104,7 +104,7 @@ export default function HeroScene() {
     const measure = () => {
       const b = el.getBoundingClientRect(), h = hub.current!.getBoundingClientRect(), s0 = line.current!.getBoundingClientRect()
       const cs = order.map((_, i) => cards.current[i]!.getBoundingClientRect())
-      setGeo({ w: b.width, h: b.height, hub: [h.left + h.width / 2 - b.left, s0.bottom - b.top], ends: cs.map((c) => [c.left + c.width / 2 - b.left, c.top - b.top]), home: [h.right - b.left + 22, h.bottom - b.top - 18], col: cs[0]?.width ?? 200 })
+      void s0; setGeo({ w: b.width, h: b.height, hub: [h.left + h.width / 2 - b.left, h.bottom - b.top + 2], ends: cs.map((c) => [c.left + c.width / 2 - b.left, c.top - b.top]), home: [h.left + h.width / 2 - b.left + 58, h.bottom - b.top], col: cs[0]?.width ?? 200 })
     }
     measure()
     const ro = new ResizeObserver(measure); ro.observe(el)
@@ -114,7 +114,7 @@ export default function HeroScene() {
   // paths fan out sideways first, then drop to the card: the travellers separate right away
   const d = (i: number) => {
     if (!geo) return ''
-    const [x0, y0] = geo.hub, [x1, y1] = geo.ends[i], dy = Math.max(40, y1 - y0)
+    const [x0, y0] = i === aIdx ? geo.home : geo.hub, [x1, y1] = geo.ends[i], dy = Math.max(40, y1 - y0)
     return `M${x0},${y0 + 4} C${x0 + (x1 - x0) * 0.9},${y0 + dy * 0.18} ${x1},${y1 - dy * 0.5} ${x1},${y1 - 6}`
   }
 
@@ -125,7 +125,7 @@ export default function HeroScene() {
     const D = Math.max(3.5, Math.max(...L) / MSG_SPEED), DB = D * 0.85 // one journey time for everyone
     const tArr = LEAVE + D, tBack = tArr + WAIT, tHome = tBack + DB, T = tHome + REST
     // obstacles are re-read every frame (cards can shift a little once fonts load): five rects, cheap
-    const obstacles = () => { const bx = box.current!.getBoundingClientRect(), rel = (r: DOMRect) => [r.left - bx.left, r.top - bx.top, r.right - bx.left, r.bottom - bx.top]; return [rel(line.current!.getBoundingClientRect()), ...order.map((_, i) => rel(cards.current[i]!.getBoundingClientRect()))] }
+    const obstacles = () => { const bx = box.current!.getBoundingClientRect(), rel = (r: DOMRect) => [r.left - bx.left, r.top - bx.top, r.right - bx.left, r.bottom - bx.top]; return [rel(line.current!.getBoundingClientRect()), rel(hub.current!.getBoundingClientRect()), ...order.map((_, i) => rel(cards.current[i]!.getBoundingClientRect()))] } // status line, the office and its label, the cards
     const hit = (a: number[], b: number[]) => a[0] < b[2] + 3 && a[2] > b[0] - 3 && a[1] < b[3] + 3 && a[3] > b[1] - 3
     const grow = (i: number, frac: number) => { const m = reveal.current[i]; if (m) m.style.strokeDashoffset = String(L[i] * (1 - frac)) } // the dotted line behind the tip
     order.forEach((_, i) => { const m = reveal.current[i]; if (m) m.style.strokeDasharray = `${L[i]} ${L[i]}` })
@@ -167,8 +167,10 @@ export default function HeroScene() {
         if (r) taken.push(r)
         const tag = backs.current[aIdx] // his price tag rides over his head on the way back
         if (tag) {
-          const w = tag.offsetWidth, hh = tag.offsetHeight, x = r ? Math.min(geo.w - w - 4, Math.max(4, (r[0] + r[2]) / 2 - w / 2)) : 0, y = r ? r[1] - hh - 2 : 0, tr = [x, y, x + w, y + hh]
-          if (back && r && !taken.some((b) => hit(tr, b))) { taken.push(tr); tag.style.transform = `translate3d(${x}px, ${y}px, 0)`; tag.style.opacity = '1' } else hide(tag) // never over the status line or a card
+          const w = tag.offsetWidth, hh = tag.offsetHeight, right = r ? r[2] + w + 6 < geo.w : true
+          const x = r ? (right ? r[2] + 2 : r[0] - w - 2) : 0, y = r ? r[1] + 14 : 0, tr = [x, y, x + w, y + hh]
+          const carrying = back || (!pending && t >= tHome) // on the way home and once he is back, the price is in his hand
+          if (carrying && r) { tag.style.transform = `translate3d(${x}px, ${y}px, 0)`; tag.style.opacity = '1'; taken.push(tr) } else hide(tag)
         }
       }
       order.forEach((o, i) => {
@@ -214,11 +216,11 @@ export default function HeroScene() {
         ))}
       </svg>
 
+      <p ref={line} aria-live="polite" className={cx(T.smallM, 'min-h-[30px] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-12)] py-[var(--space-4)] text-center text-[var(--color-text-primary)]')}>{status}</p>
       <div ref={hub} className="flex flex-col items-center gap-[var(--space-4)]">
         <span className="inline-flex size-11 items-center justify-center rounded-[12px] border-2 border-[var(--live-go)] bg-[var(--color-bg-surface)] text-[var(--live-go)]"><Icon name="building" size={22} /></span>
         <span className={cx(T.caption, 'text-[var(--color-text-secondary)]')}>مقر شركتك</span>
       </div>
-      <p ref={line} aria-live="polite" className={cx(T.smallM, 'min-h-[30px] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-12)] py-[var(--space-4)] text-center text-[var(--color-text-primary)]')}>{status}</p>
 
       <div aria-hidden="true" className="h-[120px] sm:h-[140px]" />
 
