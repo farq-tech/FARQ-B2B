@@ -7,6 +7,9 @@ COPY public ./public
 COPY src ./src
 ARG VITE_ALLOWED_EMAILS=abdulrhman@farq.sa
 ENV VITE_ALLOWED_EMAILS=$VITE_ALLOWED_EMAILS
+# Mapbox public token (pk.…) for the targeting map; unset = the drawn map
+ARG VITE_MAPBOX_TOKEN=
+ENV VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN
 RUN npm run build
 
 FROM python:3.12-slim

@@ -1,8 +1,27 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { searchTargets, templateStatus, waNumber, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
 import { Badge, Button, ChannelBadge, Icon, Stat, useIsMobile, type Channel } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
+
+// Mapbox when the build has a public token (VITE_MAPBOX_TOKEN), else the drawn map; loaded on its own.
+const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
+const MapboxMap = lazy(() => import('./MapboxMap'))
+function MapView(props: Parameters<typeof TargetMap>[0]) {
+  if (!HAS_MAPBOX) return <TargetMap {...props} />
+  return (
+    <Suspense fallback={null}>
+      <MapboxMap {...props} />
+      {props.legend === false ? null : (
+        <div className="pointer-events-none absolute end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--color-bg-inverse)]/80 px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
+          {[['واتساب', 'var(--brand-accent)'], ['إيميل', 'var(--brand-action-light)'], ['لا يمكن', 'var(--brand-text-3)']].map(([l, c]) => (
+            <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
+          ))}
+        </div>
+      )}
+    </Suspense>
+  )
+}
 import CampaignConfirmSheet from './CampaignConfirmSheet'
 
 /*
@@ -194,7 +213,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
         <h1 className="sr-only">الاستهداف</h1>
         <div className="absolute inset-x-0 top-0 h-[50%]">
-          <TargetMap rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={chips.length ? 140 : 96} legend={false} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={chips.length ? 140 : 96} legend={false} />
         </div>
         <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
@@ -314,7 +333,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className={`flex min-h-0 flex-1 ${mobile ? 'flex-col' : 'flex-row'}`}>
         {results}
         <div className={`relative min-w-0 flex-1 overflow-hidden bg-[var(--color-bg-inverse)] ${mobile ? 'h-[360px] flex-none' : ''}`}>
-          <TargetMap rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} />
           {mobile ? null : <div className="pointer-events-none absolute inset-x-6 bottom-6 flex justify-start"><div className="pointer-events-auto">{compose}</div></div>}
         </div>
         {mobile ? <div className="p-4">{compose}</div> : null}
