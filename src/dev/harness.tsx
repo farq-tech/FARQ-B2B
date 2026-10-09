@@ -26,6 +26,8 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const ok = (data: unknown) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { 'content-type': 'application/json' } })
   // targeting (harness=targeting|templates|template-new): the local service's real search data; never the send endpoint
   if (url.includes('/_targeting/') && !url.includes('/_targeting/send')) return realFetch(input, init)
+  // the targeting map's tiles and style (read-only)
+  if (method === 'GET' && /^https:\/\/[a-z]+\.mapbox\.com\//.test(url)) return realFetch(input, init)
   // new-request flow (harness=new): matching, catalogue check and scan answered locally.
   if (method === 'POST' && url.includes('/boq/match')) return ok(flowMatch(JSON.parse(String(init?.body || '{}'))))
   if (method === 'GET' && url.includes('/api/construction/catalog')) return new Response(JSON.stringify({ ok: true, data: flowCatalog }), { status: 200, headers: { 'content-type': 'application/json' } })

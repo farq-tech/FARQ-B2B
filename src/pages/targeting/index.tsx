@@ -333,7 +333,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className={`flex min-h-0 flex-1 ${mobile ? 'flex-col' : 'flex-row'}`}>
         {results}
         <div className={`relative min-w-0 flex-1 overflow-hidden bg-[var(--color-bg-inverse)] ${mobile ? 'h-[360px] flex-none' : ''}`}>
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} bottomInset={320} />
           {mobile ? null : <div className="pointer-events-none absolute inset-x-6 bottom-6 flex justify-start"><div className="pointer-events-auto">{compose}</div></div>}
         </div>
         {mobile ? <div className="p-4">{compose}</div> : null}

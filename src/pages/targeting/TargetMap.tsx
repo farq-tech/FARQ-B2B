@@ -24,7 +24,7 @@ function hull(ps: { x: number; y: number }[]) {
   return lo.slice(0, -1).concat(up.slice(0, -1))
 }
 
-export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; legend?: boolean }) {
+export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   // zoom belongs to one result set: a new search shows everything again

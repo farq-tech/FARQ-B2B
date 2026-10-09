@@ -40,7 +40,7 @@ const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCol
   return { type: 'FeatureCollection', features: ring.length ? [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }] : [] }
 }
 
-export default function MapboxMap({ rows, selected, onToggle, topInset = 72 }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; topInset?: number; legend?: boolean }) {
+export default function MapboxMap({ rows, selected, onToggle, topInset = 72, bottomInset = 48 }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; topInset?: number; bottomInset?: number; legend?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const ready = useRef(false)
@@ -51,13 +51,12 @@ export default function MapboxMap({ rows, selected, onToggle, topInset = 72 }: {
     if (!box.current) return
     mapboxgl.accessToken = MAPBOX_TOKEN
     if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') mapboxgl.setRTLTextPlugin(RTL_PLUGIN, null, true)
-    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/dark-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false })
+    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/dark-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar' })
     m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left')
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left')
     map.current = m
+    if (import.meta.env.DEV) (window as unknown as { __mb?: mapboxgl.Map }).__mb = m
     m.on('load', () => {
-      // Arabic place names where the style has them
-      for (const l of m.getStyle().layers || []) if (l.type === 'symbol' && m.getLayoutProperty(l.id, 'text-field')) m.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name_ar'], ['get', 'name']])
       const wa = tok('--brand-accent'), em = tok('--brand-action-light'), none = tok('--brand-text-3'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
       const { rows: r0, selected: s0 } = latest.current
       m.addSource('segment', { type: 'geojson', data: segmentOf(r0, s0) })
@@ -109,11 +108,12 @@ export default function MapboxMap({ rows, selected, onToggle, topInset = 72 }: {
     const q = (a: number[], f: number) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))]
     const cut = pts.length > 20 ? 0.02 : 0
     const lons = pts.map((x) => x.longitude!).sort((a, b) => a - b), lats = pts.map((x) => x.latitude!).sort((a, b) => a - b)
-    m.fitBounds([[q(lons, cut), q(lats, cut)], [q(lons, 1 - cut), q(lats, 1 - cut)]], { padding: { top: topInset, bottom: 48, left: 48, right: 48 }, maxZoom: 14, duration: 800 })
+    m.fitBounds([[q(lons, cut), q(lats, cut)], [q(lons, 1 - cut), q(lats, 1 - cut)]], { padding: { top: topInset, bottom: bottomInset, left: 48, right: 48 }, maxZoom: 14, duration: 800 })
   }
 
   useEffect(() => { sync(true) }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { sync(false) }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={box} className="absolute inset-0" aria-label="خريطة الجهات" role="region" />
+  // mapbox-gl.css sets .mapboxgl-map { position: relative }, so the map sits inside a positioned wrapper
+  return <div className="absolute inset-0" role="region" aria-label="خريطة الجهات"><div ref={box} className="h-full w-full" /></div>
 }
