@@ -2,7 +2,7 @@
 import { chromium } from '@playwright/test'
 const BASE = process.env.BASE || 'http://localhost:5190'
 const ID = '00000000-0000-4000-8000-000000000001'
-const pages = ['/', '/landing', '/login', '/requests', '/new', '/inbox', `/requests/${ID}`, `/requests/${ID}/compare`, `/requests/${ID}/award`, `/requests/${ID}/review`,
+const pages = ['/', '/landing', '/login', '/requests', '/new', '/inbox', `/requests/${ID}`, `/requests/${ID}/compare`, `/requests/${ID}/award`, `/requests/${ID}/review`, '/targeting', '/targeting/templates', '/targeting/templates/new', '/?harness=targeting', '/?harness=templates', '/?harness=template-new',
   '/ui', '/live-bg?tone=light', '/live-bg?tone=deep', '/live-bg?tone=accent',
   '/?harness=tracking', '/?harness=comparison', '/?harness=comparison-award', '/?harness=new',
   '/docs/qa/screens-b/harness.html?screen=award-sheet', '/docs/qa/screens-b/harness.html?screen=inbox']

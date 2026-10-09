@@ -27,7 +27,10 @@ function hull(ps: { x: number; y: number }[]) {
 export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; legend?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
-  const [zoom, setZoom] = useState<string[] | null>(null)
+  // zoom belongs to one result set: a new search shows everything again
+  const [zoomed, setZoomed] = useState<{ rows: TargetRow[]; keys: string[] } | null>(null)
+  const zoom = zoomed && zoomed.rows === rows ? zoomed.keys : null
+  const setZoom = (keys: string[] | null) => setZoomed(keys ? { rows, keys } : null)
   useEffect(() => {
     const el = box.current
     if (!el) return
@@ -35,7 +38,6 @@ export default function TargetMap({ rows, selected, onToggle, topInset = 72, leg
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  useEffect(() => setZoom(null), [rows])
 
   const geo = useMemo(() => rows.filter((r) => r.latitude != null && r.longitude != null && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)), [rows])
   const { pts, clusters, outside } = useMemo(() => {

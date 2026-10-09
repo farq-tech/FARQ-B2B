@@ -27,8 +27,9 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
   const [busy, setBusy] = useState(false)
   const lock = useRef(false)
   const [error, setError] = useState<string | null>(null)
-  const busyRef = useRef(busy); busyRef.current = busy
-  const closeRef = useRef(onClose); closeRef.current = onClose
+  const busyRef = useRef(busy)
+  const closeRef = useRef(onClose)
+  useEffect(() => { busyRef.current = busy; closeRef.current = onClose })
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
