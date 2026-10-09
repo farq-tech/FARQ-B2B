@@ -47,7 +47,7 @@ const pickBest = (rows: TargetRow[]) => {
   const ai = rows.some((r) => r.ai)
   return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
 }
-const rowSub = (r: TargetRow) => [r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
+const rowSub = (r: TargetRow) => [r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
 const FIT = { L: { tone: 'Success', label: 'مناسب' }, M: { tone: 'Warning', label: 'محتمل' }, N: { tone: 'Neutral', label: 'غير مناسب' } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} showDot={false} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const arabic = (s: string) => /[؀-ۿ]/.test(s)

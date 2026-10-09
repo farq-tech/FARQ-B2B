@@ -33,6 +33,7 @@ export type TargetRow = {
   has_whatsapp: boolean
   email: string | null
   source_count: number | null
+  sources?: string[] | null
   /** 'product' = names the product · 'seller' = its type of shop usually sells it */
   match?: 'product' | 'seller'
   /** AI fit: L likely · M maybe · N not · null = not checked */
