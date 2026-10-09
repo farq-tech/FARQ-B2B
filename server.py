@@ -5,7 +5,11 @@ Authorization header from the Farq login, so the API still decides what this per
 
 Public without the password: the landing page at / (and /landing) and only the files it loads (computed from the Vite
 manifest: index.html and its imports, minus the App chunk and everything only the app uses), plus
-robots.txt, sitemap.xml and the favicon. Every app route, every app chunk and /_api/* stay behind the gate."""
+robots.txt, sitemap.xml and the favicon. Every app route, every app chunk and /_api/* stay behind the gate.
+
+/_targeting/* (behind the same gate) proxies the targeting service (screens 07–10) with its own password from the
+environment, so the owner logs in once. Only the read endpoints pass by default; the two send endpoints pass only
+when TARGETING_SEND=1 is set on this service (off locally and in tests: nothing can go out)."""
 import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -50,6 +54,12 @@ def public_files():
     _PUBLIC.update(mtime=mt, files=out)
     return out
 
+TARGETING = os.environ.get('TARGETING_ORIGIN', 'https://farq-targeting-production-4687.up.railway.app').rstrip('/')
+TARGETING_PW = os.environ.get('TARGETING_PASSWORD', '')
+TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
+T_READ = {('GET', '/status'), ('GET', '/template-status'), ('POST', '/search')}
+T_SEND = {('POST', '/send-farq')}
+
 HOP = {'connection', 'keep-alive', 'transfer-encoding', 'host', 'content-length', 'accept-encoding'}
 
 class H(BaseHTTPRequestHandler):
@@ -74,6 +84,19 @@ class H(BaseHTTPRequestHandler):
             if k.lower() in HOP or k.lower() == 'content-encoding': continue
             self.send_header(k, v)
         self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
+    def _targeting(self):
+        path = urllib.parse.urlparse(self.path).path[len('/_targeting'):] or '/'
+        key = (self.command, path)
+        if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
+        if key not in T_READ and key not in T_SEND: return self._send(404, b'{"error":"not_found"}', 'application/json')
+        n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
+        req = urllib.request.Request(TARGETING + path, data=body, method=self.command, headers={'content-type': 'application/json'})
+        if TARGETING_PW: req.add_header('Cookie', 'ft_auth=' + hashlib.sha256(TARGETING_PW.encode()).hexdigest()[:32])
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r: status, data = r.status, r.read()
+        except urllib.error.HTTPError as e: status, data = e.code, e.read()
+        except Exception as e: return self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json')
+        self._send(status, data, 'application/json; charset=utf-8')
     def _origin(self): return SITE_URL or ('https://' + (self.headers.get('Host') or 'localhost'))
     def _file(self, f):
         ctype = mimetypes.guess_type(f)[0] or 'application/octet-stream'
@@ -85,6 +108,7 @@ class H(BaseHTTPRequestHandler):
         self._send(200, page.encode())
     def do_GET(self):
         if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+        if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         u = urllib.parse.urlparse(self.path); p = u.path
         # public: the landing, its own files, robots / sitemap / favicon
         if (p == '/' and 'rfq=' not in u.query) or p.rstrip('/') == '/landing': return self._landing()
@@ -116,9 +140,10 @@ class H(BaseHTTPRequestHandler):
             if PASSWORD and p == PASSWORD: self.send_header('Set-Cookie', f'fp_gate={TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000')
             self.end_headers(); return
         if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+        if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         self._send(404, b'')
     do_PUT = do_PATCH = do_DELETE = do_POST
 
 if __name__ == '__main__':
-    print(f'farq-pricing on :{PORT} -> {API} (gate: {"on" if PASSWORD else "OFF"})', flush=True)
+    print(f'farq-pricing on :{PORT} -> {API} (gate: {"on" if PASSWORD else "OFF"}; targeting -> {TARGETING}, send: {"ON" if TARGETING_SEND else "off"})', flush=True)
     ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()

@@ -13,6 +13,9 @@ const ComparisonV2 = lazy(() => import('./views/ComparisonV2').then((m) => ({ de
 const NewRequestV2 = lazy(() => import('./views/NewRequestV2').then((m) => ({ default: m.NewRequestV2 })))
 const AwardPage = lazy(() => import('./pages/award'))
 const InboxPage = lazy(() => import('./pages/inbox'))
+const TargetingPage = lazy(() => import('./pages/targeting'))
+const TemplatesPage = lazy(() => import('./pages/targeting/Templates'))
+const TemplateEditor = lazy(() => import('./pages/targeting/TemplateEditor'))
 
 const Loading = () => <div className="p-8 text-right" role="status" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحميل…</div>
 
@@ -23,8 +26,7 @@ const Loading = () => <div className="p-8 text-right" role="status" style={{ col
  */
 const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean)
 
-// Targeting (screens 07–10) is not ported; the approved plan links to the hosted tool instead.
-const TARGETING_URL = 'https://farq-targeting-production-4687.up.railway.app'
+const onTargeting = (v: string) => v === 'targeting' || v === 'templates' || v === 'template-new'
 
 function Sidebar() {
   const { view, navigate } = useProcurement()
@@ -37,7 +39,7 @@ function Sidebar() {
       nav={<>
         <NavItem icon="list" label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
         <NavItem icon="inbox" label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
-        <NavItem icon="map-pin" label="الاستهداف" href={TARGETING_URL} external />
+        <NavItem icon="map-pin" label="الاستهداف" active={onTargeting(view)} onClick={() => navigate('targeting')} />
       </>}
       account={{ name: email || '—', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
     />
@@ -86,6 +88,9 @@ function Routes() {
               onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />
           )}
           {view === 'inbox' && <InboxPage onOpenRequest={openRequest} />}
+          {view === 'targeting' && <TargetingPage onTemplates={() => navigate('templates')} />}
+          {view === 'templates' && <TemplatesPage onBack={() => navigate('targeting')} onNew={() => navigate('template-new')} />}
+          {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
           {(view === 'rfq-list' || view === 'login' || (view === 'award' && !selectedRfqId)) && <RfqListV2 navigate={navigate} />}
         </Suspense>
       </main>
@@ -95,7 +100,7 @@ function Routes() {
           { label: 'الطلبات', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
           { label: 'طلب جديد', icon: 'plus', onClick: () => navigate('create-upload') },
           { label: 'الوارد', icon: 'inbox', active: view === 'inbox', onClick: () => navigate('inbox') },
-          { label: 'الاستهداف', icon: 'map-pin', href: TARGETING_URL },
+          { label: 'الاستهداف', icon: 'map-pin', active: onTargeting(view), onClick: () => navigate('targeting') },
         ]} />
       ) : null}
     </div>

@@ -1,0 +1,98 @@
+/*
+ * Targeting service client (screens 07–10). Same origin: server.py proxies /_targeting/* to the
+ * targeting service behind the site gate, with that service's password from its own environment.
+ *
+ * Endpoints (the service's own, unchanged):
+ *   GET  /status            — dataset size
+ *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
+ *   POST /search            — { q, limit, only_sendable } → counts + rows
+ *   POST /send-farq         — registers the chosen places on the holder request, then (mode: 'template')
+ *                             sends farq_outreach_ar to each. Closed unless server.py has TARGETING_SEND=1;
+ *                             the dev server always answers 403.
+ */
+
+export type TargetRow = {
+  poi_key: string
+  name_ar: string | null
+  name_en: string | null
+  category: string | null
+  category_ar: string | null
+  region_en: string | null
+  region_ar: string | null
+  city_en: string | null
+  district_en: string | null
+  district_ar: string | null
+  latitude: number | null
+  longitude: number | null
+  phone: string | null
+  phone_kind: string | null
+  has_whatsapp: boolean
+  email: string | null
+  source_count: number | null
+}
+
+export type TargetParse = { keywords?: string[]; category_hints?: string[]; city?: string | null; region?: string | null; explain?: string; ai?: boolean }
+
+export type TargetSearch = {
+  parsed: TargetParse
+  total: number
+  with_whatsapp: number
+  with_email: number
+  by_region: [string | null, number][]
+  rows: TargetRow[]
+}
+
+export type TemplateStatus = {
+  name: string
+  status: string
+  category?: string
+  rejected_reason?: string
+  holder?: { holder_rfq_id?: string; title?: string }
+}
+
+export type SendResult = { ok: boolean; error?: string; fatal?: string; sent?: { poi_key: string }[]; failed?: { poi_key: string; error: string }[] }
+
+/** The approved Meta template and its two body variables: {{1}} the place's name, {{2}} the campaign text. */
+export const OUTREACH_TEMPLATE = 'farq_outreach_ar'
+
+export class TargetingError extends Error {
+  constructor(public code: string, message: string) { super(message) }
+}
+
+async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  const r = await fetch(`/_targeting${path}`, { method, headers: body ? { 'content-type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
+  let data: unknown = null
+  try { data = await r.json() } catch { /* empty or not JSON */ }
+  const d = (data || {}) as { error?: string }
+  if (!r.ok) throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
+  return data as T
+}
+
+export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
+export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
+export const searchTargets = (q: string, limit = 3000) => call<TargetSearch>('POST', '/search', { q, limit, only_sendable: false })
+
+/** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
+export const waNumber = (r: TargetRow) => {
+  const n = String(r.phone || '').replace(/[^0-9]/g, '')
+  return r.has_whatsapp && /^9665[0-9]{8}$/.test(n) ? n : null
+}
+
+/**
+ * Sends the campaign: register the places on the holder request (no dispatch), then send the template.
+ * Called only from the confirm sheet (screen 10) after the owner's explicit yes.
+ */
+export async function sendCampaign(holderRfqId: string, rows: TargetRow[], message: string, query: string): Promise<SendResult> {
+  const targets = rows.map((r) => ({ poi_key: r.poi_key, name_ar: r.name_ar, name_en: r.name_en, city: r.city_en, category: r.category, whatsapp: waNumber(r), email: r.email || null, message }))
+  const out: SendResult = { ok: true, sent: [], failed: [] }
+  // the service takes at most 500 places per call
+  for (let i = 0; i < targets.length; i += 200) {
+    const chunk = targets.slice(i, i + 200)
+    const reg = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, dispatch: false, query, targets: chunk })
+    if (!reg.ok) return { ...out, ok: false, error: reg.error || reg.fatal }
+    const res = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, mode: 'template', template: OUTREACH_TEMPLATE, query, targets: chunk })
+    if (!res.ok) return { ...out, ok: false, error: res.error || res.fatal }
+    out.sent!.push(...(res.sent || [])); out.failed!.push(...(res.failed || []))
+  }
+  return out
+}

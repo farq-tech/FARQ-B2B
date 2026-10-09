@@ -11,12 +11,15 @@ import type { AppView } from './types'
  *   /requests/:id/award       تأكيد الترسية (05) — deep link; 04 opens the same sheet in place
  *   /requests/:id/review      → متابعة الطلب: review (02) is a step of /new, before the request has an id
  *   /inbox                    صندوق الوارد (06)
+ *   /targeting                الاستهداف (07) — confirm sheet (10) in place
+ *   /targeting/templates      قوالب واتساب (09)
+ *   /targeting/templates/new  محرر قالب واتساب (08)
  *   /login                    دخول فرق (the app shows the login on any route while signed out)
  * `/` is the public landing (main.tsx); the app never renders there except for the legacy
  * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
 /** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
-export type View = AppView | 'inbox'
+export type View = AppView | 'inbox' | 'targeting' | 'templates' | 'template-new'
 type Ctx = {
   view: View
   navigate: (v: View) => void
@@ -32,6 +35,9 @@ export function parseRoute(pathname: string, search = ''): Route {
   const p = pathname.replace(/\/+$/, '') || '/'
   if (p === '/new') return { view: 'create-upload', rfqId: null }
   if (p === '/inbox') return { view: 'inbox', rfqId: null }
+  if (p === '/targeting') return { view: 'targeting', rfqId: null }
+  if (p === '/targeting/templates') return { view: 'templates', rfqId: null }
+  if (p === '/targeting/templates/new') return { view: 'template-new', rfqId: null }
   if (p === '/login') return { view: 'login', rfqId: null }
   const m = /^\/requests\/([^/]+)(?:\/(compare|award|review))?$/.exec(p)
   if (m) return { view: m[2] === 'compare' ? 'comparison' : m[2] === 'award' ? 'award' : 'rfq-detail', rfqId: decodeURIComponent(m[1]) }
@@ -42,6 +48,9 @@ export function parseRoute(pathname: string, search = ''): Route {
 export function routePath(view: View, rfqId: string | null): string {
   if (view === 'create-upload') return '/new'
   if (view === 'inbox') return '/inbox'
+  if (view === 'targeting') return '/targeting'
+  if (view === 'templates') return '/targeting/templates'
+  if (view === 'template-new') return '/targeting/templates/new'
   if (view === 'login') return '/login'
   if (view === 'award' && rfqId) return `/requests/${encodeURIComponent(rfqId)}/award`
   if (view === 'rfq-detail' && rfqId) return `/requests/${encodeURIComponent(rfqId)}`
