@@ -3,7 +3,8 @@ import { Logo } from '../../../ui/Logo'
 import { Icon } from '../../../ui/Icon'
 import { cx, FOCUS_RING } from '../../../ui/cx'
 import { APP_LOGIN_HREF, START_HREF } from '../contact'
-import { Container, LIGHT_SURFACE, LinkButton, T, TextLink } from '../kit'
+import { Container, LinkButton, T, TextLink } from '../kit'
+import HeroScene from './HeroScene'
 
 /* Figma: Nav 33:3 + Hero 47:1714 (desktop) · Hero 60:729 (mobile). Above the fold: no images, text first. */
 
@@ -84,54 +85,6 @@ function Nav() {
 }
 
 /** A quote card from the hero collage (illustrative — no real supplier data). */
-function QuoteMock({ name, meta, price, tag, best, bar }: { name: string; meta: string; price: string; tag: string; best?: boolean; bar: string }) {
-  return (
-    <div
-      className={cx(
-        LIGHT_SURFACE,
-        'flex w-[340px] flex-col gap-[14px] rounded-[var(--radius-xl)] bg-[var(--color-bg-surface)] px-[22px] py-[var(--space-20)] shadow-[var(--elevation-lg)]',
-        best && 'border-2 border-[var(--color-border-success)]',
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-[2px] font-medium">
-          <span className="text-[16px] leading-[26px] text-[var(--color-text-primary)]">{name}</span>
-          <span className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{meta}</span>
-        </div>
-        <span className={cx(T.caption, 'rounded-[var(--radius-full)] px-[10px] py-[var(--space-4)]', best ? 'bg-[var(--color-bg-success)] text-[var(--color-text-success)]' : 'bg-[var(--color-bg-surface-2)] text-[var(--color-text-secondary)]')}>{tag}</span>
-      </div>
-      <span className={cx(T.numL, 'text-[var(--color-text-primary)]')}>{price}</span>
-      <div className="h-2 w-full rounded-[4px] bg-[var(--color-bg-surface-2)]">
-        <div className={cx('h-2 rounded-[4px]', best ? 'bg-[var(--color-icon-success)]' : 'bg-[var(--color-border-default)]')} style={{ width: bar }} />
-      </div>
-    </div>
-  )
-}
-
-/** Hero collage: Figma positions relative to a 560×540 box; scaled down on small screens. Decorative. */
-function Collage() {
-  return (
-    <div aria-hidden="true" className="relative mx-auto h-[300px] w-full max-w-[560px] sm:h-[380px] xl:h-[540px]">
-      <div className="absolute left-1/2 top-0 h-[540px] w-[560px] origin-top -translate-x-1/2 scale-[0.55] sm:scale-[0.7] xl:scale-100">
-        <div className="absolute end-[7px] top-[90px] rotate-[8deg] opacity-90">
-          <QuoteMock name="شركة الخليج للكابلات" meta="التوريد 7 أيام" price="44,800 ر.س" tag="عرض" bar="84%" />
-        </div>
-        <div className="absolute end-[210px] top-[10px] -rotate-[5deg] opacity-95">
-          <QuoteMock name="مؤسسة النور للكهرباء" meta="توصيل 350 ر.س" price="42,500 ر.س" tag="عرض" bar="74%" />
-        </div>
-        <div className="absolute end-[80px] top-[200px]">
-          <QuoteMock name="مستودع الرياض للكهرباء" meta="متوفر · توصيل مجاني" price="41,200 ر.س" tag="الأوفر" best bar="61%" />
-        </div>
-        <div className="absolute end-[342px] top-[400px] rotate-[4deg] rounded-[20px] bg-[var(--color-bg-brand)] px-[var(--space-24)] py-[var(--space-16)] text-[var(--color-text-on-brand)] shadow-[var(--elevation-lg)]">
-          <p className="text-[14px] font-medium leading-[22px]">وش الفرق؟</p>
-          <p className={T.numL}>3,600 ر.س</p>
-          <p className={T.caption}>أوفر من أعلى عرض بـ 8.0%</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function SiteHeader() {
   return (
     <header className="relative bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
@@ -143,8 +96,8 @@ export function SiteHeader() {
 export function Hero() {
   return (
     <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
-        <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[330px] lg:grid-cols-2 lg:pb-[var(--space-80)] lg:pt-[170px]">
-          <div className="flex flex-col items-start gap-[var(--space-12)]">
+        <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[var(--space-32)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-[var(--space-48)] lg:pb-[var(--space-64)] lg:pt-[var(--space-64)]">
+          <div className="flex min-w-0 flex-col items-start gap-[var(--space-12)]">
             <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">
               <span aria-hidden="true" className="size-2 rounded-full bg-[var(--color-bg-brand)]" />
               منصة تسعير لمشتريات الشركات
@@ -166,7 +119,7 @@ export function Hero() {
               <LinkButton href="#how" variant="Secondary">شاهد كيف تعمل</LinkButton>
             </div>
           </div>
-          <Collage />
+          <HeroScene />
         </Container>
         <Container className="pb-[var(--space-48)]">
           <ul aria-label="فئات نسعّرها" className="flex flex-wrap items-center gap-x-[var(--space-24)] gap-y-[var(--space-8)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">

@@ -80,7 +80,7 @@ export function Container({ className, children }: { className?: string; childre
 
 /** Text styles from Figma (Foundations › Typography). */
 export const T = {
-  hero: 'font-display font-bold text-[44px] leading-[56px] tracking-[-1px] md:text-[64px] md:leading-[80px] xl:text-[84px] xl:leading-[104px] xl:tracking-[-1.5px]',
+  hero: 'font-display font-bold text-[clamp(38px,3.4vw+22px,76px)] leading-[1.22] tracking-[-1px] text-balance',
   displayL: 'font-display font-bold text-[28px] leading-[40px] md:text-[40px] md:leading-[60px] md:tracking-[-0.5px]',
   h1: 'font-display font-bold text-[26px] leading-[38px] md:text-[32px] md:leading-[48px]',
   h2: 'font-display font-semibold text-[24px] leading-[36px]',

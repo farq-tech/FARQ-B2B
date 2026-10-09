@@ -98,7 +98,8 @@ export class PageNetwork {
   private tw(font: string, text: string) { const k = font + '|' + text; let w = this.widths.get(k); if (w === undefined) { this.ctx.font = font; w = this.ctx.measureText(text).width; this.widths.set(k, w) } return w }
   private F: Array<{ w: Walker; dOut: number; dBack: number | null }> = []; private FE = 1
 
-  constructor(private canvas: HTMLCanvasElement, private scope: Element) {
+  /** story: false = the grid and its search waves only (no head office, no routes) — the landing hero tells the story in its own scene */
+  constructor(private canvas: HTMLCanvasElement, private scope: Element, private story = true) {
     this.ctx = canvas.getContext('2d')!
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)'); this.reduced = mq.matches
     const onMq = () => { this.reduced = mq.matches; this.run() }; mq.addEventListener('change', onMq)
@@ -136,7 +137,7 @@ export class PageNetwork {
     if (!this.alive) return
     this.build()
     this.next = null
-    if (!this.reduced) this.commit(this.plan(this.played === 0), this.simT)
+    if (!this.reduced && this.story) this.commit(this.plan(this.played === 0), this.simT)
     this.run()
   }
 
@@ -565,8 +566,8 @@ export class PageNetwork {
     if (S.ahmadHome && this.freeBox(C.x + 16, C.y - 72, 34, 76)) { if (AHMAD === '3d') stand3(ctx, C.x + 34, C.y + 4, 'SW'); else this.pose('present', 0, C.x + 32, C.y + 4, 1) }
     this.hq(C.x, C.y)
     { // what is happening, in one line under the head office
-      const arrived = S.walkers.filter((w) => t >= w.arrive).length, back = S.walkers.filter((w) => t >= w.home).length, n0 = S.walkers.length
-      const line = t >= S.allHome ? '' : back ? `وصلت ${back} من ${n0} أسعار` : arrived ? 'الموردين يسعّرون…' : `نرسل طلبك لـ${n0} موردين بكل القنوات`
+      const arrived = S.walkers.filter((w) => t >= w.arrive).length, back = S.walkers.filter((w) => t >= w.home).length
+      const line = t >= S.allHome ? '' : back ? `وصلت ${back} أسعار وتتوالى` : arrived ? 'الموردين يسعّرون…' : 'نرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق'
       if (line) {
         ctx.save(); ctx.font = `600 13px ${FONT}`; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
         const lw = this.tw(ctx.font, line) + 22, lh = 26, X = C.x - lw / 2, Y = C.y + 46
@@ -590,13 +591,13 @@ export class PageNetwork {
     }
   }
   private begin() { this.SY = window.scrollY; const c = this.ctx; c.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); c.clearRect(0, 0, this.VW, this.VH); c.translate(0, -this.SY) }
-  private draw(t: number) { this.begin(); this.prep(t); this.scene(t); this.overlay(t) }
-  private drawStatic() { this.begin(); this.dots(0, false); const C = this.V[this.HUB]; if (C) this.hq(C.x, C.y) }
+  private draw(t: number) { this.begin(); if (!this.story) { this.dots(t, true); return } this.prep(t); this.scene(t); this.overlay(t) }
+  private drawStatic() { this.begin(); this.dots(0, false); const C = this.V[this.HUB]; if (C && this.story) this.hq(C.x, C.y) }
 
   private loop = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.simT += dt
     const t0 = performance.now()
-    if (this.simT > this.S.end) { this.played++; let R = this.next; this.next = null; if (!R) { R = this.plan(); this.sync++ } this.commit(R, this.simT) }
+    if (this.story && this.simT > this.S.end) { this.played++; let R = this.next; this.next = null; if (!R) { R = this.plan(); this.sync++ } this.commit(R, this.simT) }
     this.draw(this.simT)
     this.times[this.nTimes++ % this.times.length] = performance.now() - t0
     this.raf = requestAnimationFrame(this.loop)
@@ -605,7 +606,7 @@ export class PageNetwork {
     cancelAnimationFrame(this.raf); this.raf = 0
     if (!this.alive) return
     if (this.reduced) { this.drawStatic(); return } // reduced motion: the still grid and the head office
-    if (!this.S) this.commit(this.plan(this.played === 0), this.simT)
+    if (!this.S && this.story) this.commit(this.plan(this.played === 0), this.simT)
     if (!document.hidden) { this.last = performance.now(); this.raf = requestAnimationFrame(this.loop) }
   }
 }

@@ -21,7 +21,7 @@ export default function PageLive({ root }: { root: HTMLElement | null }) {
     let net: { destroy(): void } | null = null, gone = false
     void import('../../live-bg/pageNetwork').then(({ PageNetwork }) => {
       if (gone || !canvas.current) return
-      const n = new PageNetwork(canvas.current, root); net = n
+      const n = new PageNetwork(canvas.current, root, false); net = n // the grid only: the hero scene tells the story
       if (import.meta.env.DEV) ((window as unknown as { __liveBg?: Record<string, unknown> }).__liveBg ??= {}).page = n // QA hook
     })
     return () => { gone = true; net?.destroy() }
