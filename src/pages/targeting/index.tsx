@@ -3,6 +3,7 @@ import { listCities, searchTargets, templateStatus, type City, waNumber, Targeti
 import { Badge, Button, ChannelBadge, Icon, Stat, useIsMobile, type Channel } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
+import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 
 // Mapbox when the build has a public token (VITE_MAPBOX_TOKEN), else the drawn map; loaded on its own.
 const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
@@ -72,6 +73,13 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const [composeOpen, setComposeOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  // a booklet turned into lines: tap a line to search for it in the chosen city
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [lines, setLines] = useState<(BookletLine & { found?: number })[]>([])
+  const [booklet, setBooklet] = useState<string | null>(null)
+  const [reading, setReading] = useState<string | null>(null)
+  const [readErr, setReadErr] = useState<string | null>(null)
+  const [activeLine, setActiveLine] = useState<number | null>(null)
   const list = useRef<HTMLUListElement>(null)
   // the city is required: the search runs inside one city only
   const [cities, setCities] = useState<City[]>([])
@@ -91,6 +99,40 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const truncated = res ? rows.length < res.total : false
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.poi_key)), [rows, selected])
   const hasAi = Boolean(res?.ai_checked)
+  const fileField = (
+    <input ref={fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden
+      accept=".pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*"
+      onChange={(e) => void onBooklet([...(e.target.files || [])])} />
+  )
+  const uploadButton = (label: string, variant: 'Secondary' | 'Ghost') => (
+    <Button variant={variant} size="S" icon="upload" disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => fileInput.current?.click()}>{label}</Button>
+  )
+  const linesPanel = (row: boolean) => (reading || readErr || lines.length) ? (
+    <section aria-label="بنود الكراسة" className="flex flex-col gap-2">
+      {reading ? <p role="status" className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{reading}</p> : null}
+      {readErr ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{readErr}</p> : null}
+      {lines.length ? (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <p className={`text-[14px] leading-[22px] font-medium ${row ? 'text-[var(--color-text-on-inverse)]' : ''}`}>بنود الكراسة ({n(lines.length)}){booklet ? <span className={row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'}> · <bdi>{booklet}</bdi></span> : null}</p>
+            <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] ${row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'} hover:underline ${FOCUS_RING}`}>إزالة</button>
+          </div>
+          <ul className={row ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
+            {lines.map((l, i) => (
+              <li key={i} className="shrink-0">
+                <button type="button" onClick={() => void searchLine(i)} disabled={busy} aria-pressed={activeLine === i} title={l.name}
+                  className={`flex max-w-[280px] items-center gap-2 rounded-full border px-3 py-1.5 text-start text-[14px] leading-[22px] disabled:opacity-60 ${activeLine === i ? 'border-[var(--color-border-primary)] bg-[var(--color-bg-primary-subtle)] text-[var(--color-text-info)]' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] hover:border-[var(--color-border-strong)]'} ${FOCUS_RING}`}>
+                  <span className="truncate">{l.name}</span>
+                  {l.qty ? <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{l.qty} {l.unit}</span> : null}
+                  {l.found != null ? <span className="shrink-0 rounded-full bg-[var(--color-bg-success)] px-1.5 text-[12px] text-[var(--color-text-success)]">{n(l.found)}</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </section>
+  ) : null
   const citySelect = (cls: string) => (
     <>
       <label className="sr-only" htmlFor="targeting-city">المدينة</label>
@@ -112,8 +154,28 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
 
   async function search(e?: FormEvent) {
     e?.preventDefault()
-    const text = q.trim()
-    if (!text || !city || busy) return
+    setActiveLine(null)
+    await runSearch(q.trim())
+  }
+  async function searchLine(i: number) {
+    if (!city) { setError('اختر المدينة أول.'); return }
+    setActiveLine(i); setQ(lines[i].name)
+    const found = await runSearch(lines[i].name)
+    if (found != null) setLines((ls) => ls.map((l, k) => (k === i ? { ...l, found } : l)))
+  }
+  async function onBooklet(files: File[]) {
+    if (!files.length) return
+    setReadErr(null); setReading('بدأنا القراءة…')
+    try {
+      const read = await readBooklet(files, setReading)
+      if (!read.length) throw new Error('ما لقينا بنود في هذا الملف. تأكد أنه جدول كميات أو طلب شراء.')
+      setLines(read); setBooklet(files.length > 1 ? `${files.length} ملفات` : files[0].name); setActiveLine(null)
+    } catch (err) {
+      setReadErr(err instanceof Error ? err.message : 'تعذّرت قراءة الملف.')
+    } finally { setReading(null); if (fileInput.current) fileInput.current.value = '' }
+  }
+  async function runSearch(text: string): Promise<number | null> {
+    if (!text || !city || busy) return null
     setBusy(true); setError(null); setNotice(null)
     try {
       const r = await searchTargets(text, city)
@@ -122,8 +184,10 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       const p = r.parsed || {}
       const cat = (p.keywords || []).filter(arabic)[0] || null
       setMessage(defaultMessage(cat, cityName(city)))
+      return r.total
     } catch (err) {
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
+      return null
     } finally { setBusy(false) }
   }
 
@@ -237,7 +301,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
         <h1 className="sr-only">الاستهداف</h1>
         <div className="absolute inset-x-0 top-0 h-[50%]">
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={chips.length ? 120 : 80} legend={false} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 120 : 80) + (lines.length ? 70 : 0)} legend={false} />
         </div>
         <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
@@ -254,6 +318,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             </div>
           ) : null}
           {error ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{error}</p> : null}
+          {linesPanel(true)}
+          {fileField}
         </div>
         <section aria-label="النتائج" className="absolute inset-x-0 bottom-0 flex h-[52%] flex-col rounded-t-[var(--radius-xl)] bg-[var(--color-bg-surface)] shadow-[var(--elevation-lg)]">
           <div className="flex items-center justify-between px-4 pt-2">
@@ -268,6 +334,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                   {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
                 </button>
               ) : null}
+              {uploadButton('كراسة', 'Ghost')}
               <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
             </div>
           </div>
@@ -323,7 +390,11 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">الاستهداف</h1>
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">دعوة موردين للانضمام</p>
           </div>
-          <Button variant="Secondary" size="S" icon="whatsapp" onClick={onTemplates}>قوالب واتساب</Button>
+          <div className="flex items-center gap-2">
+            {uploadButton('ارفع كراسة', 'Secondary')}
+            <Button variant="Secondary" size="S" icon="whatsapp" onClick={onTemplates}>قوالب واتساب</Button>
+          </div>
+          {fileField}
         </div>
         <form role="search" onSubmit={search} className="flex items-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-surface)] py-2 ps-4 pe-2">
           <Icon name="search" size={22} className="text-[var(--color-icon-secondary)]" />
@@ -345,6 +416,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           </div>
         ) : null}
         {error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><Icon name="alert" size={18} />{error}</p> : null}
+        {linesPanel(false)}
       </header>
 
       {res ? (
