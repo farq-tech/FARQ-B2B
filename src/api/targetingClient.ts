@@ -6,6 +6,8 @@
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
  *   POST /search            — { q, limit, only_sendable } → counts + rows
+ *   GET  /templates         — every template of the WhatsApp Business account with its Meta status
+ *   POST /templates         — submits one template to Meta for review (sends nothing to anyone)
  *   POST /send-farq         — registers the chosen places on the holder request, then (mode: 'template')
  *                             sends farq_outreach_ar to each. Closed unless server.py has TARGETING_SEND=1;
  *                             the dev server always answers 403.
@@ -67,6 +69,13 @@ async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Pr
   if (!r.ok) throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
   return data as T
 }
+
+export type MetaTemplate = { id?: string; name: string; status: string; category?: string; language?: string; rejected_reason?: string; components?: { type: string; text?: string }[] }
+export type MetaComponent = Record<string, unknown> & { type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS' }
+
+export const listTemplates = () => call<{ ok: boolean; error?: string; data: MetaTemplate[] }>('GET', '/templates')
+export const submitTemplate = (t: { name: string; language: string; category: string; components: MetaComponent[] }) =>
+  call<{ ok: boolean; id?: string; status?: string; error?: string }>('POST', '/templates', t)
 
 export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')

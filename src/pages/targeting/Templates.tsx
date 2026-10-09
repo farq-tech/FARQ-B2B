@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { templateStatus, type TemplateStatus } from '../../api/targetingClient'
+import { listTemplates, templateStatus, type MetaTemplate, type TemplateStatus } from '../../api/targetingClient'
 import { Badge, Button, Chip, Icon, TopBar, useIsMobile, type BadgeTone } from '../../ui'
 import { CATEGORY_LABEL, loadDrafts, type TemplateCategory } from './drafts'
 
 /*
  * «09 · قوالب واتساب» — Figma 54:349. Real rows only:
- *   - the campaign template (farq_outreach_ar) with its live Meta status from GET /template-status;
+ *   - every template of the WhatsApp Business account with its Meta status (GET /templates;
+ *     if that fails, the campaign template alone from GET /template-status);
  *   - drafts saved from the editor (08) in this browser.
- * The service has no endpoint to list every template of the WhatsApp account, nor usage or reply
- * rates, so «آخر استخدام» and «نسبة الرد» show «—» instead of a number.
+ * The service keeps no usage or reply rates, so «آخر استخدام» and «نسبة الرد» show «—».
  */
 
 type Status = 'APPROVED' | 'PENDING' | 'REJECTED' | 'DRAFT' | 'OTHER'
@@ -30,16 +30,22 @@ const metaCategory = (c?: string) => (c && c in CATEGORY_LABEL ? CATEGORY_LABEL[
 export default function TemplatesPage({ onBack, onNew }: { onBack: () => void; onNew: () => void }) {
   const mobile = useIsMobile()
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
+  const [all, setAll] = useState<MetaTemplate[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [filter, setFilter] = useState<'ALL' | Status>('ALL')
-  useEffect(() => { templateStatus().then(setTpl, () => setFailed(true)) }, [])
+  useEffect(() => {
+    listTemplates().then((r) => { if (r.ok) setAll(r.data); else throw new Error(r.error) })
+      .catch(() => templateStatus().then(setTpl, () => setFailed(true)))
+  }, [])
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = []
-    if (tpl) out.push({ key: tpl.name, label: 'رسالة الحملة', name: tpl.name, category: metaCategory(tpl.category), status: metaStatus(tpl.status), raw: tpl.status, reason: tpl.rejected_reason && tpl.rejected_reason !== 'NONE' ? tpl.rejected_reason : undefined, draft: false })
+    const bodyOf = (t: MetaTemplate) => (t.components || []).find((c) => c.type === 'BODY')?.text?.split('\n')[0]?.slice(0, 60)
+    for (const t of all || []) out.push({ key: `${t.name}:${t.language || ''}`, label: bodyOf(t) || t.name, name: `${t.name}${t.language ? ` · ${t.language}` : ''}`, category: metaCategory(t.category), status: metaStatus(t.status), raw: t.status, reason: t.rejected_reason && t.rejected_reason !== 'NONE' ? t.rejected_reason : undefined, draft: false })
+    if (!all && tpl) out.push({ key: tpl.name, label: 'رسالة الحملة', name: tpl.name, category: metaCategory(tpl.category), status: metaStatus(tpl.status), raw: tpl.status, reason: tpl.rejected_reason && tpl.rejected_reason !== 'NONE' ? tpl.rejected_reason : undefined, draft: false })
     for (const d of loadDrafts()) out.push({ key: `draft:${d.name}`, label: d.label || d.name, name: d.name, category: CATEGORY_LABEL[d.category], status: 'DRAFT', raw: 'DRAFT', draft: true })
     return out
-  }, [tpl])
+  }, [tpl, all])
   const count = (k: 'ALL' | Status) => (k === 'ALL' ? rows.length : rows.filter((r) => r.status === k).length)
   const shown = filter === 'ALL' ? rows : rows.filter((r) => r.status === filter)
 
@@ -67,7 +73,7 @@ export default function TemplatesPage({ onBack, onNew }: { onBack: () => void; o
           )}
           {failed ? (
             <p role="alert" className="flex items-center gap-2 px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><Icon name="alert" size={18} />تعذّر جلب حالة قالب الحملة من خدمة الاستهداف.</p>
-          ) : !tpl && !rows.length ? (
+          ) : !tpl && !all && !rows.length ? (
             <p role="status" className="px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">جارٍ التحميل…</p>
           ) : null}
           {shown.map((r) => {
@@ -91,9 +97,9 @@ export default function TemplatesPage({ onBack, onNew }: { onBack: () => void; o
               </div>
             )
           })}
-          {tpl && !shown.length ? <p className="border-t border-[var(--color-border-default)] px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ما فيه قوالب بهذه الحالة.</p> : null}
+          {(tpl || all) && !shown.length ? <p className="border-t border-[var(--color-border-default)] px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ما فيه قوالب بهذه الحالة.</p> : null}
         </div>
-        <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">القائمة تعرض قالب الحملة ومسوداتك. عرض كل قوالب حساب واتساب، وآخر استخدام، ونسبة الرد، يحتاج ربط ما هو موجود في الخدمة بعد.</p>
+        <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{all ? 'كل قوالب حساب واتساب للأعمال من Meta، ومعها مسوداتك.' : 'تعذّر جلب كل القوالب؛ المعروض قالب الحملة ومسوداتك.'} آخر استخدام ونسبة الرد ما تنحفظ في الخدمة بعد.</p>
       </div>
     </div>
   )

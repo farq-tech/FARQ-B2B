@@ -8,7 +8,7 @@ manifest: index.html and its imports, minus the App chunk and everything only th
 robots.txt, sitemap.xml and the favicon. Every app route, every app chunk and /_api/* stay behind the gate.
 
 /_targeting/* (behind the same gate) proxies the targeting service (screens 07–10) with its own password from the
-environment, so the owner logs in once. Only the read endpoints pass by default; the two send endpoints pass only
+environment, so the owner logs in once. Only the read endpoints and template submission (to Meta, for review) pass by default; the send endpoint passes only
 when TARGETING_SEND=1 is set on this service (off locally and in tests: nothing can go out)."""
 import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -57,7 +57,8 @@ def public_files():
 TARGETING = os.environ.get('TARGETING_ORIGIN', 'https://farq-targeting-production-4687.up.railway.app').rstrip('/')
 TARGETING_PW = os.environ.get('TARGETING_PASSWORD', '')
 TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
-T_READ = {('GET', '/status'), ('GET', '/template-status'), ('POST', '/search')}
+T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('POST', '/search')}
+T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
 T_SEND = {('POST', '/send-farq')}
 
 HOP = {'connection', 'keep-alive', 'transfer-encoding', 'host', 'content-length', 'accept-encoding'}
@@ -88,7 +89,7 @@ class H(BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path[len('/_targeting'):] or '/'
         key = (self.command, path)
         if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
-        if key not in T_READ and key not in T_SEND: return self._send(404, b'{"error":"not_found"}', 'application/json')
+        if key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
         req = urllib.request.Request(TARGETING + path, data=body, method=self.command, headers={'content-type': 'application/json'})
         if TARGETING_PW: req.add_header('Cookie', 'ft_auth=' + hashlib.sha256(TARGETING_PW.encode()).hexdigest()[:32])

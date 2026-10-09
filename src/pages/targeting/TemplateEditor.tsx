@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from 'react'
 import { Badge, Button, Icon, TopBar, useIsMobile } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
-import { CATEGORY_LABEL, saveDraft, type HeaderKind, type TemplateCategory, type TemplateDraft } from './drafts'
+import { submitTemplate, TargetingError } from '../../api/targetingClient'
+import { CATEGORY_LABEL, removeDraft, saveDraft, submitBlock, toMetaComponents, type HeaderKind, type TemplateCategory, type TemplateDraft } from './drafts'
 
 /*
  * «08 · محرر قالب واتساب» — Figma 53:217. Writes a template the way Meta asks for it (name, language,
  * category, header, body with {{n}} variables and an example for each, footer, up to 3 quick replies)
  * with a live phone preview and the pre-submission checks.
  *
- * «أرسل للاعتماد» stays off: the targeting service has no endpoint to submit a template to Meta.
- * «احفظ مسودة» keeps the draft in this browser (see drafts.ts). Nothing leaves the app from here.
+ * «أرسل للاعتماد» asks yes/no, then submits the template to Meta for review (POST /templates on the
+ * targeting service). That sends no message to anyone. «احفظ مسودة» keeps the draft in this browser.
  */
 
 const BODY_MAX = 1024, HEADER_MAX = 60
@@ -40,6 +41,9 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
   })
   const [saved, setSaved] = useState<string | null>(null)
   const [tab, setTab] = useState<'edit' | 'preview'>('edit')
+  const [asking, setAsking] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   const body = useRef<HTMLTextAreaElement>(null)
   const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => { setD((x) => ({ ...x, [k]: v })); setSaved(null) }
 
@@ -100,6 +104,35 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
   )
 
   const formRef = useRef<HTMLFormElement>(null)
+  const block = submitBlock(d)
+  async function submit() {
+    setSubmitting(true); setResult(null)
+    try {
+      const r = await submitTemplate({ name: d.name, language: d.language, category: d.category, components: toMetaComponents(d) })
+      if (r.ok) { removeDraft(d.name); setResult({ ok: true, text: `وصل القالب لـMeta${r.status ? ` — الحالة: ${r.status === 'APPROVED' ? 'معتمد' : r.status === 'PENDING' ? 'قيد المراجعة' : r.status === 'REJECTED' ? 'مرفوض' : r.status}` : ''}. تشوف حالته في «قوالب واتساب».` }) }
+      else setResult({ ok: false, text: `ما قبلته Meta: ${r.error || 'خطأ غير معروف'}` })
+    } catch (e) {
+      setResult({ ok: false, text: e instanceof TargetingError ? e.message : 'تعذّر الإرسال لـMeta. حاول بعد شوي.' })
+    } finally { setSubmitting(false); setAsking(false) }
+  }
+  const resultBox = result ? <p role={result.ok ? 'status' : 'alert'} className={`rounded-[var(--radius-md)] px-3 py-2 text-[14px] leading-[22px] ${result.ok ? 'bg-[var(--color-bg-success)] text-[var(--color-text-success)]' : 'bg-[var(--color-bg-danger)] text-[var(--color-text-danger)]'}`}>{result.text}</p> : null
+  const confirmBox = asking ? (
+    <div className={`fixed inset-0 z-[60] flex justify-center bg-[var(--color-bg-inverse)]/40 ${mobile ? 'items-end' : 'items-center p-4'}`} role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !submitting) setAsking(false) }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="tpl-confirm" className={`flex w-full flex-col gap-4 bg-[var(--color-bg-surface)] px-6 pt-5 pb-6 shadow-[var(--elevation-lg)] ${mobile ? 'rounded-t-[var(--radius-xl)]' : 'max-w-[480px] rounded-[var(--radius-xl)]'}`}>
+        <h2 id="tpl-confirm" className="font-[family-name:var(--font-display)] text-[22px] leading-[32px] font-semibold">نرسل القالب لـMeta للاعتماد؟</h2>
+        <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">يروح القالب لحساب واتساب للأعمال حق فرق للمراجعة. ما تنرسل أي رسالة لأي مورد.</p>
+        <dl className="flex flex-col gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface-2)] p-4 text-[14px] leading-[22px]">
+          <div className="flex justify-between gap-3"><dt className="text-[var(--color-text-secondary)]">الاسم</dt><dd><bdi>{d.name}</bdi></dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-[var(--color-text-secondary)]">الفئة · اللغة</dt><dd>{CATEGORY_LABEL[d.category]} · {d.language === 'ar' ? 'العربية' : 'English'}</dd></div>
+        </dl>
+        <p className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] p-3 text-[14px] leading-[22px] whitespace-pre-line">{d.body}</p>
+        <div className="flex gap-3">
+          <div className="min-w-0 flex-1"><Button variant="Primary" size="L" fullWidth loading={submitting} loadingLabel="جارٍ الإرسال لـMeta…" disabled={submitting} onClick={() => void submit()}>نعم، أرسل للاعتماد</Button></div>
+          <Button variant="Secondary" size="L" disabled={submitting} onClick={() => setAsking(false)}>لا</Button>
+        </div>
+      </div>
+    </div>
+  ) : null
   const FORM = (
           <form ref={formRef} onSubmit={(e) => { e.preventDefault(); save() }} className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6">
             <div className={mobile ? 'flex flex-col gap-4' : 'grid grid-cols-2 gap-4'}>
@@ -193,6 +226,9 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
             <span className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{CATEGORY_LABEL[d.category]} · {d.language === 'ar' ? 'العربية' : 'English'}</span>
           </div>
           {saved ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{saved}</p> : null}
+          {resultBox}
+          {block && tab === 'edit' ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">قبل «أرسل للاعتماد»: {block}</p> : null}
+          {confirmBox}
           {tab === 'preview' ? (
             <>
               {preview}
@@ -204,7 +240,7 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4">
           {tab === 'preview'
             ? <Button variant="Secondary" size="L" icon="edit" fullWidth onClick={() => setTab('edit')}>عدّل القالب</Button>
-            : <Button variant="Primary" size="L" fullWidth disabled={!canSave} onClick={save}>احفظ مسودة</Button>}
+            : <div className="flex gap-3"><div className="min-w-0 flex-1"><Button variant="Primary" size="L" icon="send" fullWidth disabled={Boolean(block)} onClick={() => setAsking(true)}>أرسل للاعتماد</Button></div><Button variant="Secondary" size="L" disabled={!canSave} onClick={save}>مسودة</Button></div>}
         </div>
       </div>
     )
@@ -224,11 +260,13 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="Secondary" size="L" disabled={!canSave} onClick={save}>احفظ مسودة</Button>
-            <Button variant="Primary" size="L" icon="send" disabled title="إرسال القالب لـMeta يحتاج ربط ما هو موجود في الخدمة بعد">أرسل للاعتماد</Button>
+            <Button variant="Primary" size="L" icon="send" disabled={Boolean(block)} title={block || undefined} onClick={() => setAsking(true)}>أرسل للاعتماد</Button>
           </div>
         </div>
         {saved ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{saved}</p> : null}
-        <p className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><Icon name="info" size={18} />«أرسل للاعتماد» يشتغل لما نربط الخدمة بقوالب حساب واتساب للأعمال. الحين تقدر تكتب القالب وتحفظه.</p>
+        {resultBox}
+        {block ? <p className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><Icon name="info" size={18} />قبل «أرسل للاعتماد»: {block}</p> : null}
+        {confirmBox}
 
         <div className={mobile ? 'flex flex-col gap-4' : 'grid grid-cols-[minmax(0,1fr)_330px] items-start gap-6'}>
           {FORM}

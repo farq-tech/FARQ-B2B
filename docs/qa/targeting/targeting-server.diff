@@ -1,0 +1,52 @@
+--- /private/tmp/claude-501/-Users-m4pro-farqconstraction-farqconstraction/d596f1b6-66a7-4a34-aa5b-bb2c173735d3/scratchpad/farq-targeting-backup-20261009-1803/server.py	2026-10-09 18:03:14
++++ /Users/m4pro/farq-targeting/server.py	2026-10-09 18:03:25
+@@ -230,6 +230,30 @@
+     rows = d.get('data') or []
+     return rows[0] if rows else {'name': name, 'status': 'MISSING'}
+ 
++def list_templates():
++    """Every template of the WhatsApp Business account with its Meta status (read only)."""
++    if not (WA_TOKEN and WA_WABA): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED', 'data': []}
++    d = graph(f"{WA_WABA}/message_templates?fields=name,status,category,language,rejected_reason,components&limit=200")
++    if d.get('error'): return {'ok': False, 'error': (d['error'] or {}).get('message'), 'data': []}
++    return {'ok': True, 'data': d.get('data') or []}
++
++def create_template(body):
++    """Submit one template to Meta for review. Sends nothing to anyone; Meta answers APPROVED / PENDING / REJECTED."""
++    if not (WA_TOKEN and WA_WABA): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
++    name = str(body.get('name', ''))
++    if not re.match(r'^[a-z0-9_]{1,512}$', name): return {'ok': False, 'error': 'NAME_INVALID'}
++    if body.get('category') not in ('MARKETING', 'UTILITY', 'AUTHENTICATION'): return {'ok': False, 'error': 'CATEGORY_INVALID'}
++    if body.get('language') not in ('ar', 'en'): return {'ok': False, 'error': 'LANGUAGE_INVALID'}
++    comps = body.get('components')
++    if not isinstance(comps, list) or not any(isinstance(c, dict) and c.get('type') == 'BODY' and str(c.get('text', '')).strip() for c in comps): return {'ok': False, 'error': 'BODY_REQUIRED'}
++    payload = {'name': name, 'language': body['language'], 'category': body['category'], 'parameter_format': 'positional', 'components': comps}
++    r = graph(f"{WA_WABA}/message_templates", payload)
++    with open(os.path.join(HERE, 'data', 'template_create_log.jsonl'), 'a', encoding='utf-8') as f:
++        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'name': name, 'category': body['category'], 'resp': r}, ensure_ascii=False) + '\n')
++    if r.get('id'): return {'ok': True, 'id': r.get('id'), 'status': r.get('status'), 'category': r.get('category')}
++    e = r.get('error') or {}
++    return {'ok': False, 'error': e.get('error_user_msg') or e.get('message') or 'UNKNOWN', 'code': e.get('code')}
++
+ def send_template(body):
+     """Send farq_outreach_ar ({{1}} name, {{2}} message) from the Farq number. One call = one recipient = one paid message."""
+     if not (WA_TOKEN and WA_PHONE_ID): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+@@ -275,6 +299,8 @@
+         elif self.path == '/status':
+             with LOCK: n = con.execute("select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null) from t").fetchone()
+             self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
++        elif self.path == '/templates':
++            self._json(list_templates())
+         elif self.path.startswith('/template-status'):
+             st = template_status('farq_outreach_ar'); st['holder'] = load_holder(); self._json(st)
+         elif self.path == '/log':
+@@ -298,6 +324,9 @@
+         if self.path == '/search':
+             try: self._json(search(body.get('q', ''), body.get('limit', 3000), body.get('only_sendable', False)))
+             except Exception as e: self._json({'error': str(e)}, 500)
++        elif self.path == '/templates':
++            try: self._json(create_template(body))
++            except Exception as e: self._json({'ok': False, 'error': str(e)[:200]}, 500)
+         elif self.path == '/send-template':
+             try: self._json(send_template(body))
+             except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
