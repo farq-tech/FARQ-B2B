@@ -5,7 +5,9 @@
  * Endpoints (the service's own, unchanged):
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
- *   POST /search            — { q, limit, only_sendable } → counts + rows
+ *   GET  /cities            — cities with enough places (English key + Arabic name)
+ *   POST /search            — { q, city, limit, only_sendable } → counts + rows; each row says how it matched
+ *                             (names the product / likely seller) and the AI's fit (likely / maybe / not)
  *   GET  /templates         — every template of the WhatsApp Business account with its Meta status
  *   POST /templates         — submits one template to Meta for review (sends nothing to anyone)
  *   POST /send-farq         — registers the chosen places on the holder request, then (mode: 'template')
@@ -31,13 +33,21 @@ export type TargetRow = {
   has_whatsapp: boolean
   email: string | null
   source_count: number | null
+  /** 'product' = names the product · 'seller' = its type of shop usually sells it */
+  match?: 'product' | 'seller'
+  /** AI fit: L likely · M maybe · N not · null = not checked */
+  ai?: 'L' | 'M' | 'N' | null
 }
 
-export type TargetParse = { keywords?: string[]; category_hints?: string[]; city?: string | null; region?: string | null; explain?: string; ai?: boolean }
+export type TargetParse = { keywords?: string[]; category_hints?: string[]; seller_terms?: string[]; seller_label?: string | null; city?: string | null; region?: string | null; explain?: string; ai?: boolean }
 
 export type TargetSearch = {
   parsed: TargetParse
   total: number
+  product_total?: number
+  ai_checked?: number
+  ai_likely?: number
+  ai_maybe?: number
   with_whatsapp: number
   with_email: number
   by_region: [string | null, number][]
@@ -79,7 +89,9 @@ export const submitTemplate = (t: { name: string; language: string; category: st
 
 export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
-export const searchTargets = (q: string, limit = 3000) => call<TargetSearch>('POST', '/search', { q, limit, only_sendable: false })
+export const searchTargets = (q: string, city: string, limit = 3000) => call<TargetSearch>('POST', '/search', { q, city, limit, only_sendable: false })
+export type City = { en: string; ar: string | null; n: number }
+export const listCities = () => call<City[]>('GET', '/cities')
 
 /** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
 export const waNumber = (r: TargetRow) => {

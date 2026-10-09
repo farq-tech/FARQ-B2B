@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { searchTargets, templateStatus, waNumber, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
+import { listCities, searchTargets, templateStatus, type City, waNumber, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
 import { Badge, Button, ChannelBadge, Icon, Stat, useIsMobile, type Channel } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
@@ -41,6 +41,15 @@ export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : 
 const nameOf = (r: TargetRow) => r.name_ar || r.name_en || 'بدون اسم'
 const placeOf = (r: TargetRow) => [r.district_ar || r.district_en, r.region_ar || r.city_en].filter(Boolean).join(' · ')
 const n = (v: number) => v.toLocaleString('en-US')
+const CITY_KEY = 'farq.targeting.city'
+/** «حدد المناسبين»: AI-likely places with WhatsApp; without an AI check, everyone with WhatsApp. */
+const pickBest = (rows: TargetRow[]) => {
+  const ai = rows.some((r) => r.ai)
+  return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
+}
+const rowSub = (r: TargetRow) => [r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
+const FIT = { L: { tone: 'Success', label: 'مناسب' }, M: { tone: 'Warning', label: 'محتمل' }, N: { tone: 'Neutral', label: 'غير مناسب' } } as const
+const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} showDot={false} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
 
 function defaultMessage(cat: string | null, area: string | null) {
@@ -64,8 +73,14 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLUListElement>(null)
+  // the city is required: the search runs inside one city only
+  const [cities, setCities] = useState<City[]>([])
+  const [city, setCity] = useState(() => { try { return localStorage.getItem(CITY_KEY) || '' } catch { return '' } })
+  const pickCity = (v: string) => { setCity(v); try { localStorage.setItem(CITY_KEY, v) } catch { /* storage blocked */ } }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
+  useEffect(() => { listCities().then(setCities, () => setCities([])) }, [])
+  const cityName = (en: string) => cities.find((c) => c.en === en)?.ar || en
 
   const rows = useMemo(() => res?.rows || [], [res])
   const counts = useMemo(() => {
@@ -75,29 +90,38 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   }, [rows])
   const truncated = res ? rows.length < res.total : false
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.poi_key)), [rows, selected])
+  const hasAi = Boolean(res?.ai_checked)
+  const citySelect = (cls: string) => (
+    <>
+      <label className="sr-only" htmlFor="targeting-city">المدينة</label>
+      <select id="targeting-city" required value={city} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
+        className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
+        <option value="" disabled>المدينة…</option>
+        {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
+      </select>
+    </>
+  )
 
   const chips = useMemo(() => {
     if (!res) return []
     const p = res.parsed || {}
-    const cat = (p.keywords || []).filter(arabic).slice(0, 2).join(' و')
-    const regionAr = rows.find((r) => r.region_en && r.region_en === p.region)?.region_ar
-    const area = regionAr || p.city || null
-    return [cat ? `الفئة: ${cat}` : null, area ? `المنطقة: ${area}` : null].filter(Boolean) as string[]
-  }, [res, rows])
+    const cat = (p.keywords || []).filter(arabic)[0] || ''
+    const area = p.city ? cityName(p.city) : null
+    return [cat ? `المنتج: ${cat}` : null, p.seller_label ? `يبيعه غالبًا: ${p.seller_label}` : null, area ? `المدينة: ${area}` : null].filter(Boolean) as string[]
+  }, [res, cities])
 
   async function search(e?: FormEvent) {
     e?.preventDefault()
     const text = q.trim()
-    if (!text || busy) return
+    if (!text || !city || busy) return
     setBusy(true); setError(null); setNotice(null)
     try {
-      const r = await searchTargets(text)
+      const r = await searchTargets(text, city)
       setRes(r); setQuery(text); setShown(PAGE)
       setSelected(new Set())
       const p = r.parsed || {}
       const cat = (p.keywords || []).filter(arabic)[0] || null
-      const area = r.rows.find((x) => x.region_en && x.region_en === p.region)?.region_ar || null
-      setMessage(defaultMessage(cat, area))
+      setMessage(defaultMessage(cat, cityName(city)))
     } catch (err) {
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
     } finally { setBusy(false) }
@@ -154,8 +178,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         </h2>
         {res && counts.wa ? (
           <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] hover:underline ${FOCUS_RING}`}
-            onClick={() => setSelected(chosen.length ? new Set() : new Set(rows.filter((r) => waNumber(r)).map((r) => r.poi_key)))}>
-            {chosen.length ? 'إلغاء التحديد' : 'حدد اللي عندهم واتساب'}
+            onClick={() => setSelected(chosen.length ? new Set() : pickBest(rows))}>
+            {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد اللي عندهم واتساب'}
           </button>
         ) : null}
       </div>
@@ -175,9 +199,9 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                   <input type="checkbox" checked={on} disabled={!can} onChange={() => toggle(r)} className={`size-5 shrink-0 accent-[var(--color-bg-primary)] ${FOCUS_RING}`} />
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className={`truncate text-[16px] leading-[26px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
-                    <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{placeOf(r) || '—'}</span>
+                    <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{rowSub(r)}</span>
                   </span>
-                  <ChannelBadge channel={ch} />
+                  <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{fitBadge(r)}</span>
                 </label>
               </li>
             )
@@ -213,7 +237,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
         <h1 className="sr-only">الاستهداف</h1>
         <div className="absolute inset-x-0 top-0 h-[50%]">
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={chips.length ? 140 : 96} legend={false} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={chips.length ? 120 : 80} legend={false} />
         </div>
         <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
@@ -221,11 +245,12 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
             <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="محلات سباكة في الرياض"
               className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-            <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || busy} loading={busy} loadingLabel="…">ابحث</Button>
+            {citySelect('max-w-[96px] text-[14px]')}
+            <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="…">ابحث</Button>
           </form>
           {chips.length ? (
-            <div className="flex flex-wrap gap-2">
-              {chips.map((c) => <button key={c} type="button" onClick={() => input.current?.focus()} className={`rounded-full bg-[var(--color-bg-surface)] px-4 py-1.5 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>{c.replace(/^[^:]+:\s*/, '')}</button>)}
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {chips.map((c) => <button key={c} type="button" onClick={() => input.current?.focus()} className={`shrink-0 whitespace-nowrap rounded-full bg-[var(--color-bg-surface)] px-4 py-1.5 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>{c.replace(/^[^:]+:\s*/, '')}</button>)}
             </div>
           ) : null}
           {error ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{error}</p> : null}
@@ -239,8 +264,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             <div className="flex items-center gap-3">
               {res && counts.wa ? (
                 <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] ${FOCUS_RING}`}
-                  onClick={() => setSelected(chosen.length ? new Set() : new Set(rows.filter((r) => waNumber(r)).map((r) => r.poi_key)))}>
-                  {chosen.length ? 'إلغاء التحديد' : 'حدد واتساب'}
+                  onClick={() => setSelected(chosen.length ? new Set() : pickBest(rows))}>
+                  {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
                 </button>
               ) : null}
               <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
@@ -263,9 +288,9 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                     <input type="checkbox" checked={selected.has(r.poi_key)} disabled={!can} onChange={() => toggle(r)} className={`size-5 shrink-0 accent-[var(--color-bg-primary)] ${FOCUS_RING}`} />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className={`truncate text-[16px] leading-[24px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
-                      <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}</span>
+                      <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{rowSub(r)}</span>
                     </span>
-                    <ChannelBadge channel={ch} />
+                    <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{fitBadge(r)}</span>
                   </label>
                 </li>
               )
@@ -305,7 +330,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
           <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="مثال: محلات أدوات صحية وسباكة في الرياض"
             className="min-w-0 flex-1 bg-transparent text-[18px] leading-[30px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-          <Button type="submit" variant="Primary" size="M" disabled={!q.trim() || busy} loading={busy} loadingLabel="جارٍ البحث…">ابحث</Button>
+          {citySelect('w-[170px] text-[16px]')}
+          <Button type="submit" variant="Primary" size="M" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="جارٍ البحث…">ابحث</Button>
         </form>
         {chips.length ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -323,7 +349,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
 
       {res ? (
         <div className={`grid gap-4 ${mobile ? 'grid-cols-2 px-4 py-4' : 'grid-cols-4 px-8 py-4'}`}>
-          <Stat label="وُجد" value={n(res.total)} basis={res.parsed?.ai === false ? 'بيانات عامة · فهم بالقاموس' : 'بيانات عامة · فهم بالذكاء'} />
+          <Stat label="وُجد" value={n(res.total)} basis={res.ai_checked ? `الذكاء فحص ${n(res.ai_checked)}: مناسب ${n(res.ai_likely || 0)} · محتمل ${n(res.ai_maybe || 0)}` : res.parsed?.ai === false ? 'بيانات عامة · فهم بالقاموس' : 'بيانات عامة · فهم بالذكاء'} />
           <Stat label="عندهم واتساب" tone="Success" value={n(counts.wa)} basis={basisOf || 'رقم جوال سعودي صيغته صحيحة'} />
           <Stat label="إيميل فقط" value={n(counts.emailOnly)} basis={basisOf || 'ما عندهم واتساب معروف'} />
           <Stat label="لا يمكن الإرسال" tone="Danger" value={n(counts.none)} basis={basisOf || 'بدون وسيلة تواصل صالحة'} />

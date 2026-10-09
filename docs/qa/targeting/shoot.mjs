@@ -1,4 +1,4 @@
-// Screens 07–10 on the local targeting service (no send keys). `node docs/qa/targeting/shoot.mjs`
+// Screens 07–10 on a local targeting service (BASE=http://localhost:5191 → service on :8767; the dev server and this script both block sends). `node docs/qa/targeting/shoot.mjs`
 // template-status is answered APPROVED in the browser so the confirm sheet (10) can open; the send endpoint is
 // aborted in the browser and counted — the test fails if anything reaches it.
 import { chromium } from 'playwright'
@@ -17,14 +17,15 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.waitForSelector('#targeting-q')
   await page.screenshot({ path: `${OUT}07-empty-${w}.png`, fullPage: w < 768 })
   await page.fill('#targeting-q', Q)
+  await page.selectOption('#targeting-city', 'Riyadh')
   await page.click('button[type=submit]')
-  await page.waitForSelector('#results-title + *, ul li[data-key]', { timeout: 90000 })
+  await page.waitForSelector('ul li[data-key]', { timeout: 180000 })
   await page.waitForTimeout(400)
   await page.screenshot({ path: `${OUT}07-results-${w}.png`, })
   const stats = await page.$$eval('.grid > div > :first-child', (els) => els.map((e) => e.textContent))
   const picked = await page.$$eval('ul li[data-key] input:checked', (els) => els.length)
   report.push(`${w}: stats ${stats.join(' / ')} · checked rows shown ${picked}`)
-  await page.getByRole("button", { name: w < 768 ? "حدد واتساب" : "حدد اللي عندهم واتساب" }).click(); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}07-selected-${w}.png` })
+  await page.getByRole("button", { name: "حدد المناسبين" }).click(); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}07-selected-${w}.png` })
   if (w < 768) { await page.getByRole("button", { name: /اكتب رسالة الحملة/ }).click(); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}07-compose-${w}.png` }) }
   await page.getByRole("button", { name: "أرسل الحملة" }).click()
   await page.waitForSelector('[role=dialog]')

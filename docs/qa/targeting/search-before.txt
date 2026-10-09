@@ -1,0 +1,4 @@
+شريط بيوتيل → total 5 wa 0 ai True | kw ['شريط بيوتيل', 'butyl tape', 'بيوتيل', 'butyl', 'شريط لاصق', 'adhesive tape', 'شريط عازل', 'insulation tape']
+شريط بيوتيل في الرياض → total 13 wa 3 ai True | kw ['شريط بيوتيل', 'بيوتيل', 'butyl tape', 'شريط', 'tape', 'sealant tape', 'شريط لاصق', 'butyle']
+سيليكون في جدة → total 36 wa 24 ai True | kw ['سيليكون', 'silicon', 'silicone', 'سيليكوني', 'سيلكون', 'selikon', 'sealant', 'مانع تسرب']
+محلات سباكة في الرياض → total 1516 wa 257 ai True | kw ['سباكه', 'سباك', 'plumbing', 'plumber', 'محلات سباكه', 'متاجر السباكه', 'ادوات سباكه', 'plumbing supplies']

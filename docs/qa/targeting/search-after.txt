@@ -1,0 +1,4 @@
+سيليكون في جدة → total 129 | product 0 | wa 60 | 7s | kw ['سيليكون', 'silicone', 'سيليكون مانع تسرب', 'silicone sealant', 'مانع تسرب سيليكون', 'silicone caulk', 'سيليكون شفاف']
+شريط بيوتيل في الرياض → total 1058 | product 0 | wa 373 | 23s | kw ['شريط بيوتيل', 'بيوتيل', 'butyl tape', 'butyl', 'شريط عازل', 'شريط لاصق', 'butyl sealant tape']
+شريط بيوتيل → total 722 | product 1 | wa 179 | 46s | kw ['شريط بيوتيل', 'بيوتيل', 'butyl tape', 'butyl', 'شريط عازل', 'شريط لاصق', 'butyl sealant tape']
+محلات سباكة في الرياض → total 3772 | product 3772 | wa 1058 | 7s | kw ['سباكه', 'ادوات صحيه', 'plumbing', 'sanitary']

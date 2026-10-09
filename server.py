@@ -57,7 +57,7 @@ def public_files():
 TARGETING = os.environ.get('TARGETING_ORIGIN', 'https://farq-targeting-production-4687.up.railway.app').rstrip('/')
 TARGETING_PW = os.environ.get('TARGETING_PASSWORD', '')
 TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
-T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('POST', '/search')}
+T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('GET', '/cities'), ('POST', '/search')}
 T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
 T_SEND = {('POST', '/send-farq')}
 

@@ -1,0 +1,348 @@
+# -*- coding: utf-8 -*-
+"""
+Farq Targeting — local server over the KSA golden POI set.
+  python3 server.py            (port 8765)
+AI query parsing uses ANTHROPIC_API_KEY (claude-haiku-4-5) when present; otherwise a built-in Arabic dictionary.
+Nothing is sent automatically: the UI opens WhatsApp click-to-chat / mailto links one contact at a time after your confirmation.
+"""
+import os, json, re, sys, time, urllib.request, csv, threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import duckdb, subprocess, base64
+FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(HERE, 'data', 'targets.parquet')
+LOG = os.path.join(HERE, 'data', 'send_log.csv')
+PORT = int(os.environ.get('PORT', '8765'))
+API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+DB_URL = os.environ.get('CONSTRUCTION_DB_URL')
+AUTH_PASSWORD = os.environ.get('TARGETING_PASSWORD')
+HOLDER_ENV = os.environ.get('HOLDER_RFQ_ID')
+HOLDER_ACTOR = os.environ.get('HOLDER_ACTOR_USER_ID')
+MODEL = 'claude-haiku-4-5-20251001'
+
+con = duckdb.connect()
+con.execute("SET threads=2; SET memory_limit='3GB'")
+con.execute(f"create view t as select * from '{DATA}'")
+LOCK = threading.Lock()
+
+# ---------- Arabic normalisation ----------
+AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
+def norm(s):
+    s = (s or '').lower().translate(AR)
+    s = re.sub(r'[ً-ْـ]', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+# fallback dictionary: request keyword -> search terms (AR/EN) and category hints
+FALLBACK = {
+ 'مقاول': {'kw': ['مقاولات','مقاول','للمقاولات','contracting','contractor','construction','انشاءات','إنشاءات','بناء'], 'cat': ['construction','contract']},
+ 'نظاف': {'kw': ['نظافه','تنظيف','مواد نظافه','منظفات','cleaning','detergent','hygiene','janitorial'], 'cat': ['clean']},
+ 'كهرب': {'kw': ['كهرباء','كهربائيه','ادوات كهربائيه','electrical','electric'], 'cat': ['electric']},
+ 'سباك': {'kw': ['سباكه','ادوات صحيه','plumbing','sanitary'], 'cat': ['plumb','sanitary']},
+ 'حديد': {'kw': ['حديد','حدادة','steel','iron','metal'], 'cat': ['steel','metal']},
+ 'دهان': {'kw': ['دهانات','بويه','paint'], 'cat': ['paint']},
+ 'سيراميك': {'kw': ['سيراميك','بلاط','رخام','ceramic','tile','marble'], 'cat': ['ceramic','tile','marble']},
+ 'تكييف': {'kw': ['تكييف','مكيفات','تبريد','hvac','air condition'], 'cat': ['hvac','air']},
+ 'مطعم': {'kw': ['مطعم','مطاعم','restaurant'], 'cat': ['restaurant']},
+ 'صيدل': {'kw': ['صيدليه','pharmacy'], 'cat': ['pharmac']},
+ 'عقار': {'kw': ['عقار','عقارات','real estate'], 'cat': ['real estate']},
+ 'مورد': {'kw': ['مورد','توريد','تجاره','supplier','trading','supply'], 'cat': []},
+ 'مصنع': {'kw': ['مصنع','صناعه','factory','manufactur'], 'cat': ['industr','factory']},
+ 'خشب': {'kw': ['خشب','اخشاب','نجاره','wood','timber','carpentry'], 'cat': ['wood']},
+ 'زجاج': {'kw': ['زجاج','المنيوم','glass','aluminium','aluminum'], 'cat': ['glass','alumin']},
+ 'مستشف': {'kw': ['مستشفى','مستوصف','عياده','hospital','clinic'], 'cat': ['hospital','clinic','medical']},
+ 'فندق': {'kw': ['فندق','شقق مفروشه','hotel'], 'cat': ['hotel']},
+ 'مدرس': {'kw': ['مدرسه','مدارس','school'], 'cat': ['school','education']},
+}
+REGIONS = {'الرياض':'Riyadh','رياض':'Riyadh','مكه':'Makkah','مكة':'Makkah','جده':'Makkah','جدة':'Makkah','الشرقيه':'Eastern Province','الشرقية':'Eastern Province','الدمام':'Eastern Province','المدينه':'Madinah','المدينة':'Madinah','عسير':'Asir','ابها':'Asir','القصيم':'Al Qassim','بريده':'Al Qassim','جازان':'Jazan','تبوك':'Tabuk','حائل':'Hail','الباحه':'Al Bahah','الجوف':'Al Jawf','نجران':'Najran','الحدود الشماليه':'Northern Borders'}
+CITIES = {'جده':'Jeddah','جدة':'Jeddah','الرياض':'Riyadh','الدمام':'Dammam','الخبر':'Al Khobar','مكه':'Makkah Al Mukarramah','مكة':'Makkah Al Mukarramah','المدينه':'Al Madinah Al Munawwarah','المدينة':'Al Madinah Al Munawwarah','ابها':'Abha','بريده':'Buraydah','الطائف':'Al Taif','الاحساء':'Al Ahsa','الجبيل':'Al Jubail','تبوك':'Tabuk','حائل':'Hail','خميس مشيط':'Khamis Mushayt','ينبع':'Yanbu','الخرج':'Al Kharj'}
+
+def fallback_parse(q):
+    nq = norm(q)
+    kw, cat = [], []
+    for stem, d in FALLBACK.items():
+        if stem in nq:
+            kw += d['kw']; cat += d['cat']
+    city = next((v for k, v in CITIES.items() if norm(k) in nq), None)
+    region = next((v for k, v in REGIONS.items() if norm(k) in nq), None)
+    if city == 'Jeddah': region = None
+    req = []
+    if 'واتس' in nq or 'whatsapp' in nq: req.append('whatsapp')
+    if 'ايميل' in nq or 'بريد' in nq or 'email' in nq: req.append('email')
+    if not kw:
+        words = [w for w in re.findall(r'[\w؀-ۿ]{3,}', nq) if w not in ('ابي','ابغى','اريد','شركات','شركه','مؤسسات','موردين','مورد','الي','اللي','عندهم','عنده','بس','ممكن','كل')]
+        kw = words
+    return {'keywords': list(dict.fromkeys(kw)), 'category_hints': cat, 'city': city, 'region': region, 'require': req, 'explain': 'قاموس داخلي (بدون ذكاء)'}
+
+PROMPT = """You turn an Arabic/English business-targeting request into search filters over a Saudi POI database.
+Return ONLY JSON with keys:
+ keywords: list of 6-15 search terms (Arabic AND English; include spelling variants, synonyms, singular/plural, e.g. مقاولات/مقاول/contracting/contractor). Normalise Arabic (no hamza variants needed).
+ category_hints: list of lowercase English category fragments likely used in the data (e.g. "construction", "contract", "cleaning", "electric").
+ exclude: list of terms that must NOT appear (e.g. for cleaning-material suppliers exclude "laundry").
+ city: English city name if the request names a city (Riyadh, Jeddah, Dammam, Al Khobar, Makkah Al Mukarramah, Al Madinah Al Munawwarah, Abha, Buraydah, Al Taif, Al Ahsa ...) else null.
+ region: one of [Riyadh, Makkah, Eastern Province, Madinah, Asir, Al Qassim, Jazan, Tabuk, Hail, Al Bahah, Al Jawf, Najran, Northern Borders] if a region is named, else null.
+ require: subset of ["whatsapp","email"] only when the user explicitly asks for it.
+ explain: one short Arabic sentence of how you understood the request.
+Request: """
+
+def ai_parse(q):
+    if not API_KEY:
+        return fallback_parse(q)
+    body = {"model": MODEL, "max_tokens": 600, "messages": [{"role": "user", "content": PROMPT + q}]}
+    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=json.dumps(body).encode(),
+                                 headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            txt = json.loads(r.read())['content'][0]['text']
+        m = re.search(r'\{.*\}', txt, re.S)
+        p = json.loads(m.group(0))
+        p['keywords'] = [norm(k) for k in p.get('keywords', []) if k]
+        p['category_hints'] = [k.lower() for k in p.get('category_hints', [])]
+        p['exclude'] = [norm(k) for k in p.get('exclude', []) if k]
+        p['ai'] = True
+        return p
+    except Exception as e:
+        p = fallback_parse(q); p['explain'] += f' — تعذّر الذكاء: {str(e)[:80]}'; return p
+
+def sql_lit(s): return "'" + s.replace("'", "''") + "'"
+
+def search(q, limit=3000, only_sendable=False):
+    p = ai_parse(q)
+    conds = []
+    kws = [k for k in p.get('keywords', []) if len(k) >= 3]
+    if kws:
+        conds.append('(' + ' or '.join(f"st ilike {sql_lit('%'+k+'%')}" for k in kws) + ')')
+    cats = [c for c in (p.get('category_hints') or []) if len(c) >= 4 and c not in ('supplies','materials','supplier','distributor','services','company','corporate','retail','shop','store','trading')]
+    for x in p.get('exclude') or []:
+        conds.append(f"st not ilike {sql_lit('%'+x+'%')}")
+    if p.get('city'): conds.append(f"city_en = {sql_lit(p['city'])}")
+    if p.get('region'): conds.append(f"region_en = {sql_lit(p['region'])}")
+    # 'require' never hides rows: those without WhatsApp/email are still shown (greyed) so you can see them on the map.
+    if only_sendable: conds.append("(has_whatsapp or email is not null)")
+    where = ' and '.join(conds) if conds else 'false'
+    nm = "translate(lower(concat_ws(' ', name_ar, name_en, legal_name, brand_name)), 'أإآةىؤئ', 'اااهيوي')"
+    ct = "lower(concat_ws(' ', category, category_ar, secondary_category, category_l3, google_category))"
+    score = ' + '.join([f"(case when {nm} ilike {sql_lit('%'+k+'%')} then 3 else 0 end)" for k in kws] +
+                       [f"(case when {ct} ilike {sql_lit('%'+k+'%')} then 2 else 0 end)" for k in kws] +
+                       [f"(case when {ct} ilike {sql_lit('%'+c+'%')} then 2 else 0 end)" for c in cats] + ['0'])
+    base = f"""select *, translate(search_text, 'أإآةىؤئ', 'اااهيوي') as st, ({score}) as score from t"""
+    with LOCK:
+        total, wa, em = con.execute(f"select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null) from ({base}) where {where}").fetchone()
+        rows = con.execute(f"""select poi_key, name_ar, name_en, category, category_ar, secondary_category, region_en, region_ar, city_en, district_en, district_ar,
+                                      latitude, longitude, phone_norm, phone_kind, has_whatsapp, email, website, instagram, working_hours, rating, sources, source_count, completeness_pct
+                               from ({base}) where {where}
+                               order by score desc, has_whatsapp desc, (email is not null) desc, completeness_pct desc limit {int(limit)}""").fetchall()
+        by_region = con.execute(f"select region_en, count(*) from ({base}) where {where} group by 1 order by 2 desc").fetchall()
+    cols = ['poi_key','name_ar','name_en','category','category_ar','secondary_category','region_en','region_ar','city_en','district_en','district_ar','latitude','longitude','phone','phone_kind','has_whatsapp','email','website','instagram','working_hours','rating','sources','source_count','completeness_pct']
+    return {'parsed': p, 'total': total, 'with_whatsapp': wa, 'with_email': em, 'by_region': by_region, 'rows': [dict(zip(cols, r)) for r in rows]}
+
+def load_holder():
+    try: h = json.load(open(os.path.join(HERE, 'data', 'holder_rfq.json'), encoding='utf-8'))
+    except Exception: h = {}
+    if HOLDER_ENV: h['holder_rfq_id'] = HOLDER_ENV
+    if HOLDER_ACTOR: h['actor_user_id'] = HOLDER_ACTOR
+    return h
+
+def pg():
+    import psycopg
+    return psycopg.connect(DB_URL, sslmode='require', connect_timeout=15)
+
+def send_farq(body):
+    """Register the chosen POIs as private suppliers + invites of the RFQ (holder), optionally send the marketing template
+    from the Farq number and record a SENT dispatch attempt so the reply routes to that conversation."""
+    rfq_id = str(body.get('rfq_id', '')).strip().lower()
+    if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', rfq_id): return {'ok': False, 'error': 'RFQ_ID_INVALID'}
+    targets = body.get('targets') or []
+    if not targets or len(targets) > 500: return {'ok': False, 'error': 'TARGETS_1_500'}
+    if not DB_URL: return {'ok': False, 'error': 'DB_NOT_CONFIGURED'}
+    mode = body.get('mode'); out = {'ok': False, 'rfq_id': rfq_id, 'added': 0, 'contacts_whatsapp': 0, 'contacts_email': 0, 'errors': [], 'sent': [], 'failed': []}
+    clean = lambda v: re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(v or ''))).strip()[:1024]
+    try:
+        with pg() as con:
+            rfq = con.execute('select id, buyer_user_id, current_version_id, status::text from construction.rfqs where id=%s', (rfq_id,)).fetchone()
+            if not rfq: return {'ok': False, 'error': 'RFQ_NOT_FOUND'}
+            _, owner, ver, status = rfq; owner = str(owner); ver = str(ver); out['buyer'] = owner; out['rfq_status'] = status
+            if mode == 'template':
+                tpl = body.get('template', 'farq_outreach_ar')
+                for t in targets:
+                    to = re.sub(r'[^0-9]', '', str(t.get('whatsapp') or ''))
+                    inv = con.execute('select i.id from construction.rfq_invites i join construction.suppliers s on s.id=i.supplier_id where i.rfq_version_id=%s and s.external_key=%s limit 1', (ver, f"golden:{t.get('poi_key')}"[:300])).fetchone()
+                    if not re.match(r'^9665[0-9]{8}$', to) or not inv: out['failed'].append({'poi_key': t.get('poi_key'), 'error': 'NOT_REGISTERED' if not inv else 'INVALID_NUMBER'}); continue
+                    payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template', 'template': {'name': tpl, 'language': {'code': 'ar'},
+                               'components': [{'type': 'body', 'parameters': [{'type': 'text', 'text': clean(t.get('name_ar') or t.get('name_en') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(t.get('message'))}]}]}}
+                    r = graph(f"{WA_PHONE_ID}/messages", payload)
+                    mid = (r.get('messages') or [{}])[0].get('id')
+                    if mid:
+                        con.execute("insert into construction.dispatch_attempts(invite_id,channel,status,idempotency_key,provider_receipt_id,sent_at) values (%s,'WHATSAPP','SENT',%s,%s,now()) on conflict (idempotency_key) do nothing", (inv[0], f'golden-template:{mid}', mid))
+                        try: con.execute("update construction.rfq_invites set delivery_status='SENT', updated_at=now() where id=%s and delivery_status='PENDING'", (inv[0],))
+                        except Exception: pass
+                        out['sent'].append({'poi_key': t.get('poi_key'), 'message_id': mid, 'invite_id': str(inv[0])})
+                    else:
+                        e = r.get('error') or {}; out['failed'].append({'poi_key': t.get('poi_key'), 'error': (e.get('message') or 'UNKNOWN') + (' / ' + str(e.get('error_data', {}).get('details')) if e.get('error_data') else '')})
+                con.commit(); out['ok'] = True
+            else:
+                line_keys = [r[0] for r in con.execute('select line_key from construction.rfq_lines where rfq_version_id=%s order by line_number', (ver,)).fetchall()]
+                if not line_keys: return {'ok': False, 'error': 'RFQ_HAS_NO_LINES'}
+                out['line_keys'] = line_keys
+                for t in targets:
+                    ek = f"golden:{t.get('poi_key')}"[:300]
+                    wa = re.sub(r'[^0-9]', '', str(t.get('whatsapp') or '')); wa = wa if re.match(r'^9665[0-9]{8}$', wa) else None
+                    em = str(t.get('email') or '').lower(); em = em if re.match(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$', em) else None
+                    if not wa and not em: out['errors'].append({'poi_key': t.get('poi_key'), 'error': 'NO_CHANNEL'}); continue
+                    name_ar = (str(t.get('name_ar') or t.get('name_en') or '').strip() or 'مورد')[:300]; name_en = (str(t.get('name_en') or t.get('name_ar') or '').strip() or name_ar)[:300]
+                    try:
+                        sid = con.execute("""insert into construction.suppliers (external_key,name_ar,name_en,city,supplied_items_text,qualification_status,legal_entity_verified,source_ref,active,directory_visibility,owner_scope_user_id)
+                            values (%s,%s,%s,%s,%s,'DISCOVERY_CANDIDATE',false,%s,true,'PRIVATE',%s)
+                            on conflict (external_key) do update set name_ar=excluded.name_ar,name_en=excluded.name_en,city=coalesce(excluded.city,construction.suppliers.city),active=true,updated_at=now() returning id""",
+                            (ek, name_ar, name_en, t.get('city'), t.get('category'), f"GOLDEN_TARGETING:{body.get('query','')}"[:300], owner)).fetchone()[0]
+                        con.execute("""insert into construction.supplier_contacts (supplier_id,contact_name,whatsapp_e164,emails,source_ref) values (%s,%s,%s,%s,'GOLDEN_TARGETING')
+                            on conflict (supplier_id) do update set whatsapp_e164=coalesce(excluded.whatsapp_e164,construction.supplier_contacts.whatsapp_e164),
+                            emails=case when cardinality(excluded.emails)>0 then excluded.emails else construction.supplier_contacts.emails end,updated_at=now()""", (sid, name_ar, wa, [em] if em else []))
+                        import hashlib, secrets
+                        tok = hashlib.sha256(secrets.token_urlsafe(32).encode()).hexdigest()
+                        con.execute("""insert into construction.rfq_invites (rfq_version_id, supplier_id, access_token_hash, access_token_expires_at, added_by_farq)
+                            values (%s,%s,%s, now() + interval '30 days', true) on conflict (rfq_version_id, supplier_id) do update set updated_at=now()""", (ver, sid, tok))
+                        out['added'] += 1; out['contacts_whatsapp'] += 1 if wa else 0; out['contacts_email'] += 1 if em else 0
+                    except Exception as e:
+                        con.rollback(); out['errors'].append({'poi_key': t.get('poi_key'), 'error': str(e)[:160]})
+                con.execute("insert into construction.procurement_audit_events (actor_user_id,entity_type,entity_id,event_type,snapshot) values (%s,'RFQ',%s,'GOLDEN_TARGETING_INVITES',%s)",
+                            (owner, rfq_id, json.dumps({'added': out['added'], 'query': body.get('query', '')}, ensure_ascii=False)))
+                con.commit(); out['ok'] = True
+    except Exception as e:
+        out['fatal'] = str(e)[:300]
+    with open(os.path.join(HERE, 'data', 'farq_send_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'rfq_id': rfq_id, 'mode': mode, 'n': len(targets), 'result': out}, ensure_ascii=False, default=str) + '\n')
+    return out
+
+WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
+WA_GRAPH = 'https://graph.facebook.com/v23.0'
+def graph(path, body=None, method=None):
+    req = urllib.request.Request(f"{WA_GRAPH}/{path}", data=json.dumps(body).encode() if body is not None else None,
+                                 headers={'Authorization': f'Bearer {WA_TOKEN}', 'content-type': 'application/json'}, method=method or ('POST' if body is not None else 'GET'))
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r: return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try: return json.loads(e.read())
+        except Exception: return {'error': {'message': str(e)}}
+
+def template_status(name):
+    d = graph(f"{WA_WABA}/message_templates?name={name}&fields=name,status,category,rejected_reason")
+    rows = d.get('data') or []
+    return rows[0] if rows else {'name': name, 'status': 'MISSING'}
+
+def list_templates():
+    """Every template of the WhatsApp Business account with its Meta status (read only)."""
+    if not (WA_TOKEN and WA_WABA): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED', 'data': []}
+    d = graph(f"{WA_WABA}/message_templates?fields=name,status,category,language,rejected_reason,components&limit=200")
+    if d.get('error'): return {'ok': False, 'error': (d['error'] or {}).get('message'), 'data': []}
+    return {'ok': True, 'data': d.get('data') or []}
+
+def create_template(body):
+    """Submit one template to Meta for review. Sends nothing to anyone; Meta answers APPROVED / PENDING / REJECTED."""
+    if not (WA_TOKEN and WA_WABA): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+    name = str(body.get('name', ''))
+    if not re.match(r'^[a-z0-9_]{1,512}$', name): return {'ok': False, 'error': 'NAME_INVALID'}
+    if body.get('category') not in ('MARKETING', 'UTILITY', 'AUTHENTICATION'): return {'ok': False, 'error': 'CATEGORY_INVALID'}
+    if body.get('language') not in ('ar', 'en'): return {'ok': False, 'error': 'LANGUAGE_INVALID'}
+    comps = body.get('components')
+    if not isinstance(comps, list) or not any(isinstance(c, dict) and c.get('type') == 'BODY' and str(c.get('text', '')).strip() for c in comps): return {'ok': False, 'error': 'BODY_REQUIRED'}
+    payload = {'name': name, 'language': body['language'], 'category': body['category'], 'parameter_format': 'positional', 'components': comps}
+    r = graph(f"{WA_WABA}/message_templates", payload)
+    with open(os.path.join(HERE, 'data', 'template_create_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'name': name, 'category': body['category'], 'resp': r}, ensure_ascii=False) + '\n')
+    if r.get('id'): return {'ok': True, 'id': r.get('id'), 'status': r.get('status'), 'category': r.get('category')}
+    e = r.get('error') or {}
+    return {'ok': False, 'error': e.get('error_user_msg') or e.get('message') or 'UNKNOWN', 'code': e.get('code')}
+
+def send_template(body):
+    """Send farq_outreach_ar ({{1}} name, {{2}} message) from the Farq number. One call = one recipient = one paid message."""
+    if not (WA_TOKEN and WA_PHONE_ID): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+    name = body.get('template', 'farq_outreach_ar')
+    st = template_status(name)
+    if st.get('status') != 'APPROVED': return {'ok': False, 'error': f"TEMPLATE_{st.get('status')}", 'template': st}
+    to = re.sub(r'[^0-9]', '', str(body.get('to', '')))
+    if not re.match(r'^9665[0-9]{8}$', to): return {'ok': False, 'error': 'INVALID_RECIPIENT'}
+    clean = lambda v: re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(v or ''))).strip()[:1024]
+    params = [{'type': 'text', 'text': clean(body.get('name') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(body.get('message'))}]
+    if not params[1]['text']: return {'ok': False, 'error': 'EMPTY_MESSAGE'}
+    payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template',
+               'template': {'name': name, 'language': {'code': 'ar'}, 'components': [{'type': 'body', 'parameters': params}]}}
+    r = graph(f"{WA_PHONE_ID}/messages", payload)
+    ok = bool(r.get('messages'))
+    with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': to[:6] + '****', 'poi_key': body.get('poi_key'), 'template': name, 'ok': ok, 'resp': r}, ensure_ascii=False) + '\n')
+    return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
+
+LOGIN_HTML = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير — دخول</title>
+<body style="font-family:-apple-system,Tahoma;background:#0f1115;color:#e8eaf0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<form method="post" action="/login" style="background:#171a21;padding:28px;border-radius:12px;border:1px solid #2a2f3a;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير — الاستهداف</h2>
+<input name="p" type="password" placeholder="كلمة المرور" style="width:100%;padding:10px;border-radius:8px;border:1px solid #2a2f3a;background:#0f1115;color:#fff;font-size:15px" autofocus>
+<button style="margin-top:12px;width:100%;padding:10px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-size:15px">دخول</button></form></body></html>'''
+
+class H(BaseHTTPRequestHandler):
+    def _authed(self):
+        if not AUTH_PASSWORD: return True
+        import hashlib
+        want = hashlib.sha256(AUTH_PASSWORD.encode()).hexdigest()[:32]
+        c = self.headers.get('Cookie') or ''
+        return f'ft_auth={want}' in c
+    def _json(self, obj, code=200):
+        b = json.dumps(obj, ensure_ascii=False, default=str).encode()
+        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+    def log_message(self, *a): pass
+    def do_GET(self):
+        if not self._authed():
+            b = LOGIN_HTML.encode(); self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
+        if self.path in ('/', '/index.html'):
+            b = open(os.path.join(HERE, 'index.html'), 'rb').read()
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        elif self.path == '/status':
+            with LOCK: n = con.execute("select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null) from t").fetchone()
+            self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
+        elif self.path == '/templates':
+            self._json(list_templates())
+        elif self.path.startswith('/template-status'):
+            st = template_status('farq_outreach_ar'); st['holder'] = load_holder(); self._json(st)
+        elif self.path == '/log':
+            rows = []
+            if os.path.exists(LOG):
+                with open(LOG, encoding='utf-8') as f: rows = list(csv.DictReader(f))
+            self._json(rows[-500:])
+        else:
+            self.send_response(404); self.end_headers()
+    def do_POST(self):
+        n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
+        if self.path == '/login':
+            import hashlib, urllib.parse
+            p = urllib.parse.parse_qs(raw.decode()).get('p', [''])[0]
+            self.send_response(303); self.send_header('Location', '/')
+            if AUTH_PASSWORD and p == AUTH_PASSWORD:
+                self.send_header('Set-Cookie', f"ft_auth={hashlib.sha256(AUTH_PASSWORD.encode()).hexdigest()[:32]}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000")
+            self.end_headers(); return
+        if not self._authed(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+        body = json.loads(raw or b'{}')
+        if self.path == '/search':
+            try: self._json(search(body.get('q', ''), body.get('limit', 3000), body.get('only_sendable', False)))
+            except Exception as e: self._json({'error': str(e)}, 500)
+        elif self.path == '/templates':
+            try: self._json(create_template(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)[:200]}, 500)
+        elif self.path == '/send-template':
+            try: self._json(send_template(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/send-farq':
+            try: self._json(send_farq(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/log':
+            new = not os.path.exists(LOG)
+            with open(LOG, 'a', encoding='utf-8', newline='') as f:
+                w = csv.DictWriter(f, fieldnames=['ts','poi_key','name','channel','to','message','query'])
+                if new: w.writeheader()
+                w.writerow({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), **{k: body.get(k, '') for k in ['poi_key','name','channel','to','message','query']}})
+            self._json({'ok': True})
+        else:
+            self.send_response(404); self.end_headers()
+
+if __name__ == '__main__':
+    print(f"Farq Targeting on http://localhost:{PORT}  (AI: {'on' if API_KEY else 'off — fallback dictionary'})", flush=True)
+    ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
