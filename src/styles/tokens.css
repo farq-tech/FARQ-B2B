@@ -136,6 +136,18 @@
   /* One layer on every background: same paths, chips, Ahmad and colours (owner, 2026-10-08) — only the base and facets below change per tone */
   --live-go: #6b8e3d;     /* زيتوني — الطلب الرايح */
   --live-back: #c6ae82;   /* شامبين — السعر الراجع */
+  /* Channel looks for the hero's messengers (each request travels in its channel's own form) */
+  --ch-wa: #25d366;          /* WhatsApp green (logo, call button) */
+  --ch-wa-out: #d9fdd3;      /* WhatsApp outgoing bubble */
+  --ch-wa-in: #ffffff;       /* WhatsApp incoming bubble */
+  --ch-wa-ink: #111b21;
+  --ch-wa-meta: #667781;
+  --ch-wa-tick: #53bdeb;     /* read ticks */
+  --ch-sms-out: #34c759;     /* SMS bubble (sent) */
+  --ch-sms-in: #e9e9eb;      /* SMS bubble (received) */
+  --ch-call: #34c759;        /* call handset */
+  --ch-call-card: #1c1c1e;   /* in-call card */
+  --ch-call-ink: #ffffff;
   /* Facet shades — five per tone, as in the reference prototype (TONES.*.shades) */
   --live-facet-1: #ffffff;
   --live-facet-2: #fcfcfc;

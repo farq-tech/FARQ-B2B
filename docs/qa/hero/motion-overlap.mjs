@@ -1,8 +1,8 @@
 import { chromium } from '@playwright/test'
 const b = await chromium.launch({ channel: 'chrome' })
-for (const [w, h] of [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [375, 812]]) {
+for (const [w, h] of (process.env.SIZES ? JSON.parse(process.env.SIZES) : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [375, 812]])) {
   const p = await b.newPage({ viewport: { width: w, height: h } })
-  await p.goto('http://localhost:5190/'); await p.locator('[data-hero-scene]').scrollIntoViewIfNeeded()
+  await p.goto("http://localhost:5190/", { timeout: 90000 }); await p.locator('[data-hero-scene]').scrollIntoViewIfNeeded()
   const r = await p.evaluate(async () => {
     const sc = document.querySelector('[data-hero-scene]'), status = sc.querySelector('[aria-live]'), bad = {}
     const R = (e) => e.getBoundingClientRect(), hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1
