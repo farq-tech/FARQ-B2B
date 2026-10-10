@@ -1,0 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+/* Landing «Dark Premium»: the type rhythm for IBM Plex Sans Arabic (taller x-height than Tajawal) */
+[data-theme="landing-dark"] { font-feature-settings: "kern"; letter-spacing: 0; }
+[data-theme="landing-dark"] h1, [data-theme="landing-dark"] h2, [data-theme="landing-dark"] h3 { letter-spacing: -0.2px; }
+[data-theme="landing-dark"] ::selection { background: var(--ld-accent-a40); color: var(--ld-text); }
+
+/* reveal on scroll: opacity/transform only, nothing when reduced motion is asked for */
+.ld-reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+.ld-reveal.is-in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .ld-reveal { opacity: 1; transform: none; transition: none; } }
+@keyframes ld-pop { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.ld-pop { animation: ld-pop .35s ease-out both }
+@media (prefers-reduced-motion: reduce) { .ld-pop { animation: none } }

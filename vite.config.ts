@@ -24,6 +24,8 @@ export default defineConfig({
     proxy: {
       '/_api': { target: process.env.VITE_API_PROXY_TARGET || 'https://api.farq.sa', changeOrigin: true, rewrite: (p) => p.replace(/^\/_api/, '') },
       // the targeting service run locally without any send keys: `PORT=8766 python3 server.py` in ~/farq-targeting
+      // public landing demo → the targeting service (dev: no daily cap)
+      '/_demo': { target: process.env.VITE_TARGETING_TARGET || 'http://127.0.0.1:8766', changeOrigin: true, rewrite: (p) => p.replace(/^\/_demo\/search/, '/demo-search').replace(/^\/_demo\/understand/, '/demo-understand').replace(/^\/_demo\/cities/, '/cities') },
       '/_targeting': { target: process.env.VITE_TARGETING_TARGET || 'http://127.0.0.1:8766', changeOrigin: true, rewrite: (p) => p.replace(/^\/_targeting/, '') },
     },
   },

@@ -1,9 +1,10 @@
-import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { cx, FOCUS_RING } from '../../ui/cx'
 import { applySeo } from './seo'
 import { Hero, SiteHeader } from './sections/Hero'
 import { WHATSAPP_HREF } from './contact'
 import { Container, T } from './kit'
+import './landing-dark.css'
 
 /*
  * «فرق تسعير» public landing page — Figma «Landing — Desktop 1440» (33:2) and «Mobile» (60:728).
@@ -12,7 +13,7 @@ import { Container, T } from './kit'
  * Routing: the Lead mounts this default export at «/» (docs/qa/requests.md).
  */
 
-const PageLive = lazy(() => import('./PageLive'))
+const HexBackground = lazy(() => import('./HexBackground'))
 const loadBelow = () => import('./sections/Below')
 const Below = lazy(loadBelow)
 const Footer = lazy(() => loadBelow().then((m) => ({ default: m.Footer })))
@@ -60,14 +61,18 @@ class BelowBoundary extends Component<{ children: ReactNode; silent?: boolean },
 
 export default function LandingPage() {
   useEffect(() => applySeo(), [])
-  const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
-    <div ref={setRoot} lang="ar" dir="rtl" className="landing-layers min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
+    <div data-theme="landing-dark" lang="ar" dir="rtl" className="relative isolate min-h-screen overflow-x-clip bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
+      <BelowBoundary silent>
+        <Suspense fallback={null}>
+          <HexBackground />
+        </Suspense>
+      </BelowBoundary>
       <a href="#main" className={cx('sr-only focus:not-sr-only focus:fixed focus:start-[var(--space-16)] focus:top-[var(--space-16)] focus:z-50 focus:rounded-[var(--radius-md)] focus:bg-[var(--color-bg-surface)] focus:px-[var(--space-16)] focus:py-[var(--space-8)] focus:text-[var(--brand-text)]', FOCUS_RING)}>
         تخطَّ إلى المحتوى
       </a>
       <SiteHeader />
-      <main id="main" tabIndex={-1} className="outline-none">
+      <main id="main" tabIndex={-1} className="relative z-[1] outline-none">
         <Hero />
         <BelowBoundary>
           <Suspense fallback={<BelowFallback />}>
@@ -78,11 +83,6 @@ export default function LandingPage() {
       <BelowBoundary silent>
         <Suspense fallback={null}>
           <Footer />
-        </Suspense>
-      </BelowBoundary>
-      <BelowBoundary silent>
-        <Suspense fallback={null}>
-          <PageLive root={root} />
         </Suspense>
       </BelowBoundary>
     </div>

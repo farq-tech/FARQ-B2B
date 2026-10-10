@@ -21,6 +21,7 @@ import { matchSuppliersForItems, rowsToLines, sanitizeBoqLines, type ParsedLine 
 import { buildRfqLinesFromItems, buildRfqPackagesFromSelection, departmentForBoqItem, dominantEngineeringDepartment } from '../lib/rfqPackages'
 import { cleanLineName, parseQty, readQty } from '../lib/sendGuards'
 import { shrinkImage } from '../lib/imageShrink'
+import { clearLandingDraft, readLandingDraft } from '../lib/landingDraft'
 import { scanPurchaseRequest } from '../lib/purchaseRequests'
 import type { BOQItem, Supplier } from '../types'
 import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, Icon, Input, OptionCard, Tabs, useIsMobile, type EvidenceLevel } from '../ui'
@@ -118,6 +119,20 @@ export function NewRequestV2({ navigate }: NavProps) {
   const [summary, setSummary] = useState<{ sent: number; failed: number; total: number } | null>(null)
 
   const addLines = (read: ParsedLine[]) => setLines((prev) => [...prev, ...read.map((l) => ({ ...l, id: nextId.current++ }))])
+
+  // A request started on the landing page (saved before sign-in): open on it, typed, with its city. Read once.
+  const draftApplied = useRef(false)
+  useEffect(() => {
+    if (draftApplied.current) return
+    draftApplied.current = true
+    const d = readLandingDraft()
+    if (!d) return
+    const detail = [d.answer && !d.answer.includes('ما يفرق') ? d.answer : null, d.use ? `لـ${d.use}` : null].filter(Boolean).join(' — ')
+    addLines([{ id: 0, name: detail ? `${d.item} (${detail})` : d.item, qty: d.qty, unit: d.unit || 'حبة' }])
+    if (d.city) setCity(d.city)
+    setMethod('typed'); setSource('من الصفحة الرئيسية'); setSourceKind('typed')
+    clearLandingDraft()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- step 0: read the request ---------- */
 

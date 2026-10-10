@@ -17,3 +17,8 @@
 .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
 @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-3px); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .msg-pop, .ring, .wave, .typing i { animation: none; } }
+
+/* الشايب: a calm breath while idle (1px, 4s) — nothing when reduced motion is asked for */
+@keyframes shayeb-breathe { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-1px) } }
+.shayeb-breathe { animation: shayeb-breathe 4s ease-in-out infinite }
+@media (prefers-reduced-motion: reduce) { .shayeb-breathe { animation: none } }

@@ -2,20 +2,19 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Logo } from '../../../ui/Logo'
 import { Icon } from '../../../ui/Icon'
 import { cx, FOCUS_RING } from '../../../ui/cx'
-import { APP_LOGIN_HREF, START_HREF } from '../contact'
+import { APP_LOGIN_HREF } from '../contact'
 import { Container, LinkButton, T, TextLink } from '../kit'
-import HeroScene from './HeroScene'
+import RequestBox from './RequestBox'
+import JourneySim from './JourneySim'
 
 /* Figma: Nav 33:3 + Hero 47:1714 (desktop) · Hero 60:729 (mobile). Above the fold: no images, text first. */
 
 export const NAV_LINKS = [
-  { href: '#how', label: 'كيف تعمل' },
-  { href: '#difference', label: 'وش الفرق؟' },
-  { href: '#audience', label: 'لمين' },
-  { href: '#faq', label: 'الأسئلة' },
+  { href: '#how', label: 'كيف يعمل' },
+  { href: '#compare', label: 'المقارنة' },
+  { href: '#sectors', label: 'لكل الأنشطة' },
+  { href: '#plans', label: 'الباقات' },
 ] as const
-
-const CATEGORIES = ['كهرباء', 'سباكة', 'مواد البناء', 'إنارة', 'سلامة', 'أثاث مكتبي', 'HVAC']
 
 function Nav() {
   const [open, setOpen] = useState(false)
@@ -38,7 +37,7 @@ function Nav() {
     <div className="relative z-20">
       <Container className="flex h-[64px] items-center justify-between md:h-[80px]">
         <a href="#main" aria-label="فرق تسعير — أعلى الصفحة" className={cx('rounded-[var(--radius-sm)]', FOCUS_RING)}>
-          <Logo height={40} />
+          <Logo height={40} surface="Inverse" />
         </a>
         <nav aria-label="الأقسام" className="hidden lg:block">
           <ul className="flex items-center gap-[var(--space-32)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">
@@ -52,7 +51,7 @@ function Nav() {
         <div className="flex items-center gap-[var(--space-8)]">
           <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-primary)] sm:inline')}>دخول</TextLink>
           <span className="hidden sm:block">
-            <LinkButton href={START_HREF} external variant="Accent" size="M">ابدأ التسعير</LinkButton>
+            <LinkButton href="#top" variant="Accent" size="M" onClick={() => window.dispatchEvent(new Event('farq-start'))}>ابدأ الآن</LinkButton>
           </span>
           <button
             ref={buttonRef}
@@ -76,7 +75,7 @@ function Nav() {
           ))}
           <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-primary)] sm:hidden')}>دخول</TextLink>
           <span className="mt-[var(--space-8)] block sm:hidden">
-            <LinkButton href={START_HREF} external variant="Accent" fullWidth>ابدأ التسعير</LinkButton>
+            <LinkButton href="#top" variant="Accent" fullWidth onClick={() => { setOpen(false); window.dispatchEvent(new Event('farq-start')) }}>ابدأ الآن</LinkButton>
           </span>
         </Container>
       </nav>
@@ -87,7 +86,7 @@ function Nav() {
 /** A quote card from the hero collage (illustrative — no real supplier data). */
 export function SiteHeader() {
   return (
-    <header className="relative bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <header className="sticky top-0 z-30 border-b border-[var(--color-border-default)] bg-[var(--color-bg-canvas)]/85 text-[var(--color-text-primary)] backdrop-blur">
       <Nav />
     </header>
   )
@@ -95,42 +94,25 @@ export function SiteHeader() {
 
 export function Hero() {
   return (
-    <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
-        <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[var(--space-32)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-[var(--space-48)] lg:pb-[var(--space-64)] lg:pt-[var(--space-64)]">
-          <div className="flex min-w-0 flex-col items-start gap-[var(--space-12)]">
-            <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">
-              <span aria-hidden="true" className="size-2 rounded-full bg-[var(--color-bg-brand)]" />
-              منصة تسعير لمشتريات الشركات
-            </p>
-            <h1 id="hero-title" className={T.hero}>
-              قبل ما تشتري،
-              <br />
-              شوف{' '}
-              <span className="relative inline-block text-[var(--brand-action-strong)]">
-                <span aria-hidden="true" className="absolute inset-x-0 bottom-[0.06em] h-[0.17em] rounded-[7px] bg-[var(--color-bg-brand)] opacity-35" />
-                <span className="relative">الفرق.</span>
-              </span>
-            </h1>
-            <p className={cx(T.bodyL, 'max-w-[520px] text-[var(--color-text-secondary)]')}>
-              ارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.
-            </p>
-            <div className="flex flex-wrap gap-[var(--space-12)] pt-[var(--space-16)]">
-              <LinkButton href={START_HREF} external variant="Accent" icon="arrow-forward">ابدأ التسعير</LinkButton>
-              <LinkButton href="#how" variant="Secondary">شاهد كيف تعمل</LinkButton>
-            </div>
-          </div>
-          <HeroScene />
-        </Container>
-        <Container className="pb-[var(--space-48)]">
-          <ul aria-label="فئات نسعّرها" className="flex flex-wrap items-center gap-x-[var(--space-24)] gap-y-[var(--space-8)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">
-            {CATEGORIES.map((c, i) => (
-              <li key={c} className="flex items-center gap-[var(--space-24)]">
-                {i > 0 && <span aria-hidden="true" className="size-1 rounded-full bg-[var(--color-text-secondary)]" />}
-                {c}
-              </li>
-            ))}
-          </ul>
-        </Container>
+    <section id="top" aria-labelledby="hero-title" className="relative text-[var(--color-text-primary)]">
+      <Container className="grid items-start gap-[var(--space-32)] pb-[var(--space-48)] pt-[var(--space-24)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-[var(--space-64)] lg:pb-[var(--space-80)] lg:pt-[var(--space-56,56px)]">
+        <div className="flex min-w-0 flex-col items-start gap-[var(--space-16)]">
+          <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-12)] py-[6px] text-[14px] font-medium leading-[22px] text-[var(--color-text-secondary)]">
+            <span aria-hidden="true" className="size-2 rounded-full bg-[var(--ld-accent)]" />
+            منصة تسعير ومقارنة مشتريات الشركات
+          </p>
+          <h1 id="hero-title" className="font-display text-[clamp(36px,4vw+18px,68px)] font-bold leading-[1.18] text-balance">
+            مشتريات شركتك،
+            <br />
+            <span className="text-[var(--ld-accent-light)]">خلّها علينا.</span>
+          </h1>
+          <p className={cx(T.bodyL, 'max-w-[600px] text-[var(--color-text-secondary)]')}>
+            من مستلزمات التشغيل اليومية إلى المعدات والتجهيزات، فرق يتواصل مع الموردين، يجمع لك عروض الأسعار، ويخليك تقارن وتختار الأنسب، مهما كان نشاط شركتك.
+          </p>
+          <div className="w-full pt-[var(--space-8)]"><RequestBox /></div>
+        </div>
+        <JourneySim className="lg:sticky lg:top-[var(--space-24)]" />
+      </Container>
     </section>
   )
 }

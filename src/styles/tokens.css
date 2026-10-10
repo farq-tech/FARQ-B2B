@@ -215,3 +215,78 @@
   --color-illus-deep: var(--brand-night-surface-2);
   --color-illus-soft: var(--brand-night-surface-2);
 }
+
+/* ── Landing «Dark Premium» (owner brief 2026-10-10, mandatory for the public landing only) ──────────
+ * Scope: [data-theme="landing-dark"] on the landing root. The app keeps the light Figma tokens. */
+:root {
+  --ld-bg: #07131f;
+  --ld-section: #0e2030;
+  --ld-raised: #142b3b;
+  --ld-accent: #20d6a0;
+  --ld-accent-light: #67e8c4;
+  --ld-text: #f5fafc;
+  --ld-text-2: #a4b5c2;
+  --ld-text-3: #7c90a0;
+  --ld-border: #254050;
+  --ld-border-strong: #33546a;
+  --ld-accent-a12: rgba(32, 214, 160, 0.12);
+  --ld-accent-a24: rgba(32, 214, 160, 0.24);
+  --ld-accent-a40: rgba(32, 214, 160, 0.4);
+  --ld-hex-line: rgba(103, 232, 196, 0.07);
+  --ld-hex-node: rgba(103, 232, 196, 0.55);
+  --ld-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
+  --ld-shadow-sm: 0 8px 24px -12px rgba(0, 0, 0, 0.55);
+  --ld-glow: 0 0 0 1px rgba(32, 214, 160, 0.35), 0 12px 40px -12px rgba(32, 214, 160, 0.35);
+  --ld-gradient: linear-gradient(135deg, #0e2030 0%, #0f3a3a 100%);
+}
+[data-theme="landing-dark"] {
+  color-scheme: dark;
+  --font-body: 'IBM Plex Sans Arabic', 'Tajawal', system-ui, sans-serif;
+  --font-display: 'IBM Plex Sans Arabic', 'Tajawal', system-ui, sans-serif;
+  --color-bg-canvas: var(--ld-bg);
+  --color-bg-surface: var(--ld-section);
+  --color-bg-surface-2: var(--ld-raised);
+  --color-bg-inverse: var(--ld-bg);
+  --color-bg-cta: var(--ld-accent);
+  --color-text-on-cta: var(--ld-bg);
+  --color-bg-brand: var(--ld-accent);
+  --color-text-on-brand: var(--ld-bg);
+  --color-bg-primary: var(--ld-accent);
+  --color-bg-primary-subtle: var(--ld-accent-a12);
+  --color-text-primary: var(--ld-text);
+  --color-text-secondary: var(--ld-text-2);
+  --color-text-tertiary: var(--ld-text-3);
+  --color-text-on-inverse: var(--ld-text);
+  --color-text-on-inverse-secondary: var(--ld-text-2);
+  --color-text-link: var(--ld-accent-light);
+  --color-text-info: var(--ld-accent-light);
+  --color-border-default: var(--ld-border);
+  --color-border-strong: var(--ld-border-strong);
+  --color-border-primary: var(--ld-accent);
+  --color-icon-primary: var(--ld-accent);
+  --color-icon-secondary: var(--ld-text-2);
+  --color-icon-success: var(--ld-accent);
+  --color-bg-success: var(--ld-accent-a12);
+  --color-text-success: var(--ld-accent-light);
+  --color-bg-info: var(--ld-accent-a12);
+  --color-bg-warning: var(--orange-a14);
+  --color-text-warning: var(--orange-400);
+  --color-bg-danger: var(--pink-a14);
+  --color-text-danger: var(--pink-400);
+  --color-bg-neutral: var(--white-a6);
+  --color-text-neutral: var(--ld-text-2);
+  --brand-action-strong: var(--ld-accent);
+  --brand-text: var(--ld-text);
+  --brand-text-2: var(--ld-text-2);
+  --brand-text-3: var(--ld-text-3);
+  --elevation-sm: var(--ld-shadow-sm);
+  --elevation-md: var(--ld-shadow-sm);
+  --elevation-lg: var(--ld-shadow);
+  --glow-primary: var(--ld-glow);
+}
+[data-theme="landing-dark"] [data-tone="deep"] {
+  --color-bg-canvas: var(--ld-section);
+  --color-text-primary: var(--ld-text);
+  --color-text-secondary: var(--ld-text-2);
+}
+

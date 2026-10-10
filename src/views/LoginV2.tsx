@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FarqAuthError, farqSession } from '../api/farqSession'
 import type { NavProps } from '../types'
+import { hasLandingDraft } from '../lib/landingDraft'
 import mark from '../assets/pricing-v2/mark.svg'
 
 /* Sign in with the Farq account (POST /api/auth/login). Only allowed accounts pass App's gate afterwards. */
@@ -12,7 +13,7 @@ export function LoginV2({ navigate }: NavProps) {
   const submit = async () => {
     if (!email.trim() || !password || loading) return
     setError(''); setLoading(true)
-    try { await farqSession.signIn(email.trim(), password); setPassword(''); navigate('rfq-list') }
+    try { await farqSession.signIn(email.trim(), password); setPassword(''); navigate(hasLandingDraft() ? 'create-upload' : 'rfq-list') }
     catch (e) { setError(e instanceof FarqAuthError ? (e.message || 'تعذر تسجيل الدخول') : 'تعذر الوصول إلى الخادم') }
     finally { setLoading(false) }
   }
