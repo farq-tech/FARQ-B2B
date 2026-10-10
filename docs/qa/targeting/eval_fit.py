@@ -11,7 +11,9 @@ Labels (real outcomes):
   weak_no = declined, reason unspecified (reported separately: it may be price, distance, busy…)
 The ranker sees exactly what it sees in production: the request text and the supplier's name + category.
 """
-import os, sys, json, importlib.util
+import os, sys, json, re, importlib.util
+PROFILES = {}
+BASIC = 'basic' in sys.argv
 
 HERE = os.getcwd()
 OUT = os.path.join(HERE, 'data', 'fit_eval.json')
@@ -65,6 +67,14 @@ def outcomes():
     print('outcomes', len(data))
 
 
+STOP = {'مؤسسه', 'مؤسسة', 'موسسه', 'شركه', 'شركة', 'للتجاره', 'للتجارة', 'التجاريه', 'التجارية', 'تجاره', 'فرع', 'trading', 'company', 'est', 'co', 'for', 'and', 'the', 'مصنع', 'محل', 'معرض', 'مكتب'}
+def same_name(a, b):
+    """Two business names that share a meaningful word (Arabic normalised)."""
+    tr = str.maketrans({'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ة': 'ه', 'ى': 'ي'})
+    tok = lambda s: {w[2:] if w.startswith('ال') and len(w) > 4 else w for w in re.findall(r'[\w\u0600-\u06ff]{3,}', str(s or '').lower().translate(tr))} - STOP
+    return bool(tok(a) & tok(b))
+
+
 def history_of(mem, d, skip_version=None):
     """The ranker's note for one supplier: what it quoted / declined before (other requests only when skip_version)."""
     xs = [m for m in mem if m['supplier_id'] == d['supplier_id'] and m['version'] != skip_version]
@@ -77,14 +87,41 @@ def run():
     spec = importlib.util.spec_from_file_location('srv', os.path.join(HERE, 'server.py'))
     srv = importlib.util.module_from_spec(spec); spec.loader.exec_module(srv)
     data = json.load(open(OUT, encoding='utf-8'))
+    mem_all = json.load(open(os.path.join(HERE, 'data', 'outcomes.json'), encoding='utf-8')) if os.path.exists(os.path.join(HERE, 'data', 'outcomes.json')) else []
+    phone = {m['supplier_id']: m['phone'] for m in mem_all if len(m.get('phone') or '') >= 9}
+    import duckdb
+    con = duckdb.connect(); con.execute("SET threads=2")
+    ids = list({d['supplier_id'] for d in data})
+    cols = ['poi_key', 'name_ar', 'name_en', 'legal_name', 'brand_name', 'category', 'category_ar', 'secondary_category', 'category_l3', 'google_category', 'description_ar', 'description_en', 'website', 'instagram', 'rating', 'reviews_count', 'sources', 'phone_norm']
+    got = con.execute(f"select {', '.join(cols)} from '{os.path.join(HERE, 'data', 'targets.parquet')}' where poi_key in (select 'farq:' || unnest(?)) or regexp_replace(coalesce(phone_norm, ''), '[^0-9]', '', 'g') in (select unnest(?))",
+                      [ids, [phone[i] for i in ids if i in phone]]).fetchall()
+    by_key = {r[0]: dict(zip(cols, r)) for r in got}
+    by_ph = {}
+    for r in by_key.values(): by_ph.setdefault(re.sub(r'[^0-9]', '', str(r['phone_norm'] or '')), []).append(r)
+    names = {d['supplier_id']: d['name'] for d in data}
+    global PROFILES
+    # a shared phone is not enough: the public place must also carry a similar name, else the farq:<id> copy
+    PROFILES = {i: next((r for r in by_ph.get(phone.get(i, '-'), []) if same_name(r['name_ar'] or r['name_en'], names.get(i))), None) or by_key.get('farq:' + i) for i in ids}
+    PROFILES = {k: v for k, v in PROFILES.items() if v}
+    print('profiles found', len(PROFILES), 'of', len(ids), '· with a public-place row', sum(1 for v in PROFILES.values() if not str(v['poi_key']).startswith('farq:')))
     by_req = {}
     for d in data: by_req.setdefault(d['version'], []).append(d)
     for ver, items in by_req.items():
         mem = json.load(open(os.path.join(HERE, 'data', 'outcomes.json'), encoding='utf-8')) if os.path.exists(os.path.join(HERE, 'data', 'outcomes.json')) else []
         # leave-one-request-out: the supplier's answer to THIS request is never shown to the ranker
-        rows = [{'poi_key': f"{d['supplier_id']}", 'name_ar': d['name'], 'category_ar': d['category'], 'history': history_of(mem, d, ver)} for d in items]
-        fit = srv.ai_rank(items[0]['request'], rows)
-        for d in items: d['ai'] = fit.get(d['supplier_id'])
+        # the same profile production sees: the place's row in the targeting set (farq:<id>, or the place its phone matched)
+        if BASIC:  # the earlier ranker input: name + category only, no history
+            rows = [{'poi_key': d['supplier_id'], 'name_ar': d['name'], 'category_ar': d['category'], 'history': ''} for d in items]
+        else:
+            rows = [{**PROFILES.get(d['supplier_id'], {'name_ar': d['name'], 'category_ar': d['category']}), 'poi_key': d['supplier_id'], 'history': history_of(mem, d, ver)} for d in items]
+        # as in production: one search per line (a booklet line or a typed item); best verdict over the request's lines
+        order = {'L': 0, 'M': 1, 'N': 2}
+        lines = [re.sub(r'^.*?\(\d+/\d+\)\s*—\s*', '', x).strip() for x in items[0]['request'].split(' · ') if x.strip()][:8]
+        best = {}
+        for line in lines:
+            for k, v in srv.ai_rank(line, rows).items():
+                if k not in best or order[v] < order[best[k]]: best[k] = v
+        for d, r in zip(items, rows): d['ai'] = best.get(d['supplier_id']); d['profile'] = srv.profile(r) if hasattr(srv, 'profile') else ''
     from collections import Counter
     tab = Counter((d['label'], d.get('ai')) for d in data)
     print('label × AI fit (L likely · M maybe · N not · None = not judged):')
@@ -96,7 +133,7 @@ def run():
     if n: print(f"non-sellers rejected (N): {sum(d.get('ai') == 'N' for d in n)}/{len(n)}")
     json.dump(data, open(OUT.replace('.json', '.judged.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
     print('mistakes (sellers judged N):')
-    for d in [d for d in s if d.get('ai') == 'N'][:15]: print('   ✗', d['request'][:50], '|', d['name'][:40], '|', d['category'][:40])
+    for d in [d for d in s if d.get('ai') == 'N'][:25]: print('   ✗', d['request'][:40], '\n        →', d['profile'][:260])
     print('mistakes (non-sellers judged L):')
     for d in [d for d in n if d.get('ai') == 'L'][:15]: print('   ✗', d['request'][:50], '|', d['name'][:40], '|', d['category'][:40])
 
