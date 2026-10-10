@@ -1,0 +1,583 @@
+# -*- coding: utf-8 -*-
+"""
+Farq Targeting — local server over the KSA golden POI set.
+  python3 server.py            (port 8765)
+AI query parsing uses ANTHROPIC_API_KEY (claude-haiku-4-5) when present; otherwise a built-in Arabic dictionary.
+Nothing is sent automatically: the UI opens WhatsApp click-to-chat / mailto links one contact at a time after your confirmation.
+"""
+import os, json, re, sys, time, urllib.request, csv, threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import duckdb, subprocess, base64
+FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(HERE, 'data', 'targets.parquet')
+LOG = os.path.join(HERE, 'data', 'send_log.csv')
+PORT = int(os.environ.get('PORT', '8765'))
+API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+DB_URL = os.environ.get('CONSTRUCTION_DB_URL')
+AUTH_PASSWORD = os.environ.get('TARGETING_PASSWORD')
+HOLDER_ENV = os.environ.get('HOLDER_RFQ_ID')
+HOLDER_ACTOR = os.environ.get('HOLDER_ACTOR_USER_ID')
+MODEL = 'claude-haiku-4-5-20251001'
+
+con = duckdb.connect()
+con.execute("SET threads=2; SET memory_limit='3GB'")
+con.execute(f"create view t as select * from '{DATA}'")
+LOCK = threading.Lock()
+
+# ---------- Arabic normalisation ----------
+AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
+def norm(s):
+    s = (s or '').lower().translate(AR)
+    s = re.sub(r'[ً-ْـ]', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+# fallback dictionary: request keyword -> search terms (AR/EN) and category hints
+FALLBACK = {
+ 'مقاول': {'kw': ['مقاولات','مقاول','للمقاولات','contracting','contractor','construction','انشاءات','إنشاءات','بناء'], 'cat': ['construction','contract']},
+ 'نظاف': {'kw': ['نظافه','تنظيف','مواد نظافه','منظفات','cleaning','detergent','hygiene','janitorial'], 'cat': ['clean']},
+ 'كهرب': {'kw': ['كهرباء','كهربائيه','ادوات كهربائيه','electrical','electric'], 'cat': ['electric']},
+ 'سباك': {'kw': ['سباكه','ادوات صحيه','plumbing','sanitary'], 'cat': ['plumb','sanitary']},
+ 'حديد': {'kw': ['حديد','حدادة','steel','iron','metal'], 'cat': ['steel','metal']},
+ 'دهان': {'kw': ['دهانات','بويه','paint'], 'cat': ['paint']},
+ 'سيراميك': {'kw': ['سيراميك','بلاط','رخام','ceramic','tile','marble'], 'cat': ['ceramic','tile','marble']},
+ 'تكييف': {'kw': ['تكييف','مكيفات','تبريد','hvac','air condition'], 'cat': ['hvac','air']},
+ 'مطعم': {'kw': ['مطعم','مطاعم','restaurant'], 'cat': ['restaurant']},
+ 'صيدل': {'kw': ['صيدليه','pharmacy'], 'cat': ['pharmac']},
+ 'عقار': {'kw': ['عقار','عقارات','real estate'], 'cat': ['real estate']},
+ 'مورد': {'kw': ['مورد','توريد','تجاره','supplier','trading','supply'], 'cat': []},
+ 'مصنع': {'kw': ['مصنع','صناعه','factory','manufactur'], 'cat': ['industr','factory']},
+ 'خشب': {'kw': ['خشب','اخشاب','نجاره','wood','timber','carpentry'], 'cat': ['wood']},
+ 'زجاج': {'kw': ['زجاج','المنيوم','glass','aluminium','aluminum'], 'cat': ['glass','alumin']},
+ 'مستشف': {'kw': ['مستشفى','مستوصف','عياده','hospital','clinic'], 'cat': ['hospital','clinic','medical']},
+ 'فندق': {'kw': ['فندق','شقق مفروشه','hotel'], 'cat': ['hotel']},
+ 'مدرس': {'kw': ['مدرسه','مدارس','school'], 'cat': ['school','education']},
+}
+REGIONS = {'الرياض':'Riyadh','رياض':'Riyadh','مكه':'Makkah','مكة':'Makkah','جده':'Makkah','جدة':'Makkah','الشرقيه':'Eastern Province','الشرقية':'Eastern Province','الدمام':'Eastern Province','المدينه':'Madinah','المدينة':'Madinah','عسير':'Asir','ابها':'Asir','القصيم':'Al Qassim','بريده':'Al Qassim','جازان':'Jazan','تبوك':'Tabuk','حائل':'Hail','الباحه':'Al Bahah','الجوف':'Al Jawf','نجران':'Najran','الحدود الشماليه':'Northern Borders'}
+CITIES = {'جده':'Jeddah','جدة':'Jeddah','الرياض':'Riyadh','الدمام':'Dammam','الخبر':'Al Khobar','مكه':'Makkah Al Mukarramah','مكة':'Makkah Al Mukarramah','المدينه':'Al Madinah Al Munawwarah','المدينة':'Al Madinah Al Munawwarah','ابها':'Abha','بريده':'Buraydah','الطائف':'Al Taif','الاحساء':'Al Ahsa','الجبيل':'Al Jubail','تبوك':'Tabuk','حائل':'Hail','خميس مشيط':'Khamis Mushayt','ينبع':'Yanbu','الخرج':'Al Kharj'}
+
+# products sold by shops that rarely name them: product stem -> (seller terms, label)
+PRODUCTS = {
+ 'بيوتيل': (['عوازل','مواد عزل','عزل مائي','عزل حراري','اكسسوارات المنيوم','سيليكون','مواد لاصقه','insulation','waterproofing','sealant','aluminium accessories','adhesive'], 'محلات العوازل واكسسوارات الألمنيوم والسيليكون'),
+ 'butyl': (['عوازل','مواد عزل','عزل مائي','اكسسوارات المنيوم','سيليكون','insulation','waterproofing','sealant','aluminium accessories'], 'محلات العوازل واكسسوارات الألمنيوم والسيليكون'),
+ 'ماستك': (['عوازل','مواد عزل','اكسسوارات المنيوم','سيليكون','مواد لاصقه','sealant','insulation','aluminium accessories','adhesive'], 'محلات العوازل والسيليكون واكسسوارات الألمنيوم'),
+ 'mastic': (['عوازل','مواد عزل','اكسسوارات المنيوم','سيليكون','sealant','insulation','aluminium accessories'], 'محلات العوازل والسيليكون واكسسوارات الألمنيوم'),
+ 'سيليكون': (['عوازل','اكسسوارات المنيوم','زجاج','مواد بناء','عدد','sealant','glass','aluminium accessories','hardware'], 'محلات الزجاج والألمنيوم والعوازل والعدد'),
+ 'فوم': (['عوازل','مواد عزل','مواد بناء','insulation','sealant'], 'محلات العوازل ومواد البناء'),
+}
+# shop types that never fit a product search (owner rule 2026-10-07)
+# words too broad to search on their own
+GENERIC = {'construction','building','buildings','بناء','البناء','home','house','general','commercial','industrial','صناعي','صناعيه','accessories','اكسسوارات','مورد','موردين','توريد','تجاره','supplier','suppliers','مواد بناء','مواد البناء','building materials','construction materials','اكسسوارات البناء','home goods','احتياجات المنزل','حديات','شريط','tape','اكسسوارات','accessories','accessory','مواد','materials','material','store','shop','trading','supplies','supply','محلات','محل','شركه','مؤسسه','products','منتجات'}
+SELLER_EXCLUDE = ['رمل','بلك','بلوك','اسمنت','خرسانه','دفان','زينه سيارات','sand','cement','concrete','car accessor']
+
+def fallback_parse(q):
+    nq = norm(q)
+    kw, cat = [], []
+    for stem, d in FALLBACK.items():
+        if stem in nq:
+            kw += d['kw']; cat += d['cat']
+    city = next((v for k, v in CITIES.items() if norm(k) in nq), None)
+    region = next((v for k, v in REGIONS.items() if norm(k) in nq), None)
+    if city == 'Jeddah': region = None
+    req = []
+    if 'واتس' in nq or 'whatsapp' in nq: req.append('whatsapp')
+    if 'ايميل' in nq or 'بريد' in nq or 'email' in nq: req.append('email')
+    if not kw:
+        words = [w for w in re.findall(r'[\w؀-ۿ]{3,}', nq) if w not in ('ابي','ابغى','اريد','شركات','شركه','مؤسسات','موردين','مورد','الي','اللي','عندهم','عنده','بس','ممكن','كل')]
+        kw = words
+    sel, label = [], None
+    for stem, (terms, lab) in PRODUCTS.items():
+        if norm(stem) in nq: sel += terms; label = label or lab
+    return {'keywords': list(dict.fromkeys(kw)), 'category_hints': cat, 'seller_terms': list(dict.fromkeys(norm(t) for t in sel)), 'seller_label': label, 'city': city, 'region': region, 'require': req, 'explain': 'قاموس داخلي (بدون ذكاء)'}
+
+PROMPT = """You turn an Arabic/English business-targeting request into search filters over a Saudi POI database.
+Return ONLY JSON with keys:
+ keywords: list of 4-12 search terms naming ONLY the requested thing itself (Arabic AND English spelling variants, synonyms, singular/plural, e.g. مقاولات/مقاول/contracting/contractor; for butyl tape: شريط بيوتيل/بيوتيل/butyl tape/butyl; for silicone: سيليكون/silicone/silicone sealant/مانع تسرب). Direct product-family names belong here; never shop types or broad words (tape, شريط, accessories, materials) — shop types go in seller_terms. Normalise Arabic (no hamza variants needed).
+ category_hints: list of lowercase English category fragments likely used in the data (e.g. "construction", "contract", "cleaning", "electric").
+ seller_terms: when the request names a PRODUCT or material, list 8-20 Arabic AND English terms for the TYPES of shops/companies that usually sell or supply it even when the product is not in their name (e.g. for butyl tape: عوازل, مواد عزل, عزل مائي, اكسسوارات المنيوم, سيليكون, مواد لاصقه, insulation, waterproofing, sealant, aluminium accessories, adhesives). Use [] when the request already names a type of business (e.g. "محلات سباكة").
+ seller_label: short Arabic phrase naming those shop types (e.g. "محلات العوازل واكسسوارات الألمنيوم والسيليكون"), or null.
+ exclude: list of terms that must NOT appear (e.g. for cleaning-material suppliers exclude "laundry").
+ city: English city name if the request names a city (Riyadh, Jeddah, Dammam, Al Khobar, Makkah Al Mukarramah, Al Madinah Al Munawwarah, Abha, Buraydah, Al Taif, Al Ahsa ...) else null.
+ region: one of [Riyadh, Makkah, Eastern Province, Madinah, Asir, Al Qassim, Jazan, Tabuk, Hail, Al Bahah, Al Jawf, Najran, Northern Borders] if a region is named, else null.
+ require: subset of ["whatsapp","email"] only when the user explicitly asks for it.
+ explain: one short Arabic sentence of how you understood the request.
+Request: """
+
+def ai_parse(q):
+    if not API_KEY:
+        return fallback_parse(q)
+    body = {"model": MODEL, "max_tokens": 600, "temperature": 0, "messages": [{"role": "user", "content": PROMPT + q}]}
+    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=json.dumps(body).encode(),
+                                 headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            txt = json.loads(r.read())['content'][0]['text']
+        m = re.search(r'\{.*\}', txt, re.S)
+        p = json.loads(m.group(0))
+        p['keywords'] = [norm(k) for k in p.get('keywords', []) if k]
+        p['category_hints'] = [k.lower() for k in p.get('category_hints', [])]
+        p['exclude'] = [norm(k) for k in p.get('exclude', []) if k]
+        p['seller_terms'] = [norm(k) for k in p.get('seller_terms', []) or [] if k]
+        # safety net: the request's own words always search too, whatever the model returned
+        own = [w for w in fallback_parse(q)['keywords'] if len(w) >= 4 and w not in GENERIC and not any(norm(c) == w or norm(c) in w for c in list(CITIES) + list(REGIONS))]
+        p['keywords'] = list(dict.fromkeys(p['keywords'] + own))
+        p['ai'] = True
+        return p
+    except Exception as e:
+        p = fallback_parse(q); p['explain'] += f' — تعذّر الذكاء: {str(e)[:80]}'; return p
+
+def sql_lit(s): return "'" + s.replace("'", "''") + "'"
+
+RANK_PROMPT = """A construction / procurement buyer in Saudi Arabia wants to buy: {q}
+Below are businesses, one per line: row id (R<n>) then name · category · history. Judge from the name, the category and past answers whether it would sell or supply that to a buyer. The request may list several items: a business that sells ANY one of them counts. Missing information is not evidence against a business — when the profile is thin, judge from what is there:
+ L = likely: it names the product, OR it is the kind of shop/distributor/factory that normally stocks it (e.g. insulation, waterproofing and aluminium-accessory shops stock butyl tape and silicone; plumbing shops stock pipes and fittings).
+ M = maybe: a general building-materials or hardware store that might carry it.
+ N = not: unrelated businesses, including look-alike names in another trade (e.g. "Silicon Valley Computers" for silicone), services only (cleaning, car wash, tank cleaning), contractors, real estate, salons, restaurants, furniture.
+Some lines end with «history»: the supplier's real answers to past requests. That is the strongest evidence: it declined / does not sell something similar → N; it quoted something similar → L."""
+RANK_PROMPT += """{trade}"""
+# Trade definition + look-alike / installer rules: OFF. Measured 2026-10-09 (eval-fit-v9): rejected 6/24 real non-sellers
+# but dropped 11 real sellers (81/95 kept vs 92/95) — worse trade. Kept for re-testing: RANK_TRADE=1.
+TRADE_RULES = """
+Two rules from real supplier answers:
+ 1. A business in one of the look-alike trades above is N even when its category sounds close (e.g. an air-conditioning shop for water heaters).
+ 2. When the material must be supplied, installers, contractors, workshops and service-only businesses (names with تركيب, مقاولات, أعمال, صيانة, ديكور, ورشة, workmanship) are N unless the name also says توريد / مواد / تجارة / مستودع / مصنع or the history shows they quoted materials."""
+RANK_PROMPT += """
+Return ONLY JSON: {{"L": ["R1", ...], "N": ["R7", ...]}} — every likely row id under L and every clearly-not row id under N; rows you leave out count as M (maybe).
+{rows}"""
+RANK_MAX = 300
+TRADE_PROMPT = """A construction / procurement buyer in Saudi Arabia wants to buy: {q}
+Define precisely who supplies it. Return ONLY JSON:
+{{"item": "short Arabic name of the item", "supplied_by": ["shop / distributor / factory types that stock it, Arabic and English"],
+  "look_alike_not": ["nearby trades that look related but usually do NOT stock it — e.g. for steel rebar: hand-tool and hardware shops, aluminium shops; for water heaters: kitchen-appliance shops, air-conditioning shops; for gypsum board: paint shops, curtain shops"],
+  "supply_only": true}}
+"supply_only" is true when the buyer needs the material supplied (not only installation)."""
+_TRADE = {}
+def trade_of(q):
+    """Who supplies the request and which look-alike trades do not (one call per distinct request, cached)."""
+    if q in _TRADE: return _TRADE[q]
+    out = {}
+    if API_KEY:
+        body = {"model": MODEL, "max_tokens": 500, "temperature": 0, "messages": [{"role": "user", "content": TRADE_PROMPT.format(q=q)}]}
+        req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=json.dumps(body).encode(),
+                                     headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r: txt = json.loads(r.read())['content'][0]['text']
+            out = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
+        except Exception: out = {}
+    if len(_TRADE) > 500: _TRADE.clear()
+    _TRADE[q] = out
+    return out
+# answers suppliers gave before (data/outcomes.json, built read-only from the Farq inbox): the ranker's memory
+try: _MEM = json.load(open(os.path.join(HERE, 'data', 'outcomes.json'), encoding='utf-8'))
+except Exception: _MEM = []
+_MEM_BY_ID, _MEM_BY_PHONE = {}, {}
+for m in _MEM:
+    _MEM_BY_ID.setdefault(m['supplier_id'], []).append(m)
+    if len(m.get('phone') or '') >= 9: _MEM_BY_PHONE.setdefault(m['phone'], []).append(m)
+
+def profile(r):
+    """The ranker's line for a place: its name and category, plus its real past answers.
+    Measured 2026-10-09 on 119 supplier answers: adding descriptions / Google categories / web / rating kept
+    fewer real sellers (86/95 vs 92/95) and rejected almost no more non-sellers (2/24 vs 0/24) — POI categories
+    are noisy — so they stay out (docs/qa/targeting/eval-fit-*.txt)."""
+    name = (r.get('name_ar') or r.get('name_en') or '')[:60]
+    cat = (r.get('category_ar') or r.get('category') or '')[:50]
+    h = history(r)
+    return ' | '.join(x for x in [name, cat, ('history: ' + h[:200]) if h else ''] if x).replace('\n', ' ')
+
+def history(r):
+    """What this place quoted / declined in past Farq requests (empty when nothing is known)."""
+    if r.get('history') is not None: return r['history']
+    key = str(r.get('poi_key') or '')
+    xs = _MEM_BY_ID.get(key[5:], []) if key.startswith('farq:') else []
+    xs = xs or _MEM_BY_PHONE.get(re.sub(r'[^0-9]', '', str(r.get('phone') or '')), [])
+    sold = '; '.join(dict.fromkeys(m['items'][:60] for m in xs if m['label'] == 'sells'))
+    no = '; '.join(dict.fromkeys(m['items'][:60] for m in xs if m['label'] == 'no'))
+    return ' / '.join(x for x in [f'quoted before: {sold}' if sold else '', f'declined, does not sell: {no}' if no else ''] if x)
+_CITIES = []
+def cities():
+    """Cities with at least 1,500 places, largest first (computed once)."""
+    if not _CITIES:
+        with LOCK:
+            _CITIES.extend({'en': a, 'ar': b, 'n': c} for a, b, c in con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall())
+    return _CITIES
+
+def ai_rank(q, rows):
+    """AI fit per candidate: 'L' likely · 'M' maybe · 'N' not (only for the first RANK_MAX rows; calls of 50 in parallel)."""
+    if not API_KEY or not rows: return {}
+    def one(chunk):
+        # row ids as R<n>: profiles carry their own numbers (codes, counts) that a bare id gets confused with
+        lines = '\n'.join('R%d | %s' % (i, re.sub(r'[\[\]{}|]+', ' ', profile(r)).strip()) for i, r in chunk)
+        body = {"model": MODEL, "max_tokens": 1500, "temperature": 0, "messages": [{"role": "user", "content": RANK_PROMPT.format(q=q, rows=lines, trade=trade_txt)}]}
+        req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=json.dumps(body).encode(),
+                                     headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=45) as r: txt = json.loads(r.read())['content'][0]['text']
+            d = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
+        except Exception: return {}
+        ids = {i for i, _ in chunk}
+        out = {i: 'M' for i in ids}
+        for k in ('N', 'L'):
+            for i in d.get(k) or []:
+                m = re.fullmatch(r'R?(\d+)', str(i).strip())
+                if m and int(m.group(1)) in ids: out[int(m.group(1))] = k
+        return out
+    t = trade_of(q) if os.environ.get('RANK_TRADE') == '1' else {}
+    trade_txt = ''
+    if t:
+        trade_txt = ('Who supplies it: ' + ', '.join(t.get('supplied_by') or [])[:400] + '\nLook-alike trades that usually do NOT: ' + ', '.join(t.get('look_alike_not') or [])[:400]
+                     + ('\nThe buyer needs the material supplied.' if t.get('supply_only', True) else '') + TRADE_RULES)
+        trade_txt = '\n' + trade_txt
+    items = list(enumerate(rows[:RANK_MAX]))
+    chunks = [items[i:i + 50] for i in range(0, len(items), 50)]  # short lists: the model keeps ids straight
+    res = {}
+    ts = []
+    for c in chunks:
+        t = threading.Thread(target=lambda c=c: res.update(one(c))); t.start(); ts.append(t)
+    for t in ts: t.join()
+    return {rows[i]['poi_key']: v for i, v in res.items()}
+
+def search(q, limit=3000, only_sendable=False, city=None, rank=True):
+    p = ai_parse(q)
+    # the city chosen in the screen wins over whatever the request text says
+    if city: p['city'] = city; p['region'] = None
+    # two kinds of match: the place names the product, or its type of shop usually sells it (product first)
+    kws = [k for k in p.get('keywords', []) if len(k) >= 3 and k not in GENERIC]
+    # «محلات العوازل» → «العوازل»: the shop-word prefix never appears in a name or category
+    strip = lambda k: re.sub(r'\s+(shops?|stores?|suppliers?|distributors?|dealers?|companies|company|traders?|materials?)$', '', re.sub(r'^(محلات|محل|متاجر|متجر|شركات|شركه|مؤسسات|موزعي|موزع|موردي)\s+(ال)?', '', k)).strip()
+    sel = list(dict.fromkeys(t for t in (strip(k) for k in (p.get('seller_terms') or [])) if len(t) >= 4 and t not in GENERIC and t not in kws))
+    nm = "translate(lower(concat_ws(' ', name_ar, name_en, legal_name, brand_name)), 'أإآةىؤئ', 'اااهيوي')"
+    ct = "translate(lower(concat_ws(' ', category, category_ar, secondary_category, category_l3, google_category)), 'أإآةىؤئ', 'اااهيوي')"
+    like = lambda terms: '(' + ' or '.join(f"st ilike {sql_lit('%'+k+'%')}" for k in terms) + ')' if terms else 'false'
+    # a likely seller is judged by its own name and category only (not reviews or other text)
+    like_nc = lambda terms: '(' + ' or '.join(f"({nm} ilike {sql_lit('%'+k+'%')} or {ct} ilike {sql_lit('%'+k+'%')})" for k in terms) + ')' if terms else 'false'
+    kw_cond, sel_cond = like(kws), like_nc(sel)
+    # never exclude a shop type the request itself asks for (a block request keeps block shops)
+    asked = ' '.join(kws + [norm(q)])
+    sel_excl = like_nc([t for t in [norm(x) for x in SELLER_EXCLUDE] + ['عقار','real estate','مقاولات','contracting','صالون','salon','مطعم','restaurant'] if t not in asked])
+    conds = [f"({kw_cond} or ({sel_cond} and not {sel_excl}))"]
+    cats = [c for c in (p.get('category_hints') or []) if len(c) >= 4 and c not in ('supplies','materials','supplier','distributor','services','company','corporate','retail','shop','store','trading')]
+    for x in p.get('exclude') or []:
+        conds.append(f"st not ilike {sql_lit('%'+x+'%')}")
+    if p.get('city'): conds.append(f"city_en = {sql_lit(p['city'])}")
+    if p.get('region'): conds.append(f"region_en = {sql_lit(p['region'])}")
+    # 'require' never hides rows: those without WhatsApp/email are still shown (greyed) so you can see them on the map.
+    if only_sendable: conds.append("(has_whatsapp or email is not null)")
+    where = ' and '.join(conds) if (kws or sel) else 'false'
+    nm = "translate(lower(concat_ws(' ', name_ar, name_en, legal_name, brand_name)), 'أإآةىؤئ', 'اااهيوي')"
+    ct = "lower(concat_ws(' ', category, category_ar, secondary_category, category_l3, google_category))"
+    score = ' + '.join([f"(case when {nm} ilike {sql_lit('%'+k+'%')} then 3 else 0 end)" for k in kws] +
+                       [f"(case when {ct} ilike {sql_lit('%'+k+'%')} then 2 else 0 end)" for k in kws] +
+                       [f"(case when {ct} ilike {sql_lit('%'+c+'%')} then 2 else 0 end)" for c in cats] +
+                       [f"(case when {ct} ilike {sql_lit('%'+k+'%')} then 1 else 0 end)" for k in sel] + ['0'])
+    base = f"""select *, translate(search_text, 'أإآةىؤئ', 'اااهيوي') as st, ({score}) as score from t"""
+    with LOCK:
+        # one scan: the matches land in a temp table, counts and the page come from it
+        con.execute(f"""create or replace temp table m as select poi_key, name_ar, name_en, category, category_ar, secondary_category, region_en, region_ar, city_en, district_en, district_ar,
+                                      latitude, longitude, phone_norm, phone_kind, has_whatsapp, email, website, instagram, working_hours, rating, sources, source_count, completeness_pct,
+                                      legal_name, brand_name, category_l3, google_category, left(description_ar, 220) description_ar, left(description_en, 220) description_en, reviews_count,
+                                      case when {kw_cond} then 'product' else 'seller' end as match, score
+                               from ({base}) where {where}""")
+        total, wa, em, prod = con.execute("select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null), count(*) filter (where match = 'product') from m").fetchone()
+        rows = con.execute(f"""select * exclude (score) from m
+                               order by (match = 'product') desc, score desc, has_whatsapp desc, (email is not null) desc, completeness_pct desc limit {int(limit)}""").fetchall()
+        by_region = con.execute("select region_en, count(*) from m group by 1 order by 2 desc").fetchall()
+    cols = ['poi_key','name_ar','name_en','category','category_ar','secondary_category','region_en','region_ar','city_en','district_en','district_ar','latitude','longitude','phone','phone_kind','has_whatsapp','email','website','instagram','working_hours','rating','sources','source_count','completeness_pct',
+            'legal_name','brand_name','category_l3','google_category','description_ar','description_en','reviews_count','match']
+    out = [dict(zip(cols, r)) for r in rows]
+    fit = ai_rank(q, out) if rank else {}
+    order = {'L': 0, 'M': 1, None: 2, 'N': 3}
+    for r in out: r['ai'] = fit.get(r['poi_key']); r['history'] = history(r) or None
+    out.sort(key=lambda r: order[r['ai']])  # stable: keeps product-first and score order inside each group
+    n = lambda k: sum(1 for v in fit.values() if v == k)
+    return {'parsed': p, 'total': total, 'product_total': prod, 'with_whatsapp': wa, 'with_email': em, 'by_region': by_region,
+            'ai_checked': len(fit), 'ai_likely': n('L'), 'ai_maybe': n('M'), 'rows': out}
+
+UNDERSTAND_PROMPT = """A company in Saudi Arabia writes what it wants to buy (any sector: clinics, restaurants, hotels, offices, schools, factories, maintenance, contractors, shops).
+Request: {q}
+Return ONLY JSON:
+{{"item": "short Arabic product name", "quantity": number or null, "unit": "Arabic unit or null", "city": "Arabic city name if named, else null",
+  "city_en": "one of [{cities}] if the city is named, else null", "use": "Arabic: who/what it is for if stated (e.g. عيادة طبية), else null",
+  "quantity_note": "Arabic question if the quantity can be read two ways (e.g. 12 فرع: per branch or total?), else null",
+  "question": {{"text": "ONE short Arabic question about the detail that most changes the price for THIS item, or null if none is needed",
+               "options": ["2 or 3 short Arabic options", "the last option is always: ما يفرق، أبي أفضل عرض"]}}}}
+Ask only what a supplier needs to price it. Never ask about budget, timing or contact details."""
+_UNDERSTAND = {}
+def demo_understand(body):
+    """Public landing: what the request says (item, quantity, city, use) + at most one price-relevant question. No supplier data."""
+    q = re.sub(r'\s+', ' ', str(body.get('q') or '')).strip()[:160]
+    if len(q) < 3: return {'ok': False, 'error': 'QUERY_SHORT'}
+    key = norm(q)
+    if key in _UNDERSTAND: return _UNDERSTAND[key]
+    out = {'ok': True, 'q': q, 'ai': False, 'item': q, 'quantity': None, 'unit': None, 'city': None, 'city_en': None, 'use': None, 'quantity_note': None, 'question': None}
+    if API_KEY:
+        names = ', '.join(c['en'] for c in cities()[:40])
+        bodyx = {"model": MODEL, "max_tokens": 400, "temperature": 0, "messages": [{"role": "user", "content": UNDERSTAND_PROMPT.format(q=q, cities=names)}]}
+        req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=json.dumps(bodyx).encode(),
+                                     headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r: txt = json.loads(r.read())['content'][0]['text']
+            d = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
+            valid = {c['en'] for c in cities()}
+            out.update({k: d.get(k) for k in ('item', 'quantity', 'unit', 'city', 'use', 'quantity_note')})
+            out['city_en'] = d.get('city_en') if d.get('city_en') in valid else None
+            qn = d.get('question') or {}
+            if qn.get('text') and isinstance(qn.get('options'), list) and qn['options']:
+                ANY = 'ما يفرق، أبي أفضل عرض'
+                opts = [str(o)[:60] for o in qn['options'] if 'ما يفرق' not in str(o)][:2] + [ANY]
+                out['question'] = {'text': str(qn['text'])[:120], 'options': opts}
+            out['ai'] = True
+        except Exception: pass
+    else:
+        fp = fallback_parse(q)
+        out['city_en'] = fp.get('city')
+    if len(_UNDERSTAND) > 2000: _UNDERSTAND.clear()
+    _UNDERSTAND[key] = out
+    return out
+
+_DEMO = {}
+def demo_search(body):
+    """Public landing demo: what exists for a request in a city — totals and a sample described by kind of shop,
+    district and channel only. No names, no phones, no emails; no AI ranking (only the request is understood)."""
+    q = re.sub(r'\s+', ' ', str(body.get('q') or '')).strip()[:120]
+    city = str(body.get('city') or '')
+    valid = {c['en'] for c in cities()}
+    if len(q) < 3: return {'ok': False, 'error': 'QUERY_SHORT'}
+    if city not in valid: return {'ok': False, 'error': 'CITY_INVALID'}
+    key = (norm(q), city)
+    if key in _DEMO: return _DEMO[key]
+    r = search(q, 400, False, city, rank=False)
+    rows = r['rows']
+    def kind(x):
+        k = (x.get('category_ar') or x.get('category') or '').split('|')[0].split(';')[0].strip()
+        return k[:40] or 'مورد'
+    pick = [x for x in rows if x.get('has_whatsapp')][:6] or rows[:6]
+    out = {'ok': True, 'q': q, 'city': city, 'understood': {'item': next((k for k in (r['parsed'].get('keywords') or []) if re.search(r'[\u0600-\u06ff]', k)), q),
+                                                            'sellers': r['parsed'].get('seller_label')},
+           'total': r['total'], 'names_product': r.get('product_total', 0), 'with_whatsapp': r['with_whatsapp'], 'with_email': r['with_email'],
+           'sample': [{'kind': kind(x), 'district': x.get('district_ar') or x.get('district_en') or '',
+                       'channel': 'whatsapp' if x.get('has_whatsapp') else 'email' if x.get('email') else 'none',
+                       'farq': 'farq_supplier' in (x.get('sources') or [])} for x in pick]}
+    if len(_DEMO) > 2000: _DEMO.clear()
+    _DEMO[key] = out
+    return out
+
+def load_holder():
+    try: h = json.load(open(os.path.join(HERE, 'data', 'holder_rfq.json'), encoding='utf-8'))
+    except Exception: h = {}
+    if HOLDER_ENV: h['holder_rfq_id'] = HOLDER_ENV
+    if HOLDER_ACTOR: h['actor_user_id'] = HOLDER_ACTOR
+    return h
+
+def pg():
+    import psycopg
+    return psycopg.connect(DB_URL, sslmode='require', connect_timeout=15)
+
+def send_farq(body):
+    """Register the chosen POIs as private suppliers + invites of the RFQ (holder), optionally send the marketing template
+    from the Farq number and record a SENT dispatch attempt so the reply routes to that conversation."""
+    rfq_id = str(body.get('rfq_id', '')).strip().lower()
+    if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', rfq_id): return {'ok': False, 'error': 'RFQ_ID_INVALID'}
+    targets = body.get('targets') or []
+    if not targets or len(targets) > 500: return {'ok': False, 'error': 'TARGETS_1_500'}
+    if not DB_URL: return {'ok': False, 'error': 'DB_NOT_CONFIGURED'}
+    mode = body.get('mode'); out = {'ok': False, 'rfq_id': rfq_id, 'added': 0, 'contacts_whatsapp': 0, 'contacts_email': 0, 'errors': [], 'sent': [], 'failed': []}
+    clean = lambda v: re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(v or ''))).strip()[:1024]
+    try:
+        with pg() as con:
+            rfq = con.execute('select id, buyer_user_id, current_version_id, status::text from construction.rfqs where id=%s', (rfq_id,)).fetchone()
+            if not rfq: return {'ok': False, 'error': 'RFQ_NOT_FOUND'}
+            _, owner, ver, status = rfq; owner = str(owner); ver = str(ver); out['buyer'] = owner; out['rfq_status'] = status
+            if mode == 'template':
+                tpl = body.get('template', 'farq_outreach_ar')
+                for t in targets:
+                    to = re.sub(r'[^0-9]', '', str(t.get('whatsapp') or ''))
+                    inv = con.execute('select i.id from construction.rfq_invites i join construction.suppliers s on s.id=i.supplier_id where i.rfq_version_id=%s and s.external_key=%s limit 1', (ver, f"golden:{t.get('poi_key')}"[:300])).fetchone()
+                    if not re.match(r'^9665[0-9]{8}$', to) or not inv: out['failed'].append({'poi_key': t.get('poi_key'), 'error': 'NOT_REGISTERED' if not inv else 'INVALID_NUMBER'}); continue
+                    payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template', 'template': {'name': tpl, 'language': {'code': 'ar'},
+                               'components': [{'type': 'body', 'parameters': [{'type': 'text', 'text': clean(t.get('name_ar') or t.get('name_en') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(t.get('message'))}]}]}}
+                    r = graph(f"{WA_PHONE_ID}/messages", payload)
+                    mid = (r.get('messages') or [{}])[0].get('id')
+                    if mid:
+                        con.execute("insert into construction.dispatch_attempts(invite_id,channel,status,idempotency_key,provider_receipt_id,sent_at) values (%s,'WHATSAPP','SENT',%s,%s,now()) on conflict (idempotency_key) do nothing", (inv[0], f'golden-template:{mid}', mid))
+                        try: con.execute("update construction.rfq_invites set delivery_status='SENT', updated_at=now() where id=%s and delivery_status='PENDING'", (inv[0],))
+                        except Exception: pass
+                        out['sent'].append({'poi_key': t.get('poi_key'), 'message_id': mid, 'invite_id': str(inv[0])})
+                    else:
+                        e = r.get('error') or {}; out['failed'].append({'poi_key': t.get('poi_key'), 'error': (e.get('message') or 'UNKNOWN') + (' / ' + str(e.get('error_data', {}).get('details')) if e.get('error_data') else '')})
+                con.commit(); out['ok'] = True
+            else:
+                line_keys = [r[0] for r in con.execute('select line_key from construction.rfq_lines where rfq_version_id=%s order by line_number', (ver,)).fetchall()]
+                if not line_keys: return {'ok': False, 'error': 'RFQ_HAS_NO_LINES'}
+                out['line_keys'] = line_keys
+                for t in targets:
+                    ek = f"golden:{t.get('poi_key')}"[:300]
+                    wa = re.sub(r'[^0-9]', '', str(t.get('whatsapp') or '')); wa = wa if re.match(r'^9665[0-9]{8}$', wa) else None
+                    em = str(t.get('email') or '').lower(); em = em if re.match(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$', em) else None
+                    if not wa and not em: out['errors'].append({'poi_key': t.get('poi_key'), 'error': 'NO_CHANNEL'}); continue
+                    name_ar = (str(t.get('name_ar') or t.get('name_en') or '').strip() or 'مورد')[:300]; name_en = (str(t.get('name_en') or t.get('name_ar') or '').strip() or name_ar)[:300]
+                    try:
+                        sid = con.execute("""insert into construction.suppliers (external_key,name_ar,name_en,city,supplied_items_text,qualification_status,legal_entity_verified,source_ref,active,directory_visibility,owner_scope_user_id)
+                            values (%s,%s,%s,%s,%s,'DISCOVERY_CANDIDATE',false,%s,true,'PRIVATE',%s)
+                            on conflict (external_key) do update set name_ar=excluded.name_ar,name_en=excluded.name_en,city=coalesce(excluded.city,construction.suppliers.city),active=true,updated_at=now() returning id""",
+                            (ek, name_ar, name_en, t.get('city'), t.get('category'), f"GOLDEN_TARGETING:{body.get('query','')}"[:300], owner)).fetchone()[0]
+                        con.execute("""insert into construction.supplier_contacts (supplier_id,contact_name,whatsapp_e164,emails,source_ref) values (%s,%s,%s,%s,'GOLDEN_TARGETING')
+                            on conflict (supplier_id) do update set whatsapp_e164=coalesce(excluded.whatsapp_e164,construction.supplier_contacts.whatsapp_e164),
+                            emails=case when cardinality(excluded.emails)>0 then excluded.emails else construction.supplier_contacts.emails end,updated_at=now()""", (sid, name_ar, wa, [em] if em else []))
+                        import hashlib, secrets
+                        tok = hashlib.sha256(secrets.token_urlsafe(32).encode()).hexdigest()
+                        con.execute("""insert into construction.rfq_invites (rfq_version_id, supplier_id, access_token_hash, access_token_expires_at, added_by_farq)
+                            values (%s,%s,%s, now() + interval '30 days', true) on conflict (rfq_version_id, supplier_id) do update set updated_at=now()""", (ver, sid, tok))
+                        out['added'] += 1; out['contacts_whatsapp'] += 1 if wa else 0; out['contacts_email'] += 1 if em else 0
+                    except Exception as e:
+                        con.rollback(); out['errors'].append({'poi_key': t.get('poi_key'), 'error': str(e)[:160]})
+                con.execute("insert into construction.procurement_audit_events (actor_user_id,entity_type,entity_id,event_type,snapshot) values (%s,'RFQ',%s,'GOLDEN_TARGETING_INVITES',%s)",
+                            (owner, rfq_id, json.dumps({'added': out['added'], 'query': body.get('query', '')}, ensure_ascii=False)))
+                con.commit(); out['ok'] = True
+    except Exception as e:
+        out['fatal'] = str(e)[:300]
+    with open(os.path.join(HERE, 'data', 'farq_send_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'rfq_id': rfq_id, 'mode': mode, 'n': len(targets), 'result': out}, ensure_ascii=False, default=str) + '\n')
+    return out
+
+WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
+WA_GRAPH = 'https://graph.facebook.com/v23.0'
+def graph(path, body=None, method=None):
+    req = urllib.request.Request(f"{WA_GRAPH}/{path}", data=json.dumps(body).encode() if body is not None else None,
+                                 headers={'Authorization': f'Bearer {WA_TOKEN}', 'content-type': 'application/json'}, method=method or ('POST' if body is not None else 'GET'))
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r: return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try: return json.loads(e.read())
+        except Exception: return {'error': {'message': str(e)}}
+
+def template_status(name):
+    d = graph(f"{WA_WABA}/message_templates?name={name}&fields=name,status,category,rejected_reason")
+    rows = d.get('data') or []
+    return rows[0] if rows else {'name': name, 'status': 'MISSING'}
+
+def list_templates():
+    """Every template of the WhatsApp Business account with its Meta status (read only)."""
+    if not (WA_TOKEN and WA_WABA): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED', 'data': []}
+    d = graph(f"{WA_WABA}/message_templates?fields=name,status,category,language,rejected_reason,components&limit=200")
+    if d.get('error'): return {'ok': False, 'error': (d['error'] or {}).get('message'), 'data': []}
+    return {'ok': True, 'data': d.get('data') or []}
+
+def create_template(body):
+    """Submit one template to Meta for review. Sends nothing to anyone; Meta answers APPROVED / PENDING / REJECTED."""
+    if not (WA_TOKEN and WA_WABA): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+    name = str(body.get('name', ''))
+    if not re.match(r'^[a-z0-9_]{1,512}$', name): return {'ok': False, 'error': 'NAME_INVALID'}
+    if body.get('category') not in ('MARKETING', 'UTILITY', 'AUTHENTICATION'): return {'ok': False, 'error': 'CATEGORY_INVALID'}
+    if body.get('language') not in ('ar', 'en'): return {'ok': False, 'error': 'LANGUAGE_INVALID'}
+    comps = body.get('components')
+    if not isinstance(comps, list) or not any(isinstance(c, dict) and c.get('type') == 'BODY' and str(c.get('text', '')).strip() for c in comps): return {'ok': False, 'error': 'BODY_REQUIRED'}
+    payload = {'name': name, 'language': body['language'], 'category': body['category'], 'parameter_format': 'positional', 'components': comps}
+    r = graph(f"{WA_WABA}/message_templates", payload)
+    with open(os.path.join(HERE, 'data', 'template_create_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'name': name, 'category': body['category'], 'resp': r}, ensure_ascii=False) + '\n')
+    if r.get('id'): return {'ok': True, 'id': r.get('id'), 'status': r.get('status'), 'category': r.get('category')}
+    e = r.get('error') or {}
+    return {'ok': False, 'error': e.get('error_user_msg') or e.get('message') or 'UNKNOWN', 'code': e.get('code')}
+
+def send_template(body):
+    """Send farq_outreach_ar ({{1}} name, {{2}} message) from the Farq number. One call = one recipient = one paid message."""
+    if not (WA_TOKEN and WA_PHONE_ID): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+    name = body.get('template', 'farq_outreach_ar')
+    st = template_status(name)
+    if st.get('status') != 'APPROVED': return {'ok': False, 'error': f"TEMPLATE_{st.get('status')}", 'template': st}
+    to = re.sub(r'[^0-9]', '', str(body.get('to', '')))
+    if not re.match(r'^9665[0-9]{8}$', to): return {'ok': False, 'error': 'INVALID_RECIPIENT'}
+    clean = lambda v: re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(v or ''))).strip()[:1024]
+    params = [{'type': 'text', 'text': clean(body.get('name') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(body.get('message'))}]
+    if not params[1]['text']: return {'ok': False, 'error': 'EMPTY_MESSAGE'}
+    payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template',
+               'template': {'name': name, 'language': {'code': 'ar'}, 'components': [{'type': 'body', 'parameters': params}]}}
+    r = graph(f"{WA_PHONE_ID}/messages", payload)
+    ok = bool(r.get('messages'))
+    with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': to[:6] + '****', 'poi_key': body.get('poi_key'), 'template': name, 'ok': ok, 'resp': r}, ensure_ascii=False) + '\n')
+    return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
+
+LOGIN_HTML = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير — دخول</title>
+<body style="font-family:-apple-system,Tahoma;background:#0f1115;color:#e8eaf0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<form method="post" action="/login" style="background:#171a21;padding:28px;border-radius:12px;border:1px solid #2a2f3a;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير — الاستهداف</h2>
+<input name="p" type="password" placeholder="كلمة المرور" style="width:100%;padding:10px;border-radius:8px;border:1px solid #2a2f3a;background:#0f1115;color:#fff;font-size:15px" autofocus>
+<button style="margin-top:12px;width:100%;padding:10px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-size:15px">دخول</button></form></body></html>'''
+
+class H(BaseHTTPRequestHandler):
+    def _authed(self):
+        if not AUTH_PASSWORD: return True
+        import hashlib
+        want = hashlib.sha256(AUTH_PASSWORD.encode()).hexdigest()[:32]
+        c = self.headers.get('Cookie') or ''
+        return f'ft_auth={want}' in c
+    def _json(self, obj, code=200):
+        b = json.dumps(obj, ensure_ascii=False, default=str).encode()
+        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+    def log_message(self, *a): pass
+    def do_GET(self):
+        if not self._authed():
+            b = LOGIN_HTML.encode(); self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
+        if self.path in ('/', '/index.html'):
+            b = open(os.path.join(HERE, 'index.html'), 'rb').read()
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        elif self.path == '/status':
+            with LOCK: n = con.execute("select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null) from t").fetchone()
+            self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
+        elif self.path == '/templates':
+            self._json(list_templates())
+        elif self.path == '/cities':
+            self._json(cities())
+        elif self.path.startswith('/template-status'):
+            st = template_status('farq_outreach_ar'); st['holder'] = load_holder(); self._json(st)
+        elif self.path == '/log':
+            rows = []
+            if os.path.exists(LOG):
+                with open(LOG, encoding='utf-8') as f: rows = list(csv.DictReader(f))
+            self._json(rows[-500:])
+        else:
+            self.send_response(404); self.end_headers()
+    def do_POST(self):
+        n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
+        if self.path == '/login':
+            import hashlib, urllib.parse
+            p = urllib.parse.parse_qs(raw.decode()).get('p', [''])[0]
+            self.send_response(303); self.send_header('Location', '/')
+            if AUTH_PASSWORD and p == AUTH_PASSWORD:
+                self.send_header('Set-Cookie', f"ft_auth={hashlib.sha256(AUTH_PASSWORD.encode()).hexdigest()[:32]}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000")
+            self.end_headers(); return
+        if not self._authed(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+        body = json.loads(raw or b'{}')
+        if self.path == '/search':
+            try: self._json(search(body.get('q', ''), body.get('limit', 3000), body.get('only_sendable', False), body.get('city') or None))
+            except Exception as e: self._json({'error': str(e)}, 500)
+        elif self.path == '/demo-understand':
+            try: self._json(demo_understand(body))
+            except Exception: self._json({'ok': False, 'error': 'DEMO_FAILED'}, 500)
+        elif self.path == '/demo-search':
+            try: self._json(demo_search(body))
+            except Exception as e: self._json({'ok': False, 'error': 'DEMO_FAILED'}, 500)
+        elif self.path == '/templates':
+            try: self._json(create_template(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)[:200]}, 500)
+        elif self.path == '/send-template':
+            try: self._json(send_template(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/send-farq':
+            try: self._json(send_farq(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/log':
+            new = not os.path.exists(LOG)
+            with open(LOG, 'a', encoding='utf-8', newline='') as f:
+                w = csv.DictWriter(f, fieldnames=['ts','poi_key','name','channel','to','message','query'])
+                if new: w.writeheader()
+                w.writerow({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), **{k: body.get(k, '') for k in ['poi_key','name','channel','to','message','query']}})
+            self._json({'ok': True})
+        else:
+            self.send_response(404); self.end_headers()
+
+if __name__ == '__main__':
+    print(f"Farq Targeting on http://localhost:{PORT}  (AI: {'on' if API_KEY else 'off — fallback dictionary'})", flush=True)
+    ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()

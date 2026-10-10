@@ -17,7 +17,8 @@ HERE = os.path.dirname(os.path.abspath(__file__)); DIST = os.path.join(HERE, 'di
 PORT = int(os.environ.get('PORT', '8080')); PASSWORD = os.environ.get('PRICING_PASSWORD', '')
 API = os.environ.get('FARQ_API_ORIGIN', 'https://api.farq.sa').rstrip('/')
 TOKEN = hashlib.sha256(PASSWORD.encode()).hexdigest()[:32] if PASSWORD else ''
-SITE_URL = os.environ.get('SITE_URL', '').rstrip('/')  # public origin for canonical / sitemap (unset: from the Host header)
+SITE_URL = os.environ.get('SITE_URL', '').rstrip('/')
+NOINDEX = os.environ.get('NOINDEX') == '1'  # preview deployments: robots disallow all, landing stays noindex  # public origin for canonical / sitemap (unset: from the Host header)
 LOGIN = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير</title>
 <body style="font-family:Tahoma,sans-serif;background:#f7f7f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <form method="post" action="/__gate" style="background:#fff;padding:28px;border-radius:16px;border:1px solid #e6e6e2;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير</h2>
@@ -129,7 +130,8 @@ class H(BaseHTTPRequestHandler):
         self._send(200, data, ctype if 'text' not in ctype else ctype + '; charset=utf-8')
     def _landing(self):
         with open(os.path.join(DIST, 'index.html'), encoding='utf-8') as fh: page = fh.read()
-        page = page.replace('<meta name="robots" content="noindex, nofollow" />', '', 1).replace('<title>فرق تسعير</title>', landing_head(self._origin()), 1)
+        if not NOINDEX:
+            page = page.replace('<meta name="robots" content="noindex, nofollow" />', '', 1).replace('<title>فرق تسعير</title>', landing_head(self._origin()), 1)
         self._send(200, page.encode())
     def do_GET(self):
         if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
@@ -138,6 +140,8 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path); p = u.path
         # public: the landing, its own files, robots / sitemap / favicon
         if (p == '/' and 'rfq=' not in u.query) or p.rstrip('/') == '/landing': return self._landing()
+        if p == '/robots.txt' and NOINDEX:
+            return self._send(200, b'User-agent: *\nDisallow: /\n', 'text/plain; charset=utf-8')
         if p == '/robots.txt':
             return self._send(200, f'User-agent: *\nAllow: /$\nDisallow: /\nSitemap: {self._origin()}/sitemap.xml\n'.encode(), 'text/plain; charset=utf-8')
         if p == '/sitemap.xml':
