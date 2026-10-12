@@ -48,7 +48,7 @@ const pickBest = (rows: TargetRow[]) => {
   const ai = rows.some((r) => r.ai)
   return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
 }
-const rowSub = (r: TargetRow) => [r.reason || null, r.target_role === 'buyer' ? 'مشتري محتمل' : null, r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
+const rowSub = (r: TargetRow) => [r.reason || null, r.target_role === 'buyer' ? 'مشتري محتمل' : null, r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.target_role === 'buyer' ? null : r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
 const FIT = { L: { tone: 'Success', label: 'مناسب' }, M: { tone: 'Warning', label: 'محتمل' }, N: { tone: 'Neutral', label: 'غير مناسب' } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} showDot={false} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
@@ -59,7 +59,7 @@ function defaultMessage(cat: string | null, area: string | null) {
 
 export default function TargetingPage({ onTemplates }: { onTemplates: () => void }) {
   const mobile = useIsMobile()
-  const [objective, setObjective] = useState<'purchase' | 'marketing'>('purchase')
+  const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => { try { return sessionStorage.getItem('farq-target-direction') === 'marketing' ? 'marketing' : 'purchase' } catch { return 'purchase' } })
   const generation = useRef(0)
   const direction = <fieldset className="flex gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] p-2" aria-label="من تبحث عنه؟">
     {([{ value: 'purchase', label: 'بائعون — أبي أشتري' }, { value: 'marketing', label: 'مشترون — أبي أبيع' }] as const).map(option => <label key={option.value} className="flex flex-1 items-center gap-2 text-[14px]">

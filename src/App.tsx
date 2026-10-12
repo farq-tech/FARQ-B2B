@@ -33,7 +33,7 @@ function Sidebar() {
     <UiSidebar
       onNewRequest={() => navigate('create-upload')}
       nav={<>
-        <NavItem icon="list" label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
+        <NavItem icon="list" label="الأهداف والطلبات" active={onRequests} onClick={() => navigate('rfq-list')} />
         <NavItem icon="inbox" label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
         <NavItem icon="map-pin" label="الاستهداف" active={onTargeting(view)} onClick={() => navigate('targeting')} />
       </>}

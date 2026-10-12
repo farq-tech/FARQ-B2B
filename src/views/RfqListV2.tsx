@@ -40,11 +40,16 @@ export function RfqListV2({ navigate }: NavProps) {
     <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-4 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="text-right">
-          <h1 className="font-[Readex_Pro] text-[28px] leading-[44px] font-bold sm:text-[32px]">طلبات التسعير</h1>
-          <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">تابع احتياجات منشأتك والعروض المستلمة في مكان واحد.</p>
+          <h1 className="font-[Readex_Pro] text-[28px] leading-[44px] font-bold sm:text-[32px]">الأهداف والطلبات</h1>
+          <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ابحث عن بائعين لاحتياجك أو مشترين لما تقدمه، وتابع طلبات الشراء السابقة.</p>
         </div>
         <button type="button" onClick={() => navigate('create-upload')} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-white">طلب تسعير جديد</button>
       </div>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'purchase'); navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">بائعون — أبي أشتري</button>
+        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'marketing'); navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">مشترون — أبي أبيع</button>
+      </div>
+      <h2 className="text-[18px] font-medium">طلبات الشراء الحالية</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="ملخص الطلبات">
         {summaries.map((s) => <div key={s.label} className="rounded-[16px] border border-[var(--color-border-default)] bg-white p-4"><p className="text-[13px] text-[var(--color-text-secondary)]">{s.label}</p><p className="mt-2 text-[28px] font-semibold tabular-nums">{s.value ?? '—'}</p></div>)}
       </div>
