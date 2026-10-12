@@ -6,7 +6,8 @@ import { cx, FOCUS_RING } from '../../../ui/cx'
 import booklet from '../../../assets/spot/booklet.svg'
 import list from '../../../assets/spot/list.svg'
 import photo from '../../../assets/spot/photo.svg'
-import { EMAIL, EMAIL_HREF, START_HREF, WHATSAPP_HREF, WHATSAPP_NUMBER_DISPLAY } from '../contact'
+import { EMAIL, EMAIL_HREF, WHATSAPP_HREF, WHATSAPP_NUMBER_DISPLAY } from '../contact'
+import { GoalStart } from '../GoalStart'
 import { Container, DEEP_FOCUS, LinkButton, LiveBgSlot, T, TextLink } from '../kit'
 import { HowWePrice } from './HowWePrice'
 
@@ -243,7 +244,7 @@ function FinalCta() {
       <Container className="flex flex-col items-center gap-[var(--space-16)] text-center md:gap-[var(--space-24)]">
         <h2 id="final-title" className={T.displayL}>طلب الشراء الجاي؟ خلّه علينا.</h2>
         <p className={T.bodyL}>ابدأ بتجربة بحث الموردين المتاحة الآن. تجربة الأهداف المؤسسية قيد التطوير.</p>
-        <LinkButton href={START_HREF} variant="Primary" icon="arrow-forward" className="w-full sm:w-auto">جرّب بحث الموردين</LinkButton>
+        <GoalStart />
       </Container>
     </section>
   )

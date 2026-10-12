@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { cx, FOCUS_RING } from '../../ui/cx'
 import { applySeo } from './seo'
+import { GoalProvider } from './GoalStart'
 import { Hero, SiteHeader } from './sections/Hero'
 import { WHATSAPP_HREF } from './contact'
 import { Container, T } from './kit'
@@ -59,7 +60,7 @@ class BelowBoundary extends Component<{ children: ReactNode; silent?: boolean },
   }
 }
 
-export default function LandingPage() {
+function LandingContent() {
   useEffect(() => applySeo(), [])
   const [trial, setTrial] = useState(() => location.hash === '#try')
   useEffect(() => { const update = () => setTrial(location.hash === '#try'); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) }, [])
@@ -92,4 +93,8 @@ export default function LandingPage() {
       </BelowBoundary>
     </div>
   )
+}
+
+export default function LandingPage() {
+  return <GoalProvider><LandingContent /></GoalProvider>
 }
