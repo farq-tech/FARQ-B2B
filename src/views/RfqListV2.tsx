@@ -14,7 +14,7 @@ const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
 }
 
 export function RfqListV2({ navigate }: NavProps) {
-  const { setSelectedRfqId } = useProcurement()
+  const { setSelectedRfqId, navigate: navigateGoal } = useProcurement()
   const [rows, setRows] = useState<ConstructionRfqSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -46,8 +46,8 @@ export function RfqListV2({ navigate }: NavProps) {
         <button type="button" onClick={() => navigate('create-upload')} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-white">طلب تسعير جديد</button>
       </div>
       <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'purchase'); navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">بائعون — أبي أشتري</button>
-        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'marketing'); navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">مشترون — أبي أبيع</button>
+        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'purchase'); navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">بائعون — أبي أشتري</button>
+        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'marketing'); navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">مشترون — أبي أبيع</button>
       </div>
       <h2 className="text-[18px] font-medium">طلبات الشراء الحالية</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="ملخص الطلبات">
