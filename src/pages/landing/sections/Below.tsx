@@ -68,9 +68,9 @@ function HowItWorks() {
 
 /* ── Difference explainer 35:115 · mobile 60:815 ── */
 const OFFERS = [
-  { name: 'مستودع الرياض للكهرباء', short: 'مستودع الرياض', best: true, items: '41,200.00 ر.س', delivery: 'مجاني', vat: '6,180.00 ر.س', days: '3 أيام', warranty: 'سنة', landed: '47,380.00 ر.س', delta: 'الأقل' },
-  { name: 'مؤسسة النور للكهرباء', short: 'مؤسسة النور', best: false, items: '42,500.00 ر.س', delivery: '350.00 ر.س', vat: '6,427.50 ر.س', days: '5 أيام', warranty: 'سنة', landed: '49,277.50 ر.س', delta: '+1,897.50 ر.س (4.0%)' },
-  { name: 'شركة الخليج للكابلات', short: 'شركة الخليج', best: false, items: '44,800.00 ر.س', delivery: 'مجاني', vat: '6,720.00 ر.س', days: '7 أيام', warranty: 'بدون', landed: '51,520.00 ر.س', delta: '+4,140.00 ر.س (8.7%)' },
+  { name: 'مورد أ — افتراضي', short: 'مورد أ', best: true, items: '41,200.00 ر.س', delivery: 'مجاني', vat: '6,180.00 ر.س', days: '3 أيام', warranty: 'سنة', landed: '47,380.00 ر.س', delta: 'الأقل' },
+  { name: 'مورد ب — افتراضي', short: 'مورد ب', best: false, items: '42,500.00 ر.س', delivery: '350.00 ر.س', vat: '6,427.50 ر.س', days: '5 أيام', warranty: 'سنة', landed: '49,277.50 ر.س', delta: '+1,897.50 ر.س (4.0%)' },
+  { name: 'مورد ج — افتراضي', short: 'مورد ج', best: false, items: '44,800.00 ر.س', delivery: 'مجاني', vat: '6,720.00 ر.س', days: '7 أيام', warranty: 'بدون', landed: '51,520.00 ر.س', delta: '+4,140.00 ر.س (8.7%)' },
 ]
 const ROWS: Array<{ key: 'items' | 'delivery' | 'vat' | 'days' | 'warranty'; label: string; differs?: boolean; num?: boolean }> = [
   { key: 'items', label: 'سعر البنود', num: true },
@@ -86,7 +86,7 @@ function Difference() {
     <section id="difference" aria-labelledby="difference-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-40)]">
-        <SectionTitle id="difference-title" title="وش الفرق؟ بنظرة وحدة" sub="نحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا." />
+        <SectionTitle id="difference-title" title="وش الفرق؟ بنظرة وحدة" sub="قارن العروض على نفس البنود والمواصفات. راجع سعر البنود والتوصيل والضريبة عندما يحددها المورد، عشان يبان الفرق فعلًا." />
 
         {/* Desktop/tablet: the comparison table */}
         <div className="hidden w-full overflow-x-auto rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] md:block">
@@ -101,7 +101,7 @@ function Difference() {
                 {OFFERS.map((o) => (
                   <th key={o.name} scope="col" className={cx(cell, 'w-1/4 font-medium', o.best && 'bg-[var(--color-bg-success)]')}>
                     <span className={cx(T.bodyM, 'block')}>{o.name}</span>
-                    {o.best ? <Badge tone="Success" label="الأفضل" className="mt-[var(--space-4)] bg-transparent px-0" /> : null}
+                    {o.best ? <Badge tone="Success" label="الأقل في المثال" className="mt-[var(--space-4)] bg-transparent px-0" /> : null}
                   </th>
                 ))}
               </tr>
@@ -161,10 +161,12 @@ function Difference() {
 
 /* ── Trust strip 35:218 — real figures are not available: placeholders (decision 5) ── */
 const AUDIENCE = [
-  { icon: 'building' as const, title: 'المقاولون', body: 'كراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.' },
-  { icon: 'layers' as const, title: 'المصانع', body: 'قطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.' },
-  { icon: 'sliders' as const, title: 'التشغيل والصيانة', body: 'طلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.' },
-  { icon: 'grid' as const, title: 'مكاتب إدارة المشاريع', body: 'مقارنة موثّقة تقدر ترفعها للعميل أو للجنة.' },
+  { icon: 'building' as const, title: 'العيادات', body: 'مثال احتياج: 20 كرسي انتظار لعيادة بالرياض.' },
+  { icon: 'layers' as const, title: 'المطاعم', body: 'مثال احتياج: معدات مطبخ وتجهيز منطقة التحضير.' },
+  { icon: 'sliders' as const, title: 'المكاتب', body: 'مثال احتياج: أجهزة كمبيوتر وأثاث للموظفين.' },
+  { icon: 'grid' as const, title: 'الفنادق', body: 'مثال احتياج: مستلزمات تشغيل وتجهيز الغرف.' },
+  { icon: 'building' as const, title: 'المقاولات', body: 'مثال احتياج: مواد بناء وسباكة وكهرباء لمشروع.' },
+  { icon: 'layers' as const, title: 'المصانع', body: 'مثال احتياج: معدات أو قطع غيار للتشغيل.' },
 ]
 
 function Audience() {
@@ -172,8 +174,8 @@ function Audience() {
     <section id="audience" aria-labelledby="audience-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-40)]">
-        <SectionTitle id="audience-title" title="مصمّمة لفرق المشتريات" />
-        <ul className="grid w-full gap-[var(--space-16)] sm:grid-cols-2 lg:grid-cols-4 lg:gap-[var(--space-24)]">
+        <SectionTitle id="audience-title" title="لشركتك، مهما كان نشاطها" sub="هذه أمثلة احتياجات منشآت. تتحدد إمكانية تسعير كل بند بحسب مواصفاته والموردين المتاحين." />
+        <ul className="grid w-full gap-[var(--space-16)] sm:grid-cols-2 lg:grid-cols-3 lg:gap-[var(--space-24)]">
           {AUDIENCE.map((a) => (
             <li key={a.title} className="flex flex-col gap-[var(--space-12)] rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-24)] py-[28px] lg:h-[220px]">
               <span aria-hidden="true" className="inline-flex size-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--color-bg-primary-subtle)] text-[var(--color-icon-primary)]">
@@ -191,12 +193,13 @@ function Audience() {
 
 /* ── Inbox showcase 37:135 ── */
 const FAQ = [
-  { q: 'كم ياخذ وقت أول رد؟', a: 'يعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.' },
-  { q: 'هل أقدر أرفع كراسة PDF ممسوحة؟' },
-  { q: 'هل الأسعار شاملة الضريبة؟' },
-  { q: 'كيف تختارون الموردين؟' },
-  { q: 'هل أقدر أدعو موردين أعرفهم؟' },
-  { q: 'هل فيه رسوم على المورد؟' },
+  { q: 'هل أنا ملزم بأقل عرض؟', a: 'لا. قارن المواصفات والتوفر والسعر وشروط التوريد، واختر ما يناسب منشأتك. إبراز أقل سعر يساعد على المقارنة ولا يضمن أنه الأنسب.' },
+  { q: 'كم ياخذ وقت أول رد؟', a: 'تختلف مدة الرد حسب البند والمدينة وتوفر الموردين. تابع حالة طلبك والعروض التي تصل إليه من صفحة الطلب.' },
+  { q: 'هل أقدر أرفع كراسة PDF ممسوحة؟', a: 'تقدر تضيف ملف PDF أو صورة للطلب. راجع البنود والكميات الناتجة وعدّلها قبل التأكيد؛ جودة الصورة ووضوحها يؤثران على القراءة.' },
+  { q: 'هل الأسعار شاملة الضريبة؟', a: 'يعتمد ذلك على عرض المورد. راجع بنود الضريبة والتوصيل في كل عرض، ولا تعتبر السعر شاملًا إلا إذا أوضح المورد ذلك.' },
+  { q: 'كيف تختارون الموردين؟', a: 'يقترح النظام الموردين المرتبطين ببنود الطلب من السجل المتاح. راجع الترشيحات والمواصفات قبل التأكيد؛ الترشيح ليس ضمانًا للتوفر أو ملاءمة كل عرض.' },
+  { q: 'هل فرق يبيع المنتجات؟', a: 'فرق منصة تساعد المنشآت على جمع عروض الأسعار ومقارنتها. المورد هو من يقدم العرض ويتولى البيع والتوريد، والاختيار النهائي لمنشأتك.' },
+  { q: 'كيف أعرف رسوم الخدمة؟', a: 'تواصل معنا لمعرفة تفاصيل الخدمة والاشتراك المناسب لمنشأتك قبل البدء.' },
 ]
 
 function Faq() {
@@ -238,7 +241,7 @@ function FinalCta() {
       <LiveBgSlot tone="accent" />
       <Container className="flex flex-col items-center gap-[var(--space-16)] text-center md:gap-[var(--space-24)]">
         <h2 id="final-title" className={T.displayL}>طلب الشراء الجاي؟ خلّه علينا.</h2>
-        <p className={T.bodyL}>ارفعه الحين وشوف أول عرض اليوم.</p>
+        <p className={T.bodyL}>اكتب احتياج منشأتك، وخلّ العروض المستلمة قدامك قبل ما تقرر.</p>
         <LinkButton href={START_HREF} external variant="Primary" icon="arrow-forward" className="w-full sm:w-auto">ابدأ التسعير</LinkButton>
       </Container>
     </section>
@@ -282,8 +285,9 @@ export function Footer() {
         </div>
         <div className="h-px w-full bg-[var(--white-a16)]" />
         <div className="flex flex-col gap-[var(--space-8)] md:flex-row md:items-center md:justify-between">
-          <p className={cx(T.caption, 'text-[var(--color-text-secondary)]')}>© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]</p>
-          <p className={cx(T.caption, 'text-[var(--color-text-tertiary)]')}>من نحن · الخصوصية · الشروط — صفحات قيد الإعداد</p>
+          <p className={cx(T.caption, 'text-[var(--color-text-secondary)]')}>© 2026 شركة فرق للتكنولوجيا</p>
+          <nav aria-label="سياسات فرق العامة" className="flex flex-wrap gap-4 text-[12px] text-[var(--color-text-secondary)]"><TextLink href="https://www.farq.sa/legal/privacy" target="_blank" rel="noopener noreferrer">سياسة فرق العامة للخصوصية</TextLink><TextLink href="https://www.farq.sa/legal/terms" target="_blank" rel="noopener noreferrer">شروط خدمة فرق العامة</TextLink></nav>
+          <p className={cx(T.caption, 'text-[var(--color-text-tertiary)]')}>منصة لجمع عروض الموردين ومقارنتها؛ الشراء والتوريد من المورد.</p>
         </div>
       </Container>
     </footer>

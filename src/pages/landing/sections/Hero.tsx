@@ -15,7 +15,7 @@ export const NAV_LINKS = [
   { href: '#faq', label: 'الأسئلة' },
 ] as const
 
-const CATEGORIES = ['كهرباء', 'سباكة', 'مواد البناء', 'إنارة', 'سلامة', 'أثاث مكتبي', 'HVAC']
+const CATEGORIES = ['احتياجات العيادات', 'تجهيز المطاعم', 'المكاتب', 'الفنادق', 'المقاولات', 'المصانع']
 
 function Nav() {
   const [open, setOpen] = useState(false)
@@ -112,7 +112,7 @@ export function Hero() {
               </span>
             </h1>
             <p className={cx(T.bodyL, 'max-w-[520px] text-[var(--color-text-secondary)]')}>
-              ارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.
+              اكتب احتياج شركتك أو منشأتك، وراجع البنود قبل تأكيد الطلب. اجمع العروض المستلمة وقارن الأسعار والمواصفات والتوصيل في مكان واحد.
             </p>
             <div className="flex flex-wrap gap-[var(--space-12)] pt-[var(--space-16)]">
               <LinkButton href={START_HREF} external variant="Accent" icon="arrow-forward">ابدأ التسعير</LinkButton>
@@ -122,7 +122,7 @@ export function Hero() {
           <HeroScene />
         </Container>
         <Container className="pb-[var(--space-48)]">
-          <ul aria-label="فئات نسعّرها" className="flex flex-wrap items-center gap-x-[var(--space-24)] gap-y-[var(--space-8)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">
+          <ul aria-label="أمثلة احتياجات المنشآت" className="flex flex-wrap items-center gap-x-[var(--space-24)] gap-y-[var(--space-8)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">
             {CATEGORIES.map((c, i) => (
               <li key={c} className="flex items-center gap-[var(--space-24)]">
                 {i > 0 && <span aria-hidden="true" className="size-1 rounded-full bg-[var(--color-text-secondary)]" />}

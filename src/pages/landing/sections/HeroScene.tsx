@@ -95,6 +95,13 @@ export default function HeroScene() {
   const tips = useRef<Array<HTMLDivElement | null>>([])
   const backs = useRef<Array<HTMLDivElement | null>>([])
   const ahmad = useRef<HTMLDivElement>(null)
+  const [motionReady, setMotionReady] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const load = () => { const im = new Image(); im.src = sheetUrl; void im.decode().then(() => { if (alive) setMotionReady(true) }).catch(() => {}) }
+    const id = window.requestIdleCallback ? window.requestIdleCallback(load, { timeout: 2000 }) : window.setTimeout(load, 250)
+    return () => { alive = false; (window.cancelIdleCallback ?? window.clearTimeout)(id) }
+  }, [])
   const [geo, setGeo] = useState<Geo | null>(null)
   const [phase, setPhase] = useState<'send' | 'wait' | 'back' | 'done'>('send')
   const mini = (geo?.col ?? 200) < 110 // very narrow columns: the price without «ر.س»
@@ -119,7 +126,7 @@ export default function HeroScene() {
   }
 
   useEffect(() => {
-    if (!geo) return
+    if (!geo || !motionReady) return
     const geometry = geo
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const P = order.map((_, i) => paths.current[i]!), L = P.map((p) => p.getTotalLength())
@@ -127,6 +134,10 @@ export default function HeroScene() {
     const tArr = LEAVE + D, tBack = tArr + WAIT, tHome = tBack + DB, T = tHome + REST
     // obstacles are re-read every frame (cards can shift a little once fonts load): five rects, cheap
     const obstacles = () => { const bx = box.current!.getBoundingClientRect(), rel = (r: DOMRect) => [r.left - bx.left, r.top - bx.top, r.right - bx.left, r.bottom - bx.top]; return [rel(line.current!.getBoundingClientRect()), rel(hub.current!.getBoundingClientRect()), ...order.map((_, i) => rel(cards.current[i]!.getBoundingClientRect()))] } // status line, the office and its label, the cards
+    const staticObstacles = obstacles()
+    const tipSizes = tips.current.map(el => [el?.offsetWidth ?? 0, el?.offsetHeight ?? 0])
+    const backSizes = backs.current.map(el => [el?.offsetWidth ?? 0, el?.offsetHeight ?? 0])
+    let previousPhase = ''
     const hit = (a: number[], b: number[]) => a[0] < b[2] + 3 && a[2] > b[0] - 3 && a[1] < b[3] + 3 && a[3] > b[1] - 3
     const grow = (i: number, frac: number) => { const m = reveal.current[i]; if (m) m.style.strokeDashoffset = String(L[i] * (1 - frac)) } // the dotted line behind the tip
     order.forEach((_, i) => { const m = reveal.current[i]; if (m) m.style.strokeDasharray = `${L[i]} ${L[i]}` })
@@ -156,11 +167,11 @@ export default function HeroScene() {
       const out = t >= LEAVE && t < tArr, back = !pending && t >= tBack && t < tHome
       const f = out ? (t - LEAVE) / D : back ? 1 - (t - tBack) / DB : 0
       const ph = t < tArr ? 'send' : t < tBack ? 'wait' : t < tHome && !pending ? 'back' : pending ? 'wait' : 'done'
-      setPhase((x) => (x === ph ? x : ph))
+      if (ph !== previousPhase) { previousPhase = ph; setPhase(ph) }
       // the lines grow with the requests and stay drawn until the round restarts
       order.forEach((_, i) => grow(i, t < LEAVE ? 0 : out ? f : 1))
       // Ahmad first (always shown), then every tip / reply that fits without touching anything
-      const taken: number[][] = obstacles()
+      const taken: number[][] = [...staticObstacles]
       if (aIdx >= 0) {
         const p = P[aIdx], moving = out || back, dist = (moving ? f : t >= tArr && t < tBack ? 1 : 0) * L[aIdx]
         const q = p.getPointAtLength(dist)
@@ -176,7 +187,7 @@ export default function HeroScene() {
         if (r) taken.push(r)
         const tag = backs.current[aIdx] // his price tag rides over his head on the way back
         if (tag) {
-          const w = tag.offsetWidth, hh = tag.offsetHeight, right = r ? r[2] + w + 6 < geometry.w : true
+          const [w, hh] = backSizes[aIdx], right = r ? r[2] + w + 6 < geometry.w : true
           const x = r ? (right ? r[2] + 2 : r[0] - w - 2) : 0, y = r ? r[1] + 14 : 0, tr = [x, y, x + w, y + hh]
           const carrying = back || (!pending && t >= tHome) // on the way home and once he is back, the price is in his hand
           if (carrying && r) { tag.style.transform = `translate3d(${x}px, ${y}px, 0)`; tag.style.opacity = '1'; taken.push(tr) } else hide(tag)
@@ -187,7 +198,7 @@ export default function HeroScene() {
         const el = out ? tips.current[i] : back ? backs.current[i] : null
         hide(out ? backs.current[i] : tips.current[i])
         if (!el) { hide(tips.current[i]); hide(backs.current[i]); return }
-        const q = P[i].getPointAtLength(f * L[i]), w = el.offsetWidth, hh = el.offsetHeight
+        const q = P[i].getPointAtLength(f * L[i]), [w, hh] = out ? tipSizes[i] : backSizes[i]
         const x = Math.min(geometry.w - w - 4, Math.max(4, q.x - w / 2)), y = q.y - hh / 2, r = [x, y, x + w, y + hh]
         if (taken.some((b) => hit(r, b))) { hide(el); return }
         taken.push(r)
@@ -197,17 +208,18 @@ export default function HeroScene() {
     }
     raf = requestAnimationFrame(tick)
     return cleanup
-  }, [geo, order, aIdx, pending])
+  }, [geo, order, aIdx, pending, motionReady])
 
-  const status = pending ? 'نرسل طلبك لأكثر من 150 ألف مورد… ننتظر أول رد'
-    : phase === 'send' ? 'نرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق'
+  const status = pending ? 'طلبك عند الموردين المختارين… ننتظر الردود'
+    : phase === 'send' ? 'طلب واحد يصل إلى الموردين المختارين'
     : phase === 'wait' ? 'الموردين يسعّرون…'
     : phase === 'back' ? 'الأسعار راجعة لك…'
-    : `أرخص سعر ${fmt(best)}`
+    : `أقل سعر في المثال ${fmt(best)}`
 
   return (
     <div ref={box} data-hero-scene aria-label="مثال: طلب واحد يروح لكل الموردين بالواتساب والرسائل والاتصال وأحمد بنفسه، ويرجع لك بالأسعار" role="img"
       className="relative isolate flex w-full flex-col items-center gap-[var(--space-16)] overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-12)] pb-[var(--space-20)] pt-[var(--space-20)] sm:px-[var(--space-20)]">
+      <span className="sr-only">مثال توضيحي لأسعار البنود؛ يحدد كل مورد التوصيل والضريبة في عرضه.</span>
       <svg aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 h-full w-full" viewBox={geo ? `0 0 ${geo.w} ${geo.h}` : '0 0 1 1'} preserveAspectRatio="none">
         <defs>
           {order.map((o, i) => (
@@ -257,9 +269,9 @@ export default function HeroScene() {
 
       {offers.length > 1 ? (
         <div className="flex flex-wrap items-center justify-center gap-x-[var(--space-12)] gap-y-[2px] rounded-[var(--radius-lg)] bg-[var(--color-bg-brand)] px-[var(--space-16)] py-[var(--space-8)] text-[var(--color-text-on-brand)]">
-          <span className={T.smallM}>وش الفرق؟</span>
+          <span className={T.smallM}>فرق سعر البنود</span>
           <span className="font-display text-[20px] font-bold leading-[28px] tabular-nums" dir="ltr">{fmt(worst - best)}</span>
-          <span className={T.caption}>أوفر من أعلى عرض بـ {(((worst - best) / worst) * 100).toFixed(1)}%</span>
+          <span className={T.caption}>بين أقل وأعلى سعر في المثال: {(((worst - best) / worst) * 100).toFixed(1)}%</span>
         </div>
       ) : (
         <p className={cx(T.small, 'text-center text-[var(--color-text-secondary)]')}>{offers.length === 1 ? 'وصل عرض واحد — نحتاج عرضين على الأقل للمقارنة' : 'الأسعار تظهر هنا أول ما توصل'}</p>
@@ -277,7 +289,7 @@ export default function HeroScene() {
       ))}
       {aIdx >= 0 ? (
         <div ref={ahmad} aria-hidden="true" className="pointer-events-none absolute left-0 top-0"
-          style={{ width: SPR.fw * SCALE, height: SPR.fh * SCALE, backgroundImage: `url(${sheetUrl})`, backgroundSize: `${1776 * SCALE}px ${1440 * SCALE}px`, backgroundRepeat: 'no-repeat' }} />
+          style={{ width: SPR.fw * SCALE, height: SPR.fh * SCALE, backgroundImage: motionReady ? `url(${sheetUrl})` : undefined, backgroundSize: `${1776 * SCALE}px ${1440 * SCALE}px`, backgroundRepeat: 'no-repeat' }} />
       ) : null}
     </div>
   )

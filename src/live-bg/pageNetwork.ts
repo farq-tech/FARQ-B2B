@@ -93,6 +93,9 @@ export class PageNetwork {
   private cleanup: Array<() => void> = []
   private played = 0 // rounds that ran to the end: only the very first one is the short «see it whole» round
   private buckets = new Map<number, number[]>()
+  private meshEdges: Edge[] = []
+  private meshCanvas = document.createElement('canvas')
+  private meshScroll = NaN
   private widths = new Map<string, number>()
   /** measureText once per (font, text): the chips repeat every frame */
   private tw(font: string, text: string) { const k = font + '|' + text; let w = this.widths.get(k); if (w === undefined) { this.ctx.font = font; w = this.ctx.measureText(text).width; this.widths.set(k, w) } return w }
@@ -190,6 +193,14 @@ export class PageNetwork {
     this.PH = V.map(() => Math.random() * TAU)
     const dd = V.map((v) => this.dist(v.x, v.y))
     this.VF = dd.map((d) => (d <= 4 ? 0 : Math.min(1, (d - 4) / 40))); this.BLK = dd.map((d) => d < 22)
+    // Test the entire edge once, so neither the grid nor its pulses pass behind content.
+    this.meshEdges = E.filter((e) => {
+      const a = V[e.a], b = V[e.b], steps = Math.ceil(e.L / 6)
+      for (let i = 0; i <= steps; i++) if (this.inUI(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps, 10)) return false
+      return true
+    })
+    this.meshCanvas.width = this.canvas.width; this.meshCanvas.height = this.canvas.height
+    this.meshScroll = NaN
     const C = V[this.HUB]; this.VD = V.map((v) => Math.hypot(v.x - C.x, v.y - C.y)); this.pings = []
     // shape the Arabic labels once, outside any frame
     const c = this.ctx; c.save()
@@ -334,6 +345,31 @@ export class PageNetwork {
   }
 
   // ---------- drawing ----------
+  private mesh(t: number, live: boolean) {
+    const { ctx, V, meshEdges, SY, VH, DPR } = this
+    if (this.meshScroll !== SY) {
+      const c = this.meshCanvas.getContext('2d')!
+      c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, this.VW, VH)
+      c.translate(0, -SY); c.lineWidth = 0.7; c.strokeStyle = col(this.go, 0.13); c.beginPath()
+      for (const e of meshEdges) {
+        const a = V[e.a], b = V[e.b]
+        if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
+        c.moveTo(a.x, a.y); c.lineTo(b.x, b.y)
+      }
+      c.stroke(); this.meshScroll = SY
+    }
+    ctx.drawImage(this.meshCanvas, 0, SY, this.VW, VH)
+    if (!live) return
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.strokeStyle = col(this.go, 0.48); ctx.beginPath()
+    for (let i = 0; i < meshEdges.length; i++) {
+      const e = meshEdges[i], a = V[e.a], b = V[e.b]
+      if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
+      const f = (t * 32 / e.L + i * 0.61803398875) % 1, end = Math.min(1, f + 10 / e.L)
+      ctx.moveTo(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)
+      ctx.lineTo(a.x + (b.x - a.x) * end, a.y + (b.y - a.y) * end)
+    }
+    ctx.stroke()
+  }
   private dots(t: number, live: boolean) {
     const { ctx, V, VF, VD, PH, mouse } = this, SP = 320, PER = 3 * SP, mx = mouse.on ? mouse.x : -1e4, my = mouse.y, y0 = this.SY - 12, y1 = this.SY + this.VH + 12
     for (let i = 0; i < V.length; i++) {
@@ -591,8 +627,8 @@ export class PageNetwork {
     }
   }
   private begin() { this.SY = window.scrollY; const c = this.ctx; c.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); c.clearRect(0, 0, this.VW, this.VH); c.translate(0, -this.SY) }
-  private draw(t: number) { this.begin(); if (!this.story) { this.dots(t, true); return } this.prep(t); this.scene(t); this.overlay(t) }
-  private drawStatic() { this.begin(); this.dots(0, false); const C = this.V[this.HUB]; if (C && this.story) this.hq(C.x, C.y) }
+  private draw(t: number) { this.begin(); this.mesh(t, true); if (!this.story) { this.dots(t, true); return } this.prep(t); this.scene(t); this.overlay(t) }
+  private drawStatic() { this.begin(); this.mesh(0, false); this.dots(0, false); const C = this.V[this.HUB]; if (C && this.story) this.hq(C.x, C.y) }
 
   private loop = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.simT += dt

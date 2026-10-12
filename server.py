@@ -23,10 +23,10 @@ LOGIN = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title
 <meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-family:Tahoma,sans-serif;background:#f7f7f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <form method="post" action="/__gate" style="background:#fff;padding:28px;border-radius:16px;border:1px solid #e6e6e2;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير</h2>
 <label for="gate-password" style="display:block;margin-bottom:8px">كلمة مرور الصفحة</label><input id="gate-password" name="p" autocomplete="current-password" type="password" placeholder="كلمة مرور الصفحة" style="width:100%;padding:10px;border-radius:12px;border:1px solid #e6e6e2;font-size:15px" autofocus>
-<button style="margin-top:12px;width:100%;padding:10px;border-radius:12px;border:0;background:#121212;color:#fff;font-size:15px">دخول</button></form></body></html>'''
+<button style="margin-top:12px;width:100%;padding:10px;border-radius:12px;border:0;background:#121212;color:#fff;font-size:15px">دخول</button></form><script src="/gate-network.js" defer></script></body></html>'''
 # The landing's <head> for crawlers (docs/qa/requests.md B3); app routes keep noindex.
 LANDING_TITLE = 'فرق تسعير — قبل ما تشتري، شوف الفرق'
-LANDING_DESC = 'ارفع الكراسة أو اكتب الطلبات أو صوّرها، ونجيب لك عروض أسعار من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.'
+LANDING_DESC = 'جهّز احتياج منشأتك وراجع البنود، ثم قارن عروض الموردين المستلمة ومواصفاتها وشروطها قبل قرار الشراء.'
 def landing_head(origin):
     t, d, u = html.escape(LANDING_TITLE), html.escape(LANDING_DESC), html.escape(origin + '/')
     return (f'<title>{t}</title><meta name="description" content="{d}" /><meta name="robots" content="index, follow" />'
@@ -124,7 +124,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, f'User-agent: *\nAllow: /$\nDisallow: /\nSitemap: {self._origin()}/sitemap.xml\n'.encode(), 'text/plain; charset=utf-8')
         if p == '/sitemap.xml':
             return self._send(200, f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{html.escape(self._origin())}/</loc></url></urlset>'.encode(), 'application/xml')
-        if p in public_files() or p in ('/favicon.ico', '/favicon.svg'):
+        if p in public_files() or p in ('/favicon.ico', '/favicon.svg', '/gate-network.js'):
             f = os.path.normpath(os.path.join(DIST, p.lstrip('/')))
             if f.startswith(DIST + os.sep) and os.path.isfile(f): return self._file(f)
             return self._send(404, b'')

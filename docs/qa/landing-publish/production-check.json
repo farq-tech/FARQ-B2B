@@ -1,0 +1,21 @@
+{
+  "base": "http://127.0.0.1:5200",
+  "results": [
+    {
+      "width": 1440,
+      "motion": true,
+      "gateMotion": true,
+      "overflow": false,
+      "errors": [],
+      "unauthApi": 401
+    },
+    {
+      "width": 390,
+      "motion": true,
+      "gateMotion": true,
+      "overflow": false,
+      "errors": [],
+      "unauthApi": 401
+    }
+  ]
+}
