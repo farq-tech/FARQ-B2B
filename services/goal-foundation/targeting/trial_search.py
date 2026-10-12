@@ -1,4 +1,5 @@
 """Read-only, bounded supplier discovery. Fast business evidence, bounded enrichment for unknown items; no contacts or sends."""
+import buyer_review
 import collections
 import json
 import os
@@ -185,7 +186,8 @@ class Directory:
                 usage_score,usage_reason=usage_rank(intent,name,(geo.get('category') or '').split('|')[0]) if objective=='marketing' else (0,intent['label'])
                 ranked.append((usage_score+match[0]/1000 if objective=='marketing' else match[0],complete,{**geo,'name_ar':name,'category_ar':category,'district_ar':district,'match':match[1],'ai':None,'reason':usage_reason, 'target_role':'buyer' if objective=='marketing' else 'seller', 'evidence':{'source':'directory_business_category','text':details,'confidence':'activity_inference' if objective=='marketing' else 'business_evidence'}, 'purchase_intent':'unknown'}))
             ranked.sort(key=lambda r:(-r[0],-r[1],r[2]['name_ar']))
-            result={'rows':[r[2] for r in ranked[:10]],'total':len(ranked),'intent':intent['label'],'ranking':'business-evidence','understood':{'direction':'buyer' if objective=='marketing' else 'seller','family':intent.get('family',intent['label']),'target_label':intent.get('target_label',''),'target_types':intent['seller'],'source':intent.get('understanding_source','existing_rules')}}
+            reviewed=buyer_review.review(q,[r[2] for r in ranked[:30]]) if objective=='marketing' else [r[2] for r in ranked[:10]]
+            result={'rows':reviewed,'total':len(reviewed) if objective=='marketing' else len(ranked),'intent':intent['label'],'ranking':'business-evidence','understood':{'direction':'buyer' if objective=='marketing' else 'seller','family':intent.get('family',intent['label']),'target_label':intent.get('target_label',''),'target_types':intent['seller'],'source':intent.get('understanding_source','existing_rules')}}
             self.cache[key]=(now+300,result)
             while len(self.cache)>128: self.cache.popitem(last=False)
             return result
