@@ -1,0 +1,226 @@
+[
+  {
+    "canonical_id": "activity-review:education",
+    "label_ar": "التعليم",
+    "aliases": [
+      "Education",
+      "Schools",
+      "School",
+      "Day care center"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:healthcare",
+    "label_ar": "الرعاية الصحية",
+    "aliases": [
+      "Hospitals",
+      "Hospital",
+      "Medical clinic"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:logistics",
+    "label_ar": "النقل والخدمات اللوجستية",
+    "aliases": [
+      "Logistics service",
+      "Transportation service",
+      "Warehouse"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:professional_services",
+    "label_ar": "الخدمات المهنية",
+    "aliases": [
+      "Law firm",
+      "Interior architect office",
+      "Information services",
+      "Embroidery service",
+      "Woodworker",
+      "Tailor"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:fuel_retail",
+    "label_ar": "محطات الوقود",
+    "aliases": [
+      "Fuel Stations",
+      "Gas station"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:food_retail",
+    "label_ar": "الأغذية",
+    "aliases": [
+      "Food and Beverages",
+      "Bakery"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:government",
+    "label_ar": "جهات حكومية وخدمات عامة",
+    "aliases": [
+      "Government Services",
+      "Public Services"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": false,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:hvac",
+    "label_ar": "التكييف",
+    "aliases": [
+      "hvac"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:paint",
+    "label_ar": "الدهانات",
+    "aliases": [
+      "paints"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:low_current",
+    "label_ar": "التيار الخفيف",
+    "aliases": [
+      "low_current"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:electronics",
+    "label_ar": "الإلكترونيات والاتصالات",
+    "aliases": [
+      "electronics_telecom"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:doors",
+    "label_ar": "الأبواب والنوافذ",
+    "aliases": [
+      "doors_windows"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:irrigation",
+    "label_ar": "تنسيق المواقع والري",
+    "aliases": [
+      "landscape_irrigation"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:fire_safety",
+    "label_ar": "السلامة والحريق",
+    "aliases": [
+      "safety_fire"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:laundry",
+    "label_ar": "الغسيل",
+    "aliases": [
+      "Laundry"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:coffee",
+    "label_ar": "المقاهي",
+    "aliases": [
+      "Coffee Shops",
+      "Coffee shop",
+      "Cafe"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:landmark",
+    "label_ar": "معالم ومواقع",
+    "aliases": [
+      "Park",
+      "Public Parks",
+      "ATM",
+      "Apartment complex"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": false,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  }
+]
