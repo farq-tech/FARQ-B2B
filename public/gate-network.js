@@ -36,11 +36,12 @@ function drawWebExpansion(ctx, points, edges, t, go, back, y0 = 0, y1 = Infinity
         connected = new Set(edges.flatMap((e) => [e.a, e.b]));
         connectedNodes.set(edges, connected);
     }
-    const cycle = t % 26, returning = cycle >= 12 && cycle < 24;
-    const frontier = returning ? 1100 * (1 - (cycle - 12) / 12) : 1100 * Math.min(1, cycle / 12);
+    const width = ctx.canvas.width / Math.min(2, window.devicePixelRatio || 1);
+    const reach = width < 640 ? 790 : 1100;
+    const cycle = (t + 3) % 26, returning = cycle >= 12 && cycle < 24;
+    const frontier = returning ? reach * (1 - (cycle - 12) / 12) : reach * Math.min(1, cycle / 12);
     const fade = cycle > 24 ? (26 - cycle) / 2 : Math.min(1, cycle / 1.2);
     const packets = new Map();
-    const width = ctx.canvas.width / Math.min(2, window.devicePixelRatio || 1);
     const slots = width < 640 ? 2 : 3;
     ctx.save();
     ctx.globalAlpha = fade;
@@ -56,7 +57,7 @@ function drawWebExpansion(ctx, points, edges, t, go, back, y0 = 0, y1 = Infinity
         if (Math.abs(diff) < 1)
             continue;
         for (const wave of [0, 160]) {
-            const travel = frontier + (returning ? wave : -wave);
+            const travel = (frontier + (returning ? -wave : wave) + reach) % reach;
             const f = (travel - a.d) / diff;
             if (f < 0 || f > 1)
                 continue;
