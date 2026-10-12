@@ -1,13 +1,13 @@
-✔ all four directions reuse the exact authoritative resolver and same product (2564.788334ms)
-✔ unsupported non-construction products abstain without a second ontology (335.700292ms)
-✔ service interpretation cannot become goods supplier eligibility (15.779125ms)
-✔ existing catalog matcher result preserved; browsing cannot yield discovery ids (38.659875ms)
-✔ existing supplier evidence reused but never inverted into buyer evidence (24.745417ms)
-✔ history and price memory are the original function objects, not copies (0.325333ms)
-✔ invalid objective/text rejected and source files unchanged (2.369417ms)
-✔ public first-party pilot preserves provenance and declares inferred coffee use (0.36025ms)
-✔ four real goal cases remain blocked when shared product understanding is unresolved (2700.725167ms)
-✔ coffee use and distributor status do not become confirmed buyer or partnership intent (0.416791ms)
+✔ all four directions reuse the exact authoritative resolver and same product (2460.952833ms)
+✔ unsupported non-construction products abstain without a second ontology (326.61325ms)
+✔ service interpretation cannot become goods supplier eligibility (14.820666ms)
+✔ existing catalog matcher result preserved; browsing cannot yield discovery ids (41.421ms)
+✔ existing supplier evidence reused but never inverted into buyer evidence (27.531875ms)
+✔ history and price memory are the original function objects, not copies (0.365667ms)
+✔ invalid objective/text rejected and source files unchanged (2.351875ms)
+✔ public first-party pilot preserves provenance and declares inferred coffee use (0.357958ms)
+✔ four real goal cases remain blocked when shared product understanding is unresolved (2627.842083ms)
+✔ coffee use and distributor status do not become confirmed buyer or partnership intent (0.432167ms)
 ℹ tests 10
 ℹ suites 0
 ℹ pass 10
@@ -15,4 +15,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 3167.180375
+ℹ duration_ms 3010.402709

@@ -5,7 +5,7 @@ import Module from 'node:module'
 
 // Experimental data extension of the same CPO implementation. No source writes,
 // no new resolver, no supplier maps, no production artifact.
-export async function experiment(sourceRoot) {
+export async function prepareUnifiedCpo(sourceRoot) {
   if (!path.isAbsolute(sourceRoot || '')) throw new Error('EXPLICIT_CONSTRUCTION_API_SOURCE_REQUIRED')
   const source = path.join(sourceRoot, 'data/construction/procurement-ontology.resolver.cjs')
   const payloadPath = path.join(sourceRoot, 'data/construction/procurement-ontology.data.json')
@@ -45,9 +45,10 @@ export async function experiment(sourceRoot) {
     if (originalTail !== updatedTail) throw new Error('RESOLVER_CODE_CHANGED')
     const m = new Module(source + '.phase0-memory.cjs')
     m._compile(updated, source + '.phase0-memory.cjs')
-    return m.exports
+    return { resolver: m.exports, code: updated }
   }
-  const baseline = await compile(original), next = await compile(extended)
+  const compiledBaseline = await compile(original), compiledNext = await compile(extended)
+  const baseline = compiledBaseline.resolver, next = compiledNext.resolver
   const signature = r => ({ level: r.level, intent: r.intent, family: r.family, poolable: r.poolable,
     facets: r.facets, pool: r.pool_key, authority: r.source })
   const originals = [...new Set(original.families.flatMap(f => (f.intents || []).map(i => i.strong_terms?.[0]).filter(Boolean)))]
@@ -65,11 +66,16 @@ export async function experiment(sourceRoot) {
   if (cases.slice(0, 5).some((c, i) => c.after.intent !== expected[i])) throw new Error('COVERAGE_EXTENSION_FAILED')
   if (cases.find(c => c.text === 'قهوة').after.intent || cases.find(c => c.text === 'مستلزمات طبية').after.intent) throw new Error('AMBIGUOUS_PRODUCT_FALSE_CERTAINTY')
   if (next.listIntentIds().length !== baseline.listIntentIds().length + additions.length) throw new Error('INTENT_IDS_CHANGED_UNEXPECTEDLY')
-  return { originalVersion: baseline.ONTOLOGY_VERSION, experimentalVersion: next.ONTOLOGY_VERSION,
+  const report = { originalVersion: baseline.ONTOLOGY_VERSION, experimentalVersion: next.ONTOLOGY_VERSION,
     same_resolver_source: true, original_source_hashes: before, originals_unchanged: unchanged,
     regression_probe_count: originals.length, changed_originals: changed,
     cases, unresolved_supplier_mapping: additions.map(a => a.intent),
     deployed: false, approved_vocabulary: false, phase1_ready: false }
+  return { payload: extended, code: compiledNext.code, resolver: next, report }
+}
+
+export async function experiment(sourceRoot) {
+  return (await prepareUnifiedCpo(sourceRoot)).report
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) {

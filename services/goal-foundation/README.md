@@ -31,3 +31,10 @@ FARQ_CONSTRUCTION_SOURCE=/Users/m4pro/farq-pricing-api-proof/api node --require 
 ```
 
 هذه التجربة تعدّل بيانات CPO في الذاكرة فقط، وتختبر بقاء نتائج المصطلحات القديمة. لا تنشئ مخزنًا بديلًا ولا تضيف supplier map أو صلاحيات أو إرسالًا؛ معرفاتها تجريبية غير معتمدة. نتائج الترشيح في العينة العامة أحكام موثقة من الباحث، وليست اكتشافًا إنتاجيًا أو تقييمًا مستقلًا.
+
+### Unified CPO and existing directory integration
+
+See `docs/qa/goals-phase0/directory-integration.md` for the local artifact build,
+fresh-process environment setup, actual Construction repository SQL tests,
+relationship provenance, and remaining acceptance gates. Production consumers
+are unchanged. Generated `.runtime` files are reproducible and ignored.

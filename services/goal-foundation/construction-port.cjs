@@ -20,11 +20,11 @@ const DIRECTIONS = Object.freeze({
   service: ['buyer', 'service_provider'],
 });
 
-function createConstructionPort(apiRoot) {
+function createConstructionPort(apiRoot, { resolver } = {}) {
   if (!path.isAbsolute(apiRoot || '')) throw new Error('EXPLICIT_ABSOLUTE_API_ROOT_REQUIRED');
   const load = file => require(path.join(apiRoot, file));
   const authority = load(FILES[0]), ontology = load(FILES[1]);
-  if (!authority.serverResolver()) throw new Error('PAIRED_CONSTRUCTION_RESOLVER_REQUIRED');
+  if (!authority.serverResolver(resolver ? { override: resolver } : {})) throw new Error('PAIRED_CONSTRUCTION_RESOLVER_REQUIRED');
   const catalog = load(FILES[4]), evidence = load(FILES[5]);
   const history = load(FILES[6]), memory = load(FILES[7]);
   const fingerprint = () => Object.fromEntries(FILES.map(file => [file,
@@ -34,7 +34,7 @@ function createConstructionPort(apiRoot) {
     if (!Object.hasOwn(DIRECTIONS, objective)) throw new Error('UNSUPPORTED_OBJECTIVE');
     if (typeof productText !== 'string' || !productText.trim() || productText.length > 1000) throw new Error('INVALID_PRODUCT_TEXT');
     // productText is the product span; free-text goal extraction belongs to Phase 1.
-    const binding = authority.bindLineToIntent({ lineText: productText });
+    const binding = authority.bindLineToIntent({ lineText: productText, ...(resolver ? { resolver } : {}) });
     const named = binding.authority === 'SERVER_RESOLVED' &&
       ['CANONICAL', 'FAMILY_ONLY'].includes(binding.verdict.status);
     const [ownerRole, targetRole] = DIRECTIONS[objective];
