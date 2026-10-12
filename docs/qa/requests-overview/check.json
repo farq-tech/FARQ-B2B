@@ -1,0 +1,16 @@
+[
+  {
+    "width": 1440,
+    "filter": true,
+    "search": true,
+    "clear": true,
+    "overflow": false
+  },
+  {
+    "width": 390,
+    "filter": true,
+    "search": true,
+    "clear": true,
+    "overflow": false
+  }
+]
