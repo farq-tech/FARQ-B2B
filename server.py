@@ -10,7 +10,8 @@ robots.txt, sitemap.xml and the favicon. Every app route, every app chunk and /_
 /_targeting/* (behind the same gate) proxies the targeting service (screens 07–10) with its own password from the
 environment, so the owner logs in once. Only the read endpoints and template submission (to Meta, for review) pass by default; the send endpoint passes only
 when TARGETING_SEND=1 is set on this service (off locally and in tests: nothing can go out)."""
-import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
+import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes, hmac
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__)); DIST = os.path.join(HERE, 'dist')
@@ -19,9 +20,9 @@ API = os.environ.get('FARQ_API_ORIGIN', 'https://api.farq.sa').rstrip('/')
 TOKEN = hashlib.sha256(PASSWORD.encode()).hexdigest()[:32] if PASSWORD else ''
 SITE_URL = os.environ.get('SITE_URL', '').rstrip('/')  # public origin for canonical / sitemap (unset: from the Host header)
 LOGIN = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير</title>
-<body style="font-family:Tahoma,sans-serif;background:#f7f7f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+<meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-family:Tahoma,sans-serif;background:#f7f7f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <form method="post" action="/__gate" style="background:#fff;padding:28px;border-radius:16px;border:1px solid #e6e6e2;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير</h2>
-<input name="p" type="password" placeholder="كلمة مرور الصفحة" style="width:100%;padding:10px;border-radius:12px;border:1px solid #e6e6e2;font-size:15px" autofocus>
+<label for="gate-password" style="display:block;margin-bottom:8px">كلمة مرور الصفحة</label><input id="gate-password" name="p" autocomplete="current-password" type="password" placeholder="كلمة مرور الصفحة" style="width:100%;padding:10px;border-radius:12px;border:1px solid #e6e6e2;font-size:15px" autofocus>
 <button style="margin-top:12px;width:100%;padding:10px;border-radius:12px;border:0;background:#121212;color:#fff;font-size:15px">دخول</button></form></body></html>'''
 # The landing's <head> for crawlers (docs/qa/requests.md B3); app routes keep noindex.
 LANDING_TITLE = 'فرق تسعير — قبل ما تشتري، شوف الفرق'
@@ -65,7 +66,13 @@ HOP = {'connection', 'keep-alive', 'transfer-encoding', 'host', 'content-length'
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
-    def _authed(self): return not TOKEN or f'fp_gate={TOKEN}' in (self.headers.get('Cookie') or '')
+    def _authed(self):
+        if not TOKEN: return True
+        cookies = SimpleCookie()
+        try: cookies.load(self.headers.get('Cookie') or '')
+        except Exception: return False
+        value = cookies.get('fp_gate')
+        return bool(value and hmac.compare_digest(value.value, TOKEN))
     def _send(self, code, body, ctype='text/html; charset=utf-8', extra=None):
         self.send_response(code); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(body))); self.send_header('Cache-Control', 'no-store')
         for k, v in (extra or []): self.send_header(k, v)
@@ -127,7 +134,7 @@ class H(BaseHTTPRequestHandler):
             if p.startswith('/assets/') or '.' in p.rsplit('/', 1)[-1]: return self._send(401, b'', 'text/plain')
             return self._send(303, b'', extra=[('Location', '/__gate?next=' + urllib.parse.quote(self.path, safe=''))])
         f = os.path.normpath(os.path.join(DIST, p.lstrip('/')))
-        if not f.startswith(DIST) or not os.path.isfile(f): f = os.path.join(DIST, 'index.html')
+        if not f.startswith(DIST + os.sep) or not os.path.isfile(f): f = os.path.join(DIST, 'index.html')
         self._file(f)
     def _next(self, query):
         n = urllib.parse.parse_qs(query).get('next', ['/requests'])[0]
@@ -138,7 +145,7 @@ class H(BaseHTTPRequestHandler):
         if urllib.parse.urlparse(self.path).path == '/__gate':
             n = int(self.headers.get('Content-Length') or 0); p = urllib.parse.parse_qs(self.rfile.read(n).decode()).get('p', [''])[0]
             self.send_response(303); self.send_header('Location', urllib.parse.quote(self._next(urllib.parse.urlparse(self.path).query), safe="/?=&:#-._~"))
-            if PASSWORD and p == PASSWORD: self.send_header('Set-Cookie', f'fp_gate={TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000')
+            if PASSWORD and p == PASSWORD: self.send_header('Set-Cookie', f'fp_gate={TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000; Secure')
             self.end_headers(); return
         if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')

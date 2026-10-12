@@ -47,7 +47,7 @@ function HowItWorks() {
             <li key={m.n} className="flex items-center gap-[var(--space-16)] rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-[var(--space-20)] md:h-[300px] md:flex-col md:items-start md:bg-[var(--color-bg-canvas)] md:p-[var(--space-32)]">
               <div className="flex shrink-0 items-start justify-between md:w-full">
                 <img src={m.spot} alt="" width={64} height={64} loading="lazy" className="size-12 md:size-16" />
-                <span aria-hidden="true" className={cx(T.numBase, 'hidden text-[var(--color-text-tertiary)] md:block')}>{m.n}</span>
+                <span aria-hidden="true" className={cx(T.numBase, 'hidden text-[var(--color-text-secondary)] md:block')}>{m.n}</span>
               </div>
               <div className="flex flex-col gap-[var(--space-4)] md:gap-[var(--space-16)]">
                 <h3 className={cx(T.h3, 'text-[var(--color-text-primary)]')}>{m.title}</h3>
@@ -128,7 +128,7 @@ function Difference() {
                 {OFFERS.map((o) => (
                   <td key={o.name} className={cx(cell, o.best && 'bg-[var(--color-bg-success)]')}>
                     <span className={cx(T.numBase, 'block')}>{o.landed}</span>
-                    <span className={cx(T.caption, 'block', o.best ? 'text-[var(--color-text-success)]' : 'text-[var(--color-text-warning)]')}>{o.delta}</span>
+                    <span className={cx(T.caption, 'block', o.best ? 'text-[var(--color-text-success)]' : 'text-[var(--color-text-secondary)]')}>{o.delta}</span>
                   </td>
                 ))}
               </tr>

@@ -120,6 +120,7 @@ export default function HeroScene() {
 
   useEffect(() => {
     if (!geo) return
+    const geometry = geo
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const P = order.map((_, i) => paths.current[i]!), L = P.map((p) => p.getTotalLength())
     const D = Math.max(3.5, Math.max(...L) / MSG_SPEED), DB = D * 0.85 // one journey time for everyone
@@ -130,7 +131,14 @@ export default function HeroScene() {
     const grow = (i: number, frac: number) => { const m = reveal.current[i]; if (m) m.style.strokeDashoffset = String(L[i] * (1 - frac)) } // the dotted line behind the tip
     order.forEach((_, i) => { const m = reveal.current[i]; if (m) m.style.strokeDasharray = `${L[i]} ${L[i]}` })
     let raf = 0, odo = 0, lastD = 0, dir: Dir8 = 'S'
-    const t0 = performance.now()
+    let elapsed = 0, last = performance.now(), onScreen = true
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const restart = () => { cancelAnimationFrame(raf); if (!document.hidden && onScreen && !motion.matches) { last = performance.now(); raf = requestAnimationFrame(tick) } }
+    const io = new IntersectionObserver(entries => { onScreen = entries[0].isIntersecting; restart() }); io.observe(box.current!)
+    document.addEventListener('visibilitychange', restart)
+    const onMotion = () => { if (motion.matches) { cancelAnimationFrame(raf); setPhase('done'); order.forEach((_, i) => { hide(tips.current[i]); hide(backs.current[i]); grow(i, 1) }); drawAhmad(geometry.home[0], geometry.home[1], 'S', 0, true) } else restart() }
+    motion.addEventListener('change', onMotion)
+    const cleanup = () => { cancelAnimationFrame(raf); io.disconnect(); document.removeEventListener('visibilitychange', restart); motion.removeEventListener('change', onMotion) }
     const hide = (el: HTMLElement | null) => { if (el) el.style.opacity = '0' }
     function drawAhmad(x: number, y: number, dr: Dir8, dist: number, stand: boolean) {
       const el = ahmad.current; if (!el) return null
@@ -140,10 +148,11 @@ export default function HeroScene() {
       el.style.transform = `translate3d(${X}px, ${Y}px, 0)`
       return [X + 14, Y + 6, X + SPR.fw * SCALE - 14, Y + SPR.fh * SCALE]
     }
-    if (reduced) { order.forEach((_, i) => { hide(tips.current[i]); hide(backs.current[i]); grow(i, 1) }); setPhase('done'); drawAhmad(geo.home[0], geo.home[1], 'S', 0, true); return }
+    if (reduced) { order.forEach((_, i) => { hide(tips.current[i]); hide(backs.current[i]); grow(i, 1) }); setPhase('done'); drawAhmad(geometry.home[0], geometry.home[1], 'S', 0, true); return cleanup }
 
-    const tick = (now: number) => {
-      const t = ((now - t0) / 1000) % T
+    function tick(now: number) {
+      elapsed += Math.min(0.05, (now - last) / 1000); last = now
+      const t = elapsed % T
       const out = t >= LEAVE && t < tArr, back = !pending && t >= tBack && t < tHome
       const f = out ? (t - LEAVE) / D : back ? 1 - (t - tBack) / DB : 0
       const ph = t < tArr ? 'send' : t < tBack ? 'wait' : t < tHome && !pending ? 'back' : pending ? 'wait' : 'done'
@@ -163,11 +172,11 @@ export default function HeroScene() {
         }
         lastD = dist
         const atHome = !(moving || (t >= tArr && t < tBack))
-        const r = drawAhmad(atHome ? geo.home[0] : q.x, atHome ? geo.home[1] : q.y, dir, odo, !moving)
+        const r = drawAhmad(atHome ? geometry.home[0] : q.x, atHome ? geometry.home[1] : q.y, dir, odo, !moving)
         if (r) taken.push(r)
         const tag = backs.current[aIdx] // his price tag rides over his head on the way back
         if (tag) {
-          const w = tag.offsetWidth, hh = tag.offsetHeight, right = r ? r[2] + w + 6 < geo.w : true
+          const w = tag.offsetWidth, hh = tag.offsetHeight, right = r ? r[2] + w + 6 < geometry.w : true
           const x = r ? (right ? r[2] + 2 : r[0] - w - 2) : 0, y = r ? r[1] + 14 : 0, tr = [x, y, x + w, y + hh]
           const carrying = back || (!pending && t >= tHome) // on the way home and once he is back, the price is in his hand
           if (carrying && r) { tag.style.transform = `translate3d(${x}px, ${y}px, 0)`; tag.style.opacity = '1'; taken.push(tr) } else hide(tag)
@@ -179,7 +188,7 @@ export default function HeroScene() {
         hide(out ? backs.current[i] : tips.current[i])
         if (!el) { hide(tips.current[i]); hide(backs.current[i]); return }
         const q = P[i].getPointAtLength(f * L[i]), w = el.offsetWidth, hh = el.offsetHeight
-        const x = Math.min(geo.w - w - 4, Math.max(4, q.x - w / 2)), y = q.y - hh / 2, r = [x, y, x + w, y + hh]
+        const x = Math.min(geometry.w - w - 4, Math.max(4, q.x - w / 2)), y = q.y - hh / 2, r = [x, y, x + w, y + hh]
         if (taken.some((b) => hit(r, b))) { hide(el); return }
         taken.push(r)
         el.style.transform = `translate3d(${x}px, ${y}px, 0)`; el.style.opacity = '1'
@@ -187,7 +196,7 @@ export default function HeroScene() {
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    return cleanup
   }, [geo, order, aIdx, pending])
 
   const status = pending ? 'نرسل طلبك لأكثر من 150 ألف مورد… ننتظر أول رد'
