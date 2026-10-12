@@ -4,9 +4,8 @@ import { LinkButton } from './kit'
 import { START_HREF } from './contact'
 
 export const GOALS = {
-  pricing: { label: 'تسعير', action: 'ابدأ تسعير', prompt: 'أبي أسعار لاحتياج منشأتي' },
-  marketing: { label: 'تسويق', action: 'ابدأ تسويق', prompt: 'أبي أسوّق منتجي أو خدمتي' },
-  inquiry: { label: 'استفسار', action: 'ابدأ استفسار', prompt: 'أبي أستفسر عن منتج أو خدمة' },
+  pricing: { label: 'بائعون', action: 'ابحث عن بائعين', prompt: 'أبحث عن بائعين — أبي أشتري' },
+  marketing: { label: 'مشترون', action: 'ابحث عن مشترين', prompt: 'أبحث عن مشترين — أبي أبيع' },
 } as const
 export type LandingGoal = keyof typeof GOALS
 const GoalContext = createContext<{ goal: LandingGoal | null; choose: (goal: LandingGoal) => void }>({ goal: null, choose: () => {} })
