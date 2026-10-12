@@ -1,0 +1,22 @@
+[
+  {
+    "width": 1440,
+    "seconds": 0.058,
+    "realCards": 10,
+    "mapLinks": 10,
+    "edit": true,
+    "escape": true,
+    "errors": [],
+    "axe": []
+  },
+  {
+    "width": 390,
+    "seconds": 0.056,
+    "realCards": 10,
+    "mapLinks": 10,
+    "edit": true,
+    "escape": true,
+    "errors": [],
+    "axe": []
+  }
+]
