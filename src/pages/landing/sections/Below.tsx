@@ -161,9 +161,9 @@ function Difference() {
 
 /* ── Trust strip 35:218 — real figures are not available: placeholders (decision 5) ── */
 const AUDIENCE = [
-  { icon: 'building' as const, title: 'العيادات', body: 'مثال احتياج: 20 كرسي انتظار لعيادة بالرياض.' },
-  { icon: 'layers' as const, title: 'المطاعم', body: 'مثال احتياج: معدات مطبخ وتجهيز منطقة التحضير.' },
-  { icon: 'sliders' as const, title: 'المكاتب', body: 'مثال احتياج: أجهزة كمبيوتر وأثاث للموظفين.' },
+  { icon: 'building' as const, title: 'العيادات', body: 'مستلزمات طبية، أدوية محددة، أو تجهيزات وأثاث للعيادة.' },
+  { icon: 'layers' as const, title: 'المطاعم', body: 'مواد غذائية، معدات مطبخ، أو مستلزمات تشغيل المطعم.' },
+  { icon: 'sliders' as const, title: 'المكاتب', body: 'أجهزة وأثاث، مياه وقهوة، أو أسلاك ومستلزمات المكتب اليومية.' },
   { icon: 'grid' as const, title: 'الفنادق', body: 'مثال احتياج: مستلزمات تشغيل وتجهيز الغرف.' },
   { icon: 'building' as const, title: 'المقاولات', body: 'مثال احتياج: مواد بناء وسباكة وكهرباء لمشروع.' },
   { icon: 'layers' as const, title: 'المصانع', body: 'مثال احتياج: معدات أو قطع غيار للتشغيل.' },

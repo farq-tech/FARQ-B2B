@@ -1,4 +1,4 @@
-import { webMesh } from './webMesh'
+import { webMesh, drawWebExpansion, WEB_INK } from './webMesh'
 /*
  * «الشبكة الحية» for the landing page — a port of docs/reference/landing-live-network.html (owner, 2026-10-08):
  * the whole page is ONE network with ONE head office and ONE round. A screen-sized fixed canvas (above the section
@@ -95,7 +95,7 @@ export class PageNetwork {
   private played = 0 // rounds that ran to the end: only the very first one is the short «see it whole» round
   private buckets = new Map<number, number[]>()
   private meshEdges: Edge[] = []
-  private meshVertices: Array<{ x: number; y: number }> = []
+  private meshVertices: Array<{ x: number; y: number; d: number }> = []
   private meshCanvas = document.createElement('canvas')
   private meshScroll = NaN
   private widths = new Map<string, number>()
@@ -196,7 +196,7 @@ export class PageNetwork {
     const dd = V.map((v) => this.dist(v.x, v.y))
     this.VF = dd.map((d) => (d <= 4 ? 0 : Math.min(1, (d - 4) / 40))); this.BLK = dd.map((d) => d < 22)
     // Spacious webs grow inward from the two margins. Keep the request-routing graph independent.
-    this.meshVertices = V
+    this.meshVertices = V.map((v) => ({ ...v, d: 0 }))
     let mesh = E
     if (!this.story) {
       const { points, edges } = webMesh(W, H, VH)
@@ -205,7 +205,7 @@ export class PageNetwork {
     // Test the entire edge once, so neither the grid nor its pulses pass behind content.
     this.meshEdges = mesh.filter((e) => {
       const a = this.meshVertices[e.a], b = this.meshVertices[e.b], steps = Math.ceil(e.L / 6)
-      for (let i = 0; i <= steps; i++) if (this.inUI(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps, 10)) return false
+      for (let i = 0; i <= steps; i++) if (this.inUI(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps, 14)) return false
       return true
     })
     this.meshCanvas.width = this.canvas.width; this.meshCanvas.height = this.canvas.height
@@ -359,7 +359,7 @@ export class PageNetwork {
     if (this.meshScroll !== SY) {
       const c = this.meshCanvas.getContext('2d')!
       c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, this.VW, VH)
-      c.translate(0, -SY); c.lineWidth = 0.6; c.strokeStyle = col(this.go, 0.085); c.beginPath()
+      c.translate(0, -SY); c.lineWidth = 0.6; c.strokeStyle = WEB_INK.line; c.beginPath()
       for (const e of meshEdges) {
         const a = V[e.a], b = V[e.b]
         if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
@@ -369,15 +369,8 @@ export class PageNetwork {
     }
     ctx.drawImage(this.meshCanvas, 0, SY, this.VW, VH)
     if (!live) return
-    ctx.lineWidth = 1.2; ctx.lineCap = 'round'; ctx.strokeStyle = col(this.go, 0.24); ctx.beginPath()
-    for (let i = 0; i < meshEdges.length; i++) {
-      const e = meshEdges[i], a = V[e.a], b = V[e.b]
-      if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
-      const f = (t * 24 / e.L + i * 0.07) % 1, end = Math.min(1, f + 12 / e.L)
-      ctx.moveTo(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)
-      ctx.lineTo(a.x + (b.x - a.x) * end, a.y + (b.y - a.y) * end)
-    }
-    ctx.stroke()
+    drawWebExpansion(ctx, V, meshEdges, t, WEB_INK.go, WEB_INK.back, SY, SY + VH)
+
   }
   private dots(t: number, live: boolean) {
     const { ctx, V, VF, VD, PH, mouse } = this, SP = 320, PER = 3 * SP, mx = mouse.on ? mouse.x : -1e4, my = mouse.y, y0 = this.SY - 12, y1 = this.SY + this.VH + 12

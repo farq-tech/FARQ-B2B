@@ -1,5 +1,5 @@
 {
-  "base": "https://farq-pricing-production.up.railway.app",
+  "base": "http://127.0.0.1:5200",
   "results": [
     {
       "width": 1440,
