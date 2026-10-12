@@ -1,0 +1,626 @@
+[
+  {
+    "q": "ابيع خدمات موارد بشرية",
+    "total": 46285,
+    "rows": [
+      {
+        "name_ar": "شركة رواسي البناء للإستثمار",
+        "category_ar": "البنوك",
+        "district_ar": "الورود",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Banks البنوك [\"['Gas Cylinders Supplier']\", \"['Airport Shuttle Service']\"] ['شركة استثمار', 'شركة مرافق الكهرباء']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مصنع الفلة للحوم",
+        "category_ar": "المأكولات والمشروبات",
+        "district_ar": "المدينة الصناعية الثانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Corporate المأكولات والمشروبات {\"Butcher shop\",\"Meat processor|Butcher shop|Cured ham warehouse|Import export company|Packaging company|Wholesaler\",\"Meat processor\"} ['ملحمة', 'مستودع اللحوم المجهزة', 'شركة الاستيراد والتصدير', 'شركة التعبئة والتغليف', 'تاجر جملة']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "شركة الشرق النادر",
+        "category_ar": "التسوق",
+        "district_ar": "العزيزية",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Shopping التسوق {\"Copy Services\"} ['محل طباعة', 'متجر ملابس أطفال', 'تاجر ملابس بالجملة', 'متجر ملابس رجالي', 'متجر بيع عبوات حبر الطابعات', 'خدمة إصلاح الطابعات', 'مورد معدات طباعة', 'شركة الطباعة على المنسوجات والمواد']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "شركة هوب واي المحدودة",
+        "category_ar": "الشركات",
+        "district_ar": "عتيقه",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Corporate الشركات {\"Fire Alarm Supplier\"} ['مورّد أجهزة الإنذار بالحريق', 'شركة إنشاء', 'خدمة التركيبات الكهربائية', 'مورّد نظم الحماية من الحرائق', 'خدمات تدفئة وتكييف هواء وتبريد', 'مصمم داخلي', 'مقاول أجهزة ميكانيكية', 'مورد أجهزة الحماية']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مؤسسة محور المعرفة للنشر والتوزيع",
+        "category_ar": "الشركات",
+        "district_ar": "الربوة",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Publisher الشركات {\"Media Production\"} ['محطة تحلية المياه', 'مكتب الشركات', 'شركة تنقية المياه']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "الفهود باك",
+        "category_ar": "الشركات",
+        "district_ar": "المصانع",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Corporate الشركات {NULL,\"Packaging company\",\"Packaging company\"} ['شركة التعبئة والتغليف', 'متجر سكاكين', 'توريد أكياس ورقية', 'موزّع المنتجات الورقية', 'مورد أكياس بلاستيكية', 'مورد منتجات بلاستيكية', 'محل طباعة']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "فاتح المستقبل للسفر والسياحة",
+        "category_ar": "الشركات",
+        "district_ar": "المنصوره",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Corporate الشركات [\"['Food Products Supplier']\", \"['Live Music']\", \"['Paddle and Tennis Court']\", \"['Dental Centers']\", \"['Investment Bank']\", \"['Aircraft Maintenance Company']\", \"['Outdoor Concerts']\", \"['Branding Agency']\", \"['Electrician']\"] ['مكتب سفريات', 'شركة خطوط جوية', 'وكالة تذاكر طيران', 'مكتب رخصة القيادة', 'وكالة عمل جولات في المعالم السياحية', 'مكتب تذاكر', 'وكالة سياحية', 'منظم الجولات السياحية', 'مزار سياحي', 'مستشار تأشيرات']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "شركة الذهب الاخضر للتجارة - الادارة العامة",
+        "category_ar": "الشركات",
+        "district_ar": "العزيزية",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Grocery الشركات {\"Food Products Supplier\"} ['مورّد المنتجات الغذائية']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مواد بناء مدار",
+        "category_ar": "Corporate | Hardware Store | Home Goods | الشركات | Aluminum supplier | Building materials supplier | Building materials store | Insulation materials store | Plywood supplier | Polythene and plastic sheeting supplier | Steel distributor | Wood and laminate flooring supplier | Wood supplier | محتمل حسب السوق: معدات وأدوات، أبواب ونوافذ، مواد بناء عامة، دهانات وعوازل، أخشاب، حديد ومعادن، أرضيات وأسقف",
+        "district_ar": "النرجس",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "building_materials Corporate | Hardware Store | Home Goods | الشركات | Aluminum supplier | Building materials supplier | Building materials store | Insulation materials store | Plywood supplier | Polythene and plastic sheeting supplier | Steel distributor | Wood and laminate flooring supplier | Wood supplier | محتمل حسب السوق: معدات وأدوات، أبواب ونوافذ، مواد بناء عامة، دهانات وعوازل، أخشاب، حديد ومعادن، أرضيات وأسقف",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "المكتب الرئيسي لشركة خدمات الأغذية هرفي",
+        "category_ar": "الشركات",
+        "district_ar": "المروج",
+        "match": "seller",
+        "ai": null,
+        "reason": "جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Corporate الشركات {\"Food products supplier\",\"Corporate office|Food products supplier\",\"Corporate office\"} corporate_office",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      }
+    ]
+  },
+  {
+    "q": "ابيع ادوية طبية تجميلية",
+    "total": 116,
+    "rows": [
+      {
+        "name_ar": "مجمع إيفان لطب الأسنان والجلدية",
+        "category_ar": "مستشفيات",
+        "district_ar": "المهدية",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Hospitals مستشفيات {\"Beauty and Laser Specialist\"} ['طبيب أسنان', 'طبيب أمراض جلدية', 'جراح تجميل']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "برق الحيا للوازم الرحلات",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "الروابي",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Shopping حقائب / منتجات جلدية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "Abas Medical Company branch",
+        "category_ar": "إختصاصي أمراض جلدية / تناسلية",
+        "district_ar": "الحمراء",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Dermatologist / venereologist services إختصاصي أمراض جلدية / تناسلية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "Al Sannat for luggage, shop",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "الشهداء",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Bags / Leather accessories حقائب / منتجات جلدية luggage_store",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "اسماء العجيري للحلاقة الرجالية",
+        "category_ar": "تصليح أحذية / منتجات جلدية",
+        "district_ar": "العريجاء الوسطى",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Supermarket تصليح أحذية / منتجات جلدية shoe_store",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "ريمووا, store",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "العليا",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Bags / Leather accessories حقائب / منتجات جلدية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "Charles & Keith, shop",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "الملك فهد",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Shoe store حقائب / منتجات جلدية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بالمين",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "مغرزات",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Clothing store|Store حقائب / منتجات جلدية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "تشارلز أند كيث, متجر",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "الشهداء",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Shoe store حقائب / منتجات جلدية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "تيد بيكر لندن",
+        "category_ar": "حقائب / منتجات جلدية",
+        "district_ar": "العقيق",
+        "match": "seller",
+        "ai": null,
+        "reason": "عيادات تجميل وجلدية محتملة؛ استخدام الدواء المحدد وترخيصه غير مثبتين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Shoe store حقائب / منتجات جلدية",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      }
+    ]
+  },
+  {
+    "q": "ابيع اكواب ورق",
+    "total": 16030,
+    "rows": [
+      {
+        "name_ar": "بيتزا لورينزو",
+        "category_ar": "مطاعم",
+        "district_ar": "المنصوره",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "دومينـــوزبيزا",
+        "category_ar": "مطاعم",
+        "district_ar": "الريان",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا', 'توصيل البيتزا', 'بيتزا للأكل خارج المطعم']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "شركة وكالات المطاعم",
+        "category_ar": "التسوق",
+        "district_ar": "المونسية",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurant consulting التسوق {\"Coffee Making Machines\"} coffee_machine_supplier",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "هرفي, fastfood restaurant",
+        "category_ar": "منتجات وجبات سريعة - بالجملة",
+        "district_ar": "الرائد",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Fast food restaurant منتجات وجبات سريعة - بالجملة fast_food_restaurant",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مركز عز البيارق للشفط والتعديل‬‏‏",
+        "category_ar": "Water treatment supplier | Hotel supply store | HVAC contractor | Kitchen furniture store | Landscaper | Plumbing supply store | Restaurant supply store | Sewage treatment plant | Water treatment plant | Water works | محتمل حسب السوق: تكييف، سباكة",
+        "district_ar": "السلي",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "plumbing_sanitary Water treatment supplier | Hotel supply store | HVAC contractor | Kitchen furniture store | Landscaper | Plumbing supply store | Restaurant supply store | Sewage treatment plant | Water treatment plant | Water works | محتمل حسب السوق: تكييف، سباكة",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "النهدي",
+        "category_ar": "مقاهي",
+        "district_ar": "الورود",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Coffee Shops مقاهي ['Restaurant supply store', 'Bakery equipment', 'Coffee machine supplier', 'Shopping mall']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مطعم تذوق البيت بينوي",
+        "category_ar": "مطاعم",
+        "district_ar": "السليمانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم {\"Cake shop\",\"Filipino restaurant|Cake shop|Catering food and drink supplier\",\"Filipino restaurant\"} filipino_restaurant",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بيتزا بستويا",
+        "category_ar": "مطاعم",
+        "district_ar": "المنصوره",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا', 'مطعم']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بيتزا خفايف",
+        "category_ar": "مطاعم",
+        "district_ar": "ديراب",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بيتزا نكهة ساخنة",
+        "category_ar": "مطاعم",
+        "district_ar": "بدر",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      }
+    ]
+  },
+  {
+    "q": "ابيع اكواب بلاستيك",
+    "total": 16030,
+    "rows": [
+      {
+        "name_ar": "بيتزا لورينزو",
+        "category_ar": "مطاعم",
+        "district_ar": "المنصوره",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "دومينـــوزبيزا",
+        "category_ar": "مطاعم",
+        "district_ar": "الريان",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا', 'توصيل البيتزا', 'بيتزا للأكل خارج المطعم']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "شركة وكالات المطاعم",
+        "category_ar": "التسوق",
+        "district_ar": "المونسية",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurant consulting التسوق {\"Coffee Making Machines\"} coffee_machine_supplier",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "هرفي, fastfood restaurant",
+        "category_ar": "منتجات وجبات سريعة - بالجملة",
+        "district_ar": "الرائد",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Fast food restaurant منتجات وجبات سريعة - بالجملة fast_food_restaurant",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مركز عز البيارق للشفط والتعديل‬‏‏",
+        "category_ar": "Water treatment supplier | Hotel supply store | HVAC contractor | Kitchen furniture store | Landscaper | Plumbing supply store | Restaurant supply store | Sewage treatment plant | Water treatment plant | Water works | محتمل حسب السوق: تكييف، سباكة",
+        "district_ar": "السلي",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "plumbing_sanitary Water treatment supplier | Hotel supply store | HVAC contractor | Kitchen furniture store | Landscaper | Plumbing supply store | Restaurant supply store | Sewage treatment plant | Water treatment plant | Water works | محتمل حسب السوق: تكييف، سباكة",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "النهدي",
+        "category_ar": "مقاهي",
+        "district_ar": "الورود",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Coffee Shops مقاهي ['Restaurant supply store', 'Bakery equipment', 'Coffee machine supplier', 'Shopping mall']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "مطعم تذوق البيت بينوي",
+        "category_ar": "مطاعم",
+        "district_ar": "السليمانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم {\"Cake shop\",\"Filipino restaurant|Cake shop|Catering food and drink supplier\",\"Filipino restaurant\"} filipino_restaurant",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بيتزا بستويا",
+        "category_ar": "مطاعم",
+        "district_ar": "المنصوره",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا', 'مطعم']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بيتزا خفايف",
+        "category_ar": "مطاعم",
+        "district_ar": "ديراب",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      },
+      {
+        "name_ar": "بيتزا نكهة ساخنة",
+        "category_ar": "مطاعم",
+        "district_ar": "بدر",
+        "match": "seller",
+        "ai": null,
+        "reason": "مطاعم ومقاهٍ قد تستخدم الأكواب؛ نوع الأكواب واحتياج الشراء غير مؤكدين",
+        "target_role": "buyer",
+        "evidence": {
+          "source": "directory_business_category",
+          "text": "Restaurants مطاعم [\"['Finishing Materials Supplier']\"] ['مطعم بيتزا']",
+          "confidence": "activity_inference"
+        },
+        "purchase_intent": "unknown"
+      }
+    ]
+  }
+]
