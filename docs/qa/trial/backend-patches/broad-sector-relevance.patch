@@ -1,0 +1,25 @@
+--- a/server.py
++++ b/server.py
+@@ -129,11 +129,11 @@
+ 
+ def sql_lit(s): return "'" + s.replace("'", "''") + "'"
+ 
+-RANK_PROMPT = """A construction / procurement buyer in Saudi Arabia wants to buy: {q}
++RANK_PROMPT = """A business buyer in Saudi Arabia (any sector: clinics, restaurants, offices, factories, hotels, shops or construction) wants to buy: {q}
+ Below are businesses (id | name | category). For each, judge from the name and category whether it would sell or supply that to a buyer:
+  L = likely: it names the product, OR it is the kind of shop/distributor/factory that normally stocks it (e.g. insulation, waterproofing and aluminium-accessory shops stock butyl tape and silicone; plumbing shops stock pipes and fittings).
+  M = maybe: a general building-materials or hardware store that might carry it.
+- N = not: unrelated businesses, including look-alike names in another trade (e.g. "Silicon Valley Computers" for silicone), services only (cleaning, car wash, tank cleaning), contractors, real estate, salons, restaurants, furniture."""
++ N = not: unrelated businesses, including look-alike names in another trade (e.g. "Silicon Valley Computers" for silicone). Judge the actual requested item: furniture shops are relevant for chairs; food wholesalers for restaurant ingredients; medical distributors for medical supplies; coffee suppliers for office coffee. Do not exclude a whole sector by default. A repair-only provider is not a seller unless it explicitly supplies the requested item. A product word in a name does not override an unrelated category; supermarkets with chair-like names are not chair suppliers. Do not infer verified stock or endorsement."""
+ RANK_PROMPT += """
+ Return ONLY JSON: {{"L": [ids], "M": [ids]}} — ids not listed are N.
+ {rows}"""
+@@ -187,7 +187,7 @@
+     like = lambda terms: '(' + ' or '.join(f"st ilike {sql_lit('%'+k+'%')}" for k in terms) + ')' if terms else 'false'
+     # a likely seller is judged by its own name and category only (not reviews or other text)
+     like_nc = lambda terms: '(' + ' or '.join(f"({nm} ilike {sql_lit('%'+k+'%')} or {ct} ilike {sql_lit('%'+k+'%')})" for k in terms) + ')' if terms else 'false'
+-    kw_cond, sel_cond = like(kws), like_nc(sel)
++    kw_cond, sel_cond = like_nc(kws), like_nc(sel)
+     sel_excl = like_nc([norm(x) for x in SELLER_EXCLUDE] + ['عقار','real estate','مقاولات','contracting','صالون','salon','مطعم','restaurant'])
+     conds = [f"({kw_cond} or ({sel_cond} and not {sel_excl}))"]
+     cats = [c for c in (p.get('category_hints') or []) if len(c) >= 4 and c not in ('supplies','materials','supplier','distributor','services','company','corporate','retail','shop','store','trading')]
