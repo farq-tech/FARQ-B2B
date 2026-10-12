@@ -15,7 +15,7 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 COPY --from=build /app/dist ./dist
-COPY server.py ./
+COPY server.py trial.py ./
 ENV PORT=8080
 EXPOSE 8080
 CMD ["python3", "server.py"]

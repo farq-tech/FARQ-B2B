@@ -12,6 +12,7 @@ import { Container, T } from './kit'
  * Routing: the Lead mounts this default export at «/» (docs/qa/requests.md).
  */
 
+const Trial = lazy(() => import('./Trial'))
 const PageLive = lazy(() => import('./PageLive'))
 const loadBelow = () => import('./sections/Below')
 const Below = lazy(loadBelow)
@@ -60,12 +61,16 @@ class BelowBoundary extends Component<{ children: ReactNode; silent?: boolean },
 
 export default function LandingPage() {
   useEffect(() => applySeo(), [])
+  const [trial, setTrial] = useState(() => location.hash === '#try')
+  useEffect(() => { const update = () => setTrial(location.hash === '#try'); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) }, [])
+  const closeTrial = () => { setTrial(false); if (location.hash === '#try') history.replaceState(null, '', location.pathname + location.search) }
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
     <div ref={setRoot} lang="ar" dir="rtl" className="landing-layers min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
       <a href="#main" className={cx('sr-only focus:not-sr-only focus:fixed focus:start-[var(--space-16)] focus:top-[var(--space-16)] focus:z-50 focus:rounded-[var(--radius-md)] focus:bg-[var(--color-bg-surface)] focus:px-[var(--space-16)] focus:py-[var(--space-8)] focus:text-[var(--brand-text)]', FOCUS_RING)}>
         تخطَّ إلى المحتوى
       </a>
+      {trial && <BelowBoundary><Suspense fallback={<output className="fixed inset-x-4 top-4 z-50 rounded-xl bg-[var(--color-bg-surface)] p-4">جارٍ فتح تجربة البحث…</output>}><Trial onClose={closeTrial} /></Suspense></BelowBoundary>}
       <SiteHeader />
       <main id="main" tabIndex={-1} className="outline-none">
         <Hero />

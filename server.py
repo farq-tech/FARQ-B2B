@@ -12,6 +12,7 @@ environment, so the owner logs in once. Only the read endpoints and template sub
 when TARGETING_SEND=1 is set on this service (off locally and in tests: nothing can go out)."""
 import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes, hmac
 from http.cookies import SimpleCookie
+from trial import handle as handle_trial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__)); DIST = os.path.join(HERE, 'dist')
@@ -115,6 +116,7 @@ class H(BaseHTTPRequestHandler):
         page = page.replace('<meta name="robots" content="noindex, nofollow" />', '', 1).replace('<title>فرق تسعير</title>', landing_head(self._origin()), 1)
         self._send(200, page.encode())
     def do_GET(self):
+        if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         u = urllib.parse.urlparse(self.path); p = u.path
@@ -142,6 +144,7 @@ class H(BaseHTTPRequestHandler):
         if not n.startswith('/') or n.startswith('//') or '\\' in n or n.startswith('/__gate') or any(ord(ch) < 32 for ch in n): return '/requests'
         return n
     def do_POST(self):
+        if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if urllib.parse.urlparse(self.path).path == '/__gate':
             n = int(self.headers.get('Content-Length') or 0); p = urllib.parse.parse_qs(self.rfile.read(n).decode()).get('p', [''])[0]
             self.send_response(303); self.send_header('Location', urllib.parse.quote(self._next(urllib.parse.urlparse(self.path).query), safe="/?=&:#-._~"))

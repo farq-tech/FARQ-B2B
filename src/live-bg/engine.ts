@@ -276,6 +276,11 @@ export class LiveEngine {
     this.adj = V.map(() => []); E.forEach((e, i) => { this.adj[e.a].push(i); this.adj[e.b].push(i) })
     const fr = mulberry(29) // ambient pulse seeded like the mesh: the same on every page of the same size
     this.ambient = webMesh(W, H)
+    this.ambient.edges = this.ambient.edges.filter((e) => {
+      const a = this.ambient.points[e.a], b = this.ambient.points[e.b], steps = Math.ceil(e.L / 8)
+      for (let i = 0; i <= steps; i++) { const x = a.x + (b.x - a.x) * i / steps, y = a.y + (b.y - a.y) * i / steps; if (this.boxes.some((r) => x > r[0] - 22 && x < r[2] + 22 && y > r[1] - 22 && y < r[3] + 22)) return false }
+      return true
+    })
     this.FLOW = E.map((e) => ({ sp: 14 + fr() * 22, ph: fr() * (e.L + 60), rev: fr() < 0.5 }))
     // static layer: facets + the faint mesh
     const shades = FACETS.map((v) => rgba(readColor(this.host, v), 1))

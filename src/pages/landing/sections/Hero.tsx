@@ -52,7 +52,7 @@ function Nav() {
         <div className="flex items-center gap-[var(--space-8)]">
           <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-primary)] sm:inline')}>دخول</TextLink>
           <span className="hidden sm:block">
-            <LinkButton href={START_HREF} external variant="Accent" size="M">ابدأ التسعير</LinkButton>
+            <LinkButton href={START_HREF} variant="Accent" size="M">ابدأ التسعير</LinkButton>
           </span>
           <button
             ref={buttonRef}
@@ -76,7 +76,7 @@ function Nav() {
           ))}
           <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-primary)] sm:hidden')}>دخول</TextLink>
           <span className="mt-[var(--space-8)] block sm:hidden">
-            <LinkButton href={START_HREF} external variant="Accent" fullWidth>ابدأ التسعير</LinkButton>
+            <LinkButton href={START_HREF} variant="Accent" fullWidth>ابدأ التسعير</LinkButton>
           </span>
         </Container>
       </nav>
@@ -115,7 +115,7 @@ export function Hero() {
               اكتب احتياج شركتك أو منشأتك، وراجع البنود قبل تأكيد الطلب. اجمع العروض المستلمة وقارن الأسعار والمواصفات والتوصيل في مكان واحد.
             </p>
             <div className="flex flex-wrap gap-[var(--space-12)] pt-[var(--space-16)]">
-              <LinkButton href={START_HREF} external variant="Accent" icon="arrow-forward">ابدأ التسعير</LinkButton>
+              <LinkButton href={START_HREF} variant="Accent" icon="arrow-forward">ابدأ التسعير</LinkButton>
               <LinkButton href="#how" variant="Secondary">شاهد كيف تعمل</LinkButton>
             </div>
           </div>

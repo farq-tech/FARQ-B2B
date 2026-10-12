@@ -95,7 +95,7 @@ export class PageNetwork {
   private played = 0 // rounds that ran to the end: only the very first one is the short «see it whole» round
   private buckets = new Map<number, number[]>()
   private meshEdges: Edge[] = []
-  private meshVertices: Array<{ x: number; y: number; d: number }> = []
+  private meshVertices: Array<{ x: number; y: number; d: number; side?: number }> = []
   private meshCanvas = document.createElement('canvas')
   private meshScroll = NaN
   private widths = new Map<string, number>()
@@ -205,7 +205,7 @@ export class PageNetwork {
     // Test the entire edge once, so neither the grid nor its pulses pass behind content.
     this.meshEdges = mesh.filter((e) => {
       const a = this.meshVertices[e.a], b = this.meshVertices[e.b], steps = Math.ceil(e.L / 6)
-      for (let i = 0; i <= steps; i++) if (this.inUI(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps, 14)) return false
+      for (let i = 0; i <= steps; i++) if (this.inUI(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps, 22)) return false
       return true
     })
     this.meshCanvas.width = this.canvas.width; this.meshCanvas.height = this.canvas.height
