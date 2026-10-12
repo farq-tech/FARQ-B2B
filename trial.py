@@ -87,7 +87,11 @@ def public_result(data):
         raise ValueError('bad count')
     # Counts describe directory matches; top-ten AI screening may exclude entries.
     hidden = max(0, total - min(10, len(data['rows'])))
-    return {'suppliers': rows, 'additional': hidden, 'directoryMatches': total, 'screenedOut': min(10, len(data['rows'])) - len(rows), 'intent': str(data.get('intent') or '')[:100]}
+    understood = data.get('understood') if isinstance(data.get('understood'), dict) else {}
+    safe_understood = {'family': str(understood.get('family') or '')[:100], 'target_label': str(understood.get('target_label') or '')[:100],
+        'source': 'ai' if understood.get('source') == 'ai' else 'existing_rules',
+        'target_types': [str(t)[:60] for t in understood.get('target_types', [])[:10]] if isinstance(understood.get('target_types'), list) else []}
+    return {'suppliers': rows, 'additional': hidden, 'directoryMatches': total, 'screenedOut': min(10, len(data['rows'])) - len(rows), 'intent': str(data.get('intent') or '')[:100], 'understood': safe_understood}
 
 def handle(handler, origin, password):
     path = handler.path.split('?', 1)[0]
