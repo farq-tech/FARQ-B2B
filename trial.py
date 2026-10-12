@@ -50,7 +50,7 @@ def upstream(origin, password, path, body=None):
     req = urllib.request.Request(origin + path, data=None if body is None else json.dumps(body).encode(), headers={'Content-Type': 'application/json'}, method='GET' if body is None else 'POST')
     if password:
         req.add_header('Cookie', 'ft_auth=' + hashlib.sha256(password.encode()).hexdigest()[:32])
-    with urllib.request.urlopen(req, timeout=12) as response:
+    with urllib.request.urlopen(req, timeout=25) as response:
         return json.loads(response.read(2_000_000))
 
 def city_list(origin, password):
