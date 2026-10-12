@@ -1,0 +1,437 @@
+{
+  "sourceRoot": "/Users/m4pro/farq-pricing-api-proof/api",
+  "sourceHashes": {
+    "lib/construction/line-intent-authority.js": "c777f9b30a263fad5ccd8bdfd0a83f4e721eee3e27626833d094972ba8ee80cb",
+    "lib/construction/procurement-ontology-port.js": "49c7d9304c9c057d52dd2586895e1c9458e39c2e9338d53a1ebeb663ad8b7aaf",
+    "data/construction/procurement-ontology.data.json": "45edd80d1d08ea008c5323f69c134374f3829c7717361ab7ec2aebdb5c73289b",
+    "data/construction/procurement-ontology.resolver.cjs": "64edcdd47e5ac1e9aaf3d930df8a87d2340224ee73747e3bba71b76e34d2a7b8",
+    "lib/construction/boq-catalog-matching.js": "e4b723429b0e8fa63dd08ba248198df52acfac5990dd0146066cd442c6f72ffd",
+    "lib/construction/supplier-evidence-grade.js": "d672b10bbde1fd3a3795a367f570f63f8a63c645b18f84cda426fecfb48b02c9",
+    "lib/construction/supplier-quote-history.js": "01b56deb3793abd461681611c8e8ebb899e34bb802e37d9c18b65230083337a5",
+    "lib/construction/supplier-price-memory.js": "df95a7d4963a232b13c9e7597e30a71df00519634adf479ea7c6414ac86e6fdb"
+  },
+  "liveFlagsVerified": false,
+  "executionEnabled": false,
+  "cases": [
+    {
+      "productText": "كيبل 4×16 مم",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "FAMILY_ONLY",
+          "intent": null,
+          "family": "power_cables",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "FAMILY_ONLY",
+          "intent": null,
+          "family": "power_cables",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "FAMILY_ONLY",
+          "intent": null,
+          "family": "power_cables",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "FAMILY_ONLY",
+          "intent": null,
+          "family": "power_cables",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "service_capability_review_required",
+          "authority": "SERVER_RESOLVED",
+          "status": "FAMILY_ONLY",
+          "intent": null,
+          "family": "power_cables",
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    },
+    {
+      "productText": "أبواب PVC",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "pvc_door",
+          "family": "pvc_wpc_doors",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "pvc_door",
+          "family": "pvc_wpc_doors",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "pvc_door",
+          "family": "pvc_wpc_doors",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "pvc_door",
+          "family": "pvc_wpc_doors",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "service_capability_review_required",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "pvc_door",
+          "family": "pvc_wpc_doors",
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    },
+    {
+      "productText": "قهوة",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    },
+    {
+      "productText": "أكواب ورقية",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    },
+    {
+      "productText": "مستلزمات طبية",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "product_coverage_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "UNRESOLVED",
+          "intent": null,
+          "family": null,
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    },
+    {
+      "productText": "مواد نظافة",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "industrial_cleaner",
+          "family": "lubricants_chemicals",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "industrial_cleaner",
+          "family": "lubricants_chemicals",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "industrial_cleaner",
+          "family": "lubricants_chemicals",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "industrial_cleaner",
+          "family": "lubricants_chemicals",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "service_capability_review_required",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "industrial_cleaner",
+          "family": "lubricants_chemicals",
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    },
+    {
+      "productText": "صيانة مصاعد",
+      "outcomes": [
+        {
+          "objective": "purchase",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "passenger_elevator",
+          "family": "vertical_transport",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "marketing",
+          "ownerRole": "seller",
+          "targetRole": "buyer",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "passenger_elevator",
+          "family": "vertical_transport",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "availability",
+          "ownerRole": "buyer",
+          "targetRole": "seller",
+          "state": "product_resolved",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "passenger_elevator",
+          "family": "vertical_transport",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "partnership",
+          "ownerRole": "partner",
+          "targetRole": "partner",
+          "state": "relationship_evidence_gap",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "passenger_elevator",
+          "family": "vertical_transport",
+          "ontologyVersion": "cpo-v27"
+        },
+        {
+          "objective": "service",
+          "ownerRole": "buyer",
+          "targetRole": "service_provider",
+          "state": "service_capability_review_required",
+          "authority": "SERVER_RESOLVED",
+          "status": "CANONICAL",
+          "intent": "passenger_elevator",
+          "family": "vertical_transport",
+          "ontologyVersion": "cpo-v27"
+        }
+      ]
+    }
+  ]
+}

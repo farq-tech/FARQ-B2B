@@ -1,0 +1,19 @@
+test_all_sectors_supported_with_distinct_governance (test_foundation.FoundationTests) ... ok
+test_city_alias_and_low_population_and_ambiguity (test_foundation.FoundationTests) ... ok
+test_compound_and_ambiguous_goals_abstain (test_foundation.FoundationTests) ... ok
+test_duplicate_and_inactive_entity (test_foundation.FoundationTests) ... ok
+test_entity_and_evidence_owner_scope (test_foundation.FoundationTests) ... ok
+test_name_or_activity_is_not_evidence (test_foundation.FoundationTests) ... ok
+test_negative_facts_override_positive (test_foundation.FoundationTests) ... ok
+test_no_padding_or_invented_stock (test_foundation.FoundationTests) ... ok
+test_product_use_never_confirms_current_buying_intent (test_foundation.FoundationTests) ... ok
+test_same_product_changes_target_relation (test_foundation.FoundationTests) ... ok
+test_service_does_not_select_product_seller (test_foundation.FoundationTests) ... ok
+test_stale_future_unattributed_and_untrusted_sources (test_foundation.FoundationTests) ... ok
+test_wrong_direction_is_not_a_valid_goal (test_foundation.FoundationTests) ... ok
+test_wrong_subject_wrong_entity_and_wrong_predicate (test_foundation.FoundationTests) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.003s
+
+OK

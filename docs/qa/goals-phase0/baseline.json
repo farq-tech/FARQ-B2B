@@ -1,0 +1,1333 @@
+{
+  "dataset": "synthetic_direction_contract_only",
+  "product_understanding": "NOT_TESTED_BY_THIS_BENCHMARK",
+  "cases": 120,
+  "direction_contract_passed": 120,
+  "correct_target": 120,
+  "critical_direction_inversions": 0,
+  "independently_reviewed": 0,
+  "real_entity_precision": "NOT_MEASURED",
+  "phase1_gate": "BLOCKED_INDEPENDENT_RELEVANCE_VALIDATION",
+  "details": [
+    {
+      "case": "company-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "company-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "company-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "company-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "company-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "company-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "company-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "company-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "company-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "company-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "company-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "company-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "shop-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "shop-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "shop-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "shop-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "shop-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "shop-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "shop-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "shop-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "shop-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "shop-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "shop-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "shop-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "factory-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "factory-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "factory-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "factory-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "factory-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "factory-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "factory-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "factory-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "factory-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "factory-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "factory-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "factory-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "healthcare-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "healthcare-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "healthcare-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "healthcare-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "healthcare-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "healthcare-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "healthcare-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "healthcare-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "healthcare-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "healthcare-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "healthcare-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "healthcare-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "hospitality-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "hospitality-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "hospitality-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "hospitality-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "hospitality-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "hospitality-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "hospitality-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "hospitality-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "hospitality-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "hospitality-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "hospitality-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "hospitality-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "construction-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "construction-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "construction-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "construction-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "construction-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "construction-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "construction-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "construction-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "construction-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "construction-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "construction-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "construction-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "services-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "services-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "services-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "services-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "services-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "services-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "services-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "services-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "services-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "services-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "services-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "services-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "government-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "government-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "government-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "government-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "government-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "government-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "government-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "government-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "government-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "government-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "government-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "government-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "quasi_government-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "quasi_government-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "quasi_government-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "quasi_government-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "quasi_government-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "quasi_government-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "quasi_government-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "quasi_government-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "quasi_government-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "quasi_government-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "quasi_government-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "quasi_government-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "nonprofit-coffee-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "nonprofit-coffee-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "nonprofit-coffee-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "nonprofit-coffee-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "nonprofit-paper_cups-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "nonprofit-paper_cups-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "nonprofit-paper_cups-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "nonprofit-paper_cups-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    },
+    {
+      "case": "nonprofit-medical_supplies-marketing",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "buyer"
+      ],
+      "expected_targets": [
+        "buyer"
+      ]
+    },
+    {
+      "case": "nonprofit-medical_supplies-purchase",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "nonprofit-medical_supplies-availability",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "seller"
+      ],
+      "expected_targets": [
+        "seller"
+      ]
+    },
+    {
+      "case": "nonprofit-medical_supplies-partnership",
+      "understood": true,
+      "correct_target": true,
+      "actual_targets": [
+        "partner"
+      ],
+      "expected_targets": [
+        "partner"
+      ]
+    }
+  ]
+}

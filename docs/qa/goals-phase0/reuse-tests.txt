@@ -1,0 +1,15 @@
+✔ all four directions reuse the exact authoritative resolver and same product (2831.512167ms)
+✔ unsupported non-construction products abstain without a second ontology (371.906875ms)
+✔ service interpretation cannot become goods supplier eligibility (18.503667ms)
+✔ existing catalog matcher result preserved; browsing cannot yield discovery ids (44.920167ms)
+✔ existing supplier evidence reused but never inverted into buyer evidence (32.997208ms)
+✔ history and price memory are the original function objects, not copies (0.495042ms)
+✔ invalid objective/text rejected and source files unchanged (2.763708ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3472.946458

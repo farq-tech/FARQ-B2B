@@ -1,0 +1,16 @@
+{
+  "source": "/Users/m4pro/farq-targeting/data/targets.parquet",
+  "source_unchanged_size_mtime": true,
+  "records": 1933848,
+  "distinct_cities": 645,
+  "current_city_threshold": 1500,
+  "cities_above_threshold": 47,
+  "Unayzah": {
+    "records": 2984,
+    "modal_ar": "عنيزه",
+    "cleaning_label_hits": 0
+  },
+  "timestamp_columns": [],
+  "interpretation": "Zero label hits means coverage gap, not absence of real suppliers. Categories alone do not prove product sale or purchase.",
+  "entity_records_exported": 0
+}
