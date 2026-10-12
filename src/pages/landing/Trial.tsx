@@ -10,7 +10,7 @@ type Result = { suppliers: Supplier[]; additional: number; directoryMatches: num
 const field = cx('w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3 text-[var(--color-text-primary)]', FOCUS_RING)
 
 export default function Trial({ onClose }: { onClose: () => void }) {
-  const { goal, choose } = useLandingGoal()
+  const { goal } = useLandingGoal()
   const marketing = goal === 'marketing'
   const inquiry = goal === 'inquiry'
   const dialog = useRef<HTMLDialogElement>(null), controller = useRef<AbortController | null>(null)
@@ -38,15 +38,6 @@ export default function Trial({ onClose }: { onClose: () => void }) {
   }
   return <dialog ref={dialog} dir="rtl" lang="ar" onCancel={e => { e.preventDefault(); onClose() }} className="m-auto max-h-[90dvh] w-[min(760px,calc(100vw-24px))] overflow-y-auto rounded-3xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-[var(--color-text-primary)] shadow-xl backdrop:bg-[color-mix(in_srgb,var(--color-bg-inverse)_48%,transparent)] sm:p-8" aria-labelledby="trial-title">
     <div className="mb-5 flex items-start justify-between gap-4"><div><p className="mb-2 text-sm text-[var(--color-text-secondary)]">جرّب فرق تسعير على احتياجك</p><h2 id="trial-title" className="font-display text-2xl font-semibold">{goal ? GOALS[goal].action : GOALS.pricing.action}</h2></div><button type="button" onClick={onClose} className={cx('rounded-lg px-3 py-2', FOCUS_RING)} aria-label="إغلاق تجربة البحث">✕</button></div>
-    <fieldset className="mb-5">
-      <legend className="mb-2 text-sm font-medium">تبي تبيع أو تشتري؟</legend>
-      <div className="grid grid-cols-2 gap-2">
-        {([{ value: 'marketing', label: 'بيع', detail: 'أبحث عن مشترين' }, { value: 'pricing', label: 'شراء', detail: 'أبحث عن موردين' }] as const).map(option => <label key={option.value} className={cx('cursor-pointer rounded-xl border p-3 text-sm', (marketing ? option.value === 'marketing' : option.value === 'pricing') ? 'border-[var(--color-border-strong)] bg-[var(--color-bg-primary-subtle)]' : 'border-[var(--color-border-default)]')}>
-          <input type="radio" name="trial-direction" value={option.value} checked={marketing ? option.value === 'marketing' : option.value === 'pricing'} onChange={() => { controller.current?.abort(); controller.current = null; setBusy(false); setResult(null); setError(''); setItem(''); choose(option.value) }} className="me-2 accent-[var(--brand-action-strong)]" />
-          <span className="font-semibold">{option.label}</span><span className="mt-1 block text-xs text-[var(--color-text-secondary)]">{option.detail}</span>
-        </label>)}
-      </div>
-    </fieldset>
     {marketing ? <div className="space-y-4">
       <p className="text-sm leading-6">هدفك التسويق: الوصول إلى المشترين المحتملين لمنتجك أو خدمتك. تجربة اكتشاف المشترين قيد التجهيز.</p>
       <label className="flex flex-col gap-2 text-sm font-medium">وش المنتج أو الخدمة اللي تبي تبيعها؟<textarea autoFocus maxLength={1000} value={item} onChange={e => setItem(e.target.value)} placeholder="مثل: أبيع قهوة وأبي أوصل إلى المكاتب والفنادق بالرياض" className={field} rows={4} /></label>
