@@ -1,6 +1,6 @@
 const ink = (rgb: number[], alpha: number) => `rgba(${rgb.join(',')},${alpha})`
 const searchInk = [16, 139, 160], opportunityInk = [187, 135, 71]
-export const WEB_INK = { line: ink(searchInk, 0.10), go: ink(searchInk, 0.34), back: ink(opportunityInk, 0.40) }
+export const WEB_INK = { line: ink(searchInk, 0.22), go: ink(searchInk, 0.55), back: ink(opportunityInk, 0.58) }
 type Edge = { a: number; b: number; L: number }
 export function webMesh(W: number, H: number, VH: number = H) {
       const points: Array<{ x: number; y: number; d: number }> = [], edges: Edge[] = []

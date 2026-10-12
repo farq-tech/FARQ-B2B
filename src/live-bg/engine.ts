@@ -296,7 +296,7 @@ export class LiveEngine {
     // the lines go on their own layer so only the network fades under text — the facets stay whole (no patches)
     const L = (this.lines ??= document.createElement('canvas')); L.width = this.bg.width; L.height = this.bg.height
     const l = L.getContext('2d')!; l.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)
-    l.lineCap = 'round'; l.lineWidth = 0.8; l.strokeStyle = WEB_INK.line; l.beginPath()
+    l.lineCap = 'round'; l.lineWidth = 0.9; l.strokeStyle = WEB_INK.line; l.beginPath()
     for (const e of this.ambient.edges) { const a = this.ambient.points[e.a], b = this.ambient.points[e.b]; l.moveTo(a.x, a.y); l.lineTo(b.x, b.y) } l.stroke()
     this.shield(l)
     b.setTransform(1, 0, 0, 1, 0, 0); b.drawImage(L, 0, 0); b.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)

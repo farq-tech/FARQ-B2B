@@ -359,7 +359,7 @@ export class PageNetwork {
     if (this.meshScroll !== SY) {
       const c = this.meshCanvas.getContext('2d')!
       c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, this.VW, VH)
-      c.translate(0, -SY); c.lineWidth = 0.6; c.strokeStyle = WEB_INK.line; c.beginPath()
+      c.translate(0, -SY); c.lineWidth = 0.9; c.strokeStyle = WEB_INK.line; c.beginPath()
       for (const e of meshEdges) {
         const a = V[e.a], b = V[e.b]
         if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
