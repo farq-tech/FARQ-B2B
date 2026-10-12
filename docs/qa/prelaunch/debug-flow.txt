@@ -1,0 +1,26 @@
+NAV http://127.0.0.1:5199/?harness=new
+debug [vite] connecting...
+debug [vite] connected.
+info %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+مراجعة البنود
+1 بند في الطلب
+أضف بند
+تحتاج تأكيد 0
+الكل 1
+
+كرسي انتظار
+
+20 حبة
+
+3 من 3 مورد
+الموردين المتوقعين
+
+نرشّح الموردين لكل بند من سجل فرق. تقدر تغيّر الاختيار من عمود الموردين.
+
+غير مصنّف
+1 بند
+3 مورد
+
+الخطوة 2 من 4 · 1 بند جاهز
+
+التالي: التوصيل

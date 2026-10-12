@@ -1,0 +1,1 @@
+PASS: public landing, unauthenticated API, exact cookie parsing (2 bypass cases), gate label/viewport, external redirect blocked, Secure cookie

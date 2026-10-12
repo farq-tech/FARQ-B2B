@@ -1,0 +1,95 @@
+
+> farq-pricing@0.1.0 build
+> vite build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 156 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/assets/channel-haraj@1x-BJ6i_eP9.webp         0.32 kB
+dist/assets/channel-sms@1x-CFpjUDaj.webp           0.40 kB
+dist/assets/channel-mail@1x-Bqn3Sckv.webp          0.51 kB
+dist/assets/channel-haraj@2x-BcMBQdVs.webp         0.61 kB
+dist/assets/channel-whatsapp@1x-D1wUDlXU.webp      0.61 kB
+dist/index.html                                    0.67 kB │ gzip:   0.38 kB
+dist/assets/channel-sms@2x-C7jfhQm7.webp           0.74 kB
+dist/assets/channel-call@1x-DI_RmPvx.webp          0.76 kB
+dist/assets/channel-mail@2x-ClDnzidL.webp          1.12 kB
+dist/assets/channel-whatsapp@2x-BTw_mh3a.webp      1.26 kB
+dist/assets/channel-call@2x-BmyjDLMV.webp          1.67 kB
+dist/assets/ahmad-tiredF-0@1x-BcOWrIoE.webp        1.85 kB
+dist/assets/ahmad-tiredL-0@1x-CtvIAQuo.webp        1.89 kB
+dist/assets/ahmad-tiredF-2@1x-BHTwtlka.webp        1.92 kB
+dist/assets/ahmad-tiredL-1@1x-DcQM-PAy.webp        1.95 kB
+dist/assets/ahmad-tiredR-0@1x-D89mgoNU.webp        2.05 kB
+dist/assets/ahmad-tiredF-1@1x-C38nbkTy.webp        2.05 kB
+dist/assets/ahmad-tiredR-1@1x-DrHQLuyR.webp        2.06 kB
+dist/assets/ahmad-present-0@1x--pSOlGyW.webp       2.24 kB
+dist/assets/ahmad-NE-0@1x-Bqfu0BZc.webp            2.52 kB
+dist/assets/ahmad-S-0@1x-Dx7ikvsq.webp             2.61 kB
+dist/assets/ahmad-NW-0@1x-DxtHA7X5.webp            2.89 kB
+dist/assets/ahmad-tiredL-0@2x-OC9fxDOO.webp        4.31 kB
+dist/assets/ahmad-tiredL-1@2x-NVz5myWs.webp        4.36 kB
+dist/assets/ahmad-tiredF-0@2x-DGw3cfiG.webp        4.55 kB
+dist/assets/ahmad-tiredF-2@2x-B84L0WkB.webp        4.62 kB
+dist/assets/ahmad-tiredR-0@2x-nyIsQh9D.webp        4.65 kB
+dist/assets/ahmad-tiredF-1@2x-HACc4Zho.webp        4.68 kB
+dist/assets/ahmad-tiredR-1@2x-y8TXi-KA.webp        4.72 kB
+dist/assets/ahmad-present-0@2x-C1AXk-EK.webp       4.74 kB
+dist/assets/ahmad-NE-0@2x-Hv07AsWE.webp            5.57 kB
+dist/assets/ahmad-S-0@2x-DJIhuBC2.webp             6.06 kB
+dist/assets/ahmad-NW-0@2x-Cgl4bnSu.webp            6.54 kB
+dist/assets/ahmad-cycle@1x-CVheI-GF.webp          12.25 kB
+dist/.vite/manifest.json                          18.44 kB │ gzip:   2.50 kB
+dist/assets/ahmad-cycle@2x-UlYwCMJ8.webp          28.11 kB
+dist/assets/lineResolution.worker-C8biDrLk.js    323.31 kB
+dist/assets/ahmad3d-run-sheet-L32rHh01.webp      522.45 kB
+dist/assets/pdf.worker.min-yatZIOMy.mjs        1,375.84 kB
+dist/assets/pdf.worker.min-rsCePomN.mjs        1,417.59 kB
+dist/assets/live-bg-BG8S0Ejp.css                   0.30 kB │ gzip:   0.19 kB
+dist/assets/index-BgrisQU8.css                     1.14 kB │ gzip:   0.50 kB
+dist/assets/MapboxMap-qKEbx5wQ.css                37.05 kB │ gzip:   5.02 kB
+dist/assets/index-CqbSk09l.css                    57.92 kB │ gzip:  11.55 kB
+dist/assets/rfqIdentity-Bdk5niiO.js                0.29 kB │ gzip:   0.23 kB
+dist/assets/Stat-D-X4idhF.js                       0.91 kB │ gzip:   0.48 kB
+dist/assets/PageLive-Dx8tLqM9.js                   1.02 kB │ gzip:   0.59 kB
+dist/assets/LiveBackgroundCanvas-DUPhSmsA.js       1.11 kB │ gzip:   0.56 kB
+dist/assets/Chip-CBRpJRoe.js                       1.27 kB │ gzip:   0.57 kB
+dist/assets/TopBar-CuOJpUOu.js                     1.28 kB │ gzip:   0.62 kB
+dist/assets/channel-whatsapp@2x-8LQp-gMl.js        1.29 kB │ gzip:   0.76 kB
+dist/assets/Tabs-B2kX9tIr.js                       1.46 kB │ gzip:   0.82 kB
+dist/assets/targetingClient-BmgniK-p.js            1.61 kB │ gzip:   0.98 kB
+dist/assets/Input-DVExoBjK.js                      1.69 kB │ gzip:   0.71 kB
+dist/assets/drafts-CSX9PgAk.js                     1.77 kB │ gzip:   0.99 kB
+dist/assets/PriceCell-JOy0vAEE.js                  1.83 kB │ gzip:   0.69 kB
+dist/assets/lineResolution-B4Tf5lSx.js             1.98 kB │ gzip:   1.17 kB
+dist/assets/photo-Cwb93j9j.js                      2.12 kB │ gzip:   0.66 kB
+dist/assets/index-CE_YnbkN.js                      2.31 kB │ gzip:   1.11 kB
+dist/assets/Badge-DD7M99QC.js                      2.54 kB │ gzip:   0.93 kB
+dist/assets/RfqListV2-DJPIq4At.js                  3.14 kB │ gzip:   1.36 kB
+dist/assets/requestFile-Cq2sYreV.js                4.95 kB │ gzip:   2.18 kB
+dist/assets/Templates-CBdOmldo.js                  6.34 kB │ gzip:   2.33 kB
+dist/assets/AwardConfirmSheet-DUUb33dL.js         11.92 kB │ gzip:   4.44 kB
+dist/assets/purchaseRequests-BxNW_Y8v.js          12.92 kB │ gzip:   5.41 kB
+dist/assets/index--KR3D3Ia.js                     15.50 kB │ gzip:   5.16 kB
+dist/assets/RequestTrackingV2-NIXdKslm.js         18.23 kB │ gzip:   5.90 kB
+dist/assets/Icon-BkjeuNVe.js                      18.55 kB │ gzip:   7.62 kB
+dist/assets/TemplateEditor-gtgTKIxW.js            18.92 kB │ gzip:   5.57 kB
+dist/assets/Below-Doi4QvMI.js                     19.50 kB │ gzip:   5.38 kB
+dist/assets/ComparisonV2-BMRDaRYy.js              21.44 kB │ gzip:   6.10 kB
+dist/assets/App-DYkHf2ER.js                       25.45 kB │ gzip:   8.63 kB
+dist/assets/pageNetwork-9iSCACHr.js               26.37 kB │ gzip:  11.20 kB
+dist/assets/index-BSHEbkSd.js                     27.21 kB │ gzip:   8.96 kB
+dist/assets/engine-BbzUQc0F.js                    32.59 kB │ gzip:  12.94 kB
+dist/assets/index-Bi-qpYOf.js                     35.03 kB │ gzip:  10.85 kB
+dist/assets/NewRequestV2-CDQ6aGu0.js              45.03 kB │ gzip:  14.15 kB
+dist/assets/index-BR5DYyAL.js                    225.11 kB │ gzip:  70.68 kB
+dist/assets/constructionClient-C5Sck7Fp.js       352.12 kB │ gzip:  89.31 kB
+dist/assets/MapboxMap-pK-nGOlv.js              1,631.90 kB │ gzip: 452.42 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.20s

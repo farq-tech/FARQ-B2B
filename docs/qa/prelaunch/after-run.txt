@@ -1,0 +1,87 @@
+[
+  {
+    width: 320,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.004497911844135803, lcp: 848 }
+  },
+  {
+    width: 375,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.002296318621399177, lcp: 1020 }
+  },
+  {
+    width: 390,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.00252491443099082, lcp: 1076 }
+  },
+  {
+    width: 430,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.03573977336347976, lcp: 1128 }
+  },
+  {
+    width: 768,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.002106184267899627, lcp: 1048 }
+  },
+  {
+    width: 1024,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.028681310696734325, lcp: 1496 }
+  },
+  {
+    width: 1280,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0034271460109286836, lcp: 1084 }
+  },
+  {
+    width: 1440,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0025534201288419495, lcp: 1068 }
+  },
+  {
+    width: 1920,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.003101644751466351, lcp: 960 }
+  }
+]
+[
+  { name: 'Safari-WebKit', status: 'tested', overflow: false },
+  {
+    name: 'Firefox',
+    status: 'unavailable',
+    reason: 'browserType.launch: Failed to launch the browser process.\n' +
+      'Browser logs:\n' +
+      '\n' +
+      '<launching> /Users/m4pro/Library/Caches/ms-playwright/firefox-1555/firefox/Nightly.app/Contents/MacOS/firefox -no-remote -headless -profile /var/folders/s4/rmg2fjg107l36f8d84cs1vwr0000gn/T/playwright_firefoxdev_profile-N7Vs2F -juggler-pipe -silent\n' +
+      '<launched> pid=65564\n' +
+      '[pid=655'
+  }
+]

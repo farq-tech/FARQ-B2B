@@ -1,0 +1,8 @@
+{
+  'root-error': {
+    text: 'تعذّر تحميل الصفحة\n\nتأكد من الاتصال، ثم حاول مرة ثانية.\n\nإعادة المحاولة'
+  },
+  'root-slow': { text: 'جارٍ تحميل الصفحة…', completed: true },
+  hidden: { actorPaused: true, resumed: true },
+  reduced: { actorPaused: true, resumed: true }
+}

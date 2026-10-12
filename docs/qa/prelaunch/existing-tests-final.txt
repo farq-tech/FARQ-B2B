@@ -1,0 +1,35 @@
+
+Running 23 tests using 1 worker
+
+[1A[2K(node:70145) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:70145) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/23] tests/keyboard.spec.ts:35:1 › 03 · tabs: Tab reaches the tablist, arrows follow RTL, Home/End, list filters
+[1A[2K[2/23] tests/keyboard.spec.ts:74:1 › 03 · «قارن العروض» is reachable by Tab with a visible focus ring
+[1A[2K[3/23] tests/keyboard.spec.ts:84:1 › 04 · chips toggle with Enter and announce aria-pressed
+[1A[2K[4/23] tests/keyboard.spec.ts:98:1 › 04 · disabled «ترسية» is skipped by Tab and its reason is shown as text
+[1A[2K[5/23] tests/keyboard.spec.ts:121:1 › 04 · enabled «ترسية»: focus ring, Enter opens the award dialog, keyboard can cancel
+[1A[2K[6/23] tests/keyboard.spec.ts:156:1 › /ui · Dropzone: Tab focus, Enter opens the file chooser, file is accepted
+[1A[2K[7/23] tests/mobile.spec.ts:14:1 › M03 tracking
+[1A[2K[8/23] tests/mobile.spec.ts:31:1 › M04 comparison
+[1A[2K[9/23] tests/mobile.spec.ts:44:1 › M01 → M02 new request
+[1A[2K[10/23] tests/new-request.spec.ts:9:1 › 01→02→التوصيل→الإرسال: typed items, photo scan, review, delivery (no network)
+[1A[2K[11/23] tests/prelaunch-scenarios.spec.ts:3:77 › عيادة 390: mock review and back
+[1A[2K[12/23] tests/prelaunch-scenarios.spec.ts:3:77 › مطعم 390: mock review and back
+[1A[2K[13/23] tests/prelaunch-scenarios.spec.ts:3:77 › مكتب 390: mock review and back
+[1A[2K[14/23] tests/prelaunch-scenarios.spec.ts:3:77 › مقاولات 390: mock review and back
+[1A[2K[15/23] tests/prelaunch-scenarios.spec.ts:3:77 › غامض 390: mock review and back
+[1A[2K[16/23] tests/prelaunch-scenarios.spec.ts:3:77 › رموز 390: mock review and back
+[1A[2K[17/23] tests/prelaunch-scenarios.spec.ts:3:77 › عيادة 1440: mock review and back
+[1A[2K[18/23] tests/prelaunch-scenarios.spec.ts:3:77 › مطعم 1440: mock review and back
+[1A[2K[19/23] tests/prelaunch-scenarios.spec.ts:3:77 › مكتب 1440: mock review and back
+[1A[2K[20/23] tests/prelaunch-scenarios.spec.ts:3:77 › مقاولات 1440: mock review and back
+[1A[2K[21/23] tests/prelaunch-scenarios.spec.ts:3:77 › غامض 1440: mock review and back
+[1A[2K[22/23] tests/prelaunch-scenarios.spec.ts:3:77 › رموز 1440: mock review and back
+[1A[2K[23/23] tests/routes.spec.ts:3:1 › URL ⇄ screen mapping (shareable links)
+[1A[2K  23 passed (47.7s)

@@ -1,0 +1,36 @@
+{
+  "samples": [
+    {
+      "iteration": 1,
+      "heap": 3139352,
+      "nodes": 804
+    },
+    {
+      "iteration": 2,
+      "heap": 3103120,
+      "nodes": 810
+    },
+    {
+      "iteration": 3,
+      "heap": 4183060,
+      "nodes": 807
+    },
+    {
+      "iteration": 4,
+      "heap": 3432460,
+      "nodes": 1530
+    },
+    {
+      "iteration": 5,
+      "heap": 3297624,
+      "nodes": 806
+    },
+    {
+      "iteration": 6,
+      "heap": 4213072,
+      "nodes": 807
+    }
+  ],
+  "twoTabs": true,
+  "note": "Six reloads with GC; this does not prove absence of long-term leaks"
+}

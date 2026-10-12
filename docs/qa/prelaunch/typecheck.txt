@@ -1,0 +1,17 @@
+
+> farq-pricing@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+src/pages/landing/sections/HeroScene.tsx(174,38): error TS18047: 'geo' is possibly 'null'.
+src/pages/landing/sections/HeroScene.tsx(174,66): error TS18047: 'geo' is possibly 'null'.
+src/pages/landing/sections/HeroScene.tsx(178,88): error TS18047: 'geo' is possibly 'null'.
+src/pages/landing/sections/HeroScene.tsx(190,28): error TS18047: 'geo' is possibly 'null'.
+src/pages/targeting/MapboxMap.tsx(31,62): error TS2503: Cannot find namespace 'GeoJSON'.
+src/pages/targeting/MapboxMap.tsx(38,63): error TS2503: Cannot find namespace 'GeoJSON'.
+src/pages/targeting/MapboxMap.tsx(76,86): error TS2339: Property 'properties' does not exist on type 'GeoJSONFeature'.
+src/pages/targeting/MapboxMap.tsx(77,56): error TS2339: Property 'geometry' does not exist on type 'GeoJSONFeature'.
+src/pages/targeting/MapboxMap.tsx(77,68): error TS2503: Cannot find namespace 'GeoJSON'.
+src/pages/targeting/MapboxMap.tsx(81,38): error TS2339: Property 'properties' does not exist on type 'GeoJSONFeature'.
+src/pages/targeting/MapboxMap.tsx(86,135): error TS2339: Property 'geometry' does not exist on type 'GeoJSONFeature'.
+src/pages/targeting/MapboxMap.tsx(86,147): error TS2503: Cannot find namespace 'GeoJSON'.
+src/pages/targeting/MapboxMap.tsx(86,212): error TS2339: Property 'properties' does not exist on type 'GeoJSONFeature'.

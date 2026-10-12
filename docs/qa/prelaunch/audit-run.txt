@@ -1,0 +1,94 @@
+[
+  {
+    width: 320,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.007225728925540124, lcp: 948 }
+  },
+  {
+    width: 375,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0024276422839506176, lcp: 912 }
+  },
+  {
+    width: 390,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0022297040202595756, lcp: 852 }
+  },
+  {
+    width: 430,
+    overflow: false,
+    axe: [],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.03482459710558427, lcp: 784 }
+  },
+  {
+    width: 768,
+    overflow: false,
+    axe: [ 'color-contrast' ],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0015957695603861241, lcp: 824 }
+  },
+  {
+    width: 1024,
+    overflow: false,
+    axe: [ 'color-contrast' ],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0036840964688195123, lcp: 860 }
+  },
+  {
+    width: 1280,
+    overflow: false,
+    axe: [ 'color-contrast' ],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0030462903658548994, lcp: 948 }
+  },
+  {
+    width: 1440,
+    overflow: false,
+    axe: [ 'color-contrast' ],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.003270982002917631, lcp: 844 }
+  },
+  {
+    width: 1920,
+    overflow: false,
+    axe: [ 'color-contrast' ],
+    errors: [],
+    failed: [],
+    metrics: { cls: 0.0014076768945764612, lcp: 944 }
+  }
+]
+[
+  {
+    name: 'Safari-WebKit',
+    status: 'unavailable',
+    reason: "browserType.launch: Executable doesn't exist at /Users/m4pro/Library/Caches/ms-playwright/webkit-2370/pw_run.sh\n" +
+      '╔════════════════════════════════════════════════════════════╗\n' +
+      '║ Looks like Playwright was just installed or updated.       ║\n' +
+      '║ Please run the following command to download new browsers: ║\n' +
+      '║                                                '
+  },
+  {
+    name: 'Firefox',
+    status: 'unavailable',
+    reason: "browserType.launch: Executable doesn't exist at /Users/m4pro/Library/Caches/ms-playwright/firefox-1555/firefox/Nightly.app/Contents/MacOS/firefox\n" +
+      '╔════════════════════════════════════════════════════════════╗\n' +
+      '║ Looks like Playwright was just installed or updated.       ║\n' +
+      '║ Please run the following command to download new browsers: ║\n' +
+      '║              '
+  }
+]

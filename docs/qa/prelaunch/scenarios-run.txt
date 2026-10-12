@@ -1,0 +1,203 @@
+
+Running 12 tests using 1 worker
+
+(node:66340) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/12] tests/prelaunch-scenarios.spec.ts:3:69 › عيادة 390: mock review and back
+[2/12] tests/prelaunch-scenarios.spec.ts:3:69 › مطعم 390: mock review and back
+[3/12] tests/prelaunch-scenarios.spec.ts:3:69 › مكتب 390: mock review and back
+[4/12] tests/prelaunch-scenarios.spec.ts:3:69 › مقاولات 390: mock review and back
+[5/12] tests/prelaunch-scenarios.spec.ts:3:69 › غامض 390: mock review and back
+[6/12] tests/prelaunch-scenarios.spec.ts:3:69 › رموز 390: mock review and back
+[7/12] tests/prelaunch-scenarios.spec.ts:3:69 › عيادة 1440: mock review and back
+  1) tests/prelaunch-scenarios.spec.ts:3:69 › عيادة 1440: mock review and back ─────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: /مراجعة البنود/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: /مراجعة البنود/ }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: /مراجعة البنود/ })
+
+
+      4 |  await page.setViewportSize({width,height:900});await page.goto('/?harness=new');
+      5 |  await page.getByRole('radio',{name:/اكتب الطلبات/}).click();await page.getByLabel('البند',{exact:true}).fill(text);await page.getByLabel('الكمية',{exact:true}).fill(qty);await page.getByLabel('الكمية',{exact:true}).press('Enter');
+    > 6 |  await expect(page.getByText(text,{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'التالي',exact:true}).click();await expect(page.getByRole('heading',{name:/مراجعة البنود/})).toBeVisible();
+        |                                                                                                                                                                                                         ^
+      7 |  await page.screenshot({path:`docs/qa/prelaunch/scenario-${width}-${name}.png`,fullPage:true});
+      8 |  await page.getByRole('button',{name:'رجوع',exact:true}).click();await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+      9 | })
+        at /Users/m4pro/farq-pricing-prelaunch-audit/tests/prelaunch-scenarios.spec.ts:6:201
+
+    Error Context: tmp/prelaunch-tests/prelaunch-scenarios-عيادة-1440-mock-review-and-back/error-context.md
+
+
+(node:67141) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[8/12] tests/prelaunch-scenarios.spec.ts:3:69 › مطعم 1440: mock review and back
+  2) tests/prelaunch-scenarios.spec.ts:3:69 › مطعم 1440: mock review and back ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: /مراجعة البنود/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: /مراجعة البنود/ }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: /مراجعة البنود/ })
+
+
+      4 |  await page.setViewportSize({width,height:900});await page.goto('/?harness=new');
+      5 |  await page.getByRole('radio',{name:/اكتب الطلبات/}).click();await page.getByLabel('البند',{exact:true}).fill(text);await page.getByLabel('الكمية',{exact:true}).fill(qty);await page.getByLabel('الكمية',{exact:true}).press('Enter');
+    > 6 |  await expect(page.getByText(text,{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'التالي',exact:true}).click();await expect(page.getByRole('heading',{name:/مراجعة البنود/})).toBeVisible();
+        |                                                                                                                                                                                                         ^
+      7 |  await page.screenshot({path:`docs/qa/prelaunch/scenario-${width}-${name}.png`,fullPage:true});
+      8 |  await page.getByRole('button',{name:'رجوع',exact:true}).click();await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+      9 | })
+        at /Users/m4pro/farq-pricing-prelaunch-audit/tests/prelaunch-scenarios.spec.ts:6:201
+
+    Error Context: tmp/prelaunch-tests/prelaunch-scenarios-مطعم-1440-mock-review-and-back/error-context.md
+
+
+(node:67409) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[9/12] tests/prelaunch-scenarios.spec.ts:3:69 › مكتب 1440: mock review and back
+  3) tests/prelaunch-scenarios.spec.ts:3:69 › مكتب 1440: mock review and back ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: /مراجعة البنود/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: /مراجعة البنود/ }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: /مراجعة البنود/ })
+
+
+      4 |  await page.setViewportSize({width,height:900});await page.goto('/?harness=new');
+      5 |  await page.getByRole('radio',{name:/اكتب الطلبات/}).click();await page.getByLabel('البند',{exact:true}).fill(text);await page.getByLabel('الكمية',{exact:true}).fill(qty);await page.getByLabel('الكمية',{exact:true}).press('Enter');
+    > 6 |  await expect(page.getByText(text,{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'التالي',exact:true}).click();await expect(page.getByRole('heading',{name:/مراجعة البنود/})).toBeVisible();
+        |                                                                                                                                                                                                         ^
+      7 |  await page.screenshot({path:`docs/qa/prelaunch/scenario-${width}-${name}.png`,fullPage:true});
+      8 |  await page.getByRole('button',{name:'رجوع',exact:true}).click();await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+      9 | })
+        at /Users/m4pro/farq-pricing-prelaunch-audit/tests/prelaunch-scenarios.spec.ts:6:201
+
+    Error Context: tmp/prelaunch-tests/prelaunch-scenarios-مكتب-1440-mock-review-and-back/error-context.md
+
+
+(node:67559) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[10/12] tests/prelaunch-scenarios.spec.ts:3:69 › مقاولات 1440: mock review and back
+  4) tests/prelaunch-scenarios.spec.ts:3:69 › مقاولات 1440: mock review and back ───────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: /مراجعة البنود/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: /مراجعة البنود/ }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: /مراجعة البنود/ })
+
+
+      4 |  await page.setViewportSize({width,height:900});await page.goto('/?harness=new');
+      5 |  await page.getByRole('radio',{name:/اكتب الطلبات/}).click();await page.getByLabel('البند',{exact:true}).fill(text);await page.getByLabel('الكمية',{exact:true}).fill(qty);await page.getByLabel('الكمية',{exact:true}).press('Enter');
+    > 6 |  await expect(page.getByText(text,{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'التالي',exact:true}).click();await expect(page.getByRole('heading',{name:/مراجعة البنود/})).toBeVisible();
+        |                                                                                                                                                                                                         ^
+      7 |  await page.screenshot({path:`docs/qa/prelaunch/scenario-${width}-${name}.png`,fullPage:true});
+      8 |  await page.getByRole('button',{name:'رجوع',exact:true}).click();await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+      9 | })
+        at /Users/m4pro/farq-pricing-prelaunch-audit/tests/prelaunch-scenarios.spec.ts:6:201
+
+    Error Context: tmp/prelaunch-tests/prelaunch-scenarios-مقاولات-1440-mock-review-and-back/error-context.md
+
+
+(node:67664) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[11/12] tests/prelaunch-scenarios.spec.ts:3:69 › غامض 1440: mock review and back
+  5) tests/prelaunch-scenarios.spec.ts:3:69 › غامض 1440: mock review and back ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: /مراجعة البنود/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: /مراجعة البنود/ }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: /مراجعة البنود/ })
+
+
+      4 |  await page.setViewportSize({width,height:900});await page.goto('/?harness=new');
+      5 |  await page.getByRole('radio',{name:/اكتب الطلبات/}).click();await page.getByLabel('البند',{exact:true}).fill(text);await page.getByLabel('الكمية',{exact:true}).fill(qty);await page.getByLabel('الكمية',{exact:true}).press('Enter');
+    > 6 |  await expect(page.getByText(text,{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'التالي',exact:true}).click();await expect(page.getByRole('button',{name:'التالي: التوصيل',exact:true})).toBeVisible();
+        |                                                                                                                                                                                                         ^
+      7 |  await page.screenshot({path:`docs/qa/prelaunch/scenario-${width}-${name}.png`,fullPage:true});
+      8 |  await page.getByRole('button',{name:'رجوع',exact:true}).click();await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+      9 | })
+        at /Users/m4pro/farq-pricing-prelaunch-audit/tests/prelaunch-scenarios.spec.ts:6:201
+
+    Error Context: tmp/prelaunch-tests/prelaunch-scenarios-غامض-1440-mock-review-and-back/error-context.md
+
+
+(node:67872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[12/12] tests/prelaunch-scenarios.spec.ts:3:69 › رموز 1440: mock review and back
+  6) tests/prelaunch-scenarios.spec.ts:3:69 › رموز 1440: mock review and back ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: /مراجعة البنود/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: /مراجعة البنود/ }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: /مراجعة البنود/ })
+
+
+      4 |  await page.setViewportSize({width,height:900});await page.goto('/?harness=new');
+      5 |  await page.getByRole('radio',{name:/اكتب الطلبات/}).click();await page.getByLabel('البند',{exact:true}).fill(text);await page.getByLabel('الكمية',{exact:true}).fill(qty);await page.getByLabel('الكمية',{exact:true}).press('Enter');
+    > 6 |  await expect(page.getByText(text,{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'التالي',exact:true}).click();await expect(page.getByRole('button',{name:'التالي: التوصيل',exact:true})).toBeVisible();
+        |                                                                                                                                                                                                         ^
+      7 |  await page.screenshot({path:`docs/qa/prelaunch/scenario-${width}-${name}.png`,fullPage:true});
+      8 |  await page.getByRole('button',{name:'رجوع',exact:true}).click();await expect(page.getByText(text,{exact:true}).first()).toBeVisible();
+      9 | })
+        at /Users/m4pro/farq-pricing-prelaunch-audit/tests/prelaunch-scenarios.spec.ts:6:201
+
+    Error Context: tmp/prelaunch-tests/prelaunch-scenarios-رموز-1440-mock-review-and-back/error-context.md
+
+
+  6 failed
+    tests/prelaunch-scenarios.spec.ts:3:69 › عيادة 1440: mock review and back ──────────────────────
+    tests/prelaunch-scenarios.spec.ts:3:69 › مطعم 1440: mock review and back ───────────────────────
+    tests/prelaunch-scenarios.spec.ts:3:69 › مكتب 1440: mock review and back ───────────────────────
+    tests/prelaunch-scenarios.spec.ts:3:69 › مقاولات 1440: mock review and back ────────────────────
+    tests/prelaunch-scenarios.spec.ts:3:69 › غامض 1440: mock review and back ───────────────────────
+    tests/prelaunch-scenarios.spec.ts:3:69 › رموز 1440: mock review and back ───────────────────────
+  6 passed (58.9s)

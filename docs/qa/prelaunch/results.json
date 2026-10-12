@@ -1,0 +1,3142 @@
+{
+  "base": "http://127.0.0.1:5198",
+  "date": "2026-10-12T06:37:41.909Z",
+  "sizes": [
+    {
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 6058,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.007225728925540124,
+        "lcp": 948
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 7.600000001490116
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 28.100000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 39.20000000298023
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 267.80000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 29.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 32.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 32.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 32.29999999701977
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 30.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 35.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 38.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 42.599999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 43
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 46
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 42.600000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 44.80000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 290.79999999701977
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 34.100000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 35.899999998509884
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\n42,500 ر.س\nمستودع الرياض للكهرباء\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\n43,600 ر.س\nشركة الخليج للكابلات\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500\n41,200\n43,600\n44,800\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nنكتبه مرة وحدة ويتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nواتساب · اتصال من مركز فرق · رسالة · حراج · إيميل.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره، وأحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nأرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nكيبل نحاس 4×16 مم² — 500 متر\n\nمستودع الرياض\n\n47,380.00 ر.س\n\nالأقل سعرًا\n\nمؤسسة النور\n\n49,277.50 ر.س\n\n+1,897.50 ر.س (4.0%)\n\nشركة الخليج\n\n51,520.00 ر.س\n\n+4,140.00 ر.س (8.7%)\n\nالتكلفة الواصلة = السعر + التوصيل + ضريبة 15%\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": []
+    },
+    {
+      "width": 375,
+      "scrollWidth": 375,
+      "height": 5646,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.0024276422839506176,
+        "lcp": 912
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 3.199999999254942
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 10.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 10.300000000745058
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 286.9000000022352
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 8.599999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 23.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 9.199999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 23.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 21.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 5.799999997019768
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 7.099999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 8
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 7.099999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 8.700000002980232
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 8.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 8.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 261.69999999925494
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 3.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 4
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\n42,500 ر.س\nمستودع الرياض للكهرباء\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\n43,600 ر.س\nشركة الخليج للكابلات\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500\n41,200\n43,600\n44,800\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nنكتبه مرة وحدة ويتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nواتساب · اتصال من مركز فرق · رسالة · حراج · إيميل.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره، وأحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nأرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nكيبل نحاس 4×16 مم² — 500 متر\n\nمستودع الرياض\n\n47,380.00 ر.س\n\nالأقل سعرًا\n\nمؤسسة النور\n\n49,277.50 ر.س\n\n+1,897.50 ر.س (4.0%)\n\nشركة الخليج\n\n51,520.00 ر.س\n\n+4,140.00 ر.س (8.7%)\n\nالتكلفة الواصلة = السعر + التوصيل + ضريبة 15%\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": []
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 5620,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.0022297040202595756,
+        "lcp": 852
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 0.6000000014901161
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 32.100000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 31.399999998509884
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 359.30000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 89.39999999850988
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 91.60000000149012
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 91.60000000149012
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 90.19999999925494
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 8.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 4.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 5.300000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 6
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 6.300000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 7.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 7.300000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 6.300000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 110.70000000298023
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 4.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 8
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\n42,500 ر.س\nمستودع الرياض للكهرباء\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\n43,600 ر.س\nشركة الخليج للكابلات\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500\n41,200\n43,600\n44,800\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nنكتبه مرة وحدة ويتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nواتساب · اتصال من مركز فرق · رسالة · حراج · إيميل.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره، وأحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nأرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nكيبل نحاس 4×16 مم² — 500 متر\n\nمستودع الرياض\n\n47,380.00 ر.س\n\nالأقل سعرًا\n\nمؤسسة النور\n\n49,277.50 ر.س\n\n+1,897.50 ر.س (4.0%)\n\nشركة الخليج\n\n51,520.00 ر.س\n\n+4,140.00 ر.س (8.7%)\n\nالتكلفة الواصلة = السعر + التوصيل + ضريبة 15%\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": []
+    },
+    {
+      "width": 430,
+      "scrollWidth": 430,
+      "height": 5512,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.03482459710558427,
+        "lcp": 784
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 1.1000000014901161
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 14.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 14.5
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 306.1000000014901
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 23.199999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 28.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 29
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 29.200000002980232
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 7.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 3.900000002235174
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 4
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 5.400000002235174
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 9.200000002980232
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 8.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 7.099999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 7.199999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 113.90000000223517
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 3
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 2.800000000745058
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\n42,500 ر.س\nمستودع الرياض للكهرباء\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\n43,600 ر.س\nشركة الخليج للكابلات\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500\n41,200\n43,600\n44,800\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nنكتبه مرة وحدة ويتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nواتساب · اتصال من مركز فرق · رسالة · حراج · إيميل.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره، وأحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nأرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nكيبل نحاس 4×16 مم² — 500 متر\n\nمستودع الرياض\n\n47,380.00 ر.س\n\nالأقل سعرًا\n\nمؤسسة النور\n\n49,277.50 ر.س\n\n+1,897.50 ر.س (4.0%)\n\nشركة الخليج\n\n51,520.00 ر.س\n\n+4,140.00 ر.س (8.7%)\n\nالتكلفة الواصلة = السعر + التوصيل + ضريبة 15%\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": []
+    },
+    {
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 5600,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.0015957695603861241,
+        "lcp": 824
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 0.5
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 9.200000002980232
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 9.300000000745058
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 340.3999999985099
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 37.099999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 37.30000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 37
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 37.30000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 35.19999999925494
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 4.900000002235174
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 5.400000002235174
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 6
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 11.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 12.200000002980232
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 9.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 9.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 112.59999999776483
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 4.799999997019768
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 4.900000002235174
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\nدخول\nابدأ التسعير\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\nتوصيل 350 ر.س\n42,500 ر.س\nمستودع الرياض للكهرباء\nمتوفر · توصيل مجاني\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\nمتوفر · 3 أيام\n43,600 ر.س\nشركة الخليج للكابلات\nالتوريد 7 أيام\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500 ر.س\n41,200 ر.س\n43,600 ر.س\n44,800 ر.س\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\n01\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\n02\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\n03\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nمقر شركتك هو نقطة البداية. نكتب الطلب مرة وحدة، وهو يتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nطلب عرض سعر يروح بالواتساب، اتصال من مركز فرق، رسالة نصية، حراج، والإيميل — كل مسار لمورد مختلف.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره على نفس الطريق، ومساعد المشتريات أحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nنرتب الردود في مكان واحد ونطلع لك أرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nمثال توضيحي: مقارنة ثلاثة عروض على كيبل نحاس 4×16 مم² — 500 متر، الرياض\nكيبل نحاس 4×16 مم²\n500 متر · الرياض\n\t\nمستودع الرياض للكهرباء\nالأفضل\t\nمؤسسة النور للكهرباء\n\t\nشركة الخليج للكابلات\n\nسعر البنود\t41,200.00 ر.س\t42,500.00 ر.س\t44,800.00 ر.س\nالتوصيل\nيختلف\n\tمجاني\t350.00 ر.س\tمجاني\nضريبة القيمة المضافة 15%\t6,180.00 ر.س\t6,427.50 ر.س\t6,720.00 ر.س\nمدة التوريد\nيختلف\n\t3 أيام\t5 أيام\t7 أيام\nالضمان\nيختلف\n\tسنة\tسنة\tبدون\n\nالتكلفة الواصلة\nالسعر + التوصيل + الضريبة\n\t\n47,380.00 ر.س\nالأقل\n\t\n49,277.50 ر.س\n+1,897.50 ر.س (4.0%)\n\t\n51,520.00 ر.س\n+4,140.00 ر.س (8.7%)\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(1) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(2) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(3) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(3) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(4) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 5036,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.0036840964688195123,
+        "lcp": 860
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 0.5
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 9.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 9.699999999254942
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 363.80000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 36.30000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 36.29999999701977
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 36.599999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 36
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 7.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 5.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 3.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 5.300000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 6.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 7.700000002980232
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 6.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 6.599999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 131.19999999925494
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 3.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 3.5
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\nكيف تعمل\nوش الفرق؟\nلمين\nالأسئلة\nدخول\nابدأ التسعير\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\nتوصيل 350 ر.س\n42,500 ر.س\nمستودع الرياض للكهرباء\nمتوفر · توصيل مجاني\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\nمتوفر · 3 أيام\n43,600 ر.س\nشركة الخليج للكابلات\nالتوريد 7 أيام\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500\n41,200\n43,600\n44,800\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\n01\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\n02\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\n03\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nمقر شركتك هو نقطة البداية. نكتب الطلب مرة وحدة، وهو يتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nطلب عرض سعر يروح بالواتساب، اتصال من مركز فرق، رسالة نصية، حراج، والإيميل — كل مسار لمورد مختلف.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره على نفس الطريق، ومساعد المشتريات أحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nنرتب الردود في مكان واحد ونطلع لك أرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nمثال توضيحي: مقارنة ثلاثة عروض على كيبل نحاس 4×16 مم² — 500 متر، الرياض\nكيبل نحاس 4×16 مم²\n500 متر · الرياض\n\t\nمستودع الرياض للكهرباء\nالأفضل\t\nمؤسسة النور للكهرباء\n\t\nشركة الخليج للكابلات\n\nسعر البنود\t41,200.00 ر.س\t42,500.00 ر.س\t44,800.00 ر.س\nالتوصيل\nيختلف\n\tمجاني\t350.00 ر.س\tمجاني\nضريبة القيمة المضافة 15%\t6,180.00 ر.س\t6,427.50 ر.س\t6,720.00 ر.س\nمدة التوريد\nيختلف\n\t3 أيام\t5 أيام\t7 أيام\nالضمان\nيختلف\n\tسنة\tسنة\tبدون\n\nالتكلفة الواصلة\nالسعر + التوصيل + الضريبة\n\t\n47,380.00 ر.س\nالأقل\n\t\n49,277.50 ر.س\n+1,897.50 ر.س (4.0%)\n\t\n51,520.00 ر.س\n+4,140.00 ر.س (8.7%)\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(1) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(2) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(3) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(3) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(4) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 4844,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.0030462903658548994,
+        "lcp": 948
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 0.8999999985098839
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 9.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 9.800000000745058
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 421
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 52.599999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 57.099999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 57.19999999925494
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 57.20000000298023
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 20.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 3.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 5.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 6.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 7.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 7.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 6.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 8.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 147.10000000149012
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 7.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 7.800000000745058
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\nكيف تعمل\nوش الفرق؟\nلمين\nالأسئلة\nدخول\nابدأ التسعير\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\nتوصيل 350 ر.س\n42,500 ر.س\nمستودع الرياض للكهرباء\nمتوفر · توصيل مجاني\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\nمتوفر · 3 أيام\n43,600 ر.س\nشركة الخليج للكابلات\nالتوريد 7 أيام\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500 ر.س\n41,200 ر.س\n43,600 ر.س\n44,800 ر.س\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\n01\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\n02\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\n03\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nمقر شركتك هو نقطة البداية. نكتب الطلب مرة وحدة، وهو يتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nطلب عرض سعر يروح بالواتساب، اتصال من مركز فرق، رسالة نصية، حراج، والإيميل — كل مسار لمورد مختلف.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره على نفس الطريق، ومساعد المشتريات أحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nنرتب الردود في مكان واحد ونطلع لك أرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nمثال توضيحي: مقارنة ثلاثة عروض على كيبل نحاس 4×16 مم² — 500 متر، الرياض\nكيبل نحاس 4×16 مم²\n500 متر · الرياض\n\t\nمستودع الرياض للكهرباء\nالأفضل\t\nمؤسسة النور للكهرباء\n\t\nشركة الخليج للكابلات\n\nسعر البنود\t41,200.00 ر.س\t42,500.00 ر.س\t44,800.00 ر.س\nالتوصيل\nيختلف\n\tمجاني\t350.00 ر.س\tمجاني\nضريبة القيمة المضافة 15%\t6,180.00 ر.س\t6,427.50 ر.س\t6,720.00 ر.س\nمدة التوريد\nيختلف\n\t3 أيام\t5 أيام\t7 أيام\nالضمان\nيختلف\n\tسنة\tسنة\tبدون\n\nالتكلفة الواصلة\nالسعر + التوصيل + الضريبة\n\t\n47,380.00 ر.س\nالأقل\n\t\n49,277.50 ر.س\n+1,897.50 ر.س (4.0%)\n\t\n51,520.00 ر.س\n+4,140.00 ر.س (8.7%)\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(1) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(2) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(3) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(3) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(4) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "height": 4844,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.003270982002917631,
+        "lcp": 844
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 0.7000000029802322
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 12.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 13
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 311.1000000014901
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 49.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 53.399999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 54.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 50.30000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 26.199999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 3.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 6.100000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 6.600000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 6.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 7.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 7.400000002235174
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 6.899999998509884
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 161
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 5.599999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 6.300000000745058
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\nكيف تعمل\nوش الفرق؟\nلمين\nالأسئلة\nدخول\nابدأ التسعير\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\nتوصيل 350 ر.س\n42,500 ر.س\nمستودع الرياض للكهرباء\nمتوفر · توصيل مجاني\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\nمتوفر · 3 أيام\n43,600 ر.س\nشركة الخليج للكابلات\nالتوريد 7 أيام\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500 ر.س\n41,200 ر.س\n43,600 ر.س\n44,800 ر.س\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\n01\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\n02\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\n03\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nمقر شركتك هو نقطة البداية. نكتب الطلب مرة وحدة، وهو يتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nطلب عرض سعر يروح بالواتساب، اتصال من مركز فرق، رسالة نصية، حراج، والإيميل — كل مسار لمورد مختلف.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره على نفس الطريق، ومساعد المشتريات أحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nنرتب الردود في مكان واحد ونطلع لك أرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nمثال توضيحي: مقارنة ثلاثة عروض على كيبل نحاس 4×16 مم² — 500 متر، الرياض\nكيبل نحاس 4×16 مم²\n500 متر · الرياض\n\t\nمستودع الرياض للكهرباء\nالأفضل\t\nمؤسسة النور للكهرباء\n\t\nشركة الخليج للكابلات\n\nسعر البنود\t41,200.00 ر.س\t42,500.00 ر.س\t44,800.00 ر.س\nالتوصيل\nيختلف\n\tمجاني\t350.00 ر.س\tمجاني\nضريبة القيمة المضافة 15%\t6,180.00 ر.س\t6,427.50 ر.س\t6,720.00 ر.س\nمدة التوريد\nيختلف\n\t3 أيام\t5 أيام\t7 أيام\nالضمان\nيختلف\n\tسنة\tسنة\tبدون\n\nالتكلفة الواصلة\nالسعر + التوصيل + الضريبة\n\t\n47,380.00 ر.س\nالأقل\n\t\n49,277.50 ر.س\n+1,897.50 ر.س (4.0%)\n\t\n51,520.00 ر.س\n+4,140.00 ر.س (8.7%)\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(1) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(2) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(3) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(3) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(4) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "scrollWidth": 1920,
+      "height": 4844,
+      "lang": "ar",
+      "dir": "rtl",
+      "h1": [
+        "قبل ما تشتري،شوف الفرق."
+      ],
+      "metrics": {
+        "cls": 0.0014076768945764612,
+        "lcp": 944
+      },
+      "links": [
+        {
+          "text": "تخطَّ إلى المحتوى",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "#main",
+          "target": ""
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "وش الفرق؟",
+          "href": "#difference",
+          "target": ""
+        },
+        {
+          "text": "لمين",
+          "href": "#audience",
+          "target": ""
+        },
+        {
+          "text": "الأسئلة",
+          "href": "#faq",
+          "target": ""
+        },
+        {
+          "text": "دخول",
+          "href": "/requests",
+          "target": ""
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "شاهد كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "ابدأ التسعير",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "كيف تعمل",
+          "href": "#how",
+          "target": ""
+        },
+        {
+          "text": "+966 51 019 7017",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        },
+        {
+          "text": "info@farq.sa",
+          "href": "mailto:info@farq.sa",
+          "target": ""
+        },
+        {
+          "text": "كلمنا واتساب",
+          "href": "https://wa.me/966510197017?text=%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D8%A8%D9%8A%20%D8%A3%D8%AC%D8%B1%D8%A8%20%D9%81%D8%B1%D9%82%20%D8%AA%D8%B3%D8%B9%D9%8A%D8%B1",
+          "target": "_blank"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "label": "فتح القائمة"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "loaded": true,
+          "loading": "auto"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M14%206H40L52%2018V58H14V6Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_2'%20d='M14%206H40L14%2044V6Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_3'%20d='M40%206V18H52L40%206Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_4'%20d='M22%2030H44V34H22V30ZM22%2040H44V44H22V40ZM22%2050H36V54H22V50Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M12%2010H52V60H12V10Z'%20fill='%233DDC97'/%3e%3cpath%20id='Vector_2'%20d='M12%2010H52L12%2050V10Z'%20fill='%23A8F0CE'/%3e%3cpath%20id='Vector_3'%20d='M24%204H40V16H24V4Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M20%2028H24V32H20V28ZM28%2028H46V32H28V28ZM20%2038H24V42H20V38ZM28%2038H46V42H28V38ZM20%2048H24V52H20V48ZM28%2048H40V52H28V48Z'%20fill='white'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        },
+        {
+          "src": "data:image/svg+xml,%3csvg%20preserveAspectRatio='none'%20overflow='visible'%20style='display:%20block;'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20id='Spot'%3e%3cpath%20id='Vector'%20d='M6%2020H19L24%2013H40L45%2020H58V56H6V20Z'%20fill='%238FE6BF'/%3e%3cpath%20id='Vector_2'%20d='M6%2020H58L6%2056V20Z'%20fill='%23E3F8EE'/%3e%3cpath%20id='Vector_3'%20d='M32%2048C38.0751%2048%2043%2043.0751%2043%2037C43%2030.9249%2038.0751%2026%2032%2026C25.9249%2026%2021%2030.9249%2021%2037C21%2043.0751%2025.9249%2048%2032%2048Z'%20fill='%23121212'/%3e%3cpath%20id='Vector_4'%20d='M26%2033C26.4439%2031.5064%2027.3734%2030.2035%2028.6413%2029.2979C29.9093%2028.3922%2031.4432%2027.9354%2033%2028'%20stroke='white'%20stroke-width='3'%20stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e",
+          "loaded": true,
+          "loading": "lazy"
+        }
+      ],
+      "navigation": [
+        {
+          "ttfb": 2.099999997764826
+        }
+      ],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BK5fknMq.js",
+          "bytes": 224608,
+          "duration": 32
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-vpCVnMiM.css",
+          "bytes": 57950,
+          "duration": 31.800000000745058
+        },
+        {
+          "name": "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Readex+Pro:wght@400;500;600;700&display=swap",
+          "bytes": 1272,
+          "duration": 353.9000000022352
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-slZRzSnb.js",
+          "bytes": 26839,
+          "duration": 74.59999999776483
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-8LQp-gMl.js",
+          "bytes": 1588,
+          "duration": 74.69999999925494
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Icon-BxT9BiOM.js",
+          "bytes": 18845,
+          "duration": 76.89999999850988
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/index-BgrisQU8.css",
+          "bytes": 1443,
+          "duration": 78.80000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/favicon.svg",
+          "bytes": 732,
+          "duration": 28.5
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Below-BizPbKZH.js",
+          "bytes": 19791,
+          "duration": 11.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/Badge-DNus-aJT.js",
+          "bytes": 2838,
+          "duration": 14.800000000745058
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PriceCell-B9CvZsVk.js",
+          "bytes": 2127,
+          "duration": 15.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/photo-Cwb93j9j.js",
+          "bytes": 2420,
+          "duration": 16.100000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/channel-whatsapp@2x-BTw_mh3a.webp",
+          "bytes": 1564,
+          "duration": 19.699999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/live-bg-BG8S0Ejp.css",
+          "bytes": 601,
+          "duration": 19.199999999254942
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/PageLive-7wg0wHKy.js",
+          "bytes": 1323,
+          "duration": 17.100000001490116
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/ahmad3d-run-sheet-L32rHh01.webp",
+          "bytes": 522750,
+          "duration": 123.80000000074506
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/pageNetwork-9iSCACHr.js",
+          "bytes": 26670,
+          "duration": 25.099999997764826
+        },
+        {
+          "name": "http://127.0.0.1:5198/assets/engine-BbzUQc0F.js",
+          "bytes": 32892,
+          "duration": 25.099999997764826
+        }
+      ],
+      "text": "تخطَّ إلى المحتوى\nكيف تعمل\nوش الفرق؟\nلمين\nالأسئلة\nدخول\nابدأ التسعير\n\nمنصة تسعير لمشتريات الشركات\n\nقبل ما تشتري،\nشوف \nالفرق.\n\nارفع الكراسة، اكتب الطلبات أو صوّرها — ونجيب لك عروض من موردين حقيقيين، محسوبة شامل التوصيل والضريبة، مرتبة من الأوفر.\n\nابدأ التسعير\nشاهد كيف تعمل\n\nنرسل طلبك لأكثر من 150 ألف مورد بـ6 طرق\n\nمقر شركتك\nمؤسسة النور للكهرباء\nتوصيل 350 ر.س\n42,500 ر.س\nمستودع الرياض للكهرباء\nمتوفر · توصيل مجاني\nالأوفر\n41,200 ر.س\nمؤسسة الأفق للتجارة\nمتوفر · 3 أيام\n43,600 ر.س\nشركة الخليج للكابلات\nالتوريد 7 أيام\n44,800 ر.س\nوش الفرق؟\n3,600 ر.س\nأوفر من أعلى عرض بـ 8.0%\n...\n42,500 ر.س\n41,200 ر.س\n43,600 ر.س\n44,800 ر.س\nكهرباء\nسباكة\nمواد البناء\nإنارة\nسلامة\nأثاث مكتبي\nHVAC\nثلاث طرق، طلب واحد\n\nاختار الأسهل لك — والباقي علينا.\n\n01\nارفع الكراسة\n\nملف Excel أو PDF — نقرأ البنود والكميات تلقائيًا، وأي بند غامض نسألك عنه.\n\n02\nاكتب الطلبات\n\nسطر لكل بند: «كيبل 4×16 — 500 متر». نقترح لك المواصفات الناقصة.\n\n03\nصوّرها\n\nصورة كراسة ورقية أو قطعة تبي مثلها. نفهمها ونرجع لك بالبنود للمراجعة.\n\nكلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.\n\nكيف نسعّر لك؟\n\nاللي يتحرك في الخلفية هو اللي يصير فعلًا لطلبك: يطلع من شركتك، يوصل لكل مورد بكل قناة، ويرجع لك بالسعر — وفي الأخير نطلع لك أرخص سعر والفرق.\n\n1\nالخطوة 1:\nطلبك يطلع من شركتك\n\nمقر شركتك هو نقطة البداية. نكتب الطلب مرة وحدة، وهو يتوزع على الكل.\n\n2\nالخطوة 2:\nنوصل لكل مورد بكل قناة\n\nطلب عرض سعر يروح بالواتساب، اتصال من مركز فرق، رسالة نصية، حراج، والإيميل — كل مسار لمورد مختلف.\n\n3\nالخطوة 3:\nيرجع لك بالسعر\n\nكل مورد يرد بسعره على نفس الطريق، ومساعد المشتريات أحمد يتابع لين يوصل الرد.\n\n4\nالخطوة 4:\nنطلع لك الفرق\n\nنرتب الردود في مكان واحد ونطلع لك أرخص سعر والفرق بين العروض — والقرار لك.\n\nخط متقطع:\nطلب عرض سعر رايح للمورد\n\nخط متصل:\nالسعر راجع لك\n\n· الأسعار في الرسم توضيحية\n\nوش الفرق؟ بنظرة وحدة\n\nنحسب التكلفة الواصلة لكل عرض — السعر + التوصيل + ضريبة 15% — ونخفي الخصائص المتطابقة عشان يبان اللي يفرق فعلًا.\n\nمثال توضيحي: مقارنة ثلاثة عروض على كيبل نحاس 4×16 مم² — 500 متر، الرياض\nكيبل نحاس 4×16 مم²\n500 متر · الرياض\n\t\nمستودع الرياض للكهرباء\nالأفضل\t\nمؤسسة النور للكهرباء\n\t\nشركة الخليج للكابلات\n\nسعر البنود\t41,200.00 ر.س\t42,500.00 ر.س\t44,800.00 ر.س\nالتوصيل\nيختلف\n\tمجاني\t350.00 ر.س\tمجاني\nضريبة القيمة المضافة 15%\t6,180.00 ر.س\t6,427.50 ر.س\t6,720.00 ر.س\nمدة التوريد\nيختلف\n\t3 أيام\t5 أيام\t7 أيام\nالضمان\nيختلف\n\tسنة\tسنة\tبدون\n\nالتكلفة الواصلة\nالسعر + التوصيل + الضريبة\n\t\n47,380.00 ر.س\nالأقل\n\t\n49,277.50 ر.س\n+1,897.50 ر.س (4.0%)\n\t\n51,520.00 ر.س\n+4,140.00 ر.س (8.7%)\n\nأخفينا 6 خصائص متطابقة بين العروض (المقطع، العزل، الطول، بلد الصنع، الشهادة، طريقة الدفع) · الأرقام في المثال توضيحية\n\nمصمّمة لفرق المشتريات\nالمقاولون\n\nكراسة مشروع كاملة تتسعّر بدون ما تتصل بعشرين مورد.\n\nالمصانع\n\nقطع غيار ومواد خام بشكل متكرر — والمورد الأفضل يبان من التاريخ.\n\nالتشغيل والصيانة\n\nطلبات سريعة وصغيرة، بأسعار تقدر تبررها لإدارتك.\n\nمكاتب إدارة المشاريع\n\nمقارنة موثّقة تقدر ترفعها للعميل أو للجنة.\n\nأسئلة تتكرر\nكم ياخذ وقت أول رد؟\nيعتمد على نوع البنود والمدينة. تشوف كل رد لحظة وصوله، ونبلغك إذا تأخر مورد.\nهل أقدر أرفع كراسة PDF ممسوحة؟\nهل الأسعار شاملة الضريبة؟\nكيف تختارون الموردين؟\nهل أقدر أدعو موردين أعرفهم؟\nهل فيه رسوم على المورد؟\nطلب الشراء الجاي؟ خلّه علينا.\n\nارفعه الحين وشوف أول عرض اليوم.\n\nابدأ التسعير\n\nنبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.\n\nالمنتج\nكيف تعمل\nللموردين (قريبًا)\nتواصل معنا\n\nواتساب: +966 51 019 7017\n\nالإيميل: info@farq.sa\n\nكلمنا واتساب\n\n© 2026 مؤسسة فرق التقنية · س.ت [يُحدَّد] · الرقم الضريبي [يُحدَّد]\n\nمن نحن · الخصوصية · الشروط — صفحات قيد الإعداد",
+      "errors": [],
+      "failed": [],
+      "axe": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+          "nodes": [
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(1) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(2) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                ".p-\\[var\\(--space-20\\)\\].md\\:h-\\[300px\\].md\\:items-start:nth-child(3) > .md\\:w-full.items-start.justify-between > .md\\:block.text-\\[var\\(--color-text-tertiary\\)\\].leading-\\[24px\\]"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 3.02 (foreground color: #8f8f8b, background color: #f7f7f5, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(3) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            {
+              "target": [
+                "td:nth-child(4) > .text-\\[var\\(--color-text-warning\\)\\].leading-\\[18px\\].block"
+              ],
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.49 (foreground color: #c2410c, background color: #efefec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "interactions": [
+    {
+      "width": 320,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 320,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 320,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 320,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 320,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 320,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 320,
+      "menuExpanded": "true",
+      "menuClosed": "false",
+      "focus": true
+    },
+    {
+      "width": 320,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 320,
+      "skipHash": "#main"
+    },
+    {
+      "width": 375,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 375,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 375,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 375,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 375,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 375,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 375,
+      "menuExpanded": "true",
+      "menuClosed": "false",
+      "focus": true
+    },
+    {
+      "width": 375,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 375,
+      "skipHash": "#main"
+    },
+    {
+      "width": 390,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 390,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 390,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 390,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 390,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 390,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 390,
+      "menuExpanded": "true",
+      "menuClosed": "false",
+      "focus": true
+    },
+    {
+      "width": 390,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 390,
+      "skipHash": "#main"
+    },
+    {
+      "width": 390,
+      "hash": "how",
+      "top": -0.28125
+    },
+    {
+      "width": 390,
+      "hash": "difference",
+      "top": -0.28125
+    },
+    {
+      "width": 390,
+      "hash": "audience",
+      "top": -0.28125
+    },
+    {
+      "width": 390,
+      "hash": "faq",
+      "top": -0.28125
+    },
+    {
+      "width": 430,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 430,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 430,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 430,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 430,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 430,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 430,
+      "menuExpanded": "true",
+      "menuClosed": "false",
+      "focus": true
+    },
+    {
+      "width": 430,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 430,
+      "skipHash": "#main"
+    },
+    {
+      "width": 768,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 768,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 768,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 768,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 768,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 768,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 768,
+      "menuExpanded": "true",
+      "menuClosed": "false",
+      "focus": true
+    },
+    {
+      "width": 768,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 768,
+      "skipHash": "#main"
+    },
+    {
+      "width": 1024,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 1024,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1024,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1024,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1024,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1024,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1024,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 1024,
+      "skipHash": "#main"
+    },
+    {
+      "width": 1280,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 1280,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1280,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1280,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1280,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1280,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1280,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 1280,
+      "skipHash": "#main"
+    },
+    {
+      "width": 1440,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 1440,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1440,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1440,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1440,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1440,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1440,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 1440,
+      "skipHash": "#main"
+    },
+    {
+      "width": 1440,
+      "hash": "how",
+      "top": 0
+    },
+    {
+      "width": 1440,
+      "hash": "difference",
+      "top": 0
+    },
+    {
+      "width": 1440,
+      "hash": "audience",
+      "top": -0.5
+    },
+    {
+      "width": 1440,
+      "hash": "faq",
+      "top": -0.5
+    },
+    {
+      "width": 1920,
+      "faq": "كم ياخذ وقت أول رد؟",
+      "open": false
+    },
+    {
+      "width": 1920,
+      "faq": "هل أقدر أرفع كراسة PDF ممسوحة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1920,
+      "faq": "هل الأسعار شاملة الضريبة؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1920,
+      "faq": "كيف تختارون الموردين؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1920,
+      "faq": "هل أقدر أدعو موردين أعرفهم؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1920,
+      "faq": "هل فيه رسوم على المورد؟\nالإجابة قيد الإعداد. اسألنا مباشرة على واتساب.",
+      "open": true
+    },
+    {
+      "width": 1920,
+      "firstFocus": "تخطَّ إلى المحتوى"
+    },
+    {
+      "width": 1920,
+      "skipHash": "#main"
+    }
+  ],
+  "browsers": [
+    {
+      "name": "Safari-WebKit",
+      "status": "unavailable",
+      "reason": "browserType.launch: Executable doesn't exist at /Users/m4pro/Library/Caches/ms-playwright/webkit-2370/pw_run.sh\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                "
+    },
+    {
+      "name": "Firefox",
+      "status": "unavailable",
+      "reason": "browserType.launch: Executable doesn't exist at /Users/m4pro/Library/Caches/ms-playwright/firefox-1555/firefox/Nightly.app/Contents/MacOS/firefox\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║              "
+    }
+  ]
+}
