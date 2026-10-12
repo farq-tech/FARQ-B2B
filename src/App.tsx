@@ -19,11 +19,7 @@ const TemplateEditor = lazy(() => import('./pages/targeting/TemplateEditor'))
 
 const Loading = () => <div className="p-8 text-right" role="status" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحميل…</div>
 
-/*
- * «فرق تسعير» — owner-only. Two gates: the hosting server asks for the site
- * password before serving anything, and the app itself accepts only the
- * accounts listed in VITE_ALLOWED_EMAILS (default: the owner) after Farq login.
- */
+/* Account login; authorized emails retain access to the private app. */
 const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean)
 
 const onTargeting = (v: string) => v === 'targeting' || v === 'templates' || v === 'template-new'

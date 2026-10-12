@@ -22,10 +22,10 @@ export function LoginV2({ navigate }: NavProps) {
         <div className="mb-8 flex flex-col items-center gap-3">
           <img src={mark} alt="" width={48} height={48} />
           <div className="flex items-baseline gap-1"><span className="text-[18px]" style={{ color: 'var(--color-text-secondary)' }}>تسعير</span><span className="font-[Readex_Pro] text-[24px] font-semibold">فرق</span></div>
-          <p className="text-[14px]" style={{ color: 'var(--color-text-tertiary)' }}>صفحة خاصة بالمالك</p>
+          <p className="text-[14px]" style={{ color: 'var(--color-text-tertiary)' }}>تسجيل الدخول</p>
         </div>
         {error ? <p className="mb-4 rounded-[12px] px-4 py-3 text-[14px] font-medium" style={{ background: 'var(--color-bg-danger)', color: 'var(--color-text-danger)' }}>{error}</p> : null}
-        <label htmlFor="login-email" className="mb-1 block text-[14px] font-medium">البريد</label>
+        <label htmlFor="login-email" className="mb-1 block text-[14px] font-medium">البريد الإلكتروني</label>
         <input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" className="mb-4 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />
         <label htmlFor="login-password" className="mb-1 block text-[14px] font-medium">كلمة المرور</label>
         <input id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" className="mb-6 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />

@@ -1,30 +1,17 @@
 # -*- coding: utf-8 -*-
-"""فرق تسعير — hosts the built app (dist/) behind a site password and proxies /_api/* to the Farq API
-(same origin, so the browser needs no CORS). Nothing is cached; every API call carries the user's own
-Authorization header from the Farq login, so the API still decides what this person may see.
-
-Public without the password: the landing page at / (and /landing) and only the files it loads (computed from the Vite
-manifest: index.html and its imports, minus the App chunk and everything only the app uses), plus
-robots.txt, sitemap.xml and the favicon. Every app route, every app chunk and /_api/* stay behind the gate.
-
-/_targeting/* (behind the same gate) proxies the targeting service (screens 07–10) with its own password from the
-environment, so the owner logs in once. Only the read endpoints and template submission (to Meta, for review) pass by default; the send endpoint passes only
-when TARGETING_SEND=1 is set on this service (off locally and in tests: nothing can go out)."""
-import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes, hmac
-from http.cookies import SimpleCookie
+"""Serve the public landing and account-login app; proxy Farq with each user's
+Authorization header. Farq enforces API permissions. Targeting uses a server
+credential only after /api/auth/me validates an allowed account. Sending is
+still disabled unless TARGETING_SEND=1.
+"""
+import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
 from trial import handle as handle_trial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__)); DIST = os.path.join(HERE, 'dist')
-PORT = int(os.environ.get('PORT', '8080')); PASSWORD = os.environ.get('PRICING_PASSWORD', '')
+PORT = int(os.environ.get('PORT', '8080'))
 API = os.environ.get('FARQ_API_ORIGIN', 'https://api.farq.sa').rstrip('/')
-TOKEN = hashlib.sha256(PASSWORD.encode()).hexdigest()[:32] if PASSWORD else ''
 SITE_URL = os.environ.get('SITE_URL', '').rstrip('/')  # public origin for canonical / sitemap (unset: from the Host header)
-LOGIN = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير</title>
-<meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-family:Tahoma,sans-serif;background:#f7f7f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-<form method="post" action="/__gate" style="background:#fff;padding:28px;border-radius:16px;border:1px solid #e6e6e2;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير</h2>
-<label for="gate-password" style="display:block;margin-bottom:8px">كلمة مرور الصفحة</label><input id="gate-password" name="p" autocomplete="current-password" type="password" placeholder="كلمة مرور الصفحة" style="width:100%;padding:10px;border-radius:12px;border:1px solid #e6e6e2;font-size:15px" autofocus>
-<button style="margin-top:12px;width:100%;padding:10px;border-radius:12px;border:0;background:#121212;color:#fff;font-size:15px">دخول</button></form><script src="/gate-network.js" defer></script></body></html>'''
 # The landing's <head> for crawlers (docs/qa/requests.md B3); app routes keep noindex.
 LANDING_TITLE = 'فرق تسعير — قبل ما تشتري، شوف الفرق'
 LANDING_DESC = 'جهّز احتياج منشأتك وراجع البنود، ثم قارن عروض الموردين المستلمة ومواصفاتها وشروطها قبل قرار الشراء.'
@@ -68,12 +55,16 @@ HOP = {'connection', 'keep-alive', 'transfer-encoding', 'host', 'content-length'
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _authed(self):
-        if not TOKEN: return True
-        cookies = SimpleCookie()
-        try: cookies.load(self.headers.get('Cookie') or '')
+        """Validate the account on Farq before using the server's targeting credential."""
+        bearer = self.headers.get('Authorization', '')
+        if not bearer.startswith('Bearer ') or len(bearer) > 8192: return False
+        req = urllib.request.Request(API + '/api/auth/me', headers={'Authorization': bearer, 'Accept': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                user = json.load(response).get('data', {}).get('user', {})
+            allowed = {e.strip().lower() for e in os.environ.get('ALLOWED_EMAILS', 'abdulrhman@farq.sa').split(',') if e.strip()}
+            return bool(user.get('id') and str(user.get('email', '')).lower() in allowed)
         except Exception: return False
-        value = cookies.get('fp_gate')
-        return bool(value and hmac.compare_digest(value.value, TOKEN))
     def _send(self, code, body, ctype='text/html; charset=utf-8', extra=None):
         self.send_response(code); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(body))); self.send_header('Cache-Control', 'no-store')
         for k, v in (extra or []): self.send_header(k, v)
@@ -117,7 +108,7 @@ class H(BaseHTTPRequestHandler):
         self._send(200, page.encode())
     def do_GET(self):
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
-        if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+        if self.path.startswith('/_api/'): return self._proxy()
         if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         u = urllib.parse.urlparse(self.path); p = u.path
         # public: the landing, its own files, robots / sitemap / favicon
@@ -130,11 +121,8 @@ class H(BaseHTTPRequestHandler):
             f = os.path.normpath(os.path.join(DIST, p.lstrip('/')))
             if f.startswith(DIST + os.sep) and os.path.isfile(f): return self._file(f)
             return self._send(404, b'')
-        if p == '/__gate': return self._send(200, LOGIN.replace('action="/__gate"', 'action="/__gate?next=' + urllib.parse.quote(self._next(u.query), safe='') + '"').encode())
-        if not self._authed():
-            # app files: 401; app pages: to the password form, then back to the page asked for
-            if p.startswith('/assets/') or '.' in p.rsplit('/', 1)[-1]: return self._send(401, b'', 'text/plain')
-            return self._send(303, b'', extra=[('Location', '/__gate?next=' + urllib.parse.quote(self.path, safe=''))])
+        if p == '/__gate':
+            return self._send(303, b'', extra=[('Location', self._next(u.query))])
         f = os.path.normpath(os.path.join(DIST, p.lstrip('/')))
         if not f.startswith(DIST + os.sep) or not os.path.isfile(f): f = os.path.join(DIST, 'index.html')
         self._file(f)
@@ -146,15 +134,12 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if urllib.parse.urlparse(self.path).path == '/__gate':
-            n = int(self.headers.get('Content-Length') or 0); p = urllib.parse.parse_qs(self.rfile.read(n).decode()).get('p', [''])[0]
-            self.send_response(303); self.send_header('Location', urllib.parse.quote(self._next(urllib.parse.urlparse(self.path).query), safe="/?=&:#-._~"))
-            if PASSWORD and p == PASSWORD: self.send_header('Set-Cookie', f'fp_gate={TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000; Secure')
-            self.end_headers(); return
-        if self.path.startswith('/_api/'): return self._proxy() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+            return self._send(410, b'{"error":"USE_ACCOUNT_LOGIN"}', 'application/json')
+        if self.path.startswith('/_api/'): return self._proxy()
         if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         self._send(404, b'')
     do_PUT = do_PATCH = do_DELETE = do_POST
 
 if __name__ == '__main__':
-    print(f'farq-pricing on :{PORT} -> {API} (gate: {"on" if PASSWORD else "OFF"}; targeting -> {TARGETING}, send: {"ON" if TARGETING_SEND else "off"})', flush=True)
+    print(f'farq-pricing on :{PORT} -> {API} (account login; targeting -> {TARGETING}, send: {"ON" if TARGETING_SEND else "off"})', flush=True)
     ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()
