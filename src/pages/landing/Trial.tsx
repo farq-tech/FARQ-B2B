@@ -21,7 +21,7 @@ export default function Trial({ onClose }: { onClose: () => void }) {
     if (busy || !city || item.trim().length < 3) return
     if (/[\n\r;؛]/.test(item)) { setError('التجربة لبند واحد. اكتب منتجًا أو احتياجًا واحدًا.'); return }
     const c = new AbortController(); controller.current = c; setBusy(true); setError(''); setResult(null)
-    const timer = window.setTimeout(() => c.abort(), 55000)
+    const timer = window.setTimeout(() => c.abort(), 105000)
     try {
       const r = await fetch('/_trial/search', { method: 'POST', signal: c.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: item.trim(), city }) })
       if (!r.ok) throw new Error(r.status === 429 ? 'وصلت لحد البحث في التجربة. حاول لاحقًا.' : r.status === 400 ? 'راجع البند والمدينة، ثم جرّب مجددًا.' : 'تعذّر البحث الآن. حاول مجددًا أو تواصل معنا.')
