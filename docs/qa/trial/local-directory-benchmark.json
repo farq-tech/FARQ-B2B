@@ -1,0 +1,706 @@
+[
+  {
+    "q": "كرسي انتظار للعيادة",
+    "seconds": 0.938,
+    "total": 4112,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "شركة زاوية التوزيع",
+        "category_ar": "اثاث مكتبي, اجهزة كهربائية",
+        "district_ar": "",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "مصنع منتجات الأخشاب",
+        "category_ar": "الشركات",
+        "district_ar": "المدينة الصناعية الثانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "شركة العمرانية للمنتجات الخشبية المحدودة",
+        "category_ar": "التسوق",
+        "district_ar": "المدينة الصناعية الثانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "شركة زود العالمية",
+        "category_ar": "أثاث مكتبي",
+        "district_ar": "الملز",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "سي بي تي للأثاث",
+        "category_ar": "أثاث مطاعم ومقاصف",
+        "district_ar": "الوادي",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "شركة العمرانية للمنتجات الخشبية المحدودة",
+        "category_ar": "Shopping | Furniture manufacturer | Furniture wholesaler | Log cabins | Office furniture store | Saw mill | Wood frame supplier | Wood working class | محتمل حسب السوق: أخشاب",
+        "district_ar": "المدينة الصناعية الجديدة",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "EPSG:4326",
+        "category_ar": "الشركات",
+        "district_ar": "السليمانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "أرائك العربية",
+        "category_ar": "التسوق",
+        "district_ar": "الياسمين",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "ايفنت",
+        "category_ar": "هدايا تذكارية",
+        "district_ar": "السليمانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      },
+      {
+        "name_ar": "أتولييه 21",
+        "category_ar": "التسوق",
+        "district_ar": "الرحمانية",
+        "match": "seller",
+        "ai": null,
+        "reason": "كراسي وأثاث انتظار"
+      }
+    ]
+  },
+  {
+    "q": "حبوب قهوة للمكتب",
+    "seconds": 0.759,
+    "total": 180,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "مستودع ميثاق الكيف للقهوة المختصة والجملة",
+        "category_ar": "الشركات",
+        "district_ar": "المروة",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "ابهار",
+        "category_ar": "الشركات",
+        "district_ar": "العزيزية",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "سدو",
+        "category_ar": "الشركات",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "عطارة ومحامص ومكسرات درة الوطن التجارية",
+        "category_ar": "Spice wholesaler|Coffee roasters",
+        "district_ar": "القدس",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "محامص عمو مدهش",
+        "category_ar": "Coffee wholesaler|Coffee roasters|Coffee store|Nut store",
+        "district_ar": "عتيقة",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "محمصة عذية",
+        "category_ar": "Coffee roasters|Coffee wholesaler",
+        "district_ar": "عتيقة",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "Thoughts, coffee roasters",
+        "category_ar": "محمصة",
+        "district_ar": "جامعة الملك سعود",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "قهوة رياض السعادة",
+        "category_ar": "محمصة",
+        "district_ar": "الندوة",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "محمصة دنيا الرياض",
+        "category_ar": "محمصة",
+        "district_ar": "الملز",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      },
+      {
+        "name_ar": "Reef Tybh Roasters, trading company",
+        "category_ar": "محمصة",
+        "district_ar": "المروج",
+        "match": "product",
+        "ai": null,
+        "reason": "قهوة وبن"
+      }
+    ]
+  },
+  {
+    "q": "مياه شرب للموظفين",
+    "seconds": 0.729,
+    "total": 139,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "شركة عوامل الامتياز التجارية للمياه والمرطبات",
+        "category_ar": "الشركات",
+        "district_ar": "المصانع",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "مرام نجد للمياه المعبأة",
+        "category_ar": "الشركات",
+        "district_ar": "الروابي",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "مرطبات أنهار بلور",
+        "category_ar": "الشركات",
+        "district_ar": "ديراب",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "سيف الشهراني للمياه المعبأة و المرطبات",
+        "category_ar": "الشركات",
+        "district_ar": "العريجاء الوسطى",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "نود بارد للمياه والمرطبات",
+        "category_ar": "الشركات",
+        "district_ar": "???????",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "شركة رؤية البلد للمياه والمرطبات",
+        "category_ar": "الشركات",
+        "district_ar": "السويدي الغربي",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "المياه لبيع المياه الصحة, company",
+        "category_ar": "مياه شرب",
+        "district_ar": "الملك فيصل",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "بركة السلة مياه ومرطبات",
+        "category_ar": "مياه شرب",
+        "district_ar": "الدريهمية",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "Al -Rawabi Commercial Spring Company",
+        "category_ar": "مياه شرب",
+        "district_ar": "الريان",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      },
+      {
+        "name_ar": "Saad bin Fayez Al -Shehri for refreshments",
+        "category_ar": "مياه شرب",
+        "district_ar": "ام الحمام الغربي",
+        "match": "product",
+        "ai": null,
+        "reason": "مياه شرب"
+      }
+    ]
+  },
+  {
+    "q": "مستلزمات طبية للعيادة",
+    "seconds": 0.738,
+    "total": 325,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "هشام السريع للوازم الطبية",
+        "category_ar": "التسوق",
+        "district_ar": "الزهرة",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "مختبر الخليج للتجهيزات والمستلزمات الطبية",
+        "category_ar": "الشركات",
+        "district_ar": "الرائد",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "رسام الريان للمستلزمات الطبية",
+        "category_ar": "التسوق",
+        "district_ar": "ظهرة لبن",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "متجر ميديسيرف",
+        "category_ar": "التسوق",
+        "district_ar": "السلي",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "مؤسسة الابتسامه البيضاء للتجارة ومستلزمات عيادات الاسنان",
+        "category_ar": "التسوق",
+        "district_ar": "العليا",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "مؤسسة بصمة شفاء الطبية",
+        "category_ar": "التسوق",
+        "district_ar": "الخالدية",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "مجموعة الصهيل النموذجية",
+        "category_ar": "الشركات",
+        "district_ar": "المروة",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "ريف",
+        "category_ar": "صيدليات",
+        "district_ar": "حطين",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "صيدلية سلكت",
+        "category_ar": "صيدليات",
+        "district_ar": "الملك عبدالعزيز",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      },
+      {
+        "name_ar": "Arabian medical supplies co.",
+        "category_ar": "Medical equipment supplier",
+        "district_ar": "الندى",
+        "match": "product",
+        "ai": null,
+        "reason": "مستلزمات ومعدات طبية"
+      }
+    ]
+  },
+  {
+    "q": "مواد غذائية للمطعم",
+    "seconds": 1.298,
+    "total": 7817,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "امتياز الجملة للمواد الغذائية‬‏‏",
+        "category_ar": "التموينات",
+        "district_ar": "العزيزية",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "شركة نجمة البادي للتجارة",
+        "category_ar": "الشركات",
+        "district_ar": "السلي",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "أسواق اركان حطين للمواد الغذائية‬‏‏",
+        "category_ar": "متجر مواد غذائية بالجملة",
+        "district_ar": "النسيم الشرقي",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "تموينات يو ماركت‬‏‏",
+        "category_ar": "متجر مواد غذائية بالجملة",
+        "district_ar": "المونسية",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "مؤسسة غذاء وحلوى التجارية‬‏‏",
+        "category_ar": "متجر مواد غذائية بالجملة",
+        "district_ar": "العزيزية",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "بقالة زاوية للمواد الغذائية‬‏‏",
+        "category_ar": "متجر مواد غذائية بالجملة",
+        "district_ar": "الاسكان",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "تموينات روان للمواد الغذائية‬‏‏",
+        "category_ar": "متجر مواد غذائية بالجملة",
+        "district_ar": "بدر",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "شركة عالم الغذاء",
+        "category_ar": "الشركات",
+        "district_ar": "المصانع",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "اسواق و تموينات الاسعار المخفضة‬‏‏",
+        "category_ar": "التموينات",
+        "district_ar": "الجنادرية",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      },
+      {
+        "name_ar": "بن خميس للمواد الغذائية والحلويات",
+        "category_ar": "الشركات",
+        "district_ar": "المصانع",
+        "match": "product",
+        "ai": null,
+        "reason": "مواد غذائية"
+      }
+    ]
+  },
+  {
+    "q": "معدات صناعية للمصنع",
+    "seconds": 0.724,
+    "total": 171,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "الماسية للآلات والمعدات",
+        "category_ar": "الشركات",
+        "district_ar": "العمل",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "مدار للعدد والادوات",
+        "category_ar": "التسوق",
+        "district_ar": "العمل",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "شركة عاصمة الجنازير التجارية",
+        "category_ar": "الشركات",
+        "district_ar": "الصالحية",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "مؤسسة غالب عبدالقادر محسن الحارثي للنجارة",
+        "category_ar": "معدات صناعية",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "ورشة ألف عدسة للنجارة",
+        "category_ar": "معدات صناعية",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "شركة يلمة التجارية",
+        "category_ar": "الشركات",
+        "district_ar": "السلي",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "خشيم للمعدات الصناعية",
+        "category_ar": "الشركات",
+        "district_ar": "غبيرا",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "شركة المعدات الصناعية",
+        "category_ar": "الشركات",
+        "district_ar": "العمل",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "جرش البيت للتجارة",
+        "category_ar": "الشركات",
+        "district_ar": "العمل",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      },
+      {
+        "name_ar": "شام للفيبر جلاس",
+        "category_ar": "خدمات السيارات",
+        "district_ar": "المعذر الشمالي",
+        "match": "product",
+        "ai": null,
+        "reason": "معدات وآلات صناعية"
+      }
+    ]
+  },
+  {
+    "q": "أسلاك كهربائية",
+    "seconds": 0.827,
+    "total": 2651,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "شركة عدد الجزيرة لتوريد مواد الكهرباء",
+        "category_ar": "أدوات كهربائية | Electrical tools | power-tools",
+        "district_ar": "السلي",
+        "match": "seller",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "شركة الفريق العالمي للتجارة",
+        "category_ar": "كابلات, لوحات توصيل وتوزيع الكهرباء",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "الكثيري للسباكة و الكهرباء ومواد البناء و الدهانات",
+        "category_ar": "electrical-general,cables,cement,general-supply,paints,plumbing-general,switchgear,valves,wiring-devices,محابس وصمامات,سباكة عامة,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة,أسمنت,توريدات عامة للمشاريع,دهانات",
+        "district_ar": "الجرادية",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "ضفيره المطيري للسباكة والكهرباء",
+        "category_ar": "electrical-general,cables,cement,general-supply,plumbing-general,switchgear,valves,wiring-devices,محابس وصمامات,سباكة عامة,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة,توريدات عامة للمشاريع,أسمنت",
+        "district_ar": "ظهرة لبن",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "مؤسسة تجارة متجر طلحة الكهربائي",
+        "category_ar": "doors-windows,cables,electrical-general,general-supply,switchgear,wiring-devices,كهرباء عامة,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,توريدات عامة للمشاريع,أبواب ونوافذ",
+        "district_ar": "العليا",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "محل دار الامتيازات للسباكة والكهرباء",
+        "category_ar": "general-supply,cables,cement,electrical-general,plumbing-general,switchgear,valves,wiring-devices,محابس وصمامات,سباكة عامة,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة,أسمنت,توريدات عامة للمشاريع",
+        "district_ar": "النسيم الشرقي",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "أساس البيان للسباكة والكهرباء أسعار جملة",
+        "category_ar": "general-supply,cables,cement,electrical-general,plumbing-general,switchgear,valves,wiring-devices,محابس وصمامات,سباكة عامة,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة,أسمنت,توريدات عامة للمشاريع",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "إسكان الرياض لمواد البناء ومواد السباكة والكهرباء جملة مفرق",
+        "category_ar": "electrical-general,cables,cement,general-supply,plumbing-general,switchgear,valves,wiring-devices,أسمنت,توريدات عامة للمشاريع,سباكة عامة,محابس وصمامات,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "الشمري كهرباء وسباكة مواد البناء",
+        "category_ar": "electrical-general,cables,cement,general-supply,plumbing-general,switchgear,valves,wiring-devices,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة,محابس وصمامات,سباكة عامة,أسمنت,توريدات عامة للمشاريع",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      },
+      {
+        "name_ar": "الصقر الخليجي لمواد البناء السباكة والكهرباء",
+        "category_ar": "electrical-general,cables,cement,general-supply,plumbing-general,switchgear,valves,wiring-devices,أسمنت,توريدات عامة للمشاريع,محابس وصمامات,سباكة عامة,أسلاك وكيابل,لوحات وقواطع,مفاتيح ومقابس,كهرباء عامة",
+        "district_ar": "",
+        "match": "product",
+        "ai": null,
+        "reason": "أسلاك وكابلات كهربائية"
+      }
+    ]
+  },
+  {
+    "q": "كمبيوتر للموظفين",
+    "seconds": 0.751,
+    "total": 1060,
+    "visible": 10,
+    "rows": [
+      {
+        "name_ar": "منبع الاحتراف للطباعة و النسخ و التصوير",
+        "category_ar": "الشركات",
+        "district_ar": "العريجاء الوسطى",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "شركة منصة الأعمال للخدمات التجارية",
+        "category_ar": "التسوق",
+        "district_ar": "اليرموك",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "مؤسسة توريد الياقوت للاتصالات",
+        "category_ar": "حاسب الي – اجهزة",
+        "district_ar": "السليمانية",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "اسوار التفاؤل للحاسب الالي",
+        "category_ar": "التسوق",
+        "district_ar": "الفيحاء",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "سليمان للحاسب الآلي",
+        "category_ar": "التسوق",
+        "district_ar": "بدر",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "مركز عبدالله للحاسب الآلي محل فيصل",
+        "category_ar": "التسوق",
+        "district_ar": "السعادة",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "عائشة المطيري للحاسب الآلي",
+        "category_ar": "تصليح كمبيوتر",
+        "district_ar": "ظهرة البديعة",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "رشيد بن سعد بن سفر العتيبي للحاسب الآلي",
+        "category_ar": "تصليح كمبيوتر",
+        "district_ar": "النزهة",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "شركة تجارة شبكات الاتصال",
+        "category_ar": "الشركات",
+        "district_ar": "العليا",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      },
+      {
+        "name_ar": "إلكترون تك",
+        "category_ar": "التسوق",
+        "district_ar": "العليا",
+        "match": "product",
+        "ai": null,
+        "reason": "أجهزة كمبيوتر"
+      }
+    ]
+  }
+]

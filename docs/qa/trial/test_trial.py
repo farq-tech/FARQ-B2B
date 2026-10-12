@@ -19,7 +19,7 @@ class TrialTests(unittest.TestCase):
     def test_only_read_calls_with_server_owned_limit(self):
         h=Handler({'q':'كرسي انتظار','city':'Riyadh','limit':5000,'send':True})
         with patch.object(trial,'upstream',side_effect=[[{'en':'Riyadh','ar':'الرياض'}],{'total':1,'rows':[{'name_ar':'اختبار'}]}]) as call:
-            trial.handle(h,'http://127.0.0.1:1','fixture-only');self.assertEqual(h.status,200);self.assertEqual(call.call_args.args[-1]['limit'],10);self.assertEqual([c.args[2] for c in call.call_args_list],['/cities','/search'])
+            trial.handle(h,'http://127.0.0.1:1','fixture-only');self.assertEqual(h.status,200);self.assertEqual(call.call_args.args[-1]['limit'],10);self.assertEqual([c.args[2] for c in call.call_args_list],['/cities','/trial-search'])
     def test_invalid_or_multi_item_input_does_not_call_upstream(self):
         for body in [{'q':'كرسي\nقهوة','city':'Riyadh'},{'q':'ab','city':'Riyadh'},{'q':{},'city':'Riyadh'}]:
             with patch.object(trial,'upstream') as call:

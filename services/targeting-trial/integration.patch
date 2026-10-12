@@ -1,0 +1,50 @@
+--- a/server.py
++++ b/server.py
+@@ -8,6 +8,7 @@
+ import os, json, re, sys, time, urllib.request, csv, threading
+ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+ import duckdb, subprocess, base64
++from trial_search import Directory
+ FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
+ 
+ HERE = os.path.dirname(os.path.abspath(__file__))
+@@ -25,6 +26,7 @@
+ con.execute("SET threads=2; SET memory_limit='3GB'")
+ con.execute(f"create view t as select * from '{DATA}'")
+ LOCK = threading.Lock()
++TRIAL_DIRECTORY = Directory(DATA)
+ 
+ # ---------- Arabic normalisation ----------
+ AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
+@@ -481,7 +483,11 @@
+             self.end_headers(); return
+         if not self._authed(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+         body = json.loads(raw or b'{}')
+-        if self.path == '/search':
++        if self.path == '/trial-search':
++            try: self._json(TRIAL_DIRECTORY.search(body.get('q'), body.get('city')))
++            except ValueError: self._json({'error': 'INPUT'}, 400)
++            except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
++        elif self.path == '/search':
+             try: self._json(search(body.get('q', ''), body.get('limit', 3000), body.get('only_sendable', False), body.get('city') or None))
+             except Exception as e: self._json({'error': str(e)}, 500)
+         elif self.path == '/demo-understand':
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,7 +1,7 @@
+ FROM python:3.12-slim
+ WORKDIR /app
+ RUN pip install --no-cache-dir duckdb==1.4.5 "psycopg[binary]==3.2.*"
+-COPY server.py index.html ./
++COPY server.py trial_search.py index.html ./
+ COPY data/targets.parquet data/holder_rfq.json ./data/
+ ENV PORT=8080
+ EXPOSE 8080
+--- a/.railwayignore
++++ b/.railwayignore
+@@ -7,3 +7,5 @@
+ !data/
+ !data/targets.parquet
+ !data/holder_rfq.json
++
++!trial_search.py

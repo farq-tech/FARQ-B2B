@@ -50,7 +50,7 @@ def upstream(origin, password, path, body=None):
     req = urllib.request.Request(origin + path, data=None if body is None else json.dumps(body).encode(), headers={'Content-Type': 'application/json'}, method='GET' if body is None else 'POST')
     if password:
         req.add_header('Cookie', 'ft_auth=' + hashlib.sha256(password.encode()).hexdigest()[:32])
-    with urllib.request.urlopen(req, timeout=95) as response:
+    with urllib.request.urlopen(req, timeout=12) as response:
         return json.loads(response.read(2_000_000))
 
 def city_list(origin, password):
@@ -81,13 +81,13 @@ def public_result(data):
         if not name or identity in seen:
             continue
         seen.add(identity)
-        rows.append({'name': name, 'category': str(row.get('category_ar') or row.get('category') or '')[:180], 'district': str(row.get('district_ar') or row.get('district_en') or '')[:100], 'match': 'product' if row.get('match') == 'product' else 'seller', 'fit': row.get('ai') if row.get('ai') in ('L', 'M') else None})
+        rows.append({'name': name, 'category': str(row.get('category_ar') or row.get('category') or '')[:180], 'district': str(row.get('district_ar') or row.get('district_en') or '')[:100], 'match': 'product' if row.get('match') == 'product' else 'seller', 'fit': row.get('ai') if row.get('ai') in ('L', 'M') else None, 'reason': str(row.get('reason') or '')[:100]})
     total = data.get('total')
     if isinstance(total, bool) or not isinstance(total, int) or total < len(rows):
         raise ValueError('bad count')
     # Counts describe directory matches; top-ten AI screening may exclude entries.
     hidden = max(0, total - min(10, len(data['rows'])))
-    return {'suppliers': rows, 'additional': hidden, 'directoryMatches': total, 'screenedOut': min(10, len(data['rows'])) - len(rows)}
+    return {'suppliers': rows, 'additional': hidden, 'directoryMatches': total, 'screenedOut': min(10, len(data['rows'])) - len(rows), 'intent': str(data.get('intent') or '')[:100]}
 
 def handle(handler, origin, password):
     path = handler.path.split('?', 1)[0]
@@ -128,7 +128,7 @@ def handle(handler, origin, password):
         valid = city_list(origin, password)
         if city not in {c.get('en') for c in valid if isinstance(c, dict)}:
             return send(400, {'error': 'CITY'})
-        data = upstream(origin, password, '/search', {'q': q.strip(), 'city': city, 'limit': 10, 'only_sendable': False})
+        data = upstream(origin, password, '/trial-search', {'q': q.strip(), 'city': city, 'limit': 10, 'only_sendable': False})
         return send(200, public_result(data))
     except Exception:
         return send(503, {'error': 'UNAVAILABLE'})
