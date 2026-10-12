@@ -1,3 +1,4 @@
+import { webMesh } from './webMesh'
 /*
  * «الشبكة الحية» for the landing page — a port of docs/reference/landing-live-network.html (owner, 2026-10-08):
  * the whole page is ONE network with ONE head office and ONE round. A screen-sized fixed canvas (above the section
@@ -94,6 +95,7 @@ export class PageNetwork {
   private played = 0 // rounds that ran to the end: only the very first one is the short «see it whole» round
   private buckets = new Map<number, number[]>()
   private meshEdges: Edge[] = []
+  private meshVertices: Array<{ x: number; y: number }> = []
   private meshCanvas = document.createElement('canvas')
   private meshScroll = NaN
   private widths = new Map<string, number>()
@@ -193,9 +195,16 @@ export class PageNetwork {
     this.PH = V.map(() => Math.random() * TAU)
     const dd = V.map((v) => this.dist(v.x, v.y))
     this.VF = dd.map((d) => (d <= 4 ? 0 : Math.min(1, (d - 4) / 40))); this.BLK = dd.map((d) => d < 22)
+    // Spacious webs grow inward from the two margins. Keep the request-routing graph independent.
+    this.meshVertices = V
+    let mesh = E
+    if (!this.story) {
+      const { points, edges } = webMesh(W, H, VH)
+      this.meshVertices = points; mesh = edges
+    }
     // Test the entire edge once, so neither the grid nor its pulses pass behind content.
-    this.meshEdges = E.filter((e) => {
-      const a = V[e.a], b = V[e.b], steps = Math.ceil(e.L / 6)
+    this.meshEdges = mesh.filter((e) => {
+      const a = this.meshVertices[e.a], b = this.meshVertices[e.b], steps = Math.ceil(e.L / 6)
       for (let i = 0; i <= steps; i++) if (this.inUI(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps, 10)) return false
       return true
     })
@@ -346,11 +355,11 @@ export class PageNetwork {
 
   // ---------- drawing ----------
   private mesh(t: number, live: boolean) {
-    const { ctx, V, meshEdges, SY, VH, DPR } = this
+    const { ctx, meshVertices: V, meshEdges, SY, VH, DPR } = this
     if (this.meshScroll !== SY) {
       const c = this.meshCanvas.getContext('2d')!
       c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, this.VW, VH)
-      c.translate(0, -SY); c.lineWidth = 0.7; c.strokeStyle = col(this.go, 0.13); c.beginPath()
+      c.translate(0, -SY); c.lineWidth = 0.6; c.strokeStyle = col(this.go, 0.085); c.beginPath()
       for (const e of meshEdges) {
         const a = V[e.a], b = V[e.b]
         if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
@@ -360,11 +369,11 @@ export class PageNetwork {
     }
     ctx.drawImage(this.meshCanvas, 0, SY, this.VW, VH)
     if (!live) return
-    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.strokeStyle = col(this.go, 0.48); ctx.beginPath()
+    ctx.lineWidth = 1.2; ctx.lineCap = 'round'; ctx.strokeStyle = col(this.go, 0.24); ctx.beginPath()
     for (let i = 0; i < meshEdges.length; i++) {
       const e = meshEdges[i], a = V[e.a], b = V[e.b]
       if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
-      const f = (t * 32 / e.L + i * 0.61803398875) % 1, end = Math.min(1, f + 10 / e.L)
+      const f = (t * 24 / e.L + i * 0.07) % 1, end = Math.min(1, f + 12 / e.L)
       ctx.moveTo(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)
       ctx.lineTo(a.x + (b.x - a.x) * end, a.y + (b.y - a.y) * end)
     }
@@ -627,8 +636,8 @@ export class PageNetwork {
     }
   }
   private begin() { this.SY = window.scrollY; const c = this.ctx; c.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); c.clearRect(0, 0, this.VW, this.VH); c.translate(0, -this.SY) }
-  private draw(t: number) { this.begin(); this.mesh(t, true); if (!this.story) { this.dots(t, true); return } this.prep(t); this.scene(t); this.overlay(t) }
-  private drawStatic() { this.begin(); this.mesh(0, false); this.dots(0, false); const C = this.V[this.HUB]; if (C && this.story) this.hq(C.x, C.y) }
+  private draw(t: number) { this.begin(); this.mesh(t, true); if (!this.story) return; this.prep(t); this.scene(t); this.overlay(t) }
+  private drawStatic() { this.begin(); this.mesh(0, false); if (this.story) this.dots(0, false); const C = this.V[this.HUB]; if (C && this.story) this.hq(C.x, C.y) }
 
   private loop = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.simT += dt

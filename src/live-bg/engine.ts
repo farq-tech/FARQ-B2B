@@ -1,3 +1,4 @@
+import { webMesh } from './webMesh'
 /*
  * «الشبكة الحية» — Canvas 2D port of
  * docs/handoff/farq-live-background/reference/live-background-prototype.html (source of truth for
@@ -134,6 +135,7 @@ export class LiveEngine {
   private ctx: CanvasRenderingContext2D
   private W = 0; private H = 0; private DPR = 1; private scale: 1 | 2 = 1
   private V: Vert[] = []; private E: Edge[] = []; private adj: number[][] = []
+  private ambient = webMesh(1, 1)
   private FLOW: Array<{ sp: number; ph: number; rev: boolean }> = []
   private HUB = 0; private S!: Round; private S_client = 0
   private boxes: Box[] = []; private title: Box | null = null
@@ -273,6 +275,7 @@ export class LiveEngine {
     this.E = E
     this.adj = V.map(() => []); E.forEach((e, i) => { this.adj[e.a].push(i); this.adj[e.b].push(i) })
     const fr = mulberry(29) // ambient pulse seeded like the mesh: the same on every page of the same size
+    this.ambient = webMesh(W, H)
     this.FLOW = E.map((e) => ({ sp: 14 + fr() * 22, ph: fr() * (e.L + 60), rev: fr() < 0.5 }))
     // static layer: facets + the faint mesh
     const shades = FACETS.map((v) => rgba(readColor(this.host, v), 1))
@@ -285,7 +288,7 @@ export class LiveEngine {
   private base0 = 'transparent'
   /** Facets + mesh lines; under every text / control / card the mesh drops to 30 % (readability). */
   private paintStatic() {
-    const b = this.bctx, { V, E, W, H } = this
+    const b = this.bctx, { V, W, H } = this
     b.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); b.globalCompositeOperation = 'source-over'; b.clearRect(0, 0, W, H)
     b.fillStyle = this.base0; b.fillRect(0, 0, W, H)
     this.tris.forEach((q, i) => { b.beginPath(); b.moveTo(V[q[0]].x, V[q[0]].y); b.lineTo(V[q[1]].x, V[q[1]].y); b.lineTo(V[q[2]].x, V[q[2]].y); b.closePath(); b.fillStyle = this.shades[i]; b.fill() })
@@ -295,7 +298,7 @@ export class LiveEngine {
     const L = (this.lines ??= document.createElement('canvas')); L.width = this.bg.width; L.height = this.bg.height
     const l = L.getContext('2d')!; l.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)
     l.lineCap = 'round'; l.lineWidth = 0.8; l.strokeStyle = rgba(this.go, line); l.beginPath()
-    for (const e of E) { l.moveTo(V[e.a].x, V[e.a].y); l.lineTo(V[e.b].x, V[e.b].y) } l.stroke()
+    for (const e of this.ambient.edges) { const a = this.ambient.points[e.a], b = this.ambient.points[e.b]; l.moveTo(a.x, a.y); l.lineTo(b.x, b.y) } l.stroke()
     this.shield(l)
     b.setTransform(1, 0, 0, 1, 0, 0); b.drawImage(L, 0, 0); b.setTransform(this.DPR, 0, 0, this.DPR, 0, 0)
   }
@@ -729,17 +732,16 @@ export class LiveEngine {
   }
 
   private draw(t: number) {
-    const { ctx, V, E, FLOW, W, H, S, go, back } = this
+    const { ctx, V, W, H, S, go, back } = this
     ctx.clearRect(0, 0, W, H)
-    // ambient: a soft pulse on every edge, forever
-    ctx.lineCap = 'round'; ctx.lineWidth = 1.3; ctx.strokeStyle = rgba(go, 0.22); ctx.beginPath()
-    for (let i = 0; i < E.length; i++) {
-      const e = E[i], f = FLOW[i], per = e.L + 60, pos = ((t * f.sp + f.ph) % per) - 30
-      const p0 = Math.max(0, pos - 7) / e.L, p1 = Math.min(e.L, pos + 7) / e.L
-      if (p1 <= 0 || p0 >= 1) continue
-      let a = V[e.a], b = V[e.b]; if (f.rev) { const c = a; a = b; b = c }
-      ctx.moveTo(a.x + (b.x - a.x) * p0, a.y + (b.y - a.y) * p0); ctx.lineTo(a.x + (b.x - a.x) * Math.min(1, p1), a.y + (b.y - a.y) * Math.min(1, p1))
-    }
+    // Quiet pulses spread along the two webs; the existing request paths stay independent.
+    ctx.lineCap = 'round'; ctx.lineWidth = 1.2; ctx.strokeStyle = rgba(go, 0.18); ctx.beginPath()
+    this.ambient.edges.forEach((e, i) => {
+      const a = this.ambient.points[e.a], b = this.ambient.points[e.b]
+      const f = (t * 24 / e.L + i * 0.07) % 1, end = Math.min(1, f + 12 / e.L)
+      ctx.moveTo(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)
+      ctx.lineTo(a.x + (b.x - a.x) * end, a.y + (b.y - a.y) * end)
+    })
     ctx.stroke()
     if (!this.story || !S) { this.shield(ctx); return }
     ctx.lineCap = 'round'; ctx.lineWidth = 1.2
