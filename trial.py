@@ -72,12 +72,15 @@ def public_result(data):
     if not isinstance(data, dict) or not isinstance(data.get('rows'), list):
         raise ValueError('bad upstream')
     rows = []
+    seen = set()
     for row in data['rows'][:10]:
         if not isinstance(row, dict) or row.get('ai') == 'N':
             continue
         name = str(row.get('name_ar') or row.get('name_en') or '').strip()[:180]
-        if not name:
+        identity = (name.casefold(), str(row.get('district_ar') or row.get('district_en') or '').casefold())
+        if not name or identity in seen:
             continue
+        seen.add(identity)
         rows.append({'name': name, 'category': str(row.get('category_ar') or row.get('category') or '')[:180], 'district': str(row.get('district_ar') or row.get('district_en') or '')[:100], 'match': 'product' if row.get('match') == 'product' else 'seller', 'fit': row.get('ai') if row.get('ai') in ('L', 'M') else None})
     total = data.get('total')
     if isinstance(total, bool) or not isinstance(total, int) or total < len(rows):

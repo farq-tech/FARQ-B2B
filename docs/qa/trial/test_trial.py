@@ -31,5 +31,7 @@ class TrialTests(unittest.TestCase):
         h=Handler();h.command='DELETE';trial.handle(h,'','fixture-only');self.assertEqual(h.status,405)
     def test_cross_origin_rejected_before_provider(self):
         h=Handler();h.headers['Origin']='https://other.invalid';trial.handle(h,'','fixture-only');self.assertEqual(h.status,403)
+    def test_duplicate_business_not_suggested_twice(self):
+        self.assertEqual(len(trial.public_result({'total':2,'rows':[{'name_ar':'مورد واحد','district_ar':'حي واحد'}]*2})['suppliers']),1)
     def test_rate_limits(self): self.assertEqual([trial.permitted('fixture') for _ in range(4)],[True,True,True,False])
 if __name__=='__main__': unittest.main()
