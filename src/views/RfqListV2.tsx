@@ -43,11 +43,11 @@ export function RfqListV2({ navigate }: NavProps) {
           <h1 className="font-[Readex_Pro] text-[28px] leading-[44px] font-bold sm:text-[32px]">الأهداف والطلبات</h1>
           <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ابحث عن بائعين لاحتياجك أو مشترين لما تقدمه، وتابع طلبات الشراء السابقة.</p>
         </div>
-        <button type="button" onClick={() => navigate('create-upload')} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-white">طلب تسعير جديد</button>
+        <button type="button" onClick={() => navigateGoal('goal-new')} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-white">هدف جديد</button>
       </div>
       <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'purchase'); navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">بائعون — أبي أشتري</button>
-        <button type="button" onClick={() => { sessionStorage.setItem('farq-target-direction', 'marketing'); navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">مشترون — أبي أبيع</button>
+        <button type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'purchase') } catch { /* optional preference */ } navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">بائعون — أبي أشتري</button>
+        <button type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'marketing') } catch { /* optional preference */ } navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">مشترون — أبي أبيع</button>
       </div>
       <h2 className="text-[18px] font-medium">طلبات الشراء الحالية</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="ملخص الطلبات">

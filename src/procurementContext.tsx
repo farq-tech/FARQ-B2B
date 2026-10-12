@@ -19,7 +19,7 @@ import type { AppView } from './types'
  * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
 /** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
-export type View = AppView | 'inbox' | 'targeting' | 'templates' | 'template-new'
+export type View = AppView | 'goal-new' | 'inbox' | 'targeting' | 'templates' | 'template-new'
 type Ctx = {
   view: View
   navigate: (v: View) => void
@@ -33,6 +33,7 @@ type Route = { view: View; rfqId: string | null }
 export function parseRoute(pathname: string, search = ''): Route {
   const legacy = new URLSearchParams(search).get('rfq')
   const p = pathname.replace(/\/+$/, '') || '/'
+  if (p === '/goals/new') return { view: 'goal-new', rfqId: null }
   if (p === '/new') return { view: 'create-upload', rfqId: null }
   if (p === '/inbox') return { view: 'inbox', rfqId: null }
   if (p === '/targeting') return { view: 'targeting', rfqId: null }
@@ -46,6 +47,7 @@ export function parseRoute(pathname: string, search = ''): Route {
 }
 
 export function routePath(view: View, rfqId: string | null): string {
+  if (view === 'goal-new') return '/goals/new'
   if (view === 'create-upload') return '/new'
   if (view === 'inbox') return '/inbox'
   if (view === 'targeting') return '/targeting'

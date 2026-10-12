@@ -1,3 +1,4 @@
+import NewGoal from './pages/goals/NewGoal'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { ProcurementProvider, useProcurement } from './procurementContext'
 import { useFarqSession } from './api/useFarqSession'
@@ -31,8 +32,8 @@ function Sidebar() {
   const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison' || view === 'award'
   return (
     <UiSidebar
-      onNewRequest={() => navigate('create-upload')}
       nav={<>
+        <Button variant="Primary" size="L" icon="plus" fullWidth onClick={() => navigate('goal-new')}>هدف جديد</Button>
         <NavItem icon="list" label="الأهداف والطلبات" active={onRequests} onClick={() => navigate('rfq-list')} />
         <NavItem icon="inbox" label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
         <NavItem icon="map-pin" label="الاستهداف" active={onTargeting(view)} onClick={() => navigate('targeting')} />
@@ -77,6 +78,7 @@ function Routes() {
       {mobile ? null : <Sidebar />}
       <main className={mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
         <Suspense fallback={<Loading />}>
+          {view === 'goal-new' && <NewGoal />}
           {view === 'rfq-detail' && <RequestTrackingV2 navigate={navigate} />}
           {view === 'comparison' && <ComparisonV2 navigate={navigate} />}
           {view === 'award' && selectedRfqId && (
@@ -93,8 +95,8 @@ function Routes() {
       {mobile ? (
         // Figma «Mobile Bottom Nav» (55:551): only the sections that exist are shown.
         <MobileBottomNav tabs={[
-          { label: 'الطلبات', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
-          { label: 'طلب جديد', icon: 'plus', onClick: () => navigate('create-upload') },
+          { label: 'الأهداف', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
+          { label: 'هدف جديد', icon: 'plus', active: view === 'goal-new', onClick: () => navigate('goal-new') },
           { label: 'الوارد', icon: 'inbox', active: view === 'inbox', onClick: () => navigate('inbox') },
           { label: 'الاستهداف', icon: 'map-pin', active: onTargeting(view), onClick: () => navigate('targeting') },
         ]} />
