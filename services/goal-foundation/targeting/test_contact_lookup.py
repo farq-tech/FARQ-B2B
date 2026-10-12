@@ -1,5 +1,6 @@
 import sys,unittest
-sys.path.insert(0,'/Users/m4pro/farq-targeting')
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).parent))
 from contact_lookup import verified_phone,enrich
 class Test(unittest.TestCase):
  def setUp(self):
@@ -13,4 +14,4 @@ class Test(unittest.TestCase):
   self.place['displayName']['text']='شركة مثال مختلفة';self.assertIsNone(verified_phone(self.row,self.place))
  def test_missing_source(self):
   self.place['googleMapsUri']='https://unrelated.example';self.assertIsNone(verified_phone(self.row,self.place))
-unittest.main()
+if __name__ == '__main__': unittest.main()
