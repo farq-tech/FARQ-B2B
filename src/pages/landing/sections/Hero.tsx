@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Logo } from '../../../ui/Logo'
 import { Icon } from '../../../ui/Icon'
 import { cx, FOCUS_RING } from '../../../ui/cx'
-import { APP_LOGIN_HREF, START_HREF } from '../contact'
+import { APP_LOGIN_HREF } from '../contact'
+import { GoalChooser, GoalStart } from '../GoalStart'
 import { Container, LinkButton, T, TextLink } from '../kit'
 import HeroScene from './HeroScene'
 
@@ -52,7 +53,7 @@ function Nav() {
         <div className="flex items-center gap-[var(--space-8)]">
           <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-primary)] sm:inline')}>دخول</TextLink>
           <span className="hidden sm:block">
-            <LinkButton href={START_HREF} variant="Accent" size="M">جرّب بحث الموردين</LinkButton>
+            <GoalStart compact />
           </span>
           <button
             ref={buttonRef}
@@ -76,7 +77,7 @@ function Nav() {
           ))}
           <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-primary)] sm:hidden')}>دخول</TextLink>
           <span className="mt-[var(--space-8)] block sm:hidden">
-            <LinkButton href={START_HREF} variant="Accent" fullWidth>جرّب بحث الموردين</LinkButton>
+            <GoalStart compact fullWidth />
           </span>
         </Container>
       </nav>
@@ -114,8 +115,11 @@ export function Hero() {
             <p className={cx(T.bodyL, 'max-w-[520px] text-[var(--color-text-secondary)]')}>
               تبي تسوّق منتجك، تسعّر احتياجك، تستفسر عن توفره، أو تبحث عن شريك؟ نطوّر فرق حول هدف منشأتك: فهم المطلوب، واقتراح الجهات المناسبة مع أسباب الاختيار وخطة التنفيذ.
             </p>
+            <div id="goal-start" className="w-full scroll-mt-8 pt-4">
+              <GoalChooser />
+            </div>
             <div className="flex flex-wrap gap-[var(--space-12)] pt-[var(--space-16)]">
-              <LinkButton href={START_HREF} variant="Accent" icon="arrow-forward">جرّب بحث الموردين</LinkButton>
+              <GoalStart />
               <LinkButton href="#how" variant="Secondary">شاهد كيف تعمل</LinkButton>
             </div>
           </div>

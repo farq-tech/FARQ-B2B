@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../ui/Button'
 import { FOCUS_RING, cx } from '../../ui/cx'
 import { WHATSAPP_HREF } from './contact'
+import { GOALS, useLandingGoal } from './GoalStart'
 
 type City = { en: string; ar: string }
 type Supplier = { name: string; category: string; district: string; match: 'product' | 'seller'; fit: 'L' | 'M' | null; reason?: string }
@@ -9,18 +10,22 @@ type Result = { suppliers: Supplier[]; additional: number; directoryMatches: num
 const field = cx('w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3 text-[var(--color-text-primary)]', FOCUS_RING)
 
 export default function Trial({ onClose }: { onClose: () => void }) {
+  const { goal } = useLandingGoal()
+  const marketing = goal === 'marketing'
+  const inquiry = goal === 'inquiry'
   const dialog = useRef<HTMLDialogElement>(null), controller = useRef<AbortController | null>(null)
   const [cities, setCities] = useState<City[]>([]), [city, setCity] = useState(''), [item, setItem] = useState('')
   const [result, setResult] = useState<Result | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true)
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const c = new AbortController(); dialog.current?.showModal()
+    if (marketing) { setLoading(false); return () => { dialog.current?.close(); if (previous?.isConnected) previous.focus() } }
     void fetch('/_trial/cities', { signal: c.signal }).then(async r => { if (!r.ok) throw new Error(); return r.json() as Promise<City[]> }).then(data => { setCities(data); setCity(data.find(c => c.en === 'Riyadh')?.en || data[0]?.en || '') }).catch(() => { if (!c.signal.aborted) setError('تعذّر تحميل البحث الآن. حاول مجددًا أو تواصل معنا.') }).finally(() => { if (!c.signal.aborted) setLoading(false) })
     return () => { c.abort(); controller.current?.abort(); dialog.current?.close(); if (previous?.isConnected) previous.focus() }
-  }, [])
+  }, [marketing])
   useEffect(() => { if (result) document.getElementById('trial-results')?.focus() }, [result])
   async function search() {
-    if (busy || !city || item.trim().length < 3) return
+    if (marketing || busy || !city || item.trim().length < 3) return
     if (/[\n\r;؛]/.test(item)) { setError('التجربة لبند واحد. اكتب منتجًا أو احتياجًا واحدًا.'); return }
     const c = new AbortController(); controller.current = c; setBusy(true); setError(''); setResult(null)
     const timer = window.setTimeout(() => c.abort(), 15000)
@@ -32,10 +37,16 @@ export default function Trial({ onClose }: { onClose: () => void }) {
     finally { clearTimeout(timer); if (dialog.current?.open) setBusy(false) }
   }
   return <dialog ref={dialog} dir="rtl" lang="ar" onCancel={e => { e.preventDefault(); onClose() }} className="m-auto max-h-[90dvh] w-[min(760px,calc(100vw-24px))] overflow-y-auto rounded-3xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-[var(--color-text-primary)] shadow-xl backdrop:bg-[color-mix(in_srgb,var(--color-bg-inverse)_48%,transparent)] sm:p-8" aria-labelledby="trial-title">
-    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="mb-2 text-sm text-[var(--color-text-secondary)]">جرّب فرق تسعير على احتياجك</p><h2 id="trial-title" className="font-display text-2xl font-semibold">{result?.suppliers.length ? 'دائرة مورديك الجديدة.' : 'بند واحد. دائرة موردين أوسع.'}</h2></div><button type="button" onClick={onClose} className={cx('rounded-lg px-3 py-2', FOCUS_RING)} aria-label="إغلاق تجربة البحث">✕</button></div>
+    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="mb-2 text-sm text-[var(--color-text-secondary)]">جرّب فرق تسعير على احتياجك</p><h2 id="trial-title" className="font-display text-2xl font-semibold">{goal ? GOALS[goal].action : GOALS.pricing.action}</h2></div><button type="button" onClick={onClose} className={cx('rounded-lg px-3 py-2', FOCUS_RING)} aria-label="إغلاق تجربة البحث">✕</button></div>
+    {marketing ? <div className="space-y-4">
+      <p className="text-sm leading-6">هدفك التسويق: الوصول إلى المشترين المحتملين لمنتجك أو خدمتك. تجربة اكتشاف المشترين قيد التجهيز.</p>
+      <label className="flex flex-col gap-2 text-sm font-medium">وش تبي تسوّق ولأي جهات؟<textarea autoFocus maxLength={1000} value={item} onChange={e => setItem(e.target.value)} placeholder="مثل: أبيع قهوة وأبي أوصل إلى المكاتب والفنادق بالرياض" className={field} rows={4} /></label>
+      <p className="text-sm text-[var(--color-text-secondary)]">لا يُرسل هذا النص ولا يُحفظ بعد إغلاق التجربة.</p>
+    </div> : <>
     {!result && <>
     <p className="mb-5 text-sm leading-6 text-[var(--color-text-secondary)]">ابحث عن احتياج منشأتك، من القهوة إلى المعدات. نقترح لك حتى 10 موردين أقرب لطلبك. تقدر تعتمد على قائمة مورديك الحالية وتستخدم فرق لتوسيع خياراتك.</p>
     <div className="mb-4 flex flex-wrap items-center gap-2"><span className="text-xs text-[var(--color-text-secondary)]">جرّب احتياجًا:</span>{['حبوب قهوة للمكتب', 'كرسي انتظار للعيادة', 'مواد غذائية للمطعم'].map(example => <button key={example} type="button" disabled={busy} onClick={() => { setItem(example); setResult(null); setError(''); dialog.current?.querySelector('input')?.focus() }} className={cx('rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-xs', FOCUS_RING)}>{example}</button>)}</div>
+    {inquiry && <p className="mb-4 text-sm leading-6">ابدأ بالعثور على الجهات المرتبطة باحتياجك. نتائج البحث لا تثبت توفر المنتج أو استلام رد من الجهة.</p>}
     <form onSubmit={e => { e.preventDefault(); void search() }} className="flex flex-col gap-4">
       <label className="flex flex-col gap-2 text-sm font-medium">وش تحتاج منشأتك؟<input autoFocus required minLength={3} maxLength={120} value={item} disabled={busy} onChange={e => { setItem(e.target.value); setResult(null) }} placeholder="مثل: كرسي انتظار للعيادة، أو حبوب قهوة للمكتب" className={field} /></label>
       <label className="flex flex-col gap-2 text-sm font-medium">المدينة<select aria-label="المدينة" required value={city} disabled={busy || loading} onChange={e => { setCity(e.target.value); setResult(null) }} className={field}><option value="">{loading ? 'جارٍ تحميل المدن…' : 'اختر المدينة'}</option>{cities.map(c => <option key={c.en} value={c.en}>{c.ar}</option>)}</select></label>
@@ -52,5 +63,6 @@ export default function Trial({ onClose }: { onClose: () => void }) {
         {result.additional > 0 && <div className="mt-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-4"><p className="font-semibold">{result.additional.toLocaleString('ar-SA')} نتيجة إضافية في الدليل</p><p className="mt-1 text-sm text-[var(--color-text-secondary)]">هذه أول دائرة. وسّعها بموردين إضافيين، أو اعتمد على قائمة مورديك الحالية.</p><div aria-hidden="true" className="mt-4 grid gap-3 sm:grid-cols-2">{Array.from({ length: Math.min(4, result.additional) }, (_, i) => <div key={i} className="rounded-xl bg-[var(--color-bg-surface)] p-4"><div className="h-3 w-2/3 rounded-full bg-[var(--color-border-default)] blur-[3px]" /><div className="mt-3 h-2 w-1/2 rounded-full bg-[var(--color-border-default)] blur-[3px]" /></div>)}</div><a href={WHATSAPP_HREF} target="_blank" rel="noopener noreferrer" className={cx('mt-4 inline-block underline', FOCUS_RING)}>فعّل حساب منشأتك ووسّع خياراتك</a></div>}
       </section>}
     </div>
+    </>}
   </dialog>
 }
