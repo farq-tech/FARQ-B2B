@@ -48,17 +48,24 @@ const pickBest = (rows: TargetRow[]) => {
   const ai = rows.some((r) => r.ai)
   return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
 }
-const rowSub = (r: TargetRow) => [r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
+const rowSub = (r: TargetRow) => [r.reason || null, r.target_role === 'buyer' ? 'مشتري محتمل' : null, r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
 const FIT = { L: { tone: 'Success', label: 'مناسب' }, M: { tone: 'Warning', label: 'محتمل' }, N: { tone: 'Neutral', label: 'غير مناسب' } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} showDot={false} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
 
 function defaultMessage(cat: string | null, area: string | null) {
-  return `معك أحمد من فرق. يوصلنا طلبات تسعير${cat ? ` ${cat}` : ''} من مقاولين${area ? ` في ${area}` : ''} — تبي توصلك على واتساب؟\nللإيقاف أرسل: إيقاف`
+  return `معك أحمد من فرق. يوصلنا طلبات تسعير${cat ? ` ${cat}` : ''} من منشآت وشركات${area ? ` في ${area}` : ''} — تبي توصلك على واتساب؟\nللإيقاف أرسل: إيقاف`
 }
 
 export default function TargetingPage({ onTemplates }: { onTemplates: () => void }) {
   const mobile = useIsMobile()
+  const [objective, setObjective] = useState<'purchase' | 'marketing'>('purchase')
+  const generation = useRef(0)
+  const direction = <fieldset className="flex gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] p-2" aria-label="من تبحث عنه؟">
+    {([{ value: 'purchase', label: 'بائعون — أبي أشتري' }, { value: 'marketing', label: 'مشترون — أبي أبيع' }] as const).map(option => <label key={option.value} className="flex flex-1 items-center gap-2 text-[14px]">
+      <input type="radio" name="target-direction" checked={objective === option.value} onChange={() => { generation.current++; setObjective(option.value); setRes(null); setSelected(new Set()); setError(null); setConfirming(false); setComposeOpen(false) }} />{option.label}
+    </label>)}
+  </fieldset>
   const [q, setQ] = useState('')
   const [query, setQuery] = useState('')
   const [res, setRes] = useState<TargetSearch | null>(null)
@@ -115,7 +122,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     const p = res.parsed || {}
     const cat = (p.keywords || []).filter(arabic)[0] || ''
     const area = p.city ? cityName(p.city) : null
-    return [cat ? `المنتج: ${cat}` : null, p.seller_label ? `يبيعه غالبًا: ${p.seller_label}` : null, area ? `المدينة: ${area}` : null].filter(Boolean) as string[]
+    return [cat ? `المنتج: ${cat}` : null, p.seller_label ? `الجهات المناسبة: ${p.seller_label}` : null, area ? `المدينة: ${area}` : null].filter(Boolean) as string[]
   }, [res, cities])
 
   async function search(e?: FormEvent) {
@@ -144,7 +151,9 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     if (!text || !city || busy) return null
     setBusy(true); setError(null); setNotice(null)
     try {
-      const r = await searchTargets(text, city)
+      const version = generation.current
+      const r = await searchTargets(text, city, 10, objective)
+      if (version !== generation.current) return null
       setRes(r); setQuery(text); setShown(PAGE)
       setSelected(new Set())
       const p = r.parsed || {}
@@ -205,7 +214,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
 
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
-  const sendBlock = !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
+  const sendBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
   const cost = (chosen.length * COST_PER_MESSAGE).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const compose = (
@@ -302,13 +311,14 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
         <h1 className="sr-only">الاستهداف</h1>
         <div className="absolute inset-x-0 top-0 h-[50%]">
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 120 : 80) + (lines.length ? 70 : 0)} legend={false} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 170 : 130) + (lines.length ? 70 : 0)} legend={false} />
         </div>
         <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
+          {direction}
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
             <Icon name="search" size={18} className="text-[var(--color-icon-secondary)]" />
             <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="محلات سباكة في الرياض"
+            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "وش تبيع؟ منتج أو خدمة" : "وش تبي تشتري؟ منتج أو خدمة"}
               className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
             {citySelect('max-w-[96px] text-[14px]')}
             <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="…">ابحث</Button>
@@ -327,7 +337,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             <span aria-hidden className="mx-auto h-1 w-10 rounded-full bg-[var(--color-border-strong)]" />
           </div>
           <div className="flex items-center justify-between gap-2 px-4 pt-2">
-            <p className="text-[14px] leading-[22px] font-medium">{res ? `${n(res.total)} نتيجة` : 'ابحث عن نشاط ومدينة'}</p>
+            <p className="text-[14px] leading-[22px] font-medium">{res ? `${n(res.total)} نتيجة` : objective === 'marketing' ? 'ابحث عن مشترين محتملين' : 'ابحث عن بائعين'}</p>
             <div className="flex items-center gap-3">
               {res && counts.wa ? (
                 <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] ${FOCUS_RING}`}
@@ -389,7 +399,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-3">
             <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">الاستهداف</h1>
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">دعوة موردين للانضمام</p>
+            {direction}
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">اكتشف البائعين أو المشترين المحتملين حسب هدفك</p>
           </div>
           <div className="flex items-center gap-2">
             {uploadButton('ارفع كراسة', 'Secondary')}
@@ -400,7 +411,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         <form role="search" onSubmit={search} className="flex items-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-surface)] py-2 ps-4 pe-2">
           <Icon name="search" size={22} className="text-[var(--color-icon-secondary)]" />
           <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="مثال: محلات أدوات صحية وسباكة في الرياض"
+          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "مثال: أبيع أجهزة كمبيوتر" : "مثال: أشتري أجهزة كمبيوتر"}
             className="min-w-0 flex-1 bg-transparent text-[18px] leading-[30px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
           {citySelect('w-[170px] text-[16px]')}
           <Button type="submit" variant="Primary" size="M" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="جارٍ البحث…">ابحث</Button>

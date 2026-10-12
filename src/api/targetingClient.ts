@@ -18,6 +18,8 @@ import { farqSession } from './farqSession'
  */
 
 export type TargetRow = {
+  target_role?: "buyer" | "seller"
+  reason?: string
   poi_key: string
   name_ar: string | null
   name_en: string | null
@@ -95,7 +97,7 @@ export const submitTemplate = (t: { name: string; language: string; category: st
 
 export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
-export const searchTargets = (q: string, city: string, limit = 3000) => call<TargetSearch>('POST', '/search', { q, city, limit, only_sendable: false })
+export const searchTargets = (q: string, city: string, limit = 3000, objective: "purchase" | "marketing" = "purchase") => call<TargetSearch>('POST', '/search', { q, city, limit, objective, only_sendable: false })
 export type City = { en: string; ar: string | null; n: number }
 export const listCities = () => call<City[]>('GET', '/cities')
 
