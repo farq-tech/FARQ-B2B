@@ -18,6 +18,7 @@ const TargetingPage = lazy(() => import('./pages/targeting'))
 const TemplatesPage = lazy(() => import('./pages/targeting/Templates'))
 const TemplateEditor = lazy(() => import('./pages/targeting/TemplateEditor'))
 
+const MarketingInput = lazy(() => import('./pages/goals/MarketingInput'))
 const Loading = () => <div className="p-8 text-right" role="status" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحميل…</div>
 
 /* Account login; authorized emails retain access to the private app. */
@@ -70,6 +71,7 @@ function Routes() {
   }
   if (checked === 'pending') return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحقق من الحساب…</div>
   // The new-request flow is a full-page wizard (Figma 01/02 have no sidebar).
+  if (view === 'create-upload' && (() => { try { return sessionStorage.getItem('farq-target-direction') === 'marketing' } catch { return false } })()) return <Suspense fallback={<Loading />}><MarketingInput /></Suspense>
   if (view === 'create-upload') return <Suspense fallback={<Loading />}><NewRequestV2 navigate={navigate} /></Suspense>
   const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison' || view === 'award'
   const openRequest = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }

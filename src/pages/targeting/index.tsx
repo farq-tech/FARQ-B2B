@@ -66,7 +66,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <input type="radio" name="target-direction" checked={objective === option.value} onChange={() => { generation.current++; setObjective(option.value); setRes(null); setSelected(new Set()); setLines(ls => ls.map(({ found: _found, ...line }) => line)); setActiveLine(null); setError(null); setConfirming(false); setComposeOpen(false) }} />{option.label}
     </label>)}
   </fieldset>
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(() => { try { return sessionStorage.getItem('farq-target-query') || '' } catch { return '' } })
+  useEffect(() => { try { sessionStorage.removeItem('farq-target-query') } catch { /* optional handoff */ } }, [])
   const [query, setQuery] = useState('')
   const [res, setRes] = useState<TargetSearch | null>(null)
   const [busy, setBusy] = useState(false)

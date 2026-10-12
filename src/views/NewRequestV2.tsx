@@ -148,7 +148,7 @@ export function NewRequestV2({ navigate }: NavProps) {
       if (!file) return
       const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
       const isXlsx = file.type === XLSX || /\.xlsx$/i.test(file.name)
-      if (!isPdf && !isXlsx) throw new Error('ارفع الكراسة بصيغة PDF أو Excel (xlsx).')
+      if (!isPdf && !isXlsx) throw new Error('ارفع قائمة احتياجاتك بصيغة PDF أو Excel (xlsx).')
       if (file.size > 25 * 1024 * 1024) throw new Error('الملف أكبر من 25 ميجابايت — قسّمه أو صدّره PDF أصغر.')
       setReading({ name: file.name, progress: 5, note: 'بدأنا القراءة…' })
       let read: ParsedLine[]
@@ -399,8 +399,8 @@ export function NewRequestV2({ navigate }: NavProps) {
               {mobile ? null : <p className="text-[16px] leading-[26px] text-[var(--color-text-secondary)]">اختر الطريقة الأسهل — تقدر تجمع بينها في نفس الطلب.</p>}
             </div>
             <div role="radiogroup" aria-label="طريقة إدخال الطلب" className={mobile ? 'flex flex-col gap-3' : 'flex gap-4'}>
-              <OptionCard spot="كراسة" title="ارفع الكراسة" layout={mobile ? 'row' : 'tile'} hint="Excel أو PDF" selected={method === 'booklet'} onSelect={() => setMethod('booklet')} />
-              <OptionCard spot="قائمة" title="اكتب الطلبات" layout={mobile ? 'row' : 'tile'} hint="سطر لكل بند" selected={method === 'typed'} onSelect={() => setMethod('typed')} />
+              <OptionCard spot="كراسة" title="ارفع قائمة احتياجاتك" layout={mobile ? 'row' : 'tile'} hint="Excel أو PDF" selected={method === 'booklet'} onSelect={() => setMethod('booklet')} />
+              <OptionCard spot="قائمة" title="اكتب احتياجاتك" layout={mobile ? 'row' : 'tile'} hint="سطر لكل بند" selected={method === 'typed'} onSelect={() => setMethod('typed')} />
               <OptionCard spot="صورة" title="صوّرها" layout={mobile ? 'row' : 'tile'} hint="كراسة ورقية أو قطعة" selected={method === 'photo'} onSelect={() => setMethod('photo')} />
             </div>
 
