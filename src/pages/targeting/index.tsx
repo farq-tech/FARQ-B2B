@@ -63,7 +63,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const generation = useRef(0)
   const direction = <fieldset className="flex gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] p-2" aria-label="من تبحث عنه؟">
     {([{ value: 'purchase', label: 'بائعون — أبي أشتري' }, { value: 'marketing', label: 'مشترون — أبي أبيع' }] as const).map(option => <label key={option.value} className="flex flex-1 items-center gap-2 text-[14px]">
-      <input type="radio" name="target-direction" checked={objective === option.value} onChange={() => { generation.current++; setObjective(option.value); setRes(null); setSelected(new Set()); setError(null); setConfirming(false); setComposeOpen(false) }} />{option.label}
+      <input type="radio" name="target-direction" checked={objective === option.value} onChange={() => { generation.current++; setObjective(option.value); setRes(null); setSelected(new Set()); setLines(ls => ls.map(({ found: _found, ...line }) => line)); setActiveLine(null); setError(null); setConfirming(false); setComposeOpen(false) }} />{option.label}
     </label>)}
   </fieldset>
   const [q, setQ] = useState('')
@@ -91,10 +91,18 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   // the city is required: the search runs inside one city only
   const [cities, setCities] = useState<City[]>([])
   const [city, setCity] = useState(() => { try { return localStorage.getItem(CITY_KEY) || '' } catch { return '' } })
-  const pickCity = (v: string) => { setCity(v); try { localStorage.setItem(CITY_KEY, v) } catch { /* storage blocked */ } }
+  const pickCity = (v: string) => { generation.current++; setCity(v); setError(null); setRes(null); setSelected(new Set()); setActiveLine(null); setLines(ls => ls.map(({ found: _found, ...line }) => line)); try { localStorage.setItem(CITY_KEY, v) } catch { /* storage blocked */ } }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
-  useEffect(() => { listCities().then(setCities, () => setCities([])) }, [])
+  useEffect(() => {
+    let active = true
+    listCities().then(values => {
+      if (!active) return
+      setCities(values)
+      setCity(saved => values.some(value => value.en === saved) ? saved : '')
+    }, () => { if (active) setCities([]) })
+    return () => { active = false }
+  }, [])
   const cityName = (en: string) => cities.find((c) => c.en === en)?.ar || en
 
   const rows = useMemo(() => res?.rows || [], [res])
@@ -109,9 +117,9 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const citySelect = (cls: string) => (
     <>
       <label className="sr-only" htmlFor="targeting-city">المدينة</label>
-      <select id="targeting-city" required value={city} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
+      <select id="targeting-city" required value={cities.some(value => value.en === city) ? city : ''} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
         className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
-        <option value="" disabled>المدينة…</option>
+        <option value="">اختر المدينة</option>
         {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
       </select>
     </>
@@ -131,7 +139,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     await runSearch(q.trim())
   }
   async function searchLine(i: number) {
-    if (!city) { setError('اختر المدينة أول.'); return }
+    if (!city || !cities.some(value => value.en === city)) { setError('اختر مدينة البحث من القائمة.'); return }
     setActiveLine(i); setQ(lines[i].name)
     const found = await runSearch(lines[i].name)
     if (found != null) setLines((ls) => ls.map((l, k) => (k === i ? { ...l, found } : l)))
@@ -141,7 +149,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     setReadErr(null); setReading('بدأنا القراءة…')
     try {
       const read = await readBooklet(files, setReading)
-      if (!read.length) throw new Error('ما لقينا بنود في هذا الملف. تأكد أنه جدول كميات أو طلب شراء.')
+      if (!read.length) throw new Error('ما لقينا منتجات أو خدمات في الملف. ارفع قائمة احتياجات أو كتالوجًا واضحًا.')
       setLines(read); setBooklet(files.length > 1 ? `${files.length} ملفات` : files[0].name); setActiveLine(null)
     } catch (err) {
       setReadErr(err instanceof Error ? err.message : 'تعذّرت قراءة الملف.')
@@ -150,8 +158,8 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   async function runSearch(text: string): Promise<number | null> {
     if (!text || !city || busy) return null
     setBusy(true); setError(null); setNotice(null)
+    const version = generation.current
     try {
-      const version = generation.current
       const r = await searchTargets(text, city, 10, objective)
       if (version !== generation.current) return null
       setRes(r); setQuery(text); setShown(PAGE)
@@ -161,6 +169,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       setMessage(defaultMessage(cat, cityName(city)))
       return r.total
     } catch (err) {
+      if (version !== generation.current) return null
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
       return null
     } finally { setBusy(false) }
@@ -175,13 +184,13 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     <Button variant={variant} size="S" icon="upload" disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => fileInput.current?.click()}>{label}</Button>
   )
   const linesPanel = (row: boolean) => (reading || readErr || lines.length) ? (
-    <section aria-label="بنود الكراسة" className="flex flex-col gap-2">
+    <section aria-label="منتجات وخدمات الملف" className="flex flex-col gap-2">
       {reading ? <p role="status" className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{reading}</p> : null}
       {readErr ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{readErr}</p> : null}
       {lines.length ? (
         <>
           <div className="flex items-center justify-between gap-2">
-            <p className={`text-[14px] leading-[22px] font-medium ${row ? 'text-[var(--color-text-on-inverse)]' : ''}`}>بنود الكراسة ({n(lines.length)}){booklet ? <span className={row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'}> · <bdi>{booklet}</bdi></span> : null}</p>
+            <p className={`text-[14px] leading-[22px] font-medium ${row ? 'text-[var(--color-text-on-inverse)]' : ''}`}>عناصر الملف ({n(lines.length)}){booklet ? <span className={row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'}> · <bdi>{booklet}</bdi></span> : null}</p>
             <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] ${row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'} hover:underline ${FOCUS_RING}`}>إزالة</button>
           </div>
           <ul className={row ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
@@ -345,7 +354,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                   {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
                 </button>
               ) : null}
-              {uploadButton('كراسة', 'Ghost')}
+              {uploadButton('ارفع قائمة', 'Ghost')}
               <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
             </div>
           </div>
@@ -358,6 +367,9 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             </div>
           ) : null}
           <ul ref={list} className="min-h-0 flex-1 overflow-y-auto">
+            {!res && !busy ? <li className="px-5 py-6 text-[14px] leading-[24px] text-[var(--color-text-secondary)]">{objective === 'marketing' ? 'اكتب المنتج أو الخدمة التي تبيعها، أو ارفع كتالوجك ثم اختر عنصرًا للبحث عن مشترين محتملين.' : 'اكتب المنتج أو الخدمة التي تحتاجها، أو ارفع قائمة احتياجاتك ثم اختر عنصرًا للبحث عن بائعين.'} اختر المدينة لتحديد نطاق البحث.</li> : null}
+            {busy ? <li role="status" className="px-5 py-6 text-[14px]">نفهم المنتج أو الخدمة ونبحث عن الجهات المناسبة…</li> : null}
+            {res && !rows.length ? <li className="px-5 py-6 text-[14px]">لم نجد جهات مناسبة لهذا العنصر في المدينة المختارة. جرّب وصفًا أوضح أو مدينة أخرى.</li> : null}
             {rows.slice(0, shown).map((r) => {
               const ch = channelOf(r), can = ch === 'WhatsApp'
               return (

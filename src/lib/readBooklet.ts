@@ -39,7 +39,7 @@ export async function readBooklet(files: File[], onNote: (note: string) => void)
   const file = files[0]
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
   const isXlsx = file.type === XLSX || /\.xlsx$/i.test(file.name)
-  if (!isPdf && !isXlsx) throw new Error('ارفع الكراسة بصيغة PDF أو Excel (xlsx) أو صورة.')
+  if (!isPdf && !isXlsx) throw new Error('ارفع قائمة المنتجات أو الاحتياجات بصيغة PDF أو Excel (xlsx) أو صورة.')
   if (file.size > 25 * 1024 * 1024) throw new Error('الملف أكبر من 25 ميجابايت — قسّمه أو صدّره PDF أصغر.')
   if (isPdf) {
     const result = await parseConstructionBoqPdf(file, (p: BoqReadProgress) =>
