@@ -1,0 +1,53 @@
+{
+  "dataset_kind": "public_primary_source_annotation_pilot",
+  "observed_date": "2026-10-12",
+  "independently_reviewed": false,
+  "subject_label": "قهوة",
+  "canonical_subject_id": null,
+  "geography_verified": false,
+  "entities": [
+    {
+      "id": "sulalat",
+      "name": "سلالات",
+      "url": "https://sulalat.com/en/pages/faqs",
+      "section": "What types of coffee and beverages does Sulalat provide?",
+      "short_quote": "We offer a wide variety of wholesale coffee beans and signature blends",
+      "facts": ["offers_product"],
+      "confidence": "first_party_claim",
+      "reason_ar": "تصرح الجهة ببيع حبوب قهوة بالجملة؛ مصدر متعلق بالمنتج نفسه.",
+      "does_not_prove": ["current_stock", "buys_external_roasted_coffee", "accepts_new_distribution_brand"]
+    },
+    {
+      "id": "barns",
+      "name": "بارنز",
+      "url": "https://www.barns.com.sa/en/product/category-products",
+      "section": "Our Menu / Hot Drinks Coffee",
+      "short_quote": "Americano",
+      "facts": ["uses_product"],
+      "confidence": "inferred_from_first_party_menu",
+      "reason_ar": "بيع مشروبات القهوة يشير إلى استخدامها حبوب القهوة؛ هذا استنتاج عن الاستخدام وليس إثبات شراء الحبوب من مورد خارجي.",
+      "does_not_prove": ["buys_external_roasted_coffee", "current_purchase_intent", "sells_wholesale_beans", "accepts_new_distribution_brand"]
+    },
+    {
+      "id": "tba",
+      "name": "قمة الماركات العربية للتجارة",
+      "url": "https://tba.sa/en",
+      "section": "Luxury food distribution / Import and distribution of luxury coffee and chocolate",
+      "short_quote": "TBA is an authorized distributor for a number of international brands",
+      "facts": ["offers_product", "distributes_product"],
+      "confidence": "first_party_claim",
+      "reason_ar": "تصرح باستيراد وتوزيع منتجات قهوة؛ دليل على نشاط التوزيع الحالي، لا على قبول توزيع منتج المستخدم.",
+      "does_not_prove": ["current_stock", "buys_external_roasted_coffee", "accepts_new_distribution_brand", "distribution_interest"]
+    }
+  ],
+  "cases": [
+    { "id": "buy-coffee", "objective": "purchase", "text": "أبي أشتري قهوة لمنشأتي", "eligible_relation": ["sulalat", "tba"], "needs_review": [], "rejected_relation": ["barns"] },
+    { "id": "sell-coffee", "objective": "marketing", "text": "أبيع قهوة وأبحث عن مشترين", "eligible_relation": [], "needs_review": ["barns"], "rejected_relation": ["sulalat", "tba"] },
+    { "id": "coffee-availability", "objective": "availability", "text": "أستفسر عن توفر قهوة", "eligible_relation": ["sulalat", "tba"], "needs_review": [], "rejected_relation": ["barns"] },
+    { "id": "distribute-coffee", "objective": "partnership", "text": "أبحث عن شركاء لتوزيع قهوتي", "eligible_relation": [], "needs_review": ["tba"], "rejected_relation": ["sulalat", "barns"] }
+  ],
+  "excluded_sources": [
+    { "url": "https://tenders.etimad.sa/Tender/OpenTenderDetailsReportForVisitor?tenderIdString=6nMQlbSsdWiosnYWutwZ0Q%3D%3D", "reason": "Search snippet suggests coffee tender; direct page has challenge. Buyer identity, dates, scope and status not verified. Not admitted as evidence." },
+    { "url": "https://contact-us.camelstep.com/ar/policy", "reason": "Direct page requires JavaScript; search excerpt alone not admitted in this pilot." }
+  ]
+}

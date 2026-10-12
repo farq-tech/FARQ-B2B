@@ -1,0 +1,123 @@
+{
+  "dataset": "public_primary_source_annotation_pilot",
+  "cases": [
+    {
+      "id": "buy-coffee",
+      "objective": "purchase",
+      "text": "أبي أشتري قهوة لمنشأتي",
+      "eligible_relation": [
+        "sulalat",
+        "tba"
+      ],
+      "needs_review": [],
+      "rejected_relation": [
+        "barns"
+      ],
+      "product_state": "product_coverage_gap",
+      "canonical_id": null,
+      "owner_role": "buyer",
+      "target_role": "seller",
+      "production_targets": [],
+      "blocked": [
+        "CPO_PRODUCT_COVERAGE",
+        "GEOGRAPHY_UNVERIFIED",
+        "INDEPENDENT_REVIEW_PENDING"
+      ],
+      "availability": "unknown",
+      "execution_enabled": false
+    },
+    {
+      "id": "sell-coffee",
+      "objective": "marketing",
+      "text": "أبيع قهوة وأبحث عن مشترين",
+      "eligible_relation": [],
+      "needs_review": [
+        "barns"
+      ],
+      "rejected_relation": [
+        "sulalat",
+        "tba"
+      ],
+      "product_state": "product_coverage_gap",
+      "canonical_id": null,
+      "owner_role": "seller",
+      "target_role": "buyer",
+      "production_targets": [],
+      "blocked": [
+        "CPO_PRODUCT_COVERAGE",
+        "GEOGRAPHY_UNVERIFIED",
+        "INDEPENDENT_REVIEW_PENDING"
+      ],
+      "availability": "unknown",
+      "execution_enabled": false
+    },
+    {
+      "id": "coffee-availability",
+      "objective": "availability",
+      "text": "أستفسر عن توفر قهوة",
+      "eligible_relation": [
+        "sulalat",
+        "tba"
+      ],
+      "needs_review": [],
+      "rejected_relation": [
+        "barns"
+      ],
+      "product_state": "product_coverage_gap",
+      "canonical_id": null,
+      "owner_role": "buyer",
+      "target_role": "seller",
+      "production_targets": [],
+      "blocked": [
+        "CPO_PRODUCT_COVERAGE",
+        "GEOGRAPHY_UNVERIFIED",
+        "INDEPENDENT_REVIEW_PENDING"
+      ],
+      "availability": "unknown",
+      "execution_enabled": false
+    },
+    {
+      "id": "distribute-coffee",
+      "objective": "partnership",
+      "text": "أبحث عن شركاء لتوزيع قهوتي",
+      "eligible_relation": [],
+      "needs_review": [
+        "tba"
+      ],
+      "rejected_relation": [
+        "sulalat",
+        "barns"
+      ],
+      "product_state": "product_coverage_gap",
+      "canonical_id": null,
+      "owner_role": "partner",
+      "target_role": "partner",
+      "production_targets": [],
+      "blocked": [
+        "CPO_PRODUCT_COVERAGE",
+        "GEOGRAPHY_UNVERIFIED",
+        "INDEPENDENT_REVIEW_PENDING"
+      ],
+      "availability": "unknown",
+      "execution_enabled": false
+    }
+  ],
+  "sources": [
+    {
+      "id": "sulalat",
+      "url": "https://sulalat.com/en/pages/faqs"
+    },
+    {
+      "id": "barns",
+      "url": "https://www.barns.com.sa/en/product/category-products"
+    },
+    {
+      "id": "tba",
+      "url": "https://tba.sa/en"
+    }
+  ],
+  "independently_reviewed": 0,
+  "production_entity_precision": "NOT_MEASURED",
+  "relation_annotations_are_not_engine_discovery": true,
+  "phase1_gate": "NOT_PASSED"
+}

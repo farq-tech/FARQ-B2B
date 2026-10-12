@@ -21,3 +21,13 @@ node --require /Users/m4pro/farq-pricing-goals-phase0/services/goal-foundation/t
 ```
 
 الحاجز طبقة حماية للاختبارات المحددة، وليس sandbox عام لكل عملية فرعية أو UDP. لم تشغل هذه الاختبارات إرسالًا خارجيًا أو اتصالًا سحابيًا. لا تشغّل server/runtime إنتاجيًا أو migrations لأجل هذه المرحلة.
+
+متابعة الأدلة العامة وتجربة توسيع بيانات CPO داخل resolver الأصلي، دون كتابة على مصدر فرق بناء:
+
+```sh
+FARQ_CONSTRUCTION_SOURCE=/Users/m4pro/farq-pricing-api-proof/api node --require ./services/goal-foundation/tests/offline-guard.cjs --test services/goal-foundation/tests/public-evidence.test.cjs
+FARQ_CONSTRUCTION_SOURCE=/Users/m4pro/farq-pricing-api-proof/api node --require ./services/goal-foundation/tests/offline-guard.cjs services/goal-foundation/evaluate-public.cjs
+FARQ_CONSTRUCTION_SOURCE=/Users/m4pro/farq-pricing-api-proof/api node --require ./services/goal-foundation/tests/offline-guard.cjs services/goal-foundation/cpo-extension-experiment.mjs
+```
+
+هذه التجربة تعدّل بيانات CPO في الذاكرة فقط، وتختبر بقاء نتائج المصطلحات القديمة. لا تنشئ مخزنًا بديلًا ولا تضيف supplier map أو صلاحيات أو إرسالًا؛ معرفاتها تجريبية غير معتمدة. نتائج الترشيح في العينة العامة أحكام موثقة من الباحث، وليست اكتشافًا إنتاجيًا أو تقييمًا مستقلًا.

@@ -1,0 +1,210 @@
+{
+  "originalVersion": "cpo-v27",
+  "experimentalVersion": "cpo-v27-goals-experiment-1",
+  "same_resolver_source": true,
+  "original_source_hashes": {
+    "resolver": "64edcdd47e5ac1e9aaf3d930df8a87d2340224ee73747e3bba71b76e34d2a7b8",
+    "payload": "45edd80d1d08ea008c5323f69c134374f3829c7717361ab7ec2aebdb5c73289b"
+  },
+  "originals_unchanged": true,
+  "regression_probe_count": 768,
+  "changed_originals": [],
+  "cases": [
+    {
+      "text": "حبوب قهوة",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "coffee_beans_product",
+        "family": "coffee_beans",
+        "poolable": true,
+        "facets": {},
+        "pool": "coffee_beans_product",
+        "authority": "ontology_intent"
+      }
+    },
+    {
+      "text": "coffee beans",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "coffee_beans_product",
+        "family": "coffee_beans",
+        "poolable": true,
+        "facets": {},
+        "pool": "coffee_beans_product",
+        "authority": "ontology_intent"
+      }
+    },
+    {
+      "text": "أكواب ورقية",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "paper_drinking_cup",
+        "family": "paper_cups",
+        "poolable": true,
+        "facets": {},
+        "pool": "paper_drinking_cup",
+        "authority": "ontology_intent"
+      }
+    },
+    {
+      "text": "paper cups",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "paper_drinking_cup",
+        "family": "paper_cups",
+        "poolable": true,
+        "facets": {},
+        "pool": "paper_drinking_cup",
+        "authority": "ontology_intent"
+      }
+    },
+    {
+      "text": "green coffee beans",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "coffee_beans_product",
+        "family": "coffee_beans",
+        "poolable": true,
+        "facets": {},
+        "pool": "coffee_beans_product",
+        "authority": "ontology_intent"
+      }
+    },
+    {
+      "text": "قهوة",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      }
+    },
+    {
+      "text": "مستلزمات طبية",
+      "before": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      },
+      "after": {
+        "level": "unresolved",
+        "intent": null,
+        "family": null,
+        "poolable": false,
+        "facets": {},
+        "pool": null,
+        "authority": "unresolved"
+      }
+    },
+    {
+      "text": "مواد نظافة",
+      "before": {
+        "level": "specific_intent",
+        "intent": "industrial_cleaner",
+        "family": "lubricants_chemicals",
+        "poolable": true,
+        "facets": {},
+        "pool": "industrial_cleaner",
+        "authority": "ontology_intent"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "industrial_cleaner",
+        "family": "lubricants_chemicals",
+        "poolable": true,
+        "facets": {},
+        "pool": "industrial_cleaner",
+        "authority": "ontology_intent"
+      }
+    },
+    {
+      "text": "صيانة مصاعد",
+      "before": {
+        "level": "specific_intent",
+        "intent": "passenger_elevator",
+        "family": "vertical_transport",
+        "poolable": true,
+        "facets": {},
+        "pool": "passenger_elevator",
+        "authority": "ontology_intent"
+      },
+      "after": {
+        "level": "specific_intent",
+        "intent": "passenger_elevator",
+        "family": "vertical_transport",
+        "poolable": true,
+        "facets": {},
+        "pool": "passenger_elevator",
+        "authority": "ontology_intent"
+      }
+    }
+  ],
+  "unresolved_supplier_mapping": [
+    "coffee_beans_product",
+    "paper_drinking_cup"
+  ],
+  "deployed": false,
+  "approved_vocabulary": false,
+  "phase1_ready": false
+}
