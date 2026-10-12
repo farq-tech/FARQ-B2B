@@ -32,7 +32,7 @@ function SectionTitle({ id, title, sub, className }: { id: string; title: string
 /* ── Split blocks 34:59 (desktop) · Block / Deep 60:765 + Block / Accent 60:773 (mobile) ── */
 const METHODS = [
   { n: '01', spot: booklet, title: 'ارفع قائمة احتياجك', body: 'قائمة مشتريات أو تجهيزات منشأتك في ملف. راجع أسماء البنود والكميات والمواصفات قبل تأكيد الطلب.' },
-  { n: '02', spot: list, title: 'اكتب وش تحتاج', body: 'سطر لكل بند: «20 كرسي انتظار للعيادة» أو «10 أجهزة كمبيوتر للمكتب». أضف المواصفات التي تهمك.' },
+  { n: '02', spot: list, title: 'اكتب هدف منشأتك', body: '«أبيع قهوة للمكاتب»، «أشتري قهوة»، أو «أبحث عن شريك توزيع». نفس المنتج، وجهات مختلفة بحسب هدفك.' },
   { n: '03', spot: photo, title: 'صوّر المنتج أو القائمة', body: 'صورة معدات للمطعم، قطعة غيار للمصنع، أو قائمة مستلزمات للفندق. وضّح المطلوب وراجع التفاصيل قبل التأكيد.' },
 ]
 
@@ -41,7 +41,7 @@ function HowItWorks() {
     <section id="how" aria-labelledby="how-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-48)]">
-        <SectionTitle id="how-title" title="ثلاث طرق، طلب واحد" sub="اختار الأسهل لك — والباقي علينا." />
+        <SectionTitle id="how-title" title="ابدأ بهدفك، وبالطريقة اللي تناسبك" sub="شراء أو تسويق أو استفسار أو شراكة: وضّح النتيجة التي تريدها." />
         <ul className="grid w-full gap-[var(--space-12)] md:grid-cols-3 md:gap-[var(--space-24)]">
           {METHODS.map((m) => (
             <li key={m.n} className="flex items-center gap-[var(--space-16)] rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-[var(--space-20)] md:h-[300px] md:flex-col md:items-start md:bg-[var(--color-bg-canvas)] md:p-[var(--space-32)]">
@@ -58,7 +58,7 @@ function HowItWorks() {
         </ul>
         <p className={cx(T.bodyM, 'flex items-center gap-[var(--space-8)] rounded-[var(--radius-xl)] bg-[var(--color-bg-success)] px-[var(--space-20)] py-[var(--space-12)] text-[var(--color-text-primary)] md:rounded-[var(--radius-full)]')}>
           <Icon name="check" size={20} style={{ color: 'var(--color-icon-success)' }} />
-          كلها تتحول لطلب تسعير واحد، تراجعه قبل ما نرسله لأي مورد.
+          ملف هدف مستقل؛ وطلب التسعير أحد مساراته عند الحاجة. تجربة الأهداف قيد التطوير، دون إرسال فعلي.
         </p>
         <HowWePrice />
       </Container>
@@ -174,7 +174,7 @@ function Audience() {
     <section id="audience" aria-labelledby="audience-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-40)]">
-        <SectionTitle id="audience-title" title="لشركتك، مهما كان نشاطها" sub="هذه أمثلة احتياجات منشآت. تتحدد إمكانية تسعير كل بند بحسب مواصفاته والموردين المتاحين." />
+        <SectionTitle id="audience-title" title="لشركتك، مهما كان نشاطها" sub="للشركات والجهات الحكومية وشبه الحكومية والقطاع غير الربحي، مع مراعاة صلاحيات كل جهة ومتطلبات اعتمادها." />
         <ul className="grid w-full gap-[var(--space-16)] sm:grid-cols-2 lg:grid-cols-3 lg:gap-[var(--space-24)]">
           {AUDIENCE.map((a) => (
             <li key={a.title} className="flex flex-col gap-[var(--space-12)] rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-24)] py-[28px] lg:h-[220px]">
@@ -242,8 +242,8 @@ function FinalCta() {
       <LiveBgSlot tone="accent" />
       <Container className="flex flex-col items-center gap-[var(--space-16)] text-center md:gap-[var(--space-24)]">
         <h2 id="final-title" className={T.displayL}>طلب الشراء الجاي؟ خلّه علينا.</h2>
-        <p className={T.bodyL}>اكتب احتياج منشأتك، وخلّ العروض المستلمة قدامك قبل ما تقرر.</p>
-        <LinkButton href={START_HREF} variant="Primary" icon="arrow-forward" className="w-full sm:w-auto">ابدأ التسعير</LinkButton>
+        <p className={T.bodyL}>ابدأ بتجربة بحث الموردين المتاحة الآن. تجربة الأهداف المؤسسية قيد التطوير.</p>
+        <LinkButton href={START_HREF} variant="Primary" icon="arrow-forward" className="w-full sm:w-auto">جرّب بحث الموردين</LinkButton>
       </Container>
     </section>
   )

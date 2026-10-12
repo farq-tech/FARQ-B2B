@@ -52,7 +52,7 @@ function Nav() {
         <div className="flex items-center gap-[var(--space-8)]">
           <TextLink href={APP_LOGIN_HREF} className={cx(T.bodyM, 'hidden px-[var(--space-8)] text-[var(--color-text-primary)] sm:inline')}>دخول</TextLink>
           <span className="hidden sm:block">
-            <LinkButton href={START_HREF} variant="Accent" size="M">ابدأ التسعير</LinkButton>
+            <LinkButton href={START_HREF} variant="Accent" size="M">جرّب بحث الموردين</LinkButton>
           </span>
           <button
             ref={buttonRef}
@@ -76,7 +76,7 @@ function Nav() {
           ))}
           <TextLink href={APP_LOGIN_HREF} className={cx(T.body, 'px-[var(--space-8)] py-[var(--space-8)] text-[var(--color-text-primary)] sm:hidden')}>دخول</TextLink>
           <span className="mt-[var(--space-8)] block sm:hidden">
-            <LinkButton href={START_HREF} variant="Accent" fullWidth>ابدأ التسعير</LinkButton>
+            <LinkButton href={START_HREF} variant="Accent" fullWidth>جرّب بحث الموردين</LinkButton>
           </span>
         </Container>
       </nav>
@@ -100,22 +100,22 @@ export function Hero() {
           <div className="flex min-w-0 flex-col items-start gap-[var(--space-12)]">
             <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">
               <span aria-hidden="true" className="size-2 rounded-full bg-[var(--color-bg-brand)]" />
-              منصة تسعير لمشتريات الشركات
+              أهداف منشأتك، في مكان واحد
             </p>
             <h1 id="hero-title" className={T.hero}>
-              قبل ما تشتري،
+              من هدفك،
               <br />
-              شوف{' '}
+              للجهة{' '}
               <span className="relative inline-block text-[var(--brand-action-strong)]">
                 <span aria-hidden="true" className="absolute inset-x-0 bottom-[0.06em] h-[0.17em] rounded-[7px] bg-[var(--color-bg-brand)] opacity-35" />
-                <span className="relative">الفرق.</span>
+                <span className="relative">المناسبة.</span>
               </span>
             </h1>
             <p className={cx(T.bodyL, 'max-w-[520px] text-[var(--color-text-secondary)]')}>
-              اكتب احتياج شركتك أو منشأتك، وراجع البنود قبل تأكيد الطلب. اجمع العروض المستلمة وقارن الأسعار والمواصفات والتوصيل في مكان واحد.
+              تبي تسوّق منتجك، تسعّر احتياجك، تستفسر عن توفره، أو تبحث عن شريك؟ نطوّر فرق حول هدف منشأتك: فهم المطلوب، واقتراح الجهات المناسبة مع أسباب الاختيار وخطة التنفيذ.
             </p>
             <div className="flex flex-wrap gap-[var(--space-12)] pt-[var(--space-16)]">
-              <LinkButton href={START_HREF} variant="Accent" icon="arrow-forward">ابدأ التسعير</LinkButton>
+              <LinkButton href={START_HREF} variant="Accent" icon="arrow-forward">جرّب بحث الموردين</LinkButton>
               <LinkButton href="#how" variant="Secondary">شاهد كيف تعمل</LinkButton>
             </div>
           </div>

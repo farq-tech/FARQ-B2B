@@ -56,7 +56,7 @@ export function drawWebExpansion(
     const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f
     const side = a.side ?? 0, slot = Math.max(0, Math.min(slots - 1, Math.floor((y - y0) / (y1 - y0) * slots)))
     const key = side * slots + slot, score = Math.abs(y - (y0 + (slot + 0.5) * (y1 - y0) / slots))
-    if (x >= 16 && x <= width - 16 && y >= y0 + 24 && y <= y1 - 24 && (!packets.has(key) || score < packets.get(key)!.score)) packets.set(key, { x, y, score, icon: (side + slot) % 3 })
+    if (x >= 16 && x <= width - 16 && y >= y0 + 24 && y <= y1 - 24 && (!packets.has(key) || score < packets.get(key)!.score)) packets.set(key, { x, y, score, icon: (side + slot + Math.floor(t / 26)) % 4 })
     ctx.moveTo(a.x + (b.x - a.x) * start, a.y + (b.y - a.y) * start)
     ctx.lineTo(a.x + (b.x - a.x) * end, a.y + (b.y - a.y) * end)
     }
@@ -77,9 +77,9 @@ export function drawWebExpansion(
   ctx.globalAlpha = fade * 0.92
   const drawn: Array<{ x: number; y: number }> = []
   for (const p of packets.values()) {
-    if (drawn.some(q => Math.hypot(p.x - q.x, p.y - q.y) < 52)) continue
+    if (drawn.some(q => Math.hypot(p.x - q.x, p.y - q.y) < 94)) continue
     const stamp = atlas[p.icon]
-    if (stamp) { ctx.drawImage(stamp, p.x - 12, p.y - 12, 24, 24); drawn.push(p) }
+    if (stamp) { ctx.drawImage(stamp, p.x - 35, p.y - 13, 70, 26); drawn.push(p) }
   }
   ctx.restore()
 }
@@ -87,23 +87,17 @@ export function drawWebExpansion(
 const stamps: { go: HTMLCanvasElement[]; back: HTMLCanvasElement[] } = { go: [], back: [] }
 function prepareStamps() {
   if (stamps.go.length || typeof document === 'undefined') return
-  const phone = new Path2D('M7 4 L10 4 L11.5 8 L9.5 10 C10.5 12.5 12.5 14.5 15 15.5 L17 13.5 L21 15 L21 18 C21 20 19 21 17 20 C10 18 6 14 4 7 C3.5 5 5 4 7 4 Z')
-  const make = (icon: number, color: number[]) => {
-    const c = document.createElement('canvas'); c.width = c.height = 48
+  const labels = ['تسويق', 'تسعير', 'استفسار', 'عرض']
+  const make = (label: string, color: number[]) => {
+    const c = document.createElement('canvas'); c.width = 140; c.height = 52
     const x = c.getContext('2d')!; x.scale(2, 2)
-    x.fillStyle = ink(color, 0.09); x.strokeStyle = ink(color, 0.92); x.lineWidth = 1.25; x.lineJoin = 'round'; x.lineCap = 'round'
-    x.beginPath(); x.arc(12, 12, 11, 0, Math.PI * 2); x.fill()
-    if (icon === 0) {
-      x.beginPath(); x.arc(12, 11, 7, Math.PI * 0.78, Math.PI * 2.69); x.lineTo(5, 19); x.closePath(); x.stroke()
-      x.save(); x.translate(6, 5); x.scale(0.5, 0.5); x.lineWidth = 2; x.stroke(phone); x.restore()
-    } else if (icon === 1) {
-      x.beginPath(); x.roundRect(4.5, 6.5, 15, 11, 2); x.stroke()
-      x.beginPath(); x.moveTo(5, 7.5); x.lineTo(12, 13); x.lineTo(19, 7.5); x.stroke()
-    } else {
-      x.save(); x.translate(3, 3); x.scale(0.75, 0.75); x.lineWidth = 1.65; x.stroke(phone); x.restore()
-    }
+    x.fillStyle = ink([255, 255, 255], 0.96); x.strokeStyle = ink(color, 0.8); x.lineWidth = 1
+    x.beginPath(); x.roundRect(1, 1, 68, 24, 12); x.fill(); x.stroke()
+    x.font = '600 12px sans-serif'; x.direction = 'rtl'; x.textAlign = 'center'; x.textBaseline = 'middle'
+    x.fillStyle = ink(color, 1); x.fillText(label, 35, 13)
     return c
   }
-  stamps.go = [0, 1, 2].map(icon => make(icon, searchInk))
-  stamps.back = [0, 1, 2].map(icon => make(icon, opportunityInk))
+  // Shape text once; the animation draws only cached images.
+  stamps.go = labels.map(label => make(label, searchInk))
+  stamps.back = labels.map(label => make(label, opportunityInk))
 }
