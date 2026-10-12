@@ -17,11 +17,14 @@ class Buyers(unittest.TestCase):
  def test_ai_supplies_family_and_target_categories(self):
   import json
   from io import BytesIO
-  data={'content':[{'text':json.dumps({'label':'أنظمة محاسبة','family':'برمجيات أعمال','product':[], 'seller':['restaurants','مطاعم'],'broader':['retail shops'], 'target_label':'منشآت تحتاج إدارة حساباتها','exclude':['software developer']})}]}
+  data={'content':[{'text':json.dumps({'label':'أنظمة محاسبة','family':'برمجيات أعمال','product':[], 'seller':['restaurant | مطعم','مطاعم'],'broader':['retail shops'], 'target_label':'منشآت تحتاج إدارة حساباتها','exclude':['software developer']})}]}
   with patch.dict(t.os.environ,{'ANTHROPIC_API_KEY':'test-key'}), patch.object(t.urllib.request,'urlopen',return_value=BytesIO(json.dumps(data).encode())) as call:
    result=t.extend_intent('أبيع برنامج محاسبة',t.buyer_intent('أبيع برنامج محاسبة'),'marketing')
    self.assertEqual(result['family'],'برمجيات أعمال')
    self.assertEqual(result['understanding_source'],'ai')
    self.assertIn('retail shops',result['seller'])
+   self.assertIn('restaurant',result['seller'])
+   self.assertIn('مطعم',result['seller'])
+   self.assertNotIn('restaurant | مطعم',result['seller'])
    self.assertEqual(call.call_args.kwargs['timeout'],8)
 if __name__=='__main__':unittest.main()
