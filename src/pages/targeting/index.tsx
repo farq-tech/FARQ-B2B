@@ -362,11 +362,12 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           {res ? (
             <div className="grid grid-cols-4 gap-2 px-4 py-3">
               {mini('وُجد', res.total, 'var(--color-text-primary)')}
-              {mini('واتساب', counts.wa, 'var(--color-text-success)')}
-              {mini('إيميل', counts.emailOnly, 'var(--color-text-info)')}
-              {mini('لا يمكن', counts.none, 'var(--color-text-tertiary)')}
+              {mini('واتساب المعروض', counts.wa, 'var(--color-text-success)')}
+              {mini('إيميل المعروض', counts.emailOnly, 'var(--color-text-info)')}
+              {mini('بلا قناة مؤكدة', counts.none, 'var(--color-text-tertiary)')}
             </div>
           ) : null}
+          {res ? <p className="px-4 pb-2 text-[12px] text-[var(--color-text-secondary)]">نعرض {n(rows.length)} من {n(res.total)} جهة؛ أعداد التواصل تخص المعروض فقط.{res.contact_enrichment === 'not_configured' ? ' البحث التلقائي عن الأرقام من Google غير مفعّل بعد.' : ''}</p> : null}
           <ul ref={list} className="min-h-0 flex-1 overflow-y-auto">
             {!res && !busy ? <li className="px-5 py-6 text-[14px] leading-[24px] text-[var(--color-text-secondary)]">{objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة»، أو ارفع كتالوجك ثم اختر تخصصًا أو منتجًا للبحث عن مشترين محتملين.' : 'اكتب المنتج أو الخدمة التي تحتاجها، أو ارفع قائمة احتياجاتك ثم اختر عنصرًا للبحث عن بائعين.'} اختر المدينة لتحديد نطاق البحث.</li> : null}
             {busy ? <li role="status" className="px-5 py-6 text-[14px]">نفهم المنتج أو الخدمة ونبحث عن الجهات المناسبة…</li> : null}
@@ -380,6 +381,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className={`truncate text-[16px] leading-[24px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
                       <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{rowSub(r)}</span>
+                      {r.phone_source && r.phone ? <span className="text-[12px]">هاتف من Google: <bdi>{r.phone}</bdi> · واتساب غير مؤكد</span> : null}
                     </span>
                     <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{fitBadge(r)}</span>
                   </label>

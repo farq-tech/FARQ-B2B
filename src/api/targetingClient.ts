@@ -18,6 +18,9 @@ import { farqSession } from './farqSession'
  */
 
 export type TargetRow = {
+  phone_source?: string
+  phone_source_name?: string
+  phone_lookup?: string
   target_role?: "buyer" | "seller"
   reason?: string
   poi_key: string
@@ -47,6 +50,7 @@ export type TargetRow = {
 export type TargetParse = { keywords?: string[]; category_hints?: string[]; seller_terms?: string[]; seller_label?: string | null; city?: string | null; region?: string | null; explain?: string; ai?: boolean }
 
 export type TargetSearch = {
+  contact_enrichment?: "enabled" | "not_configured"
   parsed: TargetParse
   total: number
   product_total?: number
