@@ -165,12 +165,14 @@ class Directory:
                 concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category) evidence_category,
                 coalesce(district_ar,district_en,'') district,
                 coalesce(completeness_pct,0) completeness,
-                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable
+                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count
                 from read_parquet(?) where city_en=? and coalesce(name_ar,name_en) is not null
                 and coalesce(lifecycle_state,'') not in ('closed','permanently_closed')
                 and coalesce(company_status,'') not in ('cancelled','inactive','ملغي','ملغى')""" + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
             ranked=[]; seen=set()
-            for name,category,details,district,complete,contactable in candidates:
+            for candidate in candidates:
+                name,category,details,district,complete,contactable=candidate[:6]
+                geo=dict(zip(['poi_key','latitude','longitude','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count'],candidate[6:]))
                 row={'name':name,'category':category,'evidence_category':details,'district':district}
                 match=evidence(row,intent)
                 if objective=='marketing':
@@ -181,7 +183,7 @@ class Directory:
                 if identity in seen: continue
                 seen.add(identity)
                 usage_score,usage_reason=usage_rank(intent,name,category) if objective=='marketing' else (0,intent['label'])
-                ranked.append((usage_score+match[0]/1000 if objective=='marketing' else match[0],complete,{'name_ar':name,'category_ar':category,'district_ar':district,'match':match[1],'ai':None,'reason':usage_reason, 'target_role':'buyer' if objective=='marketing' else 'seller', 'evidence':{'source':'directory_business_category','text':details,'confidence':'activity_inference' if objective=='marketing' else 'business_evidence'}, 'purchase_intent':'unknown'}))
+                ranked.append((usage_score+match[0]/1000 if objective=='marketing' else match[0],complete,{**geo,'name_ar':name,'category_ar':category,'district_ar':district,'match':match[1],'ai':None,'reason':usage_reason, 'target_role':'buyer' if objective=='marketing' else 'seller', 'evidence':{'source':'directory_business_category','text':details,'confidence':'activity_inference' if objective=='marketing' else 'business_evidence'}, 'purchase_intent':'unknown'}))
             ranked.sort(key=lambda r:(-r[0],-r[1],r[2]['name_ar']))
             result={'rows':[r[2] for r in ranked[:10]],'total':len(ranked),'intent':intent['label'],'ranking':'business-evidence','understood':{'direction':'buyer' if objective=='marketing' else 'seller','family':intent.get('family',intent['label']),'target_label':intent.get('target_label',''),'target_types':intent['seller'],'source':intent.get('understanding_source','existing_rules')}}
             self.cache[key]=(now+300,result)
