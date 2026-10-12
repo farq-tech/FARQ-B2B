@@ -26,7 +26,7 @@ class Buyers(unittest.TestCase):
    self.assertIn('restaurant',result['seller'])
    self.assertIn('مطعم',result['seller'])
    self.assertNotIn('restaurant | مطعم',result['seller'])
-   self.assertEqual(call.call_args.kwargs['timeout'],8)
+   self.assertEqual(call.call_args.kwargs['timeout'],12)
  def test_usage_priority_is_not_purchase_intent(self):
   intent={'usage_priority':[{'term':'restaurant','level':'high','reason':'استخدام متكرر للأكواب'},{'term':'office','level':'low','reason':'استخدام محدود'}]}
   self.assertGreater(t.usage_rank(intent,'Restaurant','Food')[0],t.usage_rank(intent,'Office','Corporate')[0])
