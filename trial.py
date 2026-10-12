@@ -118,6 +118,8 @@ def handle(handler, origin, password):
         if not isinstance(body, dict):
             raise ValueError()
         q, city = body.get('q'), body.get('city')
+        objective = body.get('objective', 'purchase')
+        if objective not in ('purchase', 'marketing'): return send(400, {'error': 'OBJECTIVE'})
         if not isinstance(q, str) or not isinstance(city, str) or not 3 <= len(q.strip()) <= 120 or not 1 <= len(city) <= 80 or any(c in q for c in '\n\r;؛'):
             return send(400, {'error': 'ONE_ITEM'})
     except Exception:
@@ -128,7 +130,7 @@ def handle(handler, origin, password):
         valid = city_list(origin, password)
         if city not in {c.get('en') for c in valid if isinstance(c, dict)}:
             return send(400, {'error': 'CITY'})
-        data = upstream(origin, password, '/trial-search', {'q': q.strip(), 'city': city, 'limit': 10, 'only_sendable': False})
+        data = upstream(origin, password, '/trial-search', {'q': q.strip(), 'city': city, 'limit': 10, 'only_sendable': False, 'objective': objective})
         return send(200, public_result(data))
     except Exception:
         return send(503, {'error': 'UNAVAILABLE'})
