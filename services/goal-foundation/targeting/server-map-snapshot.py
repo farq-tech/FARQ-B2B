@@ -1,3 +1,4 @@
+import contact_lookup
 # -*- coding: utf-8 -*-
 """
 Farq Targeting — local server over the KSA golden POI set.
@@ -491,7 +492,8 @@ class H(BaseHTTPRequestHandler):
             try:
                 if body.get('objective') in ('purchase','marketing'):
                     result=TRIAL_DIRECTORY.search(body.get('q'),body.get('city'),body['objective'])
-                    rows=result['rows']; understood=result['understood']
+                    rows,contact_status=contact_lookup.enrich(result['rows']); understood=result['understood']
+                    result={**result,'rows':rows,'contact_enrichment':contact_status}
                     self._json({**result,'parsed':{'keywords':[understood['family']],'seller_label':understood['target_label'],'seller_terms':understood['target_types'],'city':body['city'],'ai':understood['source']=='ai'},'with_whatsapp':sum(bool(r.get('has_whatsapp')) for r in rows),'with_email':sum(bool(r.get('email')) for r in rows),'by_region':[]})
                 else:
                     self._json(search(body.get('q', ''), body.get('limit', 3000), body.get('only_sendable', False), body.get('city') or None))
