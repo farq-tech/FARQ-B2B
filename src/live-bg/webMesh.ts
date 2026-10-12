@@ -37,7 +37,9 @@ export function drawWebExpansion(
   const cycle = t % 26, returning = cycle >= 12 && cycle < 24
   const frontier = returning ? 1100 * (1 - (cycle - 12) / 12) : 1100 * Math.min(1, cycle / 12)
   const fade = cycle > 24 ? (26 - cycle) / 2 : Math.min(1, cycle / 1.2)
-  const packets = new Map<number, { x: number; y: number; score: number }>()
+  const packets = new Map<number, { x: number; y: number; score: number; icon: number }>()
+  const width = ctx.canvas.width / Math.min(2, window.devicePixelRatio || 1)
+  const slots = width < 640 ? 2 : 3
   ctx.save(); ctx.globalAlpha = fade; ctx.lineWidth = 1.4; ctx.lineCap = 'round'
   ctx.strokeStyle = returning ? back : go; ctx.beginPath()
   for (const e of edges) {
@@ -45,14 +47,18 @@ export function drawWebExpansion(
     if (Math.max(a.y, b.y) < y0 || Math.min(a.y, b.y) > y1) continue
     const diff = b.d - a.d
     if (Math.abs(diff) < 1) continue
-    const f = (frontier - a.d) / diff
+    for (const wave of [0, 160]) {
+    const travel = frontier + (returning ? wave : -wave)
+    const f = (travel - a.d) / diff
     if (f < 0 || f > 1) continue
     const start = Math.max(0, f - 16 / e.L), end = Math.min(1, f + 3 / e.L)
     const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f
-    const side = a.side ?? 0, score = Math.abs(y - (y0 + y1) / 2)
-    if (y >= y0 + 20 && y <= y1 - 20 && (!packets.has(side) || score < packets.get(side)!.score)) packets.set(side, { x, y, score })
+    const side = a.side ?? 0, slot = Math.max(0, Math.min(slots - 1, Math.floor((y - y0) / (y1 - y0) * slots)))
+    const key = side * slots + slot, score = Math.abs(y - (y0 + (slot + 0.5) * (y1 - y0) / slots))
+    if (x >= 16 && x <= width - 16 && y >= y0 + 24 && y <= y1 - 24 && (!packets.has(key) || score < packets.get(key)!.score)) packets.set(key, { x, y, score, icon: (side + slot) % 3 })
     ctx.moveTo(a.x + (b.x - a.x) * start, a.y + (b.y - a.y) * start)
     ctx.lineTo(a.x + (b.x - a.x) * end, a.y + (b.y - a.y) * end)
+    }
   }
   ctx.stroke(); ctx.fillStyle = returning ? back : go
   for (let i = 0; i < points.length; i++) {
@@ -66,21 +72,37 @@ export function drawWebExpansion(
     ctx.globalAlpha = fade * (1 - age / 2.5) * 0.4
     ctx.beginPath(); ctx.arc(p.x, p.y, 3 + age * 3, 0, Math.PI * 2); ctx.stroke()
   }
-  const stamp = returning ? stamps.quote : stamps.request
-  if (stamp) { ctx.globalAlpha = fade * 0.85; for (const p of packets.values()) ctx.drawImage(stamp, p.x - 18, p.y - 10, 36, 20) }
+  const atlas = returning ? stamps.back : stamps.go
+  ctx.globalAlpha = fade * 0.92
+  const drawn: Array<{ x: number; y: number }> = []
+  for (const p of packets.values()) {
+    if (drawn.some(q => Math.hypot(p.x - q.x, p.y - q.y) < 52)) continue
+    const stamp = atlas[p.icon]
+    if (stamp) { ctx.drawImage(stamp, p.x - 12, p.y - 12, 24, 24); drawn.push(p) }
+  }
   ctx.restore()
 }
 
-const stamps: { request: HTMLCanvasElement | null; quote: HTMLCanvasElement | null } = { request: null, quote: null }
+const stamps: { go: HTMLCanvasElement[]; back: HTMLCanvasElement[] } = { go: [], back: [] }
 function prepareStamps() {
-  if (stamps.request || typeof document === 'undefined') return
-  const make = (word: string, color: number[]) => {
-    const c = document.createElement('canvas'); c.width = 72; c.height = 40
+  if (stamps.go.length || typeof document === 'undefined') return
+  const phone = new Path2D('M7 4 L10 4 L11.5 8 L9.5 10 C10.5 12.5 12.5 14.5 15 15.5 L17 13.5 L21 15 L21 18 C21 20 19 21 17 20 C10 18 6 14 4 7 C3.5 5 5 4 7 4 Z')
+  const make = (icon: number, color: number[]) => {
+    const c = document.createElement('canvas'); c.width = c.height = 48
     const x = c.getContext('2d')!; x.scale(2, 2)
-    x.fillStyle = ink(color, 0.08); x.strokeStyle = ink(color, 0.65); x.lineWidth = 0.7
-    x.beginPath(); x.roundRect(1, 1, 34, 18, 6); x.fill(); x.stroke()
-    x.direction = 'rtl'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '600 11px Tajawal, sans-serif'; x.fillStyle = ink(color, 0.95); x.fillText(word, 18, 10)
+    x.fillStyle = ink(color, 0.09); x.strokeStyle = ink(color, 0.92); x.lineWidth = 1.25; x.lineJoin = 'round'; x.lineCap = 'round'
+    x.beginPath(); x.arc(12, 12, 11, 0, Math.PI * 2); x.fill()
+    if (icon === 0) {
+      x.beginPath(); x.arc(12, 11, 7, Math.PI * 0.78, Math.PI * 2.69); x.lineTo(5, 19); x.closePath(); x.stroke()
+      x.save(); x.translate(6, 5); x.scale(0.5, 0.5); x.lineWidth = 2; x.stroke(phone); x.restore()
+    } else if (icon === 1) {
+      x.beginPath(); x.roundRect(4.5, 6.5, 15, 11, 2); x.stroke()
+      x.beginPath(); x.moveTo(5, 7.5); x.lineTo(12, 13); x.lineTo(19, 7.5); x.stroke()
+    } else {
+      x.save(); x.translate(3, 3); x.scale(0.75, 0.75); x.lineWidth = 1.65; x.stroke(phone); x.restore()
+    }
     return c
   }
-  stamps.request = make('طلب', searchInk); stamps.quote = make('عرض', opportunityInk)
+  stamps.go = [0, 1, 2].map(icon => make(icon, searchInk))
+  stamps.back = [0, 1, 2].map(icon => make(icon, opportunityInk))
 }
