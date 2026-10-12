@@ -6,7 +6,8 @@
       "Education",
       "Schools",
       "School",
-      "Day care center"
+      "Day care center",
+      "Education center"
     ],
     "decision": "INFERRED",
     "reference_system": "existing_directory_labels_review",
@@ -64,7 +65,8 @@
     "label_ar": "محطات الوقود",
     "aliases": [
       "Fuel Stations",
-      "Gas station"
+      "Gas station",
+      "Petrol stations"
     ],
     "decision": "INFERRED",
     "reference_system": "existing_directory_labels_review",
@@ -77,7 +79,8 @@
     "label_ar": "الأغذية",
     "aliases": [
       "Food and Beverages",
-      "Bakery"
+      "Bakery",
+      "Supermarket"
     ],
     "decision": "INFERRED",
     "reference_system": "existing_directory_labels_review",
@@ -90,7 +93,8 @@
     "label_ar": "جهات حكومية وخدمات عامة",
     "aliases": [
       "Government Services",
-      "Public Services"
+      "Public Services",
+      "Governments"
     ],
     "decision": "INFERRED",
     "reference_system": "existing_directory_labels_review",
@@ -186,7 +190,9 @@
     "canonical_id": "activity-review:laundry",
     "label_ar": "الغسيل",
     "aliases": [
-      "Laundry"
+      "Laundry",
+      "Laundries / Dry-cleaning",
+      "Laundry service"
     ],
     "decision": "INFERRED",
     "reference_system": "existing_directory_labels_review",
@@ -215,12 +221,121 @@
       "Park",
       "Public Parks",
       "ATM",
-      "Apartment complex"
+      "Apartment complex",
+      "Garden",
+      "Condominium complex",
+      "Villa"
     ],
     "decision": "INFERRED",
     "reference_system": "existing_directory_labels_review",
     "isic_code": null,
     "commercial_candidate": false,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:auto_repairs",
+    "label_ar": "خدمات السيارات",
+    "aliases": [
+      "Car wash",
+      "Car service / garages\nVehicle chassis repair",
+      "Car rental agency"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:construction",
+    "label_ar": "المقاولات",
+    "aliases": [
+      "Construction company",
+      "concrete_readymix"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:materials",
+    "label_ar": "مواد وتجهيزات البناء",
+    "aliases": [
+      "tiles_stone",
+      "lighting",
+      "fasteners_tools",
+      "insulation",
+      "kitchens",
+      "Blacksmith",
+      "Pipe supplier"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:beauty",
+    "label_ar": "العناية الشخصية",
+    "aliases": [
+      "Ladies hair styling salons"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:travel",
+    "label_ar": "السفر",
+    "aliases": [
+      "Travel agency"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:technology",
+    "label_ar": "التقنية",
+    "aliases": [
+      "Software company",
+      "PC stores"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:marketing",
+    "label_ar": "التسويق",
+    "aliases": [
+      "Advertising agency"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
+    "does_not_prove": "بيع أو شراء أي منتج محدد"
+  },
+  {
+    "canonical_id": "activity-review:sports",
+    "label_ar": "الرياضة",
+    "aliases": [
+      "Gym"
+    ],
+    "decision": "INFERRED",
+    "reference_system": "existing_directory_labels_review",
+    "isic_code": null,
+    "commercial_candidate": true,
     "does_not_prove": "بيع أو شراء أي منتج محدد"
   }
 ]
