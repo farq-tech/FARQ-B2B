@@ -104,16 +104,16 @@ export function Hero() {
               أهداف منشأتك، في مكان واحد
             </p>
             <h1 id="hero-title" className={T.hero}>
-              من هدفك،
+              قل لنا وش تبي تحقق.
               <br />
-              للجهة{' '}
+              ونساعدك توصل للجهة{' '}
               <span className="relative inline-block text-[var(--brand-action-strong)]">
                 <span aria-hidden="true" className="absolute inset-x-0 bottom-[0.06em] h-[0.17em] rounded-[7px] bg-[var(--color-bg-brand)] opacity-35" />
                 <span className="relative">المناسبة.</span>
               </span>
             </h1>
             <p className={cx(T.bodyL, 'max-w-[520px] text-[var(--color-text-secondary)]')}>
-              تبي تسوّق منتجك، تسعّر احتياجك، تستفسر عن توفره، أو تبحث عن شريك؟ نطوّر فرق حول هدف منشأتك: فهم المطلوب، واقتراح الجهات المناسبة مع أسباب الاختيار وخطة التنفيذ.
+              سواء تبي تسوّق منتجك، تحصل على عرض سعر، تستفسر عن توفر صنف، أو تبحث عن شريك تجاري؛ نفهم هدفك، ونبحث عن الجهات المناسبة، ونوضح لك ليش رشّحناها وكيف تبدأ التواصل معها.
             </p>
             <div id="goal-start" className="w-full scroll-mt-8 pt-4">
               <GoalChooser />
