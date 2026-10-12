@@ -1,0 +1,12 @@
+{
+  "deployment": "44b257e5-026a-4360-ad38-10233e4836a8",
+  "status": 200,
+  "query": "كرسي انتظار للعيادة",
+  "city": "Riyadh",
+  "seconds": 64.947437,
+  "visibleBeforeDedup": 5,
+  "visibleAfterDedup": 4,
+  "additionalDirectoryMatches": 511,
+  "privateFieldsAbsent": true,
+  "limits": "قراءة فقط، بحث واحد في كل تنفيذ؛ لا رسائل ولا طلب شراء"
+}
