@@ -1,0 +1,15 @@
+{
+  "deployment": "4a5c3bdc-26af-4f0f-a812-60c3b479037e",
+  "files": [
+    {
+      "file": "gate-network.js",
+      "status": 200,
+      "matchesBuild": true
+    },
+    {
+      "file": "assets/pageNetwork-DQ9aENX3.js",
+      "status": 200,
+      "matchesBuild": true
+    }
+  ]
+}
