@@ -21,17 +21,17 @@ export default function MarketingInput() {
   return <section dir="rtl" className="mx-auto flex min-h-screen w-full max-w-[760px] flex-col gap-6 p-5 sm:p-10">
     <button type="button" className="self-start underline" onClick={() => navigate('goal-new')}>رجوع للهدف</button>
     <h1 className="text-[32px] font-bold">{review ? 'راجع المنتجات والخدمات اللي تبي تسوّقها' : 'وش تبي نسوّق لك اليوم؟'}</h1>
-    <p className="leading-7 text-[var(--color-text-secondary)]">اكتب ما تقدمه أو ارفع قائمة منتجاتك، ثم اختر عنصرًا للبحث عن مشترين محتملين.</p>
-    <label className="flex flex-col gap-2 font-medium">{review ? 'عدّل العناصر قبل البحث — سطر لكل منتج أو خدمة' : 'اكتب المنتجات أو الخدمات — سطر لكل عنصر'}
-      <textarea rows={6} value={text} disabled={busy} onChange={event => setText(event.target.value)} placeholder="مثل: أكواب ورقية للمطاعم، أو خدمات موارد بشرية" className="rounded-[16px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4" />
+    <p className="leading-7 text-[var(--color-text-secondary)]">ارفع كتالوجك أو اكتب تخصصك مباشرة، مثل «مواد سباكة». نبحث عن جهات قد تستخدم منتجاتك أو تستفيد من خدماتك.</p>
+    <label className="flex flex-col gap-2 font-medium">{review ? 'عدّل العناصر قبل البحث — سطر لكل منتج أو خدمة' : 'اكتب تخصصك أو منتجاتك وخدماتك — سطر لكل عنصر'}
+      <textarea rows={6} value={text} disabled={busy} onChange={event => setText(event.target.value)} placeholder="مثل: مواد سباكة، أجهزة كمبيوتر، أو خدمات موارد بشرية" className="rounded-[16px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4" />
     </label>
-    <label className="flex flex-col gap-3 rounded-[16px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5">ارفع قائمة منتجاتك أو صوّرها
+    <label className="flex flex-col gap-3 rounded-[16px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5">ارفع كتالوجك أو صوّره
       <span className="text-sm text-[var(--color-text-secondary)]">PDF أو Excel أو صور المنتجات والخدمات</span>
       <input type="file" accept=".pdf,.xlsx,image/*" disabled={busy} onChange={event => { const files = Array.from(event.target.files || []); if (files.length) void read(files); event.target.value = '' }} />
     </label>
     {note ? <output>{note}</output> : null}
     {error ? <p role="alert">{error}</p> : null}
-    {text.trim() && !busy ? <div className="flex flex-col gap-3"><h2 className="font-semibold">اختر عنصرًا للبحث عن مشترين</h2>{text.split('\n').map(line => line.trim()).filter(Boolean).map((line, i) => <button key={i} type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'marketing'); sessionStorage.setItem('farq-target-query', line.slice(0, 120)) } catch { /* optional input handoff */ } navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 text-start">{line}</button>)}</div> : null}
+    {text.trim() && !busy ? <div className="flex flex-col gap-3"><h2 className="font-semibold">اختر التخصص أو المنتج للبحث عن مشترين</h2>{text.split('\n').map(line => line.trim()).filter(Boolean).map((line, i) => <button key={i} type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'marketing'); sessionStorage.setItem('farq-target-query', line.slice(0, 120)) } catch { /* optional input handoff */ } navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 text-start">{line}</button>)}</div> : null}
     <p className="text-sm text-[var(--color-text-secondary)]">هذه خطوة اكتشاف؛ لا تنشئ طلب شراء ولا ترسل رسائل للجهات.</p>
   </section>
 }

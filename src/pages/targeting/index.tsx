@@ -328,7 +328,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
             <Icon name="search" size={18} className="text-[var(--color-icon-secondary)]" />
             <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "وش تبيع؟ منتج أو خدمة" : "وش تبي تشتري؟ منتج أو خدمة"}
+            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "وش تخصصك أو وش تبيع؟" : "وش تبي تشتري؟ منتج أو خدمة"}
               className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
             {citySelect('max-w-[96px] text-[14px]')}
             <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="…">ابحث</Button>
@@ -355,7 +355,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                   {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
                 </button>
               ) : null}
-              {uploadButton('ارفع قائمة', 'Ghost')}
+              {uploadButton(objective === 'marketing' ? 'ارفع كتالوج' : 'ارفع قائمة', 'Ghost')}
               <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
             </div>
           </div>
@@ -368,7 +368,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
             </div>
           ) : null}
           <ul ref={list} className="min-h-0 flex-1 overflow-y-auto">
-            {!res && !busy ? <li className="px-5 py-6 text-[14px] leading-[24px] text-[var(--color-text-secondary)]">{objective === 'marketing' ? 'اكتب المنتج أو الخدمة التي تبيعها، أو ارفع كتالوجك ثم اختر عنصرًا للبحث عن مشترين محتملين.' : 'اكتب المنتج أو الخدمة التي تحتاجها، أو ارفع قائمة احتياجاتك ثم اختر عنصرًا للبحث عن بائعين.'} اختر المدينة لتحديد نطاق البحث.</li> : null}
+            {!res && !busy ? <li className="px-5 py-6 text-[14px] leading-[24px] text-[var(--color-text-secondary)]">{objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة»، أو ارفع كتالوجك ثم اختر تخصصًا أو منتجًا للبحث عن مشترين محتملين.' : 'اكتب المنتج أو الخدمة التي تحتاجها، أو ارفع قائمة احتياجاتك ثم اختر عنصرًا للبحث عن بائعين.'} اختر المدينة لتحديد نطاق البحث.</li> : null}
             {busy ? <li role="status" className="px-5 py-6 text-[14px]">نفهم المنتج أو الخدمة ونبحث عن الجهات المناسبة…</li> : null}
             {res && !rows.length ? <li className="px-5 py-6 text-[14px]">لم نجد جهات مناسبة لهذا العنصر في المدينة المختارة. جرّب وصفًا أوضح أو مدينة أخرى.</li> : null}
             {rows.slice(0, shown).map((r) => {
@@ -424,7 +424,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         <form role="search" onSubmit={search} className="flex items-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-surface)] py-2 ps-4 pe-2">
           <Icon name="search" size={22} className="text-[var(--color-icon-secondary)]" />
           <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "مثال: أبيع أجهزة كمبيوتر" : "مثال: أشتري أجهزة كمبيوتر"}
+          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "مثال: مواد سباكة أو أجهزة كمبيوتر" : "مثال: أشتري أجهزة كمبيوتر"}
             className="min-w-0 flex-1 bg-transparent text-[18px] leading-[30px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
           {citySelect('w-[170px] text-[16px]')}
           <Button type="submit" variant="Primary" size="M" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="جارٍ البحث…">ابحث</Button>
