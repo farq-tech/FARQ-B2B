@@ -1,0 +1,13 @@
+*
+!server.py
+!index.html
+!requirements.txt
+!Dockerfile
+!railway.json
+!data/
+!data/targets.parquet
+!data/holder_rfq.json
+
+!trial_search.py
+
+!contact_lookup.py

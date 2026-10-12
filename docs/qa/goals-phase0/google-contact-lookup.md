@@ -9,3 +9,5 @@
 أربعة اختبارات منفصلة ناجحة: تطابق صحيح، رفض اسم مختلف، رفض فرع بعيد، رفض مصدر غير Google. Python compile وTypeScript والبناء ناجحة، lint دون أخطاء. الاختبارات تستخدم ردودًا مصطنعة معزولة؛ لم يختبر اتصال Google أو استرجاع رقم حقيقي. لا اعتماد جاهزية الجلب قبل اختبار فعلي بالمفتاح.
 
 وثائق API: https://developers.google.com/maps/documentation/places/web-service/text-search
+
+النشر الأول فشل ModuleNotFoundError بسبب COPY وقائمة استثناءات الرفع اللذين لم يشملا الملف الجديد. أُصلحت Dockerfile و.railwayignore وإعادة النشر، ويجب تأكيد SUCCESS قبل إعلان اكتمالها.
