@@ -1,20 +1,28 @@
 {
   "path": "/Users/m4pro/farq-targeting-b2b-release",
-  "deployment": "6d2b0a09-a674-40d1-a40a-fbfaca8c7ce3",
-  "previous": "7d58cb2d-b09f-4ef0-b248-a8c8799c0cb4",
+  "deployment": "7efdedc3-5b5e-45c4-8da4-5a3760e14dd9",
+  "previous": "e5b94a6d-29a6-492c-821f-2c62b33a557b",
   "changes": [
-    "Known purchase families retain deterministic supplier roles",
-    "AI-extended purchase requires seller evidence",
-    "Chair search uses furniture/medical supply categories",
-    "Reject coordinate reference names",
-    "Describe activity as inference, never confirmed product availability"
+    "All ranked matches paginated without ten-result cap",
+    "Heuristic name/activity match confidence explicitly distinguished from stock/demand",
+    "Category/subcategory/name/entity/registered-brand-location/contact/spatial filters before pagination",
+    "Authenticated MVT XYZ tiles aggregate all located matches and catalog points, no per-tile top-N cap",
+    "Read-only full-catalog map queries, city or all-KSA scope",
+    "Opaque query contexts expire in 30 minutes; exact profile access is query scoped",
+    "Coarser low-zoom grid reduces marker crowding while conserving every point in counts"
   ],
-  "tests": "4 role regression tests passed; real local directory queried",
+  "tests": "9 Python regression tests passed; real-directory MVT count conservation, pagination, filters, context reuse, and authenticated local HTTP verified",
   "sha256": {
-    "server.py": "8b476d7e0cea2bf323a46edb25d190d08f61693111c90cc3f85a03627f061633",
-    "trial_search.py": "76c8c1195a0984a0df4543ebca6c9b47f5bf45bc30ce4520dc16ca61c8b2dab3",
+    "server.py": "16095f7816fde5b757f259ca8a54b96b68961fb2d3f48dd576406417fc3793d9",
+    "trial_search.py": "94540fbb4b8d9c0825059509844df0f3eb9a1804d98ef7a830cbae49ffb4b5ed",
+    "directory_tiles.py": "d903467888e188682accf53b106ba0ef5ac0924a9895e00354c9e2d74e504e3e",
     "contact_lookup.py": "4a60c2223fe5c07083f554833ee3e00df14975405955b6d6ec0f88ecf13ce840",
-    "buyer_review.py": "bee5a9f2a02efd21246320ab2e98c3ba265f928aee0c99cf24ab5130f3926961",
-    "Dockerfile": "975f4329e7bb740c55e38a819c285d63777c510595522127c343ac9eca101832"
-  }
+    "buyer_review.py": "e647d473ff3ff4bc6d2c7f1ec756d890dd42982533d40115d00837ef350208a9",
+    "Dockerfile": "4cd1622f0ed94e520b1c1c989e4540e9783e2deadf5ee01c612459619260b1b7",
+    "requirements.txt": "2d42c5c1db6062d1bc2fa4e69fd449d46d8ed5aca14f35465d7f54335bf695b3",
+    "tests/test_supplier_roles.py": "6169d0e8cdbc43b61e2950f06001450984360321e2989ab38fe032df5b131d12",
+    "tests/test_directory_tiles.py": "f42c007ddec444f0592d7333cddc1815b869ecadf67a33f8d0acea12dd9fc3ac"
+  },
+  "source_archive": "targeting-vector-tiles-source.tar.gz",
+  "archive_sha256": "9c15f37d6ea6827e9a6279793d696860a5b708dd212f720659608b73fbbfc3d3"
 }
