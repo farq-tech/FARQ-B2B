@@ -1,3 +1,4 @@
+import re
 # -*- coding: utf-8 -*-
 """Serve the public landing and account-login app; proxy Farq with each user's
 Authorization header. Farq enforces API permissions. Targeting uses a server
@@ -46,7 +47,7 @@ def public_files():
 TARGETING = os.environ.get('TARGETING_ORIGIN', 'https://farq-targeting-production-4687.up.railway.app').rstrip('/')
 TARGETING_PW = os.environ.get('TARGETING_PASSWORD', '')
 TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
-T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('GET', '/cities'), ('POST', '/search')}
+T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('GET', '/cities'), ('POST', '/search'), ('GET', '/facets'), ('POST', '/map-query'), ('POST', '/map-profile')}
 T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
 T_SEND = {('POST', '/send-farq')}
 
@@ -85,18 +86,20 @@ class H(BaseHTTPRequestHandler):
             self.send_header(k, v)
         self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
     def _targeting(self):
-        path = urllib.parse.urlparse(self.path).path[len('/_targeting'):] or '/'
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path[len('/_targeting'):] or '/'
+        tile = self.command == 'GET' and re.fullmatch(r'/tiles/[a-f0-9]{32}/[0-9]{1,2}/[0-9]{1,7}/[0-9]{1,7}\.pbf',path)
         key = (self.command, path)
         if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
-        if key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
+        if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
-        req = urllib.request.Request(TARGETING + path, data=body, method=self.command, headers={'content-type': 'application/json'})
+        req = urllib.request.Request(TARGETING + path + (("?"+parsed.query) if parsed.query else ""), data=body, method=self.command, headers={'content-type': 'application/json'})
         if TARGETING_PW: req.add_header('Cookie', 'ft_auth=' + hashlib.sha256(TARGETING_PW.encode()).hexdigest()[:32])
         try:
-            with urllib.request.urlopen(req, timeout=120) as r: status, data = r.status, r.read()
-        except urllib.error.HTTPError as e: status, data = e.code, e.read()
+            with urllib.request.urlopen(req, timeout=120) as r: status, data, ctype = r.status, r.read(), r.headers.get("Content-Type","application/json")
+        except urllib.error.HTTPError as e: status, data, ctype = e.code, e.read(), "application/json"
         except Exception as e: return self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json')
-        self._send(status, data, 'application/json; charset=utf-8')
+        self._send(status, data, ctype)
     def _origin(self): return SITE_URL or ('https://' + (self.headers.get('Host') or 'localhost'))
     def _file(self, f):
         ctype = mimetypes.guess_type(f)[0] or 'application/octet-stream'

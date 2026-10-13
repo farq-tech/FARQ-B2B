@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { farqSession } from '../../api/farqSession'
 import { waNumber, type TargetRow } from '../../api/targetingClient'
 
 /*
@@ -40,29 +41,32 @@ const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCol
   return { type: 'FeatureCollection', features: ring.length ? [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }] : [] }
 }
 
-export default function MapboxMap({ rows, selected, focusedKey, onToggle, onViewportChange, topInset = 72, bottomInset = 48 }: { rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; onViewportChange?: (bounds: [number, number, number, number]) => void; topInset?: number; bottomInset?: number; legend?: boolean }) {
+export default function MapboxMap({ rows, selected, focusedKey, onToggle, onViewportChange, tileQuery, onTileClick, onTileRefresh, topInset = 72, bottomInset = 48 }: { onTileRefresh?:()=>void; tileQuery?: string; onTileClick?: (key:string)=>void; rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; onViewportChange?: (bounds: [number, number, number, number]) => void; topInset?: number; bottomInset?: number; legend?: boolean }) {
+  const [tileError,setTileError]=useState(false)
   const [loadError, setLoadError] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const ready = useRef(false)
-  const latest = useRef({ rows, selected, onToggle, onViewportChange, focusedKey })
-  useEffect(() => { latest.current = { rows, selected, onToggle, onViewportChange, focusedKey } })
+  const latest = useRef({ rows, selected, onToggle, onViewportChange, focusedKey, tileQuery, onTileClick })
+  useEffect(() => { latest.current = { rows, selected, onToggle, onViewportChange, focusedKey, tileQuery, onTileClick } })
 
   useEffect(() => {
     if (!box.current) return
     mapboxgl.accessToken = MAPBOX_TOKEN
     if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') mapboxgl.setRTLTextPlugin(RTL_PLUGIN, null, true)
-    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar' })
+    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar', transformRequest: url => { const token=farqSession.getAccessToken(); return url.startsWith(window.location.origin+'/_targeting/tiles/') && token ? {url,headers:{Authorization:`Bearer ${token}`}} : {url} } })
     m.on('moveend', e => { if (!e.originalEvent) return; const b = m.getBounds(); if (b) latest.current.onViewportChange?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]) })
     m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left')
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left')
     map.current = m
     if (import.meta.env.DEV) (window as unknown as { __mb?: mapboxgl.Map }).__mb = m
-    m.on('error', () => { if (!ready.current) setLoadError(true) })
+    m.on('error', e => { if (!ready.current) setLoadError(true);else if((e as unknown as {sourceId?:string}).sourceId==='directory-tiles'||e.error?.message?.includes('/_targeting/tiles/'))setTileError(true) })
     m.on('load', () => {
       setLoadError(false)
       const wa = tok('--brand-accent'), em = tok('--brand-action-light'), none = tok('--brand-text-3'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
       const { rows: r0, selected: s0 } = latest.current
+      m.addSource('highlight',{type:'geojson',data:placesOf([],new Set())})
+      m.addLayer({id:'highlight-ring',type:'circle',source:'highlight',paint:{'circle-radius':13,'circle-color':wa,'circle-opacity':0.25,'circle-stroke-color':deep,'circle-stroke-width':3}})
       m.addSource('segment', { type: 'geojson', data: segmentOf(r0, s0) })
       m.addLayer({ id: 'segment-fill', type: 'fill', source: 'segment', paint: { 'fill-color': wa, 'fill-opacity': 0.12 } })
       m.addLayer({ id: 'segment-line', type: 'line', source: 'segment', paint: { 'line-color': wa, 'line-width': 2 } })
@@ -92,7 +96,9 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
       m.on('mouseleave', 'place-hit', () => { m.getCanvas().style.cursor = ''; tip.remove() })
       m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer' })
       m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = '' })
+      m.on('click', e=>{ if(!m.getLayer('directory-hit')) return; const f=m.queryRenderedFeatures(e.point,{layers:['directory-hit']})[0]; if(!f) return; const coordinates=(f.geometry as GeoJSON.Point).coordinates as [number,number]; if(Number(f.properties?.count)>1){m.easeTo({center:coordinates,zoom:Math.min(20,m.getZoom()+2)});latest.current.onViewportChange?.([coordinates[0]-.002,coordinates[1]-.002,coordinates[0]+.002,coordinates[1]+.002]);} else latest.current.onTileClick?.(String(f.properties?.key||'')) })
       ready.current = true
+      syncTiles()
       sync(true)
     })
     const ro = new ResizeObserver(() => m.resize())
@@ -101,11 +107,29 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  function syncTiles() {
+    const m=map.current
+    if (!m || !ready.current) return
+    const query=latest.current.tileQuery
+    const current=m.getSource('directory-tiles') as (mapboxgl.VectorTileSource & {farqQuery?:string}) | undefined
+    if (current?.farqQuery===query) return
+    for (const id of ['directory-count','directory-hit','directory-points']) if(m.getLayer(id)) m.removeLayer(id)
+    if(current) m.removeSource('directory-tiles')
+    for (const id of ['clusters','cluster-count','place-hit','place']) if(m.getLayer(id)) m.setLayoutProperty(id,'visibility',query?'none':'visible')
+    if(!query) return
+    m.addSource('directory-tiles',{type:'vector',tiles:[`${window.location.origin}/_targeting/tiles/${query}/{z}/{x}/{y}.pbf`],minzoom:0,maxzoom:20})
+    ;(m.getSource('directory-tiles') as mapboxgl.VectorTileSource & {farqQuery?:string}).farqQuery=query
+    m.addLayer({id:'directory-points',type:'circle',source:'directory-tiles','source-layer':'businesses',paint:{'circle-color':tok('--brand-action'),'circle-radius':['case',['>', ['get','count'],1],18,7],'circle-stroke-color':tok('--brand-accent'),'circle-stroke-width':2}})
+    m.addLayer({id:'directory-hit',type:'circle',source:'directory-tiles','source-layer':'businesses',paint:{'circle-radius':24,'circle-opacity':0}})
+    m.addLayer({id:'directory-count',type:'symbol',source:'directory-tiles','source-layer':'businesses',filter:['>', ['get','count'],1],layout:{'text-field':['to-string',['get','count']],'text-size':12},paint:{'text-color':tok('--brand-on-action')}})
+  }
+  useEffect(()=>{setTileError(false);syncTiles();sync(true)},[tileQuery]) // eslint-disable-line react-hooks/exhaustive-deps
   function sync(fit: boolean) {
     const m = map.current
     if (!m || !ready.current) return
     const { rows: r, selected: s } = latest.current
     const highlight = new Set(s); if (latest.current.focusedKey) highlight.add(latest.current.focusedKey)
+    ;(m.getSource('highlight') as mapboxgl.GeoJSONSource | undefined)?.setData(placesOf(r.filter(row=>highlight.has(row.poi_key)),highlight))
     ;(m.getSource('places') as mapboxgl.GeoJSONSource | undefined)?.setData(placesOf(r, highlight))
     ;(m.getSource('segment') as mapboxgl.GeoJSONSource | undefined)?.setData(segmentOf(r, s))
     if (!fit) return
@@ -117,7 +141,7 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     m.fitBounds([[q(lons, cut), q(lats, cut)], [q(lons, 1 - cut), q(lats, 1 - cut)]], { padding: { top: topInset, bottom: bottomInset, left: 48, right: 48 }, maxZoom: 14, duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 400 })
   }
 
-  useEffect(() => { sync(true) }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { sync(!tileQuery) }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     sync(false)
     const target = rows.find(row => row.poi_key === focusedKey)
@@ -126,5 +150,5 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
   }, [selected, focusedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // mapbox-gl.css sets .mapboxgl-map { position: relative }, so the map sits inside a positioned wrapper
-  return <div className="absolute inset-0" role="region" aria-label="خريطة الجهات"><div ref={box} className="h-full w-full" />{loadError && <p role="alert" className="farq-map-error">تعذّر تحميل الخريطة. تقدر تستعرض الجهات وتختارها من القائمة.</p>}</div>
+  return <div className="absolute inset-0" role="region" aria-label="خريطة الجهات"><div ref={box} className="h-full w-full" />{tileError && <p role="alert" className="farq-map-error">تعذّر تحميل طبقة النقاط. <button type="button" onClick={onTileRefresh}>تحديث الطبقة</button></p>}{loadError && <p role="alert" className="farq-map-error">تعذّر تحميل الخريطة. تقدر تستعرض الجهات وتختارها من القائمة.</p>}</div>
 }

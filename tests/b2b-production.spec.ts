@@ -9,6 +9,7 @@ async function setup(page:Page) {
   })
   await page.route('**/_targeting/**',async route => {
     const path=new URL(route.request().url()).pathname
+    if(path.endsWith('/facets')) return route.fulfill({json:{categories:[],size_available:false}})
     if(path.endsWith('/cities')) return route.fulfill({json:[{en:'Riyadh',ar:'الرياض',n:100},{en:'Jeddah',ar:'جدة',n:100}]})
     if(path.endsWith('/search')) { const body=route.request().postDataJSON(); return route.fulfill({json:{total:2,rows:body.q==='لا نتائج'?[]:[company('1','شركة الاختبار للأثاث'),company('2','مؤسسة الاختبار للتجهيزات')],parsed:{keywords:[body.q]},with_whatsapp:2,with_email:0,by_region:[]}}) }
     writes.push(path); return route.fulfill({status:403,json:{error:'QA_BLOCKED'}})
@@ -154,4 +155,36 @@ test('purchase sends only selected company after explicit consent and paid Whats
   await expect(page.getByText('تم الإرسال لـ 1 من 1')).toBeVisible()
   expect(requests.filter(r=>r.path.endsWith('/dispatch'))).toHaveLength(1)
   expect(requests.find(r=>r.path.endsWith('/dispatch'))!.body.whatsapp_paid).toBe(true)
+})
+
+for (const width of [390,1440]) test(`تحميل كل الصفحات والفلاتر وطبقة كل النقاط (${width})`,async({page})=>{
+  await page.setViewportSize({width,height:900});await setup(page)
+  const calls:any[]=[]
+  await page.route('**/_targeting/**',async route=>{
+    const path=new URL(route.request().url()).pathname
+    if(path.endsWith('/cities')) return route.fulfill({json:[{en:'Riyadh',ar:'الرياض',n:100}]})
+    if(path.endsWith('/facets'))return route.fulfill({json:{categories:[{value:'Shopping',label:'تجارة',count:65,subcategories:[{value:'Tiles',label:'بورسلان',count:65}]}],size_available:false}})
+    if(path.endsWith('/search')) {
+      const b=route.request().postDataJSON();calls.push(b)
+      const count=b.filters?.name_only?7:65;const offset=b.offset||0
+      return route.fulfill({json:{total:count,has_more:offset+30<count,next_offset:offset+30<count?offset+30:null,rows:Array.from({length:Math.min(30,count-offset)},(_,i)=>({...company(String(offset+i+1),`شركة بورسلان ${offset+i+1}`),match_confidence:{score:85,basis:'دليل النشاط وليس توفر المنتج',method:'activity_evidence_heuristic_not_probability'},keyword_name_match:true})),parsed:{},with_whatsapp:count,with_email:0,by_region:[]}})
+    }
+    if(path.endsWith('/map-query')){calls.push(route.request().postDataJSON());return route.fulfill({json:{total:1500,located_total:1400,map_query:'a'.repeat(32),rows:[],parsed:{}}})}
+    return route.fulfill({status:403,json:{error:'QA_BLOCKED'}})
+  })
+  await page.goto('/targeting');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
+  await page.getByLabel('البحث',{exact:true}).fill('بورسلان');await page.getByRole('button',{name:'بحث باسم الشركة',exact:true}).click()
+  await expect(page.locator('.farq-results article')).toHaveCount(30)
+  await page.getByRole('button',{name:'تحميل جهات أخرى'}).click();await expect(page.locator('.farq-results article')).toHaveCount(60)
+  await page.getByRole('button',{name:'تحميل جهات أخرى'}).click();await expect(page.locator('.farq-results article')).toHaveCount(65)
+  await expect(page.getByRole('button',{name:'تحميل جهات أخرى'})).toHaveCount(0)
+  expect(calls.filter(c=>c.objective).map(c=>c.offset)).toEqual([0,30,60])
+  await page.getByText('التصنيفات وفلاتر الجهات',{exact:true}).click()
+  await page.getByLabel('التصنيف الرئيسي',{exact:true}).selectOption('Shopping');await page.getByLabel('التصنيف الفرعي',{exact:true}).selectOption('Tiles');await page.getByLabel('نوع المنشأة',{exact:true}).selectOption('company')
+  await page.getByLabel('الأسماء التي تحتوي البحث فقط').check();await page.getByLabel('كلمة البحث في الاسم أولًا').check()
+  await page.getByRole('button',{name:'تطبيق الفلاتر',exact:true}).click();await expect(page.locator('.farq-results article')).toHaveCount(7)
+  expect(calls.at(-1).filters).toMatchObject({category:'Shopping',subcategory:'Tiles',entity_type:'company',name_only:true,sort:'name_first'})
+  await page.getByRole('button',{name:'كل نقاط السجل',exact:true}).click();await expect(page.getByText(/١٬٥٠٠ جهة وفق الفلاتر/)).toBeVisible()
+  expect(calls.at(-1).filters).toMatchObject({category:'Shopping',subcategory:'Tiles',entity_type:'company'})
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true)
 })

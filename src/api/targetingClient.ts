@@ -18,11 +18,17 @@ import { farqSession } from './farqSession'
  */
 
 export type TargetRow = {
+  category_main?: string
+  subcategories?: string[]
+  entity_type?: string
+  registered_location_count?: number
+  keyword_name_match?: boolean
   phone_source?: string
   phone_source_name?: string
   phone_lookup?: string
   target_role?: "buyer" | "seller"
   reason?: string
+  match_confidence?: { score: number; basis: string; method: string }
   poi_key: string
   name_ar: string | null
   name_en: string | null
@@ -52,7 +58,12 @@ export type TargetParse = { keywords?: string[]; category_hints?: string[]; sell
 export type TargetSearch = {
   contact_enrichment?: "enabled" | "not_configured"
   parsed: TargetParse
+  located_total?: number
+  map_query?: string
   total: number
+  has_more?: boolean
+  next_offset?: number | null
+  offset?: number
   product_total?: number
   ai_checked?: number
   ai_likely?: number
@@ -101,7 +112,12 @@ export const submitTemplate = (t: { name: string; language: string; category: st
 
 export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
-export const searchTargets = (q: string, city: string, limit = 3000, objective: 'purchase' | 'marketing' | 'name' = 'purchase') => call<TargetSearch>('POST', '/search', { q, city, limit, ...(objective === 'name' ? {} : { objective }), only_sendable: false })
+export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]}
+export type DirectoryFacets = {categories:{value:string;label:string;count:number;subcategories:{value:string;label:string;count:number}[]}[]; size_available:boolean}
+export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
+export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
+export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
+export const searchTargets = (q: string, city: string, limit = 30, objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase', offset = 0, filters:SearchFilters = {}) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false })
 export type City = { en: string; ar: string | null; n: number }
 export const listCities = () => call<City[]>('GET', '/cities')
 
