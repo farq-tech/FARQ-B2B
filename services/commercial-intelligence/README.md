@@ -57,3 +57,9 @@ Golden directory read-only expansion: set `FARQ_GOLDEN_DIRECTORY` to the origina
 Response cache: actor-scoped, derived-input mtime/size invalidation, 30-second TTL, maximum 100 entries. Cold queries and warm cache hits are reported separately; the cache is not evidence of faster uncached retrieval. First local request remains around 4.4 seconds in the current measurement.
 
 Delivery: `deliver_pragmatic.py --root /absolute/output` exports recommendations with evidence, a randomized blinded review CSV and a separate system key. Human quality remains pending. Ranking is experimental and does not measure actual consumption or demand.
+
+## Riyadh specialty coverage
+
+`riyadh_coverage.py --db DERIVED_DB --node NODE --source EXISTING_CPO_API --index DERIVED_GOLDEN_INDEX --geo RECOVERED_GEO_JSON --output NEW_OUTPUT_DIR` exercises 14 product/service families in both directions through the shared core. Inputs are read-only and size/mtime checked before and after. Top lists require a recorded Riyadh city and contain at most ten candidates; no padding. Missing city sources remain separate. It writes a detailed Arabic report, ranked evidence CSV, source-conflict exclusions, JSON receipt, blinded review packet and separate rank key. No provider/model requests, paid enrichment or messages are invoked.
+
+Activity conflicts are conservatively quarantined during retrieval, without correcting the source. These rules can abstain from legitimate diversified firms and do not fix every bad category. Named activity, product-level selling proof, current demand and independent validation remain different dimensions. Results are experimental rankings, never measured consumption or actual willingness to buy.

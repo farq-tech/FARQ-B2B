@@ -132,6 +132,22 @@ def buyer_intent(q):
         terms=['restaurant','hotel','catering','grocery','supermarket','مطعم','فندق','تموين','بقاله']
         exclude=['food supplier','food wholesal','foodstuff trading','توريد اغذيه']
         label='جهات قد تشتري مواد غذائية لإعادة البيع أو الاستخدام؛ الطلب المحدد غير مثبت'
+    elif product['key'] in ['water','cleaning','stationery','packaging','kitchen','cables','steel','paint','medical','furniture']:
+        # Existing product interpretation reused; target activity is potential use only.
+        rules={
+            'water':(['grocery','supermarket','restaurant','hotel','بقاله','مطعم','فندق'],['water supplier','مصنع مياه','bottled water supplier']),
+            'cleaning':(['hotel','hospital','cleaning service','restaurant','فندق','مستشفى','خدمات تنظيف'],['cleaning supplies','janitorial supplies','detergent supplier']),
+            'stationery':(['school','university','college','corporate office','مدرسه','جامعه'],['stationery store','office supply store','مكتبه','قرطاسيه']),
+            'packaging':(['restaurant','bakery','food manufacturer','cafe','مطعم','مخبز','مصنع اغذيه'],['packaging company','packaging supply','paper products supplier']),
+            'kitchen':(['restaurant','hotel','catering','bakery','مطعم','فندق','مخبز'],['restaurant equipment','kitchen supply','home appliance']),
+            'cables':(['electrical contractor','construction company','electrician','مقاولات','مقاول كهرباء'],['electrical supply','hardware store','ادوات كهربائيه']),
+            'steel':(['construction company','metal fabricator','steel fabricator','مقاولات','تصنيع معادن'],['steel supplier','metal supplier','hardware store']),
+            'paint':(['painting service','painting contractor','construction company','مقاولات','مقاول دهانات'],['paint store','paint supplier','hardware store']),
+            'medical':(['hospital','medical clinic','dental clinic','مستشفى','عياده','عيادات'],['medical supply store','medical equipment supplier','صيدليه']),
+            'furniture':(['hotel','corporate office','school','فندق','مكتب شركات','مدرسه'],['furniture store','furniture manufacturer','اثاث','مفروشات']),
+        }
+        terms,exclude=rules[product['key']]
+        label='نشاط قد يستخدم '+product['label']+'؛ لا طلب شراء حالي مثبت ولا مواصفات أو كميات مؤكدة'
     elif product['key']=='chairs':
         terms=['clinic','medical clinic','hospital','عياده','عيادات','مستشفى','مستشفيات']
         exclude=['furniture store','اثاث','مفروشات','medical supplier','مستلزمات طبيه']
