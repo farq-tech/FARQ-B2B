@@ -29,6 +29,10 @@ BAD_ANCHORS.update({
  'dental-purchase':[('صيدلية المتحدة l فرش أسنان الأطفال','CONSUMER_TOOTHBRUSH_NOT_PROFESSIONAL_DENTAL_SUPPLY'),('صيدلية المتحدة l معجون أسنان الأطفال','CONSUMER_TOOTHPASTE_NOT_PROFESSIONAL_DENTAL_SUPPLY')],
  'uniform-maker':[('uniformsa | مصادر ومحلات الزي الموحد بالسعودية','DIRECTORY_NOT_UNIFORM_FACTORY')],
 })
+for key in ['software-purchase','software-partnership','software-restaurant','accounting-saas']:
+ BAD_ANCHORS[key]=BAD_ANCHORS.get(key,[])+[('محاصيل تركيا للفواكه والخضروات','FOOD_RETAIL_NOT_SOFTWARE_SUPPLY'),('رباط المونسية','HOUSING_NOT_SOFTWARE_SUPPLY')]
+BAD_ANCHORS['plumbing-purchase'] += [('كدن لتأجير السيارات','CAR_RENTAL_NOT_PLUMBING_SUPPLY'),('سهام لهدايا المواليد والمناسبات','BABY_GIFTS_NOT_PLUMBING_SUPPLY')]
+BAD_ANCHORS['textiles-purchase'] += [('شركه البحر الاحمر للتأمين','INSURANCE_NOT_UNIFORM_SUPPLY')]
 GOOD_ANCHORS={
  'coffee-purchase':['محمص الشنواني','bnfsjy.com'],
  'computers-purchase':['البداية الرقمية للحاسب الالي','واي تيك'],

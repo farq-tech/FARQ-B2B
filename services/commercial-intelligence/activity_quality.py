@@ -7,8 +7,8 @@ from functools import lru_cache
 from identity import normalize
 SECTORS={
  'school_transport':r'school transport|نقل مدرسي|لنقل الجامع|لنقل المدرسي',
- 'food_service':r'restaurant|cafe|coffee shop|cafeteria|مطعم|مطاعم|مقه[ىي]|كافتيريا',
- 'software':r'software|برمج|تطوير برامج',
+ 'food_service':r'restaurant|cafe|coffee shop|cafeteria|bakery|catering|pastry shop|confectionery|مطعم|مطاعم|مقه[ىي]|كافتيريا|مخبز|معجنات|حلويات',
+ 'software':r'software|برمج|تطوير برامج|automation of business processes',
  'computer_trade':r'computer (?:store|wholesal|supplier)|متجر (?:كمبيوتر|حاسب)|اجهزه كمبيوتر|بيع.{0,15}كمبيوتر',
  'computer_repair':r'computer repair|صيانه.{0,12}(?:كمبيوتر|حاسب)|اصلاح.{0,12}كمبيوتر',
  'accounting':r'accountant|accounting firm|bookkeeping|محاسب|مسك دفاتر',
@@ -17,36 +17,49 @@ SECTORS={
  'dental':r'dental|dentist|اسنان',
  'medical_trade':r'medical (?:supply|equipment)|مستلزمات طبي|معدات طبي',
  'pharmacy':r'pharmac|drug store|صيدلي',
- 'plumbing_trade':r'plumbing suppl|sanitary|ادوات صحي|ادوات سباك|مواد سباك',
+ 'plumbing_trade':r'plumbing suppl|pipe supplier|pipe_supplier|sanitary|ادوات صحي|ادوات سباك|مواد سباك',
  'plumbing_service':r'plumber|plumbing contractor|سباك|صيان.{0,12}(?:سباك|مبان)|تشطيبات',
  'construction':r'construction|contractor|contracting|مقاول|انشاءات',
  'engineering':r'engineering consultant|استشارات هندسي|للاستشارات الهندسي',
- 'auto_service':r'auto repair|car repair|car service|automotive services|tire repair|ورشه.{0,35}سيارات|اصلاح.{0,15}سيارات|صيانه سيارات|ميكانيكا سيارات|خدمات السيارات|تلميع السيارات|زينة السيارات',
- 'auto_trade':r'auto parts|car parts|قطع غيار سيارات',
+ 'auto_service':r'auto repair|car repair|car service|car wash|tyre workshop|automotive services|tire repair|ورشه.{0,35}سيارات|اصلاح.{0,15}سيارات|صيانه سيارات|ميكانيكا سيارات|خدمات السيارات|تلميع السيارات|زينة السيارات',
+ 'auto_trade':r'auto parts|car parts|car batter|قطع غيار سيارات',
  'logistics':r'logistics|freight|shipping company|لوجست|للشحن|خدمات شحن',
  'clothing_retail':r'clothing store|clothes shop|متجر ملابس|ملابس نسائي|ملابس رجالي',
  'uniforms':r'uniform|زي موحد|ملابس عمل',
  'textile':r'textile|fabric store|اقمشه|نسيج',
- 'education':r'school|university|college|مدرسه|جامع[ه]|كليه|research institute|مركز ابحاث',
+ 'education':r'education|school|university|college|مدرسه|جامع[ه]|كليه|research institute|مركز ابحاث',
  'training':r'training|تدريب',
  'coffee_trade':r'coffee (?:supplier|wholesaler|roaster)|roaster|محمص|حبوب (?:القهوه|البن)',
  'agriculture':r'farm|agricultur|fertilizer|nursery|زراع|مزرعه|اسمده|مشاتل',
  'hotel':r'hotel|فندق|فنادق|استراحه|شاليهات',
  'office':r'corporate|الشركات|مكتب الشركات|business (?:center|office)|مكتب شركات|شركه',
- 'retail_food':r'grocery|supermarket|foodstuff|بقال|تموين|اغذي',
+ 'retail_food':r'grocery|supermarket|foodstuff|vegetables|fruits|بقال|تموين|اغذي|فواكه|خضروات|خضراوات',
+ 'auto_rental':r'car rental|vehicle rental|تاجير (?:ال)?سيارات|تاجير مركبات',
+ 'gifts':r'gift shop|gifts|هدايا|لهدايا',
+ 'residential':r'residential building|apartment building|مبني سكني|عقارات سكنيه',
+ 'warehouse':r'warehous|storage service|خدمات تخزين|مستودع',
+ 'fuel':r'petrol station|gas station|fuel station|محطه وقود|محطات وقود',
+ 'flowers':r'flower shop|florist|زهور|ورد طبيعي',
+ 'building_materials':r'building materials|construction material|مواد بناء',
+ 'equipment_rental':r'(?:tools|equipment) rental|تاجير معدات',
+ 'footwear':r'shoe store|footwear|احذيه',
+ 'ceramics':r'ceramic|سيراميك|منتجات خزفيه',
+ 'camera_trade':r'camera store|camera shop|متجر كاميرات',
+ 'hardware':r'hardware store|متجر ادوات|عدد يدويه',
+ 'manufacturing_unspecified':r'^manufacturer$|^manufacturing$|^مصنع$|\[.مصنع.\]',
  'marketing':r'marketing agency|advertising|تسويق|دعايه|اعلان',
- 'hvac':r'hvac|air conditioning|refrigeration|تكييف|مكيف|تبريد',
+ 'hvac':r'hvac|air conditioning|air conditioner|climate equipment|refrigeration|تكييف|مكيف|تبريد',
  'printing':r'print shop|printing|مطبعه|مطابع|طباعه|خدمات الطالب',
  'cleaning':r'cleaning|janitorial|detergent|نظاف|منظفات',
  'packaging':r'packaging|paper products|تغليف|عبوات|اكواب',
  'furniture':r'furniture|اثاث|مفروشات',
  'water':r'bottled water|مياه شرب|مصنع مياه',
- 'electrical':r'electrical|كهربا|كيبل|كابل',
+ 'electrical':r'electrical|lighting (?:equipment|store)|كهربا|كيبل|كابل',
  'steel':r'steel|metal supplier|حديد|معادن',
  'paint':r'paint|دهانات|بويه',
  'stationery':r'stationery|قرطاسي',
  'hr':r'recruitment|staffing|employment agency|موارد بشري|توظيف|استقدام',
- 'beauty':r'beauty|spa|barber|صالون|حلاق|عطور|الجمال والعنايه',
+ 'beauty':r'beauty|spa|barber|perfume|hair styling|صالون|حلاق|عطور|الجمال والعنايه',
  'real_estate':r'real estate|عقار',
  'nonprofit':r'non profit|charity|جمعيه|خيريه',
  'government':r'government office|جهات حكوميه|وزاره',
@@ -59,7 +72,7 @@ SECTORS={
  'security':r'security|حراسه|امن منشات',
  'waste':r'waste|recycl|نفايات|تدوير',
  'general_retail':r'shopping|retail|التسوق|متجر عام',
- 'home_goods':r'home goods|home builder|matress|mattress|مستلزمات منزليه|مراتب|ستائر|اقمشه الكنب',
+ 'home_goods':r'home goods|household goods|احتياجات المنزل|مستلزمات المنزل|home builder|matress|mattress|مستلزمات منزليه|مراتب|ستائر|اقمشه الكنب',
  'industrial':r'industrial manufacturer|industrial equipment|معدات صناعيه|تصنيع صناعي',
  'doors_windows':r'door shop|window supplier|ابواب|نوافذ',
  'tailoring':r'tailor|خياط',
@@ -78,6 +91,9 @@ SECTORS={
 COMPILED={k:re.compile(v) for k,v in SECTORS.items()}
 # Explicit contradictions, not blanket exclusion of multi-activity businesses.
 CONFLICTS={'food_service':{'school_transport','auto_service','computer_repair','engineering','pharmacy','logistics'},'education':{'food_service','beauty','auto_service','engineering'},'software':{'food_service','beauty','pharmacy','auto_service','stationery','printing','financial','nonprofit'},'computer_repair':{'food_service','financial','medical_care','beauty'},'computer_trade':{'food_service','beauty','pharmacy','hotel'},'accounting':{'engineering','food_service','auto_service','leisure'},'logistics':{'auto_service','beauty','food_service','medical_care'},'legal':{'engineering','food_service','beauty','hotel','leisure','stationery','printing','hvac'},'medical_trade':{'food_service','engineering','beauty','real_estate'},'uniforms':{'beauty','pharmacy','auto_service','home_goods'},'training':{'beauty','auto_service','leisure','watch_repair'},'agriculture':{'parking'},'security':{'medical_care','computer_trade','software','food_service'},'telecom':{'sports','medical_care','food_service'},'tourism':{'furniture','home_goods'},'insurance':{'food_service','auto_service'}}
+CONFLICTS['software'].update({'retail_food','hotel','residential','gifts','auto_rental'})
+CONFLICTS['plumbing_trade']={'gifts','auto_rental','insurance','food_service','beauty','residential'}
+CONFLICTS['uniforms'].update({'insurance','auto_rental','financial'})
 ROLE_PATTERNS={
  'regulator':r'regulatory|regulator|هي(?:ئ|ي)ه.{0,25}(?:غذاء|دواء|تنظيم|رقابه|مواصفات)|وزارة|وزاره|sfda|saso',
  'educational_research':r'university|school|college|research institute|جامعه|مدرسه|كليه|مركز ابحاث',
@@ -113,7 +129,7 @@ def assessment(name,activity,description='',source='GOLDEN_SOURCE_ACTIVITY'):
  return {'commercial_name':name,'primary_activity':scores[0]['activity'] if scores and scores[0]['relative_confidence']>=.5 else None,'secondary_activities':[s['activity'] for s in scores[1:] if s['relative_confidence']>=.5],'original_source_categories':[{'source':source,'value':activity}],'activity_candidates':scores,'conflicts':conflicts,'institutional_role_candidates':roles,'confidence_method':'RELATIVE_HEURISTIC_NOT_CALIBRATED','name_alone_is_proof':False}
 
 SERVICE_KEYS={'computer_repair','insurance','tourism','telecom','security_services','waste','accounting','legal','software','marketing_services','logistics','training','hr','printing'}
-KEY_SECTOR={'security_services':'security','telecom':'telecom','insurance':'insurance','tourism':'tourism','computer_repair':'computer_repair','training':'training','agriculture':'agriculture','computers':'computer_trade','coffee':'coffee_trade','accounting':'accounting','software':'software','legal':'legal','logistics':'logistics','medical':'medical_trade','dental':'dental','textiles':'uniforms'}
+KEY_SECTOR={'security_services':'security','telecom':'telecom','insurance':'insurance','tourism':'tourism','computer_repair':'computer_repair','training':'training','agriculture':'agriculture','computers':'computer_trade','coffee':'coffee_trade','accounting':'accounting','software':'software','legal':'legal','logistics':'logistics','medical':'medical_trade','dental':'dental','textiles':'uniforms','plumbing':'plumbing_trade'}
 
 def eligibility(text,key,direction,name,activity='',description='',independent_offer=False):
  q=normalize(text);n=normalize(name);a=normalize(activity);data=assessment(name,activity,description)

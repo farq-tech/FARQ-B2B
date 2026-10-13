@@ -124,3 +124,32 @@ existing runner requires an explicit single-target cap and a permanent shared SQ
 identity-attempt ledger. Transactional unique claims prevent a second paid attempt per ID,
 including concurrent runs. Maps retries are removed; no source/product proof is inferred
 from search snippets. No Serper key or provider is read/called during this delivery.
+
+## Pragmatic follow-up: branch presentation and locality retrieval
+
+`diversification.py` groups compatible distinctive source names or saved brand aliases
+for display before the ranked window is cut. It preserves provisional source identities,
+all branch evidence/contact scopes, conflicting domains, and unknown locations. Marketing
+shows a brand once; local seller discovery keeps different locations independent. This is
+not a legal merge or proof of chain procurement. Confirmed parent grouping requires an
+explicit verified relation with an evidence reference; no parent relation is invented.
+`commercial_group.branches` and the local review details expose every retained source.
+source_locality_count counts reported locality labels, not branches; known_branch_count
+is null without distinct branch proof. Local seller source IDs remain separate even when
+names and districts coincide.
+
+`city_retrieval_index.py --source <read-only-minimal-index> --output <NEW-owned-index>`
+backs up the current source index unchanged and adds city postings to its existing FTS
+retrieval. Set `FARQ_GOLDEN_INDEX` to that new derivative to use it. The original index
+continues to work without the optional table. Source city keys are not official geography;
+all aliases still pass the existing city filter. Text ranking uses zero city-column weight.
+No source records or contact values are added. Batched annotation reuses bounded caches
+and invalidates on path/size/mtime changes; response caches stay actor scoped.
+
+Rebuild the quality derivative separately using `quality_audit.py`, replay `execution_eval.py
+--extra` against archived baseline 2f6bf2c and current code, then run `quality_comparison.py`
+and `followup_delivery.py --root <owned-output> --previous-quality <read-only-old-quality>`.
+The follow-up exports all classification changes, unresolved identities, conflicts,
+retained branch sources, real before/after cases and independent-review inputs. No external
+providers, original writes or production dispatch are involved. Human validation stays
+pending; activity inference and source contact presence never prove current buying intent.

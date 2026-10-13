@@ -1,14 +1,23 @@
 """Stable source-observation identity overlay; never claims legal merges."""
 import hashlib,json,re,unicodedata
+from functools import lru_cache
 from urllib.parse import urlsplit
 
 def stable_id(kind,*parts):
     return kind+'-'+hashlib.sha256(json.dumps(parts,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()[:32]
 
+_AR_TRANSLATION=str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ى':'ي','ة':'ه'})
+_MARKS=re.compile(r'[\u064b-\u065fـ]');_SPACE=re.compile(r'\s+')
+@lru_cache(maxsize=30000)
+def _short_normalize(text):
+    return _normalize(text)
+def _normalize(text):
+    text=unicodedata.normalize('NFKC',text).lower()
+    text=_MARKS.sub('',text).translate(_AR_TRANSLATION)
+    return _SPACE.sub(' ',text).strip()
 def normalize(value):
-    text=unicodedata.normalize('NFKC',str(value or '')).lower()
-    text=re.sub(r'[\u064b-\u065fـ]','',text).translate(str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ى':'ي','ة':'ه'}))
-    return re.sub(r'\s+',' ',text).strip()
+    text=str(value or '')
+    return _short_normalize(text) if len(text)<=2000 else _normalize(text)
 
 def domain(value):
     try:

@@ -110,3 +110,47 @@ class NewObservedRegressions(unittest.TestCase):
  def test_corrupt_secondary_label_does_not_discard_valid_customer_use(self):
   r=eligibility('خدمات محاسبة','accounting','marketing','شركة اون تايم للخدمات اللوجستية','Corporate office Restaurant')
   self.assertTrue(r['eligible']);self.assertTrue(r['activity_assessment']['conflicts'])
+
+class CommercialDiversificationRegression(unittest.TestCase):
+ def test_brand_once_for_buyers_but_local_sellers_keep_locations_and_contacts(self):
+  from diversification import diversify
+  rows=[{'id':str(i),'entity_id':str(i),'name':name,'city':'الرياض','district':district,'source_ref':str(i),'contact_channels':channels,'activity_assessment':{'primary_activity':'food_service'}} for i,(name,district,channels) in enumerate([('دانكن, مقهى','الملقا',['phone']),('دانكن دونتس','النخيل',[]),('دانكن','الملقا',['email']),('مقهى مختلف','الملقا',[])])]
+  grouped=diversify(rows,'marketing');self.assertEqual(len(grouped),2)
+  g=grouped[0]['commercial_group'];self.assertIsNone(g['known_branch_count']);self.assertEqual(g['source_locality_count'],2);self.assertEqual(len(g['branches']),3);self.assertFalse(g['legal_merge']);self.assertEqual(g['branches'][1]['contact_channels'],[])
+  self.assertEqual(len(diversify(rows,'purchase')),4);self.assertNotIn('commercial_group',rows[0])
+ def test_distinct_hosts_and_generic_names_never_coalesce(self):
+  from diversification import diversify
+  base={'city':'الرياض','district':'الملقا','activity_assessment':{'primary_activity':'food_service'}}
+  rows=[dict(base,id='a',name='مقهى',source_website=''),dict(base,id='b',name='مقهى',source_website=''),dict(base,id='c',name='مطعم المثال',source_website='one.example'),dict(base,id='d',name='مطعم المثال',source_website='two.example')]
+  self.assertEqual(len(diversify(rows,'marketing')),4)
+ def test_actual_mandatory_secondary_source_errors_and_independent_support(self):
+  examples=[('software','محاصيل تركيا للفواكه والخضروات',"Grocery التموينات Software company ['متجر فواكه وخضروات']"),('software','رباط المونسية',"Hotels and Accommodations Software company ['مبنى سكني']"),('plumbing','كدن لتأجير السيارات','Plumbing supply store|Building materials store'),('textiles','شركه البحر الاحمر للتأمين','Uniform store'),('plumbing','سهام لهدايا المواليد والمناسبات','Electrical supply store|Building materials store|Plumbing supply store')]
+  for key,name,category in examples:
+   for direction in ['purchase','availability','partnership']:
+    r=eligibility('طلب منتج',key,direction,name,category);self.assertFalse(r['eligible'],name);self.assertEqual(r['activity_assessment']['original_source_categories'][0]['value'],category)
+   self.assertTrue(eligibility('طلب منتج',key,'purchase',name,category,independent_offer=True)['eligible'],name)
+ def test_new_activity_labels_do_not_turn_into_product_proof(self):
+  for category,expected in [('Warehousing services خدمات تخزين','warehouse'),('Gift shops / home decoration هدايا تذكارية','gifts'),('Tools / Equipment rental','equipment_rental'),('Flower shops زهور','flowers')]:
+   a=assessment('اسم منشأة',category);self.assertEqual(a['primary_activity'],expected);self.assertFalse(a['name_alone_is_proof'])
+  self.assertIsNone(assessment('منشأة مجهولة','19.0')['primary_activity'])
+
+class CityPostingIntegration(unittest.TestCase):
+ def test_same_source_candidates_with_city_index_and_immutable_input(self):
+  import tempfile,sqlite3,os
+  from pathlib import Path
+  from unittest.mock import patch
+  from types import SimpleNamespace
+  from city_retrieval_index import build
+  from golden_directory import candidates
+  with tempfile.TemporaryDirectory() as folder:
+   src=Path(folder)/'original.db';dst=Path(folder)/'derived.db';db=sqlite3.connect(src)
+   db.executescript('CREATE TABLE profiles(poi_key TEXT PRIMARY KEY,name,city,district,activity,website,observed_at,channels_json,lifecycle,company,landmark);CREATE TABLE metadata(key TEXT PRIMARY KEY,value);CREATE VIRTUAL TABLE profile_search USING fts5(poi_key UNINDEXED,text);')
+   for key,city in [('r1','Riyadh'),('r2','الرياض'),('j1','Jeddah')]:
+    db.execute('INSERT INTO profiles VALUES(?,?,?,?,?,?,?,?,?,?,?)',(key,'شركة تطوير برمجيات '+key,city,'حي','Software company',None,'2025-01-01','["phone"]','open','open','false'))
+    db.execute('INSERT INTO profile_search VALUES(?,?)',(key,'شركة تطوير برمجيات Software company'))
+   db.commit();db.close();original=src.read_bytes();build(src,dst)
+   k=SimpleNamespace(city_aliases={'riyadh':'r','الرياض':'r'},city_matches=lambda a,b:a.lower() in ['riyadh','الرياض'] and b.lower() in ['riyadh','الرياض'])
+   results=[]
+   for path in [src,dst]:
+    with patch.dict(os.environ,{'FARQ_GOLDEN_INDEX':str(path),'FARQ_ACTIVITY_QUALITY':''}):results.append({r['source_ref'] for r in candidates(k,'برامج محاسبة','purchase','الرياض',20)})
+   self.assertEqual(results,[{'r1','r2'},{'r1','r2'}]);self.assertEqual(src.read_bytes(),original)

@@ -76,7 +76,12 @@ def candidates(knowledge,text,direction,city,limit):
    clause=' OR '.join('"'+term.replace('"','')+'"' for term in terms)
    has_triage=bool(local.execute("SELECT 1 FROM sqlite_master WHERE name='triage'").fetchone())
    triage_join=" JOIN triage t ON t.poi_key=p.poi_key AND t.inactive=0 AND t.class NOT IN ('GENERAL_NAME','LANDMARK_OR_NONCOMMERCIAL','GEOMETRY_NAME_QUARANTINE')" if has_triage else ''
-   raw=local.execute('SELECT p.* FROM profile_search f JOIN profiles p ON p.poi_key=f.poi_key'+triage_join+' WHERE profile_search MATCH ?'+city_filter+' ORDER BY bm25(profile_search) LIMIT 3000',[clause]+[a.lower() for a in aliases]).fetchall()
+   has_city_postings=aliases and local.execute("SELECT 1 FROM sqlite_master WHERE name='city_profile_search'").fetchone()
+   table='city_profile_search' if has_city_postings else 'profile_search'
+   if has_city_postings:
+    city_terms=sorted({stable_id('CITYPOSTING',normalize(a)) for a in aliases})
+    clause='text:('+clause+') AND city_key:('+' OR '.join('"'+key+'"' for key in city_terms)+')'
+   raw=local.execute('SELECT p.* FROM '+table+' f JOIN profiles p ON p.poi_key=f.poi_key'+triage_join+' WHERE '+table+' MATCH ?'+city_filter+' ORDER BY bm25('+table+',0,1,0) LIMIT 3000',[clause]+[a.lower() for a in aliases]).fetchall()
    data=[(key,name,sourcecity,district,activity,website,date,any(c in json.loads(channels) for c in ['phone','mobile','landline']),'email' in json.loads(channels),lifecycle,company,landmark) for key,name,sourcecity,district,activity,website,date,channels,lifecycle,company,landmark in raw];local.close()
   else:
    import duckdb
@@ -152,7 +157,10 @@ def candidates(knowledge,text,direction,city,limit):
    parts={'product':priority if direction=='marketing' else .4,'specialty':min(.95,.55+.1*specific+.15*agreement),'identity':min(.75,consensus),'geography':.7 if city else 0,'recency':recency,'contact':1 if channels else 0}
    if ambiguous_business_software:parts.update(product=.2,specialty=.3);reason+='؛ برمجة أجهزة الهاتف لا تثبت تقديم أنظمة أعمال'
    pid=stable_id('GOLDEN_SOURCE_PROFILE',key)
-   result.append({'id':pid,'entity_id':pid,'name':name,'city':sourcecity,'district':district,'role':'organization' if role_unresolved else 'buyer' if direction=='marketing' else 'partner' if direction=='partnership' else 'seller','level':'C' if hits and not ambiguous_business_software else 'D','match_status':'SPECIALTY_MATCH' if hits else 'MARKET_CANDIDATE','score':score(parts),'score_components':parts,'verified':False,'status':'SOURCE_SPECIALTY_RECOMMENDATION','evidence_kind':'GOLDEN_SOURCE_ACTIVITY' if hits else 'GOLDEN_SOURCE_NAME','source_ref':str(key),'evidence_excerpt':'الاسم المسجل: '+str(name)+' | النشاط المسجل: '+str(activity),'observed_at':date,'reason':reason,'matched_activity_terms':hits,'contact_channels':channels,'contact_verification':'SOURCE_RECORDED_NOT_LIVE_VERIFIED','availability':'UNKNOWN','delivery_coverage':'UNKNOWN','purchase_intent':'UNKNOWN','partnership_interest':'UNKNOWN','interpretation_basis':'EXPLICIT_TARGET_ACTIVITY' if intent['key']=='explicit_buyer_activity' else 'EXISTING_TARGETING_PRODUCT_USE_RULE','blockers':['PRODUCT_SPECIFIC_RELATION_NOT_PROVEN','LEGAL_ENTITY_UNLINKED'],'profile_type':'ORIGINAL_POI_KEY_SOURCE_PROFILE','activity_assessment':quality['activity_assessment'],'commercial_function':quality['commercial_function'],'usage_priority':priority,'usage_reason':use_reason})
-  result.sort(key=lambda r:(-r['score'],r['id']));return result[:limit]
+   result.append({'id':pid,'entity_id':pid,'name':name,'city':sourcecity,'district':district,'source_website':website,'source_activity':activity,'role':'organization' if role_unresolved else 'buyer' if direction=='marketing' else 'partner' if direction=='partnership' else 'seller','level':'C' if hits and not ambiguous_business_software else 'D','match_status':'SPECIALTY_MATCH' if hits else 'MARKET_CANDIDATE','score':score(parts),'score_components':parts,'verified':False,'status':'SOURCE_SPECIALTY_RECOMMENDATION','evidence_kind':'GOLDEN_SOURCE_ACTIVITY' if hits else 'GOLDEN_SOURCE_NAME','source_ref':str(key),'evidence_excerpt':'الاسم المسجل: '+str(name)+' | النشاط المسجل: '+str(activity),'observed_at':date,'reason':reason,'matched_activity_terms':hits,'contact_channels':channels,'contact_verification':'SOURCE_RECORDED_NOT_LIVE_VERIFIED','availability':'UNKNOWN','delivery_coverage':'UNKNOWN','purchase_intent':'UNKNOWN','partnership_interest':'UNKNOWN','interpretation_basis':'EXPLICIT_TARGET_ACTIVITY' if intent['key']=='explicit_buyer_activity' else 'EXISTING_TARGETING_PRODUCT_USE_RULE','blockers':['PRODUCT_SPECIFIC_RELATION_NOT_PROVEN','LEGAL_ENTITY_UNLINKED'],'profile_type':'ORIGINAL_POI_KEY_SOURCE_PROFILE','activity_assessment':quality['activity_assessment'],'commercial_function':quality['commercial_function'],'usage_priority':priority,'usage_reason':use_reason})
+  result.sort(key=lambda r:(-r['score'],r['id']))
+  from diversification import diversify
+  city_key=lambda value:knowledge.city_aliases.get(normalize(value)) or normalize(value)
+  return diversify(result,direction,city_key)[:limit]
  finally:
   if con:con.close()
