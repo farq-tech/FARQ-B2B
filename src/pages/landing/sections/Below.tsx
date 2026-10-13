@@ -1,7 +1,7 @@
 import { Badge } from '../../../ui/Badge'
 import { PriceCell } from '../../../ui/PriceCell'
 import { Icon } from '../../../ui/Icon'
-import { Logo } from '../../../ui/Logo'
+import Brand from '../../../b2b/Brand'
 import { cx, FOCUS_RING } from '../../../ui/cx'
 import booklet from '../../../assets/spot/booklet.svg'
 import list from '../../../assets/spot/list.svg'
@@ -258,7 +258,7 @@ export function Footer() {
       <Container className="flex flex-col gap-[var(--space-32)] md:gap-[var(--space-40)]">
         <div className="grid gap-[var(--space-32)] md:grid-cols-[1.4fr_1fr_1fr_auto]">
           <div className="flex flex-col gap-[var(--space-12)]">
-            <Logo surface="Inverse" />
+            <Brand />
             <p className={cx(muted, 'max-w-[300px]')}>نبحث أكثر، نقارن صح، ونطلع لك الفرق الحقيقي.</p>
           </div>
           <nav aria-label="المنتج" className="flex flex-col gap-[var(--space-12)]">

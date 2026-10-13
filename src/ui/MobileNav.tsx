@@ -6,7 +6,8 @@ import { Icon, type IconName } from './Icon'
  * centred title. The bell is omitted until notifications exist.
  * Mobile Bottom Nav — Figma (55:551): 72px, active tab = pill bg-primary-subtle.
  */
-export function MobileAppBar({ title, onBack }: { title: string; onBack?: () => void }) {
+export function MobileAppBar({ title, onBack, titleAsText = false }: { title: string; onBack?: () => void; titleAsText?: boolean }) {
+  const Title = titleAsText ? 'p' : 'h1'
   return (
     <header className="sticky top-0 z-20 grid h-14 grid-cols-[40px_1fr_40px] items-center border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2">
       {onBack ? (
@@ -14,7 +15,7 @@ export function MobileAppBar({ title, onBack }: { title: string; onBack?: () => 
           <Icon name="chevron-back" size={24} />
         </button>
       ) : <span />}
-      <h1 className="truncate text-center font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">{title}</h1>
+      <Title className="truncate text-center font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">{title}</Title>
       <span />
     </header>
   )

@@ -1,4 +1,4 @@
-import { webMesh, drawWebExpansion, WEB_INK } from './webMesh'
+import { webMesh, drawWebExpansion } from './webMesh'
 /*
  * «الشبكة الحية» for the landing page — a port of docs/reference/landing-live-network.html (owner, 2026-10-08):
  * the whole page is ONE network with ONE head office and ONE round. A screen-sized fixed canvas (above the section
@@ -26,7 +26,7 @@ type Walker = {
 type Round = { walkers: Walker[]; allHome: number; best: number; end: number; ahmadHome: boolean }
 export type PageStats = { frames: number; avg: number; p95: number; p99: number; max: number; rounds: number; sync: number }
 
-const FONT = 'Tajawal, "Readex Pro", system-ui, sans-serif'
+const FONT = '"ITF Huwiya Arabic", Tajawal, "Readex Pro", system-ui, sans-serif'
 const FONT_NUM = '"Readex Pro", Tajawal, system-ui, sans-serif'
 const TAU = 6.283
 const fmt = (n: number) => n.toLocaleString('en-US') + ' ر.س'
@@ -359,7 +359,7 @@ export class PageNetwork {
     if (this.meshScroll !== SY) {
       const c = this.meshCanvas.getContext('2d')!
       c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, this.VW, VH)
-      c.translate(0, -SY); c.lineWidth = 0.9; c.strokeStyle = WEB_INK.line; c.beginPath()
+      c.translate(0, -SY); c.lineWidth = 0.9; c.strokeStyle = col(this.go, 0.12); c.beginPath()
       for (const e of meshEdges) {
         const a = V[e.a], b = V[e.b]
         if (Math.max(a.y, b.y) < SY || Math.min(a.y, b.y) > SY + VH) continue
@@ -369,7 +369,7 @@ export class PageNetwork {
     }
     ctx.drawImage(this.meshCanvas, 0, SY, this.VW, VH)
     if (!live) return
-    drawWebExpansion(ctx, V, meshEdges, t, WEB_INK.go, WEB_INK.back, SY, SY + VH)
+    drawWebExpansion(ctx, V, meshEdges, t, col(this.go, 0.35), col(this.back, 0.4), SY, SY + VH)
 
   }
   private dots(t: number, live: boolean) {

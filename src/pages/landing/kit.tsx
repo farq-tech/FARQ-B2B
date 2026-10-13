@@ -32,7 +32,7 @@ const LINK_STYLE: Record<LinkStyle, string> = {
   Secondary: 'bg-[var(--color-bg-surface)] text-[var(--brand-text)] border border-[var(--color-border-strong)] hover:bg-[var(--color-bg-surface-2)]',
   GhostOnDark: 'bg-transparent text-[var(--color-text-on-inverse)] border border-[var(--white-a16)] hover:bg-[var(--white-a8)]',
 }
-const LINK_SIZE = { M: 'h-10 px-4 gap-2', L: 'h-12 px-6 gap-2' } as const
+const LINK_SIZE = { M: 'min-h-11 px-4 py-2 gap-2', L: 'min-h-12 px-6 py-3 gap-2' } as const
 
 type LinkButtonProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   variant?: LinkStyle
@@ -49,7 +49,8 @@ export function LinkButton({ variant = 'Primary', size = 'L', icon, fullWidth, e
     <a
       {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : null)}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-[var(--radius-md)] text-[16px] font-medium leading-[26px] transition-[transform,box-shadow,background-color] duration-150 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+        `farq-landing-link farq-landing-link--${variant}` ,
+        'inline-flex max-w-full items-center justify-center text-center rounded-[var(--radius-md)] text-[16px] font-medium leading-[26px] transition-[transform,box-shadow,background-color] duration-150 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
         LINK_SIZE[size],
         LINK_STYLE[variant],
         FOCUS_RING,

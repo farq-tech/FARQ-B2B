@@ -101,7 +101,7 @@ export const submitTemplate = (t: { name: string; language: string; category: st
 
 export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
-export const searchTargets = (q: string, city: string, limit = 3000, objective: "purchase" | "marketing" = "purchase") => call<TargetSearch>('POST', '/search', { q, city, limit, objective, only_sendable: false })
+export const searchTargets = (q: string, city: string, limit = 3000, objective: 'purchase' | 'marketing' | 'name' = 'purchase') => call<TargetSearch>('POST', '/search', { q, city, limit, ...(objective === 'name' ? {} : { objective }), only_sendable: false })
 export type City = { en: string; ar: string | null; n: number }
 export const listCities = () => call<City[]>('GET', '/cities')
 

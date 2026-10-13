@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { waNumber, type TargetRow } from '../../api/targetingClient'
@@ -30,33 +30,37 @@ function hull(ps: [number, number][]) {
 
 const placesOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => ({
   type: 'FeatureCollection',
-  features: rows.filter((r) => r.latitude != null && r.longitude != null).map((r) => ({
+  features: rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).map((r) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [r.longitude!, r.latitude!] },
     properties: { key: r.poi_key, name: r.name_ar || r.name_en || '', ch: waNumber(r) ? 'wa' : r.email ? 'email' : 'none', on: selected.has(r.poi_key) ? 1 : 0 },
   })),
 })
 const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => {
-  const ring = hull(rows.filter((r) => selected.has(r.poi_key) && r.latitude != null && r.longitude != null).map((r) => [r.longitude!, r.latitude!] as [number, number]))
+  const ring = hull(rows.filter((r) => selected.has(r.poi_key) && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).map((r) => [r.longitude!, r.latitude!] as [number, number]))
   return { type: 'FeatureCollection', features: ring.length ? [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }] : [] }
 }
 
-export default function MapboxMap({ rows, selected, onToggle, topInset = 72, bottomInset = 48 }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; topInset?: number; bottomInset?: number; legend?: boolean }) {
+export default function MapboxMap({ rows, selected, focusedKey, onToggle, onViewportChange, topInset = 72, bottomInset = 48 }: { rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; onViewportChange?: (bounds: [number, number, number, number]) => void; topInset?: number; bottomInset?: number; legend?: boolean }) {
+  const [loadError, setLoadError] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const ready = useRef(false)
-  const latest = useRef({ rows, selected, onToggle })
-  useEffect(() => { latest.current = { rows, selected, onToggle } })
+  const latest = useRef({ rows, selected, onToggle, onViewportChange, focusedKey })
+  useEffect(() => { latest.current = { rows, selected, onToggle, onViewportChange, focusedKey } })
 
   useEffect(() => {
     if (!box.current) return
     mapboxgl.accessToken = MAPBOX_TOKEN
     if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') mapboxgl.setRTLTextPlugin(RTL_PLUGIN, null, true)
-    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/dark-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar' })
+    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar' })
+    m.on('moveend', e => { if (!e.originalEvent) return; const b = m.getBounds(); if (b) latest.current.onViewportChange?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]) })
     m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left')
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left')
     map.current = m
     if (import.meta.env.DEV) (window as unknown as { __mb?: mapboxgl.Map }).__mb = m
+    m.on('error', () => { if (!ready.current) setLoadError(true) })
     m.on('load', () => {
+      setLoadError(false)
       const wa = tok('--brand-accent'), em = tok('--brand-action-light'), none = tok('--brand-text-3'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
       const { rows: r0, selected: s0 } = latest.current
       m.addSource('segment', { type: 'geojson', data: segmentOf(r0, s0) })
@@ -65,6 +69,7 @@ export default function MapboxMap({ rows, selected, onToggle, topInset = 72, bot
       m.addSource('places', { type: 'geojson', data: placesOf(r0, s0), cluster: true, clusterRadius: 44, clusterMaxZoom: 14 })
       m.addLayer({ id: 'clusters', type: 'circle', source: 'places', filter: ['has', 'point_count'], paint: { 'circle-color': deep, 'circle-stroke-color': ink, 'circle-stroke-width': 3, 'circle-radius': ['step', ['get', 'point_count'], 20, 100, 24, 1000, 28] } })
       m.addLayer({ id: 'cluster-count', type: 'symbol', source: 'places', filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 14, 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] }, paint: { 'text-color': ink } })
+      m.addLayer({ id: 'place-hit', type: 'circle', source: 'places', filter: ['!', ['has', 'point_count']], paint: { 'circle-radius': 22, 'circle-opacity': 0 } })
       m.addLayer({ id: 'place', type: 'circle', source: 'places', filter: ['!', ['has', 'point_count']], paint: {
         'circle-color': ['match', ['get', 'ch'], 'wa', wa, 'email', em, none],
         'circle-radius': ['case', ['==', ['get', 'on'], 1], 9, 7],
@@ -77,14 +82,14 @@ export default function MapboxMap({ rows, selected, onToggle, topInset = 72, bot
           if (!err && z != null) m.easeTo({ center: (f.geometry as GeoJSON.Point).coordinates as [number, number], zoom: z })
         })
       })
-      m.on('click', 'place', (e) => {
+      m.on('click', 'place-hit', (e) => {
         const key = e.features?.[0]?.properties?.key
         const r = latest.current.rows.find((x) => x.poi_key === key)
         if (r) latest.current.onToggle(r)
       })
       const tip = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 })
-      m.on('mouseenter', 'place', (e) => { m.getCanvas().style.cursor = 'pointer'; const f = e.features?.[0]; if (f) tip.setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number]).setText(String(f.properties?.name || '')).addTo(m) })
-      m.on('mouseleave', 'place', () => { m.getCanvas().style.cursor = ''; tip.remove() })
+      m.on('mouseenter', 'place-hit', (e) => { m.getCanvas().style.cursor = 'pointer'; const f = e.features?.[0]; if (f) tip.setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number]).setText(String(f.properties?.name || '')).addTo(m) })
+      m.on('mouseleave', 'place-hit', () => { m.getCanvas().style.cursor = ''; tip.remove() })
       m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer' })
       m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = '' })
       ready.current = true
@@ -100,20 +105,26 @@ export default function MapboxMap({ rows, selected, onToggle, topInset = 72, bot
     const m = map.current
     if (!m || !ready.current) return
     const { rows: r, selected: s } = latest.current
-    ;(m.getSource('places') as mapboxgl.GeoJSONSource | undefined)?.setData(placesOf(r, s))
+    const highlight = new Set(s); if (latest.current.focusedKey) highlight.add(latest.current.focusedKey)
+    ;(m.getSource('places') as mapboxgl.GeoJSONSource | undefined)?.setData(placesOf(r, highlight))
     ;(m.getSource('segment') as mapboxgl.GeoJSONSource | undefined)?.setData(segmentOf(r, s))
     if (!fit) return
-    const pts = r.filter((x) => x.latitude != null && x.longitude != null)
+    const pts = r.filter((x) => Number.isFinite(x.latitude) && Number.isFinite(x.longitude))
     if (!pts.length) return
     const q = (a: number[], f: number) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))]
     const cut = pts.length > 20 ? 0.02 : 0
     const lons = pts.map((x) => x.longitude!).sort((a, b) => a - b), lats = pts.map((x) => x.latitude!).sort((a, b) => a - b)
-    m.fitBounds([[q(lons, cut), q(lats, cut)], [q(lons, 1 - cut), q(lats, 1 - cut)]], { padding: { top: topInset, bottom: bottomInset, left: 48, right: 48 }, maxZoom: 14, duration: 800 })
+    m.fitBounds([[q(lons, cut), q(lats, cut)], [q(lons, 1 - cut), q(lats, 1 - cut)]], { padding: { top: topInset, bottom: bottomInset, left: 48, right: 48 }, maxZoom: 14, duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 400 })
   }
 
   useEffect(() => { sync(true) }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { sync(false) }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    sync(false)
+    const target = rows.find(row => row.poi_key === focusedKey)
+    const instance = map.current
+    if (target && instance && Number.isFinite(target.latitude) && Number.isFinite(target.longitude) && !instance.getBounds()?.contains([target.longitude!, target.latitude!])) instance.easeTo({ center: [target.longitude!, target.latitude!], duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300 })
+  }, [selected, focusedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // mapbox-gl.css sets .mapboxgl-map { position: relative }, so the map sits inside a positioned wrapper
-  return <div className="absolute inset-0" role="region" aria-label="خريطة الجهات"><div ref={box} className="h-full w-full" /></div>
+  return <div className="absolute inset-0" role="region" aria-label="خريطة الجهات"><div ref={box} className="h-full w-full" />{loadError && <p role="alert" className="farq-map-error">تعذّر تحميل الخريطة. تقدر تستعرض الجهات وتختارها من القائمة.</p>}</div>
 }

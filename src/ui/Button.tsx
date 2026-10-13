@@ -45,7 +45,7 @@ export function Button({ variant = 'Primary', size = 'M', icon, loading, loading
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx('inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] font-medium transition-[transform,box-shadow,background-color] duration-150 disabled:cursor-not-allowed', loading ? 'disabled:opacity-100' : 'disabled:opacity-40', fullWidth ? s.wide : s.box, s.text, STYLE[variant], FOCUS_RING, fullWidth ? 'w-full text-center' : 'whitespace-nowrap', className)}
+      className={cx('farq-legacy-button', `farq-legacy-button--${variant}`, 'inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] font-medium transition-[transform,box-shadow,background-color] duration-150 disabled:cursor-not-allowed', loading ? 'disabled:opacity-100' : 'disabled:opacity-40', fullWidth ? s.wide : s.box, s.text, STYLE[variant], FOCUS_RING, fullWidth ? 'w-full text-center' : 'whitespace-nowrap', className)}
       {...rest}
     >
       {loading ? <Spinner size={16} /> : icon ? <Icon name={icon} size={s.icon} /> : null}

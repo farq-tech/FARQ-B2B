@@ -2378,3 +2378,15 @@ export function formatArDate(value?: string | null): string {
     day: 'numeric',
   })}\u2069`
 }
+
+/** Adopt only the directory businesses explicitly selected for this purchase. Sends no messages. */
+export async function adoptB2bSuppliers(suppliers: SupplierImportInput[], itemIds: string[]) {
+  return request<{ imported: Array<{ id: string; name_ar?: string; name_en?: string; email?: string; whatsapp?: string; has_email?: boolean; has_whatsapp?: boolean }> }>('/api/construction/suppliers/import', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ suppliers, item_ids: [...new Set(itemIds)], dry_run: false }),
+  })
+}
+
+export async function fetchB2bCapabilities() {
+  return request<{ general_requests: boolean; sales_dispatch: boolean }>('/api/construction/b2b/capabilities')
+}

@@ -1,117 +1,69 @@
-import NewGoal from './pages/goals/NewGoal'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { ProcurementProvider, useProcurement } from './procurementContext'
 import { useFarqSession } from './api/useFarqSession'
 import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
-import { Button, MobileBottomNav, NavItem, Sidebar as UiSidebar, useIsMobile } from './ui'
-import LiveBackground from './live-bg'
+import { Button, Icon } from './ui'
+import Brand from './b2b/Brand'
+import './b2b/b2b.css'
 
-// Each screen is its own chunk (routes in procurementContext.tsx).
-const RfqListV2 = lazy(() => import('./views/RfqListV2').then((m) => ({ default: m.RfqListV2 })))
-const RequestTrackingV2 = lazy(() => import('./views/RequestTrackingV2').then((m) => ({ default: m.RequestTrackingV2 })))
-const ComparisonV2 = lazy(() => import('./views/ComparisonV2').then((m) => ({ default: m.ComparisonV2 })))
-const NewRequestV2 = lazy(() => import('./views/NewRequestV2').then((m) => ({ default: m.NewRequestV2 })))
-const AwardPage = lazy(() => import('./pages/award'))
-const InboxPage = lazy(() => import('./pages/inbox'))
-const TargetingPage = lazy(() => import('./pages/targeting'))
-const TemplatesPage = lazy(() => import('./pages/targeting/Templates'))
+const RfqList = lazy(() => import('./views/RfqListV2').then(m => ({ default: m.RfqListV2 })))
+const Tracking = lazy(() => import('./views/RequestTrackingV2').then(m => ({ default: m.RequestTrackingV2 })))
+const Comparison = lazy(() => import('./views/ComparisonV2').then(m => ({ default: m.ComparisonV2 })))
+const NewRequest = lazy(() => import('./views/NewRequestV2').then(m => ({ default: m.NewRequestV2 })))
+const Award = lazy(() => import('./pages/award'))
+const Inbox = lazy(() => import('./pages/inbox'))
+const Explore = lazy(() => import('./b2b/Explore'))
+const Account = lazy(() => import('./b2b/Account'))
+const Opportunities = lazy(() => import('./b2b/Opportunities'))
+const Templates = lazy(() => import('./pages/targeting/Templates'))
 const TemplateEditor = lazy(() => import('./pages/targeting/TemplateEditor'))
-
-const MarketingInput = lazy(() => import('./pages/goals/MarketingInput'))
-const Loading = () => <div className="p-8 text-right" role="status" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحميل…</div>
-
-/* Account login; authorized emails retain access to the private app. */
-const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean)
-
-const onTargeting = (v: string) => v === 'targeting' || v === 'templates' || v === 'template-new'
-
-function Sidebar() {
-  const { view, navigate } = useProcurement()
-  const session = useFarqSession()
-  const email = String(session.user?.email || '')
-  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison' || view === 'award'
-  return (
-    <UiSidebar
-      nav={<>
-        <Button variant="Primary" size="L" icon="plus" fullWidth onClick={() => navigate('goal-new')}>هدف جديد</Button>
-        <NavItem icon="list" label="الأهداف والطلبات" active={onRequests} onClick={() => navigate('rfq-list')} />
-        <NavItem icon="inbox" label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
-        <NavItem icon="map-pin" label="الاستهداف" active={onTargeting(view)} onClick={() => navigate('targeting')} />
-      </>}
-      account={{ name: email || '—', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
-    />
-  )
-}
+const Loading = () => <p role="status" className="farq-loading">جارٍ التحميل…</p>
+const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
 
 function Routes() {
   const { view, navigate, selectedRfqId, setSelectedRfqId } = useProcurement()
   const session = useFarqSession()
   const [checked, setChecked] = useState<'pending' | 'ok' | 'denied'>('pending')
-  const mobile = useIsMobile()
-
+  const exploring = view === 'targeting' || view === 'goal-new'
+  const following = !exploring && view !== 'account' && view !== 'templates' && view !== 'template-new'
   useEffect(() => {
     if (!session.isAuthenticated) { setChecked('pending'); return }
     const email = String(session.user?.email || '').toLowerCase()
-    if (!email) return
-    setChecked(ALLOWED.includes(email) ? 'ok' : 'denied')
+    if (email) setChecked(ALLOWED.includes(email) ? 'ok' : 'denied')
   }, [session.isAuthenticated, session.user])
-  // /login while already signed in → the requests list
-  useEffect(() => { if (session.isAuthenticated && view === 'login') navigate('rfq-list') }, [session.isAuthenticated, view, navigate])
-
+  useEffect(() => { if (session.isAuthenticated && view === 'login') navigate('targeting') }, [session.isAuthenticated, view, navigate])
   if (!session.isAuthenticated) return <LoginV2 navigate={navigate} />
-  if (checked === 'denied') {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="font-[Readex_Pro] text-[24px] font-semibold">هذه الصفحة خاصة</p>
-        <p style={{ color: 'var(--color-text-secondary)' }}>الحساب الذي سجّلت به غير مصرّح له بدخول «فرق تسعير».</p>
-        <Button variant="Primary" size="L" onClick={() => void farqSession.signOut()}>تسجيل الخروج</Button>
-      </div>
-    )
-  }
-  if (checked === 'pending') return <div className="p-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>جارٍ التحقق من الحساب…</div>
-  // The new-request flow is a full-page wizard (Figma 01/02 have no sidebar).
-  if (view === 'create-upload' && (() => { try { return sessionStorage.getItem('farq-target-direction') === 'marketing' } catch { return false } })()) return <Suspense fallback={<Loading />}><MarketingInput /></Suspense>
-  if (view === 'create-upload') return <Suspense fallback={<Loading />}><NewRequestV2 navigate={navigate} /></Suspense>
-  const onRequests = view === 'rfq-list' || view === 'rfq-detail' || view === 'comparison' || view === 'award'
-  const openRequest = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
-  return (
-    <div className="flex min-h-screen">
-      {mobile ? null : <Sidebar />}
-      <main className={mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
-        <Suspense fallback={<Loading />}>
-          {view === 'goal-new' && <NewGoal />}
-          {view === 'rfq-detail' && <RequestTrackingV2 navigate={navigate} />}
-          {view === 'comparison' && <ComparisonV2 navigate={navigate} />}
-          {view === 'award' && selectedRfqId && (
-            <AwardPage rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')}
-              onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />
-          )}
-          {view === 'inbox' && <InboxPage onOpenRequest={openRequest} />}
-          {view === 'targeting' && <TargetingPage onTemplates={() => navigate('templates')} />}
-          {view === 'templates' && <TemplatesPage onBack={() => navigate('targeting')} onNew={() => navigate('template-new')} />}
-          {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
-          {(view === 'rfq-list' || view === 'login' || (view === 'award' && !selectedRfqId)) && <RfqListV2 navigate={navigate} />}
-        </Suspense>
-      </main>
-      {mobile ? (
-        // Figma «Mobile Bottom Nav» (55:551): only the sections that exist are shown.
-        <MobileBottomNav tabs={[
-          { label: 'الأهداف', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
-          { label: 'هدف جديد', icon: 'plus', active: view === 'goal-new', onClick: () => navigate('goal-new') },
-          { label: 'الوارد', icon: 'inbox', active: view === 'inbox', onClick: () => navigate('inbox') },
-          { label: 'الاستهداف', icon: 'map-pin', active: onTargeting(view), onClick: () => navigate('targeting') },
-        ]} />
-      ) : null}
-    </div>
-  )
+  if (checked === 'denied') return <section className="farq-empty"><h1>هذا الحساب غير مصرح له</h1><Button onClick={() => void farqSession.signOut()}>تسجيل الخروج</Button></section>
+  if (checked === 'pending') return <Loading />
+  const tabs = [
+    { label: 'استكشف', icon: 'map-pin' as const, active: exploring, onClick: () => navigate('targeting') },
+    { label: 'متابعتي', icon: 'layers' as const, active: following, onClick: () => navigate('rfq-list') },
+    { label: 'حسابي', icon: 'building' as const, active: view === 'account' || view === 'templates' || view === 'template-new', onClick: () => navigate('account') },
+  ]
+  return <>
+    <a className="farq-skip-link" href="#farq-main">انتقل للمحتوى</a>
+    <header className="farq-app-header"><button className="farq-brand-link" type="button" onClick={() => navigate('targeting')}><Brand /></button><nav className="farq-desktop-nav" aria-label="التنقل الرئيسي">{tabs.map(tab => <button key={tab.label} type="button" aria-current={tab.active ? 'page' : undefined} onClick={tab.onClick}><Icon name={tab.icon} size={18} />{tab.label}</button>)}</nav></header>
+    <main id="farq-main" className={exploring ? 'farq-main-explore' : 'farq-main-work'} tabIndex={-1}>
+      {following && view !== 'create-upload' && <nav className="farq-follow-nav" aria-label="أقسام متابعتي">{([{ label: 'طلبات الشراء', value: 'rfq-list' }, { label: 'فرص البيع', value: 'opportunities' }, { label: 'الوارد', value: 'inbox' }] as const).map(tab => <button type="button" key={tab.value} aria-current={view === tab.value ? 'page' : undefined} onClick={() => navigate(tab.value)}>{tab.label}</button>)}</nav>}
+      <Suspense fallback={<Loading />}>
+        {exploring && <Explore />}
+        {view === 'create-upload' && <NewRequest navigate={navigate} />}
+        {view === 'rfq-detail' && <Tracking navigate={navigate} />}
+        {view === 'comparison' && <Comparison navigate={navigate} />}
+        {view === 'award' && selectedRfqId && <Award rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')} onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />}
+        {view === 'inbox' && <Inbox onOpenRequest={id => { setSelectedRfqId(id); navigate('rfq-detail') }} />}
+        {view === 'account' && <Account />}
+        {view === 'opportunities' && <Opportunities />}
+        {view === 'templates' && <Templates onBack={() => navigate('account')} onNew={() => navigate('template-new')} />}
+        {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
+        {(view === 'rfq-list' || view === 'login' || (view === 'award' && !selectedRfqId)) && <RfqList navigate={navigate} />}
+      </Suspense>
+    </main>
+    <nav className="farq-mobile-nav" aria-label="التنقل الرئيسي">{tabs.map(tab => <button key={tab.label} type="button" aria-current={tab.active ? 'page' : undefined} onClick={tab.onClick}><Icon name={tab.icon} size={21} /><span>{tab.label}</span></button>)}</nav>
+  </>
 }
-
 export default function App() {
-  return (
-    <ProcurementProvider>
-      <LiveBackground />
-      <Routes />
-    </ProcurementProvider>
-  )
+  useEffect(() => { document.documentElement.dataset.farqApp = 'b2b'; return () => { delete document.documentElement.dataset.farqApp } }, [])
+  return <ProcurementProvider><div className="farq-b2b" data-farq-b2b><Routes /></div></ProcurementProvider>
 }

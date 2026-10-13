@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { FOCUS_RING, cx } from '../../ui/cx'
 import { LinkButton } from './kit'
-import { START_HREF } from './contact'
+import { APP_LOGIN_HREF } from './contact'
 
 export const GOALS = {
   pricing: { label: 'بائعون', action: 'ابحث عن بائعين', prompt: 'أبحث عن بائعين — أبي أشتري' },
@@ -31,7 +31,7 @@ export function GoalChooser() {
 export function GoalStart({ fullWidth = false, compact = false }: { fullWidth?: boolean; compact?: boolean }) {
   const { goal } = useLandingGoal()
   return <span className={cx('inline-flex rounded-lg', FOCUS_RING, fullWidth && 'w-full')}>
-    <LinkButton href={goal ? START_HREF : '#goal-start'} variant="Accent" size={compact ? 'M' : undefined} fullWidth={fullWidth} icon={compact ? undefined : 'arrow-forward'}>
+    <LinkButton href={goal ? APP_LOGIN_HREF : '#goal-start'} onClick={() => { if (goal) { try { sessionStorage.setItem('farq-entry-goal', goal === 'marketing' ? 'marketing' : 'purchase') } catch { /* Navigation remains available. */ } } }} variant="Accent" size={compact ? 'M' : undefined} fullWidth={fullWidth} icon={compact ? undefined : 'arrow-forward'}>
       {goal ? GOALS[goal].action : 'حدد هدفك وابدأ'}
     </LinkButton>
   </span>

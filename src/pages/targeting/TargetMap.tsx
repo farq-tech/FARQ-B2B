@@ -24,7 +24,7 @@ function hull(ps: { x: number; y: number }[]) {
   return lo.slice(0, -1).concat(up.slice(0, -1))
 }
 
-export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean }) {
+export default function TargetMap({ rows, selected, focusedKey, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   // zoom belongs to one result set: a new search shows everything again
@@ -88,11 +88,11 @@ export default function TargetMap({ rows, selected, onToggle, topInset = 72, leg
         )
       })}
       {pts.map(({ r, x, y }) => {
-        const on = selected.has(r.poi_key)
+        const on = selected.has(r.poi_key) || focusedKey === r.poi_key
         return (
           <button key={r.poi_key} type="button" aria-pressed={on} aria-label={r.name_ar || r.name_en || 'جهة'} title={r.name_ar || r.name_en || ''} onClick={() => onToggle(r)}
-            className={`absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full ${on ? 'size-7 border-[3px]' : 'size-5 border-2'} border-[var(--color-text-on-inverse)] ${FOCUS_RING}`}
-            style={{ left: x, top: y, background: colorOf(r) }} />
+            className={`absolute flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full ${on ? 'border-[3px]' : 'border-2'} border-[var(--color-text-on-inverse)] ${FOCUS_RING}`}
+            style={{ left: x, top: y, background: colorOf(r) }}><span aria-hidden className="text-[var(--color-text-on-inverse)]">{on ? '✓' : '⌖'}</span></button>
         )
       })}
       {legend ? <div className="absolute start-auto end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">

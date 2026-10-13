@@ -1,3 +1,4 @@
+import './brand.css'
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { cx, FOCUS_RING } from '../../ui/cx'
 import { applySeo } from './seo'
@@ -61,7 +62,7 @@ class BelowBoundary extends Component<{ children: ReactNode; silent?: boolean },
 }
 
 function LandingContent() {
-  useEffect(() => applySeo(), [])
+  useEffect(() => { document.documentElement.dataset.farqApp = 'b2b'; applySeo(); return () => { delete document.documentElement.dataset.farqApp } }, [])
   const [trial, setTrial] = useState(() => location.hash === '#try')
   useEffect(() => { const update = () => setTrial(location.hash === '#try'); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) }, [])
   const closeTrial = () => { setTrial(false); if (location.hash === '#try') history.replaceState(null, '', location.pathname + location.search) }

@@ -10,10 +10,10 @@ export const SITE_URL: string | null = null
 export const SEO = {
   lang: 'ar',
   dir: 'rtl',
-  title: 'فرق تسعير — من هدفك للجهة المناسبة',
+  title: 'FARQ B2B — من احتياجك للجهة المناسبة',
   description:
     'فرق تسعير يتطور حول أهداف المنشآت: التسويق والتسعير والاستفسار والشراكات. جرّب بحث الموردين المتاح الآن.',
-  siteName: 'فرق تسعير',
+  siteName: 'FARQ B2B',
   locale: 'ar_SA',
   type: 'website',
   twitterCard: 'summary',

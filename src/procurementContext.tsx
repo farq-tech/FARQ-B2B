@@ -19,7 +19,7 @@ import type { AppView } from './types'
  * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
 /** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
-export type View = AppView | 'goal-new' | 'inbox' | 'targeting' | 'templates' | 'template-new'
+export type View = AppView | 'goal-new' | 'inbox' | 'targeting' | 'templates' | 'template-new' | 'account' | 'opportunities'
 type Ctx = {
   view: View
   navigate: (v: View) => void
@@ -33,6 +33,9 @@ type Route = { view: View; rfqId: string | null }
 export function parseRoute(pathname: string, search = ''): Route {
   const legacy = new URLSearchParams(search).get('rfq')
   const p = pathname.replace(/\/+$/, '') || '/'
+  if (p === '/account') return { view: 'account', rfqId: null }
+  if (p === '/opportunities') return { view: 'opportunities', rfqId: null }
+  if (p === '/explore') return { view: 'targeting', rfqId: null }
   if (p === '/goals/new') return { view: 'goal-new', rfqId: null }
   if (p === '/new') return { view: 'create-upload', rfqId: null }
   if (p === '/inbox') return { view: 'inbox', rfqId: null }
@@ -47,6 +50,8 @@ export function parseRoute(pathname: string, search = ''): Route {
 }
 
 export function routePath(view: View, rfqId: string | null): string {
+  if (view === 'account') return '/account'
+  if (view === 'opportunities') return '/opportunities'
   if (view === 'goal-new') return '/goals/new'
   if (view === 'create-upload') return '/new'
   if (view === 'inbox') return '/inbox'
@@ -89,7 +94,7 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
       const r = parseRoute(window.location.pathname, window.location.search)
       fromHistory.current = true
       setView(r.view)
-      if (r.rfqId) setSelectedRfqId(r.rfqId)
+      setSelectedRfqId(r.rfqId)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)

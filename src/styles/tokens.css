@@ -12,7 +12,46 @@
  *   [data-tone="accent"]   mint band, charcoal text    (BG / Facets · Accent)
  */
 
+html[data-farq-app="b2b"] {
+  --brand-deep: #24583f;
+  --live-go: #24583f;
+  --live-back: #789b35;
+  --brand-action: #24583f;
+  --brand-action-strong: #24583f;
+  --brand-accent-light: #e8f5ba;
+  --brand-on-accent: #254834;
+  --brand-canvas: #f4f8f2;
+  --brand-text: #254834;
+  --brand-text-2: #5e6e65;
+  --brand-action-subtle: #edf4dd;
+  --brand-accent: #24583f;
+  --brand-action-light: #789b35;
+  --brand-text-3: #5e6e65;
+  --font-body: 'ITF Huwiya Arabic', sans-serif;
+  --font-display: 'ITF Huwiya Arabic', sans-serif;
+  --color-bg-canvas: #f4f8f2;
+  --color-bg-inverse: #24583f;
+  --color-bg-cta: #24583f;
+  --color-bg-brand: #d8ee8c;
+  --color-text-on-brand: #254834;
+  --color-bg-primary: #24583f;
+  --color-bg-primary-subtle: #edf4dd;
+  --color-text-primary: #254834;
+  --color-text-secondary: #5e6e65;
+  --color-text-tertiary: #5e6e65;
+  --color-border-default: #d7e3db;
+}
+
 :root {
+  --farq-canvas-gradient: linear-gradient(90deg, #f4f8f2, #e7f1e5);
+  --farq-map-surface: #e6efe4;
+  --farq-panel-surface: rgba(247, 250, 245, .92);
+  --farq-panel-border: rgba(215, 227, 219, .55);
+  --farq-selected-surface: #edf4dd;
+  --farq-nav-surface: rgba(255, 255, 255, .94);
+  --farq-logo: #0f8a5f;
+  --farq-soft-shadow: 0 4px 16px rgba(23, 58, 40, .09);
+  --farq-card-shadow: 0 2px 8px rgba(23, 58, 40, .05);
   /* ── Brand (Onyx × Mint) ─────────────────────────────────────────── */
   --brand-deep: #121212;
   --brand-action: #121212;

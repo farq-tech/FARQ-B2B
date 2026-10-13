@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Logo } from '../../../ui/Logo'
+import Brand from '../../../b2b/Brand'
 import { Icon } from '../../../ui/Icon'
 import { cx, FOCUS_RING } from '../../../ui/cx'
 import { APP_LOGIN_HREF } from '../contact'
@@ -38,8 +38,8 @@ function Nav() {
   return (
     <div className="relative z-20">
       <Container className="flex h-[64px] items-center justify-between md:h-[80px]">
-        <a href="#main" aria-label="فرق تسعير — أعلى الصفحة" className={cx('rounded-[var(--radius-sm)]', FOCUS_RING)}>
-          <Logo height={40} />
+        <a href="#main" aria-label="FARQ B2B — أعلى الصفحة" className={cx('rounded-[var(--radius-sm)]', FOCUS_RING)}>
+          <Brand />
         </a>
         <nav aria-label="الأقسام" className="hidden lg:block">
           <ul className="flex items-center gap-[var(--space-32)] text-[16px] leading-[26px] text-[var(--color-text-secondary)]">

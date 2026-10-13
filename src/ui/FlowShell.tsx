@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cx, FOCUS_RING } from './cx'
 import { Icon } from './Icon'
-import { Logo } from './Logo'
+import Brand from '../b2b/Brand'
 import { useIsMobile } from './useIsMobile'
 import { MobileAppBar } from './MobileNav'
 
@@ -12,7 +12,7 @@ import { MobileAppBar } from './MobileNav'
 export function FlowHeader({ steps, current, onClose, mobileTitle, onBack }: { steps: string[]; current: number; onClose: () => void; mobileTitle?: string; onBack?: () => void }) {
   const mobile = useIsMobile()
   // Phones (Figma M01/M02): first step = progress bars + close; later steps = app bar with back.
-  if (mobile && mobileTitle) return <MobileAppBar title={mobileTitle} onBack={onBack} />
+  if (mobile && mobileTitle) return <MobileAppBar titleAsText title={mobileTitle} onBack={onBack} />
   if (mobile) {
     return (
       <header className="flex h-[54px] items-center justify-between px-4">
@@ -25,7 +25,7 @@ export function FlowHeader({ steps, current, onClose, mobileTitle, onBack }: { s
   }
   return (
     <header className="flex h-20 items-center justify-between gap-4 px-12">
-      <Logo />
+      <Brand />
       <ol aria-label="خطوات الطلب" className="flex items-center gap-2">
         {steps.map((s, i) => (
           <li key={s} aria-current={i === current ? 'step' : undefined} className="flex w-24 flex-col items-start gap-1.5">

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NavProps } from '../types'
 import { useProcurement } from '../procurementContext'
 import {
+  adoptB2bSuppliers,
+  fetchB2bCapabilities,
   countHarajSupplierIds,
   createConstructionRfq,
   fetchConstructionWhatsAppPricing,
@@ -16,7 +18,9 @@ import {
 import { resolveRfqSupplierIds } from '../api/constructionSuppliers'
 import { farqSession } from '../api/farqSession'
 import { autoPickFor, buildPickContext } from '../lib/autoPick'
-import { loadCompanyProfile } from '../lib/companyProfile'
+import { loadBusinessProfile as loadCompanyProfile, readLocal, writeLocal } from '../b2b/storage'
+import { waNumber, type TargetRow } from '../api/targetingClient'
+import type { BookletLine } from '../lib/readBooklet'
 import { matchSuppliersForItems, rowsToLines, sanitizeBoqLines, type ParsedLine } from '../lib/parseBoq'
 import { buildRfqLinesFromItems, buildRfqPackagesFromSelection, departmentForBoqItem, dominantEngineeringDepartment } from '../lib/rfqPackages'
 import { cleanLineName, parseQty, readQty } from '../lib/sendGuards'
@@ -34,6 +38,7 @@ import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, I
 
 type Method = 'booklet' | 'typed' | 'photo'
 type Step = 0 | 1 | 2 | 3
+type PurchaseDraft = { seedKey: string; step: Step; lines: ParsedLine[]; items: BOQItem[]; selected: Record<number,string[]>; project: string; city: string; requiredDate: string; quoteDeadline: string; requestType: 'SUPPLY_ONLY' | 'SUPPLY_AND_INSTALL'; department: string }
 const STEPS = ['الطلب', 'البنود', 'التوصيل', 'الإرسال']
 const UNITS = ['حبة', 'م²', 'م³', 'م.ط', 'طن', 'كجم', 'كيس', 'لتر', 'لفة', 'مقطوعية']
 const DEPARTMENTS: Array<[string, string]> = [['CIVIL', 'مدني'], ['ARCHITECTURAL', 'معماري'], ['ELECTRICAL', 'كهرباء'], ['MECHANICAL', 'ميكانيكا']]
@@ -73,15 +78,18 @@ function fileToBase64(file: File): Promise<string> {
 
 export function NewRequestV2({ navigate }: NavProps) {
   const { setSelectedRfqId } = useProcurement()
-  const [step, setStep] = useState<Step>(0)
+  const [seed] = useState(() => readLocal<{ lines: BookletLine[]; city: string; targets?: TargetRow[] } | null>('purchase-seed', null))
+  const [storedDraft] = useState(() => readLocal<PurchaseDraft | null>('purchase-wizard', null))
+  const draft = storedDraft?.seedKey === JSON.stringify(seed) ? storedDraft : null
+  const [step, setStep] = useState<Step>(draft?.step || 0)
   const mobile = useIsMobile()
   // Each step starts at the top (the footer button sits at the bottom of a long page).
   useEffect(() => { window.scrollTo({ top: 0 }) }, [step])
-  const [method, setMethod] = useState<Method>('booklet')
-  const [lines, setLines] = useState<ParsedLine[]>([])
-  const nextId = useRef(1)
+  const [method, setMethod] = useState<Method>(seed ? 'typed' : 'booklet')
+  const [lines, setLines] = useState<ParsedLine[]>(draft?.lines || seed?.lines.map((line, i) => ({ ...line, id: i + 1 })) || [])
+  const nextId = useRef(Math.max(0, ...(draft?.lines || seed?.lines || []).map((line, i) => 'id' in line ? Number(line.id) : i + 1)) + 1)
   const [source, setSource] = useState<string | null>(null)
-  const [sourceKind, setSourceKind] = useState<'file' | 'photo' | 'typed' | null>(null)
+  const [sourceKind, setSourceKind] = useState<'file' | 'photo' | 'typed' | null>(seed ? 'typed' : null)
   const [reading, setReading] = useState<{ name: string; progress: number; note: string } | null>(null)
   const [readError, setReadError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -93,8 +101,8 @@ export function NewRequestV2({ navigate }: NavProps) {
   const [unit, setUnit] = useState('حبة')
 
   // review
-  const [items, setItems] = useState<BOQItem[]>([])
-  const [selected, setSelected] = useState<Record<number, string[]>>({})
+  const [items, setItems] = useState<BOQItem[]>(draft?.items || [])
+  const [selected, setSelected] = useState<Record<number, string[]>>(draft?.selected || {})
   const [tab, setTab] = useState<string>('all')
   const [open, setOpen] = useState<number | null>(null)
   const [showAll, setShowAll] = useState(false)
@@ -103,12 +111,12 @@ export function NewRequestV2({ navigate }: NavProps) {
   const profile = loadCompanyProfile()
   // «هلا سارة» in Figma: only a real display name, never the e-mail.
   const greeting = (farqSession.getUser()?.displayName || '').trim().split(/\s+/)[0] || ''
-  const [project, setProject] = useState('')
-  const [city, setCity] = useState(profile.defaultDeliveryCity || 'الرياض')
-  const [requiredDate, setRequiredDate] = useState(isoIn(profile.defaultDeadlineDays || 14))
-  const [quoteDeadline, setQuoteDeadline] = useState(isoIn(5))
-  const [requestType, setRequestType] = useState<'SUPPLY_ONLY' | 'SUPPLY_AND_INSTALL'>('SUPPLY_ONLY')
-  const [department, setDepartment] = useState('')
+  const [project, setProject] = useState(draft?.project || '')
+  const [city, setCity] = useState(draft?.city || seed?.city || profile.defaultDeliveryCity || '')
+  const [requiredDate, setRequiredDate] = useState(draft?.requiredDate || isoIn(profile.defaultDeadlineDays || 14))
+  const [quoteDeadline, setQuoteDeadline] = useState(draft?.quoteDeadline || isoIn(5))
+  const [requestType, setRequestType] = useState<'SUPPLY_ONLY' | 'SUPPLY_AND_INSTALL'>(draft?.requestType || 'SUPPLY_ONLY')
+  const [department, setDepartment] = useState(draft?.department || '')
 
   // sending
   const [sending, setSending] = useState(false)
@@ -116,6 +124,11 @@ export function NewRequestV2({ navigate }: NavProps) {
   const [waAsk, setWaAsk] = useState<{ count: number; price: number; resolve: (yes: boolean) => void } | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [summary, setSummary] = useState<{ sent: number; failed: number; total: number } | null>(null)
+
+  useEffect(() => {
+    if (createdId || !lines.length) return
+    writeLocal('purchase-wizard', { seedKey: JSON.stringify(seed), step, lines, items, selected, project, city, requiredDate, quoteDeadline, requestType, department })
+  }, [seed, step, lines, items, selected, project, city, requiredDate, quoteDeadline, requestType, department, createdId])
 
   const addLines = (read: ParsedLine[]) => setLines((prev) => [...prev, ...read.map((l) => ({ ...l, id: nextId.current++ }))])
 
@@ -197,13 +210,23 @@ export function NewRequestV2({ navigate }: NavProps) {
     setError(null)
     setBusy('نبحث عن موردين لكل بند…')
     try {
-      const { items: matched } = await matchSuppliersForItems(usable)
+      const matched: BOQItem[] = seed?.targets?.length
+        ? usable.map(line => ({ ...line, status: 'ready' as const, supplierCount: 0, suppliers: [], lineKey: `line-${line.id}` }))
+        : (await matchSuppliersForItems(usable)).items
+      if (seed?.targets?.length) {
+        const chosen: Supplier[] = seed.targets.map(target => ({
+          id: `b2b:${target.poi_key}`, name: target.name_ar || target.name_en || 'جهة بدون اسم',
+          city: target.region_ar || target.city_en || seed.city, evidence: 'اختيارك',
+          channel: waNumber(target) ? 'واتساب' : 'بريد',
+        }))
+        for (const item of matched) { item.suppliers = chosen; item.supplierCount = chosen.length; item.learnedSuggestion = undefined; item.mapSuggestion = undefined; item.aiSuggestion = undefined; item.familySuggestion = undefined }
+      }
       const ctx = buildPickContext(matched)
       const picks: Record<number, string[]> = {}
-      for (const item of matched) if (!item.workOnly) picks[item.id] = autoPickFor(item, AUTO_PICK, ctx).map((s) => s.id)
+      for (const item of matched) if (!item.workOnly) picks[item.id] = seed?.targets?.length ? item.suppliers.map(s => s.id) : autoPickFor(item, AUTO_PICK, ctx).map((s) => s.id)
       setItems(matched)
       setSelected(picks)
-      setDepartment((d) => d || dominantEngineeringDepartment(matched) || 'CIVIL')
+      setDepartment((d) => seed?.targets?.length ? 'GENERAL' : d || dominantEngineeringDepartment(matched) || '')
       setStep(1)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'تعذّر البحث عن موردين.')
@@ -266,7 +289,8 @@ export function NewRequestV2({ navigate }: NavProps) {
   /* ---------- step 2/3: delivery and send (same blockers and payload as the source) ---------- */
 
   const blockers: string[] = []
-  if (allPicked.length < 2) blockers.push('اختر موردين اثنين على الأقل.')
+  if (allPicked.length < 1) blockers.push('اختر موردًا واحدًا على الأقل.')
+  if (!profile.name.trim() || !profile.phone.trim() || !profile.email.trim()) blockers.push('أكمل بيانات المنشأة والتواصل من حسابي قبل الإرسال.')
   if (!city.trim()) blockers.push('اكتب مدينة التسليم.')
   if (!quoteDeadline || !requiredDate || quoteDeadline >= requiredDate) blockers.push('آخر موعد للعروض يجب أن يسبق موعد التوريد.')
 
@@ -276,8 +300,12 @@ export function NewRequestV2({ navigate }: NavProps) {
     setError(null)
     let created: string | null = null
     try {
+      if (seed?.targets?.length) {
+        const capability = await fetchB2bCapabilities().catch(() => null)
+        if (!capability?.general_requests) throw new Error('خدمة طلبات الأعمال تحتاج التحديث قبل الإرسال. اختياراتك محفوظة ولم يُرسل شيء.')
+      }
       setProgress({ text: 'نجهّز البنود…', done: 0, total: 0 })
-      const needSpec = readyItems.filter((i) => !i.farqSpecId)
+      const needSpec = seed?.targets?.length ? [] : readyItems.filter((i) => !i.farqSpecId)
       const matched = needSpec.length
         ? await matchConstructionBoqCatalog({
             lines: needSpec.map((i) => ({ line_key: i.lineKey || `line-${i.id}`, name_ar: i.name, quantity: parseQty(i.qty), uom: i.unit || undefined, spec: i.spec })),
@@ -291,21 +319,34 @@ export function NewRequestV2({ navigate }: NavProps) {
       if (!rfqLines.length) throw new Error('لا توجد بنود جاهزة للإرسال.')
 
       setProgress({ text: 'نتحقق من الموردين…', done: 0, total: 0 })
-      const contactable = new Set(await resolveRfqSupplierIds(allPicked))
-      if (contactable.size < 2) throw new Error('يلزم موردان على الأقل يمكن التواصل معهم.')
+      const adopted = new Map<string, string>()
+      for (const target of seed?.targets || []) {
+        const localId = `b2b:${target.poi_key}`
+        if (!allPicked.includes(localId)) continue
+        if (!waNumber(target) && !target.email) throw new Error(`لا توجد قناة تواصل متاحة لجهة ${target.name_ar || target.name_en}. عدّل الاختيار قبل الإرسال.`)
+        const specs = readyItems.filter(item => (selected[item.id] || []).includes(localId)).map(item => item.farqSpecId || byKey.get(item.lineKey || `line-${item.id}`)?.farq_spec_id).filter((id): id is string => Boolean(id))
+        const result = await adoptB2bSuppliers([{ name_ar: target.name_ar || target.name_en || 'جهة', name_en: target.name_en || undefined, city: target.city_en || seed?.city, email: target.email || undefined, whatsapp: waNumber(target) || undefined, supplied_items: target.category_ar || target.category || 'جهة اختارها المستخدم' }], specs)
+        const id = result.imported?.[0]?.id
+        if (!id) throw new Error('تعذّر تسجيل الجهة المختارة. لم يُرسل الطلب.')
+        adopted.set(localId, id)
+      }
+      const existing = allPicked.filter(id => !id.startsWith('b2b:'))
+      const contactable = new Set([...await resolveRfqSupplierIds(existing), ...adopted.keys()])
+      if (contactable.size < 1) throw new Error('يلزم مورد واحد على الأقل يمكن التواصل معه.')
       const scoped: Record<number, string[]> = {}
       for (const i of readyItems) scoped[i.id] = (selected[i.id] || []).filter((id) => contactable.has(String(id)))
       const { packages: draft } = buildRfqPackagesFromSelection({ items: readyItems, selectedByItem: scoped, fallbackDepartment: department })
-      const packages = draft.filter((p) => p.selected_supplier_ids.length > 0)
+      const packages = draft.filter((p) => p.selected_supplier_ids.length > 0).map(p => ({ ...p, selected_supplier_ids: p.selected_supplier_ids.map(id => adopted.get(id) || id), ...(seed?.targets?.length ? {category_keys:['GENERAL'],name:'احتياجات المنشأة'} : {}) }))
       const keys = new Set(packages.flatMap((p) => p.line_keys))
       const scopedLines = rfqLines.filter((l) => keys.has(String(l.line_key)))
       const supplierIds = [...new Set(packages.flatMap((p) => p.selected_supplier_ids))]
-      if (supplierIds.length < 2 || !scopedLines.length) throw new Error('يلزم موردان على الأقل مربوطان ببنود الطلب.')
+      if (supplierIds.length < 1 || !scopedLines.length) throw new Error('يلزم مورد واحد على الأقل مربوط ببنود الطلب.')
 
       setProgress({ text: `ننشئ الطلب لـ ${supplierIds.length} موردين…`, done: 0, total: supplierIds.length })
       const user = farqSession.getUser()
       const body: Record<string, unknown> = {
         manual_send: true,
+        ...(seed?.targets?.length ? { request_origin: 'farq-b2b' } : {}),
         send_consent: false,
         engineering_department: department || 'CIVIL',
         selected_supplier_ids: supplierIds,
@@ -338,6 +379,8 @@ export function NewRequestV2({ navigate }: NavProps) {
       if (haraj > 0) body.haraj_limit = haraj
       const rfq = await createConstructionRfq(body, { timeoutMs: 90_000 })
       created = rfq.id
+      writeLocal('purchase-seed', null)
+      writeLocal('purchase-wizard', null)
       setCreatedId(rfq.id)
 
       const detail = await getConstructionRfq(rfq.id)
@@ -388,7 +431,7 @@ export function NewRequestV2({ navigate }: NavProps) {
     <div className="flex min-h-screen flex-col bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
       <FlowHeader steps={STEPS} current={step} onClose={close} mobileTitle={step === 0 ? undefined : step === 1 ? 'مراجعة البنود' : STEPS[step]} onBack={sending ? undefined : () => setStep((s) => (s - 1) as Step)} />
 
-      <main className={mobile ? 'flex-1 px-4 pb-6' : 'flex-1 px-12 pb-10'}>
+      <div className={mobile ? 'flex-1 px-4 pb-6' : 'flex-1 px-12 pb-10'}>
         {error ? <p role="alert" className="mx-auto mb-4 max-w-[752px] rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-4 py-3 text-[14px] text-[var(--color-text-danger)]">{error}</p> : null}
 
         {step === 0 ? (
@@ -563,7 +606,7 @@ export function NewRequestV2({ navigate }: NavProps) {
 
             <aside aria-labelledby="est-h" className={`flex shrink-0 flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6 ${mobile ? 'w-full' : 'w-[360px]'}`}>
               <h2 id="est-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">الموردين المتوقعين</h2>
-              <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">نرشّح الموردين لكل بند من سجل فرق. تقدر تغيّر الاختيار من عمود الموردين.</p>
+              <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{seed?.targets?.length ? 'هذه الجهات التي اخترتها من الخريطة. الاختيار لا يؤكد توفر الكمية؛ المورد يؤكدها في عرضه.' : 'نرشّح الموردين لكل بند من سجل FARQ. تقدر تغيّر الاختيار من عمود الموردين.'}</p>
               {byDept.map(([k, v]) => (
                 <div key={k} className="flex flex-col gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-canvas)] p-4">
                   <div className="flex items-center justify-between">
@@ -589,7 +632,7 @@ export function NewRequestV2({ navigate }: NavProps) {
           <section aria-labelledby="dl-h" className={mobile ? 'flex flex-col gap-4 pt-4' : 'mx-auto flex max-w-[752px] flex-col gap-6 pt-12'}>
             <h1 id="dl-h" className="font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">وين ومتى التوريد؟</h1>
             <div className={`grid gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'grid-cols-1 p-4' : 'grid-cols-2 p-6'}`}>
-              <Input label="اسم المشروع" placeholder="مثال: فيلا النرجس" value={project} onChange={(e) => setProject(e.target.value)} helper="يظهر للموردين مع المدينة" />
+              <Input label="اسم المشروع" placeholder="مثال: تجهيز العيادة" value={project} onChange={(e) => setProject(e.target.value)} helper="يظهر للموردين مع المدينة" />
               <Input label="مدينة التسليم" value={city} onChange={(e) => setCity(e.target.value)} error={!city.trim() ? 'اكتب مدينة التسليم.' : undefined} />
               <Input label="موعد التوريد" type="date" value={requiredDate} onChange={(e) => setRequiredDate(e.target.value)} />
               <Input label="آخر موعد للعروض" type="date" value={quoteDeadline} onChange={(e) => setQuoteDeadline(e.target.value)} helper="الساعة 5:00 م" error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
@@ -601,9 +644,9 @@ export function NewRequestV2({ navigate }: NavProps) {
                 </div>
               </fieldset>
               <fieldset className="flex flex-col gap-2">
-                <legend className="mb-2 text-[14px] leading-[22px] font-medium">القسم</legend>
+                <legend className="mb-2 text-[14px] leading-[22px] font-medium">{seed?.targets?.length ? 'التصنيف' : 'القسم'}</legend>
                 <div className="flex flex-wrap gap-2">
-                  {DEPARTMENTS.map(([k, l]) => <Chip key={k} label={l} selected={department === k} onClick={() => setDepartment(k)} />)}
+                  {seed?.targets?.length ? <span>طلب أعمال · جهات اخترتها</span> : DEPARTMENTS.map(([k, l]) => <Chip key={k} label={l} selected={department === k} onClick={() => setDepartment(k)} />)}
                 </div>
               </fieldset>
             </div>
@@ -644,7 +687,7 @@ export function NewRequestV2({ navigate }: NavProps) {
             ) : null}
           </section>
         ) : null}
-      </main>
+      </div>
 
       <FlowFooter
         back={back}
