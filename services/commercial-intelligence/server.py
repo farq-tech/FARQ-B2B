@@ -17,7 +17,7 @@ def handler(knowledge,enabled=False):
             try:
                 size=int(self.headers.get('Content-Length','0'))
                 if not 1<=size<=16384:raise ValueError('INVALID_BODY_SIZE')
-                body=json.loads(self.rfile.read(size));result=knowledge.search(body.get('text'),body.get('direction','purchase'),body.get('city',''),actor,body.get('limit',10),body.get('proven_only',False));self.reply(200,result)
+                body=json.loads(self.rfile.read(size));result=knowledge.search(body.get('text'),body.get('direction','purchase'),body.get('city',''),actor,body.get('limit',10),body.get('proven_only',False),body.get('offset',0));self.reply(200,result)
             except (ValueError,TypeError,json.JSONDecodeError) as e:self.reply(400,{'error':str(e)})
             except Exception:self.reply(500,{'error':'LOCAL_RETRIEVAL_FAILED'})
         def do_GET(self):self.reply(200,{'enabled':enabled,'execution_enabled':False})

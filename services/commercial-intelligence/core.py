@@ -69,29 +69,35 @@ class Knowledge:
         if not a or not b:return True
         x,y=normalize(a),normalize(b)
         return x==y or bool(self.city_aliases.get(x) and self.city_aliases.get(x)==self.city_aliases.get(y))
-    def search(self,text,direction='purchase',city='',actor=None,limit=10,proven_only=False):
-        if direction not in ['purchase','marketing','availability','partnership']:raise ValueError('INVALID_DIRECTION')
+    def search(self,text,direction='purchase',city='',actor=None,limit=10,proven_only=False,offset=0):
+        if direction not in ['purchase','marketing','availability','partnership','activity']:raise ValueError('INVALID_DIRECTION')
         if not isinstance(text,str) or not 2<=len(text.strip())<=1000:raise ValueError('INVALID_GOAL')
         if not actor:raise PermissionError('ACTOR_REQUIRED')
         if type(limit)!=int or not 1<=limit<=20:raise ValueError('INVALID_LIMIT')
+        if type(offset)!=int or offset<0:raise ValueError('INVALID_OFFSET')
+        if direction!='activity' and offset:raise ValueError('OFFSET_ACTIVITY_ONLY')
         start=time.perf_counter()
         # Actor-scoped, short-lived cache invalidated by changes in derived inputs.
         index=os.environ.get('FARQ_GOLDEN_INDEX')
         files=[self.path]+([Path(index)] if index else [])
         version=tuple((str(p),p.stat().st_mtime_ns,p.stat().st_size) for p in files if p.exists())
-        key=(str(actor),str(text),str(direction),str(city),str(limit),str(proven_only),self.pragmatic,version)
+        key=(str(actor),str(text),str(direction),str(city),str(limit),str(proven_only),self.pragmatic,version,offset)
         hit=self.response_cache.get(key)
         if hit and time.monotonic()-hit[0]<30:
             result=copy.deepcopy(hit[1]);result['latency_ms']=round((time.perf_counter()-start)*1000,3);result['cache_hit']=True;return result
-        result=self._search_uncached(text,direction,city,actor,limit,proven_only)
+        result=self._search_uncached(text,direction,city,actor,limit,proven_only,offset)
         if len(self.response_cache)>=100:self.response_cache.clear()
         self.response_cache[key]=(time.monotonic(),copy.deepcopy(result))
         result['cache_hit']=False;return result
-    def _search_uncached(self,text,direction='purchase',city='',actor=None,limit=10,proven_only=False):
-        if direction not in ['purchase','marketing','availability','partnership']:raise ValueError('INVALID_DIRECTION')
+    def _search_uncached(self,text,direction='purchase',city='',actor=None,limit=10,proven_only=False,offset=0):
+        if direction not in ['purchase','marketing','availability','partnership','activity']:raise ValueError('INVALID_DIRECTION')
         if not isinstance(text,str) or not 2<=len(text.strip())<=1000:raise ValueError('INVALID_GOAL')
         if not actor:raise PermissionError('ACTOR_REQUIRED')
         if type(limit)!=int or not 1<=limit<=20:raise ValueError('INVALID_LIMIT')
+        if direction=='activity':
+            if not self.pragmatic:raise ValueError('ACTIVITY_MODE_DISABLED')
+            from activity_search import search
+            return search(self,text,city,limit,offset)
         if self.pragmatic and direction!='marketing':
             from pragmatic import search
             return search(self,text,direction,city,actor,limit,proven_only)
