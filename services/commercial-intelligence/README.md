@@ -24,7 +24,7 @@ Construction adds an authenticated owner-only `/api/construction/commercial-inte
 
 `build.py --help` lists explicit source inputs. It opens registry read-only, writes an atomic derived database, preserves source IDs and records source size/mtime. Never point its output at a source file. Run supplementary/contact/geo/triage/demand overlays **sequentially** on the derived database. All overlays use stable keys and can be rerun; rerunning `build.py` replaces only its own derived database, so overlays must then be reapplied.
 
-`evaluate.py --help` runs 12 real/adversarial goals, 20 reproducibly sampled catalog cases and 12 warm repeats. Use the same geographic alias source as the server. `export_package.py --output /absolute/review/output` writes the delivery CSVs from a read-only database connection.
+`evaluate.py --help` runs 20 real/adversarial goals, 20 reproducibly sampled catalog cases, five source-sector probes and 20 warm repeats. Use the same geographic alias source as the server. `export_package.py --output /absolute/review/output` writes the delivery CSVs from a read-only database connection.
 
 ```sh
 python3 -m unittest discover -s services/commercial-intelligence -p test_core.py
@@ -45,3 +45,15 @@ FARQ_CONSTRUCTION_SOURCE=/absolute/farq/api node --test services/goal-foundation
 - Independent Precision@5/10 remains null until blinded human review; automated tests are not human quality measurements.
 
 No production migration is supplied. The output DB and review-key file are local restricted artifacts, excluded from Git; the human reviewer receives the blinded file without its key.
+
+## PRAGMATIC mode (independent flag)
+
+Set `FARQ_PRAGMATIC_MATCHING=1` on the local shared service; `NODE_ENV=production` disables it. Default strict behavior remains available. A/B are commercial recommendations, C/D expansion. X is excluded. `verified` remains false unless its separate gates are met. Scores use 40/20/15/10/10/5 experimental weights, not a trained model. Missing phone does not veto a source-supported product. Contacts come only from the same saved public source profile; no SG inheritance. No branch or delivery geocoding is borrowed from unresolved identities.
+
+Run `commercial_profiles.py` then `catalog_source_links.py` against the owned derived DB. Their receipts record source profiles, source-owned contacts, and structured catalog candidates. `enrichment_ledger` is an idempotent dry-run queue with a maximum one-call field per stable source-profile ID; approved budget is zero and no Serper implementation is called. Existing approval of a one-company two-credit run does not authorize this queue.
+
+Golden directory read-only expansion: set `FARQ_GOLDEN_DIRECTORY` to the original `golden_pois_ksa.parquet`. The reader reuses the pure `interpret`, `evidence` and `buyer_intent` functions from existing Targeting; it does not import its network/model module. Stable original poi_key is required. C-layer results expose source activity, never assert product stock/current buying. The optional FARQ_GOLDEN_INDEX is a minimal derived SQLite retrieval index over original poi_key, names, activities, source geography and contact-presence flags; it copies no phone/email values. When enabled, marketing uses this wider indexed directory instead of the older activity scan.
+
+Response cache: actor-scoped, derived-input mtime/size invalidation, 30-second TTL, maximum 100 entries. Cold queries and warm cache hits are reported separately; the cache is not evidence of faster uncached retrieval. First local request remains around 4.4 seconds in the current measurement.
+
+Delivery: `deliver_pragmatic.py --root /absolute/output` exports recommendations with evidence, a randomized blinded review CSV and a separate system key. Human quality remains pending. Ranking is experimental and does not measure actual consumption or demand.

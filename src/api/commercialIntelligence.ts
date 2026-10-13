@@ -1,11 +1,11 @@
 export type Direction = 'purchase' | 'marketing' | 'availability' | 'partnership'
 export type DiscoveryRow = {
-  id: string; name: string; role: string; subject?: string; city?: string; district?: string
+  level?: 'A' | 'B' | 'C' | 'D'; score?: number; match_status?: string; commercial_source_title?: string; id: string; name: string; role: string; subject?: string; city?: string; district?: string
   reason: string; verified: boolean; status: string; source_url?: string; observed_at?: string
   verification_dimension?: string; eligibility?: string; blockers: string[]; purchase_intent?: string; availability?: string
 }
 export type DiscoveryResult = {
-  direct: DiscoveryRow[]; potential: DiscoveryRow[]; catalogue_evidence?: DiscoveryRow[]
+  policy?: 'STRICT' | 'PRAGMATIC'; levels?: Record<string, number>; main?: DiscoveryRow[]; expansion?: DiscoveryRow[]; direct: DiscoveryRow[]; potential: DiscoveryRow[]; catalogue_evidence?: DiscoveryRow[]
   coverage: string; execution_enabled: false; messages_sent?: number; latency_ms: number
   human_validation: string
 }

@@ -14,6 +14,14 @@ CASES=[
 ('door-elbow-negative','PVC Door Elbow 110 mm','purchase','',False),
 ('pipe-camera-negative','كاميرا فحص الأنابيب','purchase','',False),
 ('industrial-door-negative','أبواب منزلية PVC','purchase','',False),
+('computers-buy','أجهزة كمبيوتر','purchase','الرياض',False),
+('computers-sell','أبيع أجهزة كمبيوتر','marketing','الرياض',False),
+('hr-services-sell','أبيع خدمات موارد بشرية','marketing','الرياض',False),
+('aesthetic-medicine-sell','أبيع أدوية طبية تجميلية','marketing','الرياض',False),
+('cups-sell','أبيع أكواب ورق','marketing','الرياض',False),
+('plumbing-sell','أبيع مواد سباكة وأبحث عن مقاولين','marketing','الرياض',False),
+('wpc-partners','أبحث عن شريك تصنيع وتوزيع أبواب WPC','partnership','',False),
+('waiting-availability','استفسر عن توفر كراسي انتظار','availability','الرياض',False),
 ]
 def evaluate(db,node,source,out):
     port=CpoPort(node,source);k=Knowledge(db,port);results=[]
@@ -27,6 +35,16 @@ def evaluate(db,node,source,out):
         sample=con.execute('SELECT name FROM subjects WHERE evidence_kind=? ORDER BY id LIMIT 1000',('STRUCTURED_CATALOG_PRODUCT',)).fetchall();rng=random.Random(20261013)
         for n,(name,) in enumerate(rng.sample(sample,min(20,len(sample)))):
             r=k.search(name,'purchase','','local-review:qa',5);r['case_id']='random-'+str(n);r['input_text']=name;results.append(r)
+        # Reproducible non-construction activity cases from the derived source index.
+        import os
+        index=os.environ.get('FARQ_GOLDEN_INDEX')
+        if index:
+            g=sqlite3.connect(Path(index).as_uri()+'?mode=ro',uri=True)
+            for n,term in enumerate(['صيدلية','مقهى','مدرسة','عيادة','كمبيوتر']):
+                item=g.execute('SELECT p.activity FROM profile_search f JOIN profiles p ON p.poi_key=f.poi_key WHERE profile_search MATCH ? ORDER BY p.poi_key LIMIT 1',('"'+term+'"',)).fetchone()
+                if item:
+                    r=k.search(item[0],'purchase','','local-review:qa',5);r['case_id']='source-sector-'+str(n);r['input_text']=item[0];results.append(r)
+            g.close()
         # Repeat warm calls with identical inputs: no regression or spurious promotion.
         warm=[]
         for id,text,direction,city,proof in CASES:
@@ -35,7 +53,7 @@ def evaluate(db,node,source,out):
             assert [(x['id'],x['verified']) for x in r['direct']+r['potential']]==[(x['id'],x['verified']) for x in previous['direct']+previous['potential']]
         assert all(not r['execution_enabled'] and r.get('messages_sent',0)==0 for r in results)
         assert not next(r for r in results if r['case_id']=='sell-plumbing-proven')['potential']
-        summary={'case_runs':len(results),'warm_repeat_cases':len(warm),'warm_p99_ms':sorted(warm)[-1],'warm_max_ms':max(warm),'cold_max_ms':max(r.get('elapsed_ms',0) for r in results),'direct_results':sum(len(r['direct']) for r in results),'review_results':sum(len(r['potential']) for r in results),'precision_at_5':None,'precision_at_10':None,'human_review':'PENDING_HUMAN_REVIEW','identity_error_rate':None,'critical_spec_error_rate':None,'method':'Actual local read-only database and existing CPO. Random seed 20261013. No network. Warm p99 uses nearest-rank on 12 observations; not a load benchmark.','cases':results}
+        summary={'case_runs':len(results),'warm_repeat_cases':len(warm),'warm_p99_ms':sorted(warm)[-1],'warm_max_ms':max(warm),'cold_max_ms':max(r.get('elapsed_ms',0) for r in results),'direct_results':sum(len(r['direct']) for r in results),'review_results':sum(len(r['potential']) for r in results),'precision_at_5':None,'precision_at_10':None,'human_review':'PENDING_HUMAN_REVIEW','identity_error_rate':None,'critical_spec_error_rate':None,'method':'Actual local read-only database and existing CPO. Random seed 20261013. No network. Warm p99 uses nearest-rank on 20 observations; not a load benchmark.','cases':results}
         Path(out).write_text(json.dumps(summary,ensure_ascii=False,indent=2));return summary
     finally:port.close()
 if __name__=='__main__':

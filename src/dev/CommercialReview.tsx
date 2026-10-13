@@ -5,6 +5,7 @@ import { discoverCommercial, type Direction, type DiscoveryResult, type Discover
 function ResultCard({ row }: { row: DiscoveryRow }) {
   return <article className="rounded-2xl border bg-white p-5">
     <h3 className="text-xl font-semibold">{row.name}</h3>
+    {row.level && <p className="mt-2 text-sm">مستوى الترشيح: {row.level} · درجة ترتيب تجريبية: {row.score}</p>}
     {row.subject && <p className="mt-2">{row.subject}</p>}
     <p className="mt-2">{row.reason}</p>
     <p className="mt-2 text-sm">{[row.city, row.district].filter(Boolean).join(' · ')}</p>
@@ -48,9 +49,9 @@ export default function CommercialReview() {
     <p>تجربة مراجعة محلية؛ لا تنشئ طلبًا ولا ترسل رسائل.</p>
     {error && <p role="alert">{error}</p>}
     {result && <div aria-live="polite" className="space-y-5">
-      <h2 className="text-2xl font-semibold">الجهات ذات الأدلة المستوفية ({result.direct.length})</h2>
+      <h2 className="text-2xl font-semibold">{result.policy === 'PRAGMATIC' ? 'النتائج الرئيسية A وB' : 'الجهات ذات الأدلة المستوفية'} ({result.direct.length})</h2>
       {result.direct.map(row => <ResultCard row={row} key={row.id} />)}
-      <h2 className="text-2xl font-semibold">مرشحون للمراجعة ({result.potential.length})</h2>
+      <h2 className="text-2xl font-semibold">مرشحون للمراجعة {result.policy === 'PRAGMATIC' ? 'C وD' : ''} ({result.potential.length})</h2>
       {result.potential.map(row => <ResultCard row={row} key={row.id} />)}
       {result.direct.length === 0 && result.potential.length === 0 && <p>لم نجد جهة تستوفي الأدلة المطلوبة في البيانات المتاحة.</p>}
       {(result.catalogue_evidence?.length ?? 0) > 0 && <><h2 className="text-2xl font-semibold">مراجع منتجات تحتاج ربطًا بجهة</h2>{result.catalogue_evidence!.map(row => <ResultCard row={row} key={row.id} />)}</>}

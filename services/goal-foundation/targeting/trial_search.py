@@ -124,6 +124,14 @@ def buyer_intent(q):
         terms=['cafe','coffee shop','مقهى','مقاهي','restaurant','مطعم','hotel','فندق']
         exclude=['coffee supplier','roaster','محمص','wholesale']
         label='جهات قد تستخدم القهوة؛ شراء منتج المستخدم غير مؤكد'
+    elif product['key']=='computers':
+        terms=['school','university','college','corporate office','government office','مدرسه','جامعه','مكتب','شركه']
+        exclude=['computer store','computer repair','computer supplier','كمبيوتر','حاسب','صيانه','grocery']
+        label='جهات قد تستخدم أجهزة الكمبيوتر؛ الكمية وموعد الشراء غير مثبتين'
+    elif product['key']=='food':
+        terms=['restaurant','hotel','catering','grocery','supermarket','مطعم','فندق','تموين','بقاله']
+        exclude=['food supplier','food wholesal','foodstuff trading','توريد اغذيه']
+        label='جهات قد تشتري مواد غذائية لإعادة البيع أو الاستخدام؛ الطلب المحدد غير مثبت'
     elif product['key']=='chairs':
         terms=['clinic','medical clinic','hospital','عياده','عيادات','مستشفى','مستشفيات']
         exclude=['furniture store','اثاث','مفروشات','medical supplier','مستلزمات طبيه']
