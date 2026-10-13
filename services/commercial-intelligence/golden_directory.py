@@ -28,6 +28,7 @@ def activity_conflict(name,activity,intent,text,direction):
   if key=='software' and re.search(r'قرطاسي|مكتبه|صيدلي|مغسله|حلاق|perfume|cosmetic|صيدليات',n):return True
   if key=='accounting' and re.search(r'computer store|software company|software store|برمجيات|هندسي|engineering',a+' '+n):return True
   if key=='logistics' and re.search(r'مطعم|حلاق|صيدلي|perfume|cosmetic|ورشه|صيانه الالكترونيات',n):return True
+  if key=='chairs' and re.search(r'restaurant|مطعم|مطابخ|kitchen|مراتب|mattress|مشتل|بصريات|optical|عطور|perfume',n+' '+a) and not re.search(r'waiting chair|كراسي انتظار',n+' '+a):return True
   if key=='computers' and re.search(r'شحن|shipping|سفر|سياح|مغاسل|مغسله|حفلات|مناسبات|مقاولات|استقدام',n):return True
   if key=='computers' and not re.search(r'computer store|computer wholesal|متجر كمبيوتر|متجر حاسب|بيع.*(?:كمبيوتر|حاسب)',a+' '+n):return True
   if key=='computers' and re.search(r'هديه|هدايا|درعه|bowling|football|perfume|gifts|متجر عطور',n+' '+a):return True
@@ -57,7 +58,9 @@ def candidates(knowledge,text,direction,city,limit):
  path=os.environ.get('FARQ_GOLDEN_DIRECTORY')
  index=os.environ.get('FARQ_GOLDEN_INDEX')
  if not (index and Path(index).is_file()) and (not path or not Path(path).is_file()):return []
- functions=pure_functions();product_intent=functions['interpret'](text);intent=functions['buyer_intent'](text) if direction=='marketing' else functions['interpret'](text)
+ from commercial_value import understand,target_intent,rerank
+ commercial_context=understand(text,direction,city)
+ functions=pure_functions();product_intent=functions['interpret'](commercial_context['product_text']);intent=target_intent(commercial_context,functions['buyer_intent'](commercial_context['product_text'])) if direction=='marketing' else product_intent
  role_unresolved=False
  if direction=='marketing' and not intent['seller']:
   intent=functions['interpret'](text);role_unresolved=True
@@ -107,7 +110,8 @@ def candidates(knowledge,text,direction,city,limit):
    combined=normalize(str(name or '')+' '+str(activity or ''))
    if re.search(r'كاميرا|camera',normalize(text)) and re.search(r'انابيب|انبوب|pipe',normalize(text)) and not re.search(r'camera|كاميرا|فحص الانابيب|pipe inspection',combined):continue
    if re.search(r'ابواب|باب|doors?',normalize(text)) and not re.search(r'hinge|elbow|مفصل|اكواع',normalize(text)) and re.search(r'hinge|elbow|مفصل|مقابض فقط',combined):continue
-   if not name or str(landmark).lower() in ['true','1','yes'] or normalize(lifecycle) in ['closed','permanently closed'] or normalize(company) in ['inactive','cancelled','ملغي'] or re.search(r'geometry|epsg|polygon|كورنيش|مسجد|حديقه',normalize(name)):continue
+   if direction=='marketing' and any(t['label']=='مقاولون' for t in commercial_context['target_activities']) and re.search(r'delivery|courier|shipping|توصيل|شحن',normalize(name)) and not re.search(r'مقاول|contract',normalize(name)):continue
+   if not name or str(landmark).lower() in ['true','1','yes'] or normalize(lifecycle) in ['closed','permanently closed'] or normalize(company) in ['inactive','cancelled','ملغي'] or re.search(r'geometry|epsg|polygon|كورنيش|مسجد|حديقه|محطه مترو|metro station',normalize(name)):continue
    quality=eligibility(text,product_intent['key'],direction,name,activity)
    pid=stable_id('GOLDEN_SOURCE_PROFILE',key);context=contexts.get(pid)
    if context:
@@ -161,6 +165,6 @@ def candidates(knowledge,text,direction,city,limit):
   result.sort(key=lambda r:(-r['score'],r['id']))
   from diversification import diversify
   city_key=lambda value:knowledge.city_aliases.get(normalize(value)) or normalize(value)
-  return diversify(result,direction,city_key)[:limit]
+  return rerank(diversify(result,direction,city_key),commercial_context)[:limit]
  finally:
   if con:con.close()

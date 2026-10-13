@@ -153,3 +153,26 @@ The follow-up exports all classification changes, unresolved identities, conflic
 retained branch sources, real before/after cases and independent-review inputs. No external
 providers, original writes or production dispatch are involved. Human validation stays
 pending; activity inference and source contact presence never prove current buying intent.
+
+### Commercial value context (local review only)
+
+`commercial_value.py` extracts product text, quantity/unit, wholesale/retail,
+explicit recipient activities and requesting establishment type. Candidate ranking
+uses these signals before truncation, without treating size, buying capacity,
+independent ownership, procurement authority or current demand as verified.
+`commercial_context`, `commercial_value` and `display_identity` expose the reason
+and uncertainty separately from evidence tiers and neutral entity identities.
+
+`internal_contacts.py` creates a new derivative SQLite overlay from read-only
+Golden/source-record/record-contact/web-contact assets. Set
+`FARQ_INTERNAL_CONTACTS=/absolute/path/to/owned/internal-contacts-v2.db` to load it.
+Exact source contacts stay on that record; saved-domain contacts do not prove a
+legal company or a branch. Format-valid phones do not prove WhatsApp or live
+availability. The overlay participates in response-cache invalidation.
+
+`prepare_value_enrichment.py results.json plan.json` reuses the existing Targeting
+Serper planner. Budget defaults to zero, execution stays disabled and each stable
+provisional identity has at most one planned query. It does not load secrets or
+call a provider. `value_delivery.py OUTPUT_ROOT` exports the source-backed
+commercial comparison and contact recovery summary. Run the Python unittest
+suite and `ui-commercial-value.mjs` for local regression and viewport checks.

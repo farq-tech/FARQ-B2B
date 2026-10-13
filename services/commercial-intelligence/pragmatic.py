@@ -68,7 +68,9 @@ def offer_support(key,title,body):
 def search(knowledge,text,direction,city,actor,limit,proven_only=False):
  from golden_directory import pure_functions
  from activity_quality import offer_conflict,eligibility,ROLE_COMPILED
- product_profile=pure_functions()['interpret'](text)
+ from commercial_value import understand
+ context=understand(text,direction,city)
+ product_profile=pure_functions()['interpret'](context['product_text'])
  start=time.perf_counter();goal=knowledge.cpo.analyze(direction,text);primary,family=signals(text);primary=list(map(normalize,primary));family=list(map(normalize,family))
  db=sqlite3.connect(knowledge.path.as_uri()+'?mode=ro',uri=True);db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON')
  terms=list(dict.fromkeys(primary+family+[normalize(t) for t in goal['product']['resolution'].get('search_terms',[]) if len(t)>3]))[:50]
@@ -99,6 +101,8 @@ def search(knowledge,text,direction,city,actor,limit,proven_only=False):
   family_hit=family_hit and (local_support or exact)
   specialty_hit=any(t in normalize(title) for t in family)
   if not family_hit and not specialty_hit:continue
+  if product_profile['key']=='custom' and not family_hit:
+   rejected.append({'subject_id':r['id'],'reason':'FREE_FORM_PRODUCT_CONTEXT_NOT_SUPPORTED'});continue
   level='A' if exact and (r['kind']=='STRUCTURED_SOURCE_CATALOG' or (r['kind']=='SAVED_COMMERCIAL_PAGE' and re.search(r'/products?/',r['source_url'] or '') and '/product-category/' not in (r['source_url'] or ''))) else 'B' if family_hit else 'C'
   if historical:level='D'
   if direction=='partnership':level='C'
@@ -118,5 +122,11 @@ def search(knowledge,text,direction,city,actor,limit,proven_only=False):
   accepted.append({'id':stable_id('RECOMMENDATION',pid,r['id']),'entity_id':pid,'name':title if r['kind']=='SAVED_COMMERCIAL_PAGE' else host,'commercial_source_title':title,'profile_type':'SOURCE_DOMAIN_PROFILE_LEGAL_ENTITY_UNLINKED','role':'partner' if direction=='partnership' else 'seller','subject':title,'evidence_excerpt':r['excerpt'][:1200],'source_url':r['source_url'],'observed_at':date,'level':level,'match_status':{'A':'DIRECT_MATCH','B':'FAMILY_MATCH','C':'SPECIALTY_MATCH','D':'MARKET_CANDIDATE'}[level],'score':score(parts),'score_components':parts,'verified':False,'status':'COMMERCIAL_RECOMMENDATION_NOT_VERIFIED','evidence_kind':r['kind'],'reason':'مصدر تجاري مستقل؛ درجة الترشيح منفصلة عن التحقق القانوني والمخزون','blockers':['LEGAL_ENTITY_AND_BRANCH_UNLINKED','CURRENT_STOCK_UNKNOWN']+(['CRITICAL_THICKNESS_UNCONFIRMED'] if re.search(r'سماكه|سماكة|سمك|thickness',text) else []),'city':None,'district':None,'availability':'UNKNOWN','delivery_coverage':'UNKNOWN','contact_channels':[key for key,values in contacts.items() if values],'public_source_contacts':contacts,'contact_verification':'SAVED_PUBLIC_SOURCE_NOT_LIVE_VERIFIED','partnership_interest':'UNKNOWN' if direction=='partnership' else None,'commercial_function':eligibility(text,product_profile['key'],direction,title,'',independent_offer=True)['commercial_function']})
  from golden_directory import candidates
  accepted.extend(candidates(knowledge,text,direction,city,limit))
- db.close();accepted.sort(key=lambda r:(-r['score'],r['id']));main=[r for r in accepted if r['level'] in ['A','B']][:limit];expansion=[r for r in accepted if r['level'] in ['C','D']][:limit]
+ db.close()
+ from commercial_value import understand,rerank
+ context=understand(text,direction,city)
+ # Directory results already ranked across their full candidate window.
+ unranked=[r for r in accepted if not r.get('commercial_value')]
+ rerank(unranked,context)
+ accepted.sort(key=lambda r:(-r['score'],r['id']));main=[r for r in accepted if r['level'] in ['A','B']][:limit];expansion=[r for r in accepted if r['level'] in ['C','D']][:limit]
  return {'goal':goal,'main':main,'expansion':expansion,'direct':main,'potential':expansion,'levels':{level:sum(r['level']==level for r in accepted) for level in ['A','B','C','D']},'excluded':rejected[:50]+getattr(knowledge,'last_directory_exclusions',[])[:100], 'excluded_count':len(rejected)+len(getattr(knowledge,'last_directory_exclusions',[])),'retrieved_subject_rows':len(rows),'policy':'PRAGMATIC','coverage':'COMMERCIAL_SOURCE_PROFILES' if accepted else 'EVIDENCE_GAP','execution_enabled':False,'messages_sent':0,'human_validation':'PENDING_HUMAN_REVIEW','latency_ms':round((time.perf_counter()-start)*1000,3)}

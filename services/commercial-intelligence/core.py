@@ -81,7 +81,8 @@ class Knowledge:
         index=os.environ.get('FARQ_GOLDEN_INDEX')
         registry=os.environ.get('FARQ_COMMERCIAL_REGISTRY')
         quality=os.environ.get('FARQ_ACTIVITY_QUALITY')
-        files=([Path(quality)] if quality else [])+[self.path]+([Path(registry)] if registry else [])+([Path(index)] if index else [])
+        contacts=os.environ.get('FARQ_INTERNAL_CONTACTS')
+        files=([Path(contacts)] if contacts else [])+([Path(quality)] if quality else [])+[self.path]+([Path(registry)] if registry else [])+([Path(index)] if index else [])
         version=tuple((str(p),p.stat().st_mtime_ns,p.stat().st_size) for p in files if p.exists())
         key=(str(actor),str(text),str(direction),str(city),str(limit),str(proven_only),self.pragmatic,version,offset)
         hit=self.response_cache.get(key)
@@ -91,8 +92,10 @@ class Knowledge:
         if self.pragmatic:
             from commercial_contract import annotate
             result=annotate(self,result,text,direction)
+            from commercial_value import annotate_result
+            result=annotate_result(result,text,direction,city)
             from golden_directory import pure_functions
-            if 'goal' in result:result['goal']['commercial_product']=pure_functions()['interpret'](text)
+            if 'goal' in result:result['goal']['commercial_product']=pure_functions()['interpret'](result['commercial_context']['product_text'])
             result['goal_understanding']='EXISTING_CPO_PLUS_GENERAL_TARGETING_INTERPRETER'
         if len(self.response_cache)>=100:self.response_cache.clear()
         self.response_cache[key]=(time.monotonic(),copy.deepcopy(result))

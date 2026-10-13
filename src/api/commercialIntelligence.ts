@@ -1,7 +1,11 @@
 export type Direction = 'purchase' | 'marketing' | 'availability' | 'partnership' | 'activity'
 export type DiscoveryRow = {
+  display_identity?: { display_name: string; original_name: string; branch_label: string };
+  commercial_value?: { relationship_type: string; reasons: string[]; relationship_state: string; quantity_capacity: string; procurement_scope: string };
+  contact_provenance?: { source_ref: string; scope: string };
+
   commercial_group?: { id: string; legal_merge: false; source_record_count: number; known_branch_count: number | null; source_locality_count: number; branches: { id: string; name: string; city?: string; district?: string; source_ref?: string; source_url?: string; contact_channels: string[]; evidence_excerpt?: string }[] };
-  commercial_identity?: { id: string; display_name: string; permanent_role: null; basis: string }; commercial_relationship?: { role: string; commercial_function?: string; evidence_state: string; current_demand: boolean }; reachability?: { channel_presence: string[]; needs_enrichment: boolean; verification: string };
+  commercial_identity?: { id: string; display_name: string; permanent_role: null; basis: string }; commercial_relationship?: { role: string; commercial_function?: string; evidence_state: string; current_demand: boolean }; reachability?: { channel_presence: string[]; needs_enrichment: boolean; verification: string; actual_values_available?: boolean; source_contacts?: { phone?: string[]; email?: string[] } };
   activity_assessment?: { primary_activity: string | null; conflicts: { reason: string }[] }; unified_activity?: { primary_activity: string | null; source_count: number; conflicts: { reason: string }[] }; usage_reason?: string; commercial_function?: string;
   level?: 'A' | 'B' | 'C' | 'D'; score?: number | null; match_status?: string; commercial_source_title?: string; id: string; name: string; role: string; subject?: string; city?: string; district?: string
   reason: string; verified: boolean; status: string; source_url?: string; observed_at?: string
