@@ -1,0 +1,20 @@
+{
+  "path": "/Users/m4pro/farq-targeting-b2b-release",
+  "deployment": "6d2b0a09-a674-40d1-a40a-fbfaca8c7ce3",
+  "previous": "7d58cb2d-b09f-4ef0-b248-a8c8799c0cb4",
+  "changes": [
+    "Known purchase families retain deterministic supplier roles",
+    "AI-extended purchase requires seller evidence",
+    "Chair search uses furniture/medical supply categories",
+    "Reject coordinate reference names",
+    "Describe activity as inference, never confirmed product availability"
+  ],
+  "tests": "4 role regression tests passed; real local directory queried",
+  "sha256": {
+    "server.py": "8b476d7e0cea2bf323a46edb25d190d08f61693111c90cc3f85a03627f061633",
+    "trial_search.py": "76c8c1195a0984a0df4543ebca6c9b47f5bf45bc30ce4520dc16ca61c8b2dab3",
+    "contact_lookup.py": "4a60c2223fe5c07083f554833ee3e00df14975405955b6d6ec0f88ecf13ce840",
+    "buyer_review.py": "bee5a9f2a02efd21246320ab2e98c3ba265f928aee0c99cf24ab5130f3926961",
+    "Dockerfile": "975f4329e7bb740c55e38a819c285d63777c510595522127c343ac9eca101832"
+  }
+}

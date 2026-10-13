@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-13",
+  "checks": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/requests",
+      "status": 200
+    },
+    {
+      "path": "/targeting",
+      "status": 200
+    },
+    {
+      "path": "/inbox",
+      "status": 200
+    },
+    {
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200
+    },
+    {
+      "path": "/_api/api/construction/b2b/capabilities",
+      "status": 401
+    }
+  ],
+  "pricing_deployment": "733a2d3f-5d74-4a5f-be35-2f8cf2e09447",
+  "api_deployment": "7ee24b4d-22a9-4984-9ede-7ae9b6ff3530",
+  "targeting_deployment": "6d2b0a09-a674-40d1-a40a-fbfaca8c7ce3"
+}
