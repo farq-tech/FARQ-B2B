@@ -1,3 +1,4 @@
+import { FarqGlassButton } from '../ui/FarqGlassButton'
 /*
  * DEV-ONLY component gallery: http://localhost:5180/ui
  * Every src/ui component in every state, next to the Figma component-set screenshot
@@ -61,6 +62,14 @@ function Gallery() {
           <Logo />
         </header>
 
+        <Section id="farq-glass" title="FARQ · الأزرار المعتمدة">
+          <FarqGlassButton>اعرض الجهات المناسبة</FarqGlassButton>
+          <FarqGlassButton variant="secondary" showIcon={false}>ارفع ملفًا</FarqGlassButton>
+          <FarqGlassButton variant="ghost" showIcon={false}>رجوع</FarqGlassButton>
+          <FarqGlassButton loading>بحث</FarqGlassButton>
+          <FarqGlassButton disabled>الإرسال غير متاح</FarqGlassButton>
+          <div style={{ width: 180 }}><FarqGlassButton>راجع الجهات والمواصفات قبل اعتماد التواصل</FarqGlassButton></div>
+        </Section>
         <Section id="button" title="Button" figma="button" note="Style × State · Size S/M/L">
           {(['Primary', 'Secondary', 'Ghost', 'Danger', 'Accent'] as ButtonStyle[]).map((v) => (
             <Row key={v} label={v}>
