@@ -5,6 +5,7 @@ from datetime import datetime,timezone
 from pathlib import Path
 from identity import stable_id,normalize
 from pragmatic import score
+from activity_quality import eligibility,usage_priority,sectors,KEY_SECTOR
 
 @lru_cache(maxsize=1)
 def pure_functions():
@@ -21,7 +22,7 @@ def activity_conflict(name,activity,intent,text,direction):
  # Explicit incompatible names and category conflicts stay in source; retrieval abstains.
  if intent.get('key') not in ['legal','marketing_services','logistics','training','accounting','hr','software','buyer_activity'] and re.search(r'حلاق|حلاقه|صالون|تصليح ساعات|ساعات|عطور|عطر|عقار|عقارات|نقل مدرسي|نقل الجامع|لنقل|معقب|خدمات عامه|law firm|مكتب محام',n):return True
  if intent.get('key')=='legal' and re.search(r'هندسي|engineering',n):return True
- if direction=='purchase':
+ if direction in ['purchase','availability','partnership']:
   key=intent.get('key')
   if key=='legal' and re.search(r'استراح|متنزه|حدايق|hookah|park|صالون|مطعم|الفنادق',n+' '+a):return True
   if key=='software' and re.search(r'قرطاسي|مكتبه|صيدلي|مغسله|حلاق|perfume|cosmetic|صيدليات',n):return True
@@ -56,7 +57,7 @@ def candidates(knowledge,text,direction,city,limit):
  path=os.environ.get('FARQ_GOLDEN_DIRECTORY')
  index=os.environ.get('FARQ_GOLDEN_INDEX')
  if not (index and Path(index).is_file()) and (not path or not Path(path).is_file()):return []
- functions=pure_functions();intent=functions['buyer_intent'](text) if direction=='marketing' else functions['interpret'](text)
+ functions=pure_functions();product_intent=functions['interpret'](text);intent=functions['buyer_intent'](text) if direction=='marketing' else functions['interpret'](text)
  role_unresolved=False
  if direction=='marketing' and not intent['seller']:
   intent=functions['interpret'](text);role_unresolved=True
@@ -76,21 +77,50 @@ def candidates(knowledge,text,direction,city,limit):
    has_triage=bool(local.execute("SELECT 1 FROM sqlite_master WHERE name='triage'").fetchone())
    triage_join=" JOIN triage t ON t.poi_key=p.poi_key AND t.inactive=0 AND t.class NOT IN ('GENERAL_NAME','LANDMARK_OR_NONCOMMERCIAL','GEOMETRY_NAME_QUARANTINE')" if has_triage else ''
    raw=local.execute('SELECT p.* FROM profile_search f JOIN profiles p ON p.poi_key=f.poi_key'+triage_join+' WHERE profile_search MATCH ?'+city_filter+' ORDER BY bm25(profile_search) LIMIT 3000',[clause]+[a.lower() for a in aliases]).fetchall()
-   data=[(key,name,sourcecity,district,activity,website,date,'phone' in json.loads(channels),'email' in json.loads(channels),lifecycle,company,landmark) for key,name,sourcecity,district,activity,website,date,channels,lifecycle,company,landmark in raw];local.close()
+   data=[(key,name,sourcecity,district,activity,website,date,any(c in json.loads(channels) for c in ['phone','mobile','landline']),'email' in json.loads(channels),lifecycle,company,landmark) for key,name,sourcecity,district,activity,website,date,channels,lifecycle,company,landmark in raw];local.close()
   else:
    import duckdb
    con=duckdb.connect();con.execute("SET threads=2;SET memory_limit='512MB'")
    data=con.execute(sql,params).fetchall()
-  result=[];knowledge.last_directory_exclusions=[]
+  result=[];knowledge.last_directory_exclusions=[];contexts={}
+  quality_path=os.environ.get('FARQ_ACTIVITY_QUALITY')
+  if quality_path and Path(quality_path).is_file():
+   quality_version=(quality_path,Path(quality_path).stat().st_mtime_ns,Path(quality_path).stat().st_size)
+   if getattr(knowledge,'activity_context_version',None)!=quality_version:knowledge.activity_context_cache={};knowledge.activity_context_version=quality_version
+   context_cache=knowledge.activity_context_cache
+   qdb=sqlite3.connect(Path(quality_path).resolve().as_uri()+'?mode=ro',uri=True)
+   ids=[stable_id('GOLDEN_SOURCE_PROFILE',row[0]) for row in data]
+   missing=[sid for sid in ids if sid not in context_cache]
+   for offset in range(0,len(missing),500):
+    chunk=missing[offset:offset+500]
+    context_cache.update({sid:None for sid in chunk})
+    for sid,primary,confidence,conflicts in qdb.execute('SELECT s.source_id,q.primary_activity,q.activity_confidence,q.conflicts FROM source_quality s JOIN activity_quality q ON q.entity_id=s.entity_id WHERE s.source_id IN ('+','.join('?' for _ in chunk)+')',chunk):context_cache[sid]=(primary,json.loads(confidence),json.loads(conflicts))
+   qdb.close();contexts={sid:context_cache.get(sid) for sid in ids}
+   if len(context_cache)>30000:knowledge.activity_context_cache=contexts.copy()
+
   for key,name,sourcecity,district,activity,website,date,phone,email,lifecycle,company,landmark in data:
    combined=normalize(str(name or '')+' '+str(activity or ''))
    if re.search(r'كاميرا|camera',normalize(text)) and re.search(r'انابيب|انبوب|pipe',normalize(text)) and not re.search(r'camera|كاميرا|فحص الانابيب|pipe inspection',combined):continue
    if re.search(r'ابواب|باب|doors?',normalize(text)) and not re.search(r'hinge|elbow|مفصل|اكواع',normalize(text)) and re.search(r'hinge|elbow|مفصل|مقابض فقط',combined):continue
    if not name or str(landmark).lower() in ['true','1','yes'] or normalize(lifecycle) in ['closed','permanently closed'] or normalize(company) in ['inactive','cancelled','ملغي'] or re.search(r'geometry|epsg|polygon|كورنيش|مسجد|حديقه',normalize(name)):continue
+   quality=eligibility(text,product_intent['key'],direction,name,activity)
+   pid=stable_id('GOLDEN_SOURCE_PROFILE',key);context=contexts.get(pid)
+   if context:
+    quality['activity_assessment']['cross_source_primary_activity']=context[0]
+    quality['activity_assessment']['cross_source_relative_confidence']=context[1]
+
+   if not quality['eligible']:
+    knowledge.last_directory_exclusions.append({'source_ref':str(key),'name':name,'activity':activity,'reason':quality['reasons'],'activity_assessment':quality['activity_assessment']});continue
    if activity_conflict(name,activity,intent,text,direction):
     knowledge.last_directory_exclusions.append({'source_ref':str(key),'name':name,'activity':activity,'reason':'NAME_ACTIVITY_CONFLICT_OR_INCOMPATIBLE_SPECIALTY_OR_GENERIC_IDENTITY'})
     continue
+   effective_activity=activity
    if direction=='marketing' and not role_unresolved:
+    conflicted={c['activity'] for c in quality['activity_assessment']['conflicts']}
+    valid_terms=[t for t in terms if functions['contains'](t,normalize(activity)) and not (set(sectors(t)) & conflicted)]
+    if not valid_terms:
+     knowledge.last_directory_exclusions.append({'source_ref':str(key),'name':name,'activity':activity,'reason':'NO_COMPATIBLE_ACTIVITY_AFTER_SOURCE_CONFLICT_CHECK'});continue
+    effective_activity=' '.join(valid_terms)
     if any(functions['contains'](t,combined) for t in intent['exclude']):continue
     if not any(functions['contains'](t,normalize(activity)) for t in terms):continue
     reason=intent['label']+'؛ لا دليل طلب شراء حالي'
@@ -102,7 +132,7 @@ def candidates(knowledge,text,direction,city,limit):
    if role_unresolved:reason='نشاط مرتبط بالعبارة؛ لم يتحدد استخدام تجاري كافٍ لاستنتاج أنه مشترٍ'
    if direction=='partnership':reason='تخصص قد يكمل الشراكة المطلوبة؛ اهتمام الجهة بالشراكة غير مثبت'
    channels=(["phone"] if phone else [])+(["email"] if email else [])
-   hits=[term for term in terms if functions['contains'](term,normalize(activity))]
+   hits=[term for term in terms if functions['contains'](term,normalize(effective_activity))]
    reason+='؛ مطابقات النشاط المسجل: '+('، '.join(hits) if hits else 'الاسم فقط، التصنيف غير متاح')
    specific=max((len(t.split()) for t in hits),default=0)
    recency=0
@@ -114,9 +144,15 @@ def candidates(knowledge,text,direction,city,limit):
      recency=1 if 0<=age<90 else .5 if 90<=age<365 else .1 if age>=365 else 0
      break
     except (ValueError,TypeError):pass
-   parts={'product':.4,'specialty':min(.95,.6+.1*specific),'identity':.5,'geography':.7 if city else 0,'recency':recency,'contact':1 if channels else 0}
+   priority,use_reason=usage_priority(product_intent['key'],effective_activity,name) if direction=='marketing' else (.5,'تخصص مرتبط؛ لم يثبت مخزون صنف')
+   target_sectors=set(sectors(effective_activity)) if direction=='marketing' else {KEY_SECTOR.get(product_intent['key'])}
+   consensus=max((c['relative_confidence'] for c in context[1] if c['activity'] in target_sectors),default=.5) if context else .5
+   agreement=any(c['name_agreement'] for c in quality['activity_assessment']['activity_candidates'] if c['activity'] in target_sectors)
+   ambiguous_business_software=product_intent['key']=='software' and re.search(r'محاسب|انظمه اعمال|انظمة اعمال',normalize(text)) and re.search(r'برمجه جوالات|برمجة جوالات',normalize(name))
+   parts={'product':priority if direction=='marketing' else .4,'specialty':min(.95,.55+.1*specific+.15*agreement),'identity':min(.75,consensus),'geography':.7 if city else 0,'recency':recency,'contact':1 if channels else 0}
+   if ambiguous_business_software:parts.update(product=.2,specialty=.3);reason+='؛ برمجة أجهزة الهاتف لا تثبت تقديم أنظمة أعمال'
    pid=stable_id('GOLDEN_SOURCE_PROFILE',key)
-   result.append({'id':pid,'entity_id':pid,'name':name,'city':sourcecity,'district':district,'role':'organization' if role_unresolved else 'buyer' if direction=='marketing' else 'partner' if direction=='partnership' else 'seller','level':'C' if hits else 'D','match_status':'SPECIALTY_MATCH' if hits else 'MARKET_CANDIDATE','score':score(parts),'score_components':parts,'verified':False,'status':'SOURCE_SPECIALTY_RECOMMENDATION','evidence_kind':'GOLDEN_SOURCE_ACTIVITY' if hits else 'GOLDEN_SOURCE_NAME','source_ref':str(key),'evidence_excerpt':'الاسم المسجل: '+str(name)+' | النشاط المسجل: '+str(activity),'observed_at':date,'reason':reason,'matched_activity_terms':hits,'contact_channels':channels,'contact_verification':'SOURCE_RECORDED_NOT_LIVE_VERIFIED','availability':'UNKNOWN','delivery_coverage':'UNKNOWN','purchase_intent':'UNKNOWN','partnership_interest':'UNKNOWN','interpretation_basis':'EXPLICIT_TARGET_ACTIVITY' if intent['key']=='explicit_buyer_activity' else 'EXISTING_TARGETING_PRODUCT_USE_RULE','blockers':['PRODUCT_SPECIFIC_RELATION_NOT_PROVEN','LEGAL_ENTITY_UNLINKED'],'profile_type':'ORIGINAL_POI_KEY_SOURCE_PROFILE'})
+   result.append({'id':pid,'entity_id':pid,'name':name,'city':sourcecity,'district':district,'role':'organization' if role_unresolved else 'buyer' if direction=='marketing' else 'partner' if direction=='partnership' else 'seller','level':'C' if hits and not ambiguous_business_software else 'D','match_status':'SPECIALTY_MATCH' if hits else 'MARKET_CANDIDATE','score':score(parts),'score_components':parts,'verified':False,'status':'SOURCE_SPECIALTY_RECOMMENDATION','evidence_kind':'GOLDEN_SOURCE_ACTIVITY' if hits else 'GOLDEN_SOURCE_NAME','source_ref':str(key),'evidence_excerpt':'الاسم المسجل: '+str(name)+' | النشاط المسجل: '+str(activity),'observed_at':date,'reason':reason,'matched_activity_terms':hits,'contact_channels':channels,'contact_verification':'SOURCE_RECORDED_NOT_LIVE_VERIFIED','availability':'UNKNOWN','delivery_coverage':'UNKNOWN','purchase_intent':'UNKNOWN','partnership_interest':'UNKNOWN','interpretation_basis':'EXPLICIT_TARGET_ACTIVITY' if intent['key']=='explicit_buyer_activity' else 'EXISTING_TARGETING_PRODUCT_USE_RULE','blockers':['PRODUCT_SPECIFIC_RELATION_NOT_PROVEN','LEGAL_ENTITY_UNLINKED'],'profile_type':'ORIGINAL_POI_KEY_SOURCE_PROFILE','activity_assessment':quality['activity_assessment'],'commercial_function':quality['commercial_function'],'usage_priority':priority,'usage_reason':use_reason})
   result.sort(key=lambda r:(-r['score'],r['id']));return result[:limit]
  finally:
   if con:con.close()

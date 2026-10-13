@@ -28,7 +28,7 @@ PROFILES = [
  ('kitchen', r'معدات مطبخ|تجهيز مطبخ|ثلاج|فرن|افران|kitchen|refrigerator|oven', 'معدات مطابخ وتبريد', ['معدات مطابخ','تجهيز مطابخ','kitchen equipment','refrigerat','oven'], ['معدات مطابخ','تجهيز مطابخ','kitchen equipment','commercial kitchen','refrigerat','restaurant equipment','اجهزه منزليه','home appliance'], ['restaurant','مطعم','مطاعم','cafe','مقهى','repair','صيانه']),
  ('industrial', r'معدات مصنع|معدات صناعي|الات صناعي|مكائن|ماكين|industrial|machinery', 'معدات وآلات صناعية', ['معدات صناعيه','الات','machinery','industrial equipment'], ['معدات صناعيه','الات صناعيه','industrial equipment','machinery','industrial machinery'], ['grocery','school','مدرس','restaurant','مطعم','تصليح','repair','صيانه','تاجير','rental']),
  ('cleaning', r'منظف|مواد نظاف|detergent|cleaning supplies', 'مواد وأدوات نظافة', ['منظفات','مواد نظافه','detergent'], ['منظفات','مواد نظافه','detergent','cleaning suppl','hygiene suppl','janitorial suppl'], ['cleaning service','تنظيف منازل','تنظيف خزانات','مغسله','laundry']),
- ('packaging', r'تغليف|عبوات|كراتين|كرتون|packaging|containers', 'عبوات ومواد تغليف', ['تغليف','عبوات','كرتون','packaging'], ['تغليف','عبوات','كرتون','packaging','plastic containers','paper products'], ['grocery','restaurant','مطعم']),
+ ('packaging', r'اكواب|كوب ورق|paper cups|plastic cups|تغليف|عبوات|كراتين|كرتون|packaging|containers', 'عبوات ومواد تغليف', ['تغليف','عبوات','كرتون','packaging'], ['تغليف','عبوات','كرتون','packaging','plastic containers','paper products'], ['grocery','restaurant','مطعم']),
  ('plumbing', r'مواسير|انابيب|سباك|plumbing|pipes', 'أدوات سباكة وأنابيب', ['مواسير','انابيب','سباكه','plumbing','pipes'], ['سباكه','ادوات صحيه','plumbing','sanitary','pipes'], ['plumber','سباك متنقل','repair','صيانه']),
  ('steel', r'حديد|steel|iron', 'حديد ومعادن', ['حديد','steel','iron'], ['حديد','steel','metal supplier','steel_metal'], ['grocery','restaurant','مطعم']),
  ('paint', r'دهان|بويه|paint', 'دهانات ومواد طلاء', ['دهانات','بويه','paint'], ['دهانات','بويه','paint store','paint supplier','paints'], ['painting service','دهان منازل','مقاول']),
@@ -50,12 +50,23 @@ PROFILES += [
  ('hvac',r'اجهزه تكييف|مكيفات|air conditioning|hvac','تكييف وتبريد',['تكييف','مكيفات','hvac'],['air conditioning store','air conditioning contractor','hvac contractor','refrigeration','مكيفات','تكييف'],[]),
  ('printing',r'طباعه تجاري|مطبوعات|طباعة|printing services','خدمات طباعة',['طباعه','printing'],['printing service','print shop','مطبعه','مطابع','طباعه'],['printer repair']),
 ]
+PROFILES += [
+ ('computer_repair',r'(?:صيانه|اصلاح).{0,20}(?:كمبيوتر|حاسب)|computer repair','صيانة أجهزة كمبيوتر',['صيانه كمبيوتر','computer repair'],['computer repair','computer service','صيانه كمبيوتر'],['computer wholesaler']),
+ ('dental',r'طب الاسنان|مستلزمات.{0,12}اسنان|dental suppl|dental instrument','مستلزمات طب الأسنان',['مستلزمات اسنان','dental'],['dental supply','dental equipment','مستلزمات اسنان','معدات اسنان'],['pharmacy','drug store']),
+ ('insurance',r'تامين|insurance','خدمات تأمين',['تامين','insurance'],['insurance agency','insurance company','insurance broker','وكاله تامين'],[]),
+ ('tourism',r'خدمات سفر|حجوزات سفر|travel services|tour operator','خدمات سفر وسياحة',['سفر','travel'],['travel agency','tour operator','وكاله سفر'],[]),
+ ('telecom',r'خدمات اتصالات|انترنت منشات|telecommunication service|business internet','خدمات اتصالات',['اتصالات','telecom'],['telecommunications service provider','internet service provider','خدمات اتصالات'],[]),
+ ('security_services',r'حراسه|امن منشات|security guard|security services','خدمات حراسة',['حراسه','security'],['security guard service','خدمات حراسه','حراسه منشات'],[]),
+ ('waste',r'تدوير نفايات|جمع نفايات|waste collection|recycling','خدمات نفايات وتدوير',['نفايات','recycling'],['waste management service','recycling center','جمع نفايات'],[]),
+]
 STOP = set(norm('ابيع ابي ابغى اريد احتاج نحتاج طلب شراء مورد موردين شركه شركتي منشاتي للمكتب للعياده للمطعم للمصنع للمستشفى للمستشفي لمكتب لعياده لمطعم لمصنع تجهيز عدد حبه قطعه متر كيلو بالرياض الرياض جدة جده').split())
 
 def interpret(q):
     original=q.strip()
     q = norm(q)
-    ordered=sorted(PROFILES,key=lambda p:0 if p[0]=='software' else 1) if re.search(r'برامج|برمج|software|saas',q) else PROFILES
+    ordered=[p for p in PROFILES if p[0]=='computer_repair']+[p for p in PROFILES if p[0]!='computer_repair'] if re.search(r'(?:صيانه|اصلاح).{0,20}(?:كمبيوتر|حاسب)|computer repair',q) else PROFILES
+    ordered=[p for p in ordered if p[0]=='dental']+[p for p in ordered if p[0]!='dental'] if re.search(r'اسنان|dental',q) else ordered
+    ordered=sorted(ordered,key=lambda p:0 if p[0]=='software' else 1) if re.search(r'برامج|برمج|software|saas',q) else ordered
     for key, pattern, label, product, seller, exclude in ordered:
         if re.search(pattern.translate(AR).lower(), q):
             return {'key':key, 'label':label, 'product':list(map(norm,product)), 'seller':list(map(norm,seller)), 'exclude':list(map(norm,exclude))}
@@ -135,7 +146,14 @@ def buyer_intent(q):
         words=activity_terms(explicit[1])
         return {'key':'explicit_buyer_activity','label':'نشاط مستهدف يحدده المستخدم؛ لا دليل رغبة شراء حالية','product':[], 'seller':words, 'exclude':[]}
     service_rules={
-        'accounting':(['corporate office','company','factory','restaurant','non profit organization','جمعيه','شركه'],['accounting firm','accountant','مكتب محاسبه']),
+        'accounting':(['small business','restaurant','retail store','factory','non profit organization','corporate office','جمعيه','شركه'],['accounting firm','accountant','مكتب محاسبه']),
+        'computer_repair':(['school','university','corporate office','مدرسه','جامعه'],['computer repair','computer store']),
+        'dental':(['dental clinic','dentist','عياده اسنان','طب اسنان'],['dental supply','dental equipment supplier']),
+        'insurance':(['corporate office','factory','construction company','retail store'],['insurance company','insurance agency']),
+        'tourism':(['corporate office','school','university'],['travel agency','tour operator']),
+        'telecom':(['corporate office','school','hotel','factory'],['telecommunications service provider']),
+        'security_services':(['factory','warehouse','hotel','school','construction company'],['security guard service']),
+        'waste':(['factory','restaurant','hospital','construction company'],['waste management service']),
         'legal':(['corporate office','company','government office','non profit organization','شركه','جمعيه'],['law firm','محاماه','legal services']),
         'software':(['corporate office','school','university','hospital','restaurant','government office'],['software company','software development']),
         'marketing_services':(['restaurant','hotel','retail store','clinic','real estate agency','مطعم','فندق','عياده'],['marketing agency','advertising agency']),
@@ -191,11 +209,11 @@ def buyer_intent(q):
         terms,exclude=rules[product['key']]
         label='نشاط قد يستخدم '+product['label']+'؛ لا طلب شراء حالي مثبت ولا مواصفات أو كميات مؤكدة'
     elif product['key']=='chairs':
-        terms=['clinic','medical clinic','hospital','عياده','عيادات','مستشفى','مستشفيات']
+        terms=['medical clinic','hospital','service center','عياده','عيادات','مستشفى','مستشفيات','مركز خدمات']
         exclude=['furniture store','اثاث','مفروشات','medical supplier','مستلزمات طبيه']
         label='عيادات ومستشفيات قد تستخدم كراسي الانتظار؛ لا طلب شراء مثبت'
     elif re.search(r'سباكه|plumbing|انابيب|مواسير|\bupvc\b',text):
-        terms=['contractor','contracting','construction','مقاولات','مقاول','انشاءات']
+        terms=['plumbing contractor','plumber','building maintenance','finishing contractor','contractor','contracting','construction','مقاولات','مقاول','انشاءات','تشطيبات','صيانه مباني']
         exclude=['plumbing supply','hardware store','ادوات صحيه','محل','متجر']
         label='مقاولون محتملون من النشاط؛ مشاريعهم واحتياج السباكة الحالي غير مثبتين'
     else:

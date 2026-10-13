@@ -80,7 +80,8 @@ class Knowledge:
         # Actor-scoped, short-lived cache invalidated by changes in derived inputs.
         index=os.environ.get('FARQ_GOLDEN_INDEX')
         registry=os.environ.get('FARQ_COMMERCIAL_REGISTRY')
-        files=[self.path]+([Path(registry)] if registry else [])+([Path(index)] if index else [])
+        quality=os.environ.get('FARQ_ACTIVITY_QUALITY')
+        files=([Path(quality)] if quality else [])+[self.path]+([Path(registry)] if registry else [])+([Path(index)] if index else [])
         version=tuple((str(p),p.stat().st_mtime_ns,p.stat().st_size) for p in files if p.exists())
         key=(str(actor),str(text),str(direction),str(city),str(limit),str(proven_only),self.pragmatic,version,offset)
         hit=self.response_cache.get(key)
@@ -152,11 +153,11 @@ class Knowledge:
                 for item in rows:
                     flag=db.execute('SELECT channels_json FROM contact_flags WHERE observation_id=?',(item['entity_id'],)).fetchone()
                     item['contact_channels']=json.loads(flag[0]) if flag else item.get('contact_channels',[])
-                    item.update(level='C',match_status='SPECIALTY_MATCH',score=item.get('score') or score({'product':.4,'specialty':.8,'identity':.5,'geography':.5 if city else 0,'recency':0,'contact':1 if item['contact_channels'] else 0}))
+                    item.update(level=item.get('level','C'),match_status=item.get('match_status','SPECIALTY_MATCH'),score=item.get('score') or score({'product':.4,'specialty':.8,'identity':.5,'geography':.5 if city else 0,'recency':0,'contact':1 if item['contact_channels'] else 0}))
                 rows.sort(key=lambda r:(-r['score'],r['id']))
             else:rows.sort(key=lambda r:r['id'])
             db.close()
-            return {'goal':goal,'policy':'PRAGMATIC' if self.pragmatic else 'STRICT','main':current[:limit],'expansion':rows[:limit],'levels':{'A':len(current),'B':0,'C':len(rows),'D':0},'direct':current[:limit],'potential':rows[:limit],'coverage':'PUBLIC_REQUEST_AS_OBSERVED' if current else 'POTENTIAL_ACTIVITY_ONLY' if rows else 'NO_PROVEN_CURRENT_DEMAND','execution_enabled':False,'messages_sent':0,'human_validation':'PENDING_HUMAN_REVIEW','latency_ms':round((time.perf_counter()-start)*1000,3)}
+            return {'goal':goal,'policy':'PRAGMATIC' if self.pragmatic else 'STRICT','main':current[:limit],'expansion':rows[:limit],'levels':{'A':len(current),'B':0,'C':sum(r.get('level','C')=='C' for r in rows),'D':sum(r.get('level')=='D' for r in rows)},'direct':current[:limit],'potential':rows[:limit],'coverage':'PUBLIC_REQUEST_AS_OBSERVED' if current else 'POTENTIAL_ACTIVITY_ONLY' if rows else 'NO_PROVEN_CURRENT_DEMAND','execution_enabled':False,'messages_sent':0,'human_validation':'PENDING_HUMAN_REVIEW','excluded':getattr(self,'last_directory_exclusions',[])[:100],'excluded_count':len(getattr(self,'last_directory_exclusions',[])),'latency_ms':round((time.perf_counter()-start)*1000,3)}
         # Existing CPO search terms, then literal catalog tokens when CPO abstains.
         tokens=[t for t in re.findall(r'[\w]+',normalize(text)) if not t.isdigit() and len(t)>1]
         stop={'احتاج','ابي','ابحث','عن','اشتري','ابيع','لعياده','بالرياض','للعياده','كميه','عدد','قطر','مم','كيلو','بالجمله','مختلفه','مقاسات','سماكات','مواد','واريد','لديهم','احتياجات','مثبته'}

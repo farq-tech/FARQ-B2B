@@ -92,3 +92,35 @@ then writes CSVs, persists contextual links idempotently in the owned derivative
 writes the Arabic report. Counts of normalized texts are not canonical SKU counts;
 source presence is not live contact verification. Serper budget and paid calls remain zero.
 No provider/sending code is called by these scripts. Independent human review remains pending.
+
+## Market quality completion
+
+`activity_quality.py` adds context/role eligibility to the current pragmatic ranking.
+Name signals, source categories and saved descriptions have different relative strength;
+confidence is heuristic, not a calibrated probability. Compound source contradictions are
+retained with reasons. Manufacturer, distributor, service, regulator, education, publisher,
+marketplace and potential user are contextual functions, never permanent entity roles.
+
+`quality_audit.py --registry <owned-registry> --index <read-only-index> --knowledge
+<read-only-knowledge> --output <new-owned-activity-quality.db>` audits all named candidates,
+including domain-only saved source profiles, without updating inputs. Set
+`FARQ_ACTIVITY_QUALITY` to this derivative to use aggregated activity context in ranking
+and return the original categories with query results. Generic and unresolved labels do not
+become verified product relationships. The derivative includes all 941,032 baseline
+candidate anchors; that denominator includes provisional source-domain identities.
+
+`execution_eval.py --extra ...` replays 42 existing plus 22 extra same-input cases.
+Run it against an archived baseline and current code separately with the same assets.
+`quality_comparison.py --before <json> --after <json> --root <owned-output>` computes
+counts, evidence levels, direction, contacts and latency, and fails on frozen real-source
+contradictions returning. Its fixed compatible anchors are evidence-consistency checks,
+not independent human labels; unrated top-five results remain explicitly unrated.
+Human review CSV omits ranks, model scores and automated decisions.
+
+Serper planning reuses the existing `targeting/serper/plan.py`. The unapproved priority
+plan deduplicates stable IDs and checks existing group contact presence first without
+borrowing another branch's contact. Budget stays zero. Future approved execution of the
+existing runner requires an explicit single-target cap and a permanent shared SQLite
+identity-attempt ledger. Transactional unique claims prevent a second paid attempt per ID,
+including concurrent runs. Maps retries are removed; no source/product proof is inferred
+from search snippets. No Serper key or provider is read/called during this delivery.

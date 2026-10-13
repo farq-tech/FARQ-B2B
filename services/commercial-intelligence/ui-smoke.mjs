@@ -21,6 +21,7 @@ try {
     await page.getByRole('button', { name: 'ابحث عن بائعين' }).click()
     const data = await (await response).json()
     await page.getByRole('heading', { name: /مرشحون للمراجعة/ }).waitFor()
+    if (data.direct.concat(data.potential).some(row => !row.commercial_relationship || row.commercial_identity?.permanent_role !== null || row.reachability?.borrowed_from_other_branch)) throw new Error('CONTEXTUAL_CONTRACT_MISSING')
     if (data.execution_enabled !== false || data.messages_sent !== 0) throw new Error('DISPATCH_OR_UNSAFE_RESPONSE')
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)
     if (overflow) throw new Error('HORIZONTAL_OVERFLOW')

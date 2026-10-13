@@ -9,3 +9,12 @@
 لا تعتمد extract وحدها: المطابقة loose، والتقاط هاتف من مقتطف دليل، والأرقام الوهمية، وروابط واتساب غير مرتبطة بالهوية تحتاج تصفية قبل قبولها. لا دليل منتج من مقتطف Google، ولا إثبات أن الهاتف يدعم واتساب بمجرد أنه جوال.
 
 ربط Google Places السابق غير مفعّل؛ لا تضف له مفتاحًا. مسار Serper لم يفعّل بعد، ولم يستهلك رصيدًا في هذا العمل.
+
+Current offline commercial policy supersedes the earlier two-search pilot: one paid
+attempt per stable commercial identity, no automatic Maps fallback. Plans are unapproved
+with cap zero. Execution requires `approved=true`, an explicitly approved credit cap,
+a single target, and an absolute permanent `identity_attempt_ledger` path shared by
+batches. Unique SQLite transactional reservations prevent duplicate attempts even after
+errors; provider failure never authorizes a retry. Planning and validation read no secrets
+and use no credits. A business name match cannot establish product-sale evidence or
+WhatsApp availability.

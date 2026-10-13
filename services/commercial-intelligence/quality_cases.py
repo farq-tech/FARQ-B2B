@@ -1,0 +1,4 @@
+# coding: utf-8
+"""Frozen extra real-goal inputs shared by baseline and changed core."""
+EXTRA_GOALS=[(key+'-'+direction,('أبيع ' if direction=='marketing' else 'أحتاج ')+text,direction,'الرياض') for key,text in [('paper-cups','أكواب ورقية'),('waiting','كراسي انتظار'),('dental','مستلزمات طب الأسنان'),('insurance','خدمات تأمين'),('tourism','خدمات سفر'),('telecom','خدمات اتصالات'),('security','خدمات حراسة'),('waste','جمع نفايات وتدوير')] for direction in ['purchase','marketing']]
+EXTRA_GOALS += [('uniform-maker','مصنع زي موحد','purchase','الرياض'),('software-restaurant','برامج للمطاعم','purchase','الرياض'),('coffee-beans','حبوب قهوة','purchase','الرياض'),('accounting-saas','برامج محاسبة','availability','الرياض'),('computer-goods','أجهزة كمبيوتر','availability','الرياض'),('computer-service','صيانة أجهزة كمبيوتر','purchase','الرياض')]
