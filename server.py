@@ -13,12 +13,12 @@ PORT = int(os.environ.get('PORT', '8080'))
 API = os.environ.get('FARQ_API_ORIGIN', 'https://api.farq.sa').rstrip('/')
 SITE_URL = os.environ.get('SITE_URL', '').rstrip('/')  # public origin for canonical / sitemap (unset: from the Host header)
 # The landing's <head> for crawlers (docs/qa/requests.md B3); app routes keep noindex.
-LANDING_TITLE = 'فرق تسعير — قبل ما تشتري، شوف الفرق'
+LANDING_TITLE = 'FARQ B2B — الجهات المناسبة لاحتياج منشأتك'
 LANDING_DESC = 'جهّز احتياج منشأتك وراجع البنود، ثم قارن عروض الموردين المستلمة ومواصفاتها وشروطها قبل قرار الشراء.'
 def landing_head(origin):
     t, d, u = html.escape(LANDING_TITLE), html.escape(LANDING_DESC), html.escape(origin + '/')
     return (f'<title>{t}</title><meta name="description" content="{d}" /><meta name="robots" content="index, follow" />'
-            f'<meta property="og:type" content="website" /><meta property="og:site_name" content="فرق تسعير" /><meta property="og:locale" content="ar_SA" />'
+            f'<meta property="og:type" content="website" /><meta property="og:site_name" content="FARQ B2B" /><meta property="og:locale" content="ar_SA" />'
             f'<meta property="og:title" content="{t}" /><meta property="og:description" content="{d}" /><meta property="og:url" content="{u}" />'
             f'<meta name="twitter:card" content="summary" /><meta name="twitter:title" content="{t}" /><meta name="twitter:description" content="{d}" />'
             f'<link rel="canonical" href="{u}" />')
@@ -104,7 +104,7 @@ class H(BaseHTTPRequestHandler):
         self._send(200, data, ctype if 'text' not in ctype else ctype + '; charset=utf-8')
     def _landing(self):
         with open(os.path.join(DIST, 'index.html'), encoding='utf-8') as fh: page = fh.read()
-        page = page.replace('<meta name="robots" content="noindex, nofollow" />', '', 1).replace('<title>فرق تسعير</title>', landing_head(self._origin()), 1)
+        page = page.replace('<meta name="robots" content="noindex, nofollow" />', '', 1).replace('<title>FARQ B2B</title>', landing_head(self._origin()), 1)
         self._send(200, page.encode())
     def do_GET(self):
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
