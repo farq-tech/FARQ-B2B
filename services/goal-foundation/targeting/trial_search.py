@@ -124,6 +124,14 @@ def buyer_intent(q):
         terms=['cafe','coffee shop','مقهى','مقاهي','restaurant','مطعم','hotel','فندق']
         exclude=['coffee supplier','roaster','محمص','wholesale']
         label='جهات قد تستخدم القهوة؛ شراء منتج المستخدم غير مؤكد'
+    elif product['key']=='chairs':
+        terms=['clinic','medical clinic','hospital','عياده','عيادات','مستشفى','مستشفيات']
+        exclude=['furniture store','اثاث','مفروشات','medical supplier','مستلزمات طبيه']
+        label='عيادات ومستشفيات قد تستخدم كراسي الانتظار؛ لا طلب شراء مثبت'
+    elif re.search(r'سباكه|plumbing|انابيب|مواسير|\bupvc\b',text):
+        terms=['contractor','contracting','construction','مقاولات','مقاول','انشاءات']
+        exclude=['plumbing supply','hardware store','ادوات صحيه','محل','متجر']
+        label='مقاولون محتملون من النشاط؛ مشاريعهم واحتياج السباكة الحالي غير مثبتين'
     else:
         return {'key':'custom','label':'لم يتحدد استخدام المنتج لدى المشترين بعد','product':[], 'seller':[], 'exclude':[]}
     return {'key':'buyer_activity','label':label,'product':[], 'seller':list(map(norm,terms)), 'exclude':list(map(norm,exclude))}

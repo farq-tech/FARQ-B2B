@@ -22,6 +22,10 @@ export default defineConfig({
   server: {
     port: 5180,
     proxy: {
+      // One isolated read-only core for both platforms. Never enabled by default.
+      ...(process.env.VITE_FARQ_COMMERCIAL_INTELLIGENCE === '1' ? {
+        '/__commercial': { target: 'http://127.0.0.1:8767', changeOrigin: false, rewrite: (p: string) => p.replace(/^\/__commercial/, '') },
+      } : {}),
       '/_api': { target: process.env.VITE_API_PROXY_TARGET || 'https://api.farq.sa', changeOrigin: true, rewrite: (p) => p.replace(/^\/_api/, '') },
       // the targeting service run locally without any send keys: `PORT=8766 python3 server.py` in ~/farq-targeting
       '/_targeting': { target: process.env.VITE_TARGETING_TARGET || 'http://127.0.0.1:8766', changeOrigin: true, rewrite: (p) => p.replace(/^\/_targeting/, '') },

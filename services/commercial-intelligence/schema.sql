@@ -1,0 +1,15 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS observations(id TEXT PRIMARY KEY,source_id TEXT NOT NULL,record_uid TEXT NOT NULL UNIQUE,name TEXT,city TEXT,district TEXT,activity TEXT,host TEXT,identity_status TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS observations_host ON observations(host);
+CREATE TABLE IF NOT EXISTS contact_flags(observation_id TEXT PRIMARY KEY REFERENCES observations(id),channels_json TEXT NOT NULL,validation_scope TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS legacy_aliases(snapshot_id TEXT NOT NULL,legacy_id TEXT NOT NULL,observation_id TEXT NOT NULL REFERENCES observations(id),PRIMARY KEY(snapshot_id,legacy_id,observation_id));
+CREATE TABLE IF NOT EXISTS subjects(id TEXT PRIMARY KEY,source_key TEXT NOT NULL,name TEXT NOT NULL,normalized_text TEXT NOT NULL,catalog_family TEXT,cpo_family TEXT,cpo_intent TEXT,specs_json TEXT NOT NULL,source_url TEXT,evidence_kind TEXT NOT NULL,observed_at TEXT,date_kind TEXT NOT NULL,source_file TEXT NOT NULL);
+CREATE VIRTUAL TABLE IF NOT EXISTS subject_search USING fts5(subject_id UNINDEXED,normalized_text,tokenize='unicode61');
+CREATE TABLE IF NOT EXISTS evidence(id TEXT PRIMARY KEY,source_file TEXT NOT NULL,source_line INTEGER,source_url TEXT,content_hash TEXT,observed_at TEXT,date_kind TEXT NOT NULL,kind TEXT NOT NULL,excerpt TEXT NOT NULL,owner_scope TEXT,verification TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS relations(id TEXT PRIMARY KEY,observation_id TEXT REFERENCES observations(id),subject_id TEXT REFERENCES subjects(id),cpo_family TEXT,cpo_intent TEXT,relationship TEXT NOT NULL,evidence_id TEXT REFERENCES evidence(id),status TEXT NOT NULL,match_level TEXT NOT NULL,blockers_json TEXT NOT NULL,scope_owner TEXT);
+CREATE INDEX IF NOT EXISTS relations_subject ON relations(subject_id);
+CREATE INDEX IF NOT EXISTS relations_intent ON relations(cpo_intent,relationship);
+CREATE TABLE IF NOT EXISTS page_identity(page_id TEXT PRIMARY KEY REFERENCES evidence(id),legacy_key TEXT,decision TEXT NOT NULL,candidate_ids_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS unresolved(id TEXT PRIMARY KEY,kind TEXT NOT NULL,source_ref TEXT NOT NULL,reason TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS relation_decisions(id TEXT PRIMARY KEY,relation_id TEXT NOT NULL,previous_status TEXT,next_status TEXT NOT NULL,rule_version TEXT NOT NULL,evidence_refs_json TEXT NOT NULL,reversible INTEGER NOT NULL DEFAULT 1);

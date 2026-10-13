@@ -27,7 +27,9 @@ const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const search = new URLSearchParams(window.location.search)
 const harness = import.meta.env.DEV ? search.get('harness') : null
 
-if (import.meta.env.DEV && path === '/ui') {
+if (import.meta.env.DEV && import.meta.env.VITE_FARQ_COMMERCIAL_INTELLIGENCE === '1' && path === '/commercial-review') {
+  void import('./dev/CommercialReview').then((m) => createRoot(document.getElementById('root')!).render(<m.default />))
+} else if (import.meta.env.DEV && path === '/ui') {
   void import('./dev/uiGallery').then((m) => m.mountGallery())
 } else if (import.meta.env.DEV && path === '/live-bg') {
   void import('./live-bg/DevPage').then((m) => createRoot(document.getElementById('root')!).render(<m.default />))
