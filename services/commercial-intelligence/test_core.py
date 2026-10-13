@@ -39,6 +39,14 @@ class Tests(unittest.TestCase):
     def test_wait_message_is_not_waiting_chair(self):
         db=sqlite3.connect(self.db);db.execute("UPDATE subjects SET name='Office Chair',normalized_text='office chair please wait while loading'");db.execute("UPDATE subject_search SET normalized_text='office chair please wait while loading'");db.commit();db.close()
         r=self.k.search('waiting chair','purchase','','local-review:alice');self.assertFalse(r['potential'])
+    def test_public_request_verifies_publication_not_purchase_fit(self):
+        db=sqlite3.connect(self.db)
+        db.execute("CREATE TABLE public_demands(id,authority_id,authority_name,title,normalized_text,source_url,deadline,observed_at,status,verification_dimension,eligibility)")
+        db.execute("INSERT INTO public_demands VALUES(?,?,?,?,?,?,?,?,?,?,?)",('d','authority','جهة عامة','تطوير خطة الكفاءات المهنية','تطوير خطه الكفاءات المهنيه','https://example.gov.sa/tender','2099-01-01T00:00:00+00:00','2026-10-13','PUBLIC_OPEN_REQUEST','PUBLICATION_ONLY','NOT_ASSESSED'))
+        db.commit();db.close()
+        r=self.k.search('تطوير الكفاءات المهنية','marketing','','local-review:alice');self.assertEqual(len(r['direct']),1);self.assertEqual(r['direct'][0]['verification_dimension'],'PUBLICATION_ONLY');self.assertIn('PUBLIC_PROCUREMENT_ELIGIBILITY_NOT_ASSESSED',r['direct'][0]['blockers'])
+        db=sqlite3.connect(self.db);db.execute("UPDATE public_demands SET deadline='2020-01-01T00:00:00+00:00'");db.commit();db.close()
+        self.assertFalse(self.k.search('تطوير الكفاءات المهنية','marketing','','local-review:alice')['direct'])
     def test_source_read_only(self):
         before=self.db.read_bytes();self.k.search('WPC door','purchase','','local-review:alice');self.assertEqual(before,self.db.read_bytes())
     def test_no_actor_and_limits(self):
