@@ -10,17 +10,23 @@ from pragmatic import score
 def pure_functions():
  original=Path(__file__).parents[1]/'goal-foundation/targeting/trial_search.py';nodes=[]
  for node in ast.parse(original.read_text()).body:
-  if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ['AR','PROFILES','STOP'] for t in node.targets):nodes.append(node)
-  if isinstance(node,ast.FunctionDef) and node.name in ['norm','interpret','contains','evidence','buyer_intent']:nodes.append(node)
+  if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ['AR','PROFILES','STOP','ACTIVITY_ALIASES'] for t in node.targets):nodes.append(node)
+  if isinstance(node,ast.AugAssign) and isinstance(node.target,ast.Name) and node.target.id=='PROFILES':nodes.append(node)
+  if isinstance(node,ast.FunctionDef) and node.name in ['norm','interpret','contains','evidence','buyer_intent','activity_terms']:nodes.append(node)
  env={'re':re};exec(compile(ast.Module(body=nodes,type_ignores=[]),str(original),'exec'),env);return env
 
 def activity_conflict(name,activity,intent,text,direction):
  n=normalize(name);a=normalize(activity);q=normalize(text)
  if n in ['false','true','none','null','تموينات','بقاله','صيدليه','دهان مباني','ورشه','شركه']:return True
  # Explicit incompatible names and category conflicts stay in source; retrieval abstains.
- if re.search(r'حلاق|حلاقه|صالون|تصليح ساعات|ساعات|عطور|عطر|عقار|عقارات|نقل مدرسي|نقل الجامع|لنقل|معقب|خدمات عامه|law firm|مكتب محام',n):return True
+ if intent.get('key') not in ['legal','marketing_services','logistics','training','accounting','hr','software','buyer_activity'] and re.search(r'حلاق|حلاقه|صالون|تصليح ساعات|ساعات|عطور|عطر|عقار|عقارات|نقل مدرسي|نقل الجامع|لنقل|معقب|خدمات عامه|law firm|مكتب محام',n):return True
+ if intent.get('key')=='legal' and re.search(r'هندسي|engineering',n):return True
  if direction=='purchase':
   key=intent.get('key')
+  if key=='legal' and re.search(r'استراح|متنزه|حدايق|hookah|park|صالون|مطعم|الفنادق',n+' '+a):return True
+  if key=='software' and re.search(r'قرطاسي|مكتبه|صيدلي|مغسله|حلاق|perfume|cosmetic|صيدليات',n):return True
+  if key=='accounting' and re.search(r'computer store|software company|software store|برمجيات|هندسي|engineering',a+' '+n):return True
+  if key=='logistics' and re.search(r'مطعم|حلاق|صيدلي|perfume|cosmetic|ورشه|صيانه الالكترونيات',n):return True
   if key=='computers' and re.search(r'شحن|shipping|سفر|سياح|مغاسل|مغسله|حفلات|مناسبات|مقاولات|استقدام',n):return True
   if key=='computers' and not re.search(r'computer store|computer wholesal|متجر كمبيوتر|متجر حاسب|بيع.*(?:كمبيوتر|حاسب)',a+' '+n):return True
   if key=='computers' and re.search(r'هديه|هدايا|درعه|bowling|football|perfume|gifts|متجر عطور',n+' '+a):return True
@@ -51,6 +57,9 @@ def candidates(knowledge,text,direction,city,limit):
  index=os.environ.get('FARQ_GOLDEN_INDEX')
  if not (index and Path(index).is_file()) and (not path or not Path(path).is_file()):return []
  functions=pure_functions();intent=functions['buyer_intent'](text) if direction=='marketing' else functions['interpret'](text)
+ role_unresolved=False
+ if direction=='marketing' and not intent['seller']:
+  intent=functions['interpret'](text);role_unresolved=True
  terms=intent['seller'] or intent['product']
  if not terms:return []
  query=' OR '.join("regexp_replace(translate(lower(concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category,name_ar,name_en)), 'أإآةىؤئ', 'اااهيوي'), '[ً-ْـ]', '', 'g') LIKE ?" for _ in terms)
@@ -81,7 +90,7 @@ def candidates(knowledge,text,direction,city,limit):
    if activity_conflict(name,activity,intent,text,direction):
     knowledge.last_directory_exclusions.append({'source_ref':str(key),'name':name,'activity':activity,'reason':'NAME_ACTIVITY_CONFLICT_OR_INCOMPATIBLE_SPECIALTY_OR_GENERIC_IDENTITY'})
     continue
-   if direction=='marketing':
+   if direction=='marketing' and not role_unresolved:
     if any(functions['contains'](t,combined) for t in intent['exclude']):continue
     if not any(functions['contains'](t,normalize(activity)) for t in terms):continue
     reason=intent['label']+'؛ لا دليل طلب شراء حالي'
@@ -89,7 +98,9 @@ def candidates(knowledge,text,direction,city,limit):
     matched=functions['evidence']({'name':name,'evidence_category':activity},intent)
     if not matched:continue
     reason='تخصص تجاري مرتبط وفق محرك الدليل الموجود؛ لا دليل صنف أو مخزون'
-    if direction=='partnership' and not re.search(r'مصنع|تصنيع|توزيع|موزع|manufactur|distribut|وكيل',normalize(activity)):continue
+    if direction=='partnership' and intent['key'] not in ['legal','accounting','software','marketing_services','logistics','training','hr','printing'] and not re.search(r'مصنع|تصنيع|توزيع|موزع|manufactur|distribut|وكيل',normalize(activity)):continue
+   if role_unresolved:reason='نشاط مرتبط بالعبارة؛ لم يتحدد استخدام تجاري كافٍ لاستنتاج أنه مشترٍ'
+   if direction=='partnership':reason='تخصص قد يكمل الشراكة المطلوبة؛ اهتمام الجهة بالشراكة غير مثبت'
    channels=(["phone"] if phone else [])+(["email"] if email else [])
    hits=[term for term in terms if functions['contains'](term,normalize(activity))]
    reason+='؛ مطابقات النشاط المسجل: '+('، '.join(hits) if hits else 'الاسم فقط، التصنيف غير متاح')
@@ -105,7 +116,7 @@ def candidates(knowledge,text,direction,city,limit):
     except (ValueError,TypeError):pass
    parts={'product':.4,'specialty':min(.95,.6+.1*specific),'identity':.5,'geography':.7 if city else 0,'recency':recency,'contact':1 if channels else 0}
    pid=stable_id('GOLDEN_SOURCE_PROFILE',key)
-   result.append({'id':pid,'entity_id':pid,'name':name,'city':sourcecity,'district':district,'role':'buyer' if direction=='marketing' else 'partner' if direction=='partnership' else 'seller','level':'C' if hits else 'D','match_status':'SPECIALTY_MATCH' if hits else 'MARKET_CANDIDATE','score':score(parts),'score_components':parts,'verified':False,'status':'SOURCE_SPECIALTY_RECOMMENDATION','evidence_kind':'GOLDEN_SOURCE_ACTIVITY' if hits else 'GOLDEN_SOURCE_NAME','source_ref':str(key),'evidence_excerpt':'الاسم المسجل: '+str(name)+' | النشاط المسجل: '+str(activity),'observed_at':date,'reason':reason,'matched_activity_terms':hits,'contact_channels':channels,'contact_verification':'SOURCE_RECORDED_NOT_LIVE_VERIFIED','availability':'UNKNOWN','delivery_coverage':'UNKNOWN','purchase_intent':'UNKNOWN','partnership_interest':'UNKNOWN','blockers':['PRODUCT_SPECIFIC_RELATION_NOT_PROVEN','LEGAL_ENTITY_UNLINKED'],'profile_type':'ORIGINAL_POI_KEY_SOURCE_PROFILE'})
+   result.append({'id':pid,'entity_id':pid,'name':name,'city':sourcecity,'district':district,'role':'organization' if role_unresolved else 'buyer' if direction=='marketing' else 'partner' if direction=='partnership' else 'seller','level':'C' if hits else 'D','match_status':'SPECIALTY_MATCH' if hits else 'MARKET_CANDIDATE','score':score(parts),'score_components':parts,'verified':False,'status':'SOURCE_SPECIALTY_RECOMMENDATION','evidence_kind':'GOLDEN_SOURCE_ACTIVITY' if hits else 'GOLDEN_SOURCE_NAME','source_ref':str(key),'evidence_excerpt':'الاسم المسجل: '+str(name)+' | النشاط المسجل: '+str(activity),'observed_at':date,'reason':reason,'matched_activity_terms':hits,'contact_channels':channels,'contact_verification':'SOURCE_RECORDED_NOT_LIVE_VERIFIED','availability':'UNKNOWN','delivery_coverage':'UNKNOWN','purchase_intent':'UNKNOWN','partnership_interest':'UNKNOWN','interpretation_basis':'EXPLICIT_TARGET_ACTIVITY' if intent['key']=='explicit_buyer_activity' else 'EXISTING_TARGETING_PRODUCT_USE_RULE','blockers':['PRODUCT_SPECIFIC_RELATION_NOT_PROVEN','LEGAL_ENTITY_UNLINKED'],'profile_type':'ORIGINAL_POI_KEY_SOURCE_PROFILE'})
   result.sort(key=lambda r:(-r['score'],r['id']));return result[:limit]
  finally:
   if con:con.close()

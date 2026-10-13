@@ -79,13 +79,20 @@ class Knowledge:
         start=time.perf_counter()
         # Actor-scoped, short-lived cache invalidated by changes in derived inputs.
         index=os.environ.get('FARQ_GOLDEN_INDEX')
-        files=[self.path]+([Path(index)] if index else [])
+        registry=os.environ.get('FARQ_COMMERCIAL_REGISTRY')
+        files=[self.path]+([Path(registry)] if registry else [])+([Path(index)] if index else [])
         version=tuple((str(p),p.stat().st_mtime_ns,p.stat().st_size) for p in files if p.exists())
         key=(str(actor),str(text),str(direction),str(city),str(limit),str(proven_only),self.pragmatic,version,offset)
         hit=self.response_cache.get(key)
         if hit and time.monotonic()-hit[0]<30:
             result=copy.deepcopy(hit[1]);result['latency_ms']=round((time.perf_counter()-start)*1000,3);result['cache_hit']=True;return result
         result=self._search_uncached(text,direction,city,actor,limit,proven_only,offset)
+        if self.pragmatic:
+            from commercial_contract import annotate
+            result=annotate(self,result,text,direction)
+            from golden_directory import pure_functions
+            if 'goal' in result:result['goal']['commercial_product']=pure_functions()['interpret'](text)
+            result['goal_understanding']='EXISTING_CPO_PLUS_GENERAL_TARGETING_INTERPRETER'
         if len(self.response_cache)>=100:self.response_cache.clear()
         self.response_cache[key]=(time.monotonic(),copy.deepcopy(result))
         result['cache_hit']=False;return result
@@ -112,12 +119,8 @@ class Knowledge:
         if direction=='marketing':
             # Reuse only the pure relationship interpretation from existing Targeting.
             # Importing a server/network/LLM module is deliberately unnecessary.
-            original=Path(__file__).parents[1]/'goal-foundation/targeting/trial_search.py'
-            tree=ast.parse(original.read_text());allowed=[]
-            for node in tree.body:
-                if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ['AR','PROFILES','STOP'] for t in node.targets):allowed.append(node)
-                if isinstance(node,ast.FunctionDef) and node.name in ['norm','interpret','contains','buyer_intent']:allowed.append(node)
-            scope={'re':re};exec(compile(ast.Module(body=allowed,type_ignores=[]),str(original),'exec'),scope)
+            from golden_directory import pure_functions
+            scope=pure_functions()
             intent=scope['buyer_intent'](text);terms=intent['seller'];exclude=intent['exclude']
             require_proof=proven_only or bool(re.search(r'احتياجات مثبته|طلب شراء موثق|طلب حالي',normalize(text)))
             rows=[];current=[]

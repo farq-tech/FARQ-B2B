@@ -24,5 +24,5 @@ class PragmaticScope(Tests):
  def test_missing_legal_identity_allows_independent_commercial_source(self):
   self.k.pragmatic=True
   r=self.k.search('WPC door','purchase','','local-review:alice')
-  self.assertTrue(r['main']);self.assertFalse(r['main'][0]['verified']);self.assertTrue(r['main'][0]['entity_id'].startswith('COMMERCIAL_PROFILE'));self.assertNotEqual(r['main'][0]['entity_id'],'obs')
+  self.assertTrue(r['main']);self.assertFalse(r['main'][0]['verified']);self.assertTrue(r['main'][0]['source_entity_id'].startswith('COMMERCIAL_PROFILE'));self.assertNotEqual(r['main'][0]['entity_id'],'obs')
 if __name__=='__main__':unittest.main()

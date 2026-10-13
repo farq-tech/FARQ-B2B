@@ -1,5 +1,6 @@
 export type Direction = 'purchase' | 'marketing' | 'availability' | 'partnership' | 'activity'
 export type DiscoveryRow = {
+  commercial_identity?: { id: string; display_name: string; permanent_role: null; basis: string }; commercial_relationship?: { role: string; evidence_state: string; current_demand: boolean }; reachability?: { channel_presence: string[]; needs_enrichment: boolean; verification: string };
   level?: 'A' | 'B' | 'C' | 'D'; score?: number | null; match_status?: string; commercial_source_title?: string; id: string; name: string; role: string; subject?: string; city?: string; district?: string
   reason: string; verified: boolean; status: string; source_url?: string; observed_at?: string
   verification_dimension?: string; eligibility?: string; blockers: string[]; purchase_intent?: string; availability?: string

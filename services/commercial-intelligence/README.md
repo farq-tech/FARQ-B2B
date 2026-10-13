@@ -65,3 +65,30 @@ Delivery: `deliver_pragmatic.py --root /absolute/output` exports recommendations
 Activity conflicts are conservatively quarantined during retrieval, without correcting the source. These rules can abstain from legitimate diversified firms and do not fix every bad category. Named activity, product-level selling proof, current demand and independent validation remain different dimensions. Results are experimental rankings, never measured consumption or actual willingness to buy.
 
 Explicit `direction=activity` searches recorded activity without requiring selling or demand evidence. Results are organizations with no inferred buyer/seller role. Pagination uses `offset`, page `limit` and uncapped `total`/`next_offset`; SQL counts all eligible activity matches without the former 3,000 retrieval ceiling. The local UI shows total and continuation. Six common literal activity aliases assist Arabic/English discovery; other activity phrases use literal matching, not a closed product whitelist. This is source-record discovery, not a verified census of Saudi businesses. Role-specific product searches retain their separate evidence-ranking semantics and bounded review sampling.
+
+## Neutral identity execution (isolated only)
+
+`commercial_contract.py` decorates the existing core results with `commercial_identity`,
+`commercial_relationship`, and `reachability`. Roles belong to query relationships, never the
+entity. Name/domain groups are reversible provisional groups, not legal merges.
+
+Create an owned derivative with `entity_registry.py --knowledge <read-only-knowledge.db>
+--index <read-only-golden.db> --output <owned-output/commercial-registry.db>`.
+Set `FARQ_COMMERCIAL_REGISTRY` to that output, `FARQ_GOLDEN_INDEX` to the recovered index,
+`FARQ_GEO_CANDIDATE` to the separate geographic candidate, and explicitly enable
+`FARQ_PRAGMATIC_MATCHING=1` and `FARQ_COMMERCIAL_INTELLIGENCE=1` locally.
+`NODE_ENV=production` disables the local service. No source database update is permitted.
+
+Existing `server.py --db ... --node ... --construction-source ... --port 8767` serves
+loopback only. POST `/commercial/discover` and `/construction/discover` reuse the same
+core; POST `/commercial/coverage` returns separate source/relationship/reachability metrics.
+All require `X-Local-Review-Actor: local-review:<reviewer>` and a JSON body.
+`direction=activity` provides uncapped total and offset pagination; product cases return a
+ranked review window, not an assertion of complete market coverage.
+
+`execution_eval.py` runs the 42 same-input cases against a selected module root. Save the
+baseline archive and results before edits. `execution_delivery.py --root <owned-output>`
+then writes CSVs, persists contextual links idempotently in the owned derivative, and
+writes the Arabic report. Counts of normalized texts are not canonical SKU counts;
+source presence is not live contact verification. Serper budget and paid calls remain zero.
+No provider/sending code is called by these scripts. Independent human review remains pending.

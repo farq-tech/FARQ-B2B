@@ -6,6 +6,9 @@ function ResultCard({ row }: { row: DiscoveryRow }) {
   return <article className="rounded-2xl border bg-white p-5">
     <h3 className="text-xl font-semibold">{row.name}</h3>
     {row.level && row.match_status !== 'ACTIVITY_MATCH' && <p className="mt-2 text-sm">مستوى الترشيح: {row.level} · درجة ترتيب تجريبية: {row.score}</p>}
+    {row.commercial_identity && <p className="mt-2 text-sm">الهوية التجارية: {row.commercial_identity.display_name} · الدور يتحدد لهذا الهدف فقط</p>}
+    {row.commercial_relationship && <p className="mt-2 text-sm">{row.commercial_relationship.current_demand ? 'طلب حالي منشور؛ المواصفات والأهلية تحتاج مراجعة' : row.commercial_relationship.evidence_state === 'SOURCE_PRODUCT_OR_FAMILY_EVIDENCE' ? 'دليل بيع محفوظ لصنف أو عائلة؛ المخزون غير مؤكد' : row.commercial_relationship.evidence_state === 'HISTORICAL_SOURCE_NOT_CURRENT' ? 'دليل تاريخي؛ ليس طلبًا حاليًا' : row.commercial_relationship.role === 'organization' ? 'نشاط ذو صلة؛ دور البيع والشراء غير محدد' : row.commercial_relationship.role === 'buyer' ? 'مشتري محتمل بحسب الاستخدام؛ لا طلب شراء حالي مثبت' : row.commercial_relationship.role === 'partner' ? 'شريك محتمل؛ اهتمامه بالشراكة غير مؤكد' : 'بائع محتمل بحسب التخصص؛ الصنف والمخزون غير مثبتين'}</p>}
+    {row.reachability && <p className="mt-2 text-sm">التواصل المسجل: {row.reachability.channel_presence.join(' · ') || 'لا توجد وسيلة مسجلة'} · {row.reachability.needs_enrichment ? 'يحتاج استكمالًا' : 'التحقق الحي غير مكتمل'}</p>}
     {row.subject && <p className="mt-2">{row.subject}</p>}
     <p className="mt-2">{row.reason}</p>
     <p className="mt-2 text-sm">{[row.city, row.district].filter(Boolean).join(' · ')}</p>

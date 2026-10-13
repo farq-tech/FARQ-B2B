@@ -39,7 +39,28 @@ def reject(text,title,body):
 
 def score(parts):return round(sum(WEIGHTS[k]*max(0,min(1,parts.get(k,0))) for k in WEIGHTS),2)
 
+def offer_support(key,title,body):
+ t=normalize(title);b=normalize(body)
+ if re.search(r'^التصنيفات|^categories|^دليل |^directory',t):return False
+ if key=='accounting' and re.search(r'نظام|برنامج|سوفت|software|erp|solution',t) and not re.search(r'مكتب.{0,20}محاسب|محاسبون|accounting firm|bookkeeping services',t):return False
+ if key=='legal' and re.search(r'هندسي|engineering',t):return False
+ if key=='logistics' and not re.search(r'خدمات.{0,15}(?:شحن|لوجست)|للشحن|شركه.{0,20}شحن|freight forwarding|logistics|shipping company',t):return False
+ patterns={
+  'accounting':r'خدمات.{0,24}محاسب|مسك.{0,8}دفاتر|مكتب.{0,20}محاسب|محاسب.{0,15}(?:قانوني|معتمد)|accounting (?:services|firm)|bookkeeping|audit firm',
+  'legal':r'محاما|استشارات (?:ال)?قانون|law firm|legal services',
+  'logistics':r'خدمات الشحن|خدمات لوجست|freight forwarding|logistics service|shipping company',
+  'training':r'مركز تدريب|معهد تدريب|training (?:center|institute)|دورات تدريبيه',
+ }
+ if key in patterns:
+  if key=='logistics' and re.search(r'شحن|لوجست|freight|logistics|shipping',t):return True
+  if key=='legal' and re.search(r'هندسي|engineering',t) and not re.search(patterns[key],t):return False
+  return bool(re.search(patterns[key],b))
+ if key=='auto_parts' and not re.search(r'سيارات|سياره|auto parts|car parts|automotive',t):return False
+ return True
+
 def search(knowledge,text,direction,city,actor,limit,proven_only=False):
+ from golden_directory import pure_functions
+ product_profile=pure_functions()['interpret'](text)
  start=time.perf_counter();goal=knowledge.cpo.analyze(direction,text);primary,family=signals(text);primary=list(map(normalize,primary));family=list(map(normalize,family))
  db=sqlite3.connect(knowledge.path.as_uri()+'?mode=ro',uri=True);db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON')
  terms=list(dict.fromkeys(primary+family+[normalize(t) for t in goal['product']['resolution'].get('search_terms',[]) if len(t)>3]))[:50]
@@ -53,6 +74,8 @@ def search(knowledge,text,direction,city,actor,limit,proven_only=False):
   if not host or any(t in host for t in ['facebook.com','instagram.com','linkedin.com','twitter.com','yellowpages','directory']):continue
   title=r['name'];body=r['normalized_text']
   specs=json.loads(r['specs_json']);body+=(' '+str(specs.get('value',''))+' '+str(specs.get('unit','')).lower())
+  if not offer_support(product_profile['key'],title,body):
+   rejected.append({'subject_id':r['id'],'reason':'COMMERCIAL_OFFER_NOT_SUPPORTED_OR_DIFFERENT_SERVICE'});continue
   reason=reject(text,title,body)
   if reason:rejected.append({'subject_id':r['id'],'reason':reason});continue
   if direction=='partnership' and not re.search(r'مصنع|تصنيع|موزع|توزيع|وكيل|manufactur|distribut|dealer',body):continue

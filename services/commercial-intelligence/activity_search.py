@@ -6,8 +6,9 @@ from identity import normalize,stable_id
 def search(knowledge,text,city,limit,offset=0):
  start=time.perf_counter();index=os.environ.get('FARQ_GOLDEN_INDEX')
  if not index or not Path(index).is_file():raise ValueError('ACTIVITY_INDEX_REQUIRED')
- aliases_activity={'مقاولات':['مقاول','contractor','construction company'],'مطاعم':['مطعم','restaurant'],'صيدليات':['صيدليه','pharmacy','pharmacies'],'عيادات':['عياده','clinic'],'محاماه':['law firm','legal services'],'فنادق':['فندق','hotel','hotels']}
- alternatives=aliases_activity.get(normalize(text))
+ from golden_directory import pure_functions
+ f=pure_functions();expanded=f['activity_terms'](text)
+ alternatives=expanded if len(expanded)>1 else None
  terms=[w for w in re.findall(r'\w+',normalize(text)) if w not in ['ابحث','عن','نشاط','نشاطات','منشات','الرياض']][:12]
  if not terms:raise ValueError('ACTIVITY_REQUIRED')
  # Literal activity retrieval, independent of supported product families.

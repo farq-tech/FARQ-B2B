@@ -23,7 +23,7 @@ PROFILES = [
  ('medicine', r'ادوي|دواء|دوائي|pharma|medicine|medication', 'صيدليات وتوريد أدوية', ['ادويه','pharma','medicine'], ['pharmac','صيدلي','ادويه','drugstore','دوائي'], ['clinic','عياده','مستشفى','hospital']),
  ('food', r'مواد غذائي|اغذي|ارز|رز\b|سكر|دقيق|زيت طبخ|food|rice|flour|ingredients', 'مواد غذائية', ['غذائي','اغذيه','ارز','سكر','دقيق','food','rice','flour'], ['مواد غذائيه','اغذيه','food supplier','food wholesal','foodstuff','food distributor','تجاره المواد الغذائيه','تموينات','grocery'], ['restaurant','مطاعم','مطعم','cafe','مقهى','coffee shop']),
  ('printers', r'طابع|printer', 'طابعات ومستلزمات طباعة', ['طابعات','printer'], ['طابعات','printer supplier','printer store','office equipment'], ['grocery','printing service','copy shop','نسخ','تصوير','repair','صيانه']),
- ('computers', r'كمبيوتر|حاسب|لابتوب|لاب توب|computer|laptop', 'أجهزة كمبيوتر', ['كمبيوتر','حاسب','لابتوب','computer','laptop'], ['كمبيوتر','حاسب','computer','laptop','computer_accessories'], ['grocery','بقال','repair','صيان','اصلاح','مدرس','school','نسخ','تصوير','copying','photocop','printing service']),
+ ('computers', r'كمبيوتر|(?<!\w)(?:ال)?حاسب(?:ات)?(?!\w)|حاسوب|حواسيب|لابتوب|لاب توب|computer|laptop', 'أجهزة كمبيوتر', ['كمبيوتر','حاسب','لابتوب','computer','laptop'], ['كمبيوتر','حاسب','computer','laptop','computer_accessories'], ['grocery','بقال','repair','صيان','اصلاح','مدرس','school','نسخ','تصوير','copying','photocop','printing service']),
  ('cables', r'اسلاك|كيبل|كابل|كابلات|كبل|cable|wire', 'أسلاك وكابلات كهربائية', ['اسلاك','كيبل','كابل','كابلات','cable','wire'], ['ادوات كهربائيه','كهرباء','electrical suppl','electrical equipment','كابلات','electrical_hardware','electric material'], ['car','سيارات','automotive','grocery','بقال','repair','صيانه']),
  ('kitchen', r'معدات مطبخ|تجهيز مطبخ|ثلاج|فرن|افران|kitchen|refrigerator|oven', 'معدات مطابخ وتبريد', ['معدات مطابخ','تجهيز مطابخ','kitchen equipment','refrigerat','oven'], ['معدات مطابخ','تجهيز مطابخ','kitchen equipment','commercial kitchen','refrigerat','restaurant equipment','اجهزه منزليه','home appliance'], ['restaurant','مطعم','مطاعم','cafe','مقهى','repair','صيانه']),
  ('industrial', r'معدات مصنع|معدات صناعي|الات صناعي|مكائن|ماكين|industrial|machinery', 'معدات وآلات صناعية', ['معدات صناعيه','الات','machinery','industrial equipment'], ['معدات صناعيه','الات صناعيه','industrial equipment','machinery','industrial machinery'], ['grocery','school','مدرس','restaurant','مطعم','تصليح','repair','صيانه','تاجير','rental']),
@@ -35,12 +35,28 @@ PROFILES = [
  ('insulation', r'بيوتيل|عوازل|عزل|سيليكون|butyl|silicone|insulation', 'عوازل ومواد إحكام', ['بيوتيل','عزل','سيليكون','butyl','silicone'], ['عوازل','مواد عزل','عزل مائي','insulation','waterproofing','sealant','aluminium accessories'], ['computer','كمبيوتر','grocery','بقال']),
  ('stationery', r'قرطاسي|ورق طباع|اقلام|stationery|printing paper', 'قرطاسية ومستلزمات مكتبية', ['قرطاسيه','ورق','stationery','paper'], ['قرطاسيه','stationery','office suppl','مكتبه'], ['library','مدرس','school']),
 ]
-STOP = set(norm('ابي ابغى اريد احتاج نحتاج طلب شراء مورد موردين شركه شركتي منشاتي للمكتب للعياده للمطعم للمصنع للمستشفى للمستشفي لمكتب لعياده لمطعم لمصنع تجهيز عدد حبه قطعه متر كيلو بالرياض الرياض جدة جده').split())
+# General commercial families extend the existing interpreter; no CPO-only restriction.
+PROFILES += [
+ ('hr',r'موارد بشري|توظيف|recruitment|human resources','خدمات الموارد البشرية',['موارد بشريه','توظيف','recruitment'],['recruitment agency','employment agency','human resources','staffing','وكاله توظيف','موارد بشريه'],[]),
+ ('accounting',r'محاسب|مسك دفاتر|accounting|bookkeeping','خدمات محاسبية',['محاسبه','accounting'],['accounting firm','accountant','bookkeeping','مكتب محاسبه','محاسب','tax consultant'],[]),
+ ('legal',r'محاما|محاماه|استشارات (?:ال)?قانون|legal services|law firm','خدمات قانونية',['محاماه','قانونيه','legal'],['law firm','legal services','محامي','محاماه','مكتب محام'],[]),
+ ('software',r'برامج|برمج|نظام محاسب|software|saas','برمجيات وأنظمة أعمال',['برمجيات','software'],['software company','software development','برمجيات','تطوير برامج','software store'],['computer repair']),
+ ('marketing_services',r'تسويق رقمي|حملات اعلان|digital marketing|advertising','خدمات تسويق وإعلان',['تسويق','اعلان','marketing'],['marketing agency','advertising agency','digital marketing','وكاله اعلان','وكاله تسويق','دعايه واعلان'],[]),
+ ('logistics',r'شحن|لوجست|نقل بضايع|logistics|freight','خدمات شحن ولوجستيات',['شحن','logistics','freight'],['logistics service','freight forwarding','shipping company','شحن','خدمات لوجستيه'],['taxi','سياره اجره']),
+ ('training',r'تدريب|دورات مهني|training','خدمات تدريب',['تدريب','training'],['training center','training institute','مركز تدريب','معهد تدريب'],[]),
+ ('auto_parts',r'قطع غيار سيارات|قطع غيار سيار|auto parts|car parts','قطع غيار سيارات',['قطع غيار','auto parts'],['auto parts store','auto parts supplier','قطع غيار سيارات','متجر قطع غيار'],['car wash','غسيل سيارات']),
+ ('textiles',r'اقمشه|نسيج|ملابس عمل|زي موحد|textile|uniform','أقمشة وملابس عمل',['اقمشه','uniform','textile'],['fabric store','textile','uniform store','ملابس عمل','زي موحد','متجر اقمشه'],[]),
+ ('agriculture',r'اسمده|بذور|مستلزمات زراعي|fertilizer|agricultural supplies','مستلزمات زراعية',['اسمده','بذور','fertilizer'],['agricultural service','agricultural supplies','fertilizer supplier','مستلزمات زراعيه','اسمده'],['grocery']),
+ ('hvac',r'اجهزه تكييف|مكيفات|air conditioning|hvac','تكييف وتبريد',['تكييف','مكيفات','hvac'],['air conditioning store','air conditioning contractor','hvac contractor','refrigeration','مكيفات','تكييف'],[]),
+ ('printing',r'طباعه تجاري|مطبوعات|طباعة|printing services','خدمات طباعة',['طباعه','printing'],['printing service','print shop','مطبعه','مطابع','طباعه'],['printer repair']),
+]
+STOP = set(norm('ابيع ابي ابغى اريد احتاج نحتاج طلب شراء مورد موردين شركه شركتي منشاتي للمكتب للعياده للمطعم للمصنع للمستشفى للمستشفي لمكتب لعياده لمطعم لمصنع تجهيز عدد حبه قطعه متر كيلو بالرياض الرياض جدة جده').split())
 
 def interpret(q):
     original=q.strip()
     q = norm(q)
-    for key, pattern, label, product, seller, exclude in PROFILES:
+    ordered=sorted(PROFILES,key=lambda p:0 if p[0]=='software' else 1) if re.search(r'برامج|برمج|software|saas',q) else PROFILES
+    for key, pattern, label, product, seller, exclude in ordered:
         if re.search(pattern.translate(AR).lower(), q):
             return {'key':key, 'label':label, 'product':list(map(norm,product)), 'seller':list(map(norm,seller)), 'exclude':list(map(norm,exclude))}
     words = [w for w in re.findall(r'[\w؀-ۿ]+', q) if len(w)>=3 and not w.isdigit() and w not in STOP and not w.startswith(('للمنشا','لشرك','لنشاط'))][:6]
@@ -104,11 +120,37 @@ def extend_intent(q, fallback, objective="purchase", categories=None):
     except Exception: return fallback
 
 
+ACTIVITY_ALIASES={'مقاولات':['مقاول','contractor','construction company'],'مطاعم':['مطعم','restaurant'],'صيدليات':['صيدليه','pharmacy','pharmacies'],'عيادات':['عياده','clinic'],'محاماه':['law firm','legal services'],'فنادق':['فندق','hotel','hotels'],'جمعيات':['جمعيه','non profit organization'],'جهات حكوميه':['government office','government services']}
+def activity_terms(text):
+    label=norm(text)
+    if label.startswith('ال'):label=label[2:]
+    return list(dict.fromkeys([label]+ACTIVITY_ALIASES.get(label,[])))
+
 def buyer_intent(q):
     """Relationship expansion on the existing directory, not a second product ontology."""
     text=norm(q)
     product=interpret(q)
-    if re.search(r'موارد بشري|توظيف|human resources|recruitment|\bhr\b',text):
+    explicit=re.search(r'(?:استهدف|وابحث عن عملاء من|وابحث عن مشترين من)\s+(.+)',text)
+    if explicit:
+        words=activity_terms(explicit[1])
+        return {'key':'explicit_buyer_activity','label':'نشاط مستهدف يحدده المستخدم؛ لا دليل رغبة شراء حالية','product':[], 'seller':words, 'exclude':[]}
+    service_rules={
+        'accounting':(['corporate office','company','factory','restaurant','non profit organization','جمعيه','شركه'],['accounting firm','accountant','مكتب محاسبه']),
+        'legal':(['corporate office','company','government office','non profit organization','شركه','جمعيه'],['law firm','محاماه','legal services']),
+        'software':(['corporate office','school','university','hospital','restaurant','government office'],['software company','software development']),
+        'marketing_services':(['restaurant','hotel','retail store','clinic','real estate agency','مطعم','فندق','عياده'],['marketing agency','advertising agency']),
+        'logistics':(['manufacturer','factory','wholesaler','e commerce','مصنع','تاجر جمله'],['logistics service','shipping company','freight forwarding']),
+        'training':(['corporate office','factory','government office','hospital','non profit organization'],['training center','training institute']),
+        'auto_parts':(['auto repair shop','car repair','auto machine shop','ورشه سيارات','اصلاح سيارات'],['auto parts store','auto parts supplier']),
+        'textiles':(['hotel','hospital','restaurant','school','factory','فندق','مستشفى'],['uniform store','fabric store','textile supplier']),
+        'agriculture':(['farm','agricultural production','plant nursery','مزرعه','مشاتل'],['fertilizer supplier','agricultural supplies']),
+        'hvac':(['hotel','hospital','corporate office','construction company','فندق','مستشفى'],['hvac contractor','air conditioning store']),
+        'printing':(['corporate office','school','restaurant','government office','non profit organization'],['print shop','printing service','مطبعه']),
+    }
+    if product['key'] in service_rules:
+        terms,exclude=service_rules[product['key']]
+        label='جهات قد تستخدم '+product['label']+'؛ لا دليل طلب شراء حالي أو استعداد للتعامل'
+    elif re.search(r'موارد بشري|توظيف|human resources|recruitment|\bhr\b',text):
         terms=['شركه','شركات','company','companies','corporate','factory','مصنع','مصانع','hotel','فندق','hospital','مستشفى','restaurant','مطعم','clinic','عياده']
         exclude=['recruitment agency','employment agency','موارد بشريه','human resources','توظيف','staffing','hr consulting']
         label='جهات قد تستفيد من خدمات الموارد البشرية؛ احتياج التوظيف الحالي غير معلوم'
