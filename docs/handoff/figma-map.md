@@ -239,3 +239,12 @@ darker `*-text` tokens). Owner to confirm.
 Web ids regenerated: W03 `18426:2742`, W04 `18426:2878`, W05a `18426:3030`, W06 `18426:3222`, W01b `18426:3351`,
 W08 `18426:3480`, W09 `18426:3616`, W10 `18426:3784` / `18426:3885`, W11 `18426:3978`, W11c `18426:4099`,
 W12 `18426:4226` / `18426:4346`. M05a is now `18425:2642`.
+
+**Audit pass 2** (same auditor): of 29 → 11 fixed, 15 partial, 3 not; 6 new issues introduced by the fixes (worst: W12
+delivery web rendered empty). Then fixed: W12 empty (a FILL-height row inside a HUG body), clipped template title
+(now name + small technical line), web progress bar width, one sentence for who enables sending («يفعّل فريق فرق
+الإرسال لحسابك»), comparison logos hidden + full supplier name, avatar/active-tab contrast on new frames, eye icon in
+password field, readable captions on unusable templates, sample Meta reasons that match the content, chips wrap.
+Still open: touch targets of kit 32 px controls (→ 44 px hit area in code); «مسودة» and «يستقبل العروض» share the
+Info badge (Badge - Status has no neutral variant); editor «إعدادات ميتا» row icon and identical check icons; rejection
+reason sits under the list in M08, not inside its card; logo subtitle size on web.
