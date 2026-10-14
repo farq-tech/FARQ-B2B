@@ -78,18 +78,18 @@ hand-built *pieces* are listed in §3.
 |---|---|---|---|
 | W00 Shell | `18371:99` | Sidebar + Page Heading pattern `4612:12406`; Farq wordmark (from `src/ui/Logo.tsx`); nav: طلبات التسعير · طلب جديد · صندوق الوارد · الاستهداف · قوالب واتساب; no Night toggle | 13 % |
 | W01 Login | `18380:26518` | Dashboard «Log in» `4612:13340`; photo panel replaced by `b2b/primary` brand panel | 14 % |
-| W01b New request · review | `18380:26293` | M01b in a 720 column | 30 % |
+| W01b New request · review | `18391:2905` | M01b in a 720 column | 30 % |
 | W02 RFQ list | `18371:288` | Dashboard table; Badge - Status per row | 17 % |
-| W03 Request tracking | `18380:25399` | M03 content | 15 % |
-| W04 Comparison | `18380:25615` | M04 content | 18 % |
-| W05a Award confirm | `18380:25846` | M05a sheet as centred modal | 16 % |
-| W06 Inbox thread | `18380:26117` | M06 content, read-only composer | 22 % |
-| W07 Segment (two-pane) | `18380:1259` | list pane 440 + Mapbox slot | 31 % |
+| W03 Request tracking | `18391:1994` | M03 content | 15 % |
+| W04 Comparison | `18391:2220` | M04 content | 18 % |
+| W05a Award confirm | `18391:2459` | M05a sheet as centred modal | 16 % |
+| W06 Inbox thread | `18391:2730` | M06 content, read-only composer | 22 % |
+| W07 Segment (two-pane) | `18391:3124` | list pane 440 + Mapbox slot | 31 % |
 | W08 Message | `18380:1506` | | 25 % |
 | W09 Template editor (1619 tall) | `18380:1732` | | 34 % |
 | W10 Approval — Pending / Rejected | `18380:1984` / `18380:2165` | | 25 % / 23 % |
-| W11 Review & cost (modal) | `18380:2342` | | 20 % |
-| W12 Result — SEND_DISABLED / Evidence | `18380:2557` / `18380:2763` | | 28 % / 29 % |
+| W11 Review & cost (modal) | `18391:3369` | | 20 % |
+| W12 Result — SEND_DISABLED / Evidence | `18391:3584` / `18391:3784` | | 28 % / 29 % |
 
 Prototype links: M07 «التالي» → M08 · M08 «قالب جديد» → M09 · M08 «التالي» → M10 Approved · M09 «أرسل للاعتماد» → M10 Pending ·
 M10 Pending «حدّث الحالة» → Approved · M10 Rejected «عدّل القالب» → M09 · M10 Approved «التالي» → M11 ·
@@ -146,3 +146,41 @@ M11 «أرسل إلى…» → M12 SEND_DISABLED · M11 «رجوع» → M10 App
 Delivery and send steps of the new-request wizard (steps 3–4), the inbox thread list, a standalone templates page
 with status filters (M08 covers the list inside the journey), web versions of M05 success and M13a/b, loading
 skeletons per screen (Text Field / Button Skeleton states exist and are used on Login only).
+
+## 6. Update — rebuild on the specified kit components (2026-10-14, evening)
+
+Owner feedback: the first pass did not use the components the brief named. Changes since:
+
+**New page «✦ Farq B2B: Components» `18390:2`** (owner approved RTL copies of LTR Foodie/Shoppay parts, 2026-10-14):
+- `Farq B2B / Row (from Foodie Views / Tables)` — set `18390:54`, key `016e01b32ffe6d5ea38b5798d3cb8f64a00e27f4`.
+  Variants `Type=Entity` (Nucleus initial Avatar + Title + Caption + Value), `Type=Total` (Title + Value),
+  `Type=Entity Badge` (Value replaced by an exposed Badge - Status). Text properties `Title#18390:5`,
+  `Caption#18390:7`, `Value#18390:6`. Same metrics as Foodie (375 wide, padding 24, gap 12, min height 64), RTL,
+  Huwiya + `Farq/*` text styles, colours bound to «Farq B2B — Brand».
+- Why copies: Foodie/Shoppay components are LTR and Figma blocks re-ordering inside an instance (verified:
+  «Cannot move node … inside of an instance»). Detaching inside screens is forbidden, so the RTL copy lives on this
+  page only, as the consumer side did with «Farq / Food (from Foodie)».
+
+**Screens changed**
+| Screen | Change | Kit ratio now |
+|---|---|---|
+| M04 Comparison `18371:23206` | offers = `Farq / Comparison Card` State=Partial (`18299:59`): «الأرخص المكتمل», «عرض ناقص», Difference indicator `+175 ر.س (7.5%)` | 21 % |
+| M03 Tracking `18371:23094` | supplier rows = Row Entity Badge ×3, counters = Row Total ×3 | 36 % (was 13 %) |
+| M06 Inbox `18377:1131` | seller header = Row Entity | 35 % (was 27 %) |
+| M07 Segment `18374:366` | «بلا قناة مؤكدة» row = Row Entity Badge (wrapper removed) | 47 % |
+| M12 Results `18376:845` / `18376:933` | recipients = Row Entity Badge | 43 % / 43 % |
+| M01b Review lines `18378:1253` | lines needing a decision = Row Entity Badge (avatar hidden) | 43 % |
+| M11 Review & cost `18375:23935`, M05a Award confirm `18377:1020` | sheet = Shoppay `Views / Bottom Sheets` Mode=Light (key `fdb16886…`), surface bound to `b2b/surface` | 24 % / 16 % |
+| W05a `18391:2459`, W11 `18391:3369` | web modal = Nucleus Dashboard «Modal» overlay + Dialog (`4621:2195`), mirrored RTL | 17 % / 20 % |
+| W03, W04, W06, W01b, W07, W12 ×2 | regenerated from the updated mobile screens (ids in §2) | 19–30 % |
+| all frames | «بيانات تجريبية» tag moved off the top bar; active tab label/icon bound to `b2b/primary` (was lime) | — |
+
+**GAPS after this pass**
+- C2 chat bubble — still frames (the Foodie Chat pattern itself has no bubble component).
+- C4 sheet — resolved (Shoppay Bottom Sheets on mobile, Nucleus Modal pattern on web).
+- C6 list row with status badge — resolved (Row Entity Badge). M08 template rows keep Nucleus List + Badge wrapper
+  because they also need a Radio; candidate: add `Type=Entity Radio` to the Row set (needs your OK).
+- C7 data table — Shoppay `Views / Tables` key `1554a596…` is not published from the Shoppay file
+  (`importComponentSetByKeyAsync` → not found); Foodie `Views / Tables` is used through the Row copy instead.
+- New finding: Shoppay patterns run on Shoppay's own Buttons / Text Fields / Nav Bars (navy/coral, LTR, not covered by
+  the Nucleus B2B mode). Nucleus primitives stay the base; Foodie/Shoppay are used for screen-specific parts.
