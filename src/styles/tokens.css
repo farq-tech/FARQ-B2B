@@ -13,33 +13,87 @@
  */
 
 html[data-farq-app="b2b"] {
-  --brand-deep: #24583f;
+  /* «Farq B2B — Brand» (Figma gxlY4uu8hzkUNrcN61uQZt, collection 18370:2). Owner-approved 2026-10-14,
+     incl. the darker *-text roles for 4.5:1 contrast. Screens use the --color-* roles below, never these. */
+  --b2b-primary: #254834;
+  --b2b-canvas: #f4f8f2;
+  --b2b-canvas-end: #e7f1e5;
+  --b2b-surface: #ffffff;
+  --b2b-cta: #d8ee8c;
+  --b2b-on-cta: #254834;
+  --b2b-border: #d7e3db;
+  --b2b-sage: #93a89f;
+  --b2b-text-muted: #5f7168;
+  --b2b-selected: #edf4dd;
+  --b2b-olive-gold: #a59859;
+  --b2b-rose: #947c7c;
+  --b2b-status-success: #22a55b;
+  --b2b-status-warning: #ff652f;
+  --b2b-status-danger: #c94f66;
+  --b2b-status-success-text: #13703b;
+  --b2b-status-warning-text: #b23c00;
+  --b2b-status-danger-text: #a33a50;
+  --brand-deep: #24583f; /* landing identity (pre-login, out of the restyle scope) */
   --live-go: #24583f;
   --live-back: #789b35;
-  --brand-action: #24583f;
-  --brand-action-strong: #24583f;
+  --brand-action: var(--b2b-primary);
+  --brand-action-strong: var(--b2b-primary);
   --brand-accent-light: #e8f5ba;
-  --brand-on-accent: #254834;
-  --brand-canvas: #f4f8f2;
-  --brand-text: #254834;
-  --brand-text-2: #5e6e65;
-  --brand-action-subtle: #edf4dd;
-  --brand-accent: #24583f;
+  --brand-on-accent: var(--b2b-primary);
+  --brand-canvas: var(--b2b-canvas);
+  --brand-text: var(--b2b-primary);
+  --brand-text-2: var(--b2b-text-muted);
+  --brand-text-3: var(--b2b-text-muted);
+  --brand-action-subtle: var(--b2b-selected);
+  --brand-accent: var(--b2b-primary);
   --brand-action-light: #789b35;
-  --brand-text-3: #5e6e65;
-  --font-body: 'ITF Huwiya Arabic', sans-serif;
-  --font-display: 'ITF Huwiya Arabic', sans-serif;
-  --color-bg-canvas: #f4f8f2;
-  --color-bg-inverse: #24583f;
-  --color-bg-cta: #24583f;
-  --color-bg-brand: #d8ee8c;
-  --color-text-on-brand: #254834;
-  --color-bg-primary: #24583f;
-  --color-bg-primary-subtle: #edf4dd;
-  --color-text-primary: #254834;
-  --color-text-secondary: #5e6e65;
-  --color-text-tertiary: #5e6e65;
-  --color-border-default: #d7e3db;
+  --brand-border: var(--b2b-border);
+  --brand-border-strong: var(--b2b-sage);
+  --brand-surface-2: var(--b2b-canvas-end);
+  --font-body: 'ITF Huwiya Arabic', 'Tajawal', system-ui, sans-serif;
+  --font-display: 'ITF Huwiya Arabic', 'Tajawal', system-ui, sans-serif;
+  /* Semantic roles (what src/ui and the screens read) */
+  --color-bg-canvas: var(--b2b-canvas);
+  --color-bg-surface: var(--b2b-surface);
+  --color-bg-surface-2: var(--b2b-canvas-end);
+  --color-bg-inverse: var(--b2b-primary);
+  --color-bg-cta: var(--b2b-cta);
+  --color-text-on-cta: var(--b2b-on-cta);
+  --color-bg-brand: var(--b2b-cta);
+  --color-text-on-brand: var(--b2b-on-cta);
+  --color-bg-primary: var(--b2b-primary);
+  --color-bg-primary-subtle: var(--b2b-selected);
+  --color-bg-info: var(--b2b-selected);
+  --color-bg-neutral: var(--b2b-canvas-end);
+  --color-text-primary: var(--b2b-primary);
+  --color-text-secondary: var(--b2b-text-muted);
+  --color-text-tertiary: var(--b2b-text-muted);
+  --color-text-neutral: var(--b2b-text-muted);
+  --color-text-link: var(--b2b-primary);
+  --color-text-info: var(--b2b-primary);
+  --color-text-success: var(--b2b-status-success-text);
+  --color-text-warning: var(--b2b-status-warning-text);
+  --color-text-danger: var(--b2b-status-danger-text);
+  --color-text-on-inverse: var(--b2b-canvas);
+  --color-border-default: var(--b2b-border);
+  --color-border-strong: var(--b2b-sage);
+  --color-border-primary: var(--b2b-primary);
+  --color-icon-primary: var(--b2b-primary);
+  --color-icon-info: var(--b2b-primary);
+  --color-icon-secondary: var(--b2b-text-muted);
+  --color-icon-success: var(--b2b-status-success);
+  --color-icon-warning: var(--b2b-status-warning);
+  --color-icon-danger: var(--b2b-status-danger);
+  /* Codex production kit inside the app: lime CTA with dark-green text (Figma «Buttons - Full width» in B2B mode) */
+  --farq-ink: var(--b2b-primary);
+  --farq-muted: var(--b2b-text-muted);
+  --farq-glass-border: var(--b2b-border);
+  --farq-selected-surface: var(--b2b-selected);
+  --farq-button-gradient: linear-gradient(180deg, var(--b2b-cta), var(--b2b-cta));
+  --farq-button-hover: linear-gradient(180deg, #cfe679, #cfe679);
+  --farq-button-ink: var(--b2b-on-cta);
+  --farq-button-border: var(--b2b-cta);
+  --farq-button-focus: var(--b2b-primary);
 }
 
 :root {

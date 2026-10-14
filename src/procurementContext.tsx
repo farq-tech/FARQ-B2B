@@ -11,7 +11,8 @@ import type { AppView } from './types'
  *   /requests/:id/award       تأكيد الترسية (05) — deep link; 04 opens the same sheet in place
  *   /requests/:id/review      → متابعة الطلب: review (02) is a step of /new, before the request has an id
  *   /inbox                    صندوق الوارد (06)
- *   /targeting                الاستهداف (07) — confirm sheet (10) in place
+ *   /explore                  استكشف (discovery: أبي أشتري / أبي أبيع)
+ *   /targeting                حملات الموردين (Figma M07 map) — confirm sheet in place
  *   /targeting/templates      قوالب واتساب (09)
  *   /targeting/templates/new  محرر قالب واتساب (08)
  *   /login                    دخول فرق (the app shows the login on any route while signed out)
@@ -19,7 +20,7 @@ import type { AppView } from './types'
  * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
 /** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
-export type View = AppView | 'goal-new' | 'inbox' | 'targeting' | 'templates' | 'template-new' | 'account' | 'opportunities'
+export type View = AppView | 'goal-new' | 'explore' | 'inbox' | 'targeting' | 'templates' | 'template-new' | 'account' | 'opportunities'
 type Ctx = {
   view: View
   navigate: (v: View) => void
@@ -35,7 +36,7 @@ export function parseRoute(pathname: string, search = ''): Route {
   const p = pathname.replace(/\/+$/, '') || '/'
   if (p === '/account') return { view: 'account', rfqId: null }
   if (p === '/opportunities') return { view: 'opportunities', rfqId: null }
-  if (p === '/explore') return { view: 'targeting', rfqId: null }
+  if (p === '/explore') return { view: 'explore', rfqId: null }
   if (p === '/goals/new') return { view: 'goal-new', rfqId: null }
   if (p === '/new') return { view: 'create-upload', rfqId: null }
   if (p === '/inbox') return { view: 'inbox', rfqId: null }
@@ -53,6 +54,7 @@ export function routePath(view: View, rfqId: string | null): string {
   if (view === 'account') return '/account'
   if (view === 'opportunities') return '/opportunities'
   if (view === 'goal-new') return '/goals/new'
+  if (view === 'explore') return '/explore'
   if (view === 'create-upload') return '/new'
   if (view === 'inbox') return '/inbox'
   if (view === 'targeting') return '/targeting'

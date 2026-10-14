@@ -3,22 +3,100 @@ import type { NavProps } from '../types'
 import { useProcurement } from '../procurementContext'
 import { listBuyerRfqs, formatRfqTitle, type ConstructionRfqSummary } from '../api/constructionClient'
 import { rfqProjectName } from '../lib/rfqIdentity'
+import { Button, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
 
-const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
-  SENT: { label: 'يستقبل العروض', bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)' },
-  PARTIALLY_SENT: { label: 'أُرسل جزئيًا', bg: 'var(--color-bg-warning)', fg: 'var(--color-text-warning)' },
-  DRAFT_NOT_SENT: { label: 'مسودة', bg: 'var(--color-bg-surface-2)', fg: 'var(--color-text-secondary)' },
-  CLOSED: { label: 'أُغلق الاستلام', bg: 'var(--color-bg-surface-2)', fg: 'var(--color-text-secondary)' },
-  AWARDED: { label: 'تمت الترسية', bg: 'var(--color-bg-info)', fg: 'var(--color-text-link)' },
-  CANCELLED: { label: 'ملغي', bg: 'var(--color-bg-danger)', fg: 'var(--color-text-danger)' },
+/*
+ * Figma M02 `18371:22940` / W02 `18371:288`: requests grouped by what the owner has to do next
+ * («يحتاج قرارك · بانتظار العروض · منتهية · مسودات»), one Row Entity Badge per request.
+ * Empty M02 `18402:2300` (three ways in + «طلب جديد»), loading = skeleton rows `18402:2397`.
+ */
+type Group = 'decide' | 'waiting' | 'done' | 'draft'
+const GROUPS: { key: Group; title: string }[] = [
+  { key: 'decide', title: 'يحتاج قرارك' },
+  { key: 'waiting', title: 'بانتظار العروض' },
+  { key: 'done', title: 'منتهية' },
+  { key: 'draft', title: 'مسودات' },
+]
+
+const day = (iso?: string | null) => {
+  if (!iso) return null
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-GB', { timeZone: 'Asia/Riyadh', day: '2-digit', month: '2-digit' })
+}
+const n = (v: number | null | undefined) => <bdi dir="ltr">{v ?? 0}</bdi>
+
+function classify(r: ConstructionRfqSummary): { group: Group; tone: BadgeTone; label: string } {
+  if (r.award_status === 'APPROVED') return { group: 'done', tone: 'Success', label: 'تمت الترسية' }
+  switch (r.status) {
+    case 'DRAFT_NOT_SENT': return { group: 'draft', tone: 'Info', label: 'مسودة' }
+    case 'PARTIALLY_SENT': return { group: 'decide', tone: 'Warning', label: 'أُرسل جزئياً' }
+    case 'CANCELLED': return { group: 'done', tone: 'Danger', label: 'ملغي' }
+    case 'SENT': return r.response_count > 0 ? { group: 'decide', tone: 'Warning', label: 'عرض جديد · قرّر' } : { group: 'waiting', tone: 'Info', label: 'يستقبل العروض' }
+    case 'CLOSED': return r.response_count > 0 ? { group: 'decide', tone: 'Warning', label: 'أُغلق · قرّر' } : { group: 'done', tone: 'Neutral', label: 'أُغلق الاستلام' }
+    default: return { group: 'waiting', tone: 'Neutral', label: 'قيد المتابعة' }
+  }
+}
+
+function caption(r: ConstructionRfqSummary, group: Group) {
+  const date = day(r.created_at)
+  const deadline = day(r.quote_deadline)
+  const offers = <>{n(r.response_count)} عروض من {n(r.supplier_count)}</>
+  if (r.status === 'PARTIALLY_SENT') return <>أُرسل لـ {n(r.sent_count)} من {n(r.supplier_count)} · كمّل الإرسال</>
+  if (group === 'draft') return <>{n(r.line_count)} بنود · لم يُرسل{date ? <> · <bdi dir="ltr">{date}</bdi></> : null}</>
+  if (group === 'waiting') return <>{offers}{deadline ? <> · آخر موعد <bdi dir="ltr">{deadline}</bdi></> : null}</>
+  if (group === 'done') return <>{r.award_status === 'APPROVED' ? 'تمت الترسية · ' : ''}{n(r.response_count)} عروض{date ? <> · <bdi dir="ltr">{date}</bdi></> : null}</>
+  return <>{offers} · {n(r.line_count)} بنداً{date ? <> · <bdi dir="ltr">{date}</bdi></> : null}</>
+}
+
+const WAYS: { icon: IconName; title: string; detail: string }[] = [
+  { icon: 'file', title: 'ارفع الكراسة', detail: 'PDF أو Excel' },
+  { icon: 'list', title: 'اكتب الطلبات', detail: 'سطر لكل بند' },
+  { icon: 'camera', title: 'صوّرها', detail: 'كراسة ورقية أو قطعة' },
+]
+
+function Empty({ onNew }: { onNew: () => void }) {
+  return (
+    <section className="mx-auto flex w-full max-w-[420px] flex-col items-center gap-6 py-8 text-center">
+      <div className="flex flex-col gap-2">
+        <h2 className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold">ابدأ أول طلب تسعير</h2>
+        <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ارفع الكراسة أو اكتب البنود، ونرسلها لموردين مناسبين. ما يطلع شي قبل ما تراجع.</p>
+      </div>
+      <ul className="flex w-full flex-col">
+        {WAYS.map((w) => (
+          <li key={w.title}>
+            <button type="button" onClick={onNew} className="flex min-h-16 w-full items-center gap-4 rounded-[var(--radius-md)] px-4 py-3 text-start hover:bg-[var(--color-bg-primary-subtle)]">
+              <Icon name={w.icon} size={24} className="text-[var(--color-text-primary)]" />
+              <span className="flex flex-col">
+                <span className="text-[16px] leading-[26px] font-medium">{w.title}</span>
+                <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{w.detail}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Button variant="Primary" size="L" fullWidth onClick={onNew}>طلب جديد</Button>
+    </section>
+  )
+}
+
+function Skeleton() {
+  return (
+    <div role="status" aria-label="جارٍ تحميل الطلبات" className="flex flex-col gap-2">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="flex min-h-16 items-center gap-3 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] px-6 py-3">
+          <span className="flex flex-1 flex-col gap-2"><span className="h-4 w-1/2 animate-pulse rounded bg-[var(--color-bg-surface-2)]" /><span className="h-3 w-2/3 animate-pulse rounded bg-[var(--color-bg-surface-2)]" /></span>
+          <span className="h-7 w-24 animate-pulse rounded-full bg-[var(--color-bg-surface-2)]" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export function RfqListV2({ navigate }: NavProps) {
-  const { setSelectedRfqId, navigate: navigateGoal } = useProcurement()
+  const { setSelectedRfqId, navigate: go } = useProcurement()
   const [rows, setRows] = useState<ConstructionRfqSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState('all')
   const [reload, setReload] = useState(0)
   useEffect(() => {
     let active = true
@@ -26,56 +104,35 @@ export function RfqListV2({ navigate }: NavProps) {
     listBuyerRfqs().then((o) => { if (active) setRows(o.rfqs || []) }).catch((e) => { if (active) setError(e instanceof Error ? e.message : 'تعذر تحميل الطلبات') })
     return () => { active = false }
   }, [reload])
-  const status = (r: ConstructionRfqSummary) => r.award_status === 'APPROVED' ? 'AWARDED' : r.status
   const titleOf = (r: ConstructionRfqSummary) => rfqProjectName({ delivery: r.delivery }) || formatRfqTitle(r)
-  const shown = (rows || []).filter((r) => (filter === 'all' || status(r) === filter) && titleOf(r).toLocaleLowerCase('ar').includes(query.trim().toLocaleLowerCase('ar')))
-  const summaries = [
-    { label: 'كل الطلبات', value: rows?.length },
-    { label: 'يستقبل العروض', value: rows?.filter((r) => ['SENT', 'PARTIALLY_SENT'].includes(status(r))).length },
-    { label: 'المسودات', value: rows?.filter((r) => status(r) === 'DRAFT_NOT_SENT').length },
-    { label: 'عروض مستلمة', value: rows?.reduce((n, r) => n + r.response_count, 0) },
-  ]
+  const q = query.trim().toLocaleLowerCase('ar')
+  const shown = (rows || []).filter((r) => titleOf(r).toLocaleLowerCase('ar').includes(q))
+  const grouped = GROUPS.map((g) => ({ ...g, rows: shown.map((r) => ({ r, c: classify(r) })).filter((x) => x.c.group === g.key) })).filter((g) => g.rows.length)
+  const decide = grouped.find((g) => g.key === 'decide')?.rows.length ?? 0
   const open = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
+  const onNew = () => navigate('create-upload')
   return (
-    <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 p-4 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="text-right">
-          <h1 className="font-[Readex_Pro] text-[28px] leading-[44px] font-bold sm:text-[32px]">الأهداف والطلبات</h1>
-          <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ابحث عن بائعين لاحتياجك أو مشترين لما تقدمه، وتابع طلبات الشراء السابقة.</p>
+    <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6 p-4 sm:p-8">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold sm:text-[28px] sm:leading-[44px]">طلبات التسعير</h1>
+          {rows && rows.length ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{n(rows.length)} طلبات{decide ? <> · {n(decide)} تحتاج قرارك</> : null} · المرتبة حسب ما يحتاج قرارك</p> : null}
         </div>
-        <button type="button" onClick={() => navigateGoal('goal-new')} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-white">هدف جديد</button>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'purchase') } catch { /* optional preference */ } navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">بائعون — أبي أشتري</button>
-        <button type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'marketing') } catch { /* optional preference */ } navigateGoal('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-white px-5 py-3">مشترون — أبي أبيع</button>
-      </div>
-      <h2 className="text-[18px] font-medium">طلبات الشراء الحالية</h2>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="ملخص الطلبات">
-        {summaries.map((s) => <div key={s.label} className="rounded-[16px] border border-[var(--color-border-default)] bg-white p-4"><p className="text-[13px] text-[var(--color-text-secondary)]">{s.label}</p><p className="mt-2 text-[28px] font-semibold tabular-nums">{s.value ?? '—'}</p></div>)}
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="min-w-0 flex-1"><label htmlFor="request-search" className="mb-1 block text-[13px]">ابحث عن طلب</label><input id="request-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="اسم الطلب أو احتياجك" className="w-full rounded-[12px] border border-[var(--color-border-default)] bg-white px-4 py-3" /></div>
-        <div><label htmlFor="request-status" className="mb-1 block text-[13px]">حالة الطلب</label><select id="request-status" value={filter} onChange={(e) => setFilter(e.target.value)} className="w-full rounded-[12px] border border-[var(--color-border-default)] bg-white px-4 py-3 sm:min-w-[180px]"><option value="all">كل الحالات</option>{Object.entries(STATUS).map(([key, st]) => <option key={key} value={key}>{st.label}</option>)}</select></div>
-      </div>
-      {error ? <div role="alert" className="rounded-[12px] bg-[var(--color-bg-danger)] px-4 py-3 text-[var(--color-text-danger)]"><p>{error}</p><button type="button" onClick={() => setReload((n) => n + 1)} className="mt-2 underline">إعادة المحاولة</button></div> : null}
-      {!rows && !error ? <p role="status" className="text-[var(--color-text-secondary)]">جارٍ تحميل الطلبات…</p> : null}
-      {rows ? <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">عرض {shown.length} من {rows.length} طلب</p> : null}
-      <div className="flex flex-col overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: 'var(--color-border-default)' }}>
-        {shown.map((r) => {
-          const st = STATUS[String(r.award_status === 'APPROVED' ? 'AWARDED' : r.status)] || { label: r.status, bg: 'var(--color-bg-surface-2)', fg: 'var(--color-text-secondary)' }
-          const title = rfqProjectName({ delivery: r.delivery }) || formatRfqTitle(r)
-          return (
-            <button key={r.id} type="button" onClick={() => open(r.id)} className="flex w-full flex-wrap items-center gap-3 border-b px-4 py-4 text-right last:border-b-0 hover:bg-[var(--color-bg-canvas)] sm:px-5" style={{ borderColor: 'var(--color-border-default)' }}>
-              <span className="rounded-full px-2.5 py-1 text-[14px] font-medium" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
-              <span className="order-3 w-full text-[13px] tabular-nums sm:order-none sm:w-auto" style={{ color: 'var(--color-text-secondary)' }}>{r.response_count} عرض · {r.supplier_count} مورد · {r.line_count} بند</span>
-              <span className="min-w-[120px] flex-1 text-[16px] font-medium">{title}</span>
-              <span className="text-[12px] tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>{new Date(r.created_at).toLocaleDateString('ar-SA', { timeZone: 'Asia/Riyadh', calendar: 'gregory' })}</span>
-            </button>
-          )
-        })}
-        {rows && rows.length === 0 ? <p className="p-6 text-right" style={{ color: 'var(--color-text-secondary)' }}>ابدأ بأول طلب تسعير، ثم تابع عروض الموردين هنا.</p> : null}
-        {rows && rows.length > 0 && shown.length === 0 ? <div className="p-6"><p>لا توجد طلبات تطابق البحث.</p><button type="button" onClick={() => { setQuery(''); setFilter('all') }} className="mt-3 text-[var(--color-text-link)] underline">مسح البحث والفلترة</button></div> : null}
-      </div>
+        {rows && rows.length ? <Button variant="Primary" size="M" onClick={onNew}>طلب جديد</Button> : null}
+      </header>
+      {rows && rows.length > 3 ? (
+        <div><label htmlFor="request-search" className="sr-only">ابحث عن طلب</label><input id="request-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم الطلب" className="min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3" /></div>
+      ) : null}
+      {error ? <div role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-4 py-3 text-[var(--color-text-danger)]"><p>ما قدرنا نجيب طلباتك الحين. {error}</p><button type="button" onClick={() => setReload((x) => x + 1)} className="mt-2 min-h-11 underline">حاول مرة ثانية</button></div> : null}
+      {!rows && !error ? <Skeleton /> : null}
+      {rows && rows.length === 0 ? <Empty onNew={onNew} /> : null}
+      {grouped.map((g) => (
+        <ListSection key={g.key} title={g.title} count={g.rows.length}>
+          {g.rows.map(({ r, c }) => <ListRow key={r.id} title={titleOf(r)} caption={caption(r, c.group)} status={{ tone: c.tone, label: c.label }} onClick={() => open(r.id)} />)}
+        </ListSection>
+      ))}
+      {rows && rows.length > 0 && shown.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما فيه طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
+      {rows ? <p className="text-[14px] text-[var(--color-text-secondary)]">تدوّر على موردين أو مشترين بدون طلب؟ <button type="button" onClick={() => go('explore')} className="min-h-11 text-[var(--color-text-link)] underline">استكشف السوق</button></p> : null}
     </div>
   )
 }

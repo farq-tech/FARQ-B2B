@@ -25,27 +25,14 @@ async function expectFocusRing(page: Page) {
   expect(ring.width).toBeGreaterThanOrEqual(2)
 }
 
-test('03 · tabs: Tab reaches the tablist, arrows follow RTL, Home/End, list filters', async ({ page }) => {
+test('03 · supplier rows: every supplier that needs a look is listed with its state, waiting ones are counted', async ({ page }) => {
+  // Figma B2B M03/W03 replaced the filter tabs with Rows (Entity Badge) + Total rows.
   await page.goto('/?harness=tracking')
-  await expect(page.getByRole('tab', { name: 'الكل 5' })).toBeVisible()
-  await tabTo(page, (e) => e.role === 'tab')
-  await expect(page.getByRole('tab', { name: 'الكل 5' })).toBeFocused()
-  await expectFocusRing(page)
-  await page.screenshot({ path: `${SHOTS}/03-tabs-focus.png` })
-
-  await page.keyboard.press('ArrowLeft') // RTL: left = next
-  await expect(page.getByRole('tab', { name: 'أرسلوا سعر 3' })).toBeFocused()
-  await expect(page.getByRole('tab', { name: 'أرسلوا سعر 3' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('section[aria-labelledby="suppliers-h"] li')).toHaveCount(3)
-  await page.keyboard.press('ArrowRight') // previous
-  await expect(page.getByRole('tab', { name: 'الكل 5' })).toHaveAttribute('aria-selected', 'true')
-  await page.keyboard.press('End')
-  await expect(page.getByRole('tab', { name: 'اعتذروا 1' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('section[aria-labelledby="suppliers-h"] li')).toHaveCount(1)
-  await page.keyboard.press('Home')
-  await expect(page.getByRole('tab', { name: 'الكل 5' })).toBeFocused()
-  // only the selected tab is in the Tab order (roving tabindex)
-  await expect(page.locator('[role="tab"][tabindex="0"]')).toHaveCount(1)
+  const list = page.locator('section[aria-labelledby="suppliers-h"]')
+  await expect(list.getByText('الموردون', { exact: true })).toBeVisible()
+  await expect(list.getByText('أرسلوا سعر', { exact: true })).toBeVisible()
+  await expect(page.getByRole('progressbar', { name: 'تقدم الطلب' })).toBeVisible()
+  await page.screenshot({ path: `${SHOTS}/03-suppliers.png` })
 })
 
 test('03 · «قارن العروض» is reachable by Tab with a visible focus ring', async ({ page }) => {

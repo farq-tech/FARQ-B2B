@@ -6,7 +6,7 @@
   min-height: 48px; max-width: 100%; padding: 11px 18px; border-radius: 14px;
   font: 700 15px/1.45 'ITF Huwiya Arabic', system-ui, sans-serif;
   border: 1px solid var(--farq-button-border); cursor: pointer;
-  background: var(--farq-button-gradient); color: var(--white); box-shadow: var(--farq-button-shadow);
+  background: var(--farq-button-gradient); color: var(--farq-button-ink, var(--white)); box-shadow: var(--farq-button-shadow);
   transition: background 160ms ease-out, box-shadow 160ms ease-out, transform 100ms ease-out;
 }
 .farq-glass-button__label { min-width: 0; overflow-wrap: anywhere; text-align: center; }

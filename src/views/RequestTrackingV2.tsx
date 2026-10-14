@@ -14,67 +14,20 @@ import {
 } from '../api/constructionClient'
 import { leadTimeLabel, requestProgress, requestState, supplierState } from '../lib/requestFile'
 import { rfqProjectName } from '../lib/rfqIdentity'
-import { Badge, Button, ChannelBadge, Icon, QuoteCard, Stat, Tabs, TimelineStep, Toast, TopBar, channelFromApi, useIsMobile, type BadgeTone, type QuoteFact, type TimelineStatus } from '../ui'
+import { Badge, Button, ListRow, Toast, TopBar, useIsMobile, type BadgeTone } from '../ui'
 
 /*
- * «03 · متابعة الطلب» — the Figma «فرق تسعير» request-tracking screen, wired to
- * the real request: invitations, dispatch attempts, quotes and supplier outcomes.
+ * «متابعة الطلب» — Figma B2B M03 `18371:23094` / W03 `18430:2880`: status card with the four-step bar,
+ * the request line, one Row (Entity Badge) per supplier that needs a look, Total rows, «قارن العروض».
+ * Wired to the real request: invitations, dispatch attempts, quotes and supplier outcomes.
  * Numbers are derived only from recorded data; nothing here is illustrative.
  */
 
-type Offer = ConstructionComparison['supplier_responses'][number]
 type Tone = BadgeTone
 const POLL_MS = 30_000
 
-function timeAgo(iso?: string | null): string {
-  if (!iso) return ''
-  const diff = Date.now() - Date.parse(iso)
-  if (!Number.isFinite(diff) || diff < 0) return ''
-  const m = Math.round(diff / 60000)
-  if (m < 2) return 'وصل الحين'
-  if (m < 60) return `قبل ${m} دقيقة`
-  const h = Math.round(m / 60)
-  if (h < 24) return `قبل ${h} ${h === 1 ? 'ساعة' : h === 2 ? 'ساعتين' : 'ساعات'}`
-  const d = Math.round(h / 24)
-  return `قبل ${d} ${d === 1 ? 'يوم' : 'أيام'}`
-}
-
-function money(value?: number | string | null): string | null {
-  if (value == null || value === '') return null
-  const n = Number(value)
-  if (!Number.isFinite(n)) return null
-  return `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`
-}
-
-function offerChannel(offer: Offer, invites: ConstructionInvitation[]): string | null {
-  const inv = invites.find((i) => i.id === String(offer.offer.inviteId || '')) || invites.find((i) => i.supplier_id === String(offer.supplier.id || ''))
-  return inv ? invitePreferredChannel(inv) : null
-}
-
-/** Maps a recorded offer to the Figma Quote Card. Facts are only what the offer says. */
-function OfferCard({ offer, invites, coverage, fresh }: { offer: Offer; invites: ConstructionInvitation[]; coverage: { priced: number; requested: number } | null; fresh: boolean }) {
-  const name = offer.supplier.name_ar || offer.supplier.name_en || 'مورد'
-  const channel = offerChannel(offer, invites)
-  const incl = offer.offer.prices_include_tax
-  const lead = leadTimeLabel(offer.offer)
-  const facts: QuoteFact[] = []
-  if (offer.offer.notes) facts.push({ icon: 'shield', label: String(offer.offer.notes).slice(0, 40) })
-  if (lead) facts.push({ icon: 'clock', label: lead })
-  if (coverage && coverage.priced === coverage.requested) facts.push({ icon: 'truck', label: 'يغطّي كل البنود' })
-  return (
-    <QuoteCard
-      state={fresh ? 'New' : 'Default'}
-      supplier={name}
-      meta={[timeAgo(offer.offer.submittedAt), channel === 'WHATSAPP' ? 'واتساب' : channel === 'EMAIL' ? 'إيميل' : channel === 'HARAJ' ? 'حراج' : 'البوابة'].filter(Boolean).join(' · ')}
-      amount={money(offer.offer.totals?.total) || '—'}
-      amountNote={incl === false ? 'قبل الضريبة' : incl ? 'شامل الضريبة' : undefined}
-      coverageLabel={coverage ? `${coverage.priced} من ${coverage.requested} بند` : null}
-      facts={facts}
-    />
-  )
-}
-
-type Filter = 'all' | 'quoted' | 'replied' | 'waiting' | 'declined'
+type Filter = 'quoted' | 'replied' | 'waiting' | 'declined' | 'attention'
+const CHANNEL_AR: Record<string, string> = { WHATSAPP: 'واتساب', EMAIL: 'إيميل', HARAJ: 'حراج' }
 
 export function RequestTrackingV2({ navigate }: NavProps) {
   const { selectedRfqId } = useProcurement()
@@ -82,8 +35,6 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const [comparison, setComparison] = useState<ConstructionComparison | null>(null)
   const [outcomes, setOutcomes] = useState<ConstructionSupplierOutcomeEvent[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<Filter>('all')
-  const [showAll, setShowAll] = useState(false)
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null)
   const [seenQuotes, setSeenQuotes] = useState<Set<string> | null>(null)
   const mobile = useIsMobile()
@@ -138,7 +89,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
     const st = supplierState(inv, awardedInviteId)
     const declined = declinedSuppliers.has(inv.supplier_id)
     const opened = Boolean(inv.opened_at)
-    const key: Filter = st.key === 'QUOTED' || st.key === 'AWARDED' ? 'quoted' : declined ? 'declined' : opened && st.key === 'SENT' ? 'replied' : st.key === 'SENT' ? 'waiting' : 'waiting'
+    const key: Filter = st.key === 'QUOTED' || st.key === 'AWARDED' ? 'quoted' : declined ? 'declined' : opened && st.key === 'SENT' ? 'replied' : st.key === 'SENT' ? 'waiting' : 'attention'
     const badge: { tone: Tone; label: string } =
       st.key === 'AWARDED' ? { tone: 'Success', label: 'تمت الترسية' }
       : st.key === 'QUOTED' ? { tone: 'Success', label: 'أرسل سعر' }
@@ -152,14 +103,9 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   }), [invites, awardedInviteId, declinedSuppliers])
 
   const counts = useMemo(() => ({
-    all: rows.length,
-    quoted: rows.filter((r) => r.key === 'quoted').length,
     replied: rows.filter((r) => r.key === 'replied').length,
-    waiting: rows.filter((r) => r.key === 'waiting').length,
     declined: rows.filter((r) => r.key === 'declined').length,
   }), [rows])
-  const visible = rows.filter((r) => filter === 'all' || r.key === filter)
-  const shown = showAll ? visible : visible.slice(0, 8)
 
   if (!selectedRfqId) return <div className="p-8 text-right">اختر طلبًا من قائمة الطلبات.</div>
   if (error) return <div className="p-8 text-right text-[var(--color-text-danger)]">{error}</div>
@@ -168,107 +114,79 @@ export function RequestTrackingV2({ navigate }: NavProps) {
   const payload = rfq.current_version?.payload || {}
   const title = rfqProjectName({ delivery: payload.delivery }) || formatRfqTitle({ id: rfq.id, engineering_department: rfq.engineering_department, delivery: payload.delivery, buyer: payload.buyer })
   const delivery = payload.delivery as { city?: string; required_date?: string } | undefined
-  const coveredLines = comparison?.quote_matrix?.lines?.filter((l) => (l.offers || []).some((c) => c && c.unit_price != null)).length ?? null
-  const reachedNotQuoted = Math.max(0, progress.reached - progress.quoted)
-  const repliedCount = progress.quoted + counts.replied
+  const repliedCount = progress.quoted + counts.replied + counts.declined
   const stateBadge: { tone: Tone; label: string } = state.key === 'AWARDED' ? { tone: 'Success', label: 'تمت الترسية' } : state.key === 'CLOSED' ? { tone: 'Neutral', label: 'أُغلق الاستلام' } : state.key === 'DRAFT' ? { tone: 'Neutral', label: 'مسودة' } : state.key === 'CANCELLED' ? { tone: 'Danger', label: 'ملغي' } : { tone: 'Success', label: 'يستقبل العروض' }
-  const contactStep: TimelineStatus = progress.reached === 0 ? 'Pending' : progress.reached >= invites.length ? 'Done' : 'Active'
-  const compareStep: TimelineStatus = state.key === 'AWARDED' ? 'Done' : progress.quoted > 0 ? 'Active' : 'Pending'
-
-  const suppliersSection = (
-    <section aria-labelledby="suppliers-h" className="flex min-w-0 flex-1 flex-col items-stretch overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
-      <div className="flex w-full flex-col items-start gap-3 px-6 py-5">
-        <div className="flex items-baseline gap-2">
-          <h2 id="suppliers-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">الموردين</h2>
-          <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-tertiary)]">مرتبين حسب حالة الرد</p>
-        </div>
-        <Tabs className="max-w-full overflow-x-auto" label="تصفية الموردين حسب حالة الرد" value={filter} onChange={(k) => { setFilter(k); setShowAll(false) }}
-          items={[{ key: 'all', label: `الكل ${counts.all}` }, { key: 'quoted', label: `أرسلوا سعر ${counts.quoted}` }, { key: 'replied', label: `ردّوا بدون سعر ${counts.replied}` }, { key: 'waiting', label: `بانتظار ${counts.waiting}` }, { key: 'declined', label: `اعتذروا ${counts.declined}` }]} />
-      </div>
-      {shown.length === 0 ? <p className="w-full p-6 text-start text-[14px] text-[var(--color-text-secondary)]">لا يوجد موردون في هذه الحالة.</p> : null}
-      <ul>
-        {shown.map(({ inv, badge, channel }) => {
-          const name = inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
-          const ch = channelFromApi(channel)
-          return (
-            <li key={inv.id} className={`flex w-full items-center border-b border-[var(--color-border-default)] ${mobile ? 'flex-wrap gap-x-3 gap-y-2 px-4 py-3' : 'gap-4 px-5 py-4'}`}>
-              <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] text-[16px] font-medium text-[var(--color-text-secondary)]">{name.trim().charAt(0)}</span>
-              <div className={`flex min-w-0 flex-1 flex-col items-start gap-1 ${mobile ? 'basis-[calc(100%-56px)]' : ''}`}>
-                <p className="max-w-full truncate text-[16px] leading-[26px] font-medium">{name}</p>
-                <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{inv.supplier?.city || '—'}</p>
-              </div>
-              {ch ? <ChannelBadge channel={ch} /> : null}
-              <Badge tone={badge.tone} label={badge.label} />
-            </li>
-          )
-        })}
-      </ul>
-      {visible.length > shown.length ? (
-        <button type="button" onClick={() => setShowAll(true)} className="w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-border-primary)]">عرض {visible.length - shown.length} مورد إضافي</button>
-      ) : null}
-    </section>
-  )
-  const timelineSection = (
-    <section aria-labelledby="track-h" className="flex w-full flex-col items-start gap-1 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-5">
-      <h2 id="track-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">مسار الطلب</h2>
-      <ol className="w-full">
-        <TimelineStep title="رفع الطلب" detail={`${progress.items} بند`} status="Done" />
-        <TimelineStep title="قراءة البنود" detail={`${progress.items} بند جاهز للإرسال`} status="Done" />
-        <TimelineStep title="التواصل مع الموردين" detail={progress.reached ? `تم التواصل مع ${progress.reached} مورد` : 'لم يبدأ الإرسال'} status={contactStep} />
-        <TimelineStep title="المقارنة والترسية" detail={state.key === 'AWARDED' ? 'تمت الترسية' : progress.quoted ? `تقدر تبدأ الحين — ${progress.quoted} عرض جاهز` : 'بانتظار أول عرض'} status={compareStep} showConnector={false} />
-      </ol>
-    </section>
-  )
-  const offersSection = (
-    <section aria-labelledby="latest-h" className="flex w-full flex-col items-stretch gap-3">
-      <div className="flex items-center gap-2">
-        <h2 id="latest-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">آخر العروض</h2>
-        <button type="button" aria-label="تحديث العروض" title="تحديث" onClick={() => selectedRfqId && void load(selectedRfqId)} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-primary)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]"><Icon name="refresh" size={18} /></button>
-      </div>
-      {offers.length === 0 ? <p className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5 text-start text-[14px] text-[var(--color-text-secondary)]">ما وصل أي عرض بعد. {reachedNotQuoted ? `${reachedNotQuoted} مورد ما زال يدرس الطلب.` : ''}</p> : null}
-      {offers.slice(0, 2).map((o, i) => {
-        const cov = summaryBySupplier.get(String(o.supplier.id || ''))?.coverage || null
-        return <OfferCard key={String(o.offer.quoteVersionId || o.offer.offerId || i)} offer={o} invites={invites} coverage={cov} fresh={i === 0 && Date.now() - Date.parse(String(o.offer.submittedAt || 0)) < 60 * 60 * 1000} />
-      })}
-    </section>
-  )
+  // The four steps of the Figma bar: رفع · قرأت البنود · التواصل · المقارنة.
+  const contactShare = invites.length ? progress.reached / invites.length : 0
+  const filled = Math.min(1, (2 + contactShare + (state.key === 'AWARDED' ? 1 : 0)) / 4)
+  const steps = [
+    { label: 'رفع', done: true },
+    { label: 'قرأت البنود', done: true },
+    { label: <>التواصل · <bdi dir="ltr">{progress.reached}</bdi> من <bdi dir="ltr">{invites.length}</bdi></>, done: invites.length > 0 && progress.reached >= invites.length },
+    { label: 'المقارنة', done: state.key === 'AWARDED' },
+  ]
+  const named = rows.filter((r) => r.key !== 'waiting' && r.key !== 'replied')
+  const waiting = rows.filter((r) => r.key === 'waiting' || r.key === 'replied')
+  const nameOf = (inv: ConstructionInvitation) => inv.supplier?.name_ar || inv.supplier?.name_en || 'مورد'
+  const waitingNames = waiting.slice(0, 3).map((r) => nameOf(r.inv)).join('، ') + (waiting.length > 3 ? ` و${waiting.length - 3} غيرهم` : '')
+  const supplierCaption = (inv: ConstructionInvitation, channel: string | null) => {
+    const offer = offers.find((o) => String(o.offer.inviteId || '') === inv.id || String(o.supplier.id || '') === inv.supplier_id)
+    const cov = summaryBySupplier.get(String(inv.supplier_id || ''))?.coverage
+    const lead = offer ? leadTimeLabel(offer.offer) : null
+    return [channel ? CHANNEL_AR[channel] || null : null, cov ? <><bdi dir="ltr">{cov.priced}</bdi> من <bdi dir="ltr">{cov.requested}</bdi></> : null, lead].filter(Boolean).map((x, k) => <span key={k}>{k ? ' · ' : ''}{x}</span>)
+  }
+  const badgeFor = (r: typeof rows[number]) => {
+    const cov = summaryBySupplier.get(String(r.inv.supplier_id || ''))?.coverage
+    if (r.badge.label === 'أرسل سعر' && cov && cov.priced < cov.requested) return { tone: 'Warning' as Tone, label: 'عرض ناقص' }
+    return r.badge
+  }
+  const compareDisabled = !progress.quoted
 
   return (
-    <div className="pricing-v2 relative min-h-full text-[var(--color-text-primary)]">{/* transparent: the living background (BG / Facets) shows around the cards */}
+    <div className="pricing-v2 relative min-h-full text-[var(--color-text-primary)]">
       <TopBar parent="طلبات التسعير" onParent={() => navigate('rfq-list')} title={title} />
+      <div className={`mx-auto flex w-full max-w-[720px] flex-col gap-6 ${mobile ? 'p-4 pb-24' : 'p-8'}`}>
+        {mobile ? null : <h1 className="font-[family-name:var(--font-display)] text-[28px] leading-[44px] font-semibold">متابعة الطلب · {title}</h1>}
 
-      <div className={mobile ? 'flex flex-col gap-4 p-4 pb-24' : 'flex flex-col gap-6 p-8'}>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-col items-start gap-1.5">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              {/* On phones the title lives in the app bar (Figma M03). */}
-              {mobile ? null : <h1 className="truncate font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{title}</h1>}
-              <Badge tone={stateBadge.tone} label={stateBadge.label} />
-            </div>
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
-              {[rfq.created_at ? `أُنشئ ${timeAgo(rfq.created_at)}` : null, `${progress.items} بند`, delivery?.city ? `التوصيل لـ${delivery.city}${delivery.required_date ? ` قبل ${delivery.required_date}` : ''}` : null].filter(Boolean).join(' · ')}
-            </p>
+        <section aria-label="حالة الطلب" className="flex flex-col gap-3 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-[family-name:var(--font-display)] text-[20px] leading-[32px] font-semibold">{title}</h2>
+            <Badge tone={stateBadge.tone} label={stateBadge.label} showDot={false} />
           </div>
-          {mobile ? null : <Button variant="Primary" size="L" icon="layers" onClick={() => navigate('comparison')} disabled={!progress.quoted}>قارن العروض ({progress.quoted})</Button>}
+          <div role="progressbar" aria-label="تقدم الطلب" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(filled * 100)} className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-surface-2)]">
+            <div className="h-full rounded-full bg-[var(--color-bg-brand)]" style={{ width: `${filled * 100}%` }} />
+          </div>
+          <ol className="grid grid-cols-4 gap-2 text-[12px] leading-[18px] sm:text-[14px] sm:leading-[22px]">
+            {steps.map((s, k) => <li key={k} className={s.done ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}>{s.label}{s.done ? ' ✓' : ''}</li>)}
+          </ol>
+          <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ردّ <bdi dir="ltr">{repliedCount}</bdi> من <bdi dir="ltr">{invites.length}</bdi> موردين. «أُرسل» لا يعني أن المورد قرأ الطلب.</p>
+        </section>
+
+        <div className="flex flex-col gap-1">
+          <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">الطلب</p>
+          <p className="text-[18px] leading-[28px] font-semibold"><bdi dir="ltr">{progress.items}</bdi> بنداً{delivery?.city ? ` · التوصيل: ${delivery.city}` : ''}{delivery?.required_date ? <> قبل <bdi dir="ltr">{delivery.required_date}</bdi></> : null}</p>
         </div>
 
-        <div className={mobile ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-4 gap-4'}>
-          <Stat label="تم التواصل معهم" value={progress.reached} basis={`من ${invites.length} مورد مدعو`} />
-          <Stat label="ردّوا" value={repliedCount} basis={progress.reached ? `${Math.round((repliedCount / progress.reached) * 100)}% من اللي تواصلنا معهم` : 'لم يُرسل الطلب بعد'} />
-          <Stat label="أرسلوا سعر" value={progress.quoted} basis={coveredLines != null ? `يغطّون ${coveredLines} من ${progress.items} بند` : 'عروض مستلمة'} tone="Success" />
-          <Stat label="اعتذروا" value={counts.declined} basis={counts.declined ? 'أفادوا بعدم توفر بند أو أكثر' : 'لا اعتذارات حتى الآن'} tone="Danger" />
-        </div>
-        {mobile ? <Button variant="Primary" size="L" fullWidth icon="layers" onClick={() => navigate('comparison')} disabled={!progress.quoted}>قارن العروض ({progress.quoted})</Button> : null}
+        <section aria-labelledby="suppliers-h" className="flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-2">
+          <h2 id="suppliers-h" className="sr-only">الموردين</h2>
+          {invites.length === 0 ? <p className="px-6 py-4 text-[14px] text-[var(--color-text-secondary)]">ما أُرسل الطلب لأي مورد بعد.</p> : null}
+          <ul>
+            {named.map((r) => <li key={r.inv.id}><ListRow initial={nameOf(r.inv).trim().charAt(0)} title={nameOf(r.inv)} caption={supplierCaption(r.inv, r.channel)} status={badgeFor(r)} /></li>)}
+          </ul>
+          {invites.length ? (
+            <dl className="flex flex-col">
+              <div className="flex min-h-16 items-center justify-between gap-3 px-6 py-3"><dt>الموردون</dt><dd className="tabular-nums"><bdi dir="ltr">{invites.length}</bdi></dd></div>
+              <div className="flex min-h-16 items-center justify-between gap-3 px-6 py-3"><dt>أرسلوا سعر</dt><dd className="tabular-nums"><bdi dir="ltr">{progress.quoted}</bdi></dd></div>
+              {waiting.length ? <div className="flex min-h-16 items-center justify-between gap-3 px-6 py-3"><dt>بانتظار الرد</dt><dd className="text-start"><bdi dir="ltr">{waiting.length}</bdi> · {waitingNames}</dd></div> : null}
+            </dl>
+          ) : null}
+        </section>
 
-        {mobile ? (
-          // Figma M03 order: latest offers, then the track, then the supplier list.
-          <div className="flex flex-col gap-6">{offersSection}{timelineSection}{suppliersSection}</div>
-        ) : (
-          <div className="flex items-start gap-6">
-            {suppliersSection}
-            <div className="flex w-[380px] shrink-0 flex-col gap-6">{timelineSection}{offersSection}</div>
-          </div>
-        )}
+        <div className="flex flex-col gap-2">
+          <Button variant="Primary" size="L" fullWidth onClick={() => navigate('comparison')} disabled={compareDisabled}>قارن العروض ({progress.quoted})</Button>
+          {compareDisabled ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">تقدر تقارن أول ما يوصل أول عرض.</p> : null}
+          <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">العروض مغلقة: لا يرى المورد أسعار غيره. الأرقام من سجل الطلب فقط.</p>
+        </div>
       </div>
 
       {toast ? <Toast tone="Success" title={toast.title} body={toast.body} onClose={() => setToast(null)} /> : null}

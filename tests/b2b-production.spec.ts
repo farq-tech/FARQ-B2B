@@ -26,7 +26,7 @@ async function setup(page:Page) {
 for(const width of [390,1440]) {
   test(`شراء 20 كرسي: إدخال → مراجعة → نتائج → اختيار → تجهيز طلب (${width})`,async({page})=>{
     await page.setViewportSize({width,height:900});const writes=await setup(page)
-    await page.goto('/targeting');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
+    await page.goto('/explore');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
     await page.getByLabel('البحث',{exact:true}).fill('20 كرسي عيادة')
     await page.getByRole('button',{name:'فهم الاحتياج والبحث'}).click()
     await expect(page.getByRole('heading',{name:'راجع احتياجك'})).toBeVisible()
@@ -49,7 +49,7 @@ for(const width of [390,1440]) {
   })
   test(`بيع بالجملة: اختيار → حفظ فرصة → تأكيد الاحتياج → مراجعة عرض (${width})`,async({page})=>{
     await page.setViewportSize({width,height:900});const writes=await setup(page)
-    await page.goto('/targeting');await page.getByRole('button',{name:'أبي أبيع',exact:true}).click()
+    await page.goto('/explore');await page.getByRole('button',{name:'أبي أبيع',exact:true}).click()
     await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
     await page.getByLabel('البحث',{exact:true}).fill('حليب بالجملة')
     await page.getByRole('button',{name:'فهم الاحتياج والبحث'}).click()
@@ -71,7 +71,7 @@ for(const width of [390,1440]) {
   })
   test(`اسم المورد يفتح مباشرة، والحفظ يستعيد الاختيارات (${width})`,async({page})=>{
     await page.setViewportSize({width,height:900});const writes=await setup(page)
-    await page.goto('/targeting');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
+    await page.goto('/explore');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
     await page.getByLabel('البحث',{exact:true}).fill('شركة الاختبار للأثاث')
     await page.getByRole('button',{name:'بحث باسم الشركة',exact:true}).click()
     await expect(page.getByRole('heading',{name:'شركة الاختبار للأثاث',exact:true})).toBeVisible()
@@ -86,11 +86,12 @@ for(const width of [390,1440]) {
   })
 }
 test('Routes preserve existing request links and add B2B sections',()=>{
- for(const view of ['account','opportunities','targeting'] as const) expect(parseRoute(routePath(view,null)).view).toBe(view)
- expect(parseRoute('/explore').view).toBe('targeting')
+ for(const view of ['account','opportunities','targeting','explore'] as const) expect(parseRoute(routePath(view,null)).view).toBe(view)
+ // Figma IA: /targeting is the supplier campaign (map); the goal-based Explore lives at /explore.
+ expect(parseRoute('/explore').view).toBe('explore')
 })
 test('Empty results offer recovery and keep selected entities',async({page})=>{
- await setup(page);await page.goto('/targeting');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh');await page.getByLabel('البحث',{exact:true}).fill('لا نتائج');await page.getByRole('button',{name:'بحث باسم الشركة',exact:true}).click();await expect(page.getByRole('heading',{name:'ما لقينا نتائج ضمن هذه الشروط'})).toBeVisible();await page.getByRole('button',{name:'تعديل البحث والفلاتر'}).click();await expect(page.getByLabel('البحث',{exact:true})).toBeFocused()
+ await setup(page);await page.goto('/explore');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh');await page.getByLabel('البحث',{exact:true}).fill('لا نتائج');await page.getByRole('button',{name:'بحث باسم الشركة',exact:true}).click();await expect(page.getByRole('heading',{name:'ما لقينا نتائج ضمن هذه الشروط'})).toBeVisible();await page.getByRole('button',{name:'تعديل البحث والفلاتر'}).click();await expect(page.getByLabel('البحث',{exact:true})).toBeFocused()
 })
 
 for (const width of [390, 1440]) {
@@ -172,7 +173,7 @@ for (const width of [390,1440]) test(`تحميل كل الصفحات والفل�
     if(path.endsWith('/map-query')){calls.push(route.request().postDataJSON());return route.fulfill({json:{total:1500,located_total:1400,map_query:'a'.repeat(32),rows:[],parsed:{}}})}
     return route.fulfill({status:403,json:{error:'QA_BLOCKED'}})
   })
-  await page.goto('/targeting');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
+  await page.goto('/explore');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
   await page.getByLabel('البحث',{exact:true}).fill('بورسلان');await page.getByRole('button',{name:'بحث باسم الشركة',exact:true}).click()
   await expect(page.locator('.farq-results article')).toHaveCount(30)
   await page.getByRole('button',{name:'تحميل جهات أخرى'}).click();await expect(page.locator('.farq-results article')).toHaveCount(60)
