@@ -202,3 +202,40 @@ source. Pin positions are illustrative (frames are tagged «بيانات تجر�
 
 Data the map design assumes and the API does not give yet (GAP D4): «آخر رد قبل N يوم», «ردّ سابقاً», Haraj channel,
 area query (the service searches by city + text; a polygon filter would be new).
+
+## 8. Update — user-pain fixes and independent audit (2026-10-14, night)
+
+**Owner-requested fixes (design only)**
+1. One template through the journey: approved template → M08 «التالي» goes straight to review (M11 `18375:23935`,
+   approval step shown ✓); new template → M09 → M10 → M11b `18400:2176` with that same template.
+2. Map first: sheet collapsed by default on M07 `18396:2027`, chosen pins dark + legend «مختار», hint «اضغط الدبوس
+   لتختار المورد · أو حدد منطقة»; expanded list state M07c `18400:2427`; draw mode M07b `18396:24860` with «تراجع».
+3. Cost visible from step 1 in the summary bars («≈ 0.51 ر.س قبل الضريبة»); «غير متوفر» replaced by «السعر قبل الضريبة».
+4. No dead disabled buttons on waits: Meta pending has «نبّهني على واتساب لما يُعتمد» (Nucleus List + Switch) and
+   «ارجع للحملات، ونكمل لاحقاً»; every disabled button has its reason underneath.
+5. Plain language: editor starts from presets, Meta settings collapsed, variables named («اسم المنشأة»); Meta rejection
+   in Arabic with the original under «النص الأصلي من ميتا»; results as «✓ أُرسلت · ✓ وصلت · ✓ قُرئت · ✓ ردّ».
+6. RFQ list grouped «يحتاج قرارك / بانتظار العروض / منتهية / مسودات» with status badges (Row Entity Badge).
+7. Comparison: partial offer explains «ناقص 3 · ≈ 2,410 لو كمّلتها»; primary action «قارن البنود بنداً بنداً», award secondary;
+   all prices compared tax-inclusive.
+8. Supplier form: neutral «سعّرت 11 من 12», tax choice first, per-line totals, offer total before send, checkbox
+   «ما عندي هذا البند», stepper shows its value (Foodie «Steppers: Transparent», key `abecc9e6…`).
+General: sample-data tags moved above frames; tab «الموردين» (users icon), web nav «حملات الموردين»; new states:
+RFQ empty `18402:2300`, RFQ loading (Nucleus Skeletons) `18402:2397`, targeting before search `18402:2500`,
+inbox empty `18402:2673`, inbox list `18425:2713`; sending-not-enabled review `18416:2498`.
+
+**Independent audit** (separate agent, read-only, 15 heuristics + frontend checks): 29 findings (0×4, 7×3, 17×2, 5×1).
+Fixed in this pass, among others: one data scenario across list/tracking/comparison/web (12 بنداً · 5 موردين · 3 عروض),
+tax basis, send lock shown before pressing send, clipped CTA/text, contrast (new tokens `b2b/text-muted` #5f7168,
+`b2b/status/*-text`; Nucleus B2B mode fg/subtle|muted|success|warning|danger re-pointed; avatar initials and active tabs
+bound to `b2b/primary`), RTL back button on the right and hidden on root screens, login recovery («نسيت كلمة المرور؟»,
+denied screen shows the account + «ادخل بحساب آخر»), disabled look for unusable templates, map tools in one place,
+web content aligned to the title edge, sidebar full height, inbox list column on web, progress bar = label width.
+Still open by design decision: touch targets of kit «Buttons - Small» (32 px) → implement a 44 px hit area in code.
+
+**Contrast tokens are a deviation from §2 of the brief** (owner-approved status colours stay as fills; text uses the
+darker `*-text` tokens). Owner to confirm.
+
+Web ids regenerated: W03 `18426:2742`, W04 `18426:2878`, W05a `18426:3030`, W06 `18426:3222`, W01b `18426:3351`,
+W08 `18426:3480`, W09 `18426:3616`, W10 `18426:3784` / `18426:3885`, W11 `18426:3978`, W11c `18426:4099`,
+W12 `18426:4226` / `18426:4346`. M05a is now `18425:2642`.
