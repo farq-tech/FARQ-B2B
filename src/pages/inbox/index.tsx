@@ -93,23 +93,25 @@ function StateBox({ tone = 'neutral', title, body, action }: { tone?: 'neutral' 
   )
 }
 
+/** Figma M06a `18425:2713`: Row (Entity Badge) — initial, supplier, «request · "preview" · time», status. */
 function ThreadRow({ t, selected, onOpen }: { t: ConstructionInboxThread; selected: boolean; onOpen: () => void }) {
   const st = threadStatus(t)
   const unread = Number(t.unread_count || 0)
+  const name = inboxThreadSupplierLabel(t)
+  const preview = t.preview || t.subject || ''
   return (
     <li>
       <button type="button" onClick={onOpen} aria-current={selected ? 'true' : undefined}
-        className={`flex w-full flex-col items-stretch gap-1.5 border-b px-5 py-4 text-start ${selected ? 'border-[var(--color-border-success)] bg-[var(--color-bg-success)]' : 'border-[var(--color-border-default)] hover:bg-[var(--color-bg-surface-2)]'} ${FOCUS_RING} focus-visible:-outline-offset-2`}>
-        <span className="flex items-baseline justify-between gap-3">
-          <span className={`min-w-0 truncate text-[16px] leading-[26px] ${unread ? 'font-semibold' : 'font-medium'}`}>{inboxThreadSupplierLabel(t)}</span>
-          <span className="shrink-0 text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{timeAgo(t.last_received_at)}</span>
+        className={`flex min-h-16 w-full items-center gap-3 border-b px-5 py-3 text-start ${selected ? 'border-[var(--color-border-default)] bg-[var(--color-bg-primary-subtle)]' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] hover:bg-[var(--color-bg-primary-subtle)]'} ${FOCUS_RING} focus-visible:-outline-offset-2`}>
+        <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-bg-primary-subtle)] text-[16px] font-medium">{name.trim().charAt(0)}</span>
+        <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+          <span className={`max-w-full truncate text-[16px] leading-[26px] ${unread ? 'font-semibold' : 'font-medium'}`}>{name}</span>
+          <span className="line-clamp-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
+            {[t.request_context?.reference || null, preview ? `«${preview}»` : 'بدون نص', timeAgo(t.last_received_at) || null].filter(Boolean).join(' · ')}
+          </span>
         </span>
-        <span className="line-clamp-1 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{t.preview || t.subject || 'بدون نص'}</span>
-        <span className="flex flex-wrap items-center gap-2">
-          {t.request_context?.reference ? <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{t.request_context.reference}</span> : null}
-          {st ? <Badge tone={st.tone} label={st.label} className="text-[12px] leading-[18px]" /> : null}
-          {unread ? <span className="rounded-full bg-[var(--color-bg-primary)] px-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-primary)]"><span className="sr-only">غير مقروءة: </span>{unread}</span> : null}
-        </span>
+        {unread ? <span className="shrink-0 rounded-full bg-[var(--color-bg-primary)] px-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-primary)]"><span className="sr-only">غير مقروءة: </span>{unread}</span> : null}
+        {st ? <Badge tone={st.tone} label={st.label} showDot={false} className="shrink-0" /> : null}
       </button>
     </li>
   )
@@ -264,6 +266,13 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
     return { visible: rows, hiddenSent: showSent ? 0 : sent.length }
   }, [threads, filter, query, showSent])
 
+  // Counts for the chips come from the loaded list; with «يحتاج رد» selected the server returns only those.
+  const counts = useMemo(() => {
+    if (!threads || filter !== 'all') return null
+    const rows = threads.filter((t) => showSent || !isOutboundInviteSnapshot(t))
+    return { all: rows.length, needs: rows.filter((t) => t.needs_reply).length, quoted: rows.filter((t) => t.response_status === 'QUOTED').length }
+  }, [threads, filter, showSent])
+
   const disabledReason = status && (status.enabled === false || status.allowed === false) ? 'صندوق الوارد غير مفعّل لهذا الحساب.' : null
 
   const list = (
@@ -279,12 +288,12 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالمورد أو رقم الطلب" className="min-w-0 flex-1 bg-transparent text-[14px] leading-[22px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
         </label>
         <div role="group" aria-label="تصفية المحادثات" className="flex flex-wrap items-center gap-2">
-          <Chip label="الكل" selected={filter === 'all'} onClick={() => setFilter('all')} />
-          <Chip label="تحتاج رد" selected={filter === 'needs_reply'} onClick={() => setFilter('needs_reply')} />
-          <Chip label="عروض" selected={filter === 'quoted'} onClick={() => setFilter('quoted')} />
+          <Chip label={`الكل${counts ? ` ${counts.all}` : ''}`} selected={filter === 'all'} onClick={() => setFilter('all')} />
+          <Chip label={`يحتاج رد${counts ? ` ${counts.needs}` : ''}`} selected={filter === 'needs_reply'} onClick={() => setFilter('needs_reply')} />
+          <Chip label={`أرسل سعر${counts ? ` ${counts.quoted}` : ''}`} selected={filter === 'quoted'} onClick={() => setFilter('quoted')} />
         </div>
         <p aria-live="polite" className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">
-          {refreshedAt ? `آخر تحديث ${clock(new Date(refreshedAt).toISOString())} · يتحدث كل ${POLL_MS / 1000} ثانية` : 'جارٍ التحميل…'}
+          {refreshedAt ? `${visible.length} محادثات · يتحدث تلقائياً · آخر تحديث ${clock(new Date(refreshedAt).toISOString())}` : 'جارٍ التحميل…'}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
