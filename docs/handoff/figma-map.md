@@ -184,3 +184,21 @@ Owner feedback: the first pass did not use the components the brief named. Chang
   (`importComponentSetByKeyAsync` → not found); Foodie `Views / Tables` is used through the Row copy instead.
 - New finding: Shoppay patterns run on Shoppay's own Buttons / Text Fields / Nav Bars (navy/coral, LTR, not covered by
   the Nucleus B2B mode). Nucleus primitives stay the base; Foodie/Shoppay are used for screen-specific parts.
+
+## 7. Update — the targeting map (2026-10-14, night)
+
+The first pass had only an empty «Map slot». The map is now designed as the core of the targeting step.
+
+| Screen | Node | Content |
+|---|---|---|
+| M07 Segment (map) | `18396:2027` | full-bleed map of north Riyadh; floating Search Bar + Chips; pins by channel (Nucleus solid `marker-pin` `4013:1153`: WhatsApp `b2b/status/success`, e-mail `b2b/olive-gold`, no channel `b2b/sage`); selected pin `b2b/primary` 44 px + Nucleus `Pointer` (key `1a3e5354…`) with the supplier name; clusters = Avatars lg initial with the count; segment outline (dashed `b2b/primary`, fill `b2b/selected`); «حدد منطقة» Buttons - Small; zoom Buttons - Small icon-only; legend; Shoppay Bottom Sheet with results, «تحديد الكل المطابق», summary bar «اخترت N»; Tab Bars. Prototype flow now starts here. |
+| M07b Draw area | `18396:24860` | drawing mode: user polygon with 7 vertices, «وضع الرسم: اضغط لتضيف نقطة», sheet «داخل المنطقة 23 · واتساب 17», «امسح», «اعتمد المنطقة» |
+| W07 Segment (web) | `18391:3124` | list pane + 548×740 map pane with the same layers |
+
+Base map: OpenStreetMap tiles (z13, north Riyadh: الياسمين، الربيع، الملقا، الغدير…), stitched and tinted to the B2B
+greens, uploaded as images (`72dd0133…` mobile, `73645801…` web). **Design only** — the app keeps `MapboxMap.tsx`
+(Mapbox shows its own attribution). The © OpenStreetMap line is the tiles' licence attribution, not a supplier data
+source. Pin positions are illustrative (frames are tagged «بيانات تجريبية»).
+
+Data the map design assumes and the API does not give yet (GAP D4): «آخر رد قبل N يوم», «ردّ سابقاً», Haraj channel,
+area query (the service searches by city + text; a polygon filter would be new).
