@@ -90,6 +90,8 @@ class H(BaseHTTPRequestHandler):
         path = parsed.path[len('/_targeting'):] or '/'
         tile = self.command == 'GET' and re.fullmatch(r'/tiles/[a-f0-9]{32}/[0-9]{1,2}/[0-9]{1,7}/[0-9]{1,7}\.pbf',path)
         key = (self.command, path)
+        # Read-only: lets the review screen say up front whether sending is open (Figma M11c). Never changes the flag.
+        if key == ('GET', '/send-status'): return self._send(200, json.dumps({'send': TARGETING_SEND}).encode(), 'application/json')
         if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
         if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None

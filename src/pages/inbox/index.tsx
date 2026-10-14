@@ -282,7 +282,7 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
           <h1 id="inbox-h" ref={listHeading} tabIndex={-1} className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold outline-none">صندوق الوارد</h1>
           <button type="button" aria-label="تحديث المحادثات" title="تحديث" onClick={() => void loadList()} className={`rounded-[var(--radius-sm)] p-1 text-[var(--color-icon-secondary)] hover:text-[var(--color-text-primary)] ${FOCUS_RING}`}><Icon name="refresh" size={18} /></button>
         </div>
-        <label className={`flex h-10 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]`}>
+        <label className={`flex h-10 flex-row items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]`}>
           <Icon name="search" size={18} className="text-[var(--color-icon-secondary)]" />
           <span className="sr-only">ابحث بالمورد أو رقم الطلب</span>
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالمورد أو رقم الطلب" className="min-w-0 flex-1 bg-transparent text-[14px] leading-[22px] outline-none placeholder:text-[var(--color-text-tertiary)]" />

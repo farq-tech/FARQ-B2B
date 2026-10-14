@@ -7,6 +7,7 @@ import { farqSession } from './farqSession'
  * Endpoints (the service's own, unchanged):
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
+ *   GET  /send-status       — answered by server.py itself: { send } (read-only view of TARGETING_SEND)
  *   GET  /cities            — cities with enough places (English key + Arabic name)
  *   POST /search            — { q, city, limit, only_sendable } → counts + rows; each row says how it matched
  *                             (names the product / likely seller) and the AI's fit (likely / maybe / not)
@@ -111,6 +112,8 @@ export const submitTemplate = (t: { name: string; language: string; category: st
   call<{ ok: boolean; id?: string; status?: string; error?: string }>('POST', '/templates', t)
 
 export const targetingStatus = () => call<{ pois: number; whatsapp: number; email: number; ai: boolean }>('GET', '/status')
+/** Whether this environment lets a campaign leave (server.py TARGETING_SEND). Any error reads as closed. */
+export const sendStatus = () => call<{ send?: boolean }>('GET', '/send-status').then((r) => r?.send === true, () => false)
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
 export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]}
 export type DirectoryFacets = {categories:{value:string;label:string;count:number;subcategories:{value:string;label:string;count:number}[]}[]; size_available:boolean}

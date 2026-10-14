@@ -5,9 +5,9 @@
 .farq-b2b h2 { font-size:18px; line-height:1.5; font-weight:700; margin:0; }
 .farq-b2b p { line-height:1.65; }
 .farq-b2b button, .farq-b2b input, .farq-b2b select, .farq-b2b textarea { font-family:inherit; }
-.farq-b2b input:not([type=checkbox]):not([type=radio]):not([type=file]), .farq-b2b textarea, .farq-b2b select { max-width:100%; min-width:0; color:var(--farq-ink); font-size:16px; line-height:1.55; border:1px solid var(--farq-glass-border); border-radius:14px; background:var(--color-bg-surface); padding:11px 13px; }
-.farq-b2b input::placeholder, .farq-b2b textarea::placeholder { color:var(--farq-muted); }
-.farq-b2b label { display:flex; flex-direction:column; gap:7px; font-weight:500; font-size:14px; }
+@layer base { .farq-b2b input:not([type=checkbox]):not([type=radio]):not([type=file]), .farq-b2b textarea, .farq-b2b select { max-width:100%; min-width:0; color:var(--farq-ink); font-size:16px; line-height:1.55; border:1px solid var(--farq-glass-border); border-radius:14px; background:var(--color-bg-surface); padding:11px 13px; } }
+@layer base { .farq-b2b input::placeholder, .farq-b2b textarea::placeholder { color:var(--farq-muted); } }
+@layer base { .farq-b2b label { display:flex; flex-direction:column; gap:7px; font-weight:500; font-size:14px; } } /* base layer: Tailwind utilities on a label win */
 .farq-b2b :focus-visible { outline:2px solid var(--farq-button-focus); outline-offset:3px; }
 .farq-b2b button { cursor:pointer; }
 .farq-b2b button:disabled { cursor:not-allowed; }
