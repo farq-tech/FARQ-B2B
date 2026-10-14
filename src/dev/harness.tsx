@@ -1,3 +1,4 @@
+import '../b2b/b2b.css'
 /*
  * DEV-ONLY visual harness: http://localhost:5180/?harness=tracking|comparison
  * Serves fixture JSON to the real screens (no login, no network) so before/after
@@ -53,7 +54,9 @@ function Screen({ which }: { which: string }) {
 const withBg = new URLSearchParams(window.location.search).has('bg')
 
 export function mountHarness(which: string) {
+  // Same app scope as App.tsx, so fixtures render in the B2B tokens.
+  document.documentElement.dataset.farqApp = 'b2b'
   createRoot(document.getElementById('root')!).render(
-    <ProcurementProvider>{withBg ? <LiveBackground /> : null}<div style={{ width: withBg || window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
+    <ProcurementProvider>{withBg ? <LiveBackground /> : null}<div className="farq-b2b" data-farq-b2b style={{ width: withBg || window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
   )
 }

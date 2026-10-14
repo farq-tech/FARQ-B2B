@@ -44,6 +44,8 @@ test('03 · «قارن العروض» is reachable by Tab with a visible focus r
 
 test('04 · chips toggle with Enter and announce aria-pressed', async ({ page }) => {
   await page.goto('/?harness=comparison')
+  // Figma M04 opens on the summary; the line matrix is one tap away.
+  await page.getByRole('button', { name: 'قارن البنود بنداً بنداً' }).click()
   await tabTo(page, (e) => e.text.startsWith('فيها فرق كبير'))
   await expectFocusRing(page)
   await page.keyboard.press('Enter')
@@ -53,6 +55,8 @@ test('04 · chips toggle with Enter and announce aria-pressed', async ({ page })
 
 test('04 · disabled «ترسية» is skipped by Tab and its reason is shown as text', async ({ page }) => {
   await page.goto('/?harness=comparison')
+  // Figma M04 opens on the summary; the line matrix is one tap away.
+  await page.getByRole('button', { name: 'قارن البنود بنداً بنداً' }).click()
   // header «ترسية» (the recommendation card repeats it when no single supplier is named)
   const award = page.getByRole('button', { name: 'ترسية', exact: true }).first()
   await expect(award).toBeDisabled()
@@ -69,6 +73,8 @@ test('04 · enabled «ترسية»: focus ring, Enter opens the award dialog, ke
   const writes: string[] = []
   page.on('request', (r) => { if (r.method() !== 'GET') writes.push(`${r.method()} ${r.url()}`) })
   await page.goto('/?harness=comparison-award')
+  // Figma M04 opens on the summary; the line matrix is one tap away.
+  await page.getByRole('button', { name: 'قارن البنود بنداً بنداً' }).click()
   await expect(page.getByRole('button', { name: 'ترسية', exact: true }).first()).toBeEnabled()
   await tabTo(page, (e) => e.text === 'ترسية')
   await expectFocusRing(page)

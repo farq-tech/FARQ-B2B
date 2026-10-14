@@ -13,8 +13,19 @@ test('M03 tracking', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 
+test('M04 summary: offers ranked tax-inclusive, compare-first', async ({ page }) => {
+  await page.goto('/?harness=comparison')
+  await expect(page.getByRole('heading', { name: 'العروض المستلمة' })).toBeVisible()
+  await expect(page.getByText('الأرخص المكتمل أولاً · شامل الضريبة')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'قارن البنود بنداً بنداً' })).toBeEnabled()
+  await page.screenshot({ path: `${SHOTS}/m04-summary.png`, fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
+
 test('M04 comparison', async ({ page }) => {
   await page.goto('/?harness=comparison')
+  // Figma M04 opens on the summary; the line matrix is one tap away.
+  await page.getByRole('button', { name: 'قارن البنود بنداً بنداً' }).click()
   await expect(page.getByRole('heading', { name: 'وش الفرق؟' })).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/m04.png`, fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)

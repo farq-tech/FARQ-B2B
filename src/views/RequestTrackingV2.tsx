@@ -144,7 +144,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
 
   return (
     <div className="pricing-v2 relative min-h-full text-[var(--color-text-primary)]">
-      <TopBar parent="طلبات التسعير" onParent={() => navigate('rfq-list')} title={title} />
+      <TopBar parent="طلبات التسعير" onParent={() => navigate('rfq-list')} title={mobile ? 'متابعة الطلب' : title} />
       <div className={`mx-auto flex w-full max-w-[720px] flex-col gap-6 ${mobile ? 'p-4 pb-24' : 'p-8'}`}>
         {mobile ? null : <h1 className="font-[family-name:var(--font-display)] text-[28px] leading-[44px] font-semibold">متابعة الطلب · {title}</h1>}
 

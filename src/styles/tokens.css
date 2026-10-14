@@ -77,6 +77,7 @@ html[data-farq-app="b2b"] {
   --color-text-on-inverse: var(--b2b-canvas);
   --color-border-default: var(--b2b-border);
   --color-border-strong: var(--b2b-sage);
+  --color-bg-delta: var(--b2b-olive-gold); /* comparison «+175 ر.س» bar (Figma M04) */
   --color-border-primary: var(--b2b-primary);
   --color-icon-primary: var(--b2b-primary);
   --color-icon-info: var(--b2b-primary);

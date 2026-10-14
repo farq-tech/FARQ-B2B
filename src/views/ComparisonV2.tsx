@@ -9,14 +9,19 @@ import {
   type ConstructionComparison,
   type ConstructionRfq,
 } from '../api/constructionClient'
-import { CELL_LABEL, cheapestPerLineTotal, lowestPerLine, matrixTotals, quoteCoverage } from '../lib/requestFile'
+import { CELL_LABEL, cheapestPerLineTotal, leadTimeLabel, lowestPerLine, matrixTotals, quoteCoverage } from '../lib/requestFile'
 import { rfqProjectName } from '../lib/rfqIdentity'
 import { awardBlockReason, type AwardOffer } from '../lib/awardFlow'
 import AwardConfirmSheet from '../pages/award/AwardConfirmSheet'
 import { Badge, Button, Chip, Icon, PriceCell, TopBar, useIsMobile, type PriceCellState } from '../ui'
 
 /*
- * «04 · وش الفرق؟» — the Figma comparison screen on the real quote matrix.
+ * «مقارنة العروض» — Figma B2B M04 `18371:23206` / W04 `18430:3016` opens on a summary: the request, its items,
+ * the received offers ranked complete-cheapest first with every price made tax-inclusive (VAT 15 % added where an
+ * offer was before tax, and said so), the partial offer explained («ناقص 3 · ≈ …»), then «قارن البنود بنداً بنداً»
+ * (primary) and the award (secondary). «قارن البنود» opens the line-by-line matrix below.
+ *
+ * «04 · وش الفرق؟» — the line-by-line comparison on the real quote matrix.
  * Every number comes from recorded offers: the per-line winner follows
  * lowestPerLine (one tax basis, one currency, no ties), the totals follow
  * matrixTotals, and the split basket follows cheapestPerLineTotal.
@@ -28,6 +33,7 @@ type Cell = Line['offers'][number]
 type Filter = 'all' | 'big' | 'incomparable' | 'none'
 
 const BIG_DIFF = 0.1
+const VAT = 0.15
 
 /** Wraps a left-to-right run (signed amount, percentage) so RTL text keeps it in order. */
 const ltr = (s: string) => `\u2066${s}\u2069`
@@ -62,6 +68,7 @@ export function ComparisonV2({ navigate }: NavProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [showAll, setShowAll] = useState(false)
   const [awarding, setAwarding] = useState<AwardOffer | null>(null)
+  const [mode, setMode] = useState<'summary' | 'lines'>('summary')
   const [notice, setNotice] = useState<string | null>(null)
   const mobile = useIsMobile()
 
@@ -210,6 +217,116 @@ export function ComparisonV2({ navigate }: NavProps) {
       onDone={async () => { setAwarding(null); setNotice(`تمت الترسية على ${awarding.supplier.name_ar || awarding.supplier.name_en}.`); await load(rfq.id).catch(() => {}) }} />
   ) : null
 
+  // ── Summary (Figma M04): one tax basis for every total. ──
+  const inclusive = (c: Cell) => c.prices_include_tax === false ? Number(c.line_total) * (1 + VAT) : Number(c.line_total)
+  const offerRows = supplierIds.map((id) => {
+    let total = 0, priced = 0, addedTax = false, unknownTax = false
+    const missing: Line[] = []
+    for (const l of lines) {
+      const c = (l.offers || []).find((x) => x && x.supplier_id === id)
+      if (c && c.status === 'PRICED' && c.line_total != null) { total += inclusive(c); priced++; if (c.prices_include_tax === false) addedTax = true; if (c.prices_include_tax == null) unknownTax = true }
+      else missing.push(l)
+    }
+    // «≈ لو كمّلتها»: this offer plus the cheapest tax-inclusive price another supplier gave for each missing line.
+    let completed: number | null = missing.length ? total : null
+    for (const l of missing) {
+      const others = (l.offers || []).filter((c): c is Cell => Boolean(c) && c.status === 'PRICED' && c.line_total != null && c.prices_include_tax != null)
+      if (!others.length || completed == null) { completed = null; break }
+      completed += Math.min(...others.map(inclusive))
+    }
+    return { id, total: Math.round(total * 100) / 100, priced, complete: lines.length > 0 && priced === lines.length, missing: missing.length, completed, addedTax, unknownTax }
+  }).filter((r) => r.priced > 0)
+  const comparable = offerRows.filter((r) => r.complete && !r.unknownTax).sort((a, b) => a.total - b.total)
+  const ranked = [...comparable, ...offerRows.filter((r) => !comparable.includes(r))]
+  const cheapest = comparable[0] || null
+  const anyAddedTax = offerRows.some((r) => r.addedTax)
+  const invited = rfq.invitations || []
+  const waitingNames = invited.filter((i) => !responses.some((r) => String(r.supplier.id) === i.supplier_id)).map((i) => i.supplier?.name_ar || i.supplier?.name_en || 'مورد')
+  const lead = (id: string) => { const o = offerForSupplier(id); return o ? leadTimeLabel(o.offer) : null }
+  const sar = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.س`
+
+  if (mode === 'summary') {
+    return (
+      <div className="pricing-v2 min-h-full text-[var(--color-text-primary)]">
+        <TopBar parent={title} onParent={() => navigate('rfq-detail')} title="مقارنة العروض" />
+        <div className={`mx-auto flex w-full max-w-[720px] flex-col gap-4 ${mobile ? 'p-4 pb-24' : 'p-8'}`}>
+          {mobile ? null : <h1 className="font-[family-name:var(--font-display)] text-[28px] leading-[44px] font-semibold">مقارنة العروض · {title}</h1>}
+          {notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-4 py-3 text-[14px] text-[var(--color-text-success)]">{notice}</p> : null}
+          <section aria-label="الطلب" className="flex flex-col gap-1 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-[family-name:var(--font-display)] text-[20px] leading-[32px] font-semibold">{title}</h2>
+              <Badge tone="Warning" showDot={false} label={`${responses.length} من ${invited.length || supplierIds.length} · ${lines.length} بنداً`} />
+            </div>
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">أُرسل إلى <bdi dir="ltr">{invited.length}</bdi> موردين{waitingNames.length ? ` · بانتظار: ${waitingNames.slice(0, 3).join('، ')}${waitingNames.length > 3 ? ` و${waitingNames.length - 3} غيرهم` : ''}` : ''}</p>
+          </section>
+
+          <section aria-labelledby="items-h" className="flex flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="items-h" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-semibold">البنود</h2>
+              <button type="button" onClick={() => setMode('lines')} className="min-h-11 px-2 text-[14px] text-[var(--color-text-link)] underline">عرض الكل</button>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {lines.slice(0, 3).map((l) => <li key={l.id} className="flex items-center justify-between gap-3 text-[14px] leading-[22px]"><span className="min-w-0">{l.name_ar}</span><span className="shrink-0 text-[var(--color-text-secondary)]"><bdi dir="ltr">{l.quantity}</bdi> {l.uom}</span></li>)}
+            </ul>
+            {lines.length > 3 ? <p className="text-[14px] text-[var(--color-text-secondary)]">+ <bdi dir="ltr">{lines.length - 3}</bdi> بنود أخرى</p> : null}
+          </section>
+
+          <section aria-labelledby="offers-h" className="flex flex-col gap-3 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col">
+                <h2 id="offers-h" className="font-[family-name:var(--font-display)] text-[20px] leading-[32px] font-semibold">العروض المستلمة</h2>
+                <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">الأرخص المكتمل أولاً · شامل الضريبة</p>
+              </div>
+              <p className="shrink-0 text-[14px] text-[var(--color-text-secondary)]"><bdi dir="ltr">{responses.length}</bdi> عروض من <bdi dir="ltr">{invited.length || supplierIds.length}</bdi></p>
+            </div>
+            {ranked.length === 0 ? <p className="text-[14px] text-[var(--color-text-secondary)]">ما وصل أي سعر بعد.</p> : null}
+            <ul className="flex flex-col gap-2">
+              {ranked.map((r) => {
+                const isBest = cheapest?.id === r.id
+                const diff = cheapest && r.complete && !isBest && !r.unknownTax ? r.total - cheapest.total : null
+                const pct = diff != null && cheapest!.total > 0 ? diff / cheapest!.total : null
+                const meta = [<><bdi dir="ltr">{r.priced}/{lines.length}</bdi></>, lead(r.id)].filter(Boolean)
+                return (
+                  <li key={r.id} className={`flex items-start justify-between gap-3 rounded-[var(--radius-lg)] p-4 ${isBest ? 'border-2 border-[var(--color-text-primary)] bg-[var(--color-bg-primary-subtle)]' : ''}`}>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="text-[16px] leading-[26px] font-medium">{nameOf(r.id)}</p>
+                      <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
+                        {r.complete ? meta.map((m, k) => <span key={k}>{k ? ' · ' : ''}{m}</span>) : <>ناقص <bdi dir="ltr">{r.missing}</bdi>{r.completed != null ? <> · ≈ <bdi dir="ltr">{Math.round(r.completed).toLocaleString('en-US')}</bdi> لو كمّلتها</> : null}</>}
+                        {r.addedTax ? ' · + ضريبة' : ''}{r.unknownTax ? ' · الضريبة غير واضحة' : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <p className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-semibold tabular-nums"><bdi dir="ltr">{sar(r.total)}</bdi></p>
+                      {isBest ? <Badge tone="Success" showDot={false} label={comparable.length > 1 ? 'الأرخص المكتمل ✓' : 'الوحيد المكتمل'} />
+                        : !r.complete ? <Badge tone="Warning" showDot={false} label="عرض ناقص" />
+                        : diff != null && pct != null ? (
+                          <span className="flex items-center gap-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
+                            <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--color-bg-surface-2)]"><span className="block h-full bg-[var(--color-bg-delta,var(--color-bg-warning))]" style={{ width: `${Math.min(100, pct * 400)}%` }} /></span>
+                            <bdi dir="ltr">+{Math.round(diff).toLocaleString('en-US')} ر.س ({(pct * 100).toFixed(1)}%)</bdi>
+                          </span>
+                        ) : null}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {anyAddedTax ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">«+ ضريبة»: العرض وصل قبل الضريبة، وحسبناه شامل 15%.</p> : null}
+          </section>
+
+          <div className="flex flex-col gap-2">
+            <Button variant="Primary" size="L" fullWidth onClick={() => setMode('lines')}>قارن البنود بنداً بنداً</Button>
+            <Button variant="Secondary" size="L" fullWidth disabled={Boolean(blocked)} onClick={() => bestOffer && setAwarding(bestOffer)}>{awardLabel}</Button>
+            {blocked ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{blocked}</p> : null}
+            <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">العرض الناقص ما يدخل في «الأرخص المكتمل»، لكن تقدر تقارن بنوده.</p>
+          </div>
+        </div>
+        {awardDialog}
+      </div>
+    )
+  }
+
+  const backToSummary = <Button variant="Ghost" size="S" icon="chevron-forward" onClick={() => setMode('summary')}>الملخص</Button>
+
   if (mobile) {
     // Figma M04 (58:216): summary card, filter chips, one card per item, award bar above the bottom nav.
     return (
@@ -218,7 +335,7 @@ export function ComparisonV2({ navigate }: NavProps) {
         <div className="flex flex-col gap-4 p-4 pb-40">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{responses.length} عرض من {supplierIds.length} موردين · {pricedLines} من {lines.length} بند وصلها سعر</p>
-            <Button variant="Ghost" size="S" icon="file" onClick={exportCsv}>تصدير</Button>
+            <span className="flex items-center gap-1">{backToSummary}<Button variant="Ghost" size="S" icon="file" onClick={exportCsv}>تصدير</Button></span>
           </div>
           {notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-4 py-3 text-[14px] text-[var(--color-text-success)]">{notice}</p> : null}
           <section aria-label="ملخص الأسعار" data-tone="deep" className="flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-4">
@@ -300,6 +417,7 @@ export function ComparisonV2({ navigate }: NavProps) {
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{responses.length} عرض من {supplierIds.length} موردين · {pricedLines} من {lines.length} بند وصلها سعر</p>
           </div>
           <div className="flex items-center gap-3">
+            {backToSummary}
             <Button variant="Secondary" size="L" icon="file" onClick={exportCsv}>تصدير</Button>
             <Button variant="Primary" size="L" icon="award" disabled={Boolean(blocked)} title={blocked || undefined} onClick={() => bestOffer && setAwarding(bestOffer)}>ترسية</Button>
           </div>
