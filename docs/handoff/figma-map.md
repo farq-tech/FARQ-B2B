@@ -248,3 +248,11 @@ password field, readable captions on unusable templates, sample Meta reasons tha
 Still open: touch targets of kit 32 px controls (→ 44 px hit area in code); «مسودة» and «يستقبل العروض» share the
 Info badge (Badge - Status has no neutral variant); editor «إعدادات ميتا» row icon and identical check icons; rejection
 reason sits under the list in M08, not inside its card; logo subtitle size on web.
+
+**Audit pass 3**: verdict «no handoff» with two blockers — (1) comparison card clipped after the logo fix,
+(2) web mirrors out of sync with mobile. Fixed: card App column fixed width + names wrap (0 px clipping measured on full
+text bounds, M04 `18371:23206`, M05a `18425:2642`); every web mirror regenerated from current mobile, tall pages grow
+past 900 instead of clipping; web login has «نسيت كلمة المرور؟».
+Current web ids: W03 `18430:2880`, W04 `18430:3016`, W05a `18430:3162`, W06 `18430:3348`, W01b `18430:3477`,
+W08 `18430:3606`, W09 `18430:3742`, W10 `18430:3910` / `18430:4012`, W11 `18430:4106`, W11c `18430:4228`,
+W12 `18430:4356` / `18430:4476` (supersedes the ids in §6–§8).
