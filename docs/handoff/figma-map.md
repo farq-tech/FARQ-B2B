@@ -256,3 +256,7 @@ past 900 instead of clipping; web login has «نسيت كلمة المرور؟»
 Current web ids: W03 `18430:2880`, W04 `18430:3016`, W05a `18430:3162`, W06 `18430:3348`, W01b `18430:3477`,
 W08 `18430:3606`, W09 `18430:3742`, W10 `18430:3910` / `18430:4012`, W11 `18430:4106`, W11c `18430:4228`,
 W12 `18430:4356` / `18430:4476` (supersedes the ids in §6–§8).
+
+**Owner decisions (2026-10-14):** approved the darker text tokens for contrast (`b2b/text-muted`, `b2b/status/*-text`;
+status colours stay as badge fills) and a 44 px minimum hit area in code for kit controls that are 32 px in Figma.
+Independent audit pass 4 verdict: ready for engineering handoff (no blockers).
