@@ -19,6 +19,15 @@ if web:
         source_page, found_on, case when phone_kind='mobile' and found_by='whatsapp_link' then 2 when phone_kind='mobile' then 2.5 else 4 end rank
         from read_parquet('{web}') where phone is not null
           and phone not in (select phone from read_parquet('{web}') where phone is not null group by phone having count(distinct poi_key) > 3)""")
+lake = '/Users/m4pro/farq-taxonomy-data/lake/lake_match.parquet'
+if os.path.exists(lake):   # the local KSA entity lake (atlas, golden, Urbi brand, ThreeCities, registry …) matched by phone/name/id
+    parts.append(f"""select m.poi_key, '+966' || right(regexp_replace(coalesce(nullif(e.mobile,''), e.phone),'[^0-9]','','g'),9) phone,
+        case when regexp_matches(regexp_replace(coalesce(nullif(e.mobile,''), e.phone),'[^0-9]','','g'), '(966|0)?5[0-9]{{8}}$') then 'mobile' else 'landline' end phone_kind,
+        false has_whatsapp, 'entity_lake:' || array_to_string(e.sources, '+') phone_source, 'مصدر بيانات داخلي (بحيرة الجهات)' phone_source_name, null source_page,
+        current_date found_on, case when nullif(e.mobile,'') is not null then 1.5 else 3.5 end rank
+        from read_parquet('{lake}') m join read_parquet('/Users/m4pro/ksa-entity-lake/master/entities_master.parquet') e using(entity_id)
+        where coalesce(nullif(e.mobile,''), nullif(e.phone,'')) is not null
+          and length(regexp_replace(coalesce(nullif(e.mobile,''), e.phone),'[^0-9]','','g')) >= 9""")
 if not parts: sys.exit('no enrichment files yet')
 db.execute("create table allp as " + " union all ".join(parts))
 db.execute(f"""copy (select * exclude (rank, rn) from (select *, row_number() over (partition by poi_key order by rank, phone) rn from allp) where rn=1)
