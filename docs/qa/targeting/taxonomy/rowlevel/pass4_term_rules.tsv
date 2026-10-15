@@ -1,0 +1,383 @@
+term	sub_id	weight	note
+كودو	food.fast_food	8	pass4
+kodo	food.fast_food	8	pass4
+ماكدونالدز	food.fast_food	8	pass4
+mcdonald	food.fast_food	8	pass4
+البيك	food.fast_food	8	pass4
+بروستد	food.fast_food	8	pass4
+subway	food.fast_food	8	pass4
+kentucky	food.fast_food	8	pass4
+كنتاكي	food.fast_food	8	pass4
+دومينوز	food.fast_food	8	pass4
+شاورمر	food.fast_food	8	pass4
+shawarmer	food.fast_food	8	pass4
+prost	food.fast_food	6	pass4
+brost	food.fast_food	6	pass4
+potatoes	food.fast_food	6	pass4
+potato	food.fast_food	6	pass4
+بطاطس	food.fast_food	6	pass4
+fries	food.fast_food	6	pass4
+crispy	food.fast_food	4	pass4
+hut	food.fast_food	4	pass4
+konafa	food.sweets	8	pass4
+candy	food.sweets	8	pass4
+basbousa	food.sweets	8	pass4
+لقيمات	food.sweets	8	pass4
+donut	food.sweets	8	pass4
+الدونات	food.sweets	8	pass4
+بيت الدونات	food.sweets	8	pass4
+كرسبي	food.sweets	8	pass4
+كرسبي كريم	food.sweets	8	pass4
+crepe	food.sweets	6	pass4
+كريب	food.sweets	6	pass4
+sweetest	food.sweets	4	pass4
+bread	food.bakery	8	pass4
+cinnabon	food.bakery	8	pass4
+سينابون	food.bakery	8	pass4
+baker	food.bakery	6	pass4
+baked	food.bakery	4	pass4
+karak	food.cafe	8	pass4
+كرك	food.cafe	8	pass4
+hortons	food.cafe	8	pass4
+هورتنز	food.cafe	8	pass4
+tim hortons	food.cafe	8	pass4
+تيم هورتنز	food.cafe	8	pass4
+شاهي	food.cafe	6	pass4
+shahi	food.cafe	6	pass4
+bean	food.cafe	4	pass4
+beans	food.cafe	4	pass4
+ايسكريم	food.juice_icecream	8	pass4
+جوس	food.juice_icecream	8	pass4
+refreshments	food.juice_icecream	6	pass4
+refreshment	food.juice_icecream	6	pass4
+refreshment center	food.juice_icecream	6	pass4
+كفتريا	food.buffet_popular	6	pass4
+كافيتيريا	food.buffet_popular	6	pass4
+كافيتريا	food.buffet_popular	6	pass4
+buffeta	food.buffet_popular	6	pass4
+folk food	food.buffet_popular	6	pass4
+شعبيات	food.buffet_popular	6	pass4
+liver	food.buffet_popular	6	pass4
+breakfast	food.buffet_popular	6	pass4
+cafera	food.buffet_popular	4	pass4
+folk	food.buffet_popular	4	pass4
+koshari	food.restaurant	8	pass4
+cuisine	food.restaurant	8	pass4
+شوايه	food.restaurant	8	pass4
+pasta	food.restaurant	6	pass4
+meal	food.restaurant	4	pass4
+chef	food.restaurant	4	pass4
+مذاق	food.restaurant	4	pass4
+فود	food.restaurant	4	pass4
+ورق عنب	food.ready_meals_retail	8	pass4
+grape	food.ready_meals_retail	4	pass4
+عنب	food.ready_meals_retail	4	pass4
+mahamas	food.roastery	8	pass4
+تسالي	food.nuts_spices	6	pass4
+diet	food.health_food	6	pass4
+nutrition	food.health_food	6	pass4
+shrimp	food.fish_market	6	pass4
+butchery	food.butcher	8	pass4
+مسلخ	food.meat_processing	8	pass4
+طاحون	food.grain_mills	6	pass4
+marai	food.dairy	6	pass4
+cheese	food.dairy	4	pass4
+subsistence	food.catering	8	pass4
+for subsistence	food.catering	8	pass4
+subsistence services	food.catering	8	pass4
+food supply	food.food_wholesale	6	pass4
+panda	food.supermarket	8	pass4
+بنده	food.supermarket	8	pass4
+hyper	food.supermarket	8	pass4
+lulu	food.supermarket	6	pass4
+mart	food.grocery	6	pass4
+ماركت	food.grocery	6	pass4
+للمعسلات	retail.tobacco_vape	8	pass4
+معسلات	retail.tobacco_vape	8	pass4
+tobacco	retail.tobacco_vape	8	pass4
+smoke	retail.tobacco_vape	6	pass4
+كشك	retail.kiosk	8	pass4
+kiosk	retail.kiosk	8	pass4
+booth	retail.kiosk	4	pass4
+antiques	retail.antiques	8	pass4
+pets	retail.pet_shop	6	pass4
+birds	agri.birds_pets_trading	6	pass4
+bird	agri.birds_pets_trading	6	pass4
+horses	agri.camels_horses	6	pass4
+horse	agri.camels_horses	6	pass4
+coal	agri.forestry_charcoal	8	pass4
+firewood	agri.forestry_charcoal	8	pass4
+coal and	agri.forestry_charcoal	8	pass4
+and firewood	agri.forestry_charcoal	8	pass4
+bouquet	retail.flowers	6	pass4
+baby	retail.baby	6	pass4
+shopping center	retail.mall	6	pass4
+handicraft	retail.souvenirs_crafts	6	pass4
+prices	retail.discount_store	4	pass4
+الاسعار	retail.discount_store	4	pass4
+everything	retail.discount_store	4	pass4
+candles	retail.gifts	4	pass4
+galabiyat	fashion.clothing	8	pass4
+for galabiyat	fashion.clothing	8	pass4
+garments	fashion.clothing	8	pass4
+readymade	fashion.clothing	8	pass4
+readymade garments	fashion.clothing	8	pass4
+giordano	fashion.clothing	8	pass4
+socks	fashion.clothing	6	pass4
+costumes	fashion.clothing	4	pass4
+مريول	fashion.uniforms	8	pass4
+للزي	fashion.uniforms	6	pass4
+للمشالح	fashion.mens_thobe	8	pass4
+jewelery	fashion.jewelry_gold	8	pass4
+for silver	fashion.jewelry_gold	6	pass4
+jewels	fashion.jewelry_gold	6	pass4
+pendant	fashion.jewelry_gold	4	pass4
+عطورات	fashion.perfume	8	pass4
+محل عطورات	fashion.perfume	8	pass4
+musk	fashion.perfume	6	pass4
+embroidery	fashion.tailoring	6	pass4
+للاكسسوارات	fashion.bags_accessories	4	pass4
+bag	fashion.bags_accessories	4	pass4
+bedspreads	home.bedding_linen	8	pass4
+bedding	home.bedding_linen	8	pass4
+blankets	home.bedding_linen	8	pass4
+curtain	home.curtains_upholstery	8	pass4
+sofa	home.furniture	6	pass4
+mattresses	home.mattresses	8	pass4
+sleep	home.mattresses	4	pass4
+decorative	home.decor	4	pass4
+للمجالس	home.tents_majlis	8	pass4
+الخيام	home.tents_majlis	8	pass4
+لتاجير الخيام	home.tents_majlis	8	pass4
+مجالس	home.tents_majlis	6	pass4
+بيوتي	beauty.salon_women	6	pass4
+للسيدات	beauty.salon_women	4	pass4
+hair	beauty.salon_women	4	pass4
+tattoo	beauty.salon_women	4	pass4
+hallaqa	beauty.barber	8	pass4
+relaxation	beauty.spa_massage	6	pass4
+مزاج مغربي	beauty.spa_massage	6	pass4
+cosmetic	beauty.cosmetics_store	6	pass4
+dentistry	health.dental	8	pass4
+for dentistry	health.dental	8	pass4
+smile	health.dental	4	pass4
+physiotherapy	health.physio	8	pass4
+for physiotherapy	health.physio	8	pass4
+rehabilitation	health.physio	4	pass4
+veterinary	health.vet	8	pass4
+ambulance	health.ambulance	8	pass4
+pharmaceutical	health.pharmacy	6	pass4
+medicines	health.pharmacy	6	pass4
+cupping	health.clinic	6	pass4
+doctor	health.clinic	4	pass4
+eyes	health.optics	4	pass4
+college	edu.university	8	pass4
+كليه	edu.university	8	pass4
+illiteracy	edu.school	6	pass4
+محو	edu.school	6	pass4
+adult education	edu.school	6	pass4
+for adult	edu.school	4	pass4
+لضيافه الاطفال	edu.nursery	8	pass4
+hospitality children	edu.nursery	8	pass4
+day care	edu.nursery	8	pass4
+childhood	edu.nursery	4	pass4
+kinder	edu.kindergarten	6	pass4
+education center	edu.training_center	6	pass4
+learning	edu.training_center	4	pass4
+للمعارض والاحتفالات	hosp.event_planning	8	pass4
+للحفلات	hosp.event_planning	6	pass4
+الحفلات	hosp.event_planning	6	pass4
+للاحتفالات	hosp.event_planning	6	pass4
+والاحتفالات	hosp.event_planning	6	pass4
+والمناسبات	hosp.event_planning	6	pass4
+للمعارض	hosp.event_planning	6	pass4
+for event	hosp.event_planning	6	pass4
+event	hosp.event_planning	4	pass4
+event supplies	hosp.event_rental	6	pass4
+للافراح	hosp.wedding_services	6	pass4
+افراح	hosp.wedding_services	6	pass4
+halls	hosp.wedding_hall	6	pass4
+the halls	hosp.wedding_hall	6	pass4
+صاله الخليجيه	hosp.wedding_hall	6	pass4
+المفروشه	hosp.furnished_apartments	8	pass4
+apartment	hosp.furnished_apartments	4	pass4
+residence	hosp.furnished_apartments	4	pass4
+الفندقيه	hosp.hotel	6	pass4
+camp	hosp.camps	6	pass4
+للسياحه	hosp.travel_agency	8	pass4
+traveler	hosp.travel_agency	6	pass4
+airlines	hosp.travel_agency	4	pass4
+tour	hosp.travel_agency	4	pass4
+aramex	log.courier	8	pass4
+delivery	log.courier	6	pass4
+customs	log.freight_customs	8	pass4
+logistical	log.3pl	6	pass4
+logistical services	log.3pl	6	pass4
+for logistical	log.3pl	6	pass4
+مخزن	log.warehousing	6	pass4
+مخازن	log.warehousing	6	pass4
+carrier	log.trucking	4	pass4
+debt	biz.debt_collection	8	pass4
+debt collection	biz.debt_collection	8	pass4
+for debt	biz.debt_collection	8	pass4
+translation	biz.translation	8	pass4
+law	biz.law	6	pass4
+employment	biz.recruitment_manpower	6	pass4
+human resources	biz.recruitment_manpower	6	pass4
+للامن	biz.security_services	6	pass4
+business services	biz.pro_services	6	pass4
+مكتب خدمات	biz.pro_services	6	pass4
+للخدمات الالكترونيه	biz.pro_services	6	pass4
+القابضه	biz.head_office	6	pass4
+copying	biz.copy_center	8	pass4
+copy	biz.copy_center	6	pass4
+print	biz.printing	6	pass4
+calligraphy	biz.advertising_signage	6	pass4
+calligraphy and	biz.advertising_signage	6	pass4
+استديو	biz.photography	6	pass4
+ستوديو	biz.photography	6	pass4
+for publishing	media.publishing	6	pass4
+and publishing	media.publishing	6	pass4
+news	media.press	4	pass4
+عقاريه	re.office	6	pass4
+شركه عقاريه	re.office	6	pass4
+rajhi banking	fin.bank	8	pass4
+الراجحي المصرفيه	fin.bank	8	pass4
+banking	fin.bank	6	pass4
+المصرفيه	fin.bank	6	pass4
+banking company	fin.bank	6	pass4
+لتحويل	fin.exchange	8	pass4
+لتحويل الاموال	fin.exchange	8	pass4
+exchange	fin.exchange	6	pass4
+تحويل	fin.exchange	6	pass4
+money	fin.exchange	4	pass4
+للتمويل	fin.financing	8	pass4
+finance	fin.financing	6	pass4
+finance company	fin.financing	6	pass4
+installment	fin.financing	6	pass4
+installments	fin.financing	6	pass4
+للتقسيط	fin.financing	6	pass4
+leasing	fin.financing	4	pass4
+for investment	fin.investment	4	pass4
+auto rental	auto.rental	8	pass4
+rent cars	auto.rental	8	pass4
+car washing	auto.car_wash	8	pass4
+لغسيل السيارات	auto.car_wash	8	pass4
+car care	auto.car_wash	6	pass4
+changing oils	auto.oil_change	8	pass4
+car oil	auto.oil_change	8	pass4
+jealousy oil	auto.oil_change	8	pass4
+for oils	auto.oil_change	6	pass4
+oil spare	auto.oil_change	6	pass4
+spare	auto.spare_parts	6	pass4
+للاسبورات	auto.spare_parts	6	pass4
+jealousy	auto.spare_parts	4	pass4
+car accessory	auto.accessories_tint	8	pass4
+لكهرباء السيارات	auto.workshop	8	pass4
+electric cars	auto.workshop	6	pass4
+automobile service	auto.workshop	6	pass4
+وشراء السيارات	auto.used_cars	8	pass4
+motorcycle	auto.motorcycles	8	pass4
+للدراجات	auto.motorcycles	6	pass4
+bike	auto.motorcycles	4	pass4
+battery	auto.batteries	6	pass4
+wheel	auto.tires	4	pass4
+truck	auto.trucks_buses	4	pass4
+equipment rent	equip.rental	8	pass4
+rent equipment	equip.rental	8	pass4
+للمفاتيح	personal.other	8	pass4
+for keys	personal.other	8	pass4
+خرازه	personal.shoe_repair	8	pass4
+محل خرازه	personal.shoe_repair	8	pass4
+laundice	personal.laundry	6	pass4
+laundice company	personal.laundry	6	pass4
+washing machine	personal.laundry	4	pass4
+for washing	personal.laundry	4	pass4
+telecommunications	elec.telecom	6	pass4
+etisalat	elec.telecom	6	pass4
+internet	elec.telecom	4	pass4
+موبايلي	elec.mobile_shop	6	pass4
+satellite	elec.satellite_tv	8	pass4
+cameras	elec.cctv_security	6	pass4
+audio	elec.audio_visual	6	pass4
+للاكترونيات	elec.electronics_store	8	pass4
+للاجهزه الالكترونيه	elec.electronics_store	8	pass4
+للاجهزه المنزليه	elec.appliances_store	8	pass4
+refrigerators	elec.appliances_store	6	pass4
+electric devices	elec.appliances_store	6	pass4
+اجهزه	elec.appliances_store	4	pass4
+الاجهزه	elec.appliances_store	4	pass4
+elevator	build.elevators	8	pass4
+للمصاعد	build.elevators	8	pass4
+للالمونيوم	build.aluminum_glass	8	pass4
+للسراميك	build.tiles_ceramic	8	pass4
+للاناره	build.lighting_supply	8	pass4
+للخردوات	build.hardware_tools	6	pass4
+pumps	build.pumps_tanks	8	pass4
+tanks	build.pumps_tanks	6	pass4
+scaffolding	build.scaffolding	8	pass4
+for scaffolding	build.scaffolding	8	pass4
+safety devices	build.safety_fire_supply	8	pass4
+safety systems	build.safety_fire_supply	6	pass4
+للسلامه	build.safety_fire_supply	6	pass4
+conditioners	build.hvac_supply	6	pass4
+air conditioners	build.hvac_supply	6	pass4
+refrigeration	build.hvac_supply	4	pass4
+dyes	build.paint	6	pass4
+wood	build.timber	4	pass4
+umbrellas	build.roofing_cladding	6	pass4
+architectural	contract.engineering_consult	6	pass4
+engineers	contract.engineering_consult	6	pass4
+engineer	contract.engineering_consult	4	pass4
+للمساحه	contract.surveying	8	pass4
+swimming pools	contract.pools	8	pass4
+pools	contract.pools	6	pass4
+restoration office	contract.maintenance	6	pass4
+consultant	biz.consulting	4	pass4
+solar	energy.solar	8	pass4
+للوقود	energy.fuel_station	8	pass4
+sasco	energy.fuel_station	8	pass4
+الدريس	energy.fuel_station	8	pass4
+للخدمات البتروليه	energy.fuel_station	8	pass4
+البتروليه	energy.fuel_station	6	pass4
+petro	energy.fuel_station	6	pass4
+بترول	energy.fuel_station	6	pass4
+diesel	energy.fuel_station	4	pass4
+water desalination	energy.water_treatment	8	pass4
+desalination	energy.water_treatment	6	pass4
+healthy water	energy.water_treatment	6	pass4
+electricity company	energy.electricity	6	pass4
+environmental	energy.environmental_services	6	pass4
+environmental services	energy.environmental_services	6	pass4
+for environmental	energy.environmental_services	6	pass4
+recycling	ind.recycling	8	pass4
+mining	energy.mining	6	pass4
+قمامه	noncom.street_poi	8	pass4
+صندوق قمامه	noncom.street_poi	8	pass4
+saudi post	noncom.post_office	8	pass4
+البريد السعودي	noncom.post_office	8	pass4
+مكتب بريد	noncom.post_office	8	pass4
+البريد	noncom.post_office	6	pass4
+بريد	noncom.post_office	6	pass4
+وزاره	noncom.government	8	pass4
+directorate	noncom.government	6	pass4
+municipal	noncom.government	6	pass4
+court	noncom.government	6	pass4
+governorate	noncom.government	6	pass4
+مرور	noncom.government	6	pass4
+government	noncom.government	4	pass4
+governmental	noncom.government	4	pass4
+حكومي	noncom.government	4	pass4
+military	noncom.police_military	6	pass4
+embassy	noncom.embassy	8	pass4
+consulate	noncom.embassy	8	pass4
+القنصليه	noncom.embassy	8	pass4
+msajid	noncom.mosque	6	pass4
+chapel	noncom.mosque	6	pass4
+منتزه	noncom.park	8	pass4
+مقبره	noncom.cemetery	8	pass4
+airport	noncom.transport_hub	6	pass4
+compound	noncom.residential	6	pass4
+disability program	noncom.social_services	6	pass4
+نادي	sports.club	6	pass4
+play	sports.entertainment_center	4	pass4

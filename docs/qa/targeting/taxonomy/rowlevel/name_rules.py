@@ -167,7 +167,27 @@ RULES += [
 # third pass: frequent words in still-unclassified names, mapped by judgement (pass3_term_rules.tsv)
 import csv as _csv, os as _os
 _by = {}
-for _r in _csv.DictReader(open(_os.path.join(_os.path.dirname(__file__), 'pass3_term_rules.tsv'), encoding='utf-8'), delimiter='\t'):
-    _by.setdefault((_r['sub_id'], int(_r['weight'])), []).append(_r['term'])
+for _f in ('pass3_term_rules.tsv', 'pass4_term_rules.tsv'):
+    for _r in _csv.DictReader(open(_os.path.join(_os.path.dirname(__file__), _f), encoding='utf-8'), delimiter='\t'):
+        _by.setdefault((_r['sub_id'], int(_r['weight'])), []).append(_r['term'])
 RULES += [(s, w, terms) for (s, w), terms in _by.items()]
 RULES += [("build.carpentry", 8, ["منجره","منجرة","مناجر"])]
+
+# Known Saudi chains and spelling variants seen among contactable unclassified rows (2026-10-15)
+RULES += [
+("food.cafe", 8, ["تيم هورتنز","tim hortons","كركديه","karkadeh","ستاربكس","starbucks","دانكن","dunkin","بارنز","barns","كوفي","kofi"]),
+("food.bakery", 8, ["تولي جور","tous les jours","سينابون","cinnabon","كرسبي كريم","krispy kreme"]),
+("food.fast_food", 8, ["البيك","albaik","al baik","كودو","kudu","هرفي","herfy","شاورمر","shawarmer","ماكدونالدز","mcdonalds","دومينوز","dominos","كنتاكي","kfc"]),
+("food.restaurant", 7, ["بيت المكرونة","بيت المكرونه","مكرونة","مكرونه","pasta"]),
+("food.supermarket", 8, ["شبرا","العثيم","othaim","بنده","panda","لولو","lulu","الدانوب","danube","كارفور","carrefour"]),
+("build.paint", 8, ["جوتن","jotun","الجزيرة للدهانات","national paints"]),
+("elec.telecom", 8, ["زين","zain","موبايلي","mobily","stc","اس تي سي"]),
+("hosp.hotel", 8, ["oyo","اويو"]),
+("home.mattresses", 7, ["سليب هاي","sleep high","سليب تايم","sleeptime","سليب كومفورت","sleep comfort"]),
+("elec.appliances_store", 7, ["الزقزوق","اجهزة منزلية","أجهزة منزلية","للاجهزة المنزلية","للأجهزة المنزلية"]),
+("build.aluminum_glass", 7, ["المونيوم","للالمونيوم","الالمونيوم"]),
+("sports.entertainment_center", 6, ["للترفيه","ترفيه","entertainment"]),
+("sports.sporting_goods", 6, ["للرياضة","للرياضه","sports"]),
+("food.buffet_popular", 7, ["شعبيات","شعبيه","شعبية"]),
+("personal.other", 7, ["ماذون شرعي","مأذون شرعي","مأذون"]),
+]

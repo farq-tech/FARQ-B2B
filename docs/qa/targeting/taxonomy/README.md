@@ -68,3 +68,9 @@ Results across 1,933,848 rows:
 - Government: «مستشفى/مدينة/جامعة الملك…الأمير…», national guard, military, MOH, primary health care, TVTC, the named public universities, numbered or ordinal schools («الابتدائية 392», «المتوسطة الثانية والأربعون»).
 - Default: a school name with a level word and no private marker counts as government, with evidence `default: …`, because most Saudi schools are public.
 - Result: schools are about 28 k government, 5 k private and 11 k unknown. Hospitals are still mostly unknown, because a plain «مستشفى X» does not show its sector.
+
+### Fourth pass (2026-10-15)
+- 381 more judged name rules (`rowlevel/pass4_term_rules.tsv`). They cover chains (Kudu, Al Baik, McDonald's, Tim Hortons, Panda, SASCO, Aramex …) and decoded literal translations: «jealousy oil» = غيار زيت, «subsistence» = إعاشة, «cupping» = حجامة, «للمشالح».
+- A short chain and variant list in `name_rules.py` (جوتن، شبرا، زين، OYO، سليب هاي، «للالمونيوم»، «للترفيه»، «شعبيات» …). Family names such as «التميمي» are deliberately left out.
+- Rows with no usable signal fell from 273,693 to about 247 k. Unclassified rows that do have a phone fell from 6,601 to about 5.6 k.
+- The sector file was rebuilt on top of this pass.
