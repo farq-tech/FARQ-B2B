@@ -27,15 +27,19 @@ db.execute(f"""create table base as
   union all
   select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, null, null, origins, district_ar from read_parquet('{D}golden/overture_new.parquet')
   union all
-  select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, null, null, origins, district_ar from read_parquet('{D}golden/serper_new.parquet')""")
+  select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, null, null, origins, district_ar from read_parquet('{D}golden/serper_new.parquet')
+  union all
+  select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, instagram, null, origins, district_ar from read_parquet('{D}golden/fsq_new.parquet')""")
 db.execute(f"""create table cls as select * from (select poi_key, sub_id, source cls_source, confidence cls_confidence from read_parquet('{D}poi_taxonomy.parquet')
   union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/new_taxonomy.parquet')
   union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/overture_taxonomy.parquet')
-  union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/serper_new_taxonomy.parquet')) qualify row_number() over (partition by poi_key)=1""")
+  union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/serper_new_taxonomy.parquet')
+  union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/fsq_new_taxonomy.parquet')) qualify row_number() over (partition by poi_key)=1""")
 db.execute(f"""create table city as select * from (select poi_key, city_en, city_ar from read_parquet('{D}poi_city.parquet')
   union all select poi_key, city_en, city_en from read_parquet('{D}golden/new_entities.parquet')
   union all select poi_key, city_en, null from read_parquet('{D}golden/overture_new.parquet')
-  union all select poi_key, city_en, null from read_parquet('{D}golden/serper_new.parquet')) qualify row_number() over (partition by poi_key)=1""")
+  union all select poi_key, city_en, null from read_parquet('{D}golden/serper_new.parquet')
+  union all select poi_key, city_en, null from read_parquet('{D}golden/fsq_new.parquet')) qualify row_number() over (partition by poi_key)=1""")
 db.execute(f"""create table g as select b.poi_key, b.origin,
    {clean("coalesce(cr.name_ar, case when regexp_matches(coalesce(b.name_ar,''),'[؀-ۿ]') then b.name_ar end, nf.name_ar, b.name_ar, case when regexp_matches(coalesce(sm.gm_name,''),'[؀-ۿ]') then sm.gm_name end, ndc.dict_name_ar)")} name_ar,
    {clean("coalesce(cr.name_en, case when regexp_matches(coalesce(b.name_en,''),'[A-Za-z]') then b.name_en end, nf.name_en, b.name_en, case when not regexp_matches(coalesce(sm.gm_name,''),'[؀-ۿ]') then sm.gm_name end, ndc.dict_name_en)")} name_en,
@@ -56,19 +60,19 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
         when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when oa.osm_bnd_district_ar is not null then 'osm_boundary' when dn.district_ar is not null then 'nearest_boundary'
         when osm.osm_district_ar is not null then 'osm_' || osm.osm_district_kind
         when pf.district is not null then 'neighbours' end district_method,
-   coalesce(cr.phone, b.phone, o.phone, ds.phone, sm.gm_phone_norm, ov.ov_phone, om.osm_phone, fq.farq_phone, fq.farq_wa, fqm.farq_phone, fqm.farq_wa) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when ds.phone is not null then ds.src when sm.gm_phone_norm is not null then 'google_maps_serper' when ov.ov_phone is not null then 'overture' when om.osm_phone is not null then 'osm' when coalesce(fq.farq_phone, fq.farq_wa, fqm.farq_phone, fqm.farq_wa) is not null then 'farq_supplier' end phone_source,
+   coalesce(cr.phone, b.phone, o.phone, ds.phone, sm.gm_phone_norm, ov.ov_phone, om.osm_phone, fm.fsq_phone, fq.farq_phone, fq.farq_wa, fqm.farq_phone, fqm.farq_wa) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when ds.phone is not null then ds.src when sm.gm_phone_norm is not null then 'google_maps_serper' when ov.ov_phone is not null then 'overture' when om.osm_phone is not null then 'osm' when fm.fsq_phone is not null then 'foursquare_os' when coalesce(fq.farq_phone, fq.farq_wa, fqm.farq_phone, fqm.farq_wa) is not null then 'farq_supplier' end phone_source,
    coalesce(cr.license_no, fl.license_no) license_no, fl.license_type, fl.license_end, fl.license_expired, fl.legal_form,
    cr.national_address, cr.verified_at surveyor_verified_at, cr.building_no, cr.postal_code, cr.floorno floor_no,
    coalesce(cr.street_ar, st.street_ar) street_ar, coalesce(cr.street_en, st.street_en) street_en, case when cr.street_ar is not null then 0 else st.street_m end street_m,
    case when cr.street_ar is not null then 'crs_surveyor' when st.street_ar is not null then 'osm' end street_source,
    -- commercial attributes for targeting and for subscribers: hours, ordering, socials, description, amenities, brand, reputation
    coalesce(cr.opening_hours, tt.working_hours, ds.opening_hours, sn.opening_hours) opening_hours, cr.menu_link, cr.order_link, cr.reservation_link,
-   coalesce(cr.x_link, tt.x_link, ds.x_link) x_link, coalesce(cr.snapchat, tt.snapchat) snapchat, coalesce(cr.tiktok, tt.tiktok) tiktok,
-   ov.ov_socials overture_socials, coalesce(cr.description_ar, tt.description_ar) description_ar, coalesce(cr.description_en, tt.description_en) description_en,
+   coalesce(cr.x_link, tt.x_link, ds.x_link, fm.fsq_twitter) x_link, coalesce(cr.snapchat, tt.snapchat) snapchat, coalesce(cr.tiktok, tt.tiktok) tiktok,
+   ov.ov_socials overture_socials, fm.fsq_categories, fm.fsq_facebook_id, coalesce(cr.description_ar, tt.description_ar) description_ar, coalesce(cr.description_en, tt.description_en) description_en,
    cr.tradename, cr.amenities_ids, cr.hh_brand_id, cr.hh_status, cr.duplicate_of hh_duplicate_of, coalesce(cr.google_id, gm.place_id) google_place_id,
    coalesce(try_cast(tt.reviews_count as int), cr.reviews_count, try_cast(gm.reviews as int), try_cast(try_cast(ds.reviews_count as double) as int), sn.rating_count) reviews_count, sm.gm_cid google_cid,
-   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email) email, coalesce(b.website, cd.website, bb.website, ds.website, ov.ov_website, om.osm_website) website,
-   coalesce(b.instagram, cr.instagram, cd.instagram, bb.instagram, ds.instagram) instagram, cd.linkedin, cd.twitter,
+   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email, fm.fsq_email) email, coalesce(b.website, cd.website, bb.website, ds.website, ov.ov_website, om.osm_website, fm.fsq_website) website,
+   coalesce(b.instagram, cr.instagram, cd.instagram, bb.instagram, ds.instagram, fm.fsq_instagram) instagram, cd.linkedin, cd.twitter,
    cd.employees_band, cd.branches_count, coalesce(cd.legal_name_ar, cd.legal_name_en) legal_name, cd.makani, b.commercial_license,
    bb.brand brand, gm.google_categories, coalesce(try_cast(gm.rating as double), sm.gm_rating, cr.rating, try_cast(ds.rating as double), sn.rating) google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
    coalesce(gm.temp_closed, false) google_temp_closed, (coalesce(h.last_operation='delete' and h.last_review_status='approved', false) or coalesce(ts.is_deleted, false) or coalesce(cr.deleted, false) or coalesce(pl.deleted, false)) hudhud_deleted, ts.state hudhud_state,
@@ -103,6 +107,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select poi_key, working_hours, x_link, snapchat, tiktok, description_ar, description_en, reviews_count from read_parquet('{P}')) tt using(poi_key)
    left join (select *, case when gm_phone is not null then '+966' || regexp_replace(regexp_replace(gm_phone,'[^0-9]','','g'), '^(00966|966|0)', '') end gm_phone_norm
        from read_parquet('{D}enrich/serper_maps.parquet') qualify row_number() over (partition by poi_key)=1) sm using(poi_key)
+   left join (select * from read_parquet('{D}enrich/fsq_match.parquet') qualify row_number() over (partition by poi_key)=1) fm using(poi_key)
    left join (select * from read_parquet('{D}enrich/osm_poi_match.parquet') qualify row_number() over (partition by poi_key)=1) om using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_admin.parquet') qualify row_number() over (partition by poi_key)=1) oa using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_places.parquet') qualify row_number() over (partition by poi_key)=1) osm using(poi_key)

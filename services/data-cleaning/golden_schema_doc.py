@@ -23,6 +23,7 @@ DOC = {
  'farq_supplier_phone': ('Phone given by the Farq supplier record (kept even when the row has another phone).', 'Farq construction DB'),
  'farq_supplier_whatsapp': ('WhatsApp given by the Farq supplier (self-declared, not verified).', 'Farq construction DB'),
  'farq_city_method': ('How a supplier\'s city was set: supplier_city / landline_011 / name_mentions_city / assumed_riyadh (owner rule, rank below known).', ''),
+ 'fsq_categories': ('Foursquare category labels of the matched place.', 'Foursquare OS Places'), 'fsq_facebook_id': ('Facebook page id from Foursquare.', 'Foursquare OS Places'),
  'farq_items': ('Items the Farq supplier supplies.', 'Farq construction DB'), 'farq_activities': ('Supplier activities.', ''), 'farq_trade': ('Supplier trade.', ''),
  'farq_business_type': ('Supplier business type.', ''), 'farq_qualification': ('Supplier qualification status.', ''), 'farq_source_system': ('Origin system in the Farq DB.', ''),
  'farq_visibility': ('PUBLIC / PRIVATE / REVIEW in the Farq DB.', ''),
