@@ -402,8 +402,8 @@ diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/server.py pa
      ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
 diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/status_policy.py patched/status_policy.py
 --- orig/status_policy.py	1970-01-01 03:00:00
-+++ patched/status_policy.py	2026-10-15 10:49:34
-@@ -0,0 +1,124 @@
++++ patched/status_policy.py	2026-10-15 13:59:08
+@@ -0,0 +1,125 @@
 +# -*- coding: utf-8 -*-
 +"""
 +One status / eligibility policy for search, map and every WhatsApp send path.
@@ -488,12 +488,13 @@ diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/status_polic
 +    parts = ([f"coalesce(company_status,'') not in {_lit_raw(cs)}"] if cs else []) + ([f"coalesce(lifecycle_state,'') not in {_lit_raw(lc)}"] if lc else [])
 +    return '(' + ' and '.join(parts) + ')' if parts else 'true'
 +
-+# ---- send eligibility (default deny, owner 2026-10-15) -------------------------------------------
-+# Nothing here reads the environment: widening eligibility needs a code change and review.
-+SEND_CLASSES = frozenset({'open'})
-+SEND_LIFECYCLE = frozenset()                # empty / draft / archived / ready to publish / in progress: none defined as sendable yet
++# ---- send eligibility (owner decision 2026-10-15: «نرسل لأي محل متحقق من واتساب حقه ومفتوح أو مغلق مؤقتاً») ----
++# Nothing here reads the environment: changing eligibility needs a code change and review.
++SEND_CLASSES = frozenset({'open', 'closed_temporary'})
++CHECK_LIFECYCLE = False                     # owner: record stage is not a condition
++SEND_LIFECYCLE = frozenset()                # used only if CHECK_LIFECYCLE is turned on again
 +REQUIRE_VERIFIED_WHATSAPP = True            # has_whatsapp / mobile format are not verification
-+REQUIRE_CONTACT_BASIS = True                # a recorded, permitted basis to contact (consent / relationship); not in the data today
++REQUIRE_CONTACT_BASIS = False               # owner: not a condition
 +MOBILE = re.compile(r'^9665[0-9]{8}$')
 +
 +def whatsapp_state(row):
@@ -512,7 +513,7 @@ diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/status_polic
 +    reasons = []
 +    if st['status_normalized'] not in SEND_CLASSES: reasons.append('status:' + st['status_normalized'])
 +    lc = _canon(row.get('lifecycle_state'))
-+    if lc not in SEND_LIFECYCLE: reasons.append('lifecycle:' + (lc or 'empty'))
++    if CHECK_LIFECYCLE and lc not in SEND_LIFECYCLE: reasons.append('lifecycle:' + (lc or 'empty'))
 +    wa = whatsapp_state(row)
 +    if wa == 'not_available': reasons.append('whatsapp:not_available')
 +    elif REQUIRE_VERIFIED_WHATSAPP and wa != 'verified': reasons.append('whatsapp:' + wa)

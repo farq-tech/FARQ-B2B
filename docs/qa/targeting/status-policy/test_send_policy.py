@@ -56,7 +56,7 @@ class Base(unittest.TestCase):
             # Simulates a FUTURE owner definition so the send mechanism can be exercised: open + empty lifecycle,
             # flag accepted, basis not required. The real defaults are tested in T0_DefaultPolicy.
             import status_policy as sp
-            mock.patch.multiple(sp, SEND_LIFECYCLE=frozenset({''}), REQUIRE_VERIFIED_WHATSAPP=False, REQUIRE_CONTACT_BASIS=False).start()
+            mock.patch.multiple(sp, CHECK_LIFECYCLE=True, SEND_CLASSES=frozenset({'open'}), SEND_LIFECYCLE=frozenset({''}), REQUIRE_VERIFIED_WHATSAPP=False, REQUIRE_CONTACT_BASIS=False).start()
     def tearDown(self): mock.patch.stopall()
     def farq(self, targets, mode='template', **kw):
         return server.send_farq({'rfq_id': RFQ, 'mode': mode, 'targets': targets, **kw})
@@ -70,7 +70,7 @@ class T0_DefaultPolicy(Base):
         out = self.farq([{'poi_key': k, 'whatsapp': '966511111111', 'message': 'x'} for k in keys])
         self.assertEqual(self.sent, []); self.assertEqual(out['eligible'], [])
         reasons = {f['poi_key']: f['error'] for f in out['failed']}
-        self.assertTrue(reasons['s_open'].startswith('NOT_ELIGIBLE:lifecycle:empty'), reasons['s_open'])
+        self.assertTrue(reasons['s_open'].startswith('NOT_ELIGIBLE:whatsapp:source_flag_unverified'), reasons['s_open'])
         self.assertFalse(server.send_template({'poi_key': 's_open', 'to': '966511111111', 'message': 'x'})['ok'])
         out2 = self.farq([{'poi_key': k, 'whatsapp': '966511111111', 'email': 'a@b.co'} for k in keys], mode=None)
         self.assertEqual(out2.get('added', 0), 0, out2)
@@ -78,7 +78,7 @@ class T0_DefaultPolicy(Base):
         import importlib, status_policy as sp
         with mock.patch.dict(os.environ, {'SEND_ALLOWED_CLASSES': 'open,hidden,unknown_empty', 'SEND_LIFECYCLE': 'draft,'}):
             importlib.reload(sp)
-            self.assertEqual(sp.SEND_CLASSES, frozenset({'open'})); self.assertEqual(sp.SEND_LIFECYCLE, frozenset())
+            self.assertEqual(sp.SEND_CLASSES, frozenset({'open', 'closed_temporary'})); self.assertTrue(sp.REQUIRE_VERIFIED_WHATSAPP)
         importlib.reload(sp)
     def test_dry_run_guard_blocks_provider_even_if_called(self):
         graph_calls = []
@@ -237,5 +237,21 @@ class T5_Sessions(unittest.TestCase):
     def test_production_never_open_without_password(self):
         with mock.patch.object(server, 'AUTH_PASSWORD', None), mock.patch.dict(os.environ, {'RAILWAY_ENVIRONMENT': 'production'}):
             r, _ = self.req('POST', '/send-farq', '{}'); self.assertEqual(r.status, 401)
+
+@unittest.skipUnless(PATCHED, 'patched only')
+class T6_OwnerDecision(unittest.TestCase):
+    """«أي محل متحقق من واتساب حقه، مفتوح أو مغلق مؤقتاً»"""
+    def row(self, status, verified=True, lifecycle=None):
+        r = {'company_status': status, 'lifecycle_state': lifecycle, 'has_whatsapp': True, 'phone_norm': '+966500000001'}
+        if verified: r.update(whatsapp_verified_at='2026-10-15', whatsapp_verification_source='check')
+        return r
+    def test_decision(self):
+        import status_policy as sp
+        for st in ('open', 'Active', 'Temporarily Closed', 'temporary closed'):
+            for lc in (None, 'draft', 'archived', 'ready to publish'):
+                self.assertTrue(sp.send_decision(self.row(st, lifecycle=lc))[0], (st, lc))
+        for st in ('Permanently Closed', 'Inactive', 'hidden', None, 'مؤسسة'):
+            self.assertFalse(sp.send_decision(self.row(st))[0], st)
+        self.assertEqual(sp.send_decision(self.row('open', verified=False)), (False, 'whatsapp:source_flag_unverified'))
 
 if __name__ == '__main__': unittest.main()
