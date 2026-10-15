@@ -37,11 +37,11 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    sec.sector, b.latitude, b.longitude, coalesce(dof.city_en, osm.osm_city_en, ci.city_en, pf.city_en) city_en,
    coalesce(dof.city_ar, osm.osm_city_ar, ci.city_ar, case when ci.city_en is null then pf.city_en end) city_ar,
    case when dof.city_en is not null then 'official_boundary' when osm.osm_city_en is not null then 'osm_nearest_settlement' when ci.city_en is not null then 'source'
-        when pf.city_en is not null then 'neighbours' end city_method, ci.city_en city_source_en, osm.osm_city_m,
-   coalesce(dof.district_ar, cr.district_ar, nullif(trim(b.district),''), ecd.district_ar, fl.district_ar, dn.district_ar, osm.osm_district_ar, pf.district) district, coalesce(dof.district_ar, cr.district_ar, ecd.district_ar) district_ar,
+        when pf.city_en is not null then 'neighbours' end city_method, ci.city_en city_source_en, osm.osm_city_m, oa.osm_governorate_ar governorate_ar, oa.osm_governorate_en governorate_en,
+   coalesce(dof.district_ar, cr.district_ar, nullif(trim(b.district),''), ecd.district_ar, fl.district_ar, oa.osm_bnd_district_ar, dn.district_ar, osm.osm_district_ar, pf.district) district, coalesce(dof.district_ar, cr.district_ar, ecd.district_ar) district_ar,
    coalesce(dof.district_en, cr.district_en, ecd.district_en) district_en,
    case when dof.district_ar is not null then 'official_boundary' when cr.district_ar is not null then 'crs_surveyor' when nullif(trim(b.district),'') is not null then 'source'
-        when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when dn.district_ar is not null then 'nearest_boundary'
+        when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when oa.osm_bnd_district_ar is not null then 'osm_boundary' when dn.district_ar is not null then 'nearest_boundary'
         when osm.osm_district_ar is not null then 'osm_' || osm.osm_district_kind
         when pf.district is not null then 'neighbours' end district_method,
    coalesce(cr.phone, b.phone, o.phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source end phone_source,
@@ -69,6 +69,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select * from read_parquet('{D}golden/district_nearest.parquet') qualify row_number() over (partition by poi_key)=1) dn using(poi_key)
    left join (select * from read_parquet('{D}enrich/firms_license.parquet') qualify row_number() over (partition by poi_key)=1) fl using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_streets.parquet') qualify row_number() over (partition by poi_key)=1) st using(poi_key)
+   left join (select * from read_parquet('{D}golden/osm_admin.parquet') qualify row_number() over (partition by poi_key)=1) oa using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_places.parquet') qualify row_number() over (partition by poi_key)=1) osm using(poi_key)
    left join (select * from read_parquet('{D}golden/district_official.parquet') qualify row_number() over (partition by poi_key)=1) dof using(poi_key)
    left join (select poi_key, district_ar, district_en from read_parquet('{D}enrich/eastern_cards.parquet')) ecd using(poi_key) left join subs s on s.sub_id = c.sub_id left join city ci using(poi_key)
