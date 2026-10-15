@@ -58,6 +58,6 @@ Results across 1,933,848 rows:
 ### Third pass (2026-10-15)
 - 324 judged rules for the most frequent words in still-unclassified names (`rowlevel/pass3_term_rules.tsv`). These include machine-translation artefacts: hallaq = barber, operator = مشغل, medium/primary = school levels, «لقطع غيار».
 - 12,547 unclassified rows carried English supplier trade tags in `category_ar` (siteworks, tyres, rebar …). They are now mapped through `rowlevel/tag_map.py`.
-- Rows with no usable signal dropped from 364,291 to 273,693. Rows with a real subcategory: 1,639,995.
+- Rows with no usable signal dropped from 364,291 to 273,693. Rows with a real subcategory: 1,611,946 (1,229,699 of them high or medium confidence).
 - A spot check of 50 newly classified rows found about 85 % correct. Known misses: a plain «salon» with a woman's name goes to barber; brand words such as "World Cup" go to café.
 - Of the 332,538 name-only rows, 267,210 carry no other signal at all (no phone, e-mail, website, social account, CR number or description). `brand_name` is mostly a source tag (`momrah-old-…`), not a brand.
