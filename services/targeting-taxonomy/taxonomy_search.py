@@ -183,8 +183,9 @@ class Taxonomy:
             if named_ok and (shop_cue or sscore >= fscore or not fams):
                 sellers = [s for s in named_ok if s.startswith(('build.', 'food.', 'retail.', 'home.', 'fashion.', 'elec.', 'auto.', 'equip.', 'health.', 'beauty.', 'agri.', 'energy.'))] if shop_cue else named_ok
                 targets = {s: 2.0 for s in (sellers or named_ok)}
-                if not fams:
-                    fams = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for s, w in lst if s in targets), key=lambda x: -x[1])][:2]
+                sold = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for s, w in lst if s in targets), key=lambda x: -x[1])]
+                # describe what the named shops sell; keep a matched product only if those shops sell it
+                fams = [f for f in fams if f in sold] or sold[:2]
         return {'families': fams, 'named_subs': named, 'relation': relation, 'targets': targets, 'source': source}
 
     def search(self, db, directory_path, q, city, objective, search_sql='true'):
