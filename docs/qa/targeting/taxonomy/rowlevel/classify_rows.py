@@ -2,6 +2,7 @@
 import duckdb, csv, json, re, sys, collections
 from name_rules import RULES, VACANT
 from tag_map import TAGS
+from surveyor_categories import CONSISTENT, DEFAULT, CONTEXT
 P='/Users/m4pro/farq-targeting/data/targets.parquet'
 T='/Users/m4pro/farq-pricing/docs/qa/targeting/taxonomy/'
 OUT=sys.argv[1]
@@ -69,6 +70,9 @@ def label_match(*vals):
             if k and k in LBL: return LBL[k],part.strip()
     return None
 db=duckdb.connect()
+# surveyor top category per HudHud TRX (after cleaning), from the local entity lake
+TRXCAT=dict(db.execute("""select 'hh:'||source_native_id, regexp_extract(category, '''name_en'': ''([^'']*)''',1) from read_parquet('/Users/m4pro/ksa-entity-lake/staging/trx.parquet')
+   where regexp_extract(category, '''name_en'': ''([^'']*)''',1)<>''""").fetchall())
 cur=db.execute(f"""select poi_key, trim(split_part(category,'|',1)) act, category_ar, secondary_category, google_category, name_ar, name_en
  from read_parquet('{P}') where coalesce(lifecycle_state,'') not in ('closed','permanently_closed') and coalesce(company_status,'') not in ('cancelled','inactive','ملغي','ملغى')""")
 stats=collections.Counter(); f=open(OUT,'w',newline='',encoding='utf-8'); w=csv.writer(f); w.writerow(['poi_key','sub_id','source','confidence','evidence'])
@@ -89,6 +93,9 @@ while True:
                 elif nm: r=(nm[1],'name','low',nm[2])
                 elif a: r=(a[0],'activity','low',act)
                 else: r=('unc.unknown','none','low','')
+        sc=TRXCAT.get(key)
+        if sc in CONSISTENT and r[1] in ('name','secondary','none') and not any(r[0].startswith(p) for p in CONSISTENT[sc]):
+            r=(CONTEXT.get((sc,r[0]), DEFAULT[sc]),'surveyor_category','high','HudHud TRX: '+sc+(' (was '+r[0]+')' if r[1]!='none' else ''))
         if r[1] in ('none','name','activity') and r[2]!='high' and VAC.search(' '+norm(nar or nen or '')+' '): r=('unc.unknown','vacant','high','vacant or closed unit')
         stats[(r[1],r[2])]+=1; w.writerow([key,*r])
 f.close()

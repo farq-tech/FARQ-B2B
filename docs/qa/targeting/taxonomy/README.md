@@ -74,3 +74,7 @@ Results across 1,933,848 rows:
 - A short chain and variant list in `name_rules.py` (جوتن، شبرا، زين، OYO، سليب هاي، «للالمونيوم»، «للترفيه»، «شعبيات» …). Family names such as «التميمي» are deliberately left out.
 - Rows with no usable signal fell from 273,693 to about 247 k. Unclassified rows that do have a phone fell from 6,601 to about 5.6 k.
 - The sector file was rebuilt on top of this pass.
+
+### Learning from surveyors (2026-10-15)
+- HudHud TRX after cleaning gives a surveyor top category (25 values) for 287,700 rows. Where both sides can judge, our name-based subcategory agrees with the surveyor on 88.6 % of 64,560 rows, and secondary-label subs on 82.7 %.
+- `rowlevel/surveyor_categories.py`: when the surveyor's category contradicts a name, label or empty classification, the surveyor wins. A context fix applies first (for example, «مغسلة» inside Automotive Services becomes a car wash, not a laundry), then the category default. This changed 7,511 rows (`source = surveyor_category`).
