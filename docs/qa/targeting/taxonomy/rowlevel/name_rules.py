@@ -163,3 +163,11 @@ RULES += [
 ("agri.nursery", 9, ["ornamental plants","seedlings","plant nursery","plants nursery","nurseries for plants","مشتل","مشاتل","نباتات زينة"]),
 ("noncom.police_military", 9, ["police","شرطة","مركز شرطة","police station","دفاع مدني","civil defense"]),
 ]
+
+# third pass: frequent words in still-unclassified names, mapped by judgement (pass3_term_rules.tsv)
+import csv as _csv, os as _os
+_by = {}
+for _r in _csv.DictReader(open(_os.path.join(_os.path.dirname(__file__), 'pass3_term_rules.tsv'), encoding='utf-8'), delimiter='\t'):
+    _by.setdefault((_r['sub_id'], int(_r['weight'])), []).append(_r['term'])
+RULES += [(s, w, terms) for (s, w), terms in _by.items()]
+RULES += [("build.carpentry", 8, ["منجره","منجرة","مناجر"])]

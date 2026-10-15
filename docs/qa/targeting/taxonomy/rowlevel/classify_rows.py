@@ -1,6 +1,7 @@
 """Row-level taxonomy classification (read-only on the directory). Writes poi_key -> sub_id, source, confidence."""
 import duckdb, csv, json, re, sys, collections
 from name_rules import RULES, VACANT
+from tag_map import TAGS
 P='/Users/m4pro/farq-targeting/data/targets.parquet'
 T='/Users/m4pro/farq-pricing/docs/qa/targeting/taxonomy/'
 OUT=sys.argv[1]
@@ -54,6 +55,12 @@ for r in amap:
     if r['confidence'] in ('high','medium') and r['raw_ar']: byar[norm(r['raw_ar'])].add(r['sub_id'])
 for k,v in byar.items():
     if len(v)==1: LBL.setdefault(k,next(iter(v)))
+TAGN={norm(k):v for k,v in TAGS.items()}
+def tag_match(v):
+    for part in re.split(r'[,|]',v or ''):
+        k=norm(part)
+        if k in TAGN: return TAGN[k],part.strip()
+    return None
 def label_match(*vals):
     for v in vals:
         if not v: continue
@@ -72,7 +79,7 @@ while True:
         a=ACT.get(act) if act else None
         if a and a[1] in ('high','medium'): r=(a[0],'activity',a[1],act)
         else:
-            lm=label_match(sec,goo,car if not a else None)
+            lm=label_match(sec,goo,car if not a else None) or (tag_match(car) if not a else None)
             nm=(name_match(nar) if nar else None) or (name_match(nen) if nen else None)  # name_en is sometimes another entity's name
             if lm and nm and nm[0][0]>=7 and nm[1]!=lm[0]: r=(nm[1],'name','medium',nm[2])  # a specific trade word in the name beats a noisy secondary label
             elif lm: r=(lm[0],'secondary',"medium",lm[1])

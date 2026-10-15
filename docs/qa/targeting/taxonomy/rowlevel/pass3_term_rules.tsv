@@ -1,0 +1,325 @@
+term	sub_id	weight	note
+salon	beauty.barber	4	plain salon usually men's barber in KSA; women phrases outrank
+صالون	beauty.barber	5	plain صالون usually men's barber
+hallaq	beauty.barber	8	حلاق
+hallaq muhammad	beauty.barber	8	حلاق
+hallaq abdullah	beauty.barber	8	حلاق
+youth salon	beauty.barber	8	صالون الشباب
+shave	beauty.barber	8	حلاقة
+scissors	beauty.barber	6	مقص
+للعنايه بالرجل	beauty.barber	8	men's grooming
+for men	beauty.barber	4	salon for men dominant
+women	beauty.salon_women	4	weak; often women's salon/workshop
+for women	beauty.salon_women	6	نسائي
+women adornment	beauty.salon_women	8	تزيين نسائي
+decorating women	beauty.salon_women	8	تزيين نسائي
+beauty	beauty.salon_women	6	تجميل
+operator	beauty.salon_women	5	مشغل نسائي (beauty or tailoring)
+bride	beauty.salon_women	4	عرائس
+hammam	beauty.spa_massage	6	حمام مغربي/تركي
+the hammam	beauty.spa_massage	6	حمام مغربي
+moroccan	beauty.spa_massage	4	حمام مغربي
+khayyat	fashion.tailoring	8	خياط
+khayat	fashion.tailoring	6	خياط (also family name)
+sew	fashion.tailoring	6	خياطة
+men supplies	fashion.mens_thobe	6	مستلزمات رجالية
+للمستلزمات الرجاليه	fashion.mens_thobe	6	مستلزمات رجالية
+الرجاليه	fashion.mens_thobe	4	رجالية
+abayat	fashion.abaya	8	عبايات
+women gowns	fashion.clothing	8	فساتين
+gowns	fashion.clothing	6	فساتين
+dress	fashion.clothing	6	فساتين
+ready made	fashion.clothing	6	ملابس جاهزة
+sportswear	fashion.sportswear	8	
+uniform	fashion.uniforms	8	زي موحد
+fabric	fashion.fabrics	6	أقمشة
+shoe	fashion.shoes	6	أحذية
+bags	fashion.bags_accessories	6	حقائب
+for bags	fashion.bags_accessories	6	حقائب
+perfumery	fashion.perfume	8	عطور
+for perfumery	fashion.perfume	8	عطور
+medium	edu.school	8	متوسطة
+first medium	edu.school	8	المتوسطة الأولى
+medium the	edu.school	8	متوسطة
+intermediate	edu.school	8	متوسطة
+primary	edu.school	8	ابتدائية
+first primary	edu.school	8	الابتدائية الأولى
+primary after	edu.school	8	الابتدائية بعد المئة
+secondary	edu.school	8	ثانوية
+secondary courses	edu.school	6	ثانوية مقررات
+literacy	edu.school	6	محو الأمية
+girls	edu.school	4	بنات (girls' school)
+university	edu.university	6	
+جامعه	edu.university	6	
+courses	edu.training_center	4	دورات
+children hospitality	edu.nursery	8	ضيافة أطفال
+library	biz.stationery_office	6	مكتبة = stationery shop
+student services	biz.copy_center	6	خدمات الطالب
+for student	biz.copy_center	4	خدمات الطالب
+electronic services	biz.pro_services	6	خدمات إلكترونية / تعقيب
+calligrapher	biz.advertising_signage	8	خطاط
+خطاط	biz.advertising_signage	8	
+تسجيلات	media.production	6	تسجيلات إسلامية
+design	biz.design_studio	4	
+media	biz.marketing_agency	4	
+holding	biz.head_office	6	قابضة
+holding company	biz.head_office	6	شركة قابضة
+security guard	biz.security_services	8	حراسات أمنية
+guard	biz.security_services	6	حراسة
+العقاري	re.office	6	عقاري
+لقطع غيار	auto.spare_parts	8	
+لقطع الغيار	auto.spare_parts	8	
+غيار السيارات	auto.spare_parts	8	
+غيار	auto.spare_parts	8	
+الغيار	auto.spare_parts	8	
+لقطع	auto.spare_parts	6	
+car parts	auto.spare_parts	8	
+parts	auto.spare_parts	6	
+تشليح	auto.spare_parts	8	used parts scrapyard
+لزينه السيارات	auto.accessories_tint	8	زينة السيارات
+adornment cars	auto.accessories_tint	8	زينة السيارات
+لزينه	auto.accessories_tint	6	زينة mostly cars
+لتاجير السيارات	auto.rental	8	
+renting cars	auto.rental	8	
+car electricity	auto.workshop	8	كهرباء سيارات
+car services	auto.workshop	5	خدمات سيارات
+car service	auto.workshop	5	
+auto services	auto.workshop	5	
+auto service	auto.workshop	5	
+automotive services	auto.workshop	5	
+automobile services	auto.workshop	5	
+لخدمات السيارات	auto.workshop	5	
+لخدمه السيارات	auto.workshop	5	
+auto show	auto.used_cars	6	معرض سيارات
+motor show	auto.used_cars	6	معرض سيارات
+تويوتا	auto.dealership	6	brand
+wheels	auto.tires	6	كفرات
+عجلاتي	auto.tires	8	tyre repair
+polishing	auto.car_wash	6	تلميع
+petromin	auto.oil_change	8	brand
+petromin express	auto.oil_change	8	brand
+بترومين	auto.oil_change	8	brand
+لتاجير المعدات	equip.rental	8	
+equipment rental	equip.rental	8	
+heavy equipment	equip.rental	6	معدات ثقيلة (mostly rental)
+light equipment	equip.rental	4	
+safety equipment	build.safety_fire_supply	6	
+fire	build.safety_fire_supply	4	
+elevators	build.elevators	8	مصاعد
+لمواد البناء	build.general_materials	8	
+البناء	build.general_materials	6	
+concrete	build.ready_mix	6	خرسانة
+lighting	build.lighting_supply	6	إنارة
+lights	build.lighting_supply	4	
+اضواء	build.lighting_supply	4	
+lathe	build.metal_fabrication	8	مخرطة
+مخرطه	build.metal_fabrication	8	
+metal	build.metal_fabrication	4	
+منجره	build.carpentry	8	نجارة
+مقاول	contract.general	8	
+construction	contract.general	4	
+for construction	contract.general	4	
+reconstruction	contract.general	4	
+architecture	contract.engineering_consult	6	
+engineering	contract.engineering_consult	4	
+cooling	contract.hvac	6	تبريد وتكييف
+for cooling	contract.hvac	6	
+cooling and	contract.hvac	6	
+and cooling	contract.hvac	6	
+adaptation	contract.hvac	6	تكييف mistranslated
+and adaptation	contract.hvac	6	
+adaptation and	contract.hvac	6	
+for adaptation	contract.hvac	6	
+plastic	ind.plastic	6	
+for plastic	ind.plastic	6	
+للبلاستيك	ind.plastic	6	
+plastic products	ind.plastic	6	
+plastic and	ind.plastic	6	
+packaging	ind.packaging	6	
+and packaging	ind.packaging	6	
+scrap	ind.recycling	6	سكراب
+storage	log.warehousing	6	
+storehouse	log.warehousing	6	
+furnishings	home.furniture	6	مفروشات
+for furnishings	home.furniture	6	
+mobilia	home.furniture	6	
+home utensils	home.kitchenware	8	أواني منزلية
+utensils	home.kitchenware	8	
+للاواني	home.kitchenware	8	
+للاواني المنزليه	home.kitchenware	8	
+ware	home.kitchenware	4	
+tents	home.tents_majlis	8	خيام
+for tents	home.tents_majlis	8	
+للخيام	home.tents_majlis	8	
+مظلات	home.tents_majlis	6	مظلات وسواتر
+وسواتر	home.tents_majlis	6	
+councils	home.tents_majlis	6	مجالس
+arab councils	home.tents_majlis	8	مجالس عربية
+home appliances	elec.appliances_store	8	
+appliances	elec.appliances_store	6	
+للاجهزه الكهرباييه	elec.appliances_store	8	
+electronic devices	elec.electronics_store	6	
+phone	elec.mobile_shop	6	
+فون	elec.mobile_shop	6	
+communication	elec.mobile_shop	4	اتصالات
+stc	elec.telecom	6	brand
+mobily	elec.telecom	6	brand
+cafeteria	food.buffet_popular	8	كافتيريا
+catteria	food.buffet_popular	8	
+كافتيريا	food.buffet_popular	8	
+كفتيريا	food.buffet_popular	8	
+كافتريا	food.buffet_popular	8	
+boufia	food.buffet_popular	8	بوفية
+buffed	food.buffet_popular	4	بوفية?
+fawal	food.buffet_popular	8	فوال
+فوال	food.buffet_popular	8	
+kofi	food.cafe	8	كوفي
+tea	food.cafe	6	
+شاي	food.cafe	6	
+cup	food.cafe	4	
+lounge	food.cafe	4	
+لاونج	food.cafe	4	
+provide drinks	food.cafe	6	تقديم المشروبات
+serve drinks	food.cafe	6	
+drinks	food.cafe	4	
+for drinks	food.cafe	4	
+drinking beverages	food.cafe	4	
+beverages	food.cafe	4	
+دانكن	food.cafe	8	Dunkin
+dunkin	food.cafe	8	
+دونتس	food.cafe	8	
+دانكن دونتس	food.cafe	8	
+ستاربكس	food.cafe	8	
+starbucks	food.cafe	8	
+بارنز	food.cafe	8	Barn's
+barn	food.cafe	6	Barn's
+باسكن	food.juice_icecream	8	Baskin Robbins
+روبنز	food.juice_icecream	8	
+baskin	food.juice_icecream	8	
+robbins	food.juice_icecream	8	
+baskin robbins	food.juice_icecream	8	
+باسكن روبنز	food.juice_icecream	8	
+عصاير	food.juice_icecream	8	عصائر
+هرفي	food.fast_food	8	Herfy
+chicken	food.fast_food	6	
+دجاج	food.fast_food	6	
+sweet	food.sweets	4	
+taste	food.restaurant	4	
+the taste	food.restaurant	4	
+flavor	food.restaurant	4	
+delicious	food.restaurant	4	
+المذاق	food.restaurant	4	
+food services	food.catering	6	خدمات إعاشة
+foods	food.food_wholesale	4	مواد غذائية
+poultry	food.meat_poultry_wholesale	6	دواجن
+for poultry	food.meat_poultry_wholesale	6	
+للدواجن	food.meat_poultry_wholesale	6	
+دواجن	food.meat_poultry_wholesale	6	
+مطاحن	food.grain_mills	4	
+attar	food.nuts_spices	4	عطار (also family name)
+sheep	agri.livestock	6	أغنام
+agricultural	agri.supplies	4	
+agriculture	agri.supplies	4	
+furnished	hosp.furnished_apartments	8	
+for furnished	hosp.furnished_apartments	8	
+furnished housing	hosp.furnished_apartments	8	
+furnished residential	hosp.furnished_apartments	8	
+apartments	hosp.furnished_apartments	8	
+apartments for	hosp.furnished_apartments	8	
+housing units	hosp.furnished_apartments	8	وحدات سكنية
+residential units	hosp.furnished_apartments	6	
+للوحدات السكنيه	hosp.furnished_apartments	8	
+للوحدات	hosp.furnished_apartments	6	
+bedrooms	hosp.furnished_apartments	6	
+units	hosp.furnished_apartments	4	
+housing	hosp.furnished_apartments	4	
+for housing	hosp.furnished_apartments	4	
+resort	hosp.istiraha	6	منتجع
+منتجع	hosp.istiraha	6	
+rest	hosp.istiraha	4	استراحة
+wedding	hosp.wedding_hall	6	
+for wedding	hosp.wedding_hall	6	
+weddings	hosp.wedding_hall	6	
+for weddings	hosp.wedding_hall	6	
+weddings and	hosp.wedding_hall	6	
+الافراح	hosp.wedding_hall	6	
+wedding supplies	hosp.wedding_services	6	
+events	hosp.event_planning	6	
+and events	hosp.event_planning	6	
+conferences	hosp.event_planning	6	
+and conferences	hosp.event_planning	6	
+exhibitions	hosp.event_planning	4	
+exhibitions and	hosp.event_planning	6	
+organizing exhibitions	hosp.event_planning	8	
+organizing	hosp.event_planning	6	
+organize	hosp.event_planning	6	
+for organizing	hosp.event_planning	6	
+celebrations	hosp.event_planning	4	
+for celebrations	hosp.event_planning	4	
+parties	hosp.event_planning	4	
+for parties	hosp.event_planning	4	
+occasions	hosp.event_planning	4	
+للسفر والسياحه	hosp.travel_agency	8	
+للسفر	hosp.travel_agency	8	
+والسياحه	hosp.travel_agency	6	
+umrah	hosp.hajj_umrah	8	
+for umrah	hosp.hajj_umrah	8	
+umrah pilgrims	hosp.hajj_umrah	8	
+pilgrims	hosp.hajj_umrah	8	
+المعتمرين	hosp.hajj_umrah	8	
+لخدمات المعتمرين	hosp.hajj_umrah	8	
+hajj	hosp.hajj_umrah	8	
+trips	sports.camping_outdoor	6	مستلزمات رحلات
+for trips	sports.camping_outdoor	6	
+trips supplies	sports.camping_outdoor	8	
+الرحلات	sports.camping_outdoor	6	
+games	sports.entertainment_center	6	ألعاب
+for games	sports.entertainment_center	6	
+children games	sports.entertainment_center	8	
+game	sports.entertainment_center	4	
+entertainment	sports.entertainment_center	6	
+for entertainment	sports.entertainment_center	6	
+sports center	sports.gym	6	
+stadium	sports.fields	8	ملعب
+ملعب	sports.fields	8	
+football	sports.fields	6	
+club	sports.club	4	
+bicycle	sports.sporting_goods	6	دراجات
+fuel	energy.fuel_station	6	محروقات
+petroleum	energy.fuel_station	6	بترولية
+petroleum services	energy.fuel_station	8	محطة خدمات بترولية
+mall	retail.mall	6	
+مول	retail.mall	6	
+savings	retail.discount_store	6	توفير
+التوفير	retail.discount_store	6	
+discounts	retail.discount_store	6	تخفيضات
+للتخفيضات	retail.discount_store	6	
+health center	health.clinic	6	مركز صحي
+مركز صحي	health.clinic	6	
+nahdi	health.pharmacy	6	Nahdi brand (also family name)
+municipality	noncom.government	6	
+بلديه	noncom.government	6	
+ministry	noncom.government	6	
+secretariat	noncom.government	6	أمانة
+prayer	noncom.mosque	6	
+prayer room	noncom.mosque	8	مصلى
+مصلي	noncom.mosque	8	مصلى
+حديقه	noncom.park	6	
+مناطق خضراء	noncom.park	6	
+garden	noncom.park	4	
+parking	noncom.parking	8	
+parking payment	noncom.parking	8	
+payment machine	noncom.parking	6	parking payment machine
+toilet	noncom.street_poi	6	دورة مياه
+men toilet	noncom.street_poi	8	
+دوره مياه	noncom.street_poi	8	
+مبرد مياه	noncom.street_poi	8	water cooler POI
+water cooler	noncom.street_poi	8	
+مبرد	noncom.street_poi	6	
+cooler	noncom.street_poi	6	
+cooler inside	noncom.street_poi	8	
+مني مبرد	noncom.street_poi	8	
+mina water	noncom.street_poi	8	
+مياه داخل	noncom.street_poi	8	
+لوحه ارشاديه	noncom.street_poi	8	signboard POI
+ارشاديه	noncom.street_poi	8	
