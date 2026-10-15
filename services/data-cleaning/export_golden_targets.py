@@ -22,7 +22,7 @@ db.execute(f"""copy (select g.poi_key, case when g.poi_key like 'hh:%' then try_
    concat_ws('، ', g.street_ar, coalesce(g.district_ar, g.district), g.city_ar) full_address_ar, concat_ws(', ', g.street_en, g.district_en, g.city_en) full_address_en,
    g.latitude, g.longitude, g.phone phone_raw, g.phone phone_norm,
    case when regexp_matches(g.phone, '^\\+9665') then 'mobile' when g.phone is not null then 'landline' end phone_kind,
-   g.has_whatsapp, g.email, g.website, g.instagram, g.x_link, g.snapchat, g.tiktok, g.opening_hours working_hours,
+   (coalesce(g.has_whatsapp, false) or g.farq_supplier_whatsapp is not null) has_whatsapp, g.email, g.website, g.instagram, g.x_link, g.snapchat, g.tiktok, g.opening_hours working_hours,
    coalesce(t.rating, g.google_rating::varchar) rating, coalesce(t.reviews_count, g.reviews_count::varchar) reviews_count,
    coalesce(g.license_no, g.commercial_license) commercial_license, g.sources, len(g.sources) source_count,
    round(100.0 * g.completeness_score / 6, 1) completeness_pct,

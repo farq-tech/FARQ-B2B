@@ -41,6 +41,7 @@ const DRAFT_KEY = 'farq.targeting.draft'
 type Draft = { q: string; city: string; message: string; keys: string[]; at: number }
 const readDraft = (): Draft | null => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); return d && Array.isArray(d.keys) ? d : null } catch { return null } }
 const PAGE = 150
+const FETCH = 200   // rows per server page (the API maximum); «حمّل أكثر» appends the next page
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
 const nameOf = (r: TargetRow) => r.name_ar || r.name_en || 'بدون اسم'
@@ -168,12 +169,26 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     } finally { setReading(null); if (fileInput.current) fileInput.current.value = '' }
   }
   async function runSearch(text: string): Promise<number | null> { return runSearchIn(text, city) }
+  // every result, not only the first page: the next server page is appended to the list and the map
+  async function loadMore() {
+    if (!res || res.next_offset == null || busy || !query) return
+    setBusy(true); setError(null)
+    const version = generation.current
+    try {
+      const r = await searchTargets(query, city, FETCH, objective, res.next_offset)
+      if (version !== generation.current) return
+      setRes((cur) => cur ? { ...cur, rows: [...cur.rows, ...r.rows.filter((x) => !cur.rows.some((y) => y.poi_key === x.poi_key))], has_more: r.has_more, next_offset: r.next_offset } : cur)
+      setShown((s) => s + r.rows.length)
+    } catch (err) {
+      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
+    } finally { setBusy(false) }
+  }
   async function runSearchIn(text: string, city: string): Promise<number | null> {
     if (!text || !city || busy) return null
     setBusy(true); setError(null); setNotice(null)
     const version = generation.current
     try {
-      const r = await searchTargets(text, city, 10, objective)
+      const r = await searchTargets(text, city, FETCH, objective)
       if (version !== generation.current) return null
       setRes(r); setQuery(text); setShown(PAGE)
       const keep = restoring.current
@@ -330,7 +345,12 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
               <Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, rows.length - shown))} أكثر</Button>
             </li>
           ) : null}
-          {truncated ? <li className="border-t border-[var(--color-border-default)] px-5 py-3 text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض أول {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</li> : null}
+          {truncated && shown >= rows.length ? (
+            <li className="flex flex-row items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-5 py-3">
+              <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
+              <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
+            </li>
+          ) : null}
         </ul>
       )}
     </section>

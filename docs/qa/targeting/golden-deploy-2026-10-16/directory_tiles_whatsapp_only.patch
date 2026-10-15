@@ -1,0 +1,23 @@
+--- /Volumes/Archive/backups/farq-targeting-b2b-release_before_golden_2026-10-16/directory_tiles.py	2026-10-15 11:35:04
++++ /Users/m4pro/farq-targeting-b2b-release/directory_tiles.py	2026-10-16 02:42:12
+@@ -27,8 +27,11 @@
+     if re.search(r'\b(شركه|شركات|company|corporation|llc)\b',text): return 'company'
+     if re.search(r'\b(مؤسسه|establishment|est)\b',text): return 'establishment'
+     return 'unknown'
++# Owner rule 2026-10-16: only places with WhatsApp are shown (search, map, browse) until the rest get a WhatsApp number;
++# a place appears as soon as its WhatsApp is added to the directory. 'all' and '' both mean WhatsApp-only.
++WHATSAPP_ONLY = True
+ def valid_filters(value):
+-    if value is None: return {}
++    if value is None: value = {}
+     if not isinstance(value,dict): raise ValueError('invalid filters')
+     out={}
+     for key in ('category','subcategory','entity_type','contact','sort','keyword'):
+@@ -37,6 +40,7 @@
+         out[key]=val
+     if out['entity_type'] not in ('','company','establishment','unknown'): raise ValueError('invalid entity type')
+     if out['contact'] not in ('','all','whatsapp','email'): raise ValueError('invalid contact')
++    if WHATSAPP_ONLY and out['contact'] in ('','all'): out['contact']='whatsapp'
+     if out['sort'] not in ('','confidence','name_first'): raise ValueError('invalid sort')
+     out['branches_only']=value.get('branches_only') is True
+     out['name_only']=value.get('name_only') is True

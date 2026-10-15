@@ -12,3 +12,9 @@ Changes in the release folder:
 - `Dockerfile`: copies taxonomy_search.py, data/poi_taxonomy.parquet and data/taxonomy (Dockerfile.patch).
 Service tests (tests/*.py) and the taxonomy tests passed before upload. Send policy unchanged (verified WhatsApp only).
 Rollback: copy the backup folder back and `railway up`.
+
+## 2026-10-16 (2) — owner: show only places with WhatsApp; show all results; sending on
+- `directory_tiles.py`: `WHATSAPP_ONLY = True` — '' and 'all' contact filters mean WhatsApp-only for search, map and browse (directory_tiles_whatsapp_only.patch). A place appears as soon as its WhatsApp is in the directory.
+- Export: `has_whatsapp` also true when the Farq supplier gave a WhatsApp number (190,756 rows).
+- pricing `/targeting`: 200 rows per server page and «حمّل أكثر» appends the next page (was 10 rows).
+- pricing service variable `TARGETING_SEND=1` set on the owner's explicit request («فعل الارسال»). Service eligibility unchanged: open/temporarily closed + WhatsApp (source flag accepted since 2026-10-15); the Meta template must be approved.
