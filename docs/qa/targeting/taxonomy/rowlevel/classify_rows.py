@@ -3,7 +3,8 @@ import duckdb, csv, json, re, sys, collections
 from name_rules import RULES, VACANT
 from tag_map import TAGS
 from surveyor_categories import CONSISTENT, DEFAULT, CONTEXT
-P='/Users/m4pro/farq-targeting/data/targets.parquet'
+import os
+P=os.environ.get('CLASSIFY_INPUT','/Users/m4pro/farq-targeting/data/targets.parquet')  # any parquet in the directory schema (new entities too)
 T='/Users/m4pro/farq-pricing/docs/qa/targeting/taxonomy/'
 OUT=sys.argv[1]
 tax=json.load(open(T+'farq_taxonomy.json')); SUBS={s['sub_id'] for s in tax['subs']}
@@ -62,6 +63,15 @@ def tag_match(v):
         k=norm(part)
         if k in TAGN: return TAGN[k],part.strip()
     return None
+# HudHud subcategory ids (surveyor-assigned) found as codes such as «|191|» or «|639|537|» in secondary_category
+HHSUB={}
+for _r in csv.DictReader(open(T+'hudhud_sub_map.csv',encoding='utf-8')):
+    if _r['confidence'] in ('high','medium') and not _r['sub_id'].startswith('unc.'): HHSUB[_r['hudhud_sub_id'].split('.')[0]]=(_r['sub_id'],_r['confidence'],_r['hudhud_sub_en'])
+def hudhud_code_match(v):
+    if not v or not re.fullmatch(r'\|?[0-9.|]+\|?', v.strip()): return None
+    for code in [c.split('.')[0] for c in v.strip('|').split('|') if c]:
+        if code in HHSUB: return HHSUB[code]
+    return None
 def label_match(*vals):
     for v in vals:
         if not v: continue
@@ -83,9 +93,11 @@ while True:
         a=ACT.get(act) if act else None
         if a and a[1] in ('high','medium'): r=(a[0],'activity',a[1],act)
         else:
+            hh=hudhud_code_match(sec)
             lm=label_match(sec,goo,car if not a else None) or (tag_match(car) if not a else None)
             nm=(name_match(nar) if nar else None) or (name_match(nen) if nen else None)  # name_en is sometimes another entity's name
-            if lm and nm and nm[0][0]>=7 and nm[1]!=lm[0]: r=(nm[1],'name','medium',nm[2])  # a specific trade word in the name beats a noisy secondary label
+            if hh: r=(hh[0],'hudhud_sub',hh[1],'HudHud sub: '+hh[2])   # a surveyor-assigned subcategory beats labels and name words
+            elif lm and nm and nm[0][0]>=7 and nm[1]!=lm[0]: r=(nm[1],'name','medium',nm[2])  # a specific trade word in the name beats a noisy secondary label
             elif lm: r=(lm[0],'secondary',"medium",lm[1])
             else:
                 if nm and nm[0][0]>=5: r=(nm[1],'name','medium' if nm[0][0]>=7 else 'low',nm[2])

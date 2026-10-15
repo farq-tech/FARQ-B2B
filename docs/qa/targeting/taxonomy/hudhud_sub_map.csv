@@ -1,0 +1,834 @@
+hudhud_sub_id,hudhud_main_en,hudhud_sub_en,hudhud_sub_ar,sub_id,confidence
+25,Restaurants,Traditional Saudi,مطاعم سعودية تقليدية,food.restaurant,high
+26,Restaurants,Middle Eastern,مطاعم الشرق الأوسط,food.restaurant,high
+27,Restaurants,Fast Food,وجبات سريعة,food.fast_food,high
+28,Restaurants,Indian,مطعم هندي,food.restaurant,high
+29,Restaurants,Italian,مطعم إيطالي,food.restaurant,high
+30,Restaurants,Seafood,مطعم مأكولات بحرية,food.restaurant,high
+31,Restaurants,Steakhouses,مطعم ستيك,food.restaurant,high
+32,Restaurants,Barbecue,مطعم شواية,food.restaurant,high
+33,Restaurants,Burgers,مطاعم برجر,food.fast_food,high
+34,Restaurants,Wraps and Sandwiches,سندويشات,food.fast_food,medium
+35,Restaurants,Fried Chicken,مطعم دجاج مقلي,food.fast_food,high
+36,Restaurants,Vegan,مطاعم نباتية,food.restaurant,high
+37,Restaurants,Chinese,مطعم صيني,food.restaurant,high
+38,Restaurants,Thai,مطعم تايلندي,food.restaurant,high
+39,Restaurants,Korean,مطعم كوري,food.restaurant,high
+40,Restaurants,Japanese,مطعم ياباني,food.restaurant,high
+41,Restaurants,Lebanese,مطعم لبناني,food.restaurant,high
+42,Restaurants,Turkish,مطعم تركي,food.restaurant,high
+43,Restaurants,African,مطعم أفريقي,food.restaurant,high
+44,Restaurants,Filipino,مطعم فلبيني,food.restaurant,high
+45,Restaurants,Spanish,مطعم إسباني,food.restaurant,high
+46,Restaurants,Persian,مطعم فارسي,food.restaurant,high
+47,Restaurants,Sushi,مطعم سوشي,food.restaurant,high
+48,Restaurants,Bistro,مطعم بيسترو,food.restaurant,medium
+50,Restaurants,Pizza,مطعم بيتزا,food.fast_food,medium
+51,Restaurants,Noodle Shops,محلات نودلز,food.restaurant,high
+297,Restaurants,American,مطعم أمريكي,food.restaurant,high
+298,Restaurants,Afghan Restaurant,مطعم أفغاني,food.restaurant,high
+299,Restaurants,Asian,مطعم آسيوي,food.restaurant,high
+300,Restaurants,Breakfast,مطعم الإفطار,food.restaurant,medium
+301,Restaurants,Bengali,مطعم بنغالي,food.restaurant,high
+302,Restaurants,French,مطعم فرنسي,food.restaurant,high
+303,Restaurants,Greek,مطعم يوناني,food.restaurant,high
+675,Restaurants,Cloud Kitchen / Virtual Restaurant,مطعم سحابي,food.cloud_kitchen,high
+676,Restaurants,Malaysian Cuisine,مطعم ماليزي,food.restaurant,high
+677,Restaurants,Latin Restaurant,مطعم لاتيني,food.restaurant,high
+678,Restaurants,Pakistani Cuisine,مطعم باكستاني,food.restaurant,high
+679,Restaurants,Mexican Restaurant,مطعم مكسيكي,food.restaurant,high
+680,Restaurants,Egyptian Restaurant,مطعم مصري,food.restaurant,high
+681,Restaurants,Shawarma Restaurant,مطعم شاورما,food.fast_food,high
+682,Restaurants,Spanish Cuisine,مطعم أسباني,food.restaurant,high
+683,Restaurants,Bukhari Restaurant,مطعم بخاري,food.restaurant,high
+742,Restaurants,Yemeni restaurant,مطعم يمني,food.restaurant,high
+745,Restaurants,Tunisian restaurant,مطعم تونسي,food.restaurant,high
+750,Restaurants,Kofta restaurant,مطعم كفتة,food.restaurant,medium
+752,Restaurants,Meat packer,معبئ لحوم,food.meat_processing,medium
+772,Restaurants,Bar,بار,food.hookah,low
+773,Restaurants,Bar tabac,بار تبغ,retail.tobacco_vape,low
+774,Restaurants,Barbecue area,منطقة شواء,noncom.park,low
+779,Restaurants,Brazilian restaurant,مطعم برازيلي,food.restaurant,high
+782,Restaurants,Burmese restaurant,مطعم بورمي,food.restaurant,high
+786,Restaurants,Cantonese restaurant,مطعم كانتوني,food.restaurant,high
+790,Restaurants,Chophouse restaurant,مطعم تشوبهاوس,food.restaurant,high
+803,Restaurants,Cured ham bar,بار لحم خنزير مدخن,food.restaurant,low
+804,Restaurants,Cured ham store,متجر لحم خنزير مدخن,food.butcher,low
+818,Restaurants,Halal restaurant,مطعم حلال,food.restaurant,high
+819,Restaurants,Haleem restaurant,مطعم حليم,food.restaurant,high
+847,Restaurants,Syrian restaurant,مطعم سوري,food.restaurant,high
+52,Food and Beverages,Cakes,كيك,food.sweets,high
+53,Food and Beverages,Pastries,معجنات,food.bakery,high
+54,Food and Beverages,Juice Shops,محلات العصير,food.juice_icecream,high
+55,Food and Beverages,Bakeries,مخابز,food.bakery,high
+56,Food and Beverages,Dessert Shops,محلات الحلويات,food.sweets,high
+57,Food and Beverages,Chocolatiers,محلات الشوكولاتة,food.sweets,high
+58,Food and Beverages,Smoothie Bars,محلات سموذي,food.juice_icecream,high
+59,Food and Beverages,Crepes,مطعم كريب,food.fast_food,medium
+60,Food and Beverages,Salad Bars,محلات سلطة,food.restaurant,medium
+61,Food and Beverages,Gourmet Burgers,برجر فاخر,food.fast_food,high
+62,Food and Beverages,Sweets and Confectionery,حلويات وسكر,food.sweets,high
+63,Food and Beverages,Ice Cream,محل آيس كريم,food.juice_icecream,high
+64,Food and Beverages,Food Trucks,شاحنات الطعام,food.food_truck,high
+304,Food and Beverages,Butcher,جزار,food.butcher,high
+305,Food and Beverages,Donut Shop,محل دونات,food.bakery,medium
+306,Food and Beverages,Meat Shop,ملحمة,food.butcher,high
+307,Food and Beverages,Frozen Yogurt Shop,محل الزبادي المجمد,food.juice_icecream,high
+308,Food and Beverages,Cookie Shop,متجر كوكيز,food.sweets,medium
+309,Food and Beverages,Hookah Bar,مقهى شيشة,food.hookah,high
+310,Food and Beverages,Cattle Market,سوق الماشية,agri.livestock,high
+311,Food and Beverages,Poultry Shop,دواجن,food.butcher,medium
+312,Food and Beverages,Food Court,ساحة طعام,food.restaurant,low
+313,Food and Beverages,Lounge,لاونج,food.cafe,medium
+647,Food and Beverages,Nuts Shop,مكسرات,food.nuts_spices,high
+648,Food and Beverages,Buffets & Cafeterias,بوفيهات وكافتيريات,food.buffet_popular,high
+690,Food and Beverages,Wine wholesaler and importer,تاجر جملة ومستورد نبيذ,food.beverage_distributor,low
+835,Food and Beverages,Olive oil bottling company,شركة تعبئة زيت زيتون,food.oils_fats,high
+65,Coffee Shops,Brunch Cafes,مقاهي برنش,food.cafe,high
+66,Coffee Shops,Specialty Coffee,قهوة مختصة,food.cafe,high
+67,Coffee Shops,Coffee Making Machines,ماكينات صنع القهوة,food.restaurant_equipment,medium
+68,Coffee Shops,Arabic Coffee,قهوة عربية,food.cafe,high
+69,Coffee Shops,Tea Houses,شاي,food.cafe,high
+314,Coffee Shops,Coffee Roastery,محمصة قهوة,food.roastery,high
+315,Coffee Shops,Coffee Wholesaler,موزع قهوة بالجملة,food.coffee_tea_supplier,high
+316,Coffee Shops,Coffee Store,متجر قهوة,food.coffee_tea_supplier,medium
+721,Coffee Shops,Internet cafe,مقهى إنترنت,sports.esports_gaming_center,medium
+737,Coffee Shops,Night club,ملهى ليلي,media.events_entertainment,low
+70,Entertainment,Live Music,قاعة اغاني,media.events_entertainment,medium
+71,Entertainment,Cinema,سينما,sports.cinema,high
+72,Entertainment,Video Arcade,صالة ألعاب الفيديو,sports.esports_gaming_center,high
+73,Entertainment,Theater,مسرح,media.events_entertainment,medium
+74,Entertainment,Amusement Parks,مدن الملاهي,sports.theme_park,high
+75,Entertainment,Bowling Alleys,صالات البولينج,sports.entertainment_center,high
+76,Entertainment,Escape Rooms,غرف الهروب,sports.entertainment_center,high
+77,Entertainment,Family Entertainment Centers,مراكز الترفيه العائلية,sports.entertainment_center,high
+78,Entertainment,Comedy Clubs,نوادي الكوميديا,media.events_entertainment,medium
+79,Entertainment,Theme Parks,حدائق الألعاب الترفيهية,sports.theme_park,high
+80,Entertainment,Sporting Events,فعاليات رياضية,sports.fields,low
+81,Entertainment,Festivals,مهرجانات,hosp.event_planning,low
+82,Entertainment,Drive-In Theaters,سينما مفتوحة,sports.cinema,medium
+83,Entertainment,Outdoor Concerts,حفلات موسيقية في الهواء الطلق,media.events_entertainment,medium
+84,Entertainment,Cultural Shows,عروض ثقافية,media.events_entertainment,medium
+85,Entertainment,Circus Shows,عروض السيرك,media.events_entertainment,medium
+86,Entertainment,Billiards Rooms,غرف البلياردو,sports.entertainment_center,medium
+87,Entertainment,Indoor Playgrounds,ملاعب داخلية,sports.entertainment_center,high
+88,Entertainment,Petting Zoos,حدائق حيوانات,sports.theme_park,medium
+90,Entertainment,Cooking Classes,صفوف طبخ,edu.training_center,medium
+91,Entertainment,Art and Craft Workshops,ورش الفنون والحرف,edu.arts_music_school,medium
+92,Entertainment,Virtual Reality Experiences,تجارب الواقع الافتراضي,sports.entertainment_center,high
+317,Entertainment,Laser Tag Center,مركز ليزر تاج,sports.entertainment_center,high
+318,Entertainment,Boat Club,نادي القوارب,sports.club,medium
+319,Entertainment,Board Game Club,نادي ألعاب الطاولة,sports.entertainment_center,medium
+320,Entertainment,Social Club,نادي اجتماعي,sports.club,low
+321,Entertainment,Boat Rental Service,خدمة تأجير القوارب,sports.sports_equipment_rental,medium
+322,Entertainment,Zoo,حديقة حيوان,sports.theme_park,medium
+323,Entertainment,Haunted House,منزل مسكون,sports.entertainment_center,high
+324,Entertainment,Water Park,مدينة مائية,sports.theme_park,high
+325,Entertainment,Aquarium,حوض أسماك,sports.theme_park,medium
+326,Entertainment,Children's Amusement Center,مركز ترفيهي للأطفال,sports.entertainment_center,high
+716,Entertainment,Observation deck,منصة مشاهدة,noncom.landmark,medium
+820,Entertainment,Horse rental service,خدمة تأجير خيول,sports.sports_equipment_rental,medium
+854,Entertainment,Weir,سد,noncom.utility,low
+93,Cultural Sites,Museum,متحف,noncom.museum,high
+94,Cultural Sites,Art Gallery,معرض فني,media.art_gallery,high
+95,Cultural Sites,Historical Sites,مواقع تاريخية,noncom.landmark,high
+96,Cultural Sites,Archaeological Sites,مواقع أثرية,noncom.landmark,high
+97,Cultural Sites,Cultural Centers,مراكز ثقافية,noncom.social_services,low
+98,Cultural Sites,Heritage Villages,قرى تراثية,noncom.landmark,high
+99,Cultural Sites,Cultural Festivals,مهرجانات ثقافية,hosp.event_planning,low
+100,Cultural Sites,Monuments,نُصُب تذكارية,noncom.landmark,high
+327,Cultural Sites,Castle,قلعة,noncom.landmark,high
+712,Cultural Sites,Shrine,ضريح,noncom.landmark,medium
+747,Cultural Sites,Religious destination,الوجهة الدينية,noncom.landmark,medium
+797,Cultural Sites,Convent,دير,noncom.landmark,low
+101,Nature,Desert Camping,تخييم في الصحراء,hosp.camps,high
+102,Nature,Beaches,شواطئ,noncom.park,medium
+103,Nature,Mountains,جبال,noncom.landmark,low
+104,Nature,Nature Reserves,محميات طبيعية,noncom.park,medium
+328,Nature,Arboretum,مشتل,agri.nursery,medium
+329,Nature,Fishing Spot,مكان صيد السمك,noncom.park,low
+687,Nature,Farm,مزرعة,agri.farm,high
+694,Nature,Rock climbing,تسلق الصخور,sports.entertainment_center,low
+710,Nature,Gravel pit,ملعب حصى,build.aggregates,medium
+723,Nature,Gravel plant,مزرعة حصى,build.aggregates,medium
+802,Nature,Crushed stone supplier,مورد حجر مكسر,build.aggregates,high
+105,Public Parks,Park,حديقة,noncom.park,high
+106,Public Parks,Playgrounds,ملاعب,noncom.park,medium
+107,Public Parks,Walking Trails,مسارات المشي,noncom.park,medium
+108,Shopping,Shopping Mall,مول,retail.mall,high
+109,Shopping,Camping Equipment,معدات التخييم,sports.camping_outdoor,high
+110,Shopping,Traditional Souks,أسواق تقليدية,retail.mall,low
+111,Shopping,Herbal Store,متجر أعشاب,food.nuts_spices,high
+112,Shopping,Jewelry Store,متجر مجوهرات,fashion.jewelry_gold,high
+113,Shopping,Antique Shop,متجر تحف,retail.antiques,high
+114,Shopping,Bookstore,مكتبة,retail.bookstore,high
+115,Shopping,Watch Store,الساعات,fashion.watches,high
+116,Shopping,Gold Store,متجر الذهب,fashion.jewelry_gold,high
+117,Shopping,Craft Supply Store,متجر لوازم الحرف,media.arts_crafts,medium
+118,Shopping,Pet Store,متجر حيوانات أليفة,retail.pet_shop,high
+119,Shopping,Bicycle Shop,متجر دراجات,sports.sporting_goods,medium
+120,Shopping,Hobby Store,متجر هوايات,retail.toys,medium
+121,Shopping,Music Store,متجر موسيقى,retail.musical_instruments,high
+122,Shopping,Toy Store,متجر دمـى,retail.toys,high
+123,Shopping,Souvenir Shop,متجر تذكارات,retail.souvenirs_crafts,high
+124,Shopping,Florist,متجر زهور,retail.flowers,high
+125,Shopping,Power Bank Rental,تأجير بنك الطاقة,elec.mobile_shop,low
+127,Shopping,Shoe Stores,متاجر الأحذية,fashion.shoes,high
+128,Shopping,Sewing Equipment,معدات الخياطة,fashion.fabrics,medium
+129,Shopping,Fitness Equipment,معدات تمارين اللياقة البدنية,sports.sporting_goods,high
+130,Shopping,Sports Apparel,ملابس رياضية,fashion.sportswear,high
+131,Shopping,Mobile Phone Repair,إصلاح الهواتف المحمولة,elec.repair,high
+132,Shopping,Work Uniform and Protective Clothing,زي العمل وملابس السلامة,fashion.uniforms,high
+133,Shopping,Printing Equipment,معدات الطباعة,elec.printers_copiers,medium
+134,Shopping,Textiles,الأقمشة,fashion.fabrics,high
+136,Shopping,Medical Equipment and Tools,المعدات والأدوات الطبية,health.medical_supply,high
+137,Shopping,Perfume,عطور,fashion.perfume,high
+138,Shopping,Audio and Video Equipment store,معدات الصوت والفيديو,elec.audio_visual,high
+330,Shopping,Luggage Store,متجر حقائب السفر,fashion.bags_accessories,high
+331,Shopping,Outlet Store,متجر منافذ البيع,fashion.clothing,medium
+332,Shopping,Computer Store,متجر الحواسيب,elec.computers,high
+333,Shopping,Educational Supply Store,متجر قرطاسية,biz.stationery_office,high
+334,Shopping,Airbrushing Supply Store,متجر لوازم الرش الهوائي,media.arts_crafts,medium
+335,Shopping,Sunglasses Store,متجر نظارات شمسية,health.optics,high
+336,Shopping,Amusement Machine Supplier,مورد آلات الترفيه,sports.entertainment_center,low
+337,Shopping,Aquarium Shop,متجر أحواض السمك,retail.pet_shop,medium
+338,Shopping,Firewood Supplier,مورد الحطب,agri.forestry_charcoal,high
+339,Shopping,Clothes and Fabric Wholesaler,تاجر جملة للملابس والأقمشة,fashion.apparel_wholesale,high
+340,Shopping,Gift Shop,محل هدايا,retail.gifts,high
+341,Shopping,Battery Store,متجر بطاريات,auto.batteries,medium
+342,Shopping,Computer Repair Service,خدمة إصلاح الحواسيب,elec.repair,high
+343,Shopping,Mobile Phone Store,متجر للهواتف المحمولة,elec.mobile_shop,high
+344,Shopping,Children's Store,متجر أطفال,retail.baby,medium
+345,Shopping,Duty-Free Store at Airport,متجر معفّى من الرسوم الجمركية في المطار,retail.department_store,low
+346,Shopping,Men's Clothing Store,متجر ملابس رجالية,fashion.clothing,high
+347,Shopping,Beauty Product Supplier,مورد منتجات التجميل,beauty.cosmetics_distributor,high
+348,Shopping,Clothes and Fabric Manufacturer,مصنع الملابس والأقمشة,ind.garment_mfg,high
+349,Shopping,Wool Store,متجر الصوف,fashion.fabrics,medium
+350,Shopping,Candle Store,متجر شموع,retail.gifts,medium
+351,Shopping,Boot Store,متجر أحذية البوت,fashion.shoes,high
+352,Shopping,Leather Goods Store,متجر منتجات جلدية,fashion.bags_accessories,high
+353,Shopping,Video Game Store,متجر ألعاب الفيديو,elec.gaming,high
+354,Shopping,Finishing Materials Supplier,مورد مواد التشطيب,build.general_materials,medium
+355,Shopping,Camera Store,متجر كاميرات,elec.electronics_store,medium
+356,Shopping,Electrical Appliances,الأجهزة الكهربائية,elec.appliances_store,high
+357,Shopping,Beauty Products Wholesaler,تاجر جملة لمنتجات التجميل,beauty.cosmetics_distributor,high
+358,Shopping,Thrift Store,متجر التوفير,retail.secondhand,high
+359,Shopping,Abaya Store,متجر عبايات,fashion.abaya,high
+360,Shopping,Electrical Appliances Store,متجر أجهزة كهربائية,elec.appliances_store,high
+361,Shopping,Game Store,متجر ألعاب,elec.gaming,medium
+362,Shopping,Dress Store,متجر فساتين,fashion.clothing,high
+363,Shopping,Books Wholesaler,تاجر جملة للكتب,retail.bookstore,medium
+364,Shopping,African Goods Store,متجر سلع أفريقية,retail.general_store,medium
+365,Shopping,Animal Feed Store,متجر أعلاف الحيوانات,agri.feed,high
+366,Shopping,Electrical Device Repair,صيانة الأجهزة الكهربائية,elec.appliance_repair,high
+367,Shopping,Bridal Shop,متجر فساتين زفاف,fashion.clothing,high
+368,Shopping,Hookah Store,متجر شيشة,retail.tobacco_vape,high
+369,Shopping,Shisha Shop,محل شيشه,retail.tobacco_vape,high
+370,Shopping,Glasses Store,متجر نظارات,health.optics,high
+371,Shopping,Handbags Shop,متجر حقائب اليد,fashion.bags_accessories,high
+372,Shopping,Lingerie Store,متجر ملابس داخلية,fashion.clothing,high
+373,Shopping,Cigar Shop,متجر سيجار,retail.tobacco_vape,high
+374,Shopping,Tuxedo Shop,متجر بدلات السهرة,fashion.clothing,high
+375,Shopping,Marine Supply Store,متجر مستلزمات بحرية,auto.boats_marine,high
+376,Shopping,Hunting Store,متجر أدوات الصيد,sports.camping_outdoor,high
+377,Shopping,Beach Clothing Store,متجر ملابس الشاطئ,fashion.clothing,high
+378,Shopping,Contact Lenses Supplier,مورد العدسات اللاصقة,health.optics,high
+663,Shopping,Electronics Store,متجر الكترونيات,elec.electronics_store,high
+664,Shopping,Women's Clothing Store,ملابس نسائية,fashion.clothing,high
+665,Shopping,Women's Clothing Store,متجر ملابس نسائية,fashion.clothing,high
+666,Shopping,Prayer Beads Shop,محل سبح,fashion.bags_accessories,low
+667,Shopping,Organic & Honey Products Shop,بيع العسل و المواد العضوية,food.honey,high
+668,Shopping,Custom Kitchen Design & Manufacturing,تفصيل و تصميم المطابخ,build.kitchens_cabinets,high
+669,Shopping,Blacksmith / Metal Workshop,ورشة حدادة او حداد,build.metal_fabrication,high
+670,Shopping,Packaging & Wrapping Supplies Stores,محلات مستلزمات التغليف والتعبئة,food.packaging_disposables,medium
+671,Shopping,Mobile Accessories Store,متجر إكسسوارات هواتف,elec.mobile_shop,high
+672,Shopping,Household Items Store,متجر أدوات منزلية,home.kitchenware,high
+673,Shopping,Firefighting Equipment,معدات إطفاء حرائق,build.safety_fire_supply,high
+674,Shopping,Home Furnishings Store,مفروشات منزلية,home.furniture,medium
+699,Shopping,Incense supplier,مورد بخور,fashion.perfume,high
+706,Shopping,Electronic parts supplier,مورد قطع غيار إلكترونية,elec.components,high
+718,Shopping,Western apparel store,متجر ملابس غربية,fashion.clothing,high
+719,Shopping,Fashion accessories store,متجر إكسسوارات أزياء,fashion.bags_accessories,high
+722,Shopping,Dye store,متجر صبغ,build.paint,low
+735,Shopping,Second hand store,متجر سلع مستعملة,retail.secondhand,high
+740,Shopping,Store,متجر,unc.shop_general,medium
+743,Shopping,Discount store,متجر خصومات,retail.discount_store,high
+744,Shopping,Ice supplier,مورد الجليد,food.beverage_distributor,low
+749,Shopping,Popcorn store,متجر فشار,food.sweets,low
+759,Shopping,Air conditioning contractor,مقاول تكييف هواء,contract.hvac,high
+765,Shopping,Army & navy surplus shop,متجر فوائض للجيش والبحرية,sports.camping_outdoor,low
+770,Shopping,Children's clothing store,متجر ملابس أطفال,fashion.kids,high
+771,Shopping,Baby store,متجر ألعاب أطفال,retail.baby,medium
+775,Shopping,Bathroom supply store,متجر لوازم حمامات,build.plumbing_supply,high
+776,Shopping,Batik clothing store,متجر ملابس باتيك,fashion.clothing,high
+777,Shopping,Bicycle repair shop,ورشة تصليح دراجات,sports.sporting_goods,low
+788,Shopping,Cell phone charging station,محطة شحن هواتف محمولة,elec.mobile_shop,low
+814,Shopping,Furnace parts supplier,مورد قطع غيار أفران,build.hardware_tools,low
+816,Shopping,General store,متجر عام,retail.general_store,high
+823,Shopping,Internet shop,متجر إنترنت,sports.esports_gaming_center,low
+824,Shopping,Kiosk,كشك,retail.kiosk,high
+828,Shopping,Locks supplier,مورد أقفال,build.hardware_tools,medium
+829,Shopping,Locksmith,صانع أقفال,build.hardware_tools,medium
+856,Shopping,Wholesaler,تاجر جملة,retail.general_wholesale,high
+139,Hotels and Accommodations,Hotel,فندق,hosp.hotel,high
+140,Hotels and Accommodations,Serviced Apartment,شقة مخدومة,hosp.furnished_apartments,high
+141,Hotels and Accommodations,Motel,موتيل,hosp.hotel,high
+142,Hotels and Accommodations,Resort,منتجع,hosp.hotel,medium
+143,Hotels and Accommodations,Residential Compound,مجمع سكني,noncom.residential,high
+144,Hotels and Accommodations,Townhouse,تاون هاوس,noncom.residential,high
+145,Hotels and Accommodations,Chalet,شاليه,hosp.istiraha,high
+146,Hotels and Accommodations,Apartment,شقة,noncom.residential,high
+379,Hotels and Accommodations,Villa,فيلا,noncom.residential,high
+380,Hotels and Accommodations,Housing Services,خدمات الإسكان,re.property_mgmt,low
+381,Hotels and Accommodations,Furnished Apartments,شقق مفروشة,hosp.furnished_apartments,high
+705,Hotels and Accommodations,Pilgrim hostel,نزل للحجاج,hosp.hotel,medium
+844,Hotels and Accommodations,Refugee camp,مخيم لاجئين,noncom.social_services,low
+147,Pharmacies,Pharmacy,صيدلية,health.pharmacy,high
+148,Pharmacies,Cosmetic Pharmacy,صيدلية مستحضرات تجميل,health.pharmacy,high
+149,Pharmacies,Veterinary Pharmacy,صيدلية بيطرية,agri.vet_supplies,medium
+150,Pharmacies,Health Supplements,مكملات صحية,food.health_food,high
+151,Grocery,Hypermarket,هايبر ماركت,food.supermarket,high
+152,Grocery,Vegetables and Fruits,الخضروات والفواكه,food.fruits_veg,high
+153,Grocery,Grocery Store,متجر بقالة,food.grocery,high
+154,Grocery,Supermarket,سوبر ماركت,food.supermarket,high
+382,Grocery,Frozen Food Store,متجر الأطعمة المجمدة,food.frozen,high
+383,Grocery,Spice Store,متجر بهارات,food.nuts_spices,high
+384,Grocery,Chicken Shop,متجر دجاج,food.butcher,medium
+385,Grocery,Asian Grocery Store,متجر بقالة آسيوي,food.grocery,high
+386,Grocery,Fish Store,متجر أسماك,food.fish_market,high
+387,Grocery,Health Food Store,متجر الأطعمة الصحية,food.health_food,high
+684,Grocery,Dates Shop,محل تمور,food.dates,high
+685,Grocery,Herbal Store,محل عطارة,food.nuts_spices,high
+686,Grocery,Honey Store,متجرعسل,food.honey,high
+805,Grocery,Dairy,منتج ألبان,food.dairy,high
+806,Grocery,Dairy store,متجر ألبان,food.dairy,high
+807,Grocery,Dairy supplier,مورد ألبان,food.dairy,high
+817,Grocery,Government ration shop,متجر تموين حكومي,food.grocery,medium
+155,Mosques,Congregational Mosque,مسجد جامع,noncom.mosque,high
+156,Mosques,prayer area,مصلى,noncom.mosque,high
+388,Mosques,Mosques,مسجد,noncom.mosque,high
+796,Mosques,Congregation,مجمع ديني,noncom.mosque,medium
+158,Hospitals,Hospital,مستشفى,health.hospital,high
+159,Hospitals,First Aid Services,خدمات الإسعافات الأولية,health.ambulance,medium
+160,Hospitals,Ambulance,سيارة إسعاف,health.ambulance,high
+161,Hospitals,Specialized Hospital,مستشفى متخصص,health.hospital,high
+162,Hospitals,Children's Hospital,مستشفى الأطفال,health.hospital,high
+163,Hospitals,Maternity Hospital,مستشفى الأمومة,health.hospital,high
+164,Hospitals,Rehabilitation Hospital,مستشفى إعادة التأهيل,health.hospital,high
+165,Hospitals,Mental Health Hospital,مستشفى الصحة النفسية,health.hospital,high
+166,Hospitals,Orthopedic Hospital,مستشفى العظام,health.hospital,high
+167,Hospitals,Oncology Hospital,مستشفى الأورام,health.hospital,high
+168,Hospitals,Eye Hospital,مستشفى العيون,health.hospital,high
+169,Hospitals,Dental Centers,مراكز الأسنان,health.dental,high
+170,Hospitals,Cardiology Hospital,مستشفى أمراض القلب,health.hospital,high
+171,Hospitals,Veterinarian,مستشفى الحيوانات الأليفة,health.vet,high
+172,Hospitals,Emergency Veterinary Services,خدمات الطوارئ البيطرية,health.vet,high
+389,Hospitals,Orthodontist,أخصائي تقويم الأسنان,health.dental,high
+390,Hospitals,Blood Donation Center,مركز التبرع بالدم,health.lab,medium
+391,Hospitals,Health Counselor,مستشار صحي,health.clinic,medium
+392,Hospitals,Private Hospital,مستشفى خاص,health.hospital,high
+393,Hospitals,Gynecologist,طبيبة أمراض النساء,health.clinic,high
+394,Hospitals,Child Psychiatrist,طبيب نفسي للأطفال,health.clinic,high
+395,Hospitals,Dietitian,أخصائي تغذية,health.clinic,medium
+396,Hospitals,Blood Bank,بنك الدم,health.lab,medium
+397,Hospitals,Clinic,عيادة,health.clinic,high
+398,Hospitals,Speech Pathologist,أخصائي أمراض النطق,health.clinic,medium
+399,Hospitals,Dermatologist,طبيب الأمراض الجلدية,health.clinic,high
+400,Hospitals,Government Hospital,مستشفى حكومي,health.hospital,high
+401,Hospitals,Medical Lab,مختبر طبي,health.lab,high
+402,Hospitals,Addiction Treatment Center,مركز علاج الإدمان,health.clinic,medium
+403,Hospitals,Optician,أخصائي نظارات,health.optics,high
+404,Hospitals,Applied Behavior Analysis Therapist,أخصائي تحليل السلوك التطبيقي,health.clinic,medium
+405,Hospitals,Physical Therapist,أخصائي علاج طبيعي,health.physio,high
+406,Hospitals,Emergency Room,غرفة الطوارئ,health.hospital,medium
+407,Hospitals,Hearing Aid Store,متجر أجهزة السمع,health.medical_supply,medium
+645,Hospitals,Home Medical Follow-up Services,متابعة طبية منزلية,health.home_care,high
+646,Hospitals,Nuclear Medicine Services,الطب النووي,health.radiology,high
+734,Hospitals,Dialysis center,مركز غسيل كلى,health.clinic,medium
+833,Hospitals,Nephrologist,طبيب أمراض الكلى,health.clinic,high
+173,Fuel Stations,Gas Station,محطة بنزين,energy.fuel_station,high
+174,Fuel Stations,Diesel Station,محطة ديزل,energy.fuel_station,high
+175,Fuel Stations,EV Charging Station,محطة شحن السيارات الكهربائية,energy.ev_charging,high
+176,Fuel Stations,Service Station,محطة خدمة,energy.fuel_station,high
+177,Banks,Islamic Bank,بنك إسلامي,fin.bank,high
+178,Banks,Investment Bank,بنك استثماري,fin.bank,high
+179,Banks,Currency Exchange,تبادل العملات,fin.exchange,high
+180,Banks,Central Bank,البنك المركزي,noncom.government,medium
+181,Banks,Money Transfer,تحويل الأموال,fin.exchange,high
+182,Banks,ATMs,أجهزة الصراف الآلي,fin.atm,high
+183,Automotive Services,Car Repair Workshop,ورشة تصليح السيارات,auto.workshop,high
+184,Automotive Services,Car Wash Services,خدمات غسيل السيارات,auto.car_wash,high
+185,Automotive Services,Auto Body Repair,إصلاح هياكل السيارات,auto.body_paint,high
+186,Automotive Services,Car Accessories,إكسسوارات السيارات,auto.accessories_tint,high
+187,Automotive Services,Car Alarm Systems,أنظمة إنذار السيارات,auto.accessories_tint,medium
+188,Automotive Services,Car Batteries,بطاريات السيارات,auto.batteries,high
+189,Automotive Services,Car Electronics Repair,إصلاح إلكترونيات السيارات,auto.workshop,medium
+190,Automotive Services,Car Rentals,تأجير السيارات,auto.rental,high
+191,Automotive Services,Tire Repair Workshop,ورشة تصليح الإطارات,auto.tires,high
+408,Automotive Services,Truck Repair Shop,ورشة إصلاح الشاحنات,auto.trucks_repair,high
+409,Automotive Services,Bearing Supplier,مورد محامل,auto.spare_parts,medium
+410,Automotive Services,Car Stereo Store,متجر ستيريو للسيارات,auto.accessories_tint,medium
+411,Automotive Services,Car Parts Supplier,مورد قطع غيار السيارات,auto.spare_parts,high
+412,Automotive Services,Motorcycle Dealer,وكيل دراجات نارية,auto.motorcycles,high
+413,Automotive Services,Truck Dealer,تاجر شاحنات,auto.trucks_buses,high
+414,Automotive Services,Bus and Coach Company,شركة حافلات,log.passenger_transport,high
+415,Automotive Services,Truck Parts Supplier,مورد قطع غيار الشاحنات,auto.spare_parts,high
+416,Automotive Services,Used Car Dealer,تاجر سيارات مستعملة,auto.used_cars,high
+417,Automotive Services,Trucking Company,شركة شاحنات,log.trucking,high
+418,Automotive Services,Car Dealer,وكيل سيارات,auto.dealership,high
+419,Automotive Services,Car Showroom,معرض سيارات,auto.used_cars,high
+420,Automotive Services,Forklift Dealer,وكيل رافعات شوكية,equip.heavy_sales,medium
+421,Automotive Services,Car Care,العناية بالسيارات,auto.car_wash,medium
+422,Automotive Services,Oil Change,غيار زيت,auto.oil_change,high
+423,Automotive Services,Handicapped Transportation Service,خدمة النقل لذوي الإعاقة,log.passenger_transport,high
+424,Automotive Services,Auto Parts Store,متجر قطع غيار السيارات,auto.spare_parts,high
+425,Automotive Services,Golf Cart Dealer,وكيل عربات الجولف,auto.dealership,low
+426,Automotive Services,Car Window Tinting,تظليل سيارات,auto.accessories_tint,high
+427,Automotive Services,Driver Licensing Agency,وكالة إصدار رخص القيادة,noncom.government,medium
+428,Automotive Services,Used Auto Parts Store,متجر قطع غيار السيارات المستعملة,auto.spare_parts,high
+733,Automotive Services,Vehicle inspection service,خدمة فحص المركبات,auto.inspection,high
+736,Automotive Services,Motorsports store,متجر رياضة السيارات,auto.accessories_tint,low
+766,Automotive Services,Auto painting,طلاء السيارات,auto.body_paint,high
+767,Automotive Services,Auto radiator repair service,خدمة إصلاح رادياتير السيارات,auto.workshop,high
+768,Automotive Services,Auto upholsterer,تنجيد السيارات,auto.accessories_tint,medium
+769,Automotive Services,Auto wrecker,مدمر سيارات,ind.recycling,medium
+787,Automotive Services,Car stereo store,متجر ستيريو سيارات,auto.accessories_tint,medium
+192,Transportation,Metro Stations,محطات المترو,noncom.transport_hub,high
+193,Transportation,Tickets,تذاكر,noncom.street_poi,low
+194,Transportation,Payment Parking Machine,آلة دفع مواقف السيارات,noncom.parking,high
+195,Transportation,Bus Stations,محطات الحافلات,noncom.transport_hub,high
+196,Transportation,Check-In Services,خدمات تسجيل الوصول,noncom.transport_hub,medium
+197,Transportation,Luggage Services,خدمات الأمتعة,log.courier,low
+198,Transportation,Parking Facilities,مرافق وقوف السيارات,noncom.parking,high
+199,Transportation,Drop-in Points,نقاط الانزال,noncom.street_poi,medium
+200,Transportation,Pickup Points,نقاط الالتقاط,noncom.street_poi,medium
+429,Transportation,Airport Lounge,صالة المطار,noncom.transport_hub,medium
+430,Transportation,Train Station,محطة قطار,noncom.transport_hub,high
+431,Transportation,Chauffeur Service,خدمة السائق الخاص,log.passenger_transport,high
+432,Transportation,Airport Parking,موقف سيارات المطار,noncom.parking,high
+433,Transportation,Taxi Service,خدمة سيارات الأجرة,log.passenger_transport,high
+434,Transportation,Airport,مطار,noncom.transport_hub,high
+435,Transportation,Free Parking Lot,موقف سيارات مجاني,noncom.parking,high
+436,Transportation,Airline Ticket Agency,وكالة تذاكر الطيران,hosp.travel_agency,high
+437,Transportation,Bridge,جسر,noncom.street_poi,medium
+438,Transportation,Airport Shuttle Service,خدمة نقل المطار,log.passenger_transport,high
+696,Transportation,Railroad company,شركة سكك حديدية,log.passenger_transport,medium
+724,Transportation,Heliport,مهبط طائرات هليكوبتر,noncom.transport_hub,high
+760,Transportation,Airstrip,مهبط طائرات,noncom.transport_hub,high
+838,Transportation,Parking lot for motorcycles,موقف دراجات نارية,noncom.parking,high
+845,Transportation,River port,ميناء نهري,noncom.transport_hub,high
+201,Education,Quranic School,مدرسة تحفيظ القرآن,edu.quran_center,high
+202,Education,Public Library,مكتبة عامة,noncom.library,high
+203,Education,Language School,مدرسة لغات,edu.language_center,high
+204,Education,Nurseries,دور الحضانة,edu.nursery,high
+205,Education,Vocational Training Center,مركز التدريب المهني,edu.vocational,high
+206,Education,Private School,مدرسة خاصة,edu.school,high
+207,Education,Preschool,روضة أطفال,edu.kindergarten,high
+208,Education,University,جامعة,edu.university,high
+439,Education,Computer Training School,مدرسة تدريب الحاسوب,edu.training_center,high
+440,Education,Academy,أكاديمية,edu.training_center,medium
+441,Education,Architecture School,مدرسة العمارة,edu.university,high
+442,Education,School,مدرسة,edu.school,high
+443,Education,Dance School,مدرسة رقص,edu.arts_music_school,high
+444,Education,Dental School,مدرسة طب الأسنان,edu.university,high
+445,Education,Government School,مدرسة حكومية,edu.school,high
+446,Education,Educational Consultant,مستشار تعليمي,edu.education_services,high
+447,Education,High School,المدرسة الثانوية,edu.school,high
+448,Education,Special Education School,مدرسة التعليم الخاص,edu.school,high
+449,Education,Conservatory of Music,معهد الموسيقى,edu.arts_music_school,high
+450,Education,Flight School,مدرسة الطيران,edu.vocational,medium
+451,Education,Educational Testing Service,خدمة الاختبارات التعليمية,edu.education_services,high
+452,Education,Educational Institution,مؤسسة تعليمية,edu.school,medium
+453,Education,Boys' High School,مدرسة ثانوية للبنين,edu.school,high
+454,Education,Student Housing Center,سكن الطلاب,noncom.residential,medium
+455,Education,Middle School,مدرسة متوسطة,edu.school,high
+456,Education,Elementary School,ابتدائي,edu.school,high
+457,Education,Law School,كلية الحقوق,edu.university,high
+458,Education,Girls' High School,مدرسة ثانوية للبنات,edu.school,high
+459,Education,Bilingual School,مدرسة ثنائية اللغة,edu.school,high
+460,Education,Kindergarten,روضة,edu.kindergarten,high
+461,Education,Education Center,مركز تعليمي,edu.training_center,medium
+641,Education,International Schools,مدارس عالمية,edu.school,high
+642,Education,Driving School,مدرسة تعليم قيادة السيارات,edu.driving_school,high
+643,Education,Certified Translation Centers,مراكز ترجمه معتمدة,biz.translation,high
+644,Education,Special Needs Rehabilitation & Training,تأهيل ذوي الاحتياجات الخاصة و التدريب,noncom.social_services,medium
+688,Education,Faculty of chemistry,كلية الكيمياء,edu.university,high
+689,Education,Hospitality and tourism school,مدرسة ضيافة وسياحة,edu.vocational,high
+693,Education,Research institute,معهد أبحاث,biz.research,high
+707,Education,Distance learning center,مركز تعليم عن بُعد,edu.training_center,medium
+709,Education,Faculty of pharmacy,كلية صيدلة,edu.university,high
+711,Education,Research foundation,مؤسسة أبحاث,biz.research,medium
+715,Education,Fashion design school,مدرسة تصميم أزياء,edu.vocational,medium
+739,Education,Emergency training,التدريب على الطوارئ,edu.training_center,high
+778,Education,Board of education,مجلس تعليمي,noncom.government,medium
+784,Education,Business school,كلية إدارة أعمال,edu.university,high
+793,Education,College,كلية,edu.university,high
+832,Education,Medical school,كلية طب,edu.university,high
+126,Corporate,Tailoring,خياط,fashion.tailoring,high
+135,Corporate,Laundries and Dry-Cleaning,مغسلة ملابس,personal.laundry,high
+209,Corporate,Legal Company,شركة قانونية,biz.law,high
+210,Corporate,Post Offices,مكاتب البريد,noncom.post_office,high
+211,Corporate,Water Purification Equipment,معدات تنقية المياه,energy.water_treatment,medium
+212,Corporate,Accounting Services,خدمات المحاسبة,biz.accounting,high
+213,Corporate,Photo Studios,استوديوهات التصوير,biz.photography,high
+214,Corporate,Copy Services,خدمات النسخ,biz.copy_center,high
+215,Corporate,Telecommunication Companies,شركات الاتصالات,elec.telecom,high
+216,Corporate,Tour Operators,شركات السياحة,hosp.tourism_activities,high
+217,Corporate,Travel Agencies,وكالات السفر,hosp.travel_agency,high
+218,Corporate,Hajj and Umrah Services,خدمات الحج والعمرة,hosp.hajj_umrah,high
+219,Corporate,Domestic Travel,السفر الداخلي,hosp.travel_agency,medium
+220,Corporate,Visa Services,خدمات التأشيرات,biz.pro_services,medium
+222,Corporate,Corporate Catering,تموين الشركات,food.catering,high
+223,Corporate,Freight Forwarding Service,خدمة الشحن البحري والبري,log.freight_customs,high
+224,Corporate,Logistics Service,خدمة لوجستية,log.3pl,high
+225,Corporate,Shipping Service,خدمة الشحن,log.freight_customs,medium
+226,Corporate,Party Catering,تموين الحفلات,food.catering,high
+227,Corporate,IT Service Company,شركة خدمات تقنية المعلومات,elec.software,high
+228,Corporate,Consulting Company,شركة استشارية,biz.consulting,high
+229,Corporate,Marketing and Advertising Company,شركة تسويق وإعلان,biz.marketing_agency,high
+230,Corporate,Real Estate Company,شركة عقارية,re.office,medium
+231,Corporate,Security Services Company,شركة خدمات أمنية,biz.security_services,high
+232,Corporate,Interior Design Company,شركة تصميم داخلي,contract.interior_design,high
+233,Corporate,Facility Management Company,شركة إدارة المرافق,contract.facility_mgmt,high
+234,Corporate,Recruitment Agencies,وكالات التوظيف,biz.recruitment_manpower,high
+235,Corporate,Public Relations Company,شركة علاقات عامة واتصالات,biz.marketing_agency,medium
+236,Corporate,Cleaning and Janitorial Services Company,شركة تنظيف وخدمات النظافة,biz.cleaning_services,high
+237,Corporate,Energy and Utilities Company,شركة طاقة وخدمات المرافق,energy.electricity,medium
+238,Corporate,Engineering Services,خدمات هندسية,contract.engineering_consult,high
+239,Corporate,Mechanical Engineering,الهندسة الميكانيكية,contract.engineering_consult,high
+240,Corporate,Electrical Engineering,الهندسة الكهربائية,contract.engineering_consult,high
+241,Corporate,Project Management,إدارة المشاريع,contract.project_mgmt,high
+462,Corporate,Elevator Service,خدمة المصاعد,build.elevators,high
+463,Corporate,Fire Alarm Supplier,مورد أجهزة إنذار الحريق,build.safety_fire_supply,high
+464,Corporate,Online Shop,متجر إلكتروني,biz.ecommerce,high
+465,Corporate,Pets,حيوانات أليفة,retail.pet_shop,low
+466,Corporate,Software Company,شركة برمجيات,elec.software,high
+467,Corporate,Water Damage Restoration Service,خدمة استعادة الأضرار المائية,contract.maintenance,medium
+468,Corporate,Cement Manufacturer,مصنع الأسمنت,ind.cement_mfg,high
+469,Corporate,Tent Rental Service,خدمة تأجير الخيام,hosp.event_rental,high
+470,Corporate,Water Utility Company,شركة مياه,energy.water_treatment,medium
+471,Corporate,Coal Exporter,مُصدِّر الفحم,agri.forestry_charcoal,medium
+472,Corporate,Clock Repair Service,خدمة إصلاح الساعات,personal.watch_jewelry_repair,high
+473,Corporate,Boat Tour Agency,وكالة رحلات القوارب,hosp.tourism_activities,high
+474,Corporate,Chemical Exporter,مُصدر مواد كيميائية,ind.chemicals,medium
+475,Corporate,Wood Supplier,مورد الخشب,build.timber,high
+476,Corporate,Cooperative,تعاونية,noncom.charity,low
+477,Corporate,Wedding Hall,قاعة زفاف,hosp.wedding_hall,high
+478,Corporate,Aerospace Company,شركة الطيران والفضاء,log.air_cargo,low
+479,Corporate,Container Terminal,محطة حاويات,log.sea_transport,high
+480,Corporate,Water Mill,مطحنة مائية,food.grain_mills,low
+481,Corporate,Construction Equipment Supplier,مورد معدات البناء,equip.heavy_sales,medium
+482,Corporate,Refrigeration and Air Conditioning Services,خدمات التبريد والتكييف,contract.hvac,high
+483,Corporate,E-commerce Agency,وكالة التجارة الإلكترونية,biz.marketing_agency,medium
+484,Corporate,Furniture Rental Service,خدمة تأجير الأثاث,hosp.event_rental,medium
+485,Corporate,Men's Tailor,خياط رجالي,fashion.tailoring,high
+486,Corporate,Souvenir Manufacturer,مصنع الهدايا التذكارية,retail.souvenirs_crafts,medium
+487,Corporate,Airline,شركة طيران,log.passenger_transport,medium
+488,Corporate,Electrician,كهربائي,contract.handyman,high
+489,Corporate,Food Machinery Supplier,مورد آلات صناعة الأغذية,food.restaurant_equipment,medium
+490,Corporate,Ventilating Equipment Manufacturer,مصنع معدات التهوية,ind.machinery_mfg,medium
+491,Corporate,Debt Collecting,تحصيل الديون,biz.debt_collection,high
+492,Corporate,Air Duct Cleaning Service,خدمة تنظيف مجاري الهواء,biz.cleaning_services,medium
+493,Corporate,Biotechnology Engineer,مهندس التكنولوجيا الحيوية,biz.research,low
+494,Corporate,BPO Placement Agency,وكالة توظيف BPO,biz.recruitment_manpower,medium
+495,Corporate,Aquaculture Farm,مزرعة الاستزراع المائي,agri.fisheries,high
+496,Corporate,Waterproofing Service,خدمة العزل المائي,contract.waterproofing,high
+497,Corporate,Food and Beverage Consultant,مستشار الأغذية والمشروبات,biz.consulting,medium
+498,Corporate,Warehouse,مستودع,log.warehousing,high
+499,Corporate,Agricultural Service,خدمة زراعية,agri.services,high
+500,Corporate,Deaf Service,خدمات الصم,noncom.social_services,medium
+501,Corporate,Business Administration Service,خدمة إدارة الأعمال,biz.consulting,medium
+502,Corporate,Event and Conference Hall,قاعة مناسبات و مؤتمرات,hosp.wedding_hall,high
+503,Corporate,Cattle Farm,مزرعة ماشية,agri.cattle_dairy_farm,high
+504,Corporate,Aircraft Maintenance Company,شركة صيانة الطائرات,equip.repair,low
+505,Corporate,Cleaning Service,خدمة التنظيف,biz.cleaning_services,high
+506,Corporate,Chemical Plant,مصنع كيميائي,ind.chemicals,high
+507,Corporate,Food Broker,وسيط أغذية,biz.commercial_agent,medium
+508,Corporate,Vinyl Sign Shop,متجر لافتات الفينيل,biz.advertising_signage,high
+509,Corporate,Delivery Service,خدمة التوصيل,log.courier,high
+510,Corporate,Recruitment Office,مكتب استقدام,biz.recruitment_manpower,high
+511,Corporate,Vending Machine Supplier,مورد آلات البيع,food.restaurant_equipment,low
+512,Corporate,Cleaning Products Supplier,مورد منتجات التنظيف,home.cleaning_supplies,high
+513,Corporate,Hall,قاعة,hosp.wedding_hall,medium
+514,Corporate,Design Agency,وكالة تصميم,biz.design_studio,high
+515,Corporate,Coal Supplier,مورد الفحم,agri.forestry_charcoal,high
+516,Corporate,Air Filter Supplier,مورد فلترات الهواء,build.hvac_supply,medium
+517,Corporate,Branding Agency,وكالة العلامات التجارية,biz.design_studio,high
+518,Corporate,Construction Material Wholesaler,تاجر جملة لمواد البناء,build.general_materials,high
+519,Corporate,Mill,مطحنة,food.grain_mills,medium
+520,Corporate,Bottled Water Supplier,مورد مياه معبأة,food.beverage_distributor,high
+521,Corporate,Food Processing Equipment,معدات معالجة الأغذية,food.restaurant_equipment,medium
+522,Corporate,Food and Beverage Exporter,مُصدر الأغذية والمشروبات,food.food_wholesale,medium
+523,Corporate,Container Service,خدمة الحاويات,energy.waste,low
+524,Corporate,Agricultural,زراعي,agri.farm,low
+525,Corporate,Event Planners,منظم حفلات,hosp.event_planning,high
+526,Corporate,Security and Protection,الأمن والحماية,biz.security_services,high
+527,Corporate,Industrial Real Estate Agency,وكالة عقارات صناعية,re.office,high
+528,Corporate,Financial Consultant,مستشار مالي,fin.investment,medium
+529,Corporate,Wood Frame Supplier,مورد إطارات خشبية,build.timber,medium
+530,Corporate,Business Management Consultant,استشاري إدارة الأعمال,biz.consulting,high
+531,Corporate,Gas Cylinders Supplier,مورد اسطوانات الغاز,energy.lpg,high
+532,Corporate,Water Purification Company,شركة تنقية المياه,energy.water_treatment,high
+533,Corporate,Food Processing Company,شركة معالجة الأغذية,food.food_factory,high
+534,Corporate,Media Production,انتاج إعلامي,media.production,high
+535,Corporate,Elevator Manufacturer,مصنع المصاعد,build.elevators,medium
+536,Corporate,Food Products Supplier,مورد منتجات غذائية,food.food_wholesale,high
+537,Corporate,Trading Company,شركة تجارية,biz.general_trading,high
+538,Corporate,Equipment Rental,تأجير المعدات,equip.rental,high
+539,Corporate,Insurance,تأمين,fin.insurance,high
+540,Corporate,Property Management Company,شركة إدارة الممتلكات,re.property_mgmt,high
+541,Corporate,Battery Manufacturer,مصنع بطاريات,ind.batteries_mfg,high
+542,Corporate,Entertainment Agency,وكالة ترفيهية,media.events_entertainment,medium
+543,Corporate,Water Works Equipment Supplier,مورد معدات المياه,build.pumps_tanks,medium
+544,Corporate,Co-Working Space,مساحة عمل مشتركة,biz.coworking,high
+545,Corporate,Catering,تموين,food.catering,high
+546,Corporate,Boat Repair Shop,ورشة إصلاح القوارب,auto.boats_marine,medium
+547,Corporate,Attorney,محامي,biz.law,high
+548,Corporate,Foam Rubber Producer,مصنع رغوة المطاط,ind.rubber,high
+549,Corporate,Asphalt Contractor,مقاول أسفلت,contract.roads,high
+550,Corporate,Certification Agency,وكالة إصدار الشهادات,biz.testing_labs,medium
+551,Corporate,Demolition Contractor,مقاول هدم,contract.demolition_excavation,high
+552,Corporate,Water Pump Supplier,مورد مضخات المياه,build.pumps_tanks,high
+553,Corporate,Dental Supply Store,متجر لوازم طب الأسنان,health.dental_supply,high
+554,Corporate,Chemical Industry,الصناعة الكيميائية,ind.chemicals,high
+555,Corporate,Business Development Service,خدمة تطوير الأعمال,biz.consulting,medium
+556,Corporate,Marble and Granite Professionals,متخصصون في الرخام والجرانيت,build.marble_workshop,high
+557,Corporate,Cannery,مصنع التعليب,food.food_factory,high
+558,Corporate,Gas Company,شركة غاز,energy.lpg,medium
+559,Corporate,Granite Supplier,مورد الجرانيت,build.marble_stone,high
+560,Corporate,Leather Repair Service,خدمة إصلاح المنتجات الجلدية,personal.shoe_repair,high
+561,Corporate,Helicopter Charter,تأجير مروحيات,log.passenger_transport,low
+562,Corporate,Auction House,دار مزاد,biz.commercial_agent,low
+563,Corporate,Divorce Lawyer,محامي طلاق,biz.law,high
+607,Corporate,Women's Tailor,خياط نسائي,fashion.tailoring,high
+608,Corporate,Clothing Store,محل ثياب,fashion.clothing,high
+609,Corporate,Financial Company,شركة مالية,fin.financing,medium
+610,Corporate,Operation & Maintenance Companies,شركات التشغيل والصيانة,contract.facility_mgmt,high
+611,Corporate,Fintech Company,شركة تقنية مالية,fin.fintech_payments,high
+612,Corporate,Engineering / Architectural Firm,شركة هندسية / معمارية,contract.engineering_consult,high
+613,Corporate,Administrative Services Company,الشركات الادارية,biz.consulting,low
+614,Corporate,Financing Services,التمويل,fin.financing,high
+615,Corporate,Pharmaceutical Company,شركة أدوية,health.pharma_distributor,medium
+616,Corporate,Metals Industry,المعادن,ind.metal,high
+617,Corporate,Mining Company,التعدين,energy.mining,high
+618,Corporate,Event Management,إدارة الفعاليات,hosp.event_planning,high
+619,Corporate,Construction & Building Company,شركة انشاءات وبناء,contract.general,high
+620,Corporate,Shopping Complex / Mall,مجمع تجارى,retail.mall,high
+621,Corporate,Business Complex,مجمع شركات,re.commercial_leasing,medium
+622,Corporate,Restaurant & Café Equipment Supplies,مستلزمات تجهيز مطاعم ومقاهى,food.restaurant_equipment,high
+623,Corporate,Iron Workshops,ورش حديد,build.metal_fabrication,high
+624,Corporate,Pest Control Services,مكافحة الحشرات,biz.pest_control,high
+625,Corporate,Furniture Moving Company,شركة نقل أثاث,log.movers,high
+626,Corporate,Factory,مصنع,ind.general_factory,high
+627,Corporate,Iron Factory,مصنع حديد,ind.metal,high
+628,Corporate,Plastic Factory,مصنع بلاستيك,ind.plastic,high
+629,Corporate,Investment Company,شركة استثمارية,fin.investment,high
+630,Corporate,Swimming Pool Maintenance,صيانة مسابح,contract.pools,medium
+631,Corporate,Industrial Companies,شركات صناعية,ind.general_factory,medium
+632,Corporate,Cloud Storage Services,تحزين السحابي,elec.hosting_data,high
+633,Corporate,Projects & Developments,مشاريع,re.developer,medium
+634,Corporate,Holding Company,شركه قابضة,biz.head_office,high
+635,Corporate,Import & Export Services,استيراد وتصدير,biz.general_trading,high
+636,Corporate,Recycling Companies,شركات إعادة تدوير,ind.recycling,high
+637,Corporate,Office Equipment Supplier,شركة تجهيزات مكاتب,home.office_furniture,medium
+638,Corporate,Newspaper,جريدة,media.press,high
+639,Corporate,Building Contractor,مقاول بناء,contract.general,high
+640,Corporate,Environmental Services,خدمات بيئية,energy.environmental_services,high
+691,Corporate,Haberdashery,متجر خردوات,build.hardware_tools,medium
+692,Corporate,Soy sauce maker,صانع صلصة الصويا,food.food_factory,medium
+697,Corporate,Olive oil manufacturer,مصنع زيت زيتون,food.oils_fats,high
+698,Corporate,Stylist,مصمم أزياء,beauty.salon_women,low
+700,Corporate,Fashion designer,مصمم أزياء,fashion.tailoring,medium
+702,Corporate,Sewage treatment plant,محطة معالجة مياه الصرف الصحي,energy.waste_treatment,medium
+703,Corporate,Mercantile development,تطوير تجاري,re.developer,medium
+704,Corporate,Haute couture fashion house,دار أزياء راقية,fashion.tailoring,medium
+713,Corporate,Technology museum,متحف تكنولوجي,noncom.museum,high
+717,Corporate,Scrap metal dealer,تاجر خردة معدنية,ind.recycling,high
+725,Corporate,Interior fitting contractor,مقاول تركيبات داخلية,contract.finishing,high
+726,Corporate,Internet service provider,مزود خدمة إنترنت,elec.telecom,high
+727,Corporate,Plastic bag supplier,مورد أكياس بلاستيكية,food.packaging_disposables,medium
+728,Corporate,Plastic bags wholesaler,تاجر جملة للأكياس البلاستيكية,food.packaging_disposables,medium
+729,Corporate,Salvage yard,ساحة خردة,ind.recycling,high
+730,Corporate,Slaughterhouse,مسلخ,food.meat_processing,high
+731,Corporate,Spiritist center,مركز روحاني,personal.other,low
+738,Corporate,Glass repair service,خدمة إصلاح الزجاج,build.glass_workshop,high
+746,Corporate,Homekill service,خدمة ذبح الحيوانات,food.butcher,medium
+748,Corporate,Farm shop,متجر مزارع,food.fruits_veg,low
+751,Corporate,Leasing service,خدمة تأجير,fin.financing,low
+753,Corporate,Metropolitan train company,شركة قطارات متروبوليتان,log.passenger_transport,high
+755,Corporate,Machine repair service,خدمة إصلاح آلات,ind.industrial_installation,high
+756,Corporate,Salvage dealer,تاجر خردة,ind.recycling,high
+780,Corporate,Building restoration service,خدمة ترميم المباني,contract.maintenance,medium
+783,Corporate,Business park,مجمع أعمال,re.commercial_leasing,medium
+789,Corporate,Chamber of Commerce,غرفة تجارة,biz.chamber_association,high
+791,Corporate,Coin operated locker,خزانة تعمل بالعملة المعدنية,noncom.street_poi,low
+792,Corporate,Collectibles store,متجر مقتنيات,retail.antiques,medium
+794,Corporate,Company,شركة,unc.company_general,high
+795,Corporate,Company registry,ترخيص شركة,noncom.government,medium
+798,Corporate,Corporate campus,مقر شركة,biz.head_office,high
+799,Corporate,Corporate office,المكتب الرئيسي,biz.head_office,high
+800,Corporate,Costume store,متجر أزياء,fashion.clothing,medium
+808,Corporate,Diaper service,خدمة حفاضات,personal.other,low
+809,Corporate,Electronics company,شركة إلكترونيات,elec.electronics_store,low
+810,Corporate,Fax service,خدمة فاكس,biz.copy_center,medium
+811,Corporate,Fiber optic products supplier,مورد منتجات ألياف بصرية,elec.it_networking_supply,medium
+812,Corporate,Food bank,بنك طعام,noncom.charity,high
+813,Corporate,Foundation,مؤسسة,noncom.charity,medium
+815,Corporate,Garage builder,بناء كراجات,contract.residential_builder,medium
+821,Corporate,Hotel supply store,متجر لوازم فنادق,hosp.hotel_supplies,high
+822,Corporate,Hydraulic equipment supplier,مورد معدات هيدروليكية,equip.spare_parts,low
+825,Corporate,Laser cutting service,خدمة قص بالليزر,build.metal_fabrication,medium
+826,Corporate,License bureau,مكتب التراخيص,noncom.government,high
+827,Corporate,Line marking service,خدمة تحديد الخطوط,contract.roads,low
+831,Corporate,Manufactured home transporter,ناقل منازل مصنعة,log.trucking,medium
+836,Corporate,Paint manufacturer,مصنع دهانات,ind.paint_mfg,high
+837,Corporate,Paper mill,مصنع ورق,ind.paper_tissue,high
+839,Corporate,Plastic products supplier,مورد منتجات بلاستيكية,ind.plastic,medium
+840,Corporate,Plastic products wholesaler,تاجر جملة لمنتجات بلاستيكية,ind.plastic,low
+841,Corporate,Pottery manufacturer,مصنع فخار,ind.ceramics_mfg,medium
+843,Corporate,Rainwater tank supplier,مورد خزانات مياه أمطار,build.pumps_tanks,high
+846,Corporate,Scout home,دار كشافة,noncom.social_services,medium
+848,Corporate,Telecommunications equipment supplier,مورد معدات اتصالات,elec.it_networking_supply,medium
+849,Corporate,Tobacco supplier,مورد تبغ,food.tobacco_wholesale,high
+850,Corporate,Toll station,محطة تحصيل رسوم,noncom.street_poi,medium
+851,Corporate,Tool manufacturer,مصنع أدوات,ind.machinery_mfg,low
+852,Corporate,Towing service,خدمة سحب سيارات,auto.towing,high
+853,Corporate,Water works,أعمال مائية,noncom.utility,medium
+855,Corporate,Welder,لحام,build.metal_fabrication,high
+858,Corporate,Medical Company,شركة طبية,health.medical_supply,medium
+859,Corporate,Petroleum and Fuel Company,شركة بترول ووقود,energy.fuel_wholesale,medium
+860,Corporate,Customs Clearance,تخليص جمركي,log.freight_customs,high
+861,Corporate,Calligrapher and painter,خطاط ورسام,media.arts_crafts,medium
+242,Public Services,Public Restrooms,دورات المياه العامة,noncom.street_poi,high
+244,Public Services,Charity,الجمعيات الخيرية,noncom.charity,high
+245,Public Services,Morgues,مغسلة الموتى,personal.funeral,medium
+246,Public Services,Cemeteries,المقابر,noncom.cemetery,high
+649,Public Services,Educational Associations,جمعيات تعليمية وتربوية,noncom.charity,high
+650,Public Services,Health Associations,جمعيات صحية,noncom.charity,high
+651,Public Services,Development & Social Associations,جمعيات تنموية واجتماعية,noncom.charity,high
+701,Public Services,Women's organization,منظمة نسائية,noncom.charity,medium
+834,Public Services,Non-governmental organization,منظمة غير حكومية,noncom.charity,medium
+857,Public Services,Youth organization,منظمة شبابية,noncom.social_services,medium
+862,Public Services,Quran Donation Box,صندوق تبرع المصاحف,noncom.street_poi,medium
+863,Public Services,Clothes Donation Box,صندوق تبرع الملابس,noncom.street_poi,medium
+247,Sports,Sport Club,نادي رياضة,sports.club,high
+248,Sports,Women's Gym,نادي رياضي للسيدات,sports.gym,high
+249,Sports,Men's Gym,نادي رياضي للرجال,sports.gym,high
+250,Sports,Football Club,نادي كرة القدم,sports.club,high
+251,Sports,Stadiums,الاستادات,sports.fields,high
+252,Sports,Swimming Pools,حمامات السباحة,sports.pool,high
+253,Sports,Basketball Club,نادي كرة السلة,sports.club,high
+254,Sports,Athletics Club,نادي ألعاب القوى,sports.club,high
+255,Sports,Swimming Club,نادي السباحة,sports.club,high
+256,Sports,Martial Arts Academy,أكاديمية فنون الدفاع عن النفس,edu.sports_education,high
+257,Sports,Equestrian Club,نادي الفروسية,sports.club,high
+258,Sports,Running Club,نادي الجري,sports.club,medium
+564,Sports,Sports Store,متجر رياضي,sports.sporting_goods,high
+565,Sports,Paddle and Tennis Court,ملعب بادل وتنس,sports.fields,high
+566,Sports,Race Track,حلبة سباق,sports.fields,medium
+567,Sports,Gymnastics Center,مركز الجمباز,sports.gym,medium
+568,Sports,Golf,جولف,sports.fields,medium
+569,Sports,Yoga and Pilates Studios,استوديوهات اليوغا والبيلاتس,sports.gym,high
+570,Sports,Gym,نادي رياضي,sports.gym,high
+571,Sports,BMX Track,مضمار دراجات,sports.fields,medium
+572,Sports,Archery Club,نادي رماية بالقوس,sports.club,high
+573,Sports,Paddle and Tennis Store,متجر مضارب التنس والبادل,sports.sporting_goods,high
+574,Sports,Football Field,ملعب كرة القدم,sports.fields,high
+575,Sports,Bicycle Rental Service,خدمة تأجير الدراجات,sports.sports_equipment_rental,high
+695,Sports,Volleyball court,ملعب كرة طائرة,sports.fields,high
+732,Sports,Stable,إسطبل,agri.camels_horses,medium
+741,Sports,Volleyball club,نادي الكرة الطائرة,sports.club,high
+781,Sports,Bullring,حلبة مصارعة الثيران,sports.fields,low
+801,Sports,Cricket ground,ملعب كريكت,sports.fields,high
+259,Beauty and Spa,Massage and Spa,مساج ومنتجع صحي,beauty.spa_massage,high
+260,Beauty and Spa,Facials,علاجات الوجه,beauty.salon_women,medium
+261,Beauty and Spa,Hair Salons,صالونات الشعر,beauty.salon_women,medium
+262,Beauty and Spa,Nail Salons,صالونات الأظافر,beauty.salon_women,high
+263,Beauty and Spa,Body Treatments,علاجات الجسم,beauty.spa_massage,high
+264,Beauty and Spa,Beauty Products,منتجات التجميل,beauty.cosmetics_store,high
+265,Beauty and Spa,Barbershops,محلات الحلاقة,beauty.barber,high
+266,Beauty and Spa,Bathhouses and Saunas,حمامات بخار وساونا,beauty.spa_massage,high
+576,Beauty and Spa,Beauty Salon,صالون تجميل,beauty.salon_women,high
+577,Beauty and Spa,Ear Piercing Service,خدمة ثقب الأذن,beauty.salon_women,low
+578,Beauty and Spa,Beauty and Laser Specialist,اخصائي التجميل و الليزر,beauty.aesthetic_clinic,high
+579,Beauty and Spa,Chinese Medicine Clinic,عيادة الطب الصيني,health.clinic,medium
+652,Beauty and Spa,Kids Barber,حلاق أطفال,beauty.barber,high
+708,Beauty and Spa,Pet groomer,مصفف شعر حيوانات أليفة,personal.pet_services,high
+714,Beauty and Spa,Tattoo artist,فنان وشم,personal.other,low
+267,Home Goods,Interior Design,تصميم داخلي,contract.interior_design,high
+268,Home Goods,Furniture Stores,متاجر الأثاث,home.furniture,high
+269,Home Goods,Home Decor,ديكور,home.decor,high
+270,Home Goods,Wall Art,فن الجدران,home.decor,medium
+271,Home Goods,Lighting Solutions,حلول الإضاءة,home.decor_lighting,medium
+273,Home Goods,Kitchenware,أدوات المطبخ,home.kitchenware,high
+274,Home Goods,Air Conditioners,مكيفات الهواء,build.hvac_supply,high
+275,Home Goods,Bedding,أغطية السرير,home.bedding_linen,high
+276,Home Goods,Storage Solutions,حلول التخزين,home.home_goods_general,medium
+277,Home Goods,Key Making,صناعة المفاتيح,build.hardware_tools,medium
+278,Home Goods,Carpets,سجاد,home.carpets,high
+279,Home Goods,Cleaning Supplies,أدوات التنظيف,home.cleaning_supplies,high
+280,Home Goods,Gardening Tools,أدوات الحدائق,build.landscaping_supply,high
+281,Home Goods,Building Contractor,مقاول بناء,contract.general,high
+282,Home Goods,Electrical Shop,محل كهرباء,build.electrical_supply,high
+283,Home Goods,Plumbing Shop,محل سباكة,build.plumbing_supply,high
+284,Home Goods,Hardware Store,متجر أدوات,build.hardware_tools,high
+285,Home Goods,Gardening Supplies Shop,محل مستلزمات الحدائق,build.landscaping_supply,high
+286,Home Goods,Paint Store,متجر طلاء,build.paint,high
+287,Home Goods,Flooring Store,متجر الأرضيات,build.flooring_parquet,high
+288,Home Goods,Appliance Store,متجر الأجهزة,elec.appliances_store,high
+289,Home Goods,Security Systems Store,متجر أنظمة الأمان,elec.cctv_security,high
+580,Home Goods,Garden Furniture Shop,متجر أثاث الحدائق,home.outdoor_furniture,high
+581,Home Goods,Home Improvement Services,خدمات تحسين المنازل,contract.maintenance,medium
+582,Home Goods,Furniture Manufacturer,مصنع الأثاث,ind.furniture_mfg,high
+583,Home Goods,Antique Furniture Store,متجر أثاث عتيق,home.used_furniture,medium
+584,Home Goods,Upholstery Shop,ورشة تنجيد,home.curtains_upholstery,high
+585,Home Goods,Wallpaper Store,متجر ورق الجدران,build.wallpaper_decor,high
+586,Home Goods,Glass and Mirror Shop,متجر الزجاج والمرايا,build.glass_workshop,high
+587,Home Goods,Bedroom Furniture Store,متجر أثاث غرف النوم,home.furniture,high
+588,Home Goods,Gardener,بستاني,contract.landscaping,high
+589,Home Goods,Fireplace Store,متجر المواقد,home.decor,low
+590,Home Goods,Building Materials Store,متجر مواد البناء,build.general_materials,high
+591,Home Goods,Carpenter,نجار,build.carpentry,high
+592,Home Goods,Tile Manufacturer,مصنع البلاط,ind.ceramics_mfg,high
+593,Home Goods,Used Furniture Store,متجر الأثاث المستعمل,home.used_furniture,high
+659,Home Goods,Electronics Store,متجر الكترونيات,elec.electronics_store,high
+660,Home Goods,Sanitary Ware Store,ادوات صحية,build.plumbing_supply,high
+661,Home Goods,Curtains Store,محل ستائر,home.curtains_upholstery,high
+662,Home Goods,Automatic Doors & Systems,أبواب و انظمة اتوماتيكية,build.doors_windows,high
+720,Home Goods,Furniture accessories,إكسسوارات أثاث,home.furniture,medium
+757,Home Goods,Acrylic store,متجر أكريليك,build.wallpaper_decor,low
+758,Home Goods,Air compressor repair service,خدمة إصلاح ضواغط الهواء,equip.compressors,medium
+761,Home Goods,Aluminum frames supplier,مورد هياكل ألمنيوم,build.aluminum_glass,high
+762,Home Goods,Aluminum supplier,مورد ألمنيوم,build.aluminum_glass,high
+763,Home Goods,Aluminum welder,لحام ألمنيوم,build.aluminum_glass,medium
+764,Home Goods,Aluminum window,نوافذ ألمنيوم,build.aluminum_glass,high
+785,Home Goods,Cabinet maker,صانع خزائن,build.carpentry,high
+830,Home Goods,Log home builder,بناء منازل خشبية,contract.residential_builder,medium
+290,Government Services,Embassies,السفارات,noncom.embassy,high
+291,Government Services,Municipalities (Amana),الأمانة,noncom.government,high
+292,Government Services,Military Administration,الإدارة العسكرية,noncom.police_military,high
+293,Government Services,Governance Office,البلدية,noncom.government,high
+294,Government Services,Police Stations,مراكز الشرطة,noncom.police_military,high
+295,Government Services,Fire Station,محطة الإطفاء,noncom.police_military,high
+296,Government Services,Civil Registry,مركز الأحوال المدنية,noncom.government,high
+594,Government Services,Civil Defense,الدفاع المدني,noncom.police_military,high
+595,Government Services,Army Facility,منشأة عسكرية,noncom.police_military,high
+596,Government Services,Ministry,وزارة,noncom.government,high
+597,Government Services,Garbage Dump,مكب نفايات,energy.waste_treatment,medium
+598,Government Services,Courthouse,محكمة,noncom.government,high
+599,Government Services,Garbage Collection Service,خدمة جمع النفايات,energy.waste,high
+653,Government Services,Government Office,مكتب حكومي,noncom.government,high
+654,Government Services,Human Resources & Social Development,الموارد البشرية و التنمية الأجتماعية,noncom.government,high
+655,Government Services,Government Authorities,الهيئات,noncom.government,high
+656,Government Services,e-Government Services,الخدمات الحكومية الإلكترونية,noncom.government,high
+657,Government Services,Public Authorities & Government Centers,الهيئات العامة والمراكز الحكومية,noncom.government,high
+658,Government Services,Security Centers,المراكز الأمنية,noncom.police_military,high
+754,Government Services,Road safety town,مدينة السلامة المرورية,noncom.government,medium
+842,Government Services,Prison,سجن,noncom.police_military,high
+600,Metro Stations,Blue Line,المسار الازرق,noncom.transport_hub,high
+601,Metro Stations,Red Line,المسار الاحمر,noncom.transport_hub,high
+602,Metro Stations,Orange Line,المسار البرتقالي,noncom.transport_hub,high
+603,Metro Stations,Yellow Line,الخط الاصفر,noncom.transport_hub,high
+604,Metro Stations,Green Line,الخط الاخضر,noncom.transport_hub,high
+605,Metro Stations,Purple Line,الخط البنفسجي,noncom.transport_hub,high
+606,Metro Stations,Subway Entrance,مدخل المترو,noncom.transport_hub,high
