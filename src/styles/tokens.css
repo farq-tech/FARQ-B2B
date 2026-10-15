@@ -34,9 +34,20 @@ html[data-farq-app="b2b"] {
   --b2b-status-success-text: #166534;
   --b2b-status-warning-text: #92400e;
   --b2b-status-danger-text: #991b1b;
-  --brand-deep: #24583f; /* landing identity (pre-login, out of the restyle scope) */
-  --live-go: #24583f;
-  --live-back: #789b35;
+  /* Landing shares S5 (owner «وحد الالوان», 2026-10-15): charcoal bands and request path, green returning price. */
+  --brand-deep: var(--b2b-primary);
+  --live-go: var(--b2b-primary);
+  --live-back: var(--b2b-olive-gold);
+  --farq-canvas-gradient: linear-gradient(90deg, var(--b2b-canvas), var(--b2b-canvas));
+  --farq-logo: var(--b2b-primary);
+  --farq-lime: var(--b2b-cta);
+  --farq-map-surface: var(--b2b-canvas);
+  --farq-panel-surface: rgba(255, 255, 255, .94);
+  --farq-panel-border: var(--b2b-border);
+  --farq-button-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+  --farq-soft-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+  --farq-card-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+  --glow-success: 0 0 18px rgba(0, 128, 96, .25);
   --brand-action: var(--b2b-primary);
   --brand-action-strong: var(--b2b-primary);
   --brand-accent-light: var(--b2b-selected);

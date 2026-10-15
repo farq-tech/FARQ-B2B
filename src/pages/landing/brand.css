@@ -3,11 +3,11 @@
 .landing-layers .farq-wordmark { display:inline-flex; align-items:flex-end; gap:3px; color:var(--farq-logo); }
 .landing-layers .farq-wordmark strong { font:600 28px/1.2 'Readex Pro',sans-serif; letter-spacing:-1px; }
 .landing-layers .farq-wordmark small { font:500 8px/1.2 'Readex Pro',sans-serif; margin-bottom:1px; }
-.landing-layers [data-tone="deep"] .farq-wordmark { color:var(--farq-lime); }
+.landing-layers [data-tone="deep"] .farq-wordmark { color:var(--b2b-surface, var(--farq-lime)); }
 .landing-layers header { background:var(--farq-nav-surface); backdrop-filter:blur(14px); }
 .landing-layers .farq-landing-link { white-space:normal; overflow-wrap:anywhere; border-radius:14px; transition:background 160ms ease-out,transform 100ms ease-out; }
 .landing-layers .farq-landing-link--Primary { background:var(--farq-button-gradient); border:1px solid var(--farq-button-border); box-shadow:var(--farq-button-shadow); }
 .landing-layers .farq-landing-link--Primary:hover { background:var(--farq-button-hover); }
-.landing-layers .farq-landing-link--Accent { background:var(--farq-lime); color:var(--farq-ink); box-shadow:var(--farq-soft-shadow); }
+.landing-layers .farq-landing-link--Accent { background:var(--farq-lime); color:var(--b2b-on-cta, var(--farq-ink)); box-shadow:var(--farq-soft-shadow); }
 .landing-layers .farq-landing-link--Secondary { border-color:var(--farq-glass-border); box-shadow:none; }
 @media(prefers-reduced-motion:reduce) { .landing-layers .farq-landing-link { transition:none; transform:none; } }

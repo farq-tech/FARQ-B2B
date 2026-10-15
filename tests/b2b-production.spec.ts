@@ -103,7 +103,7 @@ for (const width of [390, 1440]) {
     await page.evaluate(() => document.fonts.ready)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
     expect(await page.locator('header .farq-wordmark').textContent()).toBe('FARQB2B')
-    expect(await page.locator('.landing-layers').evaluate(el => getComputedStyle(el).getPropertyValue('--brand-deep').trim())).toBe('#24583f')
+    expect(await page.locator('.landing-layers').evaluate(el => getComputedStyle(el).getPropertyValue('--brand-deep').trim())).toBe('#303030') // S5, owner-approved 2026-10-15
     await page.screenshot({ path: `docs/qa/b2b/landing-${width}.png` })
     await page.goto('/requests')
     await expect(page.getByLabel('البريد الإلكتروني')).toBeVisible()
