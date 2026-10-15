@@ -1,0 +1,12 @@
+--- /Volumes/Archive/backups/farq-targeting-b2b-release_before_golden_2026-10-16/trial_search.py	2026-10-15 11:35:04
++++ /Users/m4pro/farq-targeting-b2b-release/trial_search.py	2026-10-16 00:47:54
+@@ -159,6 +159,9 @@
+             raise ValueError('invalid input')
+         if objective not in ('purchase','marketing','availability','name'): raise ValueError('invalid objective')
+         if type(limit) is not int or not 1<=limit<=200 or type(offset) is not int or offset<0: raise ValueError('invalid pagination')
++        import taxonomy_search
++        hit=taxonomy_search.directory_search(self,q,city,objective,limit,offset,filters)
++        if hit is not None: return hit
+         intent={'key':'custom','label':'مطابقة اسم الجهة','product':[norm(q)],'seller':[],'exclude':[]} if objective=='name' else buyer_intent(q) if objective=='marketing' else interpret(q)
+         key=(norm(q),city,objective); now=time.monotonic()
+         with self.lock:

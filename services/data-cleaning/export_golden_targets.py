@@ -30,9 +30,9 @@ db.execute(f"""copy (select g.poi_key, case when g.poi_key like 'hh:%' then try_
    g.sub_id, g.cls_confidence, g.sector, g.governorate_ar, g.street_ar, g.building_no, g.postal_code, g.national_address, g.license_expired, g.surveyor_verified_at, g.phone_source, g.district_method, g.city_method,
    g.menu_link, g.order_link, g.reservation_link, g.amenities_ids, g.tradename, g.google_place_id, g.google_cid, g.floor_no
    from g left join t using(poi_key) left join s_en using(sub_id)
-   ) to '{O}targets_golden.parquet' (format parquet, compression zstd)""")
+   order by city_en, sub_id, g.poi_key) to '{O}targets_golden.parquet' (format parquet, compression zstd, compression_level 19, row_group_size 200000)""")
 db.execute(f"""copy (select poi_key, sub_id, cls_source as source, cls_confidence as confidence, null::varchar as evidence from read_parquet('{D}golden/golden_set.parquet')
-   where in_golden and sub_id is not null) to '{O}poi_taxonomy_golden.parquet' (format parquet)""")
+   where in_golden and sub_id is not null order by poi_key) to '{O}poi_taxonomy_golden.parquet' (format parquet, compression zstd, compression_level 19)""")
 T = f"read_parquet('{O}targets_golden.parquet')"
 r = dict(zip(['rows', 'with_phone', 'mobile', 'with_subcategory', 'new_rows', 'with_street', 'with_licence'], db.execute(f"""select count(*), count(phone_norm),
    count(*) filter (where phone_kind='mobile'), count(*) filter (where sub_id not like 'unc.%'), count(*) filter (where poi_key like 'new:%'),
