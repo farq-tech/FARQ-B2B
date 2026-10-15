@@ -61,3 +61,10 @@ Results across 1,933,848 rows:
 - Rows with no usable signal dropped from 364,291 to 273,693. Rows with a real subcategory: 1,611,946 (1,229,699 of them high or medium confidence).
 - A spot check of 50 newly classified rows found about 85 % correct. Known misses: a plain «salon» with a woman's name goes to barber; brand words such as "World Cup" go to café.
 - Of the 332,538 name-only rows, 267,210 carry no other signal at all (no phone, e-mail, website, social account, CR number or description). `brand_name` is mostly a source tag (`momrah-old-…`), not a brand.
+
+### Sector: government or private (2026-10-15)
+`rowlevel/sector.py` writes `/Users/m4pro/farq-taxonomy-data/poi_sector.parquet` (`poi_key, sub_id, sector, evidence`) for schools, kindergartens, nurseries, Quran centres, universities, institutes, training centres, hospitals, clinics, labs and dental clinics. It reads the business name only, because category labels such as «مدارس» say nothing about the sector.
+- Private: «أهلية»/ahliya, «عالمية»/international, private, the big hospital groups (دله، الحبيب، المواساة، السعودي الألماني، الحمادي، فقيه …), private universities, «عيادة»/«مجمع طبي»/«مستوصف».
+- Government: «مستشفى/مدينة/جامعة الملك…الأمير…», national guard, military, MOH, primary health care, TVTC, the named public universities, numbered or ordinal schools («الابتدائية 392», «المتوسطة الثانية والأربعون»).
+- Default: a school name with a level word and no private marker counts as government, with evidence `default: …`, because most Saudi schools are public.
+- Result: schools are about 28 k government, 5 k private and 11 k unknown. Hospitals are still mostly unknown, because a plain «مستشفى X» does not show its sector.
