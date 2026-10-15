@@ -133,3 +133,33 @@ RULES = [
 ("noncom.mosque", 9, ["مسجد","جامع","mosque","masjid"]),
 ("noncom.charity", 8, ["جمعية خيرية","جمعية","charity","charitable"]),
 ]
+
+# 2026-10-15 second pass: frequent words among still-unclassified names
+RULES += [
+("beauty.barber", 8, ["shaving","حلاقة رجالية","men salon","men's salon","gents"]),
+("food.buffet_popular", 8, ["بوفيه","بوفية","buffet","buffets","مطبق","popular food","اكلات شعبية","أكلات شعبية"]),
+("food.food_wholesale", 7, ["foodstuffs","foodstuff","للمواد الغذائية","مواد غذائية","المواد الغذائية","food supplies","food stuff"]),
+("food.fast_food", 7, ["fast food","meals","وجبات","وجبات سريعة","sandwich","sandwiches","sandwish"]),
+("fashion.tailoring", 8, ["sewing","stitching","خياطه","تفصيل وخياطة"]),
+("personal.laundry", 8, ["laundries","laundry","مغاسل ملابس","كي ملابس","ironing"]),
+("fin.atm", 9, ["صراف","صراف آلي","atm"]),
+("fin.bank", 8, ["بنك","مصرف","bank"]),
+("health.clinic", 7, ["medical","طبي","طبية","مجمع طبي"]),
+("edu.school", 7, ["elementary","intermediate school","secondary school","ابتدائية","متوسطة","ثانوية"]),
+("elec.telecom", 6, ["communications","telecom","اتصالات وتقنية","information technology"]),
+("elec.software", 6, ["technology","تقنية","تقنيات","solutions","حلول"]),
+("log.warehousing", 5, ["warehouse","warehouses","مستودع","مستودعات"]),
+("retail.general_store", 5, ["سوق","souq","market","markets"]),
+("auto.used_cars", 7, ["معرض سيارات","cars gallery","car gallery","cars exhibition","cars showroom"]),
+("energy.fuel_station", 7, ["محطة","station"]),
+("fin.insurance", 8, ["تامين","تأمين","insurance","cooperative insurance"]),
+("food.bakery", 8, ["tamis","tamees","تميس","oven","فرن"]),
+("contract.general", 3, ["development","تطوير","للتطوير"]),
+]
+# names that describe a vacant or closed unit, not a business: never a target
+VACANT = ["محل مغلق","مغلق","مغلقة","تحت الانشاء","تحت الإنشاء","للايجار","للإيجار","محل ايجار","لا يوجد اسم","بدون اسم","محل فارغ","closed shop","for rent","under construction"]
+RULES += [
+("build.kitchens_cabinets", 7, ["مطابخ","kitchens","kitchen cabinets","مطابخ المنيوم","مطابخ خشب"]),
+("agri.nursery", 9, ["ornamental plants","seedlings","plant nursery","plants nursery","nurseries for plants","مشتل","مشاتل","نباتات زينة"]),
+("noncom.police_military", 9, ["police","شرطة","مركز شرطة","police station","دفاع مدني","civil defense"]),
+]

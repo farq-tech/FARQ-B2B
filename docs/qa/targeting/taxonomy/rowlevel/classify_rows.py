@@ -1,6 +1,6 @@
 """Row-level taxonomy classification (read-only on the directory). Writes poi_key -> sub_id, source, confidence."""
 import duckdb, csv, json, re, sys, collections
-from name_rules import RULES
+from name_rules import RULES, VACANT
 P='/Users/m4pro/farq-targeting/data/targets.parquet'
 T='/Users/m4pro/farq-pricing/docs/qa/targeting/taxonomy/'
 OUT=sys.argv[1]
@@ -20,6 +20,9 @@ for sub,w,kws in RULES:
 PFX=('وال','بال','لل','ال','و','ل','ب')
 def variants(t):
     out={t}
+    if len(t)>4 and t.endswith('ies'): out.add(t[:-3]+'y')
+    elif len(t)>4 and t.endswith('es'): out.add(t[:-2])
+    if len(t)>3 and t.endswith('s') and not t.endswith('ss'): out.add(t[:-1])
     for p in PFX:
         if t.startswith(p) and len(t)-len(p)>=2: out.add(t[len(p):])
     return out
@@ -40,6 +43,7 @@ def name_match(text):
                         if best is None or sc>best[0]: best=(sc,sub,c)
     if best and best[1]=='personal.laundry' and re.search(r'سيار|\bcar', norm(text)): best=((8,2),'auto.car_wash',best[2]+' +car')
     return best
+VAC=re.compile(r'(^| )('+'|'.join(re.escape(norm(v)) for v in VACANT)+r')( |$)')
 amap=list(csv.DictReader(open(T+'activity_map.csv',encoding='utf-8-sig')))
 ACT={r['raw_activity']:(r['sub_id'],r['confidence']) for r in amap}
 LBL={}
@@ -78,6 +82,7 @@ while True:
                 elif nm: r=(nm[1],'name','low',nm[2])
                 elif a: r=(a[0],'activity','low',act)
                 else: r=('unc.unknown','none','low','')
+        if r[1] in ('none','name','activity') and r[2]!='high' and VAC.search(' '+norm(nar or nen or '')+' '): r=('unc.unknown','vacant','high','vacant or closed unit')
         stats[(r[1],r[2])]+=1; w.writerow([key,*r])
 f.close()
 print(sorted(stats.items(),key=lambda x:-x[1]))

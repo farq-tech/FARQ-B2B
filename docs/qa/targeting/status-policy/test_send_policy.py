@@ -65,20 +65,24 @@ class Base(unittest.TestCase):
 @unittest.skipUnless(PATCHED, 'policy module exists only in the patched code')
 class T0_DefaultPolicy(Base):
     mechanism = False
-    def test_default_nothing_eligible_and_nothing_sent(self):
+    def test_owner_rule_who_is_eligible(self):
+        # owner 2026-10-15: open or temporarily closed + WhatsApp (source flag accepted for now)
         keys = [k for k, *_ in make_fixture.ROWS if k != 'dupkey']
-        out = self.farq([{'poi_key': k, 'whatsapp': '966511111111', 'message': 'x'} for k in keys])
-        self.assertEqual(self.sent, []); self.assertEqual(out['eligible'], [])
+        out = self.farq([{'poi_key': k, 'whatsapp': '966511111111', 'message': 'x'} for k in keys], dry_run=True)
+        self.assertEqual(sorted(out['eligible']), sorted(['s_open', 's_open_active', 's_open_draft', 's_open_archived', 's_open_ready', 't_1', 't_2', 't_3']))
         reasons = {f['poi_key']: f['error'] for f in out['failed']}
-        self.assertTrue(reasons['s_open'].startswith('NOT_ELIGIBLE:whatsapp:source_flag_unverified'), reasons['s_open'])
-        self.assertFalse(server.send_template({'poi_key': 's_open', 'to': '966511111111', 'message': 'x'})['ok'])
-        out2 = self.farq([{'poi_key': k, 'whatsapp': '966511111111', 'email': 'a@b.co'} for k in keys], mode=None)
-        self.assertEqual(out2.get('added', 0), 0, out2)
+        for k in ['c_pc1', 'c_lc1', 'i_1', 's_hidden', 's_null', 's_invalid', 's_numeric']: self.assertTrue(reasons[k].startswith('NOT_ELIGIBLE:status:'), k)
+        self.assertEqual(reasons['s_nowa'], 'NOT_ELIGIBLE:whatsapp:not_available'); self.assertEqual(reasons['s_badmobile'], 'NOT_ELIGIBLE:contact:invalid_mobile')
+        self.farq([{'poi_key': 't_1', 'whatsapp': '966511111111', 'message': 'x'}])
+        self.assertEqual(self.recipients(), ['966500000020'])          # number from the record, never from the request
+        import status_policy as sp
+        with mock.patch.object(sp, 'ACCEPT_SOURCE_FLAG', False):       # when real verification arrives, the flag alone stops counting
+            self.assertFalse(server.send_template({'poi_key': 's_open', 'message': 'x', 'dry_run': True})['ok'])
     def test_policy_cannot_be_widened_by_environment(self):
         import importlib, status_policy as sp
         with mock.patch.dict(os.environ, {'SEND_ALLOWED_CLASSES': 'open,hidden,unknown_empty', 'SEND_LIFECYCLE': 'draft,'}):
             importlib.reload(sp)
-            self.assertEqual(sp.SEND_CLASSES, frozenset({'open', 'closed_temporary'})); self.assertTrue(sp.REQUIRE_VERIFIED_WHATSAPP)
+            self.assertEqual(sp.SEND_CLASSES, frozenset({'open', 'closed_temporary'})); self.assertTrue(sp.REQUIRE_VERIFIED_WHATSAPP); self.assertTrue(sp.ACCEPT_SOURCE_FLAG)
         importlib.reload(sp)
     def test_dry_run_guard_blocks_provider_even_if_called(self):
         graph_calls = []
@@ -118,7 +122,7 @@ class T1_Classification(Base):
     def test_7_flag_is_not_verification(self):
         import status_policy as sp
         self.assertEqual(sp.whatsapp_state({'has_whatsapp': True}), 'source_flag_unverified')
-        with mock.patch.object(sp, 'REQUIRE_VERIFIED_WHATSAPP', True):
+        with mock.patch.multiple(sp, REQUIRE_VERIFIED_WHATSAPP=True, ACCEPT_SOURCE_FLAG=False):
             ok, why = sp.send_decision({'company_status': 'open', 'has_whatsapp': True, 'phone_norm': '+966500000001'})
         self.assertFalse(ok); self.assertEqual(why, 'whatsapp:source_flag_unverified')
 
@@ -252,6 +256,8 @@ class T6_OwnerDecision(unittest.TestCase):
                 self.assertTrue(sp.send_decision(self.row(st, lifecycle=lc))[0], (st, lc))
         for st in ('Permanently Closed', 'Inactive', 'hidden', None, 'مؤسسة'):
             self.assertFalse(sp.send_decision(self.row(st))[0], st)
-        self.assertEqual(sp.send_decision(self.row('open', verified=False)), (False, 'whatsapp:source_flag_unverified'))
+        self.assertEqual(sp.send_decision(self.row('open', verified=False)), (True, 'eligible:source_flag_unverified'))   # interim
+        with mock.patch.object(sp, 'ACCEPT_SOURCE_FLAG', False):
+            self.assertEqual(sp.send_decision(self.row('open', verified=False)), (False, 'whatsapp:source_flag_unverified'))
 
 if __name__ == '__main__': unittest.main()
