@@ -1,0 +1,432 @@
+﻿main_id,main_ar,main_en,sub_id,sub_ar,sub_en,primary_role,roles,sells,buys,commercial,isic4_primary,isic4_all,match_hints
+food,أغذية ومشروبات,Food & Beverage,food.restaurant,مطعم,Restaurant,end_user,end_user|retail,yes,yes,yes,5610,5610,Restaurants|restaurant|مطعم|مطاعم
+food,أغذية ومشروبات,Food & Beverage,food.fast_food,وجبات سريعة وبرجر وشاورما,Fast Food,end_user,end_user|retail,yes,yes,yes,5610,5610,Fast Food|burger|shawarma|شاورما|بروست
+food,أغذية ومشروبات,Food & Beverage,food.buffet_popular,بوفيه ومطعم شعبي,Buffet / Popular Eatery,end_user,end_user|retail,yes,yes,yes,5610,5610,buffet|بوفيه|فول|كبدة
+food,أغذية ومشروبات,Food & Beverage,food.cafe,مقهى,Cafe / Coffee Shop,end_user,end_user|retail,yes,yes,yes,5630,5630|5610,Coffee Shops|Coffee shop|Cafe|كافيه|مقهى|قهوة
+food,أغذية ومشروبات,Food & Beverage,food.juice_icecream,عصائر وآيس كريم,Juice & Ice Cream,end_user,end_user|retail,yes,yes,yes,5630,5630|5610,Juice|ice cream|عصيرات|آيس كريم
+food,أغذية ومشروبات,Food & Beverage,food.hookah,مقهى شيشة,Hookah Lounge,end_user,end_user|retail,yes,yes,yes,5630,5630,hookah|shisha|شيشة|معسل
+food,أغذية ومشروبات,Food & Beverage,food.bakery,مخبز ومعجنات,Bakery & Pastry,end_user,end_user|retail,yes,yes,yes,1071,1071|4721,Bakery|bakeries|مخبز|معجنات|فطائر|تميس
+food,أغذية ومشروبات,Food & Beverage,food.sweets,حلويات وشوكولاتة,Sweets & Chocolate Shop,retail,retail|end_user,yes,yes,yes,4721,4721|1073,Sweets|dessert|chocolate|حلويات|شوكولاته|كيك
+food,أغذية ومشروبات,Food & Beverage,food.catering,تموين وإعاشة,Catering,service,service|end_user,no,yes,yes,5621,5621|5629,Catering|تموين|إعاشة|ضيافة
+food,أغذية ومشروبات,Food & Beverage,food.cloud_kitchen,مطبخ مركزي / سحابي,Central / Cloud Kitchen,end_user,end_user,no,yes,yes,5610,5610|5629,cloud kitchen|central kitchen|مطبخ مركزي
+food,أغذية ومشروبات,Food & Beverage,food.food_truck,عربة طعام,Food Truck,end_user,end_user|retail,yes,yes,yes,5610,5610,food truck|فود ترك|عربة
+food,أغذية ومشروبات,Food & Beverage,food.supermarket,سوبرماركت وهايبرماركت,Supermarket / Hypermarket,retail,retail,yes,yes,yes,4711,4711,Supermarket|hypermarket|سوبرماركت|هايبر|أسواق
+food,أغذية ومشروبات,Food & Beverage,food.grocery,بقالة وتموينات,Grocery / Mini-market,retail,retail,yes,yes,yes,4711,4711,Grocery|convenience store|بقالة|تموينات
+food,أغذية ومشروبات,Food & Beverage,food.butcher,ملحمة وذبائح,Butcher,retail,retail|end_user,yes,yes,yes,4721,4721,Butcher|meat|ملحمة|لحوم|مقصب|ذبائح
+food,أغذية ومشروبات,Food & Beverage,food.fish_market,أسماك ومأكولات بحرية,Fish & Seafood Shop,retail,retail|wholesale,yes,yes,yes,4721,4721,Fish|seafood|أسماك|سمك
+food,أغذية ومشروبات,Food & Beverage,food.fruits_veg,خضار وفواكه,Fruits & Vegetables,retail,retail|wholesale,yes,yes,yes,4721,4721|4781,Fruits|vegetables|خضار|فواكه
+food,أغذية ومشروبات,Food & Beverage,food.dates,تمور,Dates Shop,retail,retail|wholesale,yes,yes,yes,4721,4721,Dates|تمور|تمر
+food,أغذية ومشروبات,Food & Beverage,food.nuts_spices,مكسرات وبهارات وعطارة,"Nuts, Spices & Herbal",retail,retail|wholesale,yes,yes,yes,4721,4721,Nuts|spices|مكسرات|بهارات|عطارة
+food,أغذية ومشروبات,Food & Beverage,food.honey,عسل,Honey,retail,retail|wholesale,yes,yes,yes,4721,4721,Honey|عسل
+food,أغذية ومشروبات,Food & Beverage,food.health_food,أغذية صحية ومكملات,Health Food & Supplements,retail,retail,yes,yes,yes,4721,4721|4772,health food|supplements|مكملات|أغذية صحية
+food,أغذية ومشروبات,Food & Beverage,food.ready_meals_retail,أكلات بيتية ومعلبات جاهزة,Home-made & Ready Meals,retail,retail|end_user,yes,yes,yes,5610,5610|4721,home made|أكل بيتي|أسر منتجة
+food,أغذية ومشروبات,Food & Beverage,food.roastery,محمصة قهوة,Coffee Roastery,wholesale,wholesale|retail|end_user,yes,yes,yes,1079,1079|4721,Roastery|roaster|محمصة|محامص
+food,أغذية ومشروبات,Food & Beverage,food.coffee_tea_supplier,مورد قهوة وشاي,Coffee & Tea Supplier,wholesale,wholesale,yes,yes,yes,4630,4630,coffee supplier|tea trading|بن|شاي بالجملة
+food,أغذية ومشروبات,Food & Beverage,food.food_wholesale,مواد غذائية بالجملة,Food Wholesaler / Distributor,wholesale,wholesale,yes,yes,yes,4630,4630,food wholesale|foodstuff|مواد غذائية|توزيع أغذية
+food,أغذية ومشروبات,Food & Beverage,food.beverage_distributor,مشروبات ومياه بالجملة,Beverage Distributor,wholesale,wholesale,yes,yes,yes,4630,4630,beverage|drinks distributor|مشروبات
+food,أغذية ومشروبات,Food & Beverage,food.meat_poultry_wholesale,لحوم ودواجن بالجملة,Meat & Poultry Wholesale,wholesale,wholesale,yes,yes,yes,4630,4630,meat wholesale|لحوم بالجملة|دواجن بالجملة
+food,أغذية ومشروبات,Food & Beverage,food.produce_wholesale,خضار وفواكه بالجملة (سوق الخضار),Produce Wholesale,wholesale,wholesale,yes,yes,yes,4630,4630|4620,produce wholesale|سوق الخضار|خضار جملة
+food,أغذية ومشروبات,Food & Beverage,food.food_factory,مصنع أغذية (عام),Food Factory (general),wholesale,wholesale|end_user,yes,yes,yes,1079,1079|1075,food factory|food manufacturing|مصنع أغذية|مصنع مواد غذائية
+food,أغذية ومشروبات,Food & Beverage,food.meat_processing,تصنيع لحوم ودواجن,Meat & Poultry Processing,wholesale,wholesale|end_user,yes,yes,yes,1010,1010,meat processing|مسلخ|تصنيع لحوم
+food,أغذية ومشروبات,Food & Beverage,food.fish_processing,تصنيع أسماك,Fish Processing,wholesale,wholesale|end_user,yes,yes,yes,1020,1020,fish processing|تصنيع أسماك
+food,أغذية ومشروبات,Food & Beverage,food.fruit_veg_processing,تصنيع وتعبئة خضار وفواكه وتمور,"Fruit, Vegetable & Dates Processing",wholesale,wholesale|end_user,yes,yes,yes,1030,1030,dates factory|مصنع تمور|تعبئة
+food,أغذية ومشروبات,Food & Beverage,food.oils_fats,زيوت ودهون غذائية,Edible Oils & Fats,wholesale,wholesale|end_user,yes,yes,yes,1040,1040,edible oil|زيوت غذائية
+food,أغذية ومشروبات,Food & Beverage,food.dairy,ألبان ومنتجاتها,Dairy Products,wholesale,wholesale|retail|end_user,yes,yes,yes,1050,1050|4630,Dairy|ألبان|حليب
+food,أغذية ومشروبات,Food & Beverage,food.grain_mills,مطاحن ودقيق,Grain Mills & Flour,wholesale,wholesale|end_user,yes,yes,yes,1061,1061,flour mill|مطاحن|دقيق
+food,أغذية ومشروبات,Food & Beverage,food.confectionery_mfg,مصنع حلويات وشوكولاتة,Confectionery & Chocolate Mfg,wholesale,wholesale|end_user,yes,yes,yes,1073,1073,chocolate factory|مصنع حلويات
+food,أغذية ومشروبات,Food & Beverage,food.pasta_snacks_mfg,مكرونة ومقرمشات (مصنع),Pasta & Snacks Mfg,wholesale,wholesale|end_user,yes,yes,yes,1074,1074|1079,snacks factory|مصنع مكرونة
+food,أغذية ومشروبات,Food & Beverage,food.water_factory,مصنع مياه,Water Bottling Plant,wholesale,wholesale,yes,yes,yes,1104,1104,water factory|مصنع مياه|مياه صحية
+food,أغذية ومشروبات,Food & Beverage,food.beverage_mfg,مصنع مشروبات وعصائر,Beverage Mfg,wholesale,wholesale|end_user,yes,yes,yes,1104,1104,beverage factory|مصنع عصائر
+food,أغذية ومشروبات,Food & Beverage,food.frozen,مجمدات,Frozen Foods,wholesale,wholesale|retail,yes,yes,yes,4630,4630|4721,Frozen|مجمدات
+food,أغذية ومشروبات,Food & Beverage,food.packaging_disposables,مستلزمات مطاعم وتغليف أغذية,Food Packaging & Disposables,wholesale,wholesale|retail,yes,yes,yes,4669,4669|4649,disposables|food packaging|أكواب|علب|مستلزمات مطاعم
+food,أغذية ومشروبات,Food & Beverage,food.restaurant_equipment,معدات مطاعم ومطابخ تجارية,Restaurant & Commercial Kitchen Equipment,wholesale,wholesale|retail,yes,yes,yes,4659,4659,restaurant equipment|kitchen equipment|معدات مطاعم|مطابخ تجارية
+food,أغذية ومشروبات,Food & Beverage,food.tobacco_wholesale,تبغ بالجملة,Tobacco Wholesale,wholesale,wholesale,yes,yes,yes,4630,4630,tobacco wholesale|تبغ جملة
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.farm,مزرعة,Farm (crops),wholesale,wholesale|end_user,yes,yes,yes,0111,0111|0113|0122|0150,farm|مزرعة
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.dates_farm,مزرعة نخيل,Date Palm Farm,wholesale,wholesale|end_user,yes,yes,yes,0122,0122,palm farm|نخيل
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.greenhouse,بيوت محمية,Greenhouse Farming,wholesale,wholesale|end_user,yes,yes,yes,0113,0113,greenhouse|بيوت محمية
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.nursery,مشتل,Plant Nursery,retail,retail|wholesale,yes,yes,yes,0130,0130|4773,nursery|plants|مشتل|نباتات|زهور طبيعية
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.supplies,مستلزمات زراعية وأسمدة ومبيدات,Agricultural Supplies,wholesale,wholesale|retail,yes,yes,yes,4669,4669|4773,agricultural supplies|fertilizer|مستلزمات زراعية|أسمدة|مبيدات
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.feed,أعلاف,Animal Feed,wholesale,wholesale|retail,yes,yes,yes,4620,4620|1080,feed|أعلاف
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.livestock,مواشي وأغنام (تربية وتجارة),Livestock & Sheep,wholesale,wholesale|retail,yes,yes,yes,0144,0144|4620,livestock|sheep|مواشي|أغنام|حلال|ماشية
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.cattle_dairy_farm,مزرعة أبقار,Cattle & Dairy Farm,wholesale,wholesale|end_user,yes,yes,yes,0141,0141,cattle farm|مزرعة أبقار
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.camels_horses,إبل وخيل,Camels & Horses,wholesale,wholesale|end_user,yes,yes,yes,0149,0149|0143,camels|horses|إبل|خيل|اسطبل
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.poultry,دواجن,Poultry Farm,wholesale,wholesale|end_user,yes,yes,yes,0146,0146,poultry|دواجن
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.birds_pets_trading,طيور وحيوانات (تجارة),Birds & Animals Trading,retail,retail|wholesale,yes,yes,yes,4773,4773|4620,birds|pigeons|طيور|حمام|سوق الطيور
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.fisheries,استزراع سمكي وصيد,Fisheries & Aquaculture,wholesale,wholesale|end_user,yes,yes,yes,0321,0321|0311,aquaculture|fishing|استزراع|صيد
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.equipment,معدات زراعية,Agricultural Machinery,wholesale,wholesale|retail,yes,yes,yes,4653,4653|2821,agricultural machinery|معدات زراعية
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.forestry_charcoal,فحم وحطب وغابات,"Charcoal, Firewood & Forestry",wholesale,wholesale|retail,yes,yes,yes,0220,0220|0230,charcoal|firewood|فحم|حطب
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.services,خدمات زراعية وبيطرية ميدانية,Agricultural Support Services,service,service|end_user,no,yes,yes,0161,0161|0162,agricultural services|خدمات زراعية
+agri,زراعة وثروة حيوانية وصيد,"Agriculture, Livestock & Fishing",agri.vet_supplies,مستلزمات بيطرية وأدوية حيوانية,Veterinary Supplies,wholesale,wholesale,yes,yes,yes,4649,4649|4772,veterinary supplies|أدوية بيطرية
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.general_materials,مواد بناء عامة,Building Materials (general),wholesale,wholesale|retail,yes,yes,yes,4663,4663,building_materials|Building Materials|مواد بناء
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.cement_blocks,أسمنت وبلك,Cement & Blocks,wholesale,wholesale|retail,yes,yes,yes,4663,4663,cement|blocks|أسمنت|بلك|طابوق
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.ready_mix,خرسانة جاهزة,Ready-Mix Concrete,wholesale,wholesale,yes,yes,yes,2395,2395,ready mix|concrete|خرسانة جاهزة
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.steel_rebar,حديد تسليح وحديد بناء,Steel & Rebar,wholesale,wholesale|retail,yes,yes,yes,4662,4662|4663,steel|rebar|حديد|حديد تسليح
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.aggregates,رمل وبحص وكسارات,Aggregates & Quarries,wholesale,wholesale,yes,yes,yes,0810,0810|4663,quarry|aggregates|sand|كسارة|رمل|بحص
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.timber,أخشاب,Timber & Wood,wholesale,wholesale|retail,yes,yes,yes,4663,4663,timber|wood|أخشاب|خشب
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.plumbing_supply,أدوات صحية وسباكة,Plumbing & Sanitaryware,wholesale,wholesale|retail,yes,yes,yes,4663,4663,plumbing_sanitary|sanitary|plumbing|أدوات صحية|سباكة
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.pipes_fittings,مواسير ووصلات,Pipes & Fittings,wholesale,wholesale|retail,yes,yes,yes,4663,4663,pipes|fittings|مواسير|وصلات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.pumps_tanks,مضخات وخزانات,Pumps & Tanks,wholesale,wholesale|retail,yes,yes,yes,4659,4659|4663,pumps|tanks|مضخات|خزانات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.electrical_supply,مواد كهربائية,Electrical Supplies,wholesale,wholesale|retail,yes,yes,yes,4659,4659|4663,electrical|electrical_supplies|مواد كهربائية|كهربائيات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.cables_wires,كابلات وأسلاك,Cables & Wires,wholesale,wholesale|retail,yes,yes,yes,4659,4659,cables|wires|كابلات|أسلاك
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.lighting_supply,إنارة,Lighting Supplies,wholesale,wholesale|retail,yes,yes,yes,4659,4659|4759,lighting|LED|إنارة|اضاءة
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.hvac_supply,تكييف وتبريد (بيع),HVAC Equipment Supplier,wholesale,wholesale|retail,yes,yes,yes,4659,4659|4759,hvac|air conditioning|تكييف|مكيفات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.insulation,عوازل,Insulation & Waterproofing Materials,wholesale,wholesale|retail,yes,yes,yes,4663,4663,insulation|waterproofing|عوازل|عزل
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.paint,دهانات,Paints & Coatings,wholesale,wholesale|retail,yes,yes,yes,4663,4663|4752,paint|paints|دهانات|بويات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.tiles_ceramic,سيراميك وبورسلين,Tiles & Porcelain,wholesale,wholesale|retail,yes,yes,yes,4663,4663|4753,tiles|ceramic|porcelain|سيراميك|بورسلين|بلاط
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.marble_stone,رخام وجرانيت وحجر,"Marble, Granite & Stone",wholesale,wholesale|retail,yes,yes,yes,4663,4663|2396,marble|granite|stone|رخام|جرانيت|حجر
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.gypsum,جبس وأسقف مستعارة,Gypsum & False Ceilings,wholesale,wholesale|retail,yes,yes,yes,4663,4663,gypsum_ceilings|gypsum|جبس|جبس بورد|أسقف
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.doors_windows,أبواب ونوافذ,Doors & Windows,wholesale,wholesale|retail,yes,yes,yes,4663,4663,doors|windows|أبواب|شبابيك
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.aluminum_glass,ألمنيوم وزجاج,Aluminum & Glass,wholesale,wholesale|retail,yes,yes,yes,4663,4663|4752,aluminum|glass|ألمنيوم|زجاج
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.kitchens_cabinets,مطابخ وخزائن,Kitchens & Cabinets,wholesale,wholesale|retail,yes,yes,yes,4759,4759|3100,kitchens|cabinets|مطابخ|خزائن
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.flooring_parquet,أرضيات وباركيه,Flooring & Parquet,wholesale,wholesale|retail,yes,yes,yes,4753,4753,flooring|parquet|أرضيات|باركيه
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.wallpaper_decor,ورق جدران ومواد ديكور,Wallpaper & Decor Materials,wholesale,wholesale|retail,yes,yes,yes,4753,4753,wallpaper|decor materials|ورق جدران|ديكور
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.hardware_tools,عدد وأدوات (حدايد وبويات),Hardware & Tools,wholesale,wholesale|retail,yes,yes,yes,4752,4752|4663,hardware|tools|عدد|أدوات|حدايد
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.fasteners,مسامير وبراغي ومثبتات,Fasteners,wholesale,wholesale|retail,yes,yes,yes,4663,4663|4752,fasteners|bolts|screws|مسامير|براغي
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.roofing_cladding,أسقف وكلادينج وساندوتش بانل,"Roofing, Cladding & Panels",wholesale,wholesale|retail,yes,yes,yes,4663,4663,cladding|sandwich panel|roofing|كلادينج|ساندوتش بانل
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.interlock_pavers,انترلوك وبلاط أرصفة,Interlock & Pavers,wholesale,wholesale|retail,yes,yes,yes,2395,2395|4663,interlock|pavers|انترلوك|بردورات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.scaffolding,سقالات وشدات,Scaffolding & Formwork,wholesale,wholesale|retail,yes,yes,yes,4663,4663|7730,scaffolding|formwork|سقالات|شدات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.safety_fire_supply,سلامة وإطفاء (بيع),Fire & Safety Equipment Supplier,wholesale,wholesale|retail,yes,yes,yes,4659,4659,fire|safety|extinguisher|إطفاء|سلامة|طفايات
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.elevators,مصاعد (توريد وتركيب),Elevators & Escalators,wholesale,wholesale|service,yes,yes,yes,4329,4329|4659,elevators|lifts|مصاعد
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.landscaping_supply,مستلزمات حدائق وري,Landscaping & Irrigation Supplies,wholesale,wholesale|retail,yes,yes,yes,4663,4663|4773,irrigation|landscaping supplies|ري|مستلزمات حدائق
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.pools_supply,مسابح ومستلزماتها,Pool Supplies,wholesale,wholesale|retail,yes,yes,yes,4663,4663,pool supplies|مسابح
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.prefab,مباني جاهزة وكرفانات,Prefab Buildings & Portacabins,wholesale,wholesale,yes,yes,yes,2511,2511|1622,prefab|portacabin|كرفانات|مباني جاهزة
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.construction_chemicals,كيماويات بناء ومواد لاصقة,Construction Chemicals & Adhesives,wholesale,wholesale|retail,yes,yes,yes,4669,4669|4663,construction chemicals|adhesives|كيماويات بناء|لواصق
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.metal_fabrication,حدادة وتشكيل معادن,Metal Fabrication Workshop,service,service|wholesale,yes,yes,yes,2511,2511|2599,metal fabrication|blacksmith|حدادة|ورشة حدادة
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.carpentry,نجارة,Carpentry Workshop,service,service|wholesale,yes,yes,yes,1622,1622|3100,carpentry|carpenter|نجارة|نجار
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.marble_workshop,ورشة رخام,Marble Workshop,service,service|wholesale,yes,yes,yes,2396,2396,marble workshop|ورشة رخام|تفصيل رخام
+build,مواد بناء وتشطيب (بيع),Building & Finishing Materials,build.glass_workshop,ورشة زجاج ومرايا,Glass Workshop,service,service|wholesale,yes,yes,yes,2310,2310|4330,glass workshop|مرايا|ورشة زجاج
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.general,مقاولات عامة,General Contractor,service,service|end_user,no,yes,yes,4100,4100,Contractor|general contracting|مقاولات عامة|مؤسسة مقاولات
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.residential_builder,بناء فلل ومساكن,Residential Builder,service,service|end_user,no,yes,yes,4100,4100,villa construction|بناء فلل|عظم
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.roads,مقاولات طرق وجسور,Roads & Bridges Contractor,service,service|end_user,no,yes,yes,4210,4210,roads|bridges|طرق|جسور|سفلتة
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.utilities_projects,مقاولات شبكات مياه وصرف وكهرباء,Utility Networks Contractor,service,service|end_user,no,yes,yes,4220,4220,utility projects|شبكات مياه|صرف صحي
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.civil_infra,مقاولات مدنية وبنية تحتية,Civil & Infrastructure Contractor,service,service|end_user,no,yes,yes,4290,4290|4220,civil|infrastructure|بنية تحتية
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.plumbing,مقاول سباكة,Plumbing Contractor,service,service|end_user,no,yes,yes,4322,4322,plumber|plumbing contractor|سباك|مقاول سباكة
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.electrical,مقاول كهرباء,Electrical Contractor,service,service|end_user,no,yes,yes,4321,4321,electrician|electrical contractor|كهربائي|مقاول كهرباء
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.hvac,مقاول تكييف وتبريد,HVAC Contractor,service,service|end_user,no,yes,yes,4322,4322,hvac contractor|ac installation|صيانة تكييف|تركيب مكيفات
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.fire_safety,تركيب أنظمة إطفاء وإنذار,Fire Protection Contractor,service,service|end_user,no,yes,yes,4321,4321|4329,fire fighting|fire alarm|أنظمة إطفاء|إنذار حريق
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.finishing,تشطيبات وديكور (تنفيذ),Finishing & Fit-out Contractor,service,service|end_user,no,yes,yes,4330,4330,finishing|fit-out|تشطيب|ديكورات
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.painting,دهانات (تنفيذ),Painting Contractor,service,service|end_user,no,yes,yes,4330,4330,painter|painting contractor|دهان|مقاول دهانات
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.gypsum,جبس وأسقف (تنفيذ),Gypsum & Ceiling Contractor,service,service|end_user,no,yes,yes,4330,4330,gypsum contractor|جبسيات|تركيب جبس
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.tiling,تركيب سيراميك ورخام,Tiling Contractor,service,service|end_user,no,yes,yes,4330,4330,tiling|tile installer|مبلط|تركيب سيراميك
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.aluminum_glass,تركيب ألمنيوم وزجاج,Aluminum & Glass Contractor,service,service|end_user,no,yes,yes,4330,4330,aluminum works|تركيب ألمنيوم|ورشة ألمنيوم
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.steel_structures,هياكل معدنية وهناجر,Steel Structures Contractor,service,service|end_user,no,yes,yes,4390,4390|2511,steel structures|hangars|هناجر|هياكل معدنية
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.waterproofing,عزل (تنفيذ),Waterproofing Contractor,service,service|end_user,no,yes,yes,4390,4390|4329,waterproofing contractor|عزل أسطح|مقاول عزل
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.landscaping,تنسيق حدائق,Landscaping Contractor,service,service|end_user,no,yes,yes,8130,8130|4390,landscaping|gardener|تنسيق حدائق
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.pools,إنشاء مسابح,Pool Contractor,service,service|end_user,no,yes,yes,4390,4390,pool construction|إنشاء مسابح
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.demolition_excavation,هدم وحفر وتسوية,Demolition & Excavation,service,service|end_user,no,yes,yes,4311,4311|4312,demolition|excavation|هدم|حفر|تسوية
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.well_drilling,حفر آبار,Well Drilling,service,service|end_user,no,yes,yes,4312,4312,well drilling|حفر آبار
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.smart_home,أنظمة ذكية وأتمتة مباني,Smart Home & BMS,service,service|end_user,no,yes,yes,4321,4321|8020,smart home|BMS|automation|منزل ذكي|أتمتة
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.maintenance,صيانة عامة ومباني,Maintenance Contractor,service,service|end_user,no,yes,yes,4330,4330|4390,maintenance|صيانة عامة|صيانة مباني
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.facility_mgmt,إدارة مرافق وتشغيل وصيانة,Facility Management,service,service|end_user,no,yes,yes,8110,8110,facility management|إدارة مرافق|تشغيل وصيانة
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.handyman,فني متنقل (سباكة/كهرباء/صيانة),Handyman / Technician,service,service|end_user,no,yes,yes,4330,4330|4322,handyman|technician|فني|معلم
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.interior_design,تصميم داخلي,Interior Design Studio,service,service,no,yes,yes,7410,7410,interior design|تصميم داخلي
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.engineering_consult,مكتب هندسي واستشارات,Engineering & Architecture Consultancy,service,service,no,yes,yes,7110,7110,engineering consultant|architect|مكتب هندسي|استشارات هندسية
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.surveying,مساحة وفحص تربة,Surveying & Geotechnical,service,service,no,yes,yes,7110,7110|7120,surveying|geotechnical|مساحة|فحص تربة
+contract,مقاولات وخدمات إنشائية,Contracting & Construction Services,contract.project_mgmt,إدارة مشاريع,Construction Project Management,service,service,no,yes,yes,7110,7110|7020,project management|إدارة مشاريع
+ind,صناعة ومصانع,Manufacturing & Industry,ind.plastic,مصنع بلاستيك,Plastics Manufacturing,wholesale,wholesale|end_user,yes,yes,yes,2220,2220|2013,plastic factory|مصنع بلاستيك
+ind,صناعة ومصانع,Manufacturing & Industry,ind.rubber,مطاط ومنتجات مطاطية,Rubber Products,wholesale,wholesale|end_user,yes,yes,yes,2219,2219|2211,rubber|مطاط
+ind,صناعة ومصانع,Manufacturing & Industry,ind.metal,مصنع معادن وصلب,Metal & Steel Manufacturing,wholesale,wholesale|end_user,yes,yes,yes,2410,2410|2431,steel factory|metal industries|مصنع حديد|صناعات معدنية
+ind,صناعة ومصانع,Manufacturing & Industry,ind.aluminum_mfg,مصنع ألمنيوم (قطاعات),Aluminum Mfg,wholesale,wholesale|end_user,yes,yes,yes,2420,2420,aluminum factory|مصنع ألمنيوم
+ind,صناعة ومصانع,Manufacturing & Industry,ind.structural_metal,هياكل ومنتجات معدنية إنشائية (مصنع),Structural Metal Products,wholesale,wholesale|end_user,yes,yes,yes,2511,2511,structural steel|مصنع هياكل
+ind,صناعة ومصانع,Manufacturing & Industry,ind.tanks_mfg,خزانات وصهاريج (مصنع),Tanks & Reservoirs Mfg,wholesale,wholesale|end_user,yes,yes,yes,2512,2512,tanks factory|مصنع خزانات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.metal_coating,طلاء ومعالجة معادن,Metal Coating & Treatment,service,service|end_user,no,yes,yes,2592,2592,galvanizing|powder coating|جلفنة|طلاء معادن
+ind,صناعة ومصانع,Manufacturing & Industry,ind.chemicals,كيماويات ومنظفات (مصنع),Chemicals & Detergents Mfg,wholesale,wholesale|end_user,yes,yes,yes,2023,2023|2011|2029,chemicals|detergents|مصنع كيماويات|منظفات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.paint_mfg,مصنع دهانات,Paints Mfg,wholesale,wholesale|end_user,yes,yes,yes,2022,2022,paint factory|مصنع دهانات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.fertilizer_mfg,أسمدة ومبيدات (مصنع),Fertilizers & Pesticides Mfg,wholesale,wholesale|end_user,yes,yes,yes,2012,2012|2021,fertilizer factory|مصنع أسمدة
+ind,صناعة ومصانع,Manufacturing & Industry,ind.petrochemicals,بتروكيماويات,Petrochemicals,wholesale,wholesale|end_user,yes,yes,yes,2011,2011|2013,petrochemical|بتروكيماويات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.packaging,تغليف وكرتون,Packaging & Carton,wholesale,wholesale|end_user,yes,yes,yes,1702,1702|2220,packaging|carton|كرتون|تغليف
+ind,صناعة ومصانع,Manufacturing & Industry,ind.paper_tissue,ورق ومناديل,Paper & Tissue,wholesale,wholesale|end_user,yes,yes,yes,1709,1709|1701,paper|tissue|مناديل|ورق
+ind,صناعة ومصانع,Manufacturing & Industry,ind.textile_mfg,نسيج وأقمشة (مصنع),Textile Mill,wholesale,wholesale|end_user,yes,yes,yes,1311,1311|1312|1313,textile factory|نسيج|مصنع أقمشة
+ind,صناعة ومصانع,Manufacturing & Industry,ind.garment_mfg,مصنع ملابس,Garment Factory,wholesale,wholesale|end_user,yes,yes,yes,1410,1410|1430,garments factory|مصنع ملابس
+ind,صناعة ومصانع,Manufacturing & Industry,ind.textile_articles_mfg,مفروشات وستائر ومنسوجات (مصنع),Made-up Textiles Mfg,wholesale,wholesale|end_user,yes,yes,yes,1392,1392|1393,bedding factory|مصنع مفارش|مصنع سجاد
+ind,صناعة ومصانع,Manufacturing & Industry,ind.leather_footwear_mfg,جلود وأحذية (مصنع),Leather & Footwear Mfg,wholesale,wholesale|end_user,yes,yes,yes,1520,1520|1511|1512,shoe factory|مصنع أحذية|دباغة
+ind,صناعة ومصانع,Manufacturing & Industry,ind.furniture_mfg,مصنع أثاث,Furniture Manufacturing,wholesale,wholesale|end_user,yes,yes,yes,3100,3100,furniture factory|مصنع أثاث
+ind,صناعة ومصانع,Manufacturing & Industry,ind.wood_products,منتجات خشبية ومناشر (مصنع),Wood Products & Sawmill,wholesale,wholesale|end_user,yes,yes,yes,1610,1610|1621|1629,wood factory|منتجات خشبية|منشرة
+ind,صناعة ومصانع,Manufacturing & Industry,ind.concrete_products,منتجات خرسانية وبلك (مصنع),Concrete Products Factory,wholesale,wholesale|end_user,yes,yes,yes,2395,2395,precast|concrete products|مصنع بلك|خرسانة مسبقة
+ind,صناعة ومصانع,Manufacturing & Industry,ind.cement_mfg,مصنع أسمنت وجبس (خام),"Cement, Lime & Plaster Mfg",wholesale,wholesale|end_user,yes,yes,yes,2394,2394,cement factory|مصنع أسمنت
+ind,صناعة ومصانع,Manufacturing & Industry,ind.ceramics_mfg,مصنع سيراميك وأدوات صحية,Ceramics & Sanitaryware Mfg,wholesale,wholesale|end_user,yes,yes,yes,2392,2392|2393,ceramic factory|مصنع سيراميك|مصنع أدوات صحية
+ind,صناعة ومصانع,Manufacturing & Industry,ind.glass_mfg,مصنع زجاج,Glass Mfg,wholesale,wholesale|end_user,yes,yes,yes,2310,2310,glass factory|مصنع زجاج
+ind,صناعة ومصانع,Manufacturing & Industry,ind.insulation_mfg,مصنع عوازل ومواد غير معدنية,Insulation & Non-metallic Mfg,wholesale,wholesale|end_user,yes,yes,yes,2399,2399,insulation factory|مصنع عوازل
+ind,صناعة ومصانع,Manufacturing & Industry,ind.electrical_mfg,لوحات ومعدات كهربائية (مصنع),Electrical Panels & Equipment Mfg,wholesale,wholesale|end_user,yes,yes,yes,2710,2710|2733|2790,panel board|switchgear|لوحات كهربائية
+ind,صناعة ومصانع,Manufacturing & Industry,ind.cables_mfg,مصنع كابلات,Cables Mfg,wholesale,wholesale|end_user,yes,yes,yes,2732,2732|2731,cable factory|مصنع كابلات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.lighting_mfg,مصنع إنارة,Lighting Mfg,wholesale,wholesale|end_user,yes,yes,yes,2740,2740,lighting factory|مصنع إنارة
+ind,صناعة ومصانع,Manufacturing & Industry,ind.batteries_mfg,مصنع بطاريات,Batteries Mfg,wholesale,wholesale|end_user,yes,yes,yes,2720,2720,battery factory|مصنع بطاريات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.appliances_mfg,مصنع أجهزة منزلية ومكيفات,Appliances & AC Mfg,wholesale,wholesale|end_user,yes,yes,yes,2750,2750|2819,appliances factory|مصنع مكيفات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.electronics_mfg,مصنع إلكترونيات,Electronics Mfg,wholesale,wholesale|end_user,yes,yes,yes,2610,2610|2630|2640,electronics factory|مصنع إلكترونيات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.machinery_mfg,تصنيع آلات ومعدات,Machinery Mfg,wholesale,wholesale|end_user,yes,yes,yes,2819,2819|2829|2824,machinery manufacturing|تصنيع آلات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.pumps_valves_mfg,مضخات وصمامات (مصنع),Pumps & Valves Mfg,wholesale,wholesale|end_user,yes,yes,yes,2813,2813,pumps factory|مصنع مضخات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.vehicle_parts_mfg,قطع غيار ومركبات (مصنع),Vehicle & Parts Mfg,wholesale,wholesale|end_user,yes,yes,yes,2930,2930|2920|2910,auto parts factory|مصنع قطع غيار|صناعة مقطورات
+ind,صناعة ومصانع,Manufacturing & Industry,ind.boats_mfg,صناعة قوارب,Boat Building,wholesale,wholesale|end_user,yes,yes,yes,3012,3012|3011,boat building|صناعة قوارب
+ind,صناعة ومصانع,Manufacturing & Industry,ind.medical_devices_mfg,مستلزمات طبية (مصنع),Medical Devices Mfg,wholesale,wholesale|end_user,yes,yes,yes,3250,3250,medical devices factory|مصنع مستلزمات طبية
+ind,صناعة ومصانع,Manufacturing & Industry,ind.jewelry_mfg,مشغل ذهب ومجوهرات,Jewelry Workshop,wholesale,wholesale|end_user,yes,yes,yes,3211,3211,jewelry workshop|مشغل ذهب
+ind,صناعة ومصانع,Manufacturing & Industry,ind.toys_sports_mfg,ألعاب ومستلزمات رياضية (مصنع),Toys & Sports Goods Mfg,wholesale,wholesale|end_user,yes,yes,yes,3240,3240|3230,toys factory|مصنع ألعاب
+ind,صناعة ومصانع,Manufacturing & Industry,ind.printing_industrial,طباعة صناعية وتغليف مطبوع,Industrial Printing,wholesale,wholesale|end_user,yes,yes,yes,1811,1811|1812,industrial printing|طباعة صناعية
+ind,صناعة ومصانع,Manufacturing & Industry,ind.tobacco_mfg,مصنع تبغ ومعسل,Tobacco & Molasses Mfg,wholesale,wholesale|end_user,yes,yes,yes,1200,1200,tobacco factory|مصنع معسل|مصنع تبغ
+ind,صناعة ومصانع,Manufacturing & Industry,ind.industrial_supplies,مستلزمات صناعية,Industrial Supplies,wholesale,wholesale,yes,yes,yes,4669,4669|4659,industrial supplies|مستلزمات صناعية|مستلزمات مصانع
+ind,صناعة ومصانع,Manufacturing & Industry,ind.industrial_installation,تركيب وصيانة آلات صناعية,Industrial Machinery Installation & Repair,service,service|end_user,no,yes,yes,3320,3320|3312,industrial installation|صيانة آلات|تركيب مصانع
+ind,صناعة ومصانع,Manufacturing & Industry,ind.recycling,إعادة تدوير وخردة,Recycling & Scrap,service,service|wholesale,yes,yes,yes,3830,3830|4669,recycling|scrap|خردة|إعادة تدوير
+ind,صناعة ومصانع,Manufacturing & Industry,ind.general_factory,مصنع (نشاط غير محدد),Factory (unspecified),wholesale,wholesale|end_user,yes,yes,yes,3290,3290,factory|industrial|مصنع|صناعة
+equip,معدات وآلات,Equipment & Machinery,equip.heavy_sales,معدات ثقيلة (بيع),Heavy Equipment Sales,wholesale,wholesale,yes,yes,yes,4659,4659,heavy equipment|معدات ثقيلة
+equip,معدات وآلات,Equipment & Machinery,equip.rental,تأجير معدات ومعدات ثقيلة,Equipment Rental,service,service|end_user,no,yes,yes,7730,7730,equipment_rental|rental|تأجير معدات|روافع
+equip,معدات وآلات,Equipment & Machinery,equip.generators,مولدات ومحولات,Generators & Power Equipment,wholesale,wholesale|service,yes,yes,yes,4659,4659|2710,generators|transformers|مولدات|محولات
+equip,معدات وآلات,Equipment & Machinery,equip.cranes_lifting,رافعات ومعدات رفع,Cranes & Lifting Equipment,wholesale,wholesale|service,yes,yes,yes,4659,4659|7730,cranes|forklift|رافعات|كرينات|ونش
+equip,معدات وآلات,Equipment & Machinery,equip.compressors,ضواغط وهوائيات,Compressors & Pneumatics,wholesale,wholesale|service,yes,yes,yes,4659,4659,compressors|ضواغط
+equip,معدات وآلات,Equipment & Machinery,equip.welding,معدات لحام,Welding Equipment,wholesale,wholesale|retail,yes,yes,yes,4659,4659|4752,welding|لحام
+equip,معدات وآلات,Equipment & Machinery,equip.workshop_equipment,معدات ورش,Workshop Equipment,wholesale,wholesale|retail,yes,yes,yes,4659,4659,workshop equipment|معدات ورش
+equip,معدات وآلات,Equipment & Machinery,equip.spare_parts,قطع غيار معدات,Equipment Spare Parts,wholesale,wholesale|retail,yes,yes,yes,4659,4659,equipment spare parts|قطع غيار معدات
+equip,معدات وآلات,Equipment & Machinery,equip.repair,صيانة معدات ثقيلة,Heavy Equipment Repair,service,service|end_user,no,yes,yes,3312,3312|4520,equipment repair|صيانة معدات
+equip,معدات وآلات,Equipment & Machinery,equip.cleaning_machines,ماكينات تنظيف,Cleaning Machines,wholesale,wholesale|retail,yes,yes,yes,4659,4659,cleaning machines|ماكينات تنظيف
+equip,معدات وآلات,Equipment & Machinery,equip.laundry_equipment,معدات مغاسل,Laundry Equipment,wholesale,wholesale|retail,yes,yes,yes,4659,4659,laundry equipment|معدات مغاسل
+equip,معدات وآلات,Equipment & Machinery,equip.weighing_measuring,موازين وأجهزة قياس,Weighing & Measuring Instruments,wholesale,wholesale|retail|service,yes,yes,yes,4659,4659|2651,scales|measuring|موازين|أجهزة قياس
+equip,معدات وآلات,Equipment & Machinery,equip.safety_ppe,معدات وقاية شخصية,PPE & Workwear,wholesale,wholesale|retail,yes,yes,yes,4659,4659|4641,PPE|safety shoes|معدات وقاية|سلامة مهنية
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.mobile_shop,جوالات وإكسسوارات,Mobile Phones,retail,retail,yes,yes,yes,4741,4741,mobile|phones|جوالات|اتصالات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.computers,كمبيوتر ولابتوب,Computers & Laptops,retail,retail|wholesale,yes,yes,yes,4741,4741|4651,computers|laptop|كمبيوتر|حاسب
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.electronics_store,إلكترونيات عامة,Electronics Store,retail,retail,yes,yes,yes,4742,4742|4741,Electronics|إلكترونيات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.appliances_store,أجهزة كهربائية ومنزلية,Home Appliances Store,retail,retail,yes,yes,yes,4759,4759,appliances|أجهزة كهربائية|أجهزة منزلية
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.appliances_wholesale,أجهزة كهربائية بالجملة,Appliances Wholesale,wholesale,wholesale,yes,yes,yes,4649,4649,appliances wholesale|أجهزة جملة
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.cctv_security,كاميرات مراقبة وأنظمة أمنية,CCTV & Security Systems,wholesale,wholesale|service,yes,yes,yes,8020,8020|4652,cctv|security systems|كاميرات مراقبة|أنظمة أمنية
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.it_networking_supply,شبكات وتقنية معلومات (توريد),IT & Networking Supplier,wholesale,wholesale|service,yes,yes,yes,4651,4651|4652,networking|IT supplies|شبكات|تقنية معلومات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.software,برمجيات وتطوير,Software & IT Services,service,service,no,yes,yes,6201,6201|6202|5820,software|IT company|برمجيات|تطوير
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.hosting_data,استضافة ومراكز بيانات,Hosting & Data Centers,service,service,no,yes,yes,6311,6311|6312,hosting|data center|استضافة|مركز بيانات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.telecom,اتصالات ومشغلين ومزودي إنترنت,Telecom Operators & ISPs,service,service,no,yes,yes,6110,6110|6120|6190,telecom|STC|Mobily|Zain|اتصالات|إنترنت
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.telecom_contractor,مقاول اتصالات وألياف,Telecom Infrastructure Contractor,service,service|end_user,no,yes,yes,4220,4220|4321,fiber|telecom contractor|ألياف بصرية|أبراج
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.printers_copiers,طابعات وآلات تصوير,Printers & Copiers,wholesale,wholesale|retail|service,yes,yes,yes,4659,4659|4741,printers|copiers|طابعات|آلات تصوير
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.repair,صيانة جوالات وإلكترونيات,Electronics Repair,service,service,no,yes,yes,9512,9512|9511|9521,phone repair|electronics repair|صيانة جوالات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.appliance_repair,صيانة أجهزة منزلية,Appliance Repair,service,service,no,yes,yes,9522,9522,appliance repair|صيانة غسالات|صيانة ثلاجات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.audio_visual,صوتيات ومرئيات,Audio & Visual Systems,wholesale,wholesale|retail|service,yes,yes,yes,4742,4742|4652,audio|sound systems|صوتيات
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.gaming,ألعاب فيديو,Gaming,retail,retail,yes,yes,yes,4764,4764|4741,gaming|video games|ألعاب فيديو
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.components,مكونات إلكترونية,Electronic Components,wholesale,wholesale,yes,yes,yes,4652,4652,electronic components|مكونات إلكترونية
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.pos_systems,أنظمة نقاط بيع,POS Systems,wholesale,wholesale|service,yes,yes,yes,4651,4651|6202,POS|point of sale|نقاط بيع|كاشير
+elec,إلكترونيات وتقنية واتصالات,"Electronics, IT & Telecom",elec.satellite_tv,ستلايت ورسيفرات,Satellite & TV Equipment,retail,retail|service,yes,yes,yes,4742,4742|4321,satellite|ستلايت|رسيفر
+auto,سيارات ومركبات,Automotive & Vehicles,auto.dealership,وكالة سيارات,Car Dealership,retail,retail,yes,yes,yes,4510,4510,car dealer|dealership|وكالة سيارات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.used_cars,معرض سيارات,Car Showroom (used),retail,retail,yes,yes,yes,4510,4510,car showroom|used cars|معرض سيارات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.spare_parts,قطع غيار سيارات,Auto Spare Parts,wholesale,wholesale|retail,yes,yes,yes,4530,4530,auto parts|spare parts|قطع غيار
+auto,سيارات ومركبات,Automotive & Vehicles,auto.tires,إطارات وجنوط,Tires & Wheels,wholesale,wholesale|retail,yes,yes,yes,4530,4530,tires|tyres|كفرات|إطارات|بنشر
+auto,سيارات ومركبات,Automotive & Vehicles,auto.workshop,ورشة سيارات,Auto Repair Workshop,service,service|end_user,no,yes,yes,4520,4520,auto repair|mechanic|ورشة|ميكانيكي
+auto,سيارات ومركبات,Automotive & Vehicles,auto.body_paint,سمكرة ودهان سيارات,Body & Paint Shop,service,service|end_user,no,yes,yes,4520,4520,body shop|سمكرة|دهان سيارات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.oil_change,تغيير زيوت,Oil Change Center,service,service|end_user,no,yes,yes,4520,4520,oil change|تغيير زيت
+auto,سيارات ومركبات,Automotive & Vehicles,auto.car_wash,مغسلة سيارات,Car Wash,service,service|end_user,no,yes,yes,4520,4520,car wash|مغسلة سيارات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.rental,تأجير سيارات,Car Rental,service,service|end_user,no,yes,yes,7710,7710,car rental|تأجير سيارات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.accessories_tint,إكسسوارات وتظليل,Accessories & Tinting,retail,retail|service,yes,yes,yes,4530,4530|4520,accessories|tinting|تظليل|إكسسوارات سيارات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.batteries,بطاريات,Car Batteries,wholesale,wholesale|retail,yes,yes,yes,4530,4530,batteries|بطاريات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.trucks_buses,شاحنات وحافلات (بيع),Trucks & Buses Sales,retail,retail|wholesale,yes,yes,yes,4510,4510,trucks|buses|شاحنات|حافلات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.trucks_repair,ورشة شاحنات ومعدات,Truck Repair,service,service|end_user,no,yes,yes,4520,4520,truck repair|ورشة شاحنات
+auto,سيارات ومركبات,Automotive & Vehicles,auto.motorcycles,دراجات نارية,Motorcycles,retail,retail|service,yes,yes,yes,4540,4540,motorcycle|دراجات نارية
+auto,سيارات ومركبات,Automotive & Vehicles,auto.lubricants_distributor,زيوت وشحوم (جملة),Lubricants Distributor,wholesale,wholesale,yes,yes,yes,4661,4661,lubricants|oils distributor|زيوت|شحوم
+auto,سيارات ومركبات,Automotive & Vehicles,auto.towing,سطحة,Towing,service,service,no,yes,yes,5221,5221|4520,towing|سطحة
+auto,سيارات ومركبات,Automotive & Vehicles,auto.inspection,فحص دوري,Vehicle Inspection,service,service,no,yes,yes,7120,7120,inspection|فحص دوري
+auto,سيارات ومركبات,Automotive & Vehicles,auto.boats_marine,قوارب ومعدات بحرية,Boats & Marine,retail,retail|service,yes,yes,yes,4773,4773|3315,boats|marine|قوارب
+auto,سيارات ومركبات,Automotive & Vehicles,auto.trailers_bodies,مقطورات وصناديق (بيع),Trailers & Bodies,wholesale,wholesale|retail,yes,yes,yes,4510,4510|2920,trailers|مقطورات|صناديق
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.furniture,أثاث ومفروشات,Furniture Store,retail,retail,yes,yes,yes,4759,4759,Furniture|أثاث|مفروشات
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.furniture_wholesale,أثاث بالجملة,Furniture Wholesale,wholesale,wholesale,yes,yes,yes,4649,4649,furniture wholesale|أثاث جملة
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.office_furniture,أثاث مكتبي,Office Furniture,retail,retail|wholesale,yes,yes,yes,4759,4759|4649,office furniture|أثاث مكتبي
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.mattresses,مراتب,Mattresses,retail,retail,yes,yes,yes,4759,4759,mattress|مراتب
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.curtains_upholstery,ستائر وتنجيد,Curtains & Upholstery,retail,retail|service,yes,yes,yes,4759,4759|9524,curtains|upholstery|ستائر|تنجيد
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.carpets,سجاد وموكيت,Carpets & Rugs,retail,retail|wholesale,yes,yes,yes,4753,4753,carpets|rugs|سجاد|موكيت
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.kitchenware,أدوات مطبخ ومنزل,Kitchenware & Housewares,retail,retail|wholesale,yes,yes,yes,4759,4759|4649,kitchenware|housewares|أدوات منزلية|أواني
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.decor,ديكورات وتحف,Home Decor,retail,retail,yes,yes,yes,4759,4759|4773,decor|تحف|ديكور
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.decor_lighting,نجف وإنارة ديكور,Decorative Lighting,retail,retail,yes,yes,yes,4759,4759,chandelier|نجف
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.bedding_linen,مفارش وبياضات,Bedding & Linen,retail,retail|wholesale,yes,yes,yes,4751,4751,bedding|linen|مفارش
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.outdoor_furniture,أثاث حدائق وجلسات,Outdoor Furniture,retail,retail,yes,yes,yes,4759,4759,outdoor furniture|أثاث حدائق|جلسات
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.home_goods_general,احتياجات منزلية عامة,Home Goods (general),retail,retail,yes,yes,yes,4759,4759,Home Goods|احتياجات المنزل
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.used_furniture,أثاث مستعمل,Used Furniture,retail,retail,yes,yes,yes,4774,4774,used furniture|أثاث مستعمل
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.cleaning_supplies,أدوات ومواد تنظيف,Cleaning Supplies,retail,retail|wholesale,yes,yes,yes,4759,4759|4649,cleaning supplies|مواد تنظيف
+home,أثاث ومستلزمات منزلية,Furniture & Home,home.tents_majlis,خيام وجلسات عربية ومجالس,Tents & Arabic Majlis,retail,retail|service,yes,yes,yes,4759,4759|1392,tents|majlis|خيام|مجالس
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.clothing,ملابس,Clothing Store,retail,retail,yes,yes,yes,4771,4771,Clothing|apparel|ملابس
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.abaya,عبايات,Abayas,retail,retail,yes,yes,yes,4771,4771,abaya|عبايات
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.mens_thobe,ثياب رجالية وشماغ,Men's Thobes,retail,retail,yes,yes,yes,4771,4771,thobe|ثياب رجالية|شماغ
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.kids,ملابس أطفال,Kids' Clothing,retail,retail,yes,yes,yes,4771,4771,kids clothing|ملابس أطفال
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.shoes,أحذية,Shoes,retail,retail,yes,yes,yes,4771,4771,shoes|أحذية
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.bags_accessories,حقائب وإكسسوارات,Bags & Accessories,retail,retail,yes,yes,yes,4771,4771|4773,bags|accessories|حقائب|شنط
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.perfume,عطور وعود وبخور,Perfumes & Oud,retail,retail|wholesale,yes,yes,yes,4772,4772|4649,perfume|oud|عطور|عود|بخور
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.jewelry_gold,ذهب ومجوهرات,Gold & Jewelry,retail,retail,yes,yes,yes,4773,4773,jewelry|gold|مجوهرات|ذهب
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.watches,ساعات,Watches,retail,retail,yes,yes,yes,4773,4773,watches|ساعات
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.fabrics,أقمشة,Fabrics,retail,retail|wholesale,yes,yes,yes,4751,4751|4641,fabrics|textiles|أقمشة
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.tailoring,خياطة وتفصيل,Tailoring,service,service|end_user,no,yes,yes,1410,1410|9529,tailor|خياط|مشغل خياطة
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.uniforms,زي موحد وملابس عمل,Uniforms & Workwear,wholesale,wholesale,yes,yes,yes,4641,4641|1410,uniforms|workwear|زي موحد|ملابس عمل
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.apparel_wholesale,ملابس وأحذية بالجملة,Apparel Wholesale,wholesale,wholesale,yes,yes,yes,4641,4641,clothing wholesale|ملابس جملة
+fashion,ملابس وأزياء ومجوهرات,"Fashion, Apparel & Jewelry",fashion.sportswear,ملابس رياضية,Sportswear,retail,retail,yes,yes,yes,4771,4771,sportswear|ملابس رياضية
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.salon_women,صالون ومشغل نسائي,Women's Salon,service,service|end_user,no,yes,yes,9602,9602,beauty salon|salon|صالون|مشغل نسائي
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.barber,حلاق رجالي,Barbershop,service,service|end_user,no,yes,yes,9602,9602,barber|حلاق|صالون رجالي
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.spa_massage,سبا ومساج,Spa & Massage,service,service|end_user,no,yes,yes,9609,9609,spa|massage|سبا|مساج
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.cosmetics_store,مستحضرات تجميل,Cosmetics Store,retail,retail,yes,yes,yes,4772,4772,cosmetics|makeup|مستحضرات تجميل|مكياج
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.cosmetics_distributor,مستحضرات تجميل (جملة/مصنع),Cosmetics Distributor / Mfg,wholesale,wholesale,yes,yes,yes,4649,4649|2023,cosmetics wholesale|مصنع مستحضرات
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.aesthetic_clinic,عيادة تجميل وليزر,Aesthetic Clinic,service,service|end_user,no,yes,yes,8620,8620,aesthetic|laser clinic|عيادة تجميل|ليزر
+beauty,تجميل وعناية شخصية,Beauty & Personal Care,beauty.salon_supplies,مستلزمات صالونات,Salon Supplies,wholesale,wholesale,yes,yes,yes,4649,4649,salon supplies|مستلزمات صالونات
+health,صحة وطب,Health & Medical,health.hospital,مستشفى,Hospital,end_user,end_user,no,yes,yes,8610,8610,Hospital|مستشفى
+health,صحة وطب,Health & Medical,health.clinic,عيادة ومجمع طبي ومستوصف,Clinic / Polyclinic,end_user,end_user,no,yes,yes,8620,8620,clinic|medical center|عيادة|مجمع طبي|مستوصف
+health,صحة وطب,Health & Medical,health.dental,عيادة أسنان,Dental Clinic,end_user,end_user,no,yes,yes,8620,8620,dental|dentist|أسنان
+health,صحة وطب,Health & Medical,health.pharmacy,صيدلية,Pharmacy,retail,retail,yes,yes,yes,4772,4772,pharmacy|صيدلية
+health,صحة وطب,Health & Medical,health.lab,مختبر طبي,Medical Laboratory,end_user,end_user,no,yes,yes,8690,8690,laboratory|lab|مختبر
+health,صحة وطب,Health & Medical,health.radiology,أشعة,Radiology Center,end_user,end_user,no,yes,yes,8690,8690,radiology|أشعة
+health,صحة وطب,Health & Medical,health.optics,بصريات ونظارات,Optics,retail,retail,yes,yes,yes,4773,4773,optics|optical|نظارات|بصريات
+health,صحة وطب,Health & Medical,health.medical_supply,معدات ومستلزمات طبية (توريد),Medical Equipment Supplier,wholesale,wholesale,yes,yes,yes,4659,4659|4649,medical equipment|medical supplies|معدات طبية|مستلزمات طبية
+health,صحة وطب,Health & Medical,health.pharma_distributor,أدوية بالجملة,Pharmaceutical Distributor,wholesale,wholesale,yes,yes,yes,4649,4649,pharmaceutical|drug distributor|أدوية
+health,صحة وطب,Health & Medical,health.pharma_mfg,مصنع أدوية,Pharmaceutical Factory,wholesale,wholesale|end_user,yes,yes,yes,2100,2100,pharma factory|مصنع أدوية
+health,صحة وطب,Health & Medical,health.physio,علاج طبيعي,Physiotherapy,end_user,end_user,no,yes,yes,8690,8690,physiotherapy|علاج طبيعي
+health,صحة وطب,Health & Medical,health.vet,عيادة بيطرية,Veterinary Clinic,end_user,end_user,no,yes,yes,7500,7500,veterinary|vet|بيطري
+health,صحة وطب,Health & Medical,health.home_care,رعاية منزلية وتمريض,Home Care & Nursing,service,service|end_user,no,yes,yes,8690,8690|8810,home care|nursing|رعاية منزلية|تمريض
+health,صحة وطب,Health & Medical,health.dental_supply,مستلزمات أسنان ومعامل أسنان,Dental Supplies & Labs,wholesale,wholesale|service,yes,yes,yes,4649,4649|3250,dental supplies|dental lab|مستلزمات أسنان|معمل أسنان
+health,صحة وطب,Health & Medical,health.residential_care,دور رعاية ونقاهة,Residential Care,end_user,end_user,no,yes,yes,8710,8710|8730,nursing home|دار رعاية|نقاهة
+health,صحة وطب,Health & Medical,health.ambulance,إسعاف ونقل طبي,Ambulance,service,service|end_user,no,yes,yes,8690,8690,ambulance|إسعاف
+health,صحة وطب,Health & Medical,health.medical_devices_maintenance,صيانة أجهزة طبية,Medical Equipment Maintenance,service,service,no,yes,yes,3313,3313,medical equipment maintenance|صيانة أجهزة طبية
+edu,تعليم وتدريب,Education & Training,edu.school,مدرسة,School,end_user,end_user,no,yes,yes,8510,8510|8521,School|مدرسة|مدارس
+edu,تعليم وتدريب,Education & Training,edu.nursery,حضانة,Day-care Nursery,end_user,end_user,no,yes,yes,8890,8890,nursery|day care|حضانة
+edu,تعليم وتدريب,Education & Training,edu.kindergarten,روضة,Kindergarten,end_user,end_user,no,yes,yes,8510,8510,kindergarten|روضة
+edu,تعليم وتدريب,Education & Training,edu.university,جامعة وكلية,University & College,end_user,end_user,no,yes,yes,8530,8530,university|college|جامعة|كلية
+edu,تعليم وتدريب,Education & Training,edu.vocational,معهد تقني ومهني,Technical & Vocational Institute,end_user,end_user,no,yes,yes,8522,8522|8549,vocational|technical institute|معهد تقني|مهني
+edu,تعليم وتدريب,Education & Training,edu.training_center,مركز تدريب,Training Center,end_user,end_user,no,yes,yes,8549,8549,training|institute|معهد|مركز تدريب
+edu,تعليم وتدريب,Education & Training,edu.language_center,معهد لغات,Language Institute,end_user,end_user,no,yes,yes,8549,8549,language institute|معهد لغات
+edu,تعليم وتدريب,Education & Training,edu.driving_school,مدرسة قيادة,Driving School,end_user,end_user,no,yes,yes,8549,8549,driving school|مدرسة قيادة
+edu,تعليم وتدريب,Education & Training,edu.tutoring,دروس خصوصية,Tutoring,service,service,no,yes,yes,8549,8549,tutoring|دروس خصوصية
+edu,تعليم وتدريب,Education & Training,edu.arts_music_school,تعليم فنون وموسيقى,Arts & Music Education,end_user,end_user,no,yes,yes,8542,8542,music school|art school|تعليم موسيقى
+edu,تعليم وتدريب,Education & Training,edu.sports_education,تعليم رياضي وأكاديميات,Sports Academies,end_user,end_user,no,yes,yes,8541,8541,sports academy|أكاديمية رياضية
+edu,تعليم وتدريب,Education & Training,edu.educational_supplies,مستلزمات تعليمية ومعامل,Educational & Lab Supplies,wholesale,wholesale,yes,yes,yes,4649,4649|4659,educational supplies|lab supplies|مستلزمات تعليمية
+edu,تعليم وتدريب,Education & Training,edu.quran_center,تحفيظ قرآن,Quran Memorization Center,end_user,end_user,no,yes,yes,8549,8549,quran|تحفيظ
+edu,تعليم وتدريب,Education & Training,edu.education_services,خدمات تعليمية مساندة,Education Support Services,service,service,no,yes,yes,8550,8550,education consulting|استشارات تعليمية
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.hotel,فندق,Hotel,end_user,end_user,no,yes,yes,5510,5510,Hotel|فندق|فنادق
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.furnished_apartments,شقق مفروشة,Furnished Apartments,end_user,end_user,no,yes,yes,5510,5510,furnished apartments|شقق مفروشة
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.istiraha,استراحة وشاليه,Istiraha & Chalet,end_user,end_user,no,yes,yes,5510,5510|5590,istiraha|chalet|استراحة|شاليه
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.camps,مخيمات ومواقع تخييم,Camps & Camping Sites,end_user,end_user,no,yes,yes,5520,5520,camp|مخيم
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.wedding_hall,قاعة أفراح ومناسبات,Wedding & Event Hall,end_user,end_user,no,yes,yes,5510,5510|8230,wedding hall|قاعة أفراح|قصر أفراح
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.event_planning,تنظيم فعاليات ومعارض ومؤتمرات,Event & Exhibition Management,service,service|end_user,no,yes,yes,8230,8230,event|exhibition|فعاليات|معارض|تنظيم
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.event_rental,تأجير خيام وكراسي وتجهيزات مناسبات,Event Equipment Rental,service,service,no,yes,yes,7729,7729,tent rental|خيام|تأجير كراسي
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.wedding_services,كوش وتنسيق أفراح,Wedding Services,service,service|end_user,no,yes,yes,9609,9609|8230,wedding planner|كوشة|تنسيق أفراح
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.travel_agency,وكالة سفر وسياحة,Travel Agency,service,service,no,yes,yes,7911,7911|7912,travel agency|سفر|سياحة
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.hajj_umrah,حج وعمرة,Hajj & Umrah Services,service,service|end_user,no,yes,yes,7990,7990|7911,umrah|hajj|حج|عمرة|حملات
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.tourism_activities,أنشطة سياحية وجولات,Tour Operators & Experiences,service,service,no,yes,yes,7912,7912|7990,tours|جولات|سياحة
+hosp,ضيافة وفعاليات وسياحة,"Hospitality, Events & Tourism",hosp.hotel_supplies,مستلزمات فنادق,Hotel Supplies,wholesale,wholesale,yes,yes,yes,4649,4649,hotel supplies|مستلزمات فنادق
+log,نقل ولوجستيات,Transport & Logistics,log.freight_customs,شحن وتخليص جمركي,Freight Forwarding & Customs,service,service,no,yes,yes,5229,5229,shipping|freight|customs|شحن|تخليص
+log,نقل ولوجستيات,Transport & Logistics,log.courier,توصيل طرود وبريد سريع,Courier & Delivery,service,service,no,yes,yes,5320,5320,courier|delivery|توصيل|طرود
+log,نقل ولوجستيات,Transport & Logistics,log.movers,نقل عفش,Movers,service,service,no,yes,yes,4923,4923,movers|نقل عفش
+log,نقل ولوجستيات,Transport & Logistics,log.trucking,نقل بري وشاحنات,Trucking,service,service,no,yes,yes,4923,4923,trucking|land transport|نقل بري|دينا
+log,نقل ولوجستيات,Transport & Logistics,log.warehousing,تخزين ومستودعات,Warehousing,service,service,no,yes,yes,5210,5210,warehouse|storage|مستودعات|تخزين
+log,نقل ولوجستيات,Transport & Logistics,log.cold_storage,تخزين مبرد,Cold Storage,service,service,no,yes,yes,5210,5210,cold storage|ثلاجات تخزين
+log,نقل ولوجستيات,Transport & Logistics,log.3pl,لوجستيات متكاملة,3PL / Logistics,service,service,no,yes,yes,5229,5229|5210,logistics|لوجستيات
+log,نقل ولوجستيات,Transport & Logistics,log.passenger_transport,نقل ركاب وليموزين,Passenger Transport,service,service,no,yes,yes,4922,4922|4921,passenger transport|نقل ركاب|ليموزين|تاكسي
+log,نقل ولوجستيات,Transport & Logistics,log.sea_transport,نقل بحري وموانئ,Sea Transport & Ports,service,service,no,yes,yes,5012,5012|5222,shipping line|نقل بحري
+log,نقل ولوجستيات,Transport & Logistics,log.air_cargo,شحن جوي,Air Cargo,service,service,no,yes,yes,5120,5120,air cargo|شحن جوي
+log,نقل ولوجستيات,Transport & Logistics,log.cargo_handling,مناولة بضائع,Cargo Handling,service,service,no,yes,yes,5224,5224,cargo handling|مناولة
+log,نقل ولوجستيات,Transport & Logistics,log.packaging_services,خدمات تغليف,Packaging Services,service,service,no,yes,yes,8292,8292,packaging services|خدمات تغليف
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.law,محاماة واستشارات قانونية,Law Firm,service,service,no,yes,yes,6910,6910,law firm|lawyer|محاماة|محامي
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.accounting,محاسبة ومراجعة وزكاة,Accounting & Audit,service,service,no,yes,yes,6920,6920,accounting|audit|محاسبة|مراجعة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.consulting,استشارات إدارية,Management Consulting,service,service,no,yes,yes,7020,7020,consulting|استشارات
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.head_office,مقر رئيسي / إدارة شركات,Head Office / Holding,end_user,end_user,no,yes,yes,7010,7010,head office|holding|مقر رئيسي|قابضة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.marketing_agency,تسويق وإعلان رقمي,Marketing & Advertising Agency,service,service,no,yes,yes,7310,7310,marketing|advertising agency|تسويق|إعلان
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.market_research,أبحاث سوق واستطلاعات,Market Research,service,service,no,yes,yes,7320,7320,market research|أبحاث سوق
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.advertising_signage,دعاية ولوحات إعلانية,Signage & Outdoor Advertising,service,service|wholesale,yes,yes,yes,7310,7310|2599,signage|signboards|لوحات|دعاية وإعلان
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.printing,مطبعة,Printing Press,service,service|end_user,no,yes,yes,1811,1811|1812,printing|press|مطبعة|طباعة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.copy_center,تصوير مستندات وطباعة سريعة,Copy & Print Center,service,service,no,yes,yes,8219,8219,copy center|تصوير مستندات
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.design_studio,تصميم جرافيك وهوية,Design Studio,service,service,no,yes,yes,7410,7410,graphic design|تصميم
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.photography,تصوير واستوديو,Photography Studio,service,service,no,yes,yes,7420,7420,photography|studio|تصوير|استوديو
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.translation,ترجمة,Translation,service,service,no,yes,yes,7490,7490,translation|ترجمة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.recruitment_manpower,استقدام وتوظيف وتأجير عمالة,Recruitment & Manpower,service,service,no,yes,yes,7810,7810|7820|7830,recruitment|manpower|استقدام|توظيف|عمالة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.security_services,حراسات أمنية,Security Guard Services,service,service|end_user,no,yes,yes,8010,8010,security guard|حراسات أمنية
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.cleaning_services,شركة نظافة,Cleaning Services,service,service|end_user,no,yes,yes,8121,8121,cleaning company|نظافة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.pest_control,مكافحة حشرات وتعقيم,Pest Control & Disinfection,service,service|end_user,no,yes,yes,8129,8129,pest control|مكافحة حشرات|تعقيم
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.coworking,مساحات عمل ومراكز أعمال,Coworking & Business Center,service,service,no,yes,yes,8211,8211|6820,coworking|business center|مساحات عمل
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.pro_services,خدمات عامة ومعقب,PRO & Government Services,service,service,no,yes,yes,8299,8299,PRO|معقب|خدمات عامة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.call_center,مراكز اتصال,Call Center,service,service,no,yes,yes,8220,8220,call center|مركز اتصال
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.stationery_office,قرطاسية ومستلزمات مكتبية,Stationery & Office Supplies,retail,retail|wholesale,yes,yes,yes,4761,4761|4649,stationery|office supplies|قرطاسية|مكتبة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.general_trading,تجارة عامة واستيراد وتصدير,General Trading / Import-Export,wholesale,wholesale,yes,yes,yes,4690,4690|4610,trading|import export|تجارة عامة|استيراد|تصدير
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.commercial_agent,وكيل تجاري ووسيط,Commercial Agent / Broker,service,service,no,yes,yes,4610,4610,agent|broker|وكيل تجاري|وسيط
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.ecommerce,متجر إلكتروني,E-commerce,retail,retail,yes,yes,yes,4791,4791,ecommerce|online store|متجر إلكتروني
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.testing_labs,مختبرات فحص وجودة,Testing & Inspection Labs,service,service,no,yes,yes,7120,7120,testing lab|quality inspection|مختبر فحص|جودة
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.research,بحث وتطوير,R&D,service,service,no,yes,yes,7210,7210,research|بحث وتطوير
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.chamber_association,غرف تجارية وجمعيات مهنية,Chambers & Professional Associations,end_user,end_user,no,yes,yes,9411,9411|9412,chamber|association|غرفة تجارية|جمعية مهنية
+biz,خدمات أعمال ومهنية,Business & Professional Services,biz.debt_collection,تحصيل ديون,Debt Collection,service,service,no,yes,yes,8291,8291,collection|تحصيل
+re,عقار,Real Estate,re.office,مكتب عقار,Real Estate Office,service,service,no,yes,yes,6820,6820,real estate|مكتب عقار|عقارات
+re,عقار,Real Estate,re.developer,تطوير عقاري,Real Estate Developer,end_user,end_user,no,yes,yes,6810,6810,developer|تطوير عقاري
+re,عقار,Real Estate,re.property_mgmt,إدارة أملاك,Property Management,service,service|end_user,no,yes,yes,6820,6820,property management|إدارة أملاك
+re,عقار,Real Estate,re.valuation,تقييم عقاري,Real Estate Valuation,service,service,no,yes,yes,6820,6820|7490,valuation|تقييم عقاري
+re,عقار,Real Estate,re.commercial_leasing,تأجير مكاتب ومستودعات,Commercial Property Leasing,end_user,end_user,no,yes,yes,6810,6810,warehouse for rent|تأجير مستودعات|مكاتب للإيجار
+fin,مال وتأمين,Finance & Insurance,fin.bank,بنك,Bank,service,service,no,yes,yes,6419,6419,Bank|بنك
+fin,مال وتأمين,Finance & Insurance,fin.exchange,صرافة وتحويل أموال,Currency Exchange & Remittance,service,service,no,yes,yes,6619,6619,exchange|صرافة|تحويل
+fin,مال وتأمين,Finance & Insurance,fin.insurance,تأمين,Insurance,service,service,no,yes,yes,6512,6512|6511|6622,insurance|تأمين
+fin,مال وتأمين,Finance & Insurance,fin.financing,تمويل وتقسيط وتأجير تمويلي,Financing & Leasing,service,service,no,yes,yes,6492,6492|6491,financing|leasing|تمويل|تقسيط
+fin,مال وتأمين,Finance & Insurance,fin.atm,صراف آلي,ATM,service,service,no,yes,yes,6419,6419,ATM|صراف آلي
+fin,مال وتأمين,Finance & Insurance,fin.investment,استثمار وإدارة أصول,Investment & Asset Management,service,service,no,yes,yes,6630,6630|6612,investment|استثمار
+fin,مال وتأمين,Finance & Insurance,fin.fintech_payments,مدفوعات وتقنية مالية,Payments & Fintech,service,service,no,yes,yes,6499,6499|6619,payments|fintech|مدفوعات
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.mall,مركز تسوق,Shopping Mall,end_user,end_user,no,yes,yes,6810,6810,Mall|مول|مركز تجاري
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.department_store,متجر متعدد الأقسام,Department Store,retail,retail,yes,yes,yes,4719,4719,department store|متجر متعدد
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.general_store,متجر متنوع,General Store,retail,retail,yes,yes,yes,4719,4719,general store|variety|متجر متنوع
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.discount_store,محل توفير (أبو ريالين),Discount Store,retail,retail,yes,yes,yes,4719,4719,discount|أبو ريالين|توفير
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.toys,ألعاب أطفال,Toys,retail,retail|wholesale,yes,yes,yes,4764,4764,toys|ألعاب
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.gifts,هدايا وتغليف,Gifts,retail,retail,yes,yes,yes,4773,4773,gifts|هدايا|تغليف هدايا
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.flowers,زهور,Florist,retail,retail|end_user,yes,yes,yes,4773,4773,flowers|florist|زهور|ورد
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.pet_shop,مستلزمات حيوانات أليفة,Pet Shop,retail,retail,yes,yes,yes,4773,4773,pet shop|حيوانات أليفة
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.bookstore,مكتبة ودار كتب,Bookstore,retail,retail,yes,yes,yes,4761,4761,bookstore|books|كتب
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.baby,مستلزمات أطفال,Baby Products,retail,retail,yes,yes,yes,4773,4773|4771,baby products|مستلزمات أطفال
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.tobacco_vape,تبغ وفيب,Tobacco & Vape,retail,retail,yes,yes,yes,4723,4723,tobacco|vape|تبغ|فيب
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.party_supplies,مستلزمات حفلات,Party Supplies,retail,retail,yes,yes,yes,4773,4773,party supplies|مستلزمات حفلات
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.general_wholesale,جملة عامة,General Wholesale,wholesale,wholesale,yes,yes,yes,4690,4690|4649,wholesale|جملة
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.kiosk,كشك وبسطة,Kiosk & Stall,retail,retail,yes,yes,yes,4789,4789|4781,kiosk|كشك|بسطة
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.secondhand,سلع مستعملة,Second-hand Goods,retail,retail,yes,yes,yes,4774,4774,second hand|مستعمل|حراج
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.antiques,تحف وأنتيكات,Antiques,retail,retail,yes,yes,yes,4774,4774|4773,antiques|أنتيكات
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.musical_instruments,آلات موسيقية,Musical Instruments,retail,retail,yes,yes,yes,4762,4762|4773,musical instruments|آلات موسيقية
+retail,تجارة تجزئة وجملة عامة,General Retail & Wholesale,retail.souvenirs_crafts,تذكارات وحرف يدوية,Souvenirs & Handicrafts,retail,retail,yes,yes,yes,4773,4773,souvenirs|handicrafts|تذكارات|حرف يدوية
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.fuel_station,محطة وقود,Fuel Station,retail,retail|end_user,yes,yes,yes,4730,4730,gas station|petrol|محطة وقود|بنزين
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.fuel_wholesale,وقود وديزل بالجملة,Fuel Wholesale,wholesale,wholesale,yes,yes,yes,4661,4661,diesel|fuel wholesale|ديزل|وقود جملة
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.lpg,غاز وأسطوانات,LPG Distribution,wholesale,wholesale|retail,yes,yes,yes,4661,4661|3520,gas|LPG|غاز|أسطوانات
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.solar,طاقة شمسية (توريد وتركيب),Solar Energy,wholesale,wholesale|service,yes,yes,yes,4321,4321|4659,solar|طاقة شمسية
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.electricity,توليد ونقل كهرباء,Electricity Generation & Distribution,service,service|end_user,no,yes,yes,3510,3510,power plant|كهرباء|محطة توليد
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.water_treatment,تحلية ومعالجة مياه,Water Treatment & Desalination,wholesale,wholesale|service,yes,yes,yes,3600,3600|4659,water treatment|RO|تحلية|معالجة مياه
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.water_delivery,توصيل مياه (وايت),Water Tanker Delivery,service,service,no,yes,yes,3600,3600|4923,water tanker|وايت|صهريج
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.sewage,صرف صحي وتسليك وشفط بيارات,Sewerage & Septic Services,service,service,no,yes,yes,3700,3700,sewage|septic|شفط بيارات|تسليك مجاري
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.waste,نقل نفايات وحاويات,Waste Collection & Skips,service,service,no,yes,yes,3811,3811|3812,waste|skip|حاويات نفايات|نظافة بلدية
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.waste_treatment,معالجة نفايات,Waste Treatment,service,service,no,yes,yes,3821,3821|3822,waste treatment|معالجة نفايات
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.oil_gas_extraction,استخراج نفط وغاز,Oil & Gas Extraction,end_user,end_user,no,yes,yes,0610,0610|0620,oil extraction|حقول نفط
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.oil_gas_services,خدمات حقول النفط والغاز,Oilfield Services,service,service|end_user,no,yes,yes,0910,0910,oil and gas|oilfield|نفط|بترول
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.refining,تكرير ومنتجات بترولية,Refining & Petroleum Products,wholesale,wholesale|end_user,yes,yes,yes,1920,1920,refinery|مصفاة
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.mining,تعدين ومناجم,Mining,wholesale,wholesale|end_user,yes,yes,yes,0710,0710|0729|0899,mining|مناجم|تعدين
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.mining_services,خدمات تعدين,Mining Support Services,service,service,no,yes,yes,0990,0990,mining services|خدمات تعدين
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.ev_charging,شحن سيارات كهربائية,EV Charging,service,service,no,yes,yes,3510,3510|4730,EV charging|شحن كهربائي
+energy,طاقة ومياه وبيئة ونفط وتعدين,"Energy, Water, Environment, Oil & Mining",energy.environmental_services,خدمات بيئية ومعالجة تلوث,Environmental Services,service,service,no,yes,yes,3900,3900|7490,environmental|بيئية
+sports,رياضة وترفيه,Sports & Entertainment,sports.gym,نادي رياضي (جيم),Gym & Fitness Center,end_user,end_user,no,yes,yes,9311,9311,gym|fitness|نادي رياضي|لياقة
+sports,رياضة وترفيه,Sports & Entertainment,sports.club,نادٍ رياضي رسمي,Sports Club,end_user,end_user,no,yes,yes,9312,9312,sports club|نادي
+sports,رياضة وترفيه,Sports & Entertainment,sports.fields,ملاعب,Sports Fields,end_user,end_user,no,yes,yes,9311,9311,football field|ملاعب
+sports,رياضة وترفيه,Sports & Entertainment,sports.sporting_goods,مستلزمات رياضية,Sporting Goods,retail,retail|wholesale,yes,yes,yes,4763,4763,sporting goods|sports store|مستلزمات رياضية
+sports,رياضة وترفيه,Sports & Entertainment,sports.entertainment_center,مركز ترفيه وألعاب,Entertainment Center,end_user,end_user,no,yes,yes,9329,9329|9321,entertainment|amusement|ترفيه|ملاهي
+sports,رياضة وترفيه,Sports & Entertainment,sports.theme_park,مدينة ألعاب ومنتزه ترفيهي,Theme Park,end_user,end_user,no,yes,yes,9321,9321,theme park|مدينة ألعاب
+sports,رياضة وترفيه,Sports & Entertainment,sports.cinema,سينما,Cinema,end_user,end_user,no,yes,yes,5914,5914,cinema|سينما
+sports,رياضة وترفيه,Sports & Entertainment,sports.pool,مسبح عام,Public Pool,end_user,end_user,no,yes,yes,9311,9311,swimming pool|مسبح
+sports,رياضة وترفيه,Sports & Entertainment,sports.camping_outdoor,صيد ورحلات ومستلزمات تخييم,Camping & Outdoor Gear,retail,retail,yes,yes,yes,4763,4763|4773,camping|hunting|تخييم|رحلات|صيد
+sports,رياضة وترفيه,Sports & Entertainment,sports.esports_gaming_center,صالة ألعاب إلكترونية,Gaming Center,end_user,end_user,no,yes,yes,9329,9329,gaming center|صالة ألعاب
+sports,رياضة وترفيه,Sports & Entertainment,sports.sports_equipment_rental,تأجير معدات رياضية وترفيهية,Sports & Recreation Rental,service,service,no,yes,yes,7721,7721,jet ski rental|تأجير دبابات|تأجير دراجات
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.tv_radio,قناة وإذاعة,TV & Radio,end_user,end_user,no,yes,yes,6020,6020|6010,TV|radio|قناة|إذاعة
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.press,صحيفة ومجلة,Press,end_user,end_user,no,yes,yes,5813,5813,newspaper|magazine|صحيفة|مجلة
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.publishing,دار نشر,Publishing,service,service|end_user,no,yes,yes,5811,5811|5819,publishing|دار نشر
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.production,إنتاج فني وإعلامي,Media Production,service,service|end_user,no,yes,yes,5911,5911|5920,production|إنتاج
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.arts_crafts,فنون وحرف,Arts & Crafts,retail,retail|service,yes,yes,yes,9000,9000,arts|crafts|فنون|حرف
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.art_gallery,معرض فني,Art Gallery,retail,retail|end_user,yes,yes,yes,4773,4773|9000,gallery|معرض فني
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.events_entertainment,ترفيه وعروض حية,Live Entertainment,service,service|end_user,no,yes,yes,9000,9000,live show|عروض
+media,إعلام وثقافة وفنون,"Media, Culture & Arts",media.news_agency,وكالة أنباء ومحتوى,News & Content Agency,service,service,no,yes,yes,6391,6391|6399,news agency|وكالة أنباء
+personal,خدمات شخصية,Personal Services,personal.laundry,مغسلة ملابس,Laundry & Dry Cleaning,service,service|end_user,no,yes,yes,9601,9601,laundry|مغسلة
+personal,خدمات شخصية,Personal Services,personal.shoe_repair,تصليح أحذية وجلديات,Shoe & Leather Repair,service,service,no,yes,yes,9523,9523,shoe repair|تصليح أحذية
+personal,خدمات شخصية,Personal Services,personal.watch_jewelry_repair,تصليح ساعات ومجوهرات,Watch & Jewelry Repair,service,service,no,yes,yes,9529,9529,watch repair|تصليح ساعات
+personal,خدمات شخصية,Personal Services,personal.funeral,خدمات جنائز,Funeral Services,service,service,no,yes,yes,9603,9603,funeral|غسل موتى|جنائز
+personal,خدمات شخصية,Personal Services,personal.pet_services,تجميل وفندقة حيوانات,Pet Grooming & Boarding,service,service|end_user,no,yes,yes,9609,9609,pet grooming|فندقة حيوانات
+personal,خدمات شخصية,Personal Services,personal.domestic_help,عمالة منزلية (مكاتب),Domestic Labor Offices,service,service,no,yes,yes,7810,7810,domestic workers|عمالة منزلية
+personal,خدمات شخصية,Personal Services,personal.tailoring_alterations,تعديل وكي ملابس,Alterations & Ironing,service,service,no,yes,yes,9529,9529|9601,alterations|كوي
+personal,خدمات شخصية,Personal Services,personal.other,خدمات شخصية أخرى,Other Personal Services,service,service,no,yes,yes,9609,9609,personal services
+noncom,غير تجاري,Non-commercial,noncom.mosque,مسجد,Mosque,,,no,no,no,9491,9491,Mosques|mosque|مسجد|جامع
+noncom,غير تجاري,Non-commercial,noncom.government,جهة حكومية,Government Office,,,no,no,no,8411,8411|8412|8413,government|ministry|وزارة|بلدية|حكومي
+noncom,غير تجاري,Non-commercial,noncom.embassy,سفارة وقنصلية,Embassy,,,no,no,no,9900,9900|8421,embassy|سفارة
+noncom,غير تجاري,Non-commercial,noncom.park,حديقة عامة,Public Park,,,no,no,no,9329,9329|9103,park|حديقة
+noncom,غير تجاري,Non-commercial,noncom.landmark,معلم ومواقع تراثية,Landmark & Heritage Site,,,no,no,no,9102,9102,landmark|cultural|معلم|تراثي
+noncom,غير تجاري,Non-commercial,noncom.museum,متحف,Museum,,,no,no,no,9102,9102,museum|متحف
+noncom,غير تجاري,Non-commercial,noncom.library,مكتبة عامة,Public Library,,,no,no,no,9101,9101,public library|مكتبة عامة
+noncom,غير تجاري,Non-commercial,noncom.charity,جمعية خيرية,Charity,,,no,no,no,9499,9499|8890,charity|جمعية خيرية
+noncom,غير تجاري,Non-commercial,noncom.residential,سكن ومجمع سكني,Residential,,,no,no,no,9810,9810,residential|compound|سكني|مجمع سكني
+noncom,غير تجاري,Non-commercial,noncom.transport_hub,مطار / محطة / ميناء,Airport / Station / Port,,,no,no,no,5223,5223|5221|5222,airport|station|port|مطار|محطة|ميناء
+noncom,غير تجاري,Non-commercial,noncom.parking,مواقف,Parking,,,no,no,no,5221,5221,parking|مواقف
+noncom,غير تجاري,Non-commercial,noncom.post_office,بريد,Post Office,,,no,no,no,5310,5310,Saudi Post|post office|بريد
+noncom,غير تجاري,Non-commercial,noncom.police_military,شرطة وأمن ودفاع مدني وجيش,Police & Military,,,no,no,no,8423,8423|8422,police|military|civil defense|شرطة|دفاع مدني
+noncom,غير تجاري,Non-commercial,noncom.cemetery,مقبرة,Cemetery,,,no,no,no,9603,9603,cemetery|مقبرة
+noncom,غير تجاري,Non-commercial,noncom.utility,مرافق كهرباء ومياه (محطات),Utility Facility,,,no,no,no,3510,3510|3600,utility|SEC|NWC|محطة كهرباء|محطة مياه
+noncom,غير تجاري,Non-commercial,noncom.social_services,خدمات اجتماعية ورعاية,Social Services,,,no,no,no,8810,8810|8890,social services|خدمات اجتماعية
+noncom,غير تجاري,Non-commercial,noncom.street_poi,نقاط عامة (إشارات، دورات مياه...),Street POI,,,no,no,no,,,POI|street|إشارة|دورة مياه
+unc,غير مصنّف,Unclassified,unc.unknown,غير مصنّف,Unclassified,,,no,no,no,,,
+unc,غير مصنّف,Unclassified,unc.company_general,شركة بنشاط غير محدد,Company (activity unknown),,,no,no,no,,,Corporate|company|الشركات|شركة|مؤسسة
+unc,غير مصنّف,Unclassified,unc.shop_general,محل بنشاط غير محدد,Shop (activity unknown),,,no,no,no,,,Shopping|shop|store|التسوق|محل
+unc,غير مصنّف,Unclassified,unc.numeric_code,كود رقمي غير معروف المصدر,Numeric code (pending source),,,no,no,no,,,19|8|23|16
