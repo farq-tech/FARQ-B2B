@@ -38,14 +38,15 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    coalesce(dof.city_ar, osm.osm_city_ar, ci.city_ar, case when ci.city_en is null then pf.city_en end) city_ar,
    case when dof.city_en is not null then 'official_boundary' when osm.osm_city_en is not null then 'osm_nearest_settlement' when ci.city_en is not null then 'source'
         when pf.city_en is not null then 'neighbours' end city_method, ci.city_en city_source_en, osm.osm_city_m,
-   coalesce(dof.district_ar, cr.district_ar, nullif(trim(b.district),''), ecd.district_ar, dn.district_ar, osm.osm_district_ar, pf.district) district, coalesce(dof.district_ar, cr.district_ar, ecd.district_ar) district_ar,
+   coalesce(dof.district_ar, cr.district_ar, nullif(trim(b.district),''), ecd.district_ar, fl.district_ar, dn.district_ar, osm.osm_district_ar, pf.district) district, coalesce(dof.district_ar, cr.district_ar, ecd.district_ar) district_ar,
    coalesce(dof.district_en, cr.district_en, ecd.district_en) district_en,
    case when dof.district_ar is not null then 'official_boundary' when cr.district_ar is not null then 'crs_surveyor' when nullif(trim(b.district),'') is not null then 'source'
-        when ecd.district_ar is not null then 'urbi_admin_district' when dn.district_ar is not null then 'nearest_boundary'
+        when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when dn.district_ar is not null then 'nearest_boundary'
         when osm.osm_district_ar is not null then 'osm_' || osm.osm_district_kind
         when pf.district is not null then 'neighbours' end district_method,
    coalesce(cr.phone, b.phone, o.phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source end phone_source,
-   cr.license_no, cr.national_address, cr.verified_at surveyor_verified_at,
+   coalesce(cr.license_no, fl.license_no) license_no, fl.license_type, fl.license_end, fl.license_expired, fl.legal_form,
+   cr.national_address, cr.verified_at surveyor_verified_at, st.street_ar, st.street_en, st.street_m,
    coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email) email, coalesce(b.website, cd.website, bb.website) website,
    coalesce(b.instagram, cd.instagram, bb.instagram) instagram, cd.linkedin, cd.twitter,
    cd.employees_band, cd.branches_count, coalesce(cd.legal_name_ar, cd.legal_name_en) legal_name, cd.makani, b.commercial_license,
@@ -59,12 +60,15 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
         left join (select c.poi_key, case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then ec.sub_id else c.sub_id end sub_id,
           case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then 'urbi_category' else c.cls_source end cls_source,
           case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then 'medium' else c.cls_confidence end cls_confidence
-          from cls c left join (select * from read_parquet('{D}enrich/eastern_cards.parquet')) ec using(poi_key)) c0b using(poi_key)
+          from cls c left join (select poi_key, any_value(sub_id) sub_id from (select poi_key, sub_id from read_parquet('{D}enrich/eastern_cards.parquet') where sub_id is not null
+             union all select poi_key, sub_id from read_parquet('{D}enrich/firms_license.parquet') where sub_id is not null) group by 1) ec using(poi_key)) c0b using(poi_key)
         left join (select poi_key, sub_id crs_sub from read_parquet('{D}enrich/crs_latest.parquet') where sub_id is not null and sub_confidence in ('high','medium')) cs2b using(poi_key)) c using(poi_key)
    left join (select * from read_parquet('{D}enrich/crs_latest.parquet') qualify row_number() over (partition by poi_key)=1) cr using(poi_key)
    left join (select * from read_parquet('{D}golden/name_fill.parquet') qualify row_number() over (partition by poi_key)=1) nf using(poi_key)
    left join (select * from read_parquet('{D}golden/place_fill.parquet') qualify row_number() over (partition by poi_key)=1) pf using(poi_key)
    left join (select * from read_parquet('{D}golden/district_nearest.parquet') qualify row_number() over (partition by poi_key)=1) dn using(poi_key)
+   left join (select * from read_parquet('{D}enrich/firms_license.parquet') qualify row_number() over (partition by poi_key)=1) fl using(poi_key)
+   left join (select * from read_parquet('{D}golden/osm_streets.parquet') qualify row_number() over (partition by poi_key)=1) st using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_places.parquet') qualify row_number() over (partition by poi_key)=1) osm using(poi_key)
    left join (select * from read_parquet('{D}golden/district_official.parquet') qualify row_number() over (partition by poi_key)=1) dof using(poi_key)
    left join (select poi_key, district_ar, district_en from read_parquet('{D}enrich/eastern_cards.parquet')) ecd using(poi_key) left join subs s on s.sub_id = c.sub_id left join city ci using(poi_key)
@@ -105,11 +109,11 @@ r['exclude_reasons'] = dict(db.execute("select coalesce(exclude_reason,'—in go
 gs = "from golden where in_golden"
 r['golden_rows'] = db.execute(f"select count(*) {gs}").fetchone()[0]
 r['golden_complete_all_6'] = db.execute(f"select count(*) {gs} and complete").fetchone()[0]
-r['golden_field_fill'] = dict(zip(['name', 'subcategory', 'subcategory_high_or_medium', 'location', 'city', 'district', 'any_contact', 'phone', 'mobile', 'whatsapp', 'email', 'website', 'sector_known', 'company_size'],
+r['golden_field_fill'] = dict(zip(['name', 'subcategory', 'subcategory_high_or_medium', 'location', 'city', 'district', 'any_contact', 'phone', 'mobile', 'whatsapp', 'email', 'website', 'sector_known', 'company_size', 'street_ar', 'license_no'],
    db.execute(f"""select count(coalesce(name_ar,name_en)), count(*) filter (where sub_id not like 'unc.%'), count(*) filter (where sub_id not like 'unc.%' and cls_confidence in ('high','medium')),
      count(latitude), count(city_en), count(district), count(*) filter (where phone is not null or email is not null or website is not null), count(phone),
      count(*) filter (where regexp_matches(phone,'^\\+?9665')), count(*) filter (where has_whatsapp), count(email), count(website),
-     count(*) filter (where sector in ('government','private')), count(employees_band) {gs}""").fetchone()))
+     count(*) filter (where sector in ('government','private')), count(employees_band), count(street_ar), count(license_no) {gs}""").fetchone()))
 r['golden_missing'] = dict(db.execute(f"select m, count(*) from (select unnest(missing_fields) m {gs}) group by 1 order by 2 desc").fetchall())
 r['golden_by_main'] = dict(db.execute(f"select main_ar, count(*) {gs} group by 1 order by 2 desc").fetchall())
 json.dump(r, open(f'{D}golden/completeness_report.json', 'w'), ensure_ascii=False, indent=1)
