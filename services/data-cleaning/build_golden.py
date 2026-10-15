@@ -44,10 +44,10 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
         when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when oa.osm_bnd_district_ar is not null then 'osm_boundary' when dn.district_ar is not null then 'nearest_boundary'
         when osm.osm_district_ar is not null then 'osm_' || osm.osm_district_kind
         when pf.district is not null then 'neighbours' end district_method,
-   coalesce(cr.phone, b.phone, o.phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source end phone_source,
+   coalesce(cr.phone, b.phone, o.phone, ov.ov_phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when ov.ov_phone is not null then 'overture' end phone_source,
    coalesce(cr.license_no, fl.license_no) license_no, fl.license_type, fl.license_end, fl.license_expired, fl.legal_form,
    cr.national_address, cr.verified_at surveyor_verified_at, st.street_ar, st.street_en, st.street_m,
-   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email) email, coalesce(b.website, cd.website, bb.website) website,
+   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email) email, coalesce(b.website, cd.website, bb.website, ov.ov_website) website,
    coalesce(b.instagram, cd.instagram, bb.instagram) instagram, cd.linkedin, cd.twitter,
    cd.employees_band, cd.branches_count, coalesce(cd.legal_name_ar, cd.legal_name_en) legal_name, cd.makani, b.commercial_license,
    bb.brand brand, gm.google_categories, gm.rating google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
@@ -69,6 +69,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select * from read_parquet('{D}golden/district_nearest.parquet') qualify row_number() over (partition by poi_key)=1) dn using(poi_key)
    left join (select * from read_parquet('{D}enrich/firms_license.parquet') qualify row_number() over (partition by poi_key)=1) fl using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_streets.parquet') qualify row_number() over (partition by poi_key)=1) st using(poi_key)
+   left join (select * from read_parquet('{D}enrich/overture_match.parquet') qualify row_number() over (partition by poi_key)=1) ov using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_admin.parquet') qualify row_number() over (partition by poi_key)=1) oa using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_places.parquet') qualify row_number() over (partition by poi_key)=1) osm using(poi_key)
    left join (select * from read_parquet('{D}golden/district_official.parquet') qualify row_number() over (partition by poi_key)=1) dof using(poi_key)
