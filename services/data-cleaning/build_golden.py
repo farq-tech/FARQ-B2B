@@ -65,7 +65,8 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
           case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then 'urbi_category' else c.cls_source end cls_source,
           case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then 'medium' else c.cls_confidence end cls_confidence
           from cls c left join (select poi_key, any_value(sub_id) sub_id from (select poi_key, sub_id from read_parquet('{D}enrich/eastern_cards.parquet') where sub_id is not null
-             union all select poi_key, sub_id from read_parquet('{D}enrich/firms_license.parquet') where sub_id is not null) group by 1) ec using(poi_key)) c0b using(poi_key)
+             union all select poi_key, sub_id from read_parquet('{D}enrich/firms_license.parquet') where sub_id is not null
+             union all select poi_key, sub_id from read_parquet('{D}enrich/overture_class.parquet')) group by 1) ec using(poi_key)) c0b using(poi_key)
         left join (select poi_key, sub_id crs_sub from read_parquet('{D}enrich/crs_latest.parquet') where sub_id is not null and sub_confidence in ('high','medium')) cs2b using(poi_key)) c using(poi_key)
    left join (select * from read_parquet('{D}enrich/crs_latest.parquet') qualify row_number() over (partition by poi_key)=1) cr using(poi_key)
    left join (select * from read_parquet('{D}golden/name_fill.parquet') qualify row_number() over (partition by poi_key)=1) nf using(poi_key)
