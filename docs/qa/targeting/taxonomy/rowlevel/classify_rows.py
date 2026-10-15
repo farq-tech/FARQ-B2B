@@ -72,9 +72,12 @@ def hudhud_code_match(v):
     for code in [c.split('.')[0] for c in v.strip('|').split('|') if c]:
         if code in HHSUB: return HHSUB[code]
     return None
+DICTLBL=re.compile(r"'name_(?:en|ar)':\s*'([^']+)'")
 def label_match(*vals):
     for v in vals:
         if not v: continue
+        if 'name_en' in v or 'name_ar' in v:   # TRX-style labels: {'name_ar': 'مطاعم', 'name_en': 'Restaurants'}
+            v='|'.join(DICTLBL.findall(v)) or v
         for part in re.split(r'[|,{}\[\]]',v):
             k=norm(part)
             if k and k in LBL: return LBL[k],part.strip()
@@ -94,7 +97,7 @@ while True:
         if a and a[1] in ('high','medium'): r=(a[0],'activity',a[1],act)
         else:
             hh=hudhud_code_match(sec)
-            lm=label_match(sec,goo,car if not a else None) or (tag_match(car) if not a else None)
+            lm=label_match(sec,goo,car if not a else None,act if not a else None) or (tag_match(car) if not a else None)
             nm=(name_match(nar) if nar else None) or (name_match(nen) if nen else None)  # name_en is sometimes another entity's name
             if hh: r=(hh[0],'hudhud_sub',hh[1],'HudHud sub: '+hh[2])   # a surveyor-assigned subcategory beats labels and name words
             elif lm and nm and nm[0][0]>=7 and nm[1]!=lm[0]: r=(nm[1],'name','medium',nm[2])  # a specific trade word in the name beats a noisy secondary label
