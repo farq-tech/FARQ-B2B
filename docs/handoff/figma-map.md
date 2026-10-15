@@ -260,3 +260,15 @@ W12 `18430:4356` / `18430:4476` (supersedes the ids in §6–§8).
 **Owner decisions (2026-10-14):** approved the darker text tokens for contrast (`b2b/text-muted`, `b2b/status/*-text`;
 status colours stay as badge fills) and a 44 px minimum hit area in code for kit controls that are 32 px in Figma.
 Independent audit pass 4 verdict: ready for engineering handoff (no blockers).
+
+## 8. Assistant in the search bar (2026-10-15, owner-approved GAP)
+
+The map assistant is the floating search bar itself, not a separate panel.
+
+| Screen | Node | What it shows |
+|---|---|---|
+| M07e Assistant bar: suggestions | `18447:3704` | bar placeholder «اكتب ما تريد…»; card under it: Segmented Control «أشتري · أبحث عن موردين / أبيع · أبحث عن مشترين»; 4 suggestion Chips; note «يقرأ نتائج فرق على الخريطة فقط · ما يرسل شيء بدونك» |
+| M07f Assistant bar: done on map | `18447:3807` | answer «لقيت 32 مطعم…»; chips for what it did (area, camera, filter); «تراجع» + «اختر الـ24»; dashed 10-minute isochrone on the map |
+
+GAP: no chat or answer-card component in the kits. The card is a plain auto-layout frame on B2B variables.
+Data: points come from our own vector tiles `/_targeting/tiles/{query}/{z}/{x}/{y}.pbf` and `/map-query`. Nothing is uploaded to Mapbox Tiling Service.
