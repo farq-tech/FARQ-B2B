@@ -27,7 +27,13 @@ ALIASES = {
     'زي موحد': 'tex_uniforms', 'يونيفورم': 'tex_uniforms', 'ملابس عمل': 'tex_uniforms',
     'اكواب': 'pkg_disposable_cups', 'اكواب ورقيه': 'pkg_disposable_cups',
     'مستلزمات صالونات': 'bty_salon_consumables',
+    'مواد نظافه': 'cln_detergents', 'مواد النظافه': 'cln_detergents', 'منظفات جمله': 'cln_detergents',
+    'تجهيزات مطاعم': 'kit_cooking', 'تجهيز مطاعم': 'kit_cooking', 'معدات مطاعم': 'kit_cooking', 'معدات مطابخ': 'kit_cooking',
+    'تجهيزات مطابخ': 'kit_cooking', 'restaurant equipment': 'kit_cooking',
+    'خشب': 'bld_timber', 'اخشاب': 'bld_timber', 'جمله خشب': 'bld_timber', 'timber': 'bld_timber',
 }
+# words after which a seller names the customer type: «أستهدف محلات النجارة», «عملائي المطاعم»
+TARGET_CUES = ('استهدف', 'نستهدف', 'اسوق', 'نسوق', 'عملائي', 'عملاءنا', 'زبائني', 'target', 'targeting')
 SELL_CUES = ('ابيع', 'نبيع', 'بيع', 'عندي', 'عندنا', 'توريد', 'نورد', 'اورد', 'مشترين', 'مشتري', 'عملاء', 'زبائن', 'يشتري', 'يشترون', 'تشتري', 'sell', 'selling', 'supply', 'buyers', 'customers')
 BUY_CUES = ('ابي', 'ابغي', 'ابغى', 'ادور', 'احتاج', 'نحتاج', 'اشتري', 'نشتري', 'مورد', 'موردين', 'محلات', 'buy', 'need', 'supplier', 'suppliers', 'looking')
 
@@ -153,6 +159,13 @@ class Taxonomy:
                     if head in GENERIC and i + 1 < len(raw):   # «لمحلات الحلاقة» -> the next word names the type
                         for v in unigram_variants(strip_pfx(raw[i + 1])):
                             found |= self.sub_terms.get(v, set())
+        for i, t in enumerate(raw):   # «أستهدف محلات النجارة»: the words after a targeting cue name the customer type
+            if t in TARGET_CUES or strip_pfx(t) in TARGET_CUES:
+                rest = [w for w in raw[i + 1:i + 4] if w not in GENERIC]
+                for j in range(len(rest)):
+                    for text in (rest[j], ' '.join(rest[j:j + 2])):
+                        for v in plural_variants(text) | unigram_variants(strip_pfx(text)) | {text}:
+                            found |= self.sub_terms.get(v, set())
         return sorted(found)
 
     def _sub_ok(self, sub):
@@ -182,6 +195,9 @@ class Taxonomy:
             elif not fams and named:
                 targets = {s: 2.0 for s in named if self._sub_ok(s)}
         else:
+            # the exact trade named in the request ranks above the rest of its family («سباك» before general maintenance)
+            for sub in named:
+                if sub in targets: targets[sub] = targets[sub] + 1.5
             shop_cue = bool(set(norm(q).split()) & {'محل', 'محلات', 'مورد', 'موردين', 'متجر', 'معرض', 'معارض', 'store', 'shop', 'shops', 'supplier', 'suppliers'})
             named_ok = [s for s in named if self._sub_ok(s)]
             # a named business type wins when the user asks for shops/suppliers, or names it as precisely as the product
@@ -211,6 +227,9 @@ class Taxonomy:
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
             [directory_path, self.poi_taxonomy] + ([self.overlay] if self.overlay else []) + ([self.hudhud] if self.hudhud else []) + [city, subs]).fetchall()
+        qn = norm(q).split()
+        qwords = [w for w in (strip_pfx(t) for t in qn) if len(w) >= 3 and w not in GENERIC and w not in BUY_CUES and w not in SELL_CUES and w not in TARGET_CUES]
+        wholesale = bool(set(qn) & {'جمله', 'بالجمله', 'wholesale', 'موزع', 'موزعين', 'مصنع', 'مصانع'})
         fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
         out, seen = [], set()
         for r in rows:
@@ -225,6 +244,13 @@ class Taxonomy:
             seen.add(identity)
             sub_ar = self.subs[sub]['sub_ar']
             weight = u['targets'][sub] * CONF[conf]
+            # the business's own name carries the asked trade («عبدالله البلوشي سباك وكهربائي»): rank it first
+            if qwords and any(w in norm(name or '') or w in norm(name_en or '') for w in qwords): weight += 1.0
+            # «جملة»: wholesalers, distributors and factories before retail shops
+            if wholesale:
+                sa = self.subs[sub]['sub_ar']
+                if any(k in sa for k in ('جملة', 'مصنع', 'توزيع', 'موزع', 'مستودع', 'أدوات ومواد')): weight += 1.0
+                elif sub.startswith(('food.supermarket', 'food.grocery', 'retail.general_store', 'retail.kiosk')): weight -= 1.0
             if objective == 'marketing':
                 reason = f'نشاطها «{sub_ar}» يشتري عادةً {fam_ar}؛ احتياج الشراء غير مثبت'
             else:
