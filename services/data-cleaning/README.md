@@ -26,3 +26,7 @@ Outputs go to `/Users/m4pro/farq-taxonomy-data/`. Nothing in the directory is ch
    - Final_Mecca (716 k rows) has no coordinates, so it cannot be placed. About half of ready_pois_enriched has Arabic names saved as «????»; for those rows the English name, phone or TRX id is used instead.
    - 1,147,073 rows have Saudi coordinates. 999,565 of them are already in the directory and 147,508 are not; 123,474 are not in the lake's new set either (full_data_26_7_2025: 119,911, of which 113 k have a category).
    - The file fills a missing number for 8,777 directory rows (now in the contact overlay).
+8. `import_hudhud_logs.py` reads the HudHud surveyor export of 2025-08-28 (CRs = change requests, TRX = transactions, POI logs = 361,137 edits). TRX id = the directory's `hh:` key.
+   - `enrich/hudhud_logs_status.parquet`: latest log per directory row (230,581 rows) with operation, review status, editor and date, plus `duplicate_of` (313 rows).
+   - **76,283 directory rows have an approved delete as their latest HudHud log**, and 676 more have a delete pending. Most are still `open` in the directory, and 21,579 of them have WhatsApp. They are flagged, never removed. The export does not say why each POI was deleted (closed or duplicate).
+   - `enrich/hudhud_cr_contacts.parquet`: 692 change requests with their last phone (442), website, e-mail, Instagram, licence number (49) and national address.
