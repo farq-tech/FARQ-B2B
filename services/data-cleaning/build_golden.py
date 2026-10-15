@@ -13,6 +13,11 @@ db.executemany("insert into subs values (?,?,?,?,?,?,?)", [(s['sub_id'], s['sub_
 # display names follow the surveyors' conventions: no bidi marks, Latin digits, single spaces (legal-form words are kept here)
 clean = lambda c: f"""nullif(trim(regexp_replace(translate(regexp_replace(coalesce({c},''), '[‎‏‪-‮⁦-⁩]', '', 'g'),
     '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', '01234567890123456789'), '\\s+', ' ', 'g')),'')"""
+# export placeholders are not names (303 k rows were literally «UNAVAILABLE»)
+PLACEHOLDER = "('unavailable','null','none','nan','n/a','na','point','name','false','true','test','لا اسم','لا يوجد','بدون اسم','غير معروف','-','.','0','epsg:4326')"
+_clean = clean
+db.execute(f"create macro ph_null(v) as case when lower(v) in {PLACEHOLDER} then null else v end")
+clean = lambda c: f"ph_null({_clean(c)})"
 db.execute(f"""create table base as
   select poi_key, 'directory' origin, name_ar, name_en, latitude, longitude, nullif(trim(phone_norm),'') phone, has_whatsapp, nullif(trim(email),'') email,
      nullif(trim(website),'') website, nullif(trim(instagram),'') instagram, nullif(trim(commercial_license),'') commercial_license, sources,
@@ -47,7 +52,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    bb.brand brand, gm.google_categories, gm.rating google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
    coalesce(gm.temp_closed, false) google_temp_closed, (coalesce(h.last_operation='delete' and h.last_review_status='approved', false) or coalesce(ts.is_deleted, false) or coalesce(cr.deleted, false) or coalesce(pl.deleted, false)) hudhud_deleted, ts.state hudhud_state,
    cs.poi_key is not null curated_contracting_supplier, coalesce(cs.qualified, false) qualified_distributor,
-   gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, b.sources
+   gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, gd.gdup_group, gd.gdup_primary, gd.gdup_size, b.sources
    from base b
    left join (select b2.poi_key, coalesce(cs2b.crs_sub, c0b.sub_id) sub_id, case when cs2b.crs_sub is not null then 'crs_surveyor' else c0b.cls_source end cls_source,
         case when cs2b.crs_sub is not null then 'high' else c0b.cls_confidence end cls_confidence from base b2
@@ -73,6 +78,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select * from read_parquet('{D}enrich/hudhud_poi_logs_db.parquet') qualify row_number() over (partition by poi_key)=1) pl using(poi_key)
    left join (select * from read_parquet('{D}enrich/hudhud_trx_state.parquet') qualify row_number() over (partition by poi_key)=1) ts using(poi_key)
    left join (select * from read_parquet('{D}enrich/contracting_suppliers.parquet') qualify row_number() over (partition by poi_key order by qualified desc)=1) cs using(poi_key)
+   left join (select * from read_parquet('{D}golden/golden_dups.parquet') qualify row_number() over (partition by poi_key)=1) gd using(poi_key)
    left join (select * from read_parquet('{D}poi_groups.parquet') qualify row_number() over (partition by poi_key)=1) gr using(poi_key)""")
 dup = db.execute("select count(*) - count(distinct poi_key) from g where poi_key is not null").fetchone()[0]
 assert dup == 0, f'{dup} duplicate keys after joins'
@@ -86,7 +92,7 @@ db.execute("""create table g2 as select *,
      case when district is null then 'district' end,
      case when phone is null and email is null and website is null then 'contact' end] if x is not null] missing_fields,
    case when hudhud_deleted then 'hudhud_deleted' when google_perm_closed then 'google_permanently_closed'
-        when cls_source = 'vacant' then 'vacant_unit' when not dup_primary then 'duplicate_copy'
+        when cls_source = 'vacant' then 'vacant_unit' when not dup_primary or not coalesce(gdup_primary, true) then 'duplicate_copy'
         when sub_id like 'noncom.%' then 'non_commercial' when coalesce(name_ar, name_en) is null then 'no_name'
         when latitude is null then 'no_location' end exclude_reason from g""")
 db.execute("""create table golden as select *, len(missing_fields) = 0 complete, 6 - len(missing_fields) completeness_score,
