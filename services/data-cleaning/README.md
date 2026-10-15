@@ -13,3 +13,12 @@ Outputs go to `/Users/m4pro/farq-taxonomy-data/`. Nothing in the directory is ch
    - 32,089 rows gain a phone from another row in their group.
 3. `neighbour_hint.py` → `neighbour_hints.parquet`. A low-confidence hint for unclassified rows: at least 3 classified neighbours within about 30 m, and at least 70 % of them in one subcategory. It never overwrites the classification.
    - Result: 8,136 hints, of which 2,894 have 90 % or higher agreement. The most common are furniture, restaurants, schools, spare parts and vegetable markets.
+4. `import_archive11.py` → `enrich/` layers from the owner's reference files (Archive 11):
+   - Brand branches: 16,302 rows, all matched by hudhud id.
+   - Brand-name classification: 51,771 rows.
+   - Google (GMB) matches: 147,366 rows, of which 1,202 are permanently closed and 5,743 temporarily closed.
+   - Curated contracting suppliers: 2,456 rows, 138 of them qualified.
+5. `lake_gap.py` compares the local KSA entity lake (`/Users/m4pro/ksa-entity-lake`, 4.41 M entities from 12 sources incl. 2GIS «Firms with Coordinates», trade-licence firms, TRX, atlas, golden, registry) with the directory:
+   - 2,761,651 lake entities match a directory row; **1,166,534 do not**. Of those, 106,469 have a mobile and 505,020 have a category.
+   - The lake fills a missing number for 99,346 directory rows (61,046 of them mobile), now included in `contacts_overlay.parquet`.
+6. `import_cleaned_data.py` imports «cleaned_data (3)» (69,122 rows). 44,458 match a directory row; their extra fields are in `enrich/cleaned_data_attrs.parquet`: company size band (27,358 rows, 2,080 of them with 16+ employees), branches, legal name, Makani, address, payment methods, socials and hours. 24,664 rows are not in the directory (`cleaned_data_new.parquet`).
