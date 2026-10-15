@@ -33,3 +33,16 @@ Results across 1,933,848 rows:
 - `Shopping` (48,243): 35,514 rows reclassified; 12,728 stay as shop with unknown activity.
 - Rows with WhatsApp: 221,313 of 250,286 now have a commercial subcategory.
 - Spot checks (random samples of about 40 rows per source) put name-based medium rows at roughly 90 % correct. The secondary-label source was noisier, which is why name words override it.
+
+## Product families and sells/buys (2026-10-15)
+
+- `product_families.csv`: 350 product families in 29 groups (263 goods, 87 services). Each has Arabic and English names and 3 to 6 example items, used to match free text such as «حبوب قهوة» or «جبس بورد».
+- `sub_family_relations.csv`: 5,135 rows of `sub_id, relation (sells|buys), family_id, strength (core|common)` covering all 427 non-«unc» subcategories.
+  - Drafted in 4 parallel in-session batches, then validated: ids exist, there are no duplicates, every commercial sub sells something, and every sub buys something.
+  - 18 families had no seller and were filled by hand.
+  - The coffee relations were corrected by hand: cafés buy beans and do not sell them; supermarkets, wholesalers and spice shops also sell coffee.
+- Example answers (rows classified with high or medium confidence, from `poi_taxonomy.parquet`):
+  - Who buys coffee beans: cafés 44,011 (11,552 with WhatsApp), hotels 12,385, roasteries, hookah lounges, restaurants and supermarkets.
+  - Who sells gypsum board: 1,042 gypsum shops (84 with WhatsApp).
+  - Who sells plumbing pipes and fittings: about 5,800 (about 1,450 with WhatsApp).
+- `buys` is a typical-need inference, not evidence of a purchase. The UI must say «مشترٍ محتمل».
