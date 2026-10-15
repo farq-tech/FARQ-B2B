@@ -62,11 +62,26 @@ class Search(unittest.TestCase):
         db.execute(f"copy dir to '{d}/dir.parquet' (format parquet)")
         db.execute(f"""copy (select * from (values ('a','food.cafe','activity','high',''),('b','food.cafe','activity','high',''),('c','noncom.mosque','activity','high',''))
             t(poi_key,sub_id,source,confidence,evidence)) to '{d}/poi.parquet' (format parquet)""")
-        tx = ts.Taxonomy(TAX, f'{d}/poi.parquet')
+        db.execute(f"""copy (select 'c' poi_key, '+966500000001' phone, 'mobile' phone_kind, true has_whatsapp, 'directory_twin' phone_source, 'x' phone_source_name
+            union all select 'a', '+966511111111', 'mobile', true, 'directory_twin', 'x') to '{d}/overlay.parquet' (format parquet)""")
+        tx = ts.Taxonomy(TAX, f'{d}/poi.parquet', f'{d}/overlay.parquet')
         r = tx.search(db, f'{d}/dir.parquet', 'أبيع حبوب قهوة', 'Riyadh', 'marketing')
         self.assertEqual([x['poi_key'] for x in r['rows']], ['a'])          # place-id name dropped, mosque never a target
         self.assertIn('احتياج الشراء غير مثبت', r['rows'][0]['reason'])
         self.assertEqual(r['understood']['direction'], 'buyer')
+        self.assertEqual(r['rows'][0]['phone'], '966500000000')                # an existing number is never replaced
+        self.assertNotIn('phone_source', r['rows'][0])
+
+    def test_overlay_fills_missing_number(self):
+        d = tempfile.mkdtemp(); db = duckdb.connect()
+        db.execute(f"""copy (select 'z' poi_key, 'مقهى النخيل' name_ar, null::varchar name_en, 'Riyadh' city_en, 24.7 latitude, 46.7 longitude, null::varchar phone_norm,
+            null::varchar phone_kind, false has_whatsapp, null::varchar email, 1 source_count, 'Coffee Shops' category, null::varchar legal_name, null::varchar brand_name,
+            null::varchar secondary_category, null::varchar category_l3, 'مقاهي' category_ar, 'النخيل' district_ar, null::varchar district_en, null::varchar region_ar,
+            null::varchar region_en, 10.0 completeness_pct, null::varchar company_status, null::varchar lifecycle_state) to '{d}/dir.parquet' (format parquet)""")
+        db.execute(f"copy (select 'z' poi_key, 'food.cafe' sub_id, 'activity' as source, 'high' as confidence, '' as evidence) to '{d}/poi.parquet' (format parquet)")
+        db.execute(f"copy (select 'z' poi_key, '+966522222222' phone, 'mobile' phone_kind, true has_whatsapp, 'directory_twin' phone_source, 'نسخة أخرى' phone_source_name) to '{d}/o.parquet' (format parquet)")
+        row = ts.Taxonomy(TAX, f'{d}/poi.parquet', f'{d}/o.parquet').search(db, f'{d}/dir.parquet', 'أبيع حبوب قهوة', 'Riyadh', 'marketing')['rows'][0]
+        self.assertEqual((row['phone'], row['has_whatsapp'], row['phone_source']), ('+966522222222', True, 'directory_twin'))
 
 
 if __name__ == '__main__':

@@ -65,8 +65,10 @@ def plural_variants(t):
 
 
 class Taxonomy:
-    def __init__(self, tax_dir, poi_taxonomy_path):
+    def __init__(self, tax_dir, poi_taxonomy_path, contacts_overlay=None):
         self.poi_taxonomy = poi_taxonomy_path
+        # optional: one extra number per business found from free sources (duplicate rows, the business's own website)
+        self.overlay = contacts_overlay if contacts_overlay and os.path.isfile(contacts_overlay) else None
         tax = json.load(open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8'))
         self.subs = {s['sub_id']: s for s in tax['subs']}
         self.families = {r['family_id']: r for r in csv.DictReader(open(os.path.join(tax_dir, 'product_families.csv'), encoding='utf-8-sig'))}
@@ -193,21 +195,27 @@ class Taxonomy:
         u = self.understand(q, objective)
         if not u['targets']: return None
         subs = list(u['targets'])
+        overlay_join = 'left join read_parquet(?) o using (poi_key)' if self.overlay else ''
+        overlay_cols = 'o.phone, o.phone_kind, o.has_whatsapp, o.phone_source, o.phone_source_name' if self.overlay else 'null, null, null, null, null'
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
                    t.latitude, t.longitude, t.city_en, t.region_ar, t.region_en, t.name_en, t.phone_norm, t.phone_kind, t.has_whatsapp,
                    t.email, t.source_count, t.category, t.legal_name, t.brand_name, t.secondary_category, t.category_l3,
-                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence
-            from read_parquet(?) t join read_parquet(?) c using (poi_key)
+                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}
+            from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
-            [directory_path, self.poi_taxonomy, city, subs]).fetchall()
+            [directory_path, self.poi_taxonomy] + ([self.overlay] if self.overlay else []) + [city, subs]).fetchall()
         fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
         out, seen = [], set()
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
-             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf) = r
+             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name) = r
+            extra = {}
+            if not phone and o_phone:   # fill only a missing number, and say where it came from
+                phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
+                extra = {'phone_source': o_src, 'phone_source_name': o_src_name, 'phone_lookup': 'found'}
             identity = (norm(name), norm(district))
             if identity in seen or re.fullmatch(r'ChIJ[\w-]{10,}', name or ''): continue   # Google place ids are not names
             seen.add(identity)
@@ -225,7 +233,7 @@ class Taxonomy:
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
                 'evidence': {'source': 'farq_taxonomy', 'text': sub_ar, 'confidence': 'activity_inference' if objective == 'marketing' else 'business_evidence'},
-                'purchase_intent': 'unknown',
+                'purchase_intent': 'unknown', **extra,
                 'match_confidence': {'score': int(min(95, 55 + 15 * weight)), 'basis': 'تصنيف النشاط وعلاقة يبيع/يشتري؛ ليس تأكيدًا للتوفر أو نية الشراء', 'method': 'taxonomy_relation_heuristic_not_probability'},
             }))
         out.sort(key=lambda x: (-x[0], x[1]['name_ar'] or ''))
@@ -268,7 +276,7 @@ def get(tax_dir=None, poi_taxonomy=None):
             tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', os.path.join(os.path.dirname(__file__), 'data', 'taxonomy'))
             poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', os.path.join(os.path.dirname(__file__), 'data', 'poi_taxonomy.parquet'))
             if not (os.path.isdir(tax_dir) and os.path.isfile(poi_taxonomy)): return None
-            _instance = Taxonomy(tax_dir, poi_taxonomy)
+            _instance = Taxonomy(tax_dir, poi_taxonomy, os.environ.get('CONTACTS_OVERLAY', os.path.join(os.path.dirname(__file__), 'data', 'contacts_overlay.parquet')))
         return _instance
 
 
