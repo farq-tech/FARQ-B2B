@@ -21,3 +21,8 @@ These are human judgements made in the field. They are used as ground truth.
 - An activity word is added when the name alone is ambiguous (… لصيانة السيارات, صيدلية, للحلاقة, تموينات).
 - Arabic-Indic digits become Latin (٣٥٤ → 354). Bidi control marks (U+202C, U+200F) are stripped.
 - English names get proper casing and spacing (YVESSAINTLAURENT → Yves Saint Laurent). About half of all name edits are English-only.
+
+## Validity model: not usable yet
+`learn_from_surveyors.py` reaches a holdout AUC of 0.97–0.98, which is too good to be true. The top features are pipeline artefacts: the `nationwide` tag (added to rows that survived the review), whether a category exists (removed with the row), and before that `archived`, status and completeness. Applied to the 1.7 M unsurveyed rows, it flags 65 % of them as invalid, which is not credible. Its outputs are renamed `DO_NOT_USE_*`.
+
+The right training set is the **pre-survey state**: the first POI log of each transaction (original name, coordinates, creator: field surveyor or `bot_scraper`, date), with the label taken from the final log. Until that is built, only the rule-level lessons above are applied.
