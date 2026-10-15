@@ -28,6 +28,11 @@ if os.path.exists(lake):   # the local KSA entity lake (atlas, golden, Urbi bran
         from read_parquet('{lake}') m join read_parquet('/Users/m4pro/ksa-entity-lake/master/entities_master.parquet') e using(entity_id)
         where coalesce(nullif(e.mobile,''), nullif(e.phone,'')) is not null
           and length(regexp_replace(coalesce(nullif(e.mobile,''), e.phone),'[^0-9]','','g')) >= 9""")
+cand = '/Users/m4pro/farq-taxonomy-data/candidates/cand_phone_fill.parquet'
+if os.path.exists(cand):   # master_poi_candidates (Drive): ready_pois_enriched / final_poi_predictions phones
+    parts.append(f"""select poi_key, phone, case when regexp_matches(phone,'^\\+9665') then 'mobile' else 'landline' end phone_kind, false has_whatsapp,
+        'poi_candidates:' || source_name phone_source, 'ملف نقاط الاهتمام المرشحة' phone_source_name, null source_page, current_date found_on, 2.6 rank
+        from read_parquet('{cand}')""")
 if not parts: sys.exit('no enrichment files yet')
 db.execute("create table allp as " + " union all ".join(parts))
 db.execute(f"""copy (select * exclude (rank, rn) from (select *, row_number() over (partition by poi_key order by rank, phone) rn from allp) where rn=1)

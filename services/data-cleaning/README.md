@@ -22,3 +22,7 @@ Outputs go to `/Users/m4pro/farq-taxonomy-data/`. Nothing in the directory is ch
    - 2,761,651 lake entities match a directory row; **1,166,534 do not**. Of those, 106,469 have a mobile and 505,020 have a category.
    - The lake fills a missing number for 99,346 directory rows (61,046 of them mobile), now included in `contacts_overlay.parquet`.
 6. `import_cleaned_data.py` imports «cleaned_data (3)» (69,122 rows). 44,458 match a directory row; their extra fields are in `enrich/cleaned_data_attrs.parquet`: company size band (27,358 rows, 2,080 of them with 16+ employees), branches, legal name, Makani, address, payment methods, socials and hours. 24,664 rows are not in the directory (`cleaned_data_new.parquet`).
+7. `candidates_gap.py` compares «master_poi_candidates.csv» (Drive, 1,917,110 rows from 6 sources) with the directory and the lake.
+   - Final_Mecca (716 k rows) has no coordinates, so it cannot be placed. About half of ready_pois_enriched has Arabic names saved as «????»; for those rows the English name, phone or TRX id is used instead.
+   - 1,147,073 rows have Saudi coordinates. 999,565 of them are already in the directory and 147,508 are not; 123,474 are not in the lake's new set either (full_data_26_7_2025: 119,911, of which 113 k have a category).
+   - The file fills a missing number for 8,777 directory rows (now in the contact overlay).
