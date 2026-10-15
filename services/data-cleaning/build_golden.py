@@ -23,11 +23,15 @@ db.execute(f"""create table base as
      nullif(trim(website),'') website, nullif(trim(instagram),'') instagram, nullif(trim(commercial_license),'') commercial_license, sources,
      coalesce(nullif(district_ar,''), nullif(district_en,'')) district from read_parquet('{P}')
   union all
-  select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, null, null, origins, district_ar from read_parquet('{D}golden/new_entities.parquet')""")
+  select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, null, null, origins, district_ar from read_parquet('{D}golden/new_entities.parquet')
+  union all
+  select poi_key, 'new', name_ar, name_en, latitude, longitude, phone_norm, null, email, website, null, null, origins, district_ar from read_parquet('{D}golden/overture_new.parquet')""")
 db.execute(f"""create table cls as select * from (select poi_key, sub_id, source cls_source, confidence cls_confidence from read_parquet('{D}poi_taxonomy.parquet')
-  union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/new_taxonomy.parquet')) qualify row_number() over (partition by poi_key)=1""")
+  union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/new_taxonomy.parquet')
+  union all select poi_key, sub_id, source, confidence from read_parquet('{D}golden/overture_taxonomy.parquet')) qualify row_number() over (partition by poi_key)=1""")
 db.execute(f"""create table city as select * from (select poi_key, city_en, city_ar from read_parquet('{D}poi_city.parquet')
-  union all select poi_key, city_en, city_en from read_parquet('{D}golden/new_entities.parquet')) qualify row_number() over (partition by poi_key)=1""")
+  union all select poi_key, city_en, city_en from read_parquet('{D}golden/new_entities.parquet')
+  union all select poi_key, city_en, null from read_parquet('{D}golden/overture_new.parquet')) qualify row_number() over (partition by poi_key)=1""")
 db.execute(f"""create table g as select b.poi_key, b.origin,
    {clean("coalesce(cr.name_ar, case when regexp_matches(coalesce(b.name_ar,''),'[؀-ۿ]') then b.name_ar end, nf.name_ar, b.name_ar)")} name_ar,
    {clean("coalesce(cr.name_en, case when regexp_matches(coalesce(b.name_en,''),'[A-Za-z]') then b.name_en end, nf.name_en, b.name_en)")} name_en,
