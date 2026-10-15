@@ -430,12 +430,12 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           </ul>
           {notice ? <p role="status" className="mx-4 mb-2 rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null}
           {/* Figma summary bar: what is chosen and what it costs, from step 1. */}
-          <div data-tone="deep" className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
+          <div className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
             <div className="flex min-w-0 flex-col">
               <p className="text-[16px] leading-[26px] font-medium">اخترت <bdi dir="ltr">{n(chosen.length)}</bdi> موردين</p>
               <p className="text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">واتساب <bdi dir="ltr">{n(chosen.length)}</bdi>{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> ر.س قبل الضريبة</> : null}</p>
             </div>
-            <Button variant="Accent" size="M" disabled={!chosen.length} title={chosen.length ? undefined : 'اختر مورد واحد على الأقل'} onClick={() => setComposeOpen(true)}>التالي</Button>
+            <Button variant="Secondary" size="M" disabled={!chosen.length} title={chosen.length ? undefined : 'اختر مورد واحد على الأقل'} onClick={() => setComposeOpen(true)}>التالي</Button>
           </div>
         </section>
         {composeOpen ? (

@@ -107,7 +107,7 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
       <SummaryBar
         title={chosen ? <>القالب: <bdi dir="ltr">{chosen.name}</bdi> · معتمد</> : 'اختر قالباً'}
         detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> ر.س قبل الضريبة</> : null}</>}
-        action={<Button variant="Accent" size="M" disabled={Boolean(block)} title={block || undefined} onClick={onNext}>التالي</Button>}
+        action={<Button variant="Secondary" size="M" disabled={Boolean(block)} title={block || undefined} onClick={onNext}>التالي</Button>}
         reason={block}
       />
     </section>
@@ -117,7 +117,7 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
 /** Figma «Basket bar»: dark bar above the tab bar with the running choice and the next step. */
 export function SummaryBar({ title, detail, action, reason }: { title: ReactNode; detail: ReactNode; action: ReactNode; reason?: string | null }) {
   return (
-    <div data-tone="deep" className="sticky bottom-0 flex flex-col gap-1 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
+    <div className="sticky bottom-0 flex flex-col gap-1 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col">
           <p className="text-[16px] leading-[26px] font-medium">{title}</p>
