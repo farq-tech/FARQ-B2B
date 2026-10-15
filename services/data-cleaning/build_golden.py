@@ -25,9 +25,10 @@ db.execute(f"""create table city as select * from (select poi_key, city_en, city
   union all select poi_key, city_en, city_en from read_parquet('{D}golden/new_entities.parquet')) qualify row_number() over (partition by poi_key)=1""")
 db.execute(f"""create table g as select b.poi_key, b.origin,
    {clean('b.name_ar')} name_ar, {clean('b.name_en')} name_en, c.sub_id, s.sub_ar, s.main_id, s.main_ar, s.roles, s.isic4, c.cls_source, c.cls_confidence,
-   sec.sector, b.latitude, b.longitude, coalesce(ci.city_en, pf.city_en) city_en, coalesce(ci.city_ar, case when ci.city_en is null then pf.city_en end) city_ar,
-   case when ci.city_en is not null then 'source' when pf.city_en is not null then 'neighbours' end city_method,
-   coalesce(nullif(trim(b.district),''), pf.district) district, case when nullif(trim(b.district),'') is not null then 'source' when pf.district is not null then 'neighbours' end district_method,
+   sec.sector, b.latitude, b.longitude, coalesce(dof.city_en, ci.city_en, pf.city_en) city_en, coalesce(dof.city_ar, ci.city_ar, case when ci.city_en is null then pf.city_en end) city_ar,
+   case when dof.city_en is not null then 'official_boundary' when ci.city_en is not null then 'source' when pf.city_en is not null then 'neighbours' end city_method,
+   coalesce(dof.district_ar, nullif(trim(b.district),''), pf.district) district, dof.district_ar, dof.district_en,
+   case when dof.district_ar is not null then 'official_boundary' when nullif(trim(b.district),'') is not null then 'source' when pf.district is not null then 'neighbours' end district_method,
    coalesce(b.phone, o.phone) phone, case when b.phone is not null then 'source' when o.phone is not null then o.phone_source end phone_source,
    coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email) email, coalesce(b.website, cd.website, bb.website) website,
    coalesce(b.instagram, cd.instagram, bb.instagram) instagram, cd.linkedin, cd.twitter,
@@ -37,7 +38,8 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    cs.poi_key is not null curated_contracting_supplier, coalesce(cs.qualified, false) qualified_distributor,
    gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, b.sources
    from base b left join cls c using(poi_key)
-   left join (select * from read_parquet('{D}golden/place_fill.parquet') qualify row_number() over (partition by poi_key)=1) pf using(poi_key) left join subs s using(sub_id) left join city ci using(poi_key)
+   left join (select * from read_parquet('{D}golden/place_fill.parquet') qualify row_number() over (partition by poi_key)=1) pf using(poi_key)
+   left join (select * from read_parquet('{D}golden/district_official.parquet') qualify row_number() over (partition by poi_key)=1) dof using(poi_key) left join subs s using(sub_id) left join city ci using(poi_key)
    left join (select * from read_parquet('{D}poi_sector.parquet') qualify row_number() over (partition by poi_key)=1) sec using(poi_key)
    left join (select * from read_parquet('{D}contacts/contacts_overlay.parquet') qualify row_number() over (partition by poi_key)=1) o using(poi_key)
    left join (select * from read_parquet('{D}enrich/cleaned_data_attrs.parquet') qualify row_number() over (partition by poi_key order by (employees_band is null), matched_by)=1) cd using(poi_key)
