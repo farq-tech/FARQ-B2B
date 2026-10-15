@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { listCities, searchTargets, templateStatus, type City, waNumber, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
+import { listCities, searchTargets, templateStatus, type City, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
 import { Badge, Button, ChannelBadge, Icon, Stat, useIsMobile, type Channel } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
@@ -55,6 +55,7 @@ const pickBest = (rows: TargetRow[]) => {
 const rowSub = (r: TargetRow) => [r.reason || null, r.target_role === 'buyer' ? 'مشتري محتمل' : null, r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.target_role === 'buyer' ? null : r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
 const FIT = { L: { tone: 'Success', label: 'مناسب' }, M: { tone: 'Warning', label: 'محتمل' }, N: { tone: 'Neutral', label: 'غير مناسب' } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} showDot={false} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
+const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" showDot={false} label={l} className="text-[12px] leading-[18px]" /> : null }
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
 
 function defaultMessage(cat: string | null, area: string | null) {
@@ -319,7 +320,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                     <span className={`truncate text-[16px] leading-[26px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
                     <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{rowSub(r)}</span>
                   </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{fitBadge(r)}</span>
+                  <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}{fitBadge(r)}</span>
                 </label>
               </li>
             )
@@ -421,7 +422,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                       <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{rowSub(r)}</span>
                       {r.phone_source && r.phone ? <span className="text-[12px]">هاتف عام: <bdi dir="ltr">{r.phone}</bdi> · واتساب غير مؤكد</span> : null}
                     </span>
-                    <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{fitBadge(r)}</span>
+                    <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}{fitBadge(r)}</span>
                   </label>
                 </li>
               )
