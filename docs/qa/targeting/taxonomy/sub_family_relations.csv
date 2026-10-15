@@ -5203,3 +5203,12 @@ hosp.hotel,buys,svc_entertainment,common
 retail.mall,buys,svc_entertainment,common
 biz.head_office,buys,svc_entertainment,common
 edu.school,buys,svc_entertainment,common
+contract.general,buys,bld_insulation_waterproofing,common
+contract.facility_mgmt,buys,bld_insulation_waterproofing,common
+re.property_mgmt,buys,bld_insulation_waterproofing,common
+contract.maintenance,buys,bld_insulation_waterproofing,common
+contract.finishing,buys,bld_insulation_waterproofing,common
+contract.civil_infra,buys,bld_insulation_waterproofing,common
+re.developer,buys,bld_insulation_waterproofing,common
+contract.finishing,buys,tsv_waterproofing,common
+contract.civil_infra,buys,tsv_waterproofing,common
