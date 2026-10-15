@@ -21,7 +21,11 @@ db.execute(f"""create table u as
   union all
   select 'cleaned:' || row_number() over (), 'cleaned_data', split_part(n.name_ar, ',', 1), split_part(n.name_en, ',', 1), null, n.category_en, null, n.lat, n.lon, 'Riyadh',
      null, {ph('n.phone')}, n.email, n.website, null, null
-  from read_parquet('{D}enrich/cleaned_data_new.parquet') n where n.lat between 16 and 33""")
+  from read_parquet('{D}enrich/cleaned_data_new.parquet') n where n.lat between 16 and 33
+  union all
+  select 'western:' || row_number() over (), 'western_cleaning', split_part(n.name_ar, ',', 1), split_part(n.name_en, ',', 1), null, n.category_en, null, n.lat, n.lon, null,
+     n.street_ar, {ph('n.phone')}, n.email, n.website, null, null
+  from read_parquet('{D}enrich/western_cleaning_new.parquet') n where n.lat between 16 and 33""")
 db.execute(f"alter table u add column k varchar; update u set k = {nm('coalesce(name_ar, name_en)')}")
 db.execute("create table freq as select k, count(*) n from u group by k")
 db.execute("create table u2 as select row_number() over () rid, * from u")

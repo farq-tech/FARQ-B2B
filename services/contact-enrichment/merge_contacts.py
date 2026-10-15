@@ -28,6 +28,13 @@ if os.path.exists(lake):   # the local KSA entity lake (atlas, golden, Urbi bran
         from read_parquet('{lake}') m join read_parquet('/Users/m4pro/ksa-entity-lake/master/entities_master.parquet') e using(entity_id)
         where coalesce(nullif(e.mobile,''), nullif(e.phone,'')) is not null
           and length(regexp_replace(coalesce(nullif(e.mobile,''), e.phone),'[^0-9]','','g')) >= 9""")
+for attrs in ('cleaned_data', 'western_cleaning'):   # Urbi-schema files matched to the directory (phone or name within 150 m)
+    f = f'/Users/m4pro/farq-taxonomy-data/enrich/{attrs}_attrs.parquet'
+    if os.path.exists(f):
+        parts.append(f"""select poi_key, '+966' || right(regexp_replace(phone,'[^0-9]','','g'),9) phone,
+            case when regexp_matches(regexp_replace(phone,'[^0-9]','','g'),'(966|0)?5[0-9]{{8}}$') then 'mobile' else 'landline' end phone_kind, false has_whatsapp,
+            '{attrs}' phone_source, 'ملف بيانات Urbi المنقّح' phone_source_name, null source_page, current_date found_on, 1.3 rank
+            from read_parquet('{f}') where length(regexp_replace(coalesce(phone,''),'[^0-9]','','g'))>=9""")
 gb = '/Users/m4pro/farq-taxonomy-data/enrich/google_batches.parquet'
 if os.path.exists(gb):   # HudHud Google-scrape batches (2025), matched by TRX id or phone
     parts.append(f"""select poi_key, '+966' || right(regexp_replace(phone_number,'[^0-9]','','g'),9) phone,
