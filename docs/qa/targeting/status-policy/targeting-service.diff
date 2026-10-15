@@ -1,0 +1,566 @@
+diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/directory_tiles.py patched/directory_tiles.py
+--- orig/directory_tiles.py	2026-10-15 10:35:12
++++ patched/directory_tiles.py	2026-10-15 11:35:04
+@@ -1,4 +1,5 @@
+ """Authenticated, bounded vector tiles over the existing read-only POI directory."""
++import status_policy
+ import collections
+ import json
+ import hashlib
+@@ -71,11 +72,12 @@
+             from read_parquet(?) where length(trim(brand_name))>2 and latitude is not null and longitude is not null
+             group by 1""",[path])
+         self.branch_counts=dict(self.db.execute('select * from branches').fetchall())
++        self.search_sql=status_policy.search_sql(self.db,path)
+     def facets(self,city):
+         with self.lock:
+             if city in self.facets_cache: return self.facets_cache[city]
+-            where='where city_en=?' if city and city!='*' else ''
+-            values=self.db.execute('select category,secondary_category,category_l3,count(*) from read_parquet(?) '+where+' group by 1,2,3',[self.path]+([city] if where else [])).fetchall()
++            where='where '+self.search_sql+(' and city_en=?' if city and city!='*' else '')
++            values=self.db.execute('select category,secondary_category,category_l3,count(*) from read_parquet(?) '+where+' group by 1,2,3',[self.path]+([city] if city and city!='*' else [])).fetchall()
+             groups={}
+             for main,sub,l3,count in values:
+                 main=main_category(main);g=groups.setdefault(main,{'value':main,'label':LABELS.get(main,main),'count':0,'subcategories':{}});g['count']+=count
+@@ -97,7 +99,7 @@
+         if not item or item[0]<time.monotonic(): raise KeyError('MAP_QUERY_EXPIRED')
+         return item
+     def sql(self,city,f,bounds=None):
+-        clauses=["coalesce(lifecycle_state,'') not in ('closed','permanently_closed')","coalesce(company_status,'') not in ('cancelled','inactive','ملغي','ملغى')","coalesce(nullif(name_ar,''),name_en) is not null"]
++        clauses=[self.search_sql,"coalesce(nullif(name_ar,''),name_en) is not null"]
+         params=[self.path]
+         if city and city!='*':clauses.append('city_en=?');params.append(city)
+         if f.get('category'):clauses.append("coalesce(nullif(trim(split_part(coalesce(category,''),'|',1)),''),'غير مصنف')=?");params.append(f['category'])
+@@ -125,9 +127,10 @@
+         f=valid_filters(filters);base,params=self.sql(city,f)
+         with self.lock:
+             total,located=self.db.execute('select count(*),count(*) filter(where longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) '+base,params).fetchone()
+-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,phone_norm as phone,phone_kind,has_whatsapp,email,sources,source_count,legal_name,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
++            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,phone_norm as phone,phone_kind,has_whatsapp,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
+         for row in rows:
++            row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
+             row.update(category_main=main_category(row['category']),subcategories=subcategories(row['secondary_category'],row['category_l3']),entity_type=entity_kind(row.get('legal_name'),row.get('name_ar') or row.get('name_en')),reason='نتيجة من التصنيف المسجل؛ ليست توصية شراء أو طلبًا مؤكدًا')
+         return {'rows':rows,'total':total,'located_total':located,'offset':offset,'has_more':offset+len(rows)<total,'next_offset':offset+len(rows) if offset+len(rows)<total else None,'map_query':self.register(city=city,filters=f),'parsed':{'city':city},'with_whatsapp':sum(bool(r.get('has_whatsapp')) for r in rows),'with_email':sum(bool(r.get('email')) for r in rows),'by_region':[]}
+     def profile(self,key,poi_key):
+@@ -138,7 +141,7 @@
+             base,params=self.sql(city,f)
+             cursor=self.db.execute('select p.* '+base+' and poi_key=? limit 1',params+[poi_key]);names=[d[0] for d in cursor.description];values=cursor.fetchone()
+             if not values:return None
+-            row=dict(zip(names,values));row['phone']=row.pop('phone_norm',None);row['registered_location_count']=self.branch_counts.get((row.get('brand_name') or '').strip().lower(),0)
++            row=dict(zip(names,values));row['phone']=row.pop('phone_norm',None);row['status_class']=status_policy.normalize(row.pop('company_status',None),row.pop('lifecycle_state',None))['status_normalized'];row['registered_location_count']=self.branch_counts.get((row.get('brand_name') or '').strip().lower(),0)
+             row.update(category_main=main_category(row['category']),subcategories=subcategories(row['secondary_category'],row['category_l3']),entity_type=entity_kind(row.get('legal_name'),row.get('name_ar') or row.get('name_en')))
+             return row
+     def tile(self,key,z,x,y):
+diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/server.py patched/server.py
+--- orig/server.py	2026-10-15 10:35:12
++++ patched/server.py	2026-10-15 12:47:13
+@@ -11,6 +11,9 @@
+ import duckdb, subprocess, base64
+ from trial_search import Directory
+ from directory_tiles import DirectoryTiles, valid_filters
++import status_policy
++import contextvars
++_DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
+ import urllib.parse
+ FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
+ 
+@@ -28,6 +31,7 @@
+ con = duckdb.connect()
+ con.execute("SET threads=2; SET memory_limit='3GB'")
+ con.execute(f"create view t as select * from '{DATA}'")
++SEARCH_SQL = status_policy.search_sql(con, DATA)   # same rule as status_policy.SEARCH_SQL, compiled once
+ LOCK = threading.Lock()
+ TRIAL_DIRECTORY = Directory(DATA)
+ TILES = DirectoryTiles(DATA)
+@@ -200,6 +204,7 @@
+     cats = [c for c in (p.get('category_hints') or []) if len(c) >= 4 and c not in ('supplies','materials','supplier','distributor','services','company','corporate','retail','shop','store','trading')]
+     for x in p.get('exclude') or []:
+         conds.append(f"st not ilike {sql_lit('%'+x+'%')}")
++    conds.append(SEARCH_SQL)   # same policy as the map and the new search
+     if p.get('city'): conds.append(f"city_en = {sql_lit(p['city'])}")
+     if p.get('region'): conds.append(f"region_en = {sql_lit(p['region'])}")
+     # 'require' never hides rows: those without WhatsApp/email are still shown (greyed) so you can see them on the map.
+@@ -312,71 +317,130 @@
+     import psycopg
+     return psycopg.connect(DB_URL, sslmode='require', connect_timeout=15)
+ 
++RECIPIENT_COLS = ['poi_key', 'name_ar', 'name_en', 'city_en', 'category', 'company_status', 'lifecycle_state', 'phone_norm', 'has_whatsapp', 'email']
++KEY_RE = re.compile(r'^[A-Za-z0-9:_\-\.]{1,200}$')
++
++def resolve_recipients(targets):
++    """Every recipient comes from the directory, looked up by poi_key at the moment of sending.
++    Returns ({poi_key: row}, {poi_key_or_index: reason}). Request numbers, names and emails are ignored."""
++    rejected, keys = {}, []
++    for i, t in enumerate(targets):
++        k = str((t or {}).get('poi_key') or '') if isinstance(t, dict) else ''
++        if not KEY_RE.match(k): rejected[f'#{i}'] = 'INVALID_KEY'; continue
++        if k in keys: rejected[k] = 'DUPLICATE_IN_REQUEST'; continue
++        keys.append(k)
++    found = {}
++    if keys:
++        with LOCK:
++            rows = con.execute(f"select {', '.join(RECIPIENT_COLS)} from t where poi_key in (select unnest(?::varchar[]))", [keys]).fetchall()
++        for r in rows:
++            row = dict(zip(RECIPIENT_COLS, r))
++            if row['poi_key'] in found: rejected[row['poi_key']] = 'AMBIGUOUS_KEY'
++            else: found[row['poi_key']] = row
++        for k in list(found):
++            if rejected.get(k) == 'AMBIGUOUS_KEY': found.pop(k)
++        for k in keys:
++            if k not in found and k not in rejected: rejected[k] = 'NOT_IN_DIRECTORY'
++    return found, rejected
++
++def log_decision(kind, rfq_id, poi_key, decision, reason):
++    """Decision trail without contact data: record id, decision and reason only."""
++    try:
++        with open(os.path.join(HERE, 'data', 'send_decisions.jsonl'), 'a', encoding='utf-8') as f:
++            f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'kind': kind, 'rfq_id': rfq_id, 'poi_key': poi_key, 'decision': decision, 'reason': reason}, ensure_ascii=False) + '\n')
++    except OSError: pass
++
++def provider_send(payload):
++    """The only function that hands a message to WhatsApp. Refuses inside a dry run, whatever the caller does."""
++    if _DRY.get(): raise RuntimeError('DRY_RUN_PROVIDER_CALL')
++    return graph(f"{WA_PHONE_ID}/messages", payload)
++
+ def send_farq(body):
++    token = _DRY.set(body.get('dry_run') is True)
++    try: return _send_farq(body)
++    finally: _DRY.reset(token)
++
++def _send_farq(body):
+     """Register the chosen POIs as private suppliers + invites of the RFQ (holder), optionally send the marketing template
+-    from the Farq number and record a SENT dispatch attempt so the reply routes to that conversation."""
++    from the Farq number and record a SENT dispatch attempt so the reply routes to that conversation.
++    Recipients, names and numbers come from the directory (resolve_recipients); status_policy decides eligibility."""
+     rfq_id = str(body.get('rfq_id', '')).strip().lower()
+     if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', rfq_id): return {'ok': False, 'error': 'RFQ_ID_INVALID'}
+     targets = body.get('targets') or []
+-    if not targets or len(targets) > 500: return {'ok': False, 'error': 'TARGETS_1_500'}
+-    if not DB_URL: return {'ok': False, 'error': 'DB_NOT_CONFIGURED'}
+-    mode = body.get('mode'); out = {'ok': False, 'rfq_id': rfq_id, 'added': 0, 'contacts_whatsapp': 0, 'contacts_email': 0, 'errors': [], 'sent': [], 'failed': []}
++    if not isinstance(targets, list) or not targets or len(targets) > 500: return {'ok': False, 'error': 'TARGETS_1_500'}
++    mode = body.get('mode'); dry = body.get('dry_run') is True
++    out = {'ok': False, 'rfq_id': rfq_id, 'dry_run': dry, 'added': 0, 'contacts_whatsapp': 0, 'contacts_email': 0, 'errors': [], 'sent': [], 'failed': [], 'eligible': []}
+     clean = lambda v: re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(v or ''))).strip()[:1024]
++    found, rejected = resolve_recipients(targets)
++    for k, why in rejected.items():
++        (out['failed'] if mode == 'template' else out['errors']).append({'poi_key': k, 'error': why}); log_decision('send_farq', rfq_id, k, 'reject', why)
++    message = {str(t.get('poi_key')): t.get('message') for t in targets if isinstance(t, dict)}
++    decided = []
++    for k, row in found.items():
++        ok, why = status_policy.send_decision(row)
++        email = str(row.get('email') or '').lower(); email = email if re.match(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$', email) else None
++        reasons = status_policy.send_reasons(row)
++        email_only = mode != 'template' and email and reasons and all(r.startswith(('whatsapp:', 'contact:')) for r in reasons)
++        if not ok and not email_only:
++            (out['failed'] if mode == 'template' else out['errors']).append({'poi_key': k, 'error': 'NOT_ELIGIBLE:' + why}); log_decision('send_farq', rfq_id, k, 'reject', why); continue
++        decided.append((k, row, ok, email)); out['eligible'].append(k); log_decision('send_farq', rfq_id, k, 'dry_run' if dry else 'accept', why)
++    if dry: out['ok'] = True; return out
++    if not DB_URL: return {**out, 'error': 'DB_NOT_CONFIGURED'}
+     try:
+-        with pg() as con:
+-            rfq = con.execute('select id, buyer_user_id, current_version_id, status::text from construction.rfqs where id=%s', (rfq_id,)).fetchone()
++        with pg() as con_pg:
++            rfq = con_pg.execute('select id, buyer_user_id, current_version_id, status::text from construction.rfqs where id=%s', (rfq_id,)).fetchone()
+             if not rfq: return {'ok': False, 'error': 'RFQ_NOT_FOUND'}
+             _, owner, ver, status = rfq; owner = str(owner); ver = str(ver); out['buyer'] = owner; out['rfq_status'] = status
+             if mode == 'template':
+                 tpl = body.get('template', 'farq_outreach_ar')
+-                for t in targets:
+-                    to = re.sub(r'[^0-9]', '', str(t.get('whatsapp') or ''))
+-                    inv = con.execute('select i.id from construction.rfq_invites i join construction.suppliers s on s.id=i.supplier_id where i.rfq_version_id=%s and s.external_key=%s limit 1', (ver, f"golden:{t.get('poi_key')}"[:300])).fetchone()
+-                    if not re.match(r'^9665[0-9]{8}$', to) or not inv: out['failed'].append({'poi_key': t.get('poi_key'), 'error': 'NOT_REGISTERED' if not inv else 'INVALID_NUMBER'}); continue
++                for k, row, wa_ok, _ in decided:
++                    if not wa_ok: continue
++                    to = status_policy.mobile_of(row)
++                    inv = con_pg.execute('select i.id from construction.rfq_invites i join construction.suppliers s on s.id=i.supplier_id where i.rfq_version_id=%s and s.external_key=%s limit 1', (ver, f"golden:{k}"[:300])).fetchone()
++                    if not inv: out['failed'].append({'poi_key': k, 'error': 'NOT_REGISTERED'}); continue
+                     payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template', 'template': {'name': tpl, 'language': {'code': 'ar'},
+-                               'components': [{'type': 'body', 'parameters': [{'type': 'text', 'text': clean(t.get('name_ar') or t.get('name_en') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(t.get('message'))}]}]}}
+-                    r = graph(f"{WA_PHONE_ID}/messages", payload)
++                               'components': [{'type': 'body', 'parameters': [{'type': 'text', 'text': clean(row.get('name_ar') or row.get('name_en') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(message.get(k))}]}]}}
++                    r = provider_send(payload)
+                     mid = (r.get('messages') or [{}])[0].get('id')
+                     if mid:
+-                        con.execute("insert into construction.dispatch_attempts(invite_id,channel,status,idempotency_key,provider_receipt_id,sent_at) values (%s,'WHATSAPP','SENT',%s,%s,now()) on conflict (idempotency_key) do nothing", (inv[0], f'golden-template:{mid}', mid))
+-                        try: con.execute("update construction.rfq_invites set delivery_status='SENT', updated_at=now() where id=%s and delivery_status='PENDING'", (inv[0],))
++                        con_pg.execute("insert into construction.dispatch_attempts(invite_id,channel,status,idempotency_key,provider_receipt_id,sent_at) values (%s,'WHATSAPP','SENT',%s,%s,now()) on conflict (idempotency_key) do nothing", (inv[0], f'golden-template:{inv[0]}:{tpl}', mid))
++                        try: con_pg.execute("update construction.rfq_invites set delivery_status='SENT', updated_at=now() where id=%s and delivery_status='PENDING'", (inv[0],))
+                         except Exception: pass
+-                        out['sent'].append({'poi_key': t.get('poi_key'), 'message_id': mid, 'invite_id': str(inv[0])})
++                        out['sent'].append({'poi_key': k, 'message_id': mid, 'invite_id': str(inv[0])})
+                     else:
+-                        e = r.get('error') or {}; out['failed'].append({'poi_key': t.get('poi_key'), 'error': (e.get('message') or 'UNKNOWN') + (' / ' + str(e.get('error_data', {}).get('details')) if e.get('error_data') else '')})
+-                con.commit(); out['ok'] = True
++                        e = r.get('error') or {}; out['failed'].append({'poi_key': k, 'error': (e.get('message') or 'UNKNOWN')})
++                con_pg.commit(); out['ok'] = True
+             else:
+-                line_keys = [r[0] for r in con.execute('select line_key from construction.rfq_lines where rfq_version_id=%s order by line_number', (ver,)).fetchall()]
++                line_keys = [r[0] for r in con_pg.execute('select line_key from construction.rfq_lines where rfq_version_id=%s order by line_number', (ver,)).fetchall()]
+                 if not line_keys: return {'ok': False, 'error': 'RFQ_HAS_NO_LINES'}
+                 out['line_keys'] = line_keys
+-                for t in targets:
+-                    ek = f"golden:{t.get('poi_key')}"[:300]
+-                    wa = re.sub(r'[^0-9]', '', str(t.get('whatsapp') or '')); wa = wa if re.match(r'^9665[0-9]{8}$', wa) else None
+-                    em = str(t.get('email') or '').lower(); em = em if re.match(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$', em) else None
+-                    if not wa and not em: out['errors'].append({'poi_key': t.get('poi_key'), 'error': 'NO_CHANNEL'}); continue
+-                    name_ar = (str(t.get('name_ar') or t.get('name_en') or '').strip() or 'مورد')[:300]; name_en = (str(t.get('name_en') or t.get('name_ar') or '').strip() or name_ar)[:300]
++                for k, row, wa_ok, em in decided:
++                    ek = f"golden:{k}"[:300]
++                    wa = status_policy.mobile_of(row) if wa_ok else None
++                    name_ar = (str(row.get('name_ar') or row.get('name_en') or '').strip() or 'مورد')[:300]; name_en = (str(row.get('name_en') or row.get('name_ar') or '').strip() or name_ar)[:300]
+                     try:
+-                        sid = con.execute("""insert into construction.suppliers (external_key,name_ar,name_en,city,supplied_items_text,qualification_status,legal_entity_verified,source_ref,active,directory_visibility,owner_scope_user_id)
++                        sid = con_pg.execute("""insert into construction.suppliers (external_key,name_ar,name_en,city,supplied_items_text,qualification_status,legal_entity_verified,source_ref,active,directory_visibility,owner_scope_user_id)
+                             values (%s,%s,%s,%s,%s,'DISCOVERY_CANDIDATE',false,%s,true,'PRIVATE',%s)
+                             on conflict (external_key) do update set name_ar=excluded.name_ar,name_en=excluded.name_en,city=coalesce(excluded.city,construction.suppliers.city),active=true,updated_at=now() returning id""",
+-                            (ek, name_ar, name_en, t.get('city'), t.get('category'), f"GOLDEN_TARGETING:{body.get('query','')}"[:300], owner)).fetchone()[0]
+-                        con.execute("""insert into construction.supplier_contacts (supplier_id,contact_name,whatsapp_e164,emails,source_ref) values (%s,%s,%s,%s,'GOLDEN_TARGETING')
++                            (ek, name_ar, name_en, row.get('city_en'), row.get('category'), f"GOLDEN_TARGETING:{body.get('query','')}"[:300], owner)).fetchone()[0]
++                        con_pg.execute("""insert into construction.supplier_contacts (supplier_id,contact_name,whatsapp_e164,emails,source_ref) values (%s,%s,%s,%s,'GOLDEN_TARGETING')
+                             on conflict (supplier_id) do update set whatsapp_e164=coalesce(excluded.whatsapp_e164,construction.supplier_contacts.whatsapp_e164),
+                             emails=case when cardinality(excluded.emails)>0 then excluded.emails else construction.supplier_contacts.emails end,updated_at=now()""", (sid, name_ar, wa, [em] if em else []))
+                         import hashlib, secrets
+                         tok = hashlib.sha256(secrets.token_urlsafe(32).encode()).hexdigest()
+-                        con.execute("""insert into construction.rfq_invites (rfq_version_id, supplier_id, access_token_hash, access_token_expires_at, added_by_farq)
++                        con_pg.execute("""insert into construction.rfq_invites (rfq_version_id, supplier_id, access_token_hash, access_token_expires_at, added_by_farq)
+                             values (%s,%s,%s, now() + interval '30 days', true) on conflict (rfq_version_id, supplier_id) do update set updated_at=now()""", (ver, sid, tok))
+                         out['added'] += 1; out['contacts_whatsapp'] += 1 if wa else 0; out['contacts_email'] += 1 if em else 0
+                     except Exception as e:
+-                        con.rollback(); out['errors'].append({'poi_key': t.get('poi_key'), 'error': str(e)[:160]})
+-                con.execute("insert into construction.procurement_audit_events (actor_user_id,entity_type,entity_id,event_type,snapshot) values (%s,'RFQ',%s,'GOLDEN_TARGETING_INVITES',%s)",
+-                            (owner, rfq_id, json.dumps({'added': out['added'], 'query': body.get('query', '')}, ensure_ascii=False)))
+-                con.commit(); out['ok'] = True
++                        con_pg.rollback(); out['errors'].append({'poi_key': k, 'error': type(e).__name__})
++                con_pg.execute("insert into construction.procurement_audit_events (actor_user_id,entity_type,entity_id,event_type,snapshot) values (%s,'RFQ',%s,'GOLDEN_TARGETING_INVITES',%s)",
++                               (owner, rfq_id, json.dumps({'added': out['added'], 'query': body.get('query', '')}, ensure_ascii=False)))
++                con_pg.commit(); out['ok'] = True
+     except Exception as e:
+-        out['fatal'] = str(e)[:300]
++        out['fatal'] = type(e).__name__
+     with open(os.path.join(HERE, 'data', 'farq_send_log.jsonl'), 'a', encoding='utf-8') as f:
+-        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'rfq_id': rfq_id, 'mode': mode, 'n': len(targets), 'result': out}, ensure_ascii=False, default=str) + '\n')
++        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'rfq_id': rfq_id, 'mode': mode, 'n': len(targets),
++                            'sent': len(out['sent']), 'failed': len(out['failed']), 'errors': len(out['errors']), 'added': out['added']}, ensure_ascii=False) + '\n')
+     return out
+ 
+ WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
+@@ -420,22 +484,35 @@
+     return {'ok': False, 'error': e.get('error_user_msg') or e.get('message') or 'UNKNOWN', 'code': e.get('code')}
+ 
+ def send_template(body):
+-    """Send farq_outreach_ar ({{1}} name, {{2}} message) from the Farq number. One call = one recipient = one paid message."""
++    token = _DRY.set(body.get('dry_run') is True)
++    try: return _send_template(body)
++    finally: _DRY.reset(token)
++
++def _send_template(body):
++    """Send farq_outreach_ar ({{1}} name, {{2}} message) from the Farq number to ONE directory record (poi_key).
++    The number and the name come from the directory; 'to' / 'name' in the request are ignored."""
++    found, rejected = resolve_recipients([{'poi_key': body.get('poi_key')}])
++    if rejected:
++        why = next(iter(rejected.values())); log_decision('send_template', None, str(body.get('poi_key') or ''), 'reject', why); return {'ok': False, 'error': why}
++    row = next(iter(found.values()))
++    ok, why = status_policy.send_decision(row)
++    if not ok: log_decision('send_template', None, row['poi_key'], 'reject', why); return {'ok': False, 'error': 'NOT_ELIGIBLE:' + why}
++    if body.get('dry_run') is True: log_decision('send_template', None, row['poi_key'], 'dry_run', why); return {'ok': True, 'dry_run': True, 'eligible': row['poi_key']}
+     if not (WA_TOKEN and WA_PHONE_ID): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+     name = body.get('template', 'farq_outreach_ar')
+     st = template_status(name)
+     if st.get('status') != 'APPROVED': return {'ok': False, 'error': f"TEMPLATE_{st.get('status')}", 'template': st}
+-    to = re.sub(r'[^0-9]', '', str(body.get('to', '')))
+-    if not re.match(r'^9665[0-9]{8}$', to): return {'ok': False, 'error': 'INVALID_RECIPIENT'}
++    to = status_policy.mobile_of(row)
+     clean = lambda v: re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(v or ''))).strip()[:1024]
+-    params = [{'type': 'text', 'text': clean(body.get('name') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(body.get('message'))}]
++    params = [{'type': 'text', 'text': clean(row.get('name_ar') or row.get('name_en') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(body.get('message'))}]
+     if not params[1]['text']: return {'ok': False, 'error': 'EMPTY_MESSAGE'}
+     payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template',
+                'template': {'name': name, 'language': {'code': 'ar'}, 'components': [{'type': 'body', 'parameters': params}]}}
+-    r = graph(f"{WA_PHONE_ID}/messages", payload)
++    log_decision('send_template', None, row['poi_key'], 'accept', why)
++    r = provider_send(payload)
+     ok = bool(r.get('messages'))
+     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
+-        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': to[:6] + '****', 'poi_key': body.get('poi_key'), 'template': name, 'ok': ok, 'resp': r}, ensure_ascii=False) + '\n')
++        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
+     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
+ 
+ LOGIN_HTML = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير — دخول</title>
+@@ -444,19 +521,50 @@
+ <input name="p" type="password" placeholder="كلمة المرور" style="width:100%;padding:10px;border-radius:8px;border:1px solid #2a2f3a;background:#0f1115;color:#fff;font-size:15px" autofocus>
+ <button style="margin-top:12px;width:100%;padding:10px;border-radius:8px;border:0;background:#3b82f6;color:#fff;font-size:15px">دخول</button></form></body></html>'''
+ 
++# ---------- sessions (owner-approved 2026-10-15) ----------
++# Browser users: one random session per login, kept in memory, idle 8 h / max 7 days, logout, rate-limited login.
++# The farq-pricing proxy: X-Farq-Service header (TARGETING_SERVICE_TOKEN when set; until then a value derived from the
++# password that differs from any browser cookie). The old password-derived cookie (ft_auth) is no longer accepted.
++import hmac, hashlib, secrets, http.cookies
++SESSION_IDLE, SESSION_MAX, LOGIN_WINDOW, LOGIN_MAX = 8 * 3600, 7 * 86400, 60, 5
++SESSIONS = {}; LOGIN_ATTEMPTS = {}; AUTH_LOCK = threading.Lock()
++def service_token():
++    t = os.environ.get('TARGETING_SERVICE_TOKEN')
++    if t: return t
++    return hmac.new(AUTH_PASSWORD.encode(), b'farq-proxy-v1', hashlib.sha256).hexdigest() if AUTH_PASSWORD else None
++def session_ok(sid, now=None):
++    now = now or time.time()
++    with AUTH_LOCK:
++        s = SESSIONS.get(sid)
++        if not s: return False
++        created, seen = s
++        if now - seen > SESSION_IDLE or now - created > SESSION_MAX: SESSIONS.pop(sid, None); return False
++        SESSIONS[sid] = (created, now); return True
++def login_allowed(ip, now=None):
++    now = now or time.time()
++    with AUTH_LOCK:
++        hits = [t for t in LOGIN_ATTEMPTS.get(ip, []) if now - t < LOGIN_WINDOW]
++        hits.append(now); LOGIN_ATTEMPTS[ip] = hits
++        return len(hits) <= LOGIN_MAX
++
+ class H(BaseHTTPRequestHandler):
+     def _authed(self):
+-        if not AUTH_PASSWORD: return True
+-        import hashlib
+-        want = hashlib.sha256(AUTH_PASSWORD.encode()).hexdigest()[:32]
+-        c = self.headers.get('Cookie') or ''
+-        return f'ft_auth={want}' in c
++        if not AUTH_PASSWORD: return not os.environ.get('RAILWAY_ENVIRONMENT')   # local development only; never open in production
++        svc, tok = service_token(), self.headers.get('X-Farq-Service') or ''
++        if svc and tok and hmac.compare_digest(tok.encode(), svc.encode()): return True
++        try: jar = http.cookies.SimpleCookie(self.headers.get('Cookie') or '')
++        except http.cookies.CookieError: return False
++        sid = jar['ft_session'].value if 'ft_session' in jar else ''
++        return bool(sid) and session_ok(sid)
++    def _client_ip(self):
++        return (self.headers.get('X-Forwarded-For') or self.client_address[0]).split(',')[0].strip()
+     def _json(self, obj, code=200):
+         b = json.dumps(obj, ensure_ascii=False, default=str).encode()
+         self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+     def log_message(self, *a): pass
+     def do_GET(self):
+         route=urllib.parse.urlparse(self.path)
++        if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
+         if route.path.startswith("/tiles/") or route.path=="/facets":
+             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
+             try:
+@@ -478,7 +586,7 @@
+             b = open(os.path.join(HERE, 'index.html'), 'rb').read()
+             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+         elif self.path == '/status':
+-            with LOCK: n = con.execute("select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null) from t").fetchone()
++            with LOCK: n = con.execute("select count(*), count(*) filter (where has_whatsapp), count(*) filter (where email is not null) from t where " + SEARCH_SQL).fetchone()
+             self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
+         elif self.path == '/templates':
+             self._json(list_templates())
+@@ -489,19 +597,27 @@
+         elif self.path == '/log':
+             rows = []
+             if os.path.exists(LOG):
+-                with open(LOG, encoding='utf-8') as f: rows = list(csv.DictReader(f))
++                with open(LOG, encoding='utf-8') as f: rows = [{**r, 'to': status_policy.mask(r.get('to'))} for r in csv.DictReader(f)]
+             self._json(rows[-500:])
+         else:
+             self.send_response(404); self.end_headers()
+     def do_POST(self):
+         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
+         if self.path == '/login':
+-            import hashlib, urllib.parse
+-            p = urllib.parse.parse_qs(raw.decode()).get('p', [''])[0]
++            if not login_allowed(self._client_ip()): self._json({'error': 'TOO_MANY_ATTEMPTS'}, 429); return
++            p = urllib.parse.parse_qs(raw.decode(errors='replace')).get('p', [''])[0]
+             self.send_response(303); self.send_header('Location', '/')
+-            if AUTH_PASSWORD and p == AUTH_PASSWORD:
+-                self.send_header('Set-Cookie', f"ft_auth={hashlib.sha256(AUTH_PASSWORD.encode()).hexdigest()[:32]}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000")
++            if AUTH_PASSWORD and hmac.compare_digest(p.encode(), AUTH_PASSWORD.encode()):
++                sid = secrets.token_urlsafe(32)
++                with AUTH_LOCK: SESSIONS[sid] = (time.time(), time.time())
++                self.send_header('Set-Cookie', f"ft_session={sid}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age={SESSION_MAX}")
++                self.send_header('Set-Cookie', "ft_auth=; Path=/; Max-Age=0")
+             self.end_headers(); return
++        if self.path == '/logout':
++            try: jar = http.cookies.SimpleCookie(self.headers.get('Cookie') or ''); sid = jar['ft_session'].value if 'ft_session' in jar else ''
++            except http.cookies.CookieError: sid = ''
++            with AUTH_LOCK: SESSIONS.pop(sid, None)
++            self.send_response(303); self.send_header('Location', '/'); self.send_header('Set-Cookie', "ft_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"); self.end_headers(); return
+         if not self._authed(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+         body = json.loads(raw or b'{}')
+         if self.path in ('/map-query','/map-profile'):
+@@ -555,11 +671,12 @@
+             with open(LOG, 'a', encoding='utf-8', newline='') as f:
+                 w = csv.DictWriter(f, fieldnames=['ts','poi_key','name','channel','to','message','query'])
+                 if new: w.writeheader()
+-                w.writerow({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), **{k: body.get(k, '') for k in ['poi_key','name','channel','to','message','query']}})
++                w.writerow({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), **{k: body.get(k, '') for k in ['poi_key','name','channel','message','query']}, 'to': status_policy.mask(body.get('to'))})
+             self._json({'ok': True})
+         else:
+             self.send_response(404); self.end_headers()
+ 
+ if __name__ == '__main__':
++    if os.environ.get('RAILWAY_ENVIRONMENT') and not AUTH_PASSWORD: sys.exit('TARGETING_PASSWORD is required in production')
+     print(f"Farq Targeting on http://localhost:{PORT}  (AI: {'on' if API_KEY else 'off — fallback dictionary'})", flush=True)
+     ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
+diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/status_policy.py patched/status_policy.py
+--- orig/status_policy.py	1970-01-01 03:00:00
++++ patched/status_policy.py	2026-10-15 10:49:34
+@@ -0,0 +1,124 @@
++# -*- coding: utf-8 -*-
++"""
++One status / eligibility policy for search, map and every WhatsApp send path.
++
++The original values are never rewritten: callers get the normalized class *next to*
++company_status / lifecycle_state. Python (normalize) and SQL (CLASS_SQL) implement the same
++rules; tests assert they agree.
++
++Owner rules (2026-10-15):
++  * closed_permanent          -> hidden from search, map and campaigns
++  * closed_temporary, inactive -> may be shown (labelled), never in campaigns
++  * empty / invalid / unknown / hidden / draft / archived / any other lifecycle -> not eligible
++    to send by default; their *display* stays as it is today until reviewed
++  * open alone is not enough to send; has_whatsapp / mobile format is not proof of WhatsApp
++  * no environment variable can widen eligibility (constants only, changed by code review)
++"""
++import re
++
++# ---- normalization -------------------------------------------------------------------------------
++_WS = re.compile(r'[\s_\-]+')                    # spaces, underscore, hyphen -> one space
++
++def _canon(v):
++    return _WS.sub(' ', str(v or '').replace('\u0640', '')).strip().lower()   # tatweel removed, as in SQL
++
++CLOSED_PERMANENT = frozenset({'permanently closed', 'closed', 'cancelled', 'canceled', 'ملغي', 'ملغى', 'مغلق نهائيا', 'مغلق نهائياً'})
++CLOSED_TEMPORARY = frozenset({'temporary closed', 'temporarily closed', 'مغلق مؤقتا', 'مغلق مؤقتاً'})
++INACTIVE = frozenset({'inactive', 'غير نشط'})
++OPEN = frozenset({'open', 'active', 'approved', 'success', 'مفتوح', 'نشط'})
++HIDDEN = frozenset({'hidden'})
++LIFECYCLE_CLOSED = frozenset({'closed', 'permanently closed'})
++
++def normalize(company_status, lifecycle_state=None):
++    """-> dict(status_original, status_source, status_normalized, normalization_rule, status_confidence)."""
++    cs, lc = _canon(company_status), _canon(lifecycle_state)
++    out = {'status_original': company_status, 'status_source': 'company_status'}
++    if lc in LIFECYCLE_CLOSED:
++        return {**out, 'status_original': lifecycle_state, 'status_source': 'lifecycle_state', 'status_normalized': 'closed_permanent', 'normalization_rule': 'lifecycle_closed', 'status_confidence': 'high'}
++    for cls, values, conf in (('closed_permanent', CLOSED_PERMANENT, 'high'), ('closed_temporary', CLOSED_TEMPORARY, 'high'),
++                              ('inactive', INACTIVE, 'low'), ('open', OPEN, 'medium'), ('hidden', HIDDEN, 'unresolved')):
++        if cs in values:
++            return {**out, 'status_normalized': cls, 'normalization_rule': 'value:' + cs, 'status_confidence': conf}
++    if cs == '':
++        return {**out, 'status_normalized': 'unknown_empty', 'normalization_rule': 'empty', 'status_confidence': 'none'}
++    return {**out, 'status_normalized': 'unknown_invalid', 'normalization_rule': 'unrecognised_value', 'status_confidence': 'none'}
++
++# ---- the same rules in DuckDB SQL ---------------------------------------------------------------
++def _lit(values):
++    # literals come only from the frozensets above (never from requests or the environment)
++    return '(' + ','.join("'" + v.replace("'", "''") + "'" for v in sorted(values)) + ')'
++
++def _canon_sql(col):
++    # plain replace() instead of a regex: same result as _canon() for runs of up to 8 separators, ~3x cheaper per row
++    x = f"replace(replace(replace(replace(coalesce({col},''),'_',' '),'-',' '),'\u0640',''),chr(9),' ')"
++    for _ in range(3): x = f"replace({x},'  ',' ')"
++    return f"lower(trim({x}))"
++
++CS, LC = _canon_sql('company_status'), _canon_sql('lifecycle_state')
++CLASS_SQL = f"""(case
++  when {LC} in {_lit(LIFECYCLE_CLOSED)} then 'closed_permanent'
++  when {CS} in {_lit(CLOSED_PERMANENT)} then 'closed_permanent'
++  when {CS} in {_lit(CLOSED_TEMPORARY)} then 'closed_temporary'
++  when {CS} in {_lit(INACTIVE)} then 'inactive'
++  when {CS} in {_lit(OPEN)} then 'open'
++  when {CS} in {_lit(HIDDEN)} then 'hidden'
++  when {CS} = '' then 'unknown_empty'
++  else 'unknown_invalid' end)"""
++
++# Search / map / tiles / facets / counts: only permanently closed records are removed.
++# SEARCH_SQL is the readable rule (used in tests and analysis); search_sql() compiles the same rule into a plain
++# value list from the data once at start-up (the CASE above on every row costs ~1 s per Riyadh scan).
++SEARCH_SQL = f"{CLASS_SQL} <> 'closed_permanent'"
++
++def _lit_raw(values):
++    return '(' + ','.join("'" + str(v).replace("'", "''") + "'" for v in values) + ')'
++
++def search_sql(conn, path):
++    """Exact equivalent of SEARCH_SQL for one data file, built with normalize() over its distinct values."""
++    cs = [v for (v,) in conn.execute("select distinct company_status from read_parquet(?)", [path]).fetchall()
++          if v is not None and normalize(v)['status_normalized'] == 'closed_permanent']
++    lc = [v for (v,) in conn.execute("select distinct lifecycle_state from read_parquet(?)", [path]).fetchall()
++          if v is not None and _canon(v) in LIFECYCLE_CLOSED]
++    parts = ([f"coalesce(company_status,'') not in {_lit_raw(cs)}"] if cs else []) + ([f"coalesce(lifecycle_state,'') not in {_lit_raw(lc)}"] if lc else [])
++    return '(' + ' and '.join(parts) + ')' if parts else 'true'
++
++# ---- send eligibility (default deny, owner 2026-10-15) -------------------------------------------
++# Nothing here reads the environment: widening eligibility needs a code change and review.
++SEND_CLASSES = frozenset({'open'})
++SEND_LIFECYCLE = frozenset()                # empty / draft / archived / ready to publish / in progress: none defined as sendable yet
++REQUIRE_VERIFIED_WHATSAPP = True            # has_whatsapp / mobile format are not verification
++REQUIRE_CONTACT_BASIS = True                # a recorded, permitted basis to contact (consent / relationship); not in the data today
++MOBILE = re.compile(r'^9665[0-9]{8}$')
++
++def whatsapp_state(row):
++    """whatsapp_verification_state. The directory has no verification source or date today."""
++    if row.get('whatsapp_verified_at') and row.get('whatsapp_verification_source'):
++        return 'verified'
++    return 'source_flag_unverified' if row.get('has_whatsapp') else 'not_available'
++
++def mobile_of(row):
++    n = re.sub(r'[^0-9]', '', str(row.get('phone_norm') or ''))
++    return n if MOBILE.match(n) else None
++
++def send_reasons(row):
++    """Every reason a directory record may not be messaged (empty list = eligible). Never reads request data."""
++    st = normalize(row.get('company_status'), row.get('lifecycle_state'))
++    reasons = []
++    if st['status_normalized'] not in SEND_CLASSES: reasons.append('status:' + st['status_normalized'])
++    lc = _canon(row.get('lifecycle_state'))
++    if lc not in SEND_LIFECYCLE: reasons.append('lifecycle:' + (lc or 'empty'))
++    wa = whatsapp_state(row)
++    if wa == 'not_available': reasons.append('whatsapp:not_available')
++    elif REQUIRE_VERIFIED_WHATSAPP and wa != 'verified': reasons.append('whatsapp:' + wa)
++    if REQUIRE_CONTACT_BASIS and not row.get('contact_basis'): reasons.append('basis:not_recorded')
++    if not mobile_of(row): reasons.append('contact:invalid_mobile')
++    return reasons
++
++def send_decision(row):
++    """-> (eligible, first_reason_or_'eligible')."""
++    r = send_reasons(row)
++    return (not r), (r[0] if r else 'eligible:' + whatsapp_state(row))
++
++def mask(number):
++    d = re.sub(r'[^0-9]', '', str(number or ''))
++    return (d[:4] + '****' + d[-2:]) if len(d) >= 8 else ('****' if d else '')
+diff -ruN --exclude=data --exclude=__pycache__ --exclude=tests orig/trial_search.py patched/trial_search.py
+--- orig/trial_search.py	2026-10-15 10:35:12
++++ patched/trial_search.py	2026-10-15 11:35:04
+@@ -1,4 +1,5 @@
+ """Read-only, bounded supplier discovery. Fast business evidence, bounded enrichment for unknown items; no contacts or sends."""
++import status_policy
+ import buyer_review
+ import collections
+ import json
+@@ -143,6 +144,7 @@
+         self.path=path; self.lock=threading.Lock(); self.cache=collections.OrderedDict()
+         self.categories=None
+         self.db=duckdb.connect(); self.db.execute("SET threads=2; SET memory_limit='512MB'")
++        self.search_sql=status_policy.search_sql(self.db,path)
+     @staticmethod
+     def page(result, limit, offset, filters=None):
+         from directory_tiles import filter_rows
+@@ -178,14 +180,14 @@
+                 concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category) evidence_category,
+                 coalesce(district_ar,district_en,'') district,
+                 coalesce(completeness_pct,0) completeness,
+-                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, legal_name, brand_name, secondary_category, category_l3
++                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, legal_name, brand_name, secondary_category, category_l3, company_status, lifecycle_state
+                 from read_parquet(?) where city_en=? and coalesce(name_ar,name_en) is not null
+-                and coalesce(lifecycle_state,'') not in ('closed','permanently_closed')
+-                and coalesce(company_status,'') not in ('cancelled','inactive','ملغي','ملغى')""" + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
++                and """ + self.search_sql + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
+             ranked=[]; seen=set()
+             for candidate in candidates:
+                 name,category,details,district,complete,contactable=candidate[:6]
+-                geo=dict(zip(['poi_key','latitude','longitude','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3'],candidate[6:]))
++                geo=dict(zip(['poi_key','latitude','longitude','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state'],candidate[6:]))
++                geo['status_class']=status_policy.normalize(geo.pop('company_status'),geo.pop('lifecycle_state'))['status_normalized']   # class only, never the raw value
+                 row={'name':name,'category':category,'evidence_category':details,'district':district}
+                 if objective=='name' and not contains(norm(q),norm(name+' '+(geo.get('name_en') or ''))): continue
+                 match=evidence(row,intent)

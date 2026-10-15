@@ -99,7 +99,6 @@ class H(BaseHTTPRequestHandler):
         if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
         req = urllib.request.Request(TARGETING + path + (("?"+parsed.query) if parsed.query else ""), data=body, method=self.command, headers={'content-type': 'application/json'})
-        if TARGETING_PW: req.add_header('Cookie', 'ft_auth=' + hashlib.sha256(TARGETING_PW.encode()).hexdigest()[:32])
         if TARGETING_SERVICE: req.add_header('X-Farq-Service', TARGETING_SERVICE)
         try:
             with urllib.request.urlopen(req, timeout=120) as r: status, data, ctype = r.status, r.read(), r.headers.get("Content-Type","application/json")
