@@ -48,13 +48,21 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
         when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when oa.osm_bnd_district_ar is not null then 'osm_boundary' when dn.district_ar is not null then 'nearest_boundary'
         when osm.osm_district_ar is not null then 'osm_' || osm.osm_district_kind
         when pf.district is not null then 'neighbours' end district_method,
-   coalesce(cr.phone, b.phone, o.phone, sm.gm_phone_norm, ov.ov_phone, om.osm_phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when sm.gm_phone_norm is not null then 'google_maps_serper' when ov.ov_phone is not null then 'overture' when om.osm_phone is not null then 'osm' end phone_source,
+   coalesce(cr.phone, b.phone, o.phone, ds.phone, sm.gm_phone_norm, ov.ov_phone, om.osm_phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when ds.phone is not null then ds.src when sm.gm_phone_norm is not null then 'google_maps_serper' when ov.ov_phone is not null then 'overture' when om.osm_phone is not null then 'osm' end phone_source,
    coalesce(cr.license_no, fl.license_no) license_no, fl.license_type, fl.license_end, fl.license_expired, fl.legal_form,
-   cr.national_address, cr.verified_at surveyor_verified_at, st.street_ar, st.street_en, st.street_m,
-   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email) email, coalesce(b.website, cd.website, bb.website, ov.ov_website, om.osm_website) website,
-   coalesce(b.instagram, cd.instagram, bb.instagram) instagram, cd.linkedin, cd.twitter,
+   cr.national_address, cr.verified_at surveyor_verified_at, cr.building_no, cr.postal_code, cr.floorno floor_no,
+   coalesce(cr.street_ar, st.street_ar) street_ar, coalesce(cr.street_en, st.street_en) street_en, case when cr.street_ar is not null then 0 else st.street_m end street_m,
+   case when cr.street_ar is not null then 'crs_surveyor' when st.street_ar is not null then 'osm' end street_source,
+   -- commercial attributes for targeting and for subscribers: hours, ordering, socials, description, amenities, brand, reputation
+   coalesce(cr.opening_hours, tt.working_hours, ds.opening_hours) opening_hours, cr.menu_link, cr.order_link, cr.reservation_link,
+   coalesce(cr.x_link, tt.x_link, ds.x_link) x_link, coalesce(cr.snapchat, tt.snapchat) snapchat, coalesce(cr.tiktok, tt.tiktok) tiktok,
+   ov.ov_socials overture_socials, coalesce(cr.description_ar, tt.description_ar) description_ar, coalesce(cr.description_en, tt.description_en) description_en,
+   cr.tradename, cr.amenities_ids, cr.hh_brand_id, cr.hh_status, cr.duplicate_of hh_duplicate_of, coalesce(cr.google_id, gm.place_id) google_place_id,
+   coalesce(try_cast(tt.reviews_count as int), cr.reviews_count, try_cast(gm.reviews as int), try_cast(try_cast(ds.reviews_count as double) as int)) reviews_count, sm.gm_cid google_cid,
+   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email) email, coalesce(b.website, cd.website, bb.website, ds.website, ov.ov_website, om.osm_website) website,
+   coalesce(b.instagram, cr.instagram, cd.instagram, bb.instagram, ds.instagram) instagram, cd.linkedin, cd.twitter,
    cd.employees_band, cd.branches_count, coalesce(cd.legal_name_ar, cd.legal_name_en) legal_name, cd.makani, b.commercial_license,
-   bb.brand brand, gm.google_categories, coalesce(try_cast(gm.rating as double), sm.gm_rating) google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
+   bb.brand brand, gm.google_categories, coalesce(try_cast(gm.rating as double), sm.gm_rating, cr.rating, try_cast(ds.rating as double)) google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
    coalesce(gm.temp_closed, false) google_temp_closed, (coalesce(h.last_operation='delete' and h.last_review_status='approved', false) or coalesce(ts.is_deleted, false) or coalesce(cr.deleted, false) or coalesce(pl.deleted, false)) hudhud_deleted, ts.state hudhud_state,
    cs.poi_key is not null curated_contracting_supplier, coalesce(cs.qualified, false) qualified_distributor,
    gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, gd.gdup_group, gd.gdup_primary, gd.gdup_size, b.sources
@@ -67,7 +75,8 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
           from cls c left join (select poi_key, any_value(sub_id) sub_id from (select poi_key, sub_id from read_parquet('{D}enrich/eastern_cards.parquet') where sub_id is not null
              union all select poi_key, sub_id from read_parquet('{D}enrich/firms_license.parquet') where sub_id is not null
              union all select poi_key, sub_id from read_parquet('{D}enrich/overture_class.parquet')
-             union all select poi_key, osm_sub from read_parquet('{D}enrich/osm_poi_match.parquet') where osm_sub is not null) group by 1) ec using(poi_key)) c0b using(poi_key)
+             union all select poi_key, osm_sub from read_parquet('{D}enrich/osm_poi_match.parquet') where osm_sub is not null
+             union all select poi_key, sub_id from read_parquet('{D}enrich/serper_places_class.parquet')) group by 1) ec using(poi_key)) c0b using(poi_key)
         left join (select poi_key, sub_id crs_sub from read_parquet('{D}enrich/crs_latest.parquet') where sub_id is not null and sub_confidence in ('high','medium')) cs2b using(poi_key)) c using(poi_key)
    left join (select * from read_parquet('{D}enrich/crs_latest.parquet') qualify row_number() over (partition by poi_key)=1) cr using(poi_key)
    left join (select * from read_parquet('{D}golden/name_fill.parquet') qualify row_number() over (partition by poi_key)=1) nf using(poi_key)
@@ -76,6 +85,8 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select * from read_parquet('{D}enrich/firms_license.parquet') qualify row_number() over (partition by poi_key)=1) fl using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_streets.parquet') qualify row_number() over (partition by poi_key)=1) st using(poi_key)
    left join (select * from read_parquet('{D}enrich/overture_match.parquet') qualify row_number() over (partition by poi_key)=1) ov using(poi_key)
+   left join (select * from read_parquet('{D}enrich/drive_sheets.parquet') qualify row_number() over (partition by poi_key)=1) ds using(poi_key)
+   left join (select poi_key, working_hours, x_link, snapchat, tiktok, description_ar, description_en, reviews_count from read_parquet('{P}')) tt using(poi_key)
    left join (select *, case when gm_phone is not null then '+966' || regexp_replace(regexp_replace(gm_phone,'[^0-9]','','g'), '^(00966|966|0)', '') end gm_phone_norm
        from read_parquet('{D}enrich/serper_maps.parquet') qualify row_number() over (partition by poi_key)=1) sm using(poi_key)
    left join (select * from read_parquet('{D}enrich/osm_poi_match.parquet') qualify row_number() over (partition by poi_key)=1) om using(poi_key)
@@ -123,7 +134,7 @@ db.execute("""create table g2 as select *,
      case when city_en is null then 'city' end,
      case when district is null then 'district' end,
      case when phone is null and email is null and website is null then 'contact' end] if x is not null] missing_fields,
-   case when hudhud_deleted then 'hudhud_deleted' when google_perm_closed then 'google_permanently_closed'
+   case when hudhud_deleted then 'hudhud_deleted' when hh_status in ('permanently closed','closed') then 'surveyor_closed' when google_perm_closed then 'google_permanently_closed'
         when cls_source = 'vacant' then 'vacant_unit' when not dup_primary or not coalesce(gdup_primary, true) then 'duplicate_copy'
         when sub_id like 'noncom.%' then 'non_commercial' when coalesce(name_ar, name_en) is null then 'no_name'
         when latitude is null then 'no_location' end exclude_reason from g""")
