@@ -91,6 +91,23 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select * from read_parquet('{D}enrich/contracting_suppliers.parquet') qualify row_number() over (partition by poi_key order by qualified desc)=1) cs using(poi_key)
    left join (select * from read_parquet('{D}golden/golden_dups.parquet') qualify row_number() over (partition by poi_key)=1) gd using(poi_key)
    left join (select * from read_parquet('{D}poi_groups.parquet') qualify row_number() over (partition by poi_key)=1) gr using(poi_key)""")
+# one spelling per city (city_names.py): map every raw English name to its key's English/Arabic name
+import collections, sys as _sys
+_sys.path.insert(0, '/Users/m4pro/farq-pricing/services/data-cleaning')
+from city_names import ALIAS, key as city_key
+raw = db.execute("select city_en, city_ar, count(*) from g where city_en is not null group by 1, 2").fetchall()
+by_key = collections.defaultdict(collections.Counter); ar_by_key = collections.defaultdict(collections.Counter)
+for en, ar, n in raw:
+    k = city_key(en) or en
+    by_key[k][en] += n
+    if ar and any('\u0600' <= ch <= '\u06ff' for ch in ar): ar_by_key[k][ar] += n
+canon = {}
+for k, c in by_key.items():
+    en, ar = ALIAS.get(k, (c.most_common(1)[0][0].replace('`', '').replace("'", ''), ar_by_key[k].most_common(1)[0][0] if ar_by_key[k] else None))
+    for raw_en in c: canon[raw_en] = (en, ar)
+db.execute("create table cmap (raw_en varchar, en varchar, ar varchar)")
+db.executemany("insert into cmap values (?,?,?)", [(r, e, a) for r, (e, a) in canon.items()])
+db.execute("update g set city_en = cmap.en, city_ar = coalesce(cmap.ar, case when regexp_matches(coalesce(g.city_ar,''), '[\u0600-\u06ff]') then g.city_ar end) from cmap where g.city_en = cmap.raw_en")
 dup = db.execute("select count(*) - count(distinct poi_key) from g where poi_key is not null").fetchone()[0]
 assert dup == 0, f'{dup} duplicate keys after joins'
 # completeness: the fields a buyer or seller needs to act on a result
