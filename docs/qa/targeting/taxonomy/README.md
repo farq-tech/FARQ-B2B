@@ -46,3 +46,11 @@ Results across 1,933,848 rows:
   - Who sells gypsum board: 1,042 gypsum shops (84 with WhatsApp).
   - Who sells plumbing pipes and fittings: about 5,800 (about 1,450 with WhatsApp).
 - `buys` is a typical-need inference, not evidence of a purchase. The UI must say «مشترٍ محتمل».
+
+### Second pass (2026-10-15)
+- More name words were added (shaving, buffet, foodstuffs, sewing, English plurals such as «laundries», bank and ATM, school levels, kitchens, plant nurseries, police). Spot-check errors were fixed.
+- Rows with no usable signal dropped from 452,618 to 364,291.
+- Rows with a real subcategory: 1,515,378 in total, of which 1,172,676 are high or medium confidence.
+- 20,159 names describe a vacant or closed unit («محل مغلق», «تحت الإنشاء», «للإيجار»). They are **kept** in the file with `source = vacant`, and are only left out of search results.
+- Every row of the directory is classified (1,933,848; one row is empty, with no key or name). No status value excludes any row.
+- Numeric secondary codes (`|153|` and similar) were decoded from co-occurrence (153 = grocery, 173 = fuel station, 388 = mosque, and so on). They would add only 716 rows, so they are recorded here but not used yet.
