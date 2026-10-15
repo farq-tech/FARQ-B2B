@@ -41,11 +41,12 @@ test('M01 → M02 new request', async ({ page }) => {
   await expect(page.getByText('3 بند في الطلب')).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/m01-lines.png`, fullPage: true })
   await page.getByRole('button', { name: 'التالي', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'مراجعة البنود' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /قرأنا \d+ بند/ })).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/m02.png`, fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await page.getByRole('button', { name: 'التالي: التوصيل' }).click()
   await page.screenshot({ path: `${SHOTS}/m-delivery.png`, fullPage: true })
+  await page.getByLabel('مدينة التسليم').fill('الرياض') // required, no default city
   await page.getByRole('button', { name: 'التالي: الإرسال' }).click()
   await page.screenshot({ path: `${SHOTS}/m-send.png`, fullPage: true })
 })

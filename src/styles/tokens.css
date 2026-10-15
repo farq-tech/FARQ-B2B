@@ -277,6 +277,7 @@ html[data-farq-app="b2b"] {
   --color-bg-canvas: var(--brand-deep);
   --color-text-primary: var(--color-text-on-inverse);
   --color-text-secondary: var(--color-text-on-inverse-secondary);
+  --color-text-tertiary: var(--color-text-on-inverse-secondary); /* footer «(قريبًا)» on charcoal: 4.5:1 */
 }
 [data-tone="accent"] {
   --live-base: #3ddc97;

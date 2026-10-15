@@ -18,7 +18,7 @@ test('01→02→التوصيل→الإرسال: typed items, photo scan, review
   await expect(page.getByText('3 بند في الطلب')).toBeVisible()
 
   // typed: one more line by keyboard
-  await page.getByRole('radio', { name: /اكتب الطلبات/ }).click()
+  await page.getByRole('radio', { name: /اكتب احتياجاتك/ }).click()
   await page.getByLabel('البند').fill('صبة خرسانة جاهزة')
   await page.getByLabel('الكمية').fill('12')
   await page.getByLabel('الكمية').press('Enter')
@@ -41,10 +41,15 @@ test('01→02→التوصيل→الإرسال: typed items, photo scan, review
   await expect(page.getByRole('heading', { name: 'وين ومتى التوريد؟' })).toBeVisible()
   await expect(page.getByLabel('اسم المشروع')).toHaveValue('فيلا النرجس')
   await page.screenshot({ path: `${SHOTS}/03-delivery.png` })
+  // The delivery city is required (no default city); the step stays locked until it is written.
+  await expect(page.getByRole('button', { name: 'التالي: الإرسال' })).toBeDisabled()
+  await page.getByLabel('مدينة التسليم').fill('الرياض')
 
   await page.getByRole('button', { name: 'التالي: الإرسال' }).click()
   await expect(page.getByRole('heading', { name: 'جاهز للإرسال' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'أرسل الطلب' })).toBeEnabled()
+  // The harness account has no company profile: sending stays locked and says why (never a silent dead button).
+  await expect(page.getByRole('alert')).toContainText('أكمل بيانات المنشأة والتواصل من حسابي قبل الإرسال')
+  await expect(page.getByRole('button', { name: 'أرسل الطلب' })).toBeDisabled()
   await page.screenshot({ path: `${SHOTS}/04-send.png` })
   // Sending is not pressed here: create/dispatch are real writes and stay out of the harness.
   expect(refused).toEqual([])
