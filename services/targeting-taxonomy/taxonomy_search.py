@@ -203,6 +203,10 @@ class Taxonomy:
             fams = ai_families(q, self.families)
             source = 'ai' if fams else 'none'
         relation = 'buys' if objective == 'marketing' else 'sells'
+        if objective == 'marketing' and not fams and named:
+            # «أبيع مواد عزل»: the seller names his own trade — target the buyers of what that trade sells, not the trade itself
+            sold = sorted(((f, w) for f, lst in self.rel['sells'].items() for sub, w in lst if sub in named), key=lambda x: -x[1])
+            fams = list(dict.fromkeys(f for f, _ in sold))[:3]
         by_family = {}
         for fid in fams:
             for sub, w in self.rel[relation].get(fid, []):
@@ -217,7 +221,7 @@ class Taxonomy:
             customers = [s for s in self.customer_subs(q) if self._sub_ok(s)]
             if customers:
                 targets = {s: by_family.get(s, 2.0) for s in customers}
-            elif not fams and named:
+            elif not targets and named:
                 targets = {s: 2.0 for s in named if self._sub_ok(s)}
         else:
             # the exact trade named in the request ranks above the rest of its family («سباك» before general maintenance)
