@@ -68,7 +68,7 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
   const block = blocked ? blocked : failed ? 'تعذّر التحقق من القوالب' : !choices ? 'نتحقق من القوالب…' : !chosen ? 'ما فيه قالب معتمد للإرسال بعد' : !message.trim() ? 'اكتب نص الرسالة' : null
 
   return (
-    <section aria-labelledby="msg-h" className="flex min-h-full flex-col bg-[var(--color-bg-canvas)]">
+    <section aria-labelledby="msg-h" className="flex min-h-full flex-col bg-transparent">
       <MobileAppBar title="حملة موردين" onBack={onBack} />
       <div className="flex flex-1 flex-col gap-4 p-4">
         <h1 id="msg-h" className="sr-only">حملة موردين · الرسالة</h1>

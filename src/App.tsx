@@ -116,5 +116,5 @@ function Routes() {
 
 export default function App() {
   useEffect(() => { document.documentElement.dataset.farqApp = 'b2b'; return () => { delete document.documentElement.dataset.farqApp } }, [])
-  return <ProcurementProvider><div className="farq-b2b" data-farq-b2b><Routes /></div></ProcurementProvider>
+  return <ProcurementProvider><div className="farq-b2b farq-dots" data-farq-b2b><Routes /></div></ProcurementProvider>
 }

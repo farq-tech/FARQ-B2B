@@ -57,6 +57,6 @@ export function mountHarness(which: string) {
   // Same app scope as App.tsx, so fixtures render in the B2B tokens.
   document.documentElement.dataset.farqApp = 'b2b'
   createRoot(document.getElementById('root')!).render(
-    <ProcurementProvider>{withBg ? <LiveBackground /> : null}<div className="farq-b2b" data-farq-b2b style={{ width: withBg || window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
+    <ProcurementProvider>{withBg ? <LiveBackground /> : null}<div className="farq-b2b farq-dots" data-farq-b2b style={{ width: withBg || window.innerWidth < 768 ? '100%' : which === 'new' ? 1440 : 1176 }}><Screen which={which} /></div></ProcurementProvider>,
   )
 }

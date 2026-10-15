@@ -46,7 +46,7 @@ export default function AwardPage({ rfqId, supplierId, onBack, onDone }: AwardPa
   const summary = comparison?.quote_matrix?.supplier_summaries?.find((s) => String(s.supplier_id) === target)
 
   return (
-    <div className="pricing-v2 flex min-h-full flex-col items-start gap-3 bg-[var(--color-bg-canvas)] p-8 text-start text-[var(--color-text-primary)]">
+    <div className="pricing-v2 flex min-h-full flex-col items-start gap-3 bg-transparent p-8 text-start text-[var(--color-text-primary)]">
       {error ? (
         <div role="alert" className="flex flex-col items-start gap-3">
           <p className="text-[16px] leading-[26px] font-medium text-[var(--color-text-danger)]">{error}</p>

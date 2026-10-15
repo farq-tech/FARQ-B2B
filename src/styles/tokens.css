@@ -48,6 +48,10 @@ html[data-farq-app="b2b"] {
   --farq-soft-shadow: 0 4px 16px rgba(0, 0, 0, .08);
   --farq-card-shadow: 0 2px 8px rgba(0, 0, 0, .05);
   --glow-success: 0 0 18px rgba(0, 128, 96, .25);
+  /* Background for every screen (owner, 2026-10-15): S5 grey dotted with small hexagons on a honeycomb lattice,
+     a faint static layer plus a slightly darker layer that pulses softly. */
+  --farq-dots-static: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='48.5' viewBox='0 0 28 48.5'><path d='M8.47 6.85L7.00 7.70L5.53 6.85L5.53 5.15L7.00 4.30L8.47 5.15ZM22.47 31.10L21.00 31.95L19.53 31.10L19.53 29.40L21.00 28.55L22.47 29.40Z' fill='%23303030' fill-opacity='0.1'/></svg>");
+  --farq-dots-pulse: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='48.5' viewBox='0 0 28 48.5'><path d='M8.47 6.85L7.00 7.70L5.53 6.85L5.53 5.15L7.00 4.30L8.47 5.15ZM22.47 31.10L21.00 31.95L19.53 31.10L19.53 29.40L21.00 28.55L22.47 29.40Z' fill='%23303030' fill-opacity='0.22'/></svg>");
   --brand-action: var(--b2b-primary);
   --brand-action-strong: var(--b2b-primary);
   --brand-accent-light: var(--b2b-selected);

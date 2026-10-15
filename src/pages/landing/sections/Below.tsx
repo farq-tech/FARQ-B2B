@@ -39,7 +39,7 @@ const METHODS = [
 
 function HowItWorks() {
   return (
-    <section id="how" aria-labelledby="how-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
+    <section id="how" aria-labelledby="how-title" className="relative overflow-hidden bg-transparent py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-48)]">
         <SectionTitle id="how-title" title="ابدأ بهدفك، وبالطريقة اللي تناسبك" sub="شراء أو تسويق أو استفسار أو شراكة: وضّح النتيجة التي تريدها." />
@@ -84,7 +84,7 @@ const ROWS: Array<{ key: 'items' | 'delivery' | 'vat' | 'days' | 'warranty'; lab
 function Difference() {
   const cell = 'px-[var(--space-24)] py-[var(--space-12)] text-start align-middle'
   return (
-    <section id="difference" aria-labelledby="difference-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
+    <section id="difference" aria-labelledby="difference-title" className="relative overflow-hidden bg-transparent py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-40)]">
         <SectionTitle id="difference-title" title="وش الفرق؟ بنظرة وحدة" sub="قارن العروض على نفس البنود والمواصفات. راجع سعر البنود والتوصيل والضريبة عندما يحددها المورد، عشان يبان الفرق فعلًا." />
@@ -172,7 +172,7 @@ const AUDIENCE = [
 
 function Audience() {
   return (
-    <section id="audience" aria-labelledby="audience-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
+    <section id="audience" aria-labelledby="audience-title" className="relative overflow-hidden bg-transparent py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-24)] md:gap-[var(--space-40)]">
         <SectionTitle id="audience-title" title="لشركتك، مهما كان نشاطها" sub="للشركات والجهات الحكومية وشبه الحكومية والقطاع غير الربحي، مع مراعاة صلاحيات كل جهة ومتطلبات اعتمادها." />
@@ -206,7 +206,7 @@ const FAQ = [
 
 function Faq() {
   return (
-    <section id="faq" aria-labelledby="faq-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] py-[var(--space-48)] md:py-[var(--space-96)]">
+    <section id="faq" aria-labelledby="faq-title" className="relative overflow-hidden bg-transparent py-[var(--space-48)] md:py-[var(--space-96)]">
       <LiveBgSlot tone="light" />
       <Container className="flex flex-col items-center gap-[var(--space-16)]">
         <SectionTitle id="faq-title" title="أسئلة تتكرر" />
@@ -239,7 +239,7 @@ function Faq() {
 /* ── Final CTA 37:317 (accent) ── */
 function FinalCta() {
   return (
-    <section aria-labelledby="final-title" className="relative overflow-hidden border-t border-[var(--color-border-default)] bg-[var(--color-bg-canvas)] py-[var(--space-48)] text-[var(--color-text-primary)] md:py-[var(--space-80)]">
+    <section aria-labelledby="final-title" className="relative overflow-hidden border-t border-[var(--color-border-default)] bg-transparent py-[var(--space-48)] text-[var(--color-text-primary)] md:py-[var(--space-80)]">
       <LiveBgSlot tone="accent" />
       <Container className="flex flex-col items-center gap-[var(--space-16)] text-center md:gap-[var(--space-24)]">
         <h2 id="final-title" className={T.displayL}>طلب الشراء الجاي؟ خلّه علينا.</h2>

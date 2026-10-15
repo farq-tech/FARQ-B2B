@@ -23,7 +23,7 @@ const Footer = lazy(() => loadBelow().then((m) => ({ default: m.Footer })))
 /** Loading state for the lazy part: reserves space, announced politely, no layout jump for the hero. */
 function BelowFallback() {
   return (
-    <output aria-live="polite" className="block min-h-[60vh] bg-[var(--color-bg-canvas)]">
+    <output aria-live="polite" className="block min-h-[60vh] bg-transparent">
       <Container className="flex flex-col gap-[var(--space-16)] py-[var(--space-48)]">
         <span className="sr-only">جارٍ تحميل باقي الصفحة…</span>
         <div aria-hidden="true" className="mx-auto h-10 w-2/3 max-w-[420px] animate-pulse rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] motion-reduce:animate-none" />
@@ -43,7 +43,7 @@ class BelowBoundary extends Component<{ children: ReactNode; silent?: boolean },
     if (!this.state.failed) return this.props.children
     if (this.props.silent) return null
     return (
-      <div role="alert" className="bg-[var(--color-bg-canvas)] py-[var(--space-48)]">
+      <div role="alert" className="bg-transparent py-[var(--space-48)]">
         <Container className="flex flex-col items-center gap-[var(--space-12)] text-center">
           <p className={cx(T.bodyM, 'text-[var(--color-text-primary)]')}>ما قدرنا نحمّل باقي الصفحة.</p>
           <p className={cx(T.small, 'text-[var(--color-text-secondary)]')}>تأكد من الاتصال وحدّث الصفحة، أو كلمنا مباشرة.</p>
@@ -68,7 +68,7 @@ function LandingContent() {
   const closeTrial = () => { setTrial(false); if (location.hash === '#try') history.replaceState(null, '', location.pathname + location.search) }
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
-    <div ref={setRoot} lang="ar" dir="rtl" className="landing-layers min-h-screen bg-[var(--color-bg-canvas)] font-sans text-[var(--color-text-primary)] scroll-smooth">
+    <div ref={setRoot} lang="ar" dir="rtl" className="landing-layers farq-dots min-h-screen font-sans text-[var(--color-text-primary)] scroll-smooth">
       <a href="#main" className={cx('sr-only focus:not-sr-only focus:fixed focus:start-[var(--space-16)] focus:top-[var(--space-16)] focus:z-50 focus:rounded-[var(--radius-md)] focus:bg-[var(--color-bg-surface)] focus:px-[var(--space-16)] focus:py-[var(--space-8)] focus:text-[var(--brand-text)]', FOCUS_RING)}>
         تخطَّ إلى المحتوى
       </a>

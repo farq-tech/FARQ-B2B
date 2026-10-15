@@ -88,7 +88,7 @@ function Nav() {
 /** A quote card from the hero collage (illustrative — no real supplier data). */
 export function SiteHeader() {
   return (
-    <header className="relative bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <header className="relative bg-transparent text-[var(--color-text-primary)]">
       <Nav />
     </header>
   )
@@ -96,7 +96,7 @@ export function SiteHeader() {
 
 export function Hero() {
   return (
-    <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden bg-transparent text-[var(--color-text-primary)]">
         <Container className="grid items-center gap-[var(--space-32)] pb-[var(--space-48)] pt-[var(--space-32)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-[var(--space-48)] lg:pb-[var(--space-64)] lg:pt-[var(--space-64)]">
           <div className="flex min-w-0 flex-col items-start gap-[var(--space-12)]">
             <p className="inline-flex items-center gap-[var(--space-8)] rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-16)] py-[var(--space-8)] text-[14px] font-medium leading-[22px]">

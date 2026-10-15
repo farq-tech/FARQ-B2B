@@ -317,7 +317,7 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
 
   const title = detail ? inboxThreadSupplierLabel(detail) : selectedRow ? inboxThreadSupplierLabel(selectedRow) : 'محادثة'
   const conversation = (
-    <section aria-labelledby="conv-h" className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-bg-canvas)]">
+    <section aria-labelledby="conv-h" className="flex min-h-0 min-w-0 flex-1 flex-col bg-transparent">
       {mobile ? null : (
         <header className={`flex items-center justify-between gap-3 border-b px-6 py-4 ${surface}`}>
           <div className="flex min-w-0 flex-col items-start gap-0.5">
@@ -347,7 +347,7 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
 
   if (mobile) {
     return (
-      <div className="pricing-v2 flex min-h-dvh flex-col bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+      <div className="pricing-v2 flex min-h-dvh flex-col bg-transparent text-[var(--color-text-primary)]">
         {selected ? (
           <>
             <MobileAppBar title={title} onBack={() => open(null)} />
@@ -359,7 +359,7 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
   }
 
   return (
-    <div className="pricing-v2 flex h-dvh min-h-0 bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <div className="pricing-v2 flex h-dvh min-h-0 bg-transparent text-[var(--color-text-primary)]">
       {list}
       {conversation}
       <aside aria-label="قراءة الرد" className={`flex w-[340px] shrink-0 flex-col overflow-y-auto border-s ${surface}`}>

@@ -439,7 +439,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           </div>
         </section>
         {composeOpen ? (
-          <div role="dialog" aria-modal="true" aria-label="رسالة الحملة" className="fixed inset-x-0 top-0 bottom-[72px] z-50 overflow-y-auto bg-[var(--color-bg-canvas)]">
+          <div role="dialog" aria-modal="true" aria-label="رسالة الحملة" className="fixed inset-x-0 top-0 bottom-[72px] z-50 overflow-y-auto farq-dots">
             <MessageStep count={chosen.length} cost={cost} message={message} onMessage={setMessage} onBack={() => setComposeOpen(false)}
               onNext={() => setConfirming(true)} onNewTemplate={onTemplates}
               blocked={objective === 'marketing' ? 'الإرسال غير متاح لمسار المشترين' : !holder && tpl ? 'ما فيه طلب حاضن للردود' : null} />

@@ -428,7 +428,7 @@ export function NewRequestV2({ navigate }: NavProps) {
       : <Button variant="Ghost" size="L" onClick={() => setStep((s) => (s - 1) as Step)}>رجوع</Button>
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
+    <div className="flex min-h-screen flex-col bg-transparent text-[var(--color-text-primary)]">
       <FlowHeader steps={STEPS} current={step} onClose={close} mobileTitle={step === 0 ? undefined : step === 1 ? 'مراجعة البنود' : STEPS[step]} onBack={sending ? undefined : () => setStep((s) => (s - 1) as Step)} />
 
       <div className={mobile ? 'flex-1 px-4 pb-6' : 'flex-1 px-12 pb-10'}>

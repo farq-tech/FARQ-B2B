@@ -1,5 +1,5 @@
 @import '../ui/farq-production-kit.css';
-.farq-b2b { min-height:100dvh; background:var(--farq-canvas-gradient); color:var(--farq-ink); font-family:'ITF Huwiya Arabic',sans-serif; --font-body:'ITF Huwiya Arabic',sans-serif; --font-display:'ITF Huwiya Arabic',sans-serif; }
+.farq-b2b { min-height:100dvh; color:var(--farq-ink); font-family:'ITF Huwiya Arabic',sans-serif; --font-body:'ITF Huwiya Arabic',sans-serif; --font-display:'ITF Huwiya Arabic',sans-serif; }
 .farq-b2b *, .farq-b2b *::before, .farq-b2b *::after { box-sizing:border-box; }
 .farq-b2b h1 { font-size:clamp(25px,2.4vw,34px); font-weight:700; line-height:1.45; margin:0; }
 .farq-b2b h2 { font-size:18px; line-height:1.5; font-weight:700; margin:0; }
@@ -139,3 +139,11 @@
 
 .farq-map-error { position:absolute; top:76px; left:16px; right:16px; background:var(--color-bg-surface); color:var(--farq-ink); border-radius:12px; padding:14px; z-index:4; font-size:14px; }
 @media(max-width:767px) { .farq-b2b .farq-panel { background:var(--color-bg-surface); } }
+
+/* Dotted background on every screen (app + landing): two fixed layers behind the content; only opacity animates. */
+@layer components { .farq-dots { position:relative; isolation:isolate; background:var(--color-bg-canvas); } } /* layered: a `fixed` utility on the same element wins */
+.farq-dots::before, .farq-dots::after { content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; background-position:center top; }
+.farq-dots::before { background-image:var(--farq-dots-static); }
+.farq-dots::after { background-image:var(--farq-dots-pulse); opacity:0; animation:farq-dots-pulse 4.2s ease-in-out infinite; will-change:opacity; }
+@keyframes farq-dots-pulse { 0%, 100% { opacity:0; } 12% { opacity:.85; } 24% { opacity:.25; } 34% { opacity:.6; } 60% { opacity:0; } }
+@media (prefers-reduced-motion: reduce) { .farq-dots::after { animation:none; } }

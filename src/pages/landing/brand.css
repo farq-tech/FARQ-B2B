@@ -1,5 +1,5 @@
 @import '../../ui/farq-production-kit.css';
-.landing-layers { --font-body:'ITF Huwiya Arabic',sans-serif; --font-display:'ITF Huwiya Arabic',sans-serif; background:var(--farq-canvas-gradient); }
+.landing-layers { --font-body:'ITF Huwiya Arabic',sans-serif; --font-display:'ITF Huwiya Arabic',sans-serif; }
 .landing-layers .farq-wordmark { display:inline-flex; align-items:flex-end; gap:3px; color:var(--farq-logo); }
 .landing-layers .farq-wordmark strong { font:600 28px/1.2 'Readex Pro',sans-serif; letter-spacing:-1px; }
 .landing-layers .farq-wordmark small { font:500 8px/1.2 'Readex Pro',sans-serif; margin-bottom:1px; }
