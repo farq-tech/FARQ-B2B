@@ -11,3 +11,5 @@ Outputs go to `/Users/m4pro/farq-taxonomy-data/`. Nothing in the directory is ch
    - A link means either the same non-generic name within 150 m, or the same phone with a shared name prefix within 1 km.
    - Result: 1,813,646 rows with coordinates form 1,695,831 businesses. There are 90,699 duplicate groups covering 208,514 rows, so 117,815 rows are extra copies.
    - 32,089 rows gain a phone from another row in their group.
+3. `neighbour_hint.py` → `neighbour_hints.parquet`. A low-confidence hint for unclassified rows: at least 3 classified neighbours within about 30 m, and at least 70 % of them in one subcategory. It never overwrites the classification.
+   - Result: 8,136 hints, of which 2,894 have 90 % or higher agreement. The most common are furniture, restaurants, schools, spare parts and vegetable markets.
