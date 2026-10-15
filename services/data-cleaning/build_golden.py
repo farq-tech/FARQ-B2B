@@ -16,7 +16,7 @@ clean = lambda c: f"""nullif(trim(regexp_replace(translate(regexp_replace(coales
 # export placeholders are not names (303 k rows were literally «UNAVAILABLE»)
 PLACEHOLDER = "('unavailable','null','none','nan','n/a','na','point','name','false','true','test','لا اسم','لا يوجد','بدون اسم','غير معروف','-','.','0','epsg:4326')"
 _clean = clean
-db.execute(f"create macro ph_null(v) as case when lower(v) in {PLACEHOLDER} then null else v end")
+db.execute(f"create macro ph_null(v) as case when lower(v) in {PLACEHOLDER} or regexp_matches(lower(v), '^(https?://|www\\.|maps\\.app)') or regexp_matches(v, '^ChIJ[A-Za-z0-9_-]{{10,}}$') then null else v end")
 clean = lambda c: f"ph_null({_clean(c)})"
 db.execute(f"""create table base as
   select poi_key, 'directory' origin, name_ar, name_en, latitude, longitude, nullif(trim(phone_norm),'') phone, has_whatsapp, nullif(trim(email),'') email,
@@ -33,8 +33,8 @@ db.execute(f"""create table city as select * from (select poi_key, city_en, city
   union all select poi_key, city_en, city_en from read_parquet('{D}golden/new_entities.parquet')
   union all select poi_key, city_en, null from read_parquet('{D}golden/overture_new.parquet')) qualify row_number() over (partition by poi_key)=1""")
 db.execute(f"""create table g as select b.poi_key, b.origin,
-   {clean("coalesce(cr.name_ar, case when regexp_matches(coalesce(b.name_ar,''),'[؀-ۿ]') then b.name_ar end, nf.name_ar, b.name_ar)")} name_ar,
-   {clean("coalesce(cr.name_en, case when regexp_matches(coalesce(b.name_en,''),'[A-Za-z]') then b.name_en end, nf.name_en, b.name_en)")} name_en,
+   {clean("coalesce(cr.name_ar, case when regexp_matches(coalesce(b.name_ar,''),'[؀-ۿ]') then b.name_ar end, nf.name_ar, b.name_ar, case when regexp_matches(coalesce(sm.gm_name,''),'[؀-ۿ]') then sm.gm_name end)")} name_ar,
+   {clean("coalesce(cr.name_en, case when regexp_matches(coalesce(b.name_en,''),'[A-Za-z]') then b.name_en end, nf.name_en, b.name_en, case when not regexp_matches(coalesce(sm.gm_name,''),'[؀-ۿ]') then sm.gm_name end)")} name_en,
    case when cr.name_ar is not null then 'crs_surveyor' when regexp_matches(coalesce(b.name_ar,''),'[؀-ۿ]') then 'source' else nf.name_ar_source end name_ar_source,
    case when cr.name_en is not null then 'crs_surveyor' when regexp_matches(coalesce(b.name_en,''),'[A-Za-z]') then 'source' else nf.name_en_source end name_en_source,
    c.sub_id, s.sub_ar, s.main_id, s.main_ar, s.roles, s.isic4, c.cls_source, c.cls_confidence,
@@ -48,13 +48,13 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
         when coalesce(ecd.district_ar, fl.district_ar) is not null then 'urbi_admin_district' when oa.osm_bnd_district_ar is not null then 'osm_boundary' when dn.district_ar is not null then 'nearest_boundary'
         when osm.osm_district_ar is not null then 'osm_' || osm.osm_district_kind
         when pf.district is not null then 'neighbours' end district_method,
-   coalesce(cr.phone, b.phone, o.phone, ov.ov_phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when ov.ov_phone is not null then 'overture' end phone_source,
+   coalesce(cr.phone, b.phone, o.phone, sm.gm_phone_norm, ov.ov_phone, om.osm_phone) phone, case when cr.phone is not null then 'crs_surveyor' when b.phone is not null then 'source' when o.phone is not null then o.phone_source when sm.gm_phone_norm is not null then 'google_maps_serper' when ov.ov_phone is not null then 'overture' when om.osm_phone is not null then 'osm' end phone_source,
    coalesce(cr.license_no, fl.license_no) license_no, fl.license_type, fl.license_end, fl.license_expired, fl.legal_form,
    cr.national_address, cr.verified_at surveyor_verified_at, st.street_ar, st.street_en, st.street_m,
-   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email) email, coalesce(b.website, cd.website, bb.website, ov.ov_website) website,
+   coalesce(b.has_whatsapp, o.has_whatsapp, false) has_whatsapp, coalesce(b.email, cd.email, ov.ov_email) email, coalesce(b.website, cd.website, bb.website, ov.ov_website, om.osm_website) website,
    coalesce(b.instagram, cd.instagram, bb.instagram) instagram, cd.linkedin, cd.twitter,
    cd.employees_band, cd.branches_count, coalesce(cd.legal_name_ar, cd.legal_name_en) legal_name, cd.makani, b.commercial_license,
-   bb.brand brand, gm.google_categories, gm.rating google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
+   bb.brand brand, gm.google_categories, coalesce(try_cast(gm.rating as double), sm.gm_rating) google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
    coalesce(gm.temp_closed, false) google_temp_closed, (coalesce(h.last_operation='delete' and h.last_review_status='approved', false) or coalesce(ts.is_deleted, false) or coalesce(cr.deleted, false) or coalesce(pl.deleted, false)) hudhud_deleted, ts.state hudhud_state,
    cs.poi_key is not null curated_contracting_supplier, coalesce(cs.qualified, false) qualified_distributor,
    gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, gd.gdup_group, gd.gdup_primary, gd.gdup_size, b.sources
@@ -66,7 +66,8 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
           case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then 'medium' else c.cls_confidence end cls_confidence
           from cls c left join (select poi_key, any_value(sub_id) sub_id from (select poi_key, sub_id from read_parquet('{D}enrich/eastern_cards.parquet') where sub_id is not null
              union all select poi_key, sub_id from read_parquet('{D}enrich/firms_license.parquet') where sub_id is not null
-             union all select poi_key, sub_id from read_parquet('{D}enrich/overture_class.parquet')) group by 1) ec using(poi_key)) c0b using(poi_key)
+             union all select poi_key, sub_id from read_parquet('{D}enrich/overture_class.parquet')
+             union all select poi_key, osm_sub from read_parquet('{D}enrich/osm_poi_match.parquet') where osm_sub is not null) group by 1) ec using(poi_key)) c0b using(poi_key)
         left join (select poi_key, sub_id crs_sub from read_parquet('{D}enrich/crs_latest.parquet') where sub_id is not null and sub_confidence in ('high','medium')) cs2b using(poi_key)) c using(poi_key)
    left join (select * from read_parquet('{D}enrich/crs_latest.parquet') qualify row_number() over (partition by poi_key)=1) cr using(poi_key)
    left join (select * from read_parquet('{D}golden/name_fill.parquet') qualify row_number() over (partition by poi_key)=1) nf using(poi_key)
@@ -75,6 +76,9 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select * from read_parquet('{D}enrich/firms_license.parquet') qualify row_number() over (partition by poi_key)=1) fl using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_streets.parquet') qualify row_number() over (partition by poi_key)=1) st using(poi_key)
    left join (select * from read_parquet('{D}enrich/overture_match.parquet') qualify row_number() over (partition by poi_key)=1) ov using(poi_key)
+   left join (select *, case when gm_phone is not null then '+966' || regexp_replace(regexp_replace(gm_phone,'[^0-9]','','g'), '^(00966|966|0)', '') end gm_phone_norm
+       from read_parquet('{D}enrich/serper_maps.parquet') qualify row_number() over (partition by poi_key)=1) sm using(poi_key)
+   left join (select * from read_parquet('{D}enrich/osm_poi_match.parquet') qualify row_number() over (partition by poi_key)=1) om using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_admin.parquet') qualify row_number() over (partition by poi_key)=1) oa using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_places.parquet') qualify row_number() over (partition by poi_key)=1) osm using(poi_key)
    left join (select * from read_parquet('{D}golden/district_official.parquet') qualify row_number() over (partition by poi_key)=1) dof using(poi_key)
