@@ -127,7 +127,7 @@ export type City = { en: string; ar: string | null; n: number }
 export const listCities = () => call<City[]>('GET', '/cities')
 
 /** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
-/** «مغلق مؤقتاً» / «غير نشط»: shown next to a result; such places are never campaign recipients. */
+/** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaigns: open or temporarily closed with a verified WhatsApp (owner 2026-10-15). */
 export const statusLabel = (r: TargetRow): string | null => (r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
 export const waNumber = (r: TargetRow) => {
   const n = String(r.phone || '').replace(/[^0-9]/g, '')

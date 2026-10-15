@@ -225,7 +225,7 @@ class Taxonomy:
                 reason = f'نشاطها «{sub_ar}» يشتري عادةً {fam_ar}؛ احتياج الشراء غير مثبت'
             else:
                 reason = f'نشاطها «{sub_ar}» يبيع عادةً {fam_ar}؛ التوفر والسعر يحتاجان تأكيد الجهة'
-            out.append((weight + (0.3 if wa else 0) + complete / 1000, {
+            out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000, {
                 'poi_key': key, 'name_ar': name, 'category_ar': cat_ar, 'district_ar': district, 'latitude': lat, 'longitude': lon,
                 'city_en': city_en, 'region_ar': region_ar, 'region_en': region_en, 'name_en': name_en, 'phone': phone, 'phone_kind': phone_kind,
                 'has_whatsapp': bool(wa), 'email': email, 'source_count': source_count, 'category': category, 'legal_name': legal,
