@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path' // paths relative to the repo root (cwd)
 
 const URL = '/src/pages/landing/dev.html'
-const WA = 'https://wa.me/966510197017?text=' + encodeURIComponent('هلا، أبي أجرب فرق تسعير')
+const WA = 'https://wa.me/966510197017?text=' + encodeURIComponent('هلا، أبي أجرب Farq B2B')
 
 /** Never let the browser reach WhatsApp/mail during tests — hrefs are checked, not followed. */
 async function guardOutbound(page: Page) {

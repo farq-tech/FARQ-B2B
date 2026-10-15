@@ -57,7 +57,7 @@ function Routes() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
         <h1 className="font-[family-name:var(--font-display)] text-[24px] font-semibold">هذه الصفحة خاصة</h1>
-        <p className="text-[var(--color-text-secondary)]">دخلت بـ <bdi dir="ltr">{email}</bdi>، وهذا الحساب ما عنده صلاحية على «فرق تسعير».</p>
+        <p className="text-[var(--color-text-secondary)]">دخلت بـ <bdi dir="ltr">{email}</bdi>، وهذا الحساب ما عنده صلاحية على <bdi dir="ltr">Farq B2B</bdi>.</p>
         <Button variant="Primary" size="L" onClick={() => void farqSession.signOut()}>ادخل بحساب آخر</Button>
       </main>
     )

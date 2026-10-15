@@ -78,7 +78,7 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
 
   const preview = (
     <aside aria-label="معاينة" className="flex flex-col gap-3 rounded-[28px] bg-[var(--color-bg-inverse)] p-4 text-[var(--color-text-on-inverse)]">
-      <div className="flex items-center justify-between text-[14px] leading-[22px] font-medium"><span className="flex items-center gap-2"><Icon name="phone" size={16} />فرق تسعير</span><span className="text-[12px] text-[var(--color-text-on-inverse-secondary)]">معاينة</span></div>
+      <div className="flex items-center justify-between text-[14px] leading-[22px] font-medium"><span className="flex items-center gap-2"><Icon name="phone" size={16} />Farq B2B</span><span className="text-[12px] text-[var(--color-text-on-inverse-secondary)]">معاينة</span></div>
       <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] p-4 text-[var(--color-text-primary)]">
         {d.header === 'TEXT' && d.headerText ? <p className="text-[16px] leading-[26px] font-semibold">{d.headerText}</p> : d.header !== 'NONE' && d.header !== 'TEXT' ? <p className="rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 py-6 text-center text-[12px] text-[var(--color-text-tertiary)]">{d.header === 'IMAGE' ? 'صورة' : 'ملف'}</p> : null}
         <p className="text-[15px] leading-[24px] whitespace-pre-line">{fill(d.body) || <span className="text-[var(--color-text-tertiary)]">نص الرسالة يظهر هنا</span>}</p>

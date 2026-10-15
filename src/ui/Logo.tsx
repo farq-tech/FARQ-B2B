@@ -10,8 +10,8 @@ const TASEER = "M38.7966 43.8475C38.4237 43.6847 38.3559 43.139 38.6746 42.8712C
 export function Logo({ surface = 'Default', height = 44, className }: LogoProps) {
   const inverse = surface === 'Inverse'
   return (
-    <svg aria-label="فرق تسعير" viewBox="0 0 58.0339 44" height={height} width={(height * 58.0339) / 44} className={className} fill="none">
-      <title>فرق تسعير</title>
+    <svg aria-label="Farq B2B" viewBox="0 0 58.0339 44" height={height} width={(height * 58.0339) / 44} className={className} fill="none">
+      <title>Farq B2B</title>
       <path d={FARQ} fillRule="evenodd" clipRule="evenodd" fill={inverse ? 'var(--color-text-on-inverse)' : 'var(--color-text-primary)'} />
       <path d={TASEER} fillRule="evenodd" clipRule="evenodd" fill={inverse ? 'var(--color-bg-brand)' : 'var(--color-text-link)'} />
     </svg>

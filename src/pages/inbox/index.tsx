@@ -180,7 +180,7 @@ function Composer() {
         <input id="inbox-reply" disabled aria-describedby="inbox-reply-note" placeholder="الرد من هنا غير مفعّل" className="min-w-0 flex-1 bg-transparent text-[14px] leading-[22px] placeholder:text-[var(--color-text-tertiary)] disabled:cursor-not-allowed" />
         <Button variant="Primary" size="M" icon="send" disabled>أرسل</Button>
       </div>
-      <p id="inbox-reply-note" className="mt-2 text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">هذه الشاشة للقراءة فقط: «فرق تسعير» ما يرسل ردودًا للموردين حاليًا. الرد من فرق بناء.</p>
+      <p id="inbox-reply-note" className="mt-2 text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">هذه الشاشة للقراءة فقط: <bdi dir="ltr">Farq B2B</bdi> ما يرسل ردودًا للموردين حاليًا. الرد من فرق بناء.</p>
     </div>
   )
 }
