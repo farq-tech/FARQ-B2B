@@ -1,0 +1,352 @@
+term,sub_id
+سباك,contract.plumbing
+سباكه,contract.plumbing
+سباكين,contract.plumbing
+فني سباكه,contract.plumbing
+تسليك مجاري,contract.plumbing
+تسليك,contract.plumbing
+كشف تسربات,contract.plumbing
+تسربات المياه,contract.plumbing
+plumber,contract.plumbing
+plumbing,contract.plumbing
+ادوات صحيه,build.plumbing_supply
+أدوات صحية,build.plumbing_supply
+مغاسل,build.plumbing_supply
+خلاطات,build.plumbing_supply
+كراسي حمام,build.plumbing_supply
+مواسير,build.pipes_fittings
+مواسير بي بي ار,build.pipes_fittings
+بي بي ار,build.pipes_fittings
+ppr,build.pipes_fittings
+upvc,build.pipes_fittings
+خزانات مياه,build.pumps_tanks
+خزان,build.pumps_tanks
+مضخات,build.pumps_tanks
+ماطور ماء,build.pumps_tanks
+دينمو ماء,build.pumps_tanks
+كهربائي,contract.electrical
+فني كهرباء,contract.electrical
+كهربجي,contract.electrical
+تمديدات كهربائية,contract.electrical
+electrician,contract.electrical
+ادوات كهربائية,build.electrical_supply
+أدوات كهربائية,build.electrical_supply
+افياش,build.electrical_supply
+مفاتيح كهرباء,build.electrical_supply
+قواطع,build.electrical_supply
+طبلون,build.electrical_supply
+لوحات توزيع,build.electrical_supply
+كيابل,build.cables_wires
+كيبل,build.cables_wires
+اسلاك كهرباء,build.cables_wires
+انارة,build.lighting_supply
+إنارة,build.lighting_supply
+ليد,build.lighting_supply
+سبوت لايت,build.lighting_supply
+ثريات,home.decor_lighting
+نجار,build.carpentry
+نجاره,build.carpentry
+منجره,build.carpentry
+منجرة,build.carpentry
+ورشة نجارة,build.carpentry
+تفصيل خزائن,build.carpentry
+تفصيل ابواب خشب,build.carpentry
+خشب,build.timber
+اخشاب,build.timber
+أخشاب,build.timber
+ابلكاش,build.timber
+بلكاش,build.timber
+ام دي اف,build.timber
+mdf,build.timber
+كونتر,build.timber
+خشب موسكي,build.timber
+مطابخ,build.kitchens_cabinets
+مطابخ المنيوم,build.kitchens_cabinets
+خزائن مطابخ,build.kitchens_cabinets
+دهان,contract.painting
+دهانات,build.paint
+بويه,build.paint
+بوية,build.paint
+اصباغ,build.paint
+محل بوية,build.paint
+معجون جدران,build.paint
+صباغ,contract.painting
+مقاول دهانات,contract.painting
+جبس,build.gypsum
+جبسن,build.gypsum
+جبس بورد,build.gypsum
+جبسم بورد,build.gypsum
+gypsum,build.gypsum
+اسقف مستعارة,contract.gypsum
+اسقف جبس,contract.gypsum
+فني جبس,contract.gypsum
+معلم جبس,contract.gypsum
+بلاط,build.tiles_ceramic
+سيراميك,build.tiles_ceramic
+بورسلان,build.tiles_ceramic
+بورسلين,build.tiles_ceramic
+رخام,build.marble_stone
+جرانيت,build.marble_stone
+حجر,build.marble_stone
+مبلط,contract.tiling
+فني بلاط,contract.tiling
+تبليط,contract.tiling
+اسمنت,build.cement_blocks
+أسمنت,build.cement_blocks
+بلك,build.cement_blocks
+بلوك,build.cement_blocks
+طوب,build.cement_blocks
+خرسانة جاهزة,build.ready_mix
+خرسانه,build.ready_mix
+بطحاء,build.aggregates
+رمل,build.aggregates
+كسارة,build.aggregates
+حديد تسليح,build.steel_rebar
+حديد,build.steel_rebar
+سيخ,build.steel_rebar
+حداد,build.metal_fabrication
+حداده,build.metal_fabrication
+ورشة حدادة,build.metal_fabrication
+مظلات,build.roofing_cladding
+مظلات سيارات,build.roofing_cladding
+سواتر,build.roofing_cladding
+هناجر,contract.steel_structures
+المنيوم,build.aluminum_glass
+ألمنيوم,build.aluminum_glass
+زجاج,build.glass_workshop
+سكريت,build.glass_workshop
+ابواب,build.doors_windows
+شبابيك,build.doors_windows
+عوازل,build.insulation
+عزل,contract.waterproofing
+عزل اسطح,contract.waterproofing
+عزل خزانات,contract.waterproofing
+عزل حراري,build.insulation
+بروفايل,build.hardware_tools
+عدد يدوية,build.hardware_tools
+عدد وادوات,build.hardware_tools
+ادوات بناء,build.general_materials
+مواد بناء,build.general_materials
+مواد البناء,build.general_materials
+مقاول,contract.general
+مقاولات,contract.general
+مقاول بناء,contract.residential_builder
+مقاول عظم,contract.residential_builder
+بناء فلل,contract.residential_builder
+ترميم,contract.maintenance
+صيانة منازل,contract.maintenance
+صيانة عامة,contract.maintenance
+فني صيانة,contract.handyman
+معلم,contract.handyman
+تشطيبات,contract.finishing
+تشطيب,contract.finishing
+ديكور,contract.interior_design
+تصميم داخلي,contract.interior_design
+ورق جدران,build.wallpaper_decor
+باركيه,build.flooring_parquet
+ارضيات,build.flooring_parquet
+موكيت,home.carpets
+سجاد,home.carpets
+زل,home.carpets
+ستائر,home.curtains_upholstery
+تنجيد,home.curtains_upholstery
+كنب,home.furniture
+اثاث,home.furniture
+أثاث,home.furniture
+مفروشات,home.furniture
+مراتب,home.mattresses
+مكيف,contract.hvac
+مكيفات,build.hvac_supply
+تكييف,contract.hvac
+فني تكييف,contract.hvac
+فني مكيفات,contract.hvac
+صيانة مكيفات,contract.hvac
+تركيب مكيفات,contract.hvac
+غسيل مكيفات,contract.hvac
+تبريد,contract.hvac
+سبليت,build.hvac_supply
+مكيف سبليت,build.hvac_supply
+مكيف شباك,build.hvac_supply
+دكت,build.hvac_supply
+كاميرات,elec.cctv_security
+كاميرات مراقبة,elec.cctv_security
+كاميرا مراقبة,elec.cctv_security
+انظمة امنية,elec.cctv_security
+انتركم,elec.cctv_security
+cctv,elec.cctv_security
+ستلايت,elec.satellite_tv
+دش,elec.satellite_tv
+رسيفر,elec.satellite_tv
+شبكات,elec.it_networking_supply
+راوتر,elec.it_networking_supply
+انترنت,elec.telecom
+الياف,elec.telecom_contractor
+جوالات,elec.mobile_shop
+جوال,elec.mobile_shop
+صيانة جوالات,elec.repair
+اكسسوارات جوالات,elec.mobile_shop
+كمبيوتر,elec.computers
+لابتوب,elec.computers
+طابعات,elec.printers_copiers
+احبار,elec.printers_copiers
+كاشير,elec.pos_systems
+نقاط بيع,elec.pos_systems
+اجهزة كاشير,elec.pos_systems
+ادوات منزلية,home.home_goods_general
+أدوات منزلية,home.home_goods_general
+اواني,home.kitchenware
+مواعين,home.kitchenware
+مواد نظافة,home.cleaning_supplies
+مواد نظافه,home.cleaning_supplies
+مواد تنظيف,home.cleaning_supplies
+منظفات,home.cleaning_supplies
+كلوركس,home.cleaning_supplies
+معقمات,home.cleaning_supplies
+مناديل,food.packaging_disposables
+اكياس نفايات,home.cleaning_supplies
+نظافة,biz.cleaning_services
+شركة نظافة,biz.cleaning_services
+تنظيف منازل,biz.cleaning_services
+تنظيف خزانات,biz.cleaning_services
+تنظيف كنب,biz.cleaning_services
+مكافحة حشرات,biz.pest_control
+رش مبيدات,biz.pest_control
+معدات مطاعم,food.restaurant_equipment
+تجهيزات مطاعم,food.restaurant_equipment
+تجهيز مطاعم,food.restaurant_equipment
+معدات مطابخ,food.restaurant_equipment
+تجهيزات مطابخ تجارية,food.restaurant_equipment
+معدات كوفي,food.restaurant_equipment
+مكائن قهوة,food.restaurant_equipment
+ثلاجات عرض,food.restaurant_equipment
+ستيل,food.restaurant_equipment
+افران,food.restaurant_equipment
+قلايات,food.restaurant_equipment
+تغليف,food.packaging_disposables
+علب,food.packaging_disposables
+علب اكل,food.packaging_disposables
+اكواب ورقية,food.packaging_disposables
+بلاستيك,food.packaging_disposables
+مستلزمات مطاعم,food.packaging_disposables
+بن,food.roastery
+محمصة,food.roastery
+محامص,food.roastery
+قهوة,food.coffee_tea_supplier
+هيل,food.nuts_spices
+بهارات,food.nuts_spices
+عطارة,food.nuts_spices
+مكسرات,food.nuts_spices
+تمور,food.dates
+تمر,food.dates
+خضار,food.fruits_veg
+فواكه,food.fruits_veg
+خضار جملة,food.produce_wholesale
+لحوم,food.butcher
+ملحمة,food.butcher
+جزار,food.butcher
+دجاج,food.meat_poultry_wholesale
+مواد غذائية,food.food_wholesale
+مواد غذائية جملة,food.food_wholesale
+تموينات,food.grocery
+بقالة,food.grocery
+سوبرماركت,food.supermarket
+مياه,food.water_factory
+مياه معدنية,food.water_factory
+مخبز,food.bakery
+مخابز,food.bakery
+حلويات,food.sweets
+مطعم,food.restaurant
+مطاعم,food.restaurant
+كوفي,food.cafe
+كافيه,food.cafe
+مقهى,food.cafe
+بوفيه,food.buffet_popular
+قطع غيار,auto.spare_parts
+تشليح,auto.spare_parts
+كفرات,auto.tires
+كفر,auto.tires
+اطارات,auto.tires
+بنشر,auto.tires
+ورشة سيارات,auto.workshop
+ميكانيكي,auto.workshop
+ميكانيك,auto.workshop
+سمكرة,auto.body_paint
+دهان سيارات,auto.body_paint
+زيوت,auto.oil_change
+غيار زيت,auto.oil_change
+مغسلة سيارات,auto.car_wash
+تظليل,auto.accessories_tint
+زينة سيارات,auto.accessories_tint
+بطاريات,auto.batteries
+سطحة,auto.towing
+سطحات,auto.towing
+معدات ثقيلة,equip.heavy_sales
+تاجير معدات,equip.rental
+شيول,equip.rental
+بوكلين,equip.rental
+مولد,equip.generators
+مولدات,equip.generators
+كرين,equip.cranes_lifting
+رافعة,equip.cranes_lifting
+لحام,equip.welding
+مكينة لحام,equip.welding
+كمبروسر,equip.compressors
+موازين,equip.weighing_measuring
+ميزان,equip.weighing_measuring
+معدات سلامة,equip.safety_ppe
+ملابس سلامة,equip.safety_ppe
+طفايات,build.safety_fire_supply
+طفايات حريق,build.safety_fire_supply
+انظمة حريق,contract.fire_safety
+مصاعد,build.elevators
+صيانة مصاعد,build.elevators
+مسابح,contract.pools
+مسبح,contract.pools
+تنسيق حدائق,contract.landscaping
+عشب صناعي,build.landscaping_supply
+زراعة,agri.supplies
+شتلات,agri.supplies
+مشتل,agri.supplies
+بلك انترلوك,build.interlock_pavers
+انترلوك,build.interlock_pavers
+بردورات,build.interlock_pavers
+سقالات,build.scaffolding
+شدات,build.scaffolding
+براغي,build.fasteners
+مسامير,build.fasteners
+كرفانات,build.prefab
+بيوت جاهزة,build.prefab
+غرف جاهزة,build.prefab
+خيام,home.tents_majlis
+بيوت شعر,home.tents_majlis
+مجالس,home.tents_majlis
+نقل عفش,log.movers
+نقل اثاث,log.movers
+شحن,log.courier
+توصيل,log.courier
+شحن دولي,log.freight_customs
+تخليص جمركي,log.freight_customs
+مستودعات,log.warehousing
+تخزين,log.warehousing
+تبريد وتخزين,log.cold_storage
+دينات,log.trucking
+نقل بضائع,log.trucking
+يونيفورم,fashion.uniforms
+زي موحد,fashion.uniforms
+خياط,fashion.tailoring
+خياطة,fashion.tailoring
+اقمشة,fashion.fabrics
+طباعة,biz.printing
+مطبعة,biz.printing
+لوحات اعلانية,biz.advertising_signage
+لوحات محلات,biz.advertising_signage
+دعاية واعلان,biz.advertising_signage
+تصميم شعار,biz.design_studio
+محاسب,biz.accounting
+مكتب محاسبة,biz.accounting
+محامي,biz.law
+استقدام,biz.recruitment_manpower
+عمالة,biz.recruitment_manpower
+حراسات,biz.security_services
+تعقيب,biz.pro_services
+معقب,biz.pro_services

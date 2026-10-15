@@ -112,6 +112,23 @@ class Taxonomy:
                     if len(t) < 4 or t in GENERIC or t.isdigit(): continue
                     for v in plural_variants(t):
                         self.sub_terms.setdefault(v, set()).add(sid)
+        # market vocabulary: hand-written Saudi terms (saudi_market_terms.csv) and the mined lexicon (search_lexicon.csv: activity labels,
+        # HudHud keywords, Google/Urbi categories, words frequent in the names of one subcategory). Mined name-only words must be
+        # specific (share >= 0.6, support >= 5) and never a family-name style word («الحربي»).
+        self.market_terms = set()
+        for fn, mined in (('saudi_market_terms.csv', False), ('search_lexicon.csv', True)):
+            path = os.path.join(tax_dir, fn)
+            if not os.path.isfile(path): continue
+            for r in csv.DictReader(open(path, encoding='utf-8')):
+                sid, t = r['sub_id'], norm(r['term'])
+                if sid not in self.subs or sid.startswith(('unc.', 'noncom.')) or len(t) < 3 or t in GENERIC: continue
+                if mined:
+                    if float(r['share']) < 0.6: continue
+                    only_names = r['sources'] == 'name_mining'
+                    if only_names and (float(r['support']) < 5 or re.fullmatch(r'ال\S+ي', t)): continue
+                for v in plural_variants(t) | {t}:
+                    self.sub_terms.setdefault(v, set()).add(sid)
+                    if not mined: self.market_terms.add(v)
         self.max_n = max(len(t.split()) for t in list(self.terms) + list(self.sub_terms))
 
     def _grams(self, q):
@@ -141,7 +158,7 @@ class Taxonomy:
         best, subs = 0, set()
         for g, n in self._grams(q):
             if g in self.sub_terms:
-                sc = n * 10 + len(g) / 100
+                sc = n * 10 + len(g) / 100 + (20 if g in self.market_terms else 0)   # a Saudi market word names the trade exactly
                 if sc > best: best, subs = sc, set(self.sub_terms[g])
                 elif sc == best: subs |= self.sub_terms[g]
         return sorted(subs)[:4], best
@@ -150,7 +167,11 @@ class Taxonomy:
         """Business types the seller names as customers: «للمطاعم», «لمحلات الحلاقة»."""
         raw = norm(q).split()
         found = set()
+        vague = {'تجاريه', 'التجاريه', 'تجاري', 'التجاري', 'عامه', 'العامه', 'كل', 'جميع', 'الكل', 'الشركات', 'شركات', 'المنشات', 'منشات'}
         for i, t in enumerate(raw):
+            if (t.startswith('لل') or (t.startswith('ل') and not t.startswith('ال'))) and (t[2:] if t.startswith('لل') else t[1:]) in GENERIC \
+                    and i + 1 < len(raw) and raw[i + 1] in vague:
+                continue   # «للمحلات التجارية» = every business that buys it, not one type
             if t.startswith('لل') or (t.startswith('ل') and not t.startswith('ال')):
                 head = t[2:] if t.startswith('لل') else t[1:]
                 for text in [head] + ([head + ' ' + raw[i + 1]] if i + 1 < len(raw) else []):
@@ -187,6 +208,10 @@ class Taxonomy:
             for sub, w in self.rel[relation].get(fid, []):
                 if self._sub_ok(sub): by_family[sub] = max(by_family.get(sub, 0), w)
         targets = by_family
+        if objective == 'marketing' and not (set(norm(q).split()) & {'جمله', 'بالجمله', 'wholesale', 'موزع', 'توزيع'}):
+            # a retail seller's customers are not the shops that sell the same product (they are competitors)
+            sellers_of = {sub for fid in fams for sub, _ in self.rel['sells'].get(fid, [])}
+            targets = {k: v for k, v in targets.items() if k not in sellers_of} or targets
         if objective == 'marketing':
             # the seller may name the customer type («أبيع زي موحد للمطاعم»): keep only those customers
             customers = [s for s in self.customer_subs(q) if self._sub_ok(s)]
@@ -245,7 +270,9 @@ class Taxonomy:
             sub_ar = self.subs[sub]['sub_ar']
             weight = u['targets'][sub] * CONF[conf]
             # the business's own name carries the asked trade («عبدالله البلوشي سباك وكهربائي»): rank it first
-            if qwords and any(w in norm(name or '') or w in norm(name_en or '') for w in qwords): weight += 1.0
+            if qwords and any(w in norm(name or '') or w in norm(name_en or '') for w in qwords):
+                # buyer: the trade in the name is a plus; seller: a name selling the same product is a competitor
+                weight += 1.0 if objective != 'marketing' else -2.0
             # «جملة»: wholesalers, distributors and factories before retail shops
             if wholesale:
                 sa = self.subs[sub]['sub_ar']
