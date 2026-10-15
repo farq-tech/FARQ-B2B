@@ -69,6 +69,9 @@ class Taxonomy:
         self.poi_taxonomy = poi_taxonomy_path
         # optional: one extra number per business found from free sources (duplicate rows, the business's own website)
         self.overlay = contacts_overlay if contacts_overlay and os.path.isfile(contacts_overlay) else None
+        # HudHud surveyors deleted these POIs (latest approved log = delete). They stay visible, ranked last, flagged, and never selected for a send.
+        hd = os.environ.get('HUDHUD_STATUS', os.path.join(os.path.dirname(poi_taxonomy_path), 'enrich', 'hudhud_logs_status.parquet'))
+        self.hudhud = hd if os.path.isfile(hd) else None
         tax = json.load(open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8'))
         self.subs = {s['sub_id']: s for s in tax['subs']}
         self.families = {r['family_id']: r for r in csv.DictReader(open(os.path.join(tax_dir, 'product_families.csv'), encoding='utf-8-sig'))}
@@ -195,8 +198,9 @@ class Taxonomy:
         u = self.understand(q, objective)
         if not u['targets']: return None
         subs = list(u['targets'])
-        overlay_join = 'left join read_parquet(?) o using (poi_key)' if self.overlay else ''
-        overlay_cols = 'o.phone, o.phone_kind, o.has_whatsapp, o.phone_source, o.phone_source_name' if self.overlay else 'null, null, null, null, null'
+        overlay_join = ('left join read_parquet(?) o using (poi_key)' if self.overlay else '') + (' left join read_parquet(?) h using (poi_key)' if self.hudhud else '')
+        overlay_cols = ('o.phone, o.phone_kind, o.has_whatsapp, o.phone_source, o.phone_source_name' if self.overlay else 'null, null, null, null, null') + \
+            (", (h.last_operation='delete' and h.last_review_status='approved') hh_deleted" if self.hudhud else ', false')
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
@@ -206,12 +210,12 @@ class Taxonomy:
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
-            [directory_path, self.poi_taxonomy] + ([self.overlay] if self.overlay else []) + [city, subs]).fetchall()
+            [directory_path, self.poi_taxonomy] + ([self.overlay] if self.overlay else []) + ([self.hudhud] if self.hudhud else []) + [city, subs]).fetchall()
         fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
         out, seen = [], set()
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
-             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name) = r
+             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -225,7 +229,10 @@ class Taxonomy:
                 reason = f'نشاطها «{sub_ar}» يشتري عادةً {fam_ar}؛ احتياج الشراء غير مثبت'
             else:
                 reason = f'نشاطها «{sub_ar}» يبيع عادةً {fam_ar}؛ التوفر والسعر يحتاجان تأكيد الجهة'
-            out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000, {
+            if hh_deleted:
+                extra = {**extra, 'hudhud_deleted': True, 'sendable': False,
+                         'warning': 'حذفها مسّاحو هدهد بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
+            out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000 - (100 if hh_deleted else 0), {
                 'poi_key': key, 'name_ar': name, 'category_ar': cat_ar, 'district_ar': district, 'latitude': lat, 'longitude': lon,
                 'city_en': city_en, 'region_ar': region_ar, 'region_en': region_en, 'name_en': name_en, 'phone': phone, 'phone_kind': phone_kind,
                 'has_whatsapp': bool(wa), 'email': email, 'source_count': source_count, 'category': category, 'legal_name': legal,

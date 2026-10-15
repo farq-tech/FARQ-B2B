@@ -52,6 +52,10 @@ export type TargetRow = {
   match?: 'product' | 'seller'
   /** AI fit: L likely · M maybe · N not · null = not checked */
   ai?: 'L' | 'M' | 'N' | null
+  /** HudHud surveyors deleted this place after a field visit (closed or duplicate): shown last, never a campaign recipient. */
+  hudhud_deleted?: boolean
+  sendable?: boolean
+  warning?: string
   /** Normalized status from the service (raw status never leaves it). */
   status_class?: 'open' | 'closed_temporary' | 'inactive' | 'hidden' | 'unknown_empty' | 'unknown_invalid' | 'closed_permanent'
 }
@@ -128,8 +132,9 @@ export const listCities = () => call<City[]>('GET', '/cities')
 
 /** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
 /** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaigns: open or temporarily closed with a verified WhatsApp (owner 2026-10-15). */
-export const statusLabel = (r: TargetRow): string | null => (r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
+export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في هدهد' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
 export const waNumber = (r: TargetRow) => {
+  if (r.sendable === false) return null
   const n = String(r.phone || '').replace(/[^0-9]/g, '')
   return r.has_whatsapp && /^9665[0-9]{8}$/.test(n) ? n : null
 }

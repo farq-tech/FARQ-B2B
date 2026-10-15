@@ -64,6 +64,8 @@ class Search(unittest.TestCase):
             t(poi_key,sub_id,source,confidence,evidence)) to '{d}/poi.parquet' (format parquet)""")
         db.execute(f"""copy (select 'c' poi_key, '+966500000001' phone, 'mobile' phone_kind, true has_whatsapp, 'directory_twin' phone_source, 'x' phone_source_name
             union all select 'a', '+966511111111', 'mobile', true, 'directory_twin', 'x') to '{d}/overlay.parquet' (format parquet)""")
+        os.makedirs(f'{d}/enrich', exist_ok=True)
+        db.execute(f"copy (select 'hh:9' poi_key, 'delete' last_operation, 'approved' last_review_status) to '{d}/enrich/hudhud_logs_status.parquet' (format parquet)")
         tx = ts.Taxonomy(TAX, f'{d}/poi.parquet', f'{d}/overlay.parquet')
         r = tx.search(db, f'{d}/dir.parquet', 'أبيع حبوب قهوة', 'Riyadh', 'marketing')
         self.assertEqual([x['poi_key'] for x in r['rows']], ['a'])          # place-id name dropped, mosque never a target
@@ -71,6 +73,16 @@ class Search(unittest.TestCase):
         self.assertEqual(r['understood']['direction'], 'buyer')
         self.assertEqual(r['rows'][0]['phone'], '966500000000')                # an existing number is never replaced
         self.assertNotIn('phone_source', r['rows'][0])
+
+    def test_hudhud_deleted_ranked_last_and_not_sendable(self):
+        d = tempfile.mkdtemp(); db = duckdb.connect(); os.makedirs(f'{d}/enrich')
+        base = "null::varchar name_en, 'Riyadh' city_en, 24.7 latitude, 46.7 longitude, '966500000001' phone_norm, 'mobile' phone_kind, true has_whatsapp, null::varchar email, 1 source_count, 'Coffee Shops' category, null::varchar legal_name, null::varchar brand_name, null::varchar secondary_category, null::varchar category_l3, 'مقاهي' category_ar, null::varchar district_en, null::varchar region_ar, null::varchar region_en, 10.0 completeness_pct, null::varchar company_status, null::varchar lifecycle_state"
+        db.execute(f"copy (select 'hh:1' poi_key, 'مقهى أ' name_ar, 'أ' district_ar, {base} union all select 'hh:9', 'مقهى ب', 'ب', {base}) to '{d}/dir.parquet' (format parquet)")
+        db.execute(f"copy (select * from (values ('hh:1','food.cafe','activity','high',''),('hh:9','food.cafe','activity','high','')) t(poi_key,sub_id,source,confidence,evidence)) to '{d}/poi.parquet' (format parquet)")
+        db.execute(f"copy (select 'hh:9' poi_key, 'delete' last_operation, 'approved' last_review_status) to '{d}/enrich/hudhud_logs_status.parquet' (format parquet)")
+        rows = ts.Taxonomy(TAX, f'{d}/poi.parquet').search(db, f'{d}/dir.parquet', 'أبيع حبوب قهوة', 'Riyadh', 'marketing')['rows']
+        self.assertEqual([r['poi_key'] for r in rows], ['hh:1', 'hh:9'])
+        self.assertTrue(rows[1]['hudhud_deleted']); self.assertFalse(rows[1]['sendable']); self.assertNotIn('hudhud_deleted', rows[0])
 
     def test_overlay_fills_missing_number(self):
         d = tempfile.mkdtemp(); db = duckdb.connect()
