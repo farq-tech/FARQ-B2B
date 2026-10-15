@@ -37,7 +37,7 @@ Results across 1,933,848 rows:
 ## Product families and sells/buys (2026-10-15)
 
 - `product_families.csv`: 350 product families in 29 groups (263 goods, 87 services). Each has Arabic and English names and 3 to 6 example items, used to match free text such as «حبوب قهوة» or «جبس بورد».
-- `sub_family_relations.csv`: 5,135 rows of `sub_id, relation (sells|buys), family_id, strength (core|common)` covering all 427 non-«unc» subcategories.
+- `sub_family_relations.csv`: 5,136 rows of `sub_id, relation (sells|buys), family_id, strength (core|common)` covering all 427 non-«unc» subcategories.
   - Drafted in 4 parallel in-session batches, then validated: ids exist, there are no duplicates, every commercial sub sells something, and every sub buys something.
   - 18 families had no seller and were filled by hand.
   - The coffee relations were corrected by hand: cafés buy beans and do not sell them; supermarkets, wholesalers and spice shops also sell coffee.
