@@ -31,7 +31,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    coalesce(b.instagram, cd.instagram, bb.instagram) instagram, cd.linkedin, cd.twitter,
    cd.employees_band, cd.branches_count, coalesce(cd.legal_name_ar, cd.legal_name_en) legal_name, cd.makani, b.commercial_license,
    bb.brand brand, gm.google_categories, gm.rating google_rating, gm.reviews google_reviews, coalesce(gm.perm_closed, false) google_perm_closed,
-   coalesce(gm.temp_closed, false) google_temp_closed, coalesce(h.last_operation='delete' and h.last_review_status='approved', false) hudhud_deleted,
+   coalesce(gm.temp_closed, false) google_temp_closed, (coalesce(h.last_operation='delete' and h.last_review_status='approved', false) or coalesce(ts.is_deleted, false)) hudhud_deleted, ts.state hudhud_state,
    cs.poi_key is not null curated_contracting_supplier, coalesce(cs.qualified, false) qualified_distributor,
    gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, b.sources
    from base b left join cls c using(poi_key) left join subs s using(sub_id) left join city ci using(poi_key)
@@ -41,6 +41,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select poi_key, any_value(brand) brand, any_value(website) website, any_value(instagram) instagram from read_parquet('{D}enrich/brand_branches.parquet') group by 1) bb using(poi_key)
    left join (select * from read_parquet('{D}enrich/gmb_match.parquet') qualify row_number() over (partition by poi_key)=1) gm using(poi_key)
    left join (select * from read_parquet('{D}enrich/hudhud_logs_status.parquet') qualify row_number() over (partition by poi_key order by last_log_at desc)=1) h using(poi_key)
+   left join (select * from read_parquet('{D}enrich/hudhud_trx_state.parquet') qualify row_number() over (partition by poi_key)=1) ts using(poi_key)
    left join (select * from read_parquet('{D}enrich/contracting_suppliers.parquet') qualify row_number() over (partition by poi_key order by qualified desc)=1) cs using(poi_key)
    left join (select * from read_parquet('{D}poi_groups.parquet') qualify row_number() over (partition by poi_key)=1) gr using(poi_key)""")
 dup = db.execute("select count(*) - count(distinct poi_key) from g where poi_key is not null").fetchone()[0]

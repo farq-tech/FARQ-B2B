@@ -28,6 +28,12 @@ if os.path.exists(lake):   # the local KSA entity lake (atlas, golden, Urbi bran
         from read_parquet('{lake}') m join read_parquet('/Users/m4pro/ksa-entity-lake/master/entities_master.parquet') e using(entity_id)
         where coalesce(nullif(e.mobile,''), nullif(e.phone,'')) is not null
           and length(regexp_replace(coalesce(nullif(e.mobile,''), e.phone),'[^0-9]','','g')) >= 9""")
+gb = '/Users/m4pro/farq-taxonomy-data/enrich/google_batches.parquet'
+if os.path.exists(gb):   # HudHud Google-scrape batches (2025), matched by TRX id or phone
+    parts.append(f"""select poi_key, '+966' || right(regexp_replace(phone_number,'[^0-9]','','g'),9) phone,
+        case when regexp_matches(regexp_replace(phone_number,'[^0-9]','','g'),'(966|0)?5[0-9]{{8}}$') then 'mobile' else 'landline' end phone_kind, false has_whatsapp,
+        'google_batch:' || batch phone_source, 'دفعات Google المراجعة (هدهد)' phone_source_name, null source_page, current_date found_on, 1.2 rank
+        from read_parquet('{gb}') where poi_key is not null and length(regexp_replace(coalesce(phone_number,''),'[^0-9]','','g'))>=9""")
 cand = '/Users/m4pro/farq-taxonomy-data/candidates/cand_phone_fill.parquet'
 if os.path.exists(cand):   # master_poi_candidates (Drive): ready_pois_enriched / final_poi_predictions phones
     parts.append(f"""select poi_key, phone, case when regexp_matches(phone,'^\\+9665') then 'mobile' else 'landline' end phone_kind, false has_whatsapp,
