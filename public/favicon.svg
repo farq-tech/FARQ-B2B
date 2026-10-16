@@ -1,9 +1,1 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="Mark">
-<path id="Vector" d="M18 4H28V28H18V4Z" fill="#121212"/>
-<path id="Vector_2" d="M18 4H28L18 13V4Z" fill="#8FE6BF"/>
-<path id="Vector_3" d="M28 18V28H18L28 18Z" fill="#3DDC97"/>
-<path id="Vector_4" d="M4 14H14V28H4V14Z" fill="#121212"/>
-<path id="Vector_5" opacity="0.75" d="M4 14H14L4 22V14Z" fill="#121212"/>
-</g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Farq B2B"><rect width="32" height="32" rx="7" fill="#303030"/><path transform="translate(9.2 7) scale(0.98)" d="M0.149153 17.922C0.142373 17.8983 0.138983 13.8915 0.142373 9.01695L0.152542 0.152542H5.69492H11.2373V1.98305V3.81356L9 3.82034C7.76949 3.82373 6.38305 3.8339 5.91864 3.83729L5.07458 3.84746L5.06441 5.3322C5.05763 6.14915 5.06102 6.84068 5.07119 6.8678C5.08814 6.90508 5.52203 6.91525 7.9017 6.91525H10.7119V9V11.0847H7.89831H5.08475L5.08136 12.6C5.07797 14.1186 5.05763 17.8915 5.05085 17.939C5.05085 17.9525 3.94915 17.9661 2.60678 17.9661C0.684746 17.9661 0.162712 17.9559 0.149153 17.922Z" fill="#ffffff"/><rect x="17.2" y="21.2" width="7.6" height="3.8" rx="1.9" fill="#008060"/></svg>
