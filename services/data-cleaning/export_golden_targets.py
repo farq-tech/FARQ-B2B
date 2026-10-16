@@ -14,6 +14,9 @@ db.execute(f"create view g as select * from read_parquet('{D}golden/golden_set.p
 # columns the live directory has that the golden set does not carry (descriptions, hours, socials, rating text): taken from it by poi_key
 db.execute(f"""create view t as select poi_key, description_ar, description_en, working_hours, x_link, snapchat, tiktok, rating, reviews_count, region_en, region_ar,
    category_l3 from read_parquet('{P}')""")
+import os
+# wholesale flag (trade_clusters.py): name/category says جملة/موزع/مستودع, or the subcategory is wholesale-only
+W = f"read_parquet('{D}enrich/wholesale_flag.parquet')" if os.path.isfile(f'{D}enrich/wholesale_flag.parquet') else "(select null::varchar poi_key, null::boolean is_wholesale, null::varchar wholesale_basis)"
 db.execute(f"""copy (select g.poi_key, case when g.poi_key like 'hh:%' then try_cast(substr(g.poi_key, 4) as bigint) end hudhud_id,
    g.name_ar, g.name_en, g.legal_name, g.brand brand_name, s_en.sub_en category, g.sub_ar category_ar, g.main_ar secondary_category, t.category_l3,
    g.google_categories google_category, g.description_ar, g.description_en,
@@ -29,8 +32,9 @@ db.execute(f"""copy (select g.poi_key, case when g.poi_key like 'hh:%' then try_
    lower(concat_ws(' ', g.name_ar, g.name_en, g.brand, g.sub_ar, array_to_string(g.specialties_ar, ' '), s_en.sub_en, g.main_ar, coalesce(g.district_ar, g.district), g.district_en, g.city_ar, g.city_en, g.street_ar)) search_text,
    g.sub_id, g.cls_confidence, g.sector, g.governorate_ar, g.street_ar, g.building_no, g.postal_code, g.national_address, g.license_expired, g.surveyor_verified_at, g.phone_source, g.district_method, g.city_method,
    array_to_string(g.specialties_ar, '، ') specialties_ar, array_to_string(g.specialty_ids, '|') specialty_ids,
-   g.menu_link, g.order_link, g.reservation_link, g.amenities_ids, g.tradename, g.google_place_id, g.google_cid, g.floor_no
-   from g left join t using(poi_key) left join s_en using(sub_id)
+   g.menu_link, g.order_link, g.reservation_link, g.amenities_ids, g.tradename, g.google_place_id, g.google_cid, g.floor_no,
+   coalesce(w.is_wholesale, false) is_wholesale, w.wholesale_basis
+   from g left join t using(poi_key) left join s_en using(sub_id) left join {W} w using(poi_key)
    order by city_en, sub_id, g.poi_key) to '{O}targets_golden.parquet' (format parquet, compression zstd, compression_level 19, row_group_size 200000)""")
 db.execute(f"""copy (select poi_key, sub_id, cls_source as source, cls_confidence as confidence, null::varchar as evidence from read_parquet('{D}golden/golden_set.parquet')
    where in_golden and sub_id is not null order by poi_key) to '{O}poi_taxonomy_golden.parquet' (format parquet, compression zstd, compression_level 19)""")

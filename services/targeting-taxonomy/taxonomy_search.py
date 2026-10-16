@@ -352,6 +352,9 @@ class Taxonomy:
         if not hasattr(self, '_has_spec_col'):
             self._has_spec_col = 'specialty_ids' in {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
         spec_col = "coalesce(t.specialty_ids,'')" if self._has_spec_col else "''"
+        if not hasattr(self, '_has_ws_col'):
+            self._has_ws_col = 'is_wholesale' in {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
+        spec_col += ", t.street_ar, " + ("coalesce(t.is_wholesale,false)" if self._has_ws_col else "false")
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
@@ -375,7 +378,8 @@ class Taxonomy:
         out, seen = [], set()
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
-             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs) = r
+             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
+             street, is_ws) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -391,8 +395,10 @@ class Taxonomy:
                 weight += 1.0 if objective != 'marketing' else -2.0
             # «جملة»: wholesalers, distributors and factories before retail shops
             if wholesale:
+                # «جملة مواد سباكة»: a business that says it sells wholesale (name/activity) leads, then wholesale trades, retail last
                 sa = self.subs[sub]['sub_ar']
-                if any(k in sa for k in ('جملة', 'مصنع', 'توزيع', 'موزع', 'مستودع', 'أدوات ومواد')): weight += 1.0
+                if is_ws: weight += 2.5
+                elif any(k in sa for k in ('جملة', 'مصنع', 'توزيع', 'موزع', 'مستودع', 'أدوات ومواد')): weight += 1.0
                 elif sub.startswith(('food.supermarket', 'food.grocery', 'retail.general_store', 'retail.kiosk')): weight -= 1.0
             if objective == 'marketing':
                 reason = f'نشاطها «{sub_ar}» يشتري عادةً {fam_ar}؛ احتياج الشراء غير مثبت'
@@ -415,7 +421,7 @@ class Taxonomy:
             out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000 - (100 if hh_deleted else 0), {
                 'poi_key': key, 'name_ar': name, 'category_ar': cat_ar, 'district_ar': district, 'latitude': lat, 'longitude': lon,
                 'city_en': city_en, 'region_ar': region_ar, 'region_en': region_en, 'name_en': name_en, 'phone': phone, 'phone_kind': phone_kind,
-                'has_whatsapp': bool(wa), 'email': email, 'source_count': source_count, 'category': category, 'legal_name': legal,
+                'has_whatsapp': bool(wa), 'email': email, 'street_ar': street, 'is_wholesale': bool(is_ws), 'source_count': source_count, 'category': category, 'legal_name': legal,
                 'brand_name': brand, 'secondary_category': secondary, 'category_l3': l3, '_status': (company_status, lifecycle),
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
@@ -440,7 +446,8 @@ class Taxonomy:
         return {'rows': [r for _, r in out], 'total': len(out), 'intent': fam_ar or '، '.join(spec_ar), 'ranking': 'taxonomy',
                 'specialty': {'asked': spec_ar, 'exact': sum(1 for _, r in out if r['match_level'] == 'specialty'),
                               'fallback': sum(1 for _, r in out if r['match_level'] == 'category_fallback')} if asked_specs else None,
-                'understood': {'direction': 'buyer' if objective == 'marketing' else 'seller', 'family': fam_ar, 'target_label': label,
+                'understood': {'direction': 'buyer' if objective == 'marketing' else 'seller', 'family': fam_ar, 'target_label': label, 'wholesale': wholesale,
+                               'sub_ids': top_subs,
                                'target_types': [self.subs[s]['sub_ar'] for s in top_subs], 'source': u['source'], 'families': u['families']}}
 
 
@@ -473,6 +480,22 @@ def ai_families(q, families, timeout=6):
         return [i for i in ids if isinstance(i, str) and i in families][:3]
     except Exception:
         return []
+
+
+def trade_clusters(clusters_path, city, sub_ids=None, wholesale=False, bounds=None, limit=300):
+    """Where a trade concentrates (trade_clusters.py): streets, districts and ~300 m cells, busiest first. Evidence of
+    concentration only (count + lift over the city), never of prices or stock."""
+    import duckdb
+    if not clusters_path or not os.path.isfile(clusters_path): return []
+    where, params = ['city_en = ?'], [city]
+    if sub_ids: where.append('sub_id in (select unnest(?::varchar[]))'); params.append(list(sub_ids)[:20])
+    if wholesale: where.append('wholesale_pct >= 30')
+    if bounds: where.append('lon between ? and ? and lat between ? and ?'); params += [bounds[0], bounds[2], bounds[1], bounds[3]]
+    db = duckdb.connect()
+    rows = db.execute(f"""select "level", label_ar, sub_id, sub_ar, district_ar, street_ar, n, n_wholesale, wholesale_pct, lift, lat, lon
+        from read_parquet(?) where {' and '.join(where)} order by ("level"='street') desc, n desc limit {int(limit)}""", [clusters_path] + params).fetchall()
+    keys = ['level', 'label_ar', 'sub_id', 'sub_ar', 'district_ar', 'street_ar', 'n', 'n_wholesale', 'wholesale_pct', 'lift', 'lat', 'lon']
+    return [dict(zip(keys, r)) for r in rows]
 
 
 _lock = threading.Lock()
