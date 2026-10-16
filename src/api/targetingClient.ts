@@ -5,6 +5,7 @@ import { farqSession } from './farqSession'
  * targeting service after server-side account validation, with that service's password from its own environment.
  *
  * Endpoints (the service's own, unchanged):
+ *   POST /suggest-specialties — { text, main_id? } → specialties a seller's products fit (read only)
  *   POST /clusters          — { city, q?, objective?, sub_ids?, wholesale?, bounds? } → where a trade concentrates (street / district / cell)
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
@@ -156,9 +157,24 @@ export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch
 export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
 export const searchTargets = (q: string, city: string, limit = 30, objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase', offset = 0, filters:SearchFilters = {}) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false })
 export const tradeClusters = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[]; wholesale?: boolean; bounds?: [number, number, number, number] }) => call<TradeClusters>('POST', '/clusters', body)
+export type SpecialtySuggestion = { specialty_id: string | number; specialty_ar: string; sub_id?: string | number | null; sub_ar?: string | null; main_ar?: string | null }
+export const suggestSpecialties = (text: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text })
 export type City = { en: string; ar: string | null; n: number }
 export const listCities = () => call<City[]>('GET', '/cities')
 
+/** Body text of a Meta template. */
+export const templateBody = (t: MetaTemplate) => (t.components || []).find((c) => c.type === 'BODY')?.text || ''
+/**
+ * The send path (/send-farq, mode 'template') sends any template by name, always in Arabic with exactly two body
+ * values: {{1}} the place's name and {{2}} the campaign text. So an approved template can be used for a campaign
+ * only when its body takes exactly {{1}} and {{2}}; otherwise Meta would refuse every message.
+ */
+export const templateFits = (t: MetaTemplate) => {
+  if (t.status !== 'APPROVED') return false
+  if (t.language && t.language !== 'ar') return false
+  const vars = [...new Set((templateBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => m.replace(/\D/g, '')))].sort()
+  return vars.join(',') === '1,2'
+}
 /** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
 /** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaigns: open or temporarily closed with a verified WhatsApp (owner 2026-10-15). */
 export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في هدهد' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
@@ -172,7 +188,7 @@ export const waNumber = (r: TargetRow) => {
  * Sends the campaign: register the places on the holder request (no dispatch), then send the template.
  * Called only from the confirm sheet (screen 10) after the owner's explicit yes.
  */
-export async function sendCampaign(holderRfqId: string, rows: TargetRow[], message: string, query: string): Promise<SendResult> {
+export async function sendCampaign(holderRfqId: string, rows: TargetRow[], message: string, query: string, template: string = OUTREACH_TEMPLATE): Promise<SendResult> {
   const targets = rows.map((r) => ({ poi_key: r.poi_key, name_ar: r.name_ar, name_en: r.name_en, city: r.city_en, category: r.category, whatsapp: waNumber(r), email: r.email || null, message }))
   const out: SendResult = { ok: true, sent: [], failed: [] }
   // the service takes at most 500 places per call
@@ -180,7 +196,7 @@ export async function sendCampaign(holderRfqId: string, rows: TargetRow[], messa
     const chunk = targets.slice(i, i + 200)
     const reg = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, dispatch: false, query, targets: chunk })
     if (!reg.ok) return { ...out, ok: false, error: reg.error || reg.fatal }
-    const res = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, mode: 'template', template: OUTREACH_TEMPLATE, query, targets: chunk })
+    const res = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, mode: 'template', template, query, targets: chunk })
     if (!res.ok) return { ...out, ok: false, error: res.error || res.fatal }
     out.sent!.push(...(res.sent || [])); out.failed!.push(...(res.failed || []))
   }

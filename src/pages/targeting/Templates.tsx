@@ -51,7 +51,7 @@ export default function TemplatesPage({ onBack, onNew }: { onBack: () => void; o
 
   return (
     <div className="flex min-w-0 flex-col">
-      <TopBar parent="الاستهداف" onParent={onBack} title="قوالب واتساب" />
+      <TopBar parent="خريطة الفرص" onParent={onBack} title="قوالب واتساب" />
       <div className={mobile ? 'flex flex-col gap-4 px-4 py-5' : 'flex flex-col gap-6 px-8 py-8'}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">

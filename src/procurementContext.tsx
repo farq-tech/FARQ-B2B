@@ -12,15 +12,17 @@ import type { AppView } from './types'
  *   /requests/:id/review      → متابعة الطلب: review (02) is a step of /new, before the request has an id
  *   /inbox                    صندوق الوارد (06)
  *   /explore                  استكشف (discovery: أبي أشتري / أبي أبيع)
- *   /targeting                حملات الموردين (Figma M07 map) — confirm sheet in place
- *   /targeting/templates      قوالب واتساب (09)
- *   /targeting/templates/new  محرر قالب واتساب (08)
+ *   /opportunity-map                خريطة الفرص (Figma M07 map, was «حملات الموردين») — confirm sheet in place
+ *   /opportunity-map/new            خريطة الفرص with «طلب جديد» open (the one place to start anything)
+ *   /opportunity-map/templates      قوالب واتساب (09)
+ *   /opportunity-map/templates/new  محرر قالب واتساب (08)
+ *   /targeting, /targeting/templates, /targeting/templates/new — old links, replaced by the paths above
  *   /login                    دخول فرق (the app shows the login on any route while signed out)
  * `/` is the public landing (main.tsx); the app never renders there except for the legacy
  * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
 /** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
-export type View = AppView | 'goal-new' | 'explore' | 'inbox' | 'targeting' | 'templates' | 'template-new' | 'account' | 'opportunities'
+export type View = AppView | 'goal-new' | 'explore' | 'inbox' | 'targeting' | 'targeting-new' | 'templates' | 'template-new' | 'account' | 'opportunities'
 type Ctx = {
   view: View
   navigate: (v: View) => void
@@ -40,9 +42,11 @@ export function parseRoute(pathname: string, search = ''): Route {
   if (p === '/goals/new') return { view: 'goal-new', rfqId: null }
   if (p === '/new') return { view: 'create-upload', rfqId: null }
   if (p === '/inbox') return { view: 'inbox', rfqId: null }
-  if (p === '/targeting') return { view: 'targeting', rfqId: null }
-  if (p === '/targeting/templates') return { view: 'templates', rfqId: null }
-  if (p === '/targeting/templates/new') return { view: 'template-new', rfqId: null }
+  // «خريطة الفرص»; the old /targeting links open the same screens (the URL is then replaced)
+  if (p === '/opportunity-map' || p === '/targeting') return { view: 'targeting', rfqId: null }
+  if (p === '/opportunity-map/new') return { view: 'targeting-new', rfqId: null }
+  if (p === '/opportunity-map/templates' || p === '/targeting/templates') return { view: 'templates', rfqId: null }
+  if (p === '/opportunity-map/templates/new' || p === '/targeting/templates/new') return { view: 'template-new', rfqId: null }
   if (p === '/login') return { view: 'login', rfqId: null }
   const m = /^\/requests\/([^/]+)(?:\/(compare|award|review))?$/.exec(p)
   if (m) return { view: m[2] === 'compare' ? 'comparison' : m[2] === 'award' ? 'award' : 'rfq-detail', rfqId: decodeURIComponent(m[1]) }
@@ -57,9 +61,10 @@ export function routePath(view: View, rfqId: string | null): string {
   if (view === 'explore') return '/explore'
   if (view === 'create-upload') return '/new'
   if (view === 'inbox') return '/inbox'
-  if (view === 'targeting') return '/targeting'
-  if (view === 'templates') return '/targeting/templates'
-  if (view === 'template-new') return '/targeting/templates/new'
+  if (view === 'targeting') return '/opportunity-map'
+  if (view === 'targeting-new') return '/opportunity-map/new'
+  if (view === 'templates') return '/opportunity-map/templates'
+  if (view === 'template-new') return '/opportunity-map/templates/new'
   if (view === 'login') return '/login'
   if (view === 'award' && rfqId) return `/requests/${encodeURIComponent(rfqId)}/award`
   if (view === 'rfq-detail' && rfqId) return `/requests/${encodeURIComponent(rfqId)}`

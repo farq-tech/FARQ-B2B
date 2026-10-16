@@ -15,7 +15,9 @@ import { Badge, Button, Icon, useIsMobile } from '../../ui'
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft }: {
+export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft, template = OUTREACH_TEMPLATE }: {
+  /** The approved template chosen on the page ({{1}} name, {{2}} campaign text); the invitation template by default. */
+  template?: string
   holderRfqId: string
   rows: TargetRow[]
   message: string
@@ -63,7 +65,7 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
     if (lock.current) return
     lock.current = true; setBusy(true); setError(null)
     try {
-      const r = await sendCampaign(holderRfqId, rows, message, query)
+      const r = await sendCampaign(holderRfqId, rows, message, query, template)
       if (!r.ok) { setError(`ما انرسلت الحملة: ${r.error || 'خطأ غير معروف'}${r.sent?.length ? ` (انرسل ${r.sent.length} قبل الخطأ)` : ''}`); return }
       setResult({ sent: new Set((r.sent || []).map((x) => x.poi_key)), failed: new Map((r.failed || []).map((x) => [x.poi_key, x.error])) })
     } catch (e) {
@@ -120,7 +122,7 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
         <h2 id={titleId} ref={heading} tabIndex={-1} className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold outline-none">المراجعة والتكلفة</h2>
         <dl className="mt-4 flex flex-col gap-3">
           {row('المستلمون', <><bdi dir="ltr">{count}</bdi> موردين · واتساب <bdi dir="ltr">{count}</bdi></>)}
-          {row('القالب', <><bdi dir="ltr">{OUTREACH_TEMPLATE}</bdi> · معتمد</>)}
+          {row('القالب', <><bdi dir="ltr">{template}</bdi> · معتمد</>)}
           {row('سعر الرسالة', price != null ? <><bdi dir="ltr">{money(price)} ر.س × {count}</bdi> · تسويق</> : 'ما وصلنا السعر الحين')}
           {row('التكلفة', cost != null ? <bdi dir="ltr">{cost} ر.س</bdi> : '—', true)}
         </dl>

@@ -12,11 +12,15 @@ test('URL ⇄ screen mapping (shareable links)', () => {
   expect(parseRoute(`/requests/${id}/award`)).toEqual({ view: 'award', rfqId: id })
   expect(parseRoute(`/requests/${id}/review`)).toEqual({ view: 'rfq-detail', rfqId: id }) // 02 is a step of /new
   expect(parseRoute('/inbox')).toEqual({ view: 'inbox', rfqId: null })
+  expect(parseRoute('/opportunity-map')).toEqual({ view: 'targeting', rfqId: null })
+  expect(parseRoute('/opportunity-map/new')).toEqual({ view: 'targeting-new', rfqId: null })
+  expect(routePath('targeting', null)).toBe('/opportunity-map')
+  // old links keep working
   expect(parseRoute('/targeting')).toEqual({ view: 'targeting', rfqId: null })
   expect(parseRoute('/targeting/templates')).toEqual({ view: 'templates', rfqId: null })
   expect(parseRoute('/targeting/templates/new')).toEqual({ view: 'template-new', rfqId: null })
   expect(parseRoute('/login')).toEqual({ view: 'login', rfqId: null })
-  for (const [v, r] of [['rfq-list', null], ['create-upload', null], ['rfq-detail', id], ['comparison', id], ['award', id], ['inbox', null], ['login', null], ['targeting', null], ['templates', null], ['template-new', null]] as const) {
+  for (const [v, r] of [['rfq-list', null], ['create-upload', null], ['rfq-detail', id], ['comparison', id], ['award', id], ['inbox', null], ['login', null], ['targeting', null], ['targeting-new', null], ['templates', null], ['template-new', null]] as const) {
     expect(parseRoute(routePath(v, r))).toEqual({ view: v, rfqId: r })
   }
 })

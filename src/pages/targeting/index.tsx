@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { listCities, searchTargets, templateStatus, tradeClusters, type City, type SearchFilters, type TradeCluster, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
+import { listCities, listTemplates, searchTargets, templateBody, templateFits, templateStatus, tradeClusters, type MetaTemplate, type City, type SearchFilters, type TradeCluster, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
 import { Badge, Button, ChannelBadge, Chip, Icon, Stat, useIsMobile, type Channel } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
@@ -25,10 +25,13 @@ function MapView(props: Parameters<typeof TargetMap>[0]) {
   )
 }
 import CampaignConfirmSheet from './CampaignConfirmSheet'
-import MessageStep from './MessageStep'
+import MessageStep, { categoryAr, previewOf } from './MessageStep'
+import StartSheet from './StartSheet'
+import MyRequests from './MyRequests'
+import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 
 /*
- * «07 · الاستهداف» — Figma 51:2, on the targeting service's own data (POST /search over the
+ * «07 · خريطة الفرص» (was «الاستهداف» / «حملات الموردين») — Figma 51:2, on the targeting service's own data (POST /search over the
  * KSA places set). «10 · تأكيد إرسال الحملة» (54:607) opens in place from «أرسل الحملة».
  *
  * Only real numbers: the four counters, the results and the map come from the search answer.
@@ -70,7 +73,14 @@ function defaultMessage(cat: string | null, area: string | null) {
   return `معك أحمد من فرق. يوصلنا طلبات تسعير${cat ? ` ${cat}` : ''} من منشآت وشركات${area ? ` في ${area}` : ''} — تبي توصلك على واتساب؟\nللإيقاف أرسل: إيقاف`
 }
 
-export default function TargetingPage({ onTemplates }: { onTemplates: () => void }) {
+export default function TargetingPage({ onTemplates, startNew = false, onStartClosed, onRfq }: {
+  onTemplates: () => void
+  /** «طلب جديد» (sidebar / tab bar): open the start sheet */
+  startNew?: boolean
+  onStartClosed?: () => void
+  /** the buyer price-request wizard (/new), linked from the start sheet */
+  onRfq?: () => void
+}) {
   const mobile = useIsMobile()
   const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => { try { return sessionStorage.getItem('farq-target-direction') === 'marketing' ? 'marketing' : 'purchase' } catch { return 'purchase' } })
   const generation = useRef(0)
@@ -114,6 +124,15 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   const pickCity = (v: string) => { generation.current++; setCity(v); setError(null); setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines(ls => ls.map(({ found: _found, ...line }) => line)); try { localStorage.setItem(CITY_KEY, v) } catch { /* storage blocked */ } }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
+  // any approved template the send path can fill ({{1}} name, {{2}} text); the invitation template by default
+  const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
+  const [templates, setTemplates] = useState<MetaTemplate[]>([])
+  useEffect(() => { listTemplates().then((r) => setTemplates(r?.ok ? (r.data || []).filter((t) => t.status === 'APPROVED') : []), () => setTemplates([])) }, [])
+  // «طلب جديد»: the start sheet opens when the route asks for it
+  const [startOpen, setStartOpen] = useState(startNew)
+  const [startSeen, setStartSeen] = useState(startNew)
+  if (startNew !== startSeen) { setStartSeen(startNew); if (startNew) setStartOpen(true) }
+  const closeStart = () => { setStartOpen(false); if (startNew) onStartClosed?.() }
   // Cost = the server's price per message (GET /api/construction/whatsapp/pricing) × recipients (owner decision).
   const [price, setPrice] = useState<number | null>(null)
   useEffect(() => { void fetchConstructionWhatsAppPricing().then((p) => setPrice(p.enabled && p.price_sar ? Number(p.price_sar) : null)) }, [])
@@ -170,6 +189,14 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     const found = await runSearch(lines[i].name)
     if (found != null) setLines((ls) => ls.map((l, k) => (k === i ? { ...l, found } : l)))
   }
+  // «طلباتي»: a start that read something is saved as a request (references only, never file contents).
+  // Quiet when the API is off or refuses: the search itself never depends on it.
+  const [savedTick, setSavedTick] = useState(0)
+  function saveRequest(kind: OpportunityRequestKind, title: string, products: string[], fileRefs: string[]) {
+    const cityAr = cities.find((c) => c.en === city)?.ar || city || undefined
+    createOpportunityRequest({ kind, title, payload: { city: cityAr, products: products.slice(0, 60).map((p) => p.slice(0, 200)), ...(fileRefs.length ? { fileRefs: fileRefs.slice(0, 20).map((f) => f.slice(0, 200)) } : {}) } })
+      .then(() => setSavedTick((t) => t + 1), () => { /* off, read-only or no permission: nothing to show */ })
+  }
   async function onBooklet(files: File[]) {
     if (!files.length) return
     setReadErr(null); setReading('بدأنا القراءة…')
@@ -177,6 +204,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       const read = await readBooklet(files, setReading)
       if (!read.length) throw new Error('ما لقينا منتجات أو خدمات في الملف. ارفع قائمة احتياجات أو كتالوجًا واضحًا.')
       setLines(read); setBooklet(files.length > 1 ? `${files.length} ملفات` : files[0].name); setActiveLine(null)
+      saveRequest('BOOKLET', files.length > 1 ? `كراسة · ${files.length} ملفات` : `كراسة · ${files[0].name}`, read.map((l) => l.name), files.map((f) => f.name))
     } catch (err) {
       setReadErr(err instanceof Error ? err.message : 'تعذّرت قراءة الملف.')
     } finally { setReading(null); if (fileInput.current) fileInput.current.value = '' }
@@ -197,25 +225,25 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     } finally { setBusy(false) }
   }
   /** Where this trade concentrates in the city (POST /clusters); quiet when the service has none or is older. */
-  function loadClusters(text: string, city: string, wholesale: boolean) {
+  function loadClusters(text: string, city: string, wholesale: boolean, obj: typeof objective = objective) {
     const v = ++clusterGen.current
     setClusters(null)
-    tradeClusters({ city, q: text, objective, ...(wholesale ? { wholesale: true } : {}) }).then(
+    tradeClusters({ city, q: text, objective: obj, ...(wholesale ? { wholesale: true } : {}) }).then(
       (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)), basis: c?.basis }) },
       () => { if (v === clusterGen.current) setClusters(null) },
     )
   }
   /** A new request (next = undefined) starts without area filters, wholesale on when it asks for «جملة»; otherwise the same request with these filters. */
-  async function runSearchIn(text: string, city: string, next?: AreaFilters): Promise<number | null> {
+  async function runSearchIn(text: string, city: string, next?: AreaFilters, obj: typeof objective = objective): Promise<number | null> {
     if (!text || !city || busy) return null
     setBusy(true); setError(null); setNotice(null)
     const version = generation.current
     const fresh = next === undefined
     let use: AreaFilters = fresh ? (WHOLESALE_RX.test(text) ? { wholesale: true } : {}) : next
     try {
-      let r = await searchTargets(text, city, FETCH, objective, 0, use)
+      let r = await searchTargets(text, city, FETCH, obj, 0, use)
       // the service read «جملة» where the page did not: turn the filter on and ask again
-      if (fresh && r.understood?.wholesale && !use.wholesale && version === generation.current) { use = { wholesale: true }; r = await searchTargets(text, city, FETCH, objective, 0, use) }
+      if (fresh && r.understood?.wholesale && !use.wholesale && version === generation.current) { use = { wholesale: true }; r = await searchTargets(text, city, FETCH, obj, 0, use) }
       if (version !== generation.current) return null
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
       const keep = restoring.current
@@ -223,7 +251,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       if (fresh) setSelected(keep ? new Set(r.rows.filter((x) => keep.includes(x.poi_key) && waNumber(x)).map((x) => x.poi_key)) : new Set())
       // narrowing keeps the places still in the results chosen
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
-      if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, city, Boolean(use.wholesale))
+      if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, city, Boolean(use.wholesale), obj)
       const p = r.parsed || {}
       const cat = (p.keywords || []).filter(arabic)[0] || null
       if (fresh && !keep) setMessage(defaultMessage(cat, cityName(city)))
@@ -241,13 +269,32 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     applyFilters({ wholesale: filters.wholesale, district: c.district_ar, street: c.level === 'street' && c.street_ar ? c.street_ar : undefined })
   }
 
+  /** «أبي أبيع منتجاتي»: confirmed specialties become search lines on the buyers' side; the first one runs now. */
+  const startSelling = (names: string[], files: string[] = []) => {
+    closeStart()
+    saveRequest(files.length ? 'SELLER_CATALOG' : 'SELLER_PRODUCTS', `أبيع: ${names.slice(0, 3).join('، ')}${names.length > 3 ? '…' : ''}`, names, files)
+    generation.current++
+    setObjective('marketing'); try { sessionStorage.setItem('farq-target-direction', 'marketing') } catch { /* optional */ }
+    setRes(null); clearAreas(); setSelected(new Set()); setError(null); setConfirming(false); setComposeOpen(false)
+    setLines(names.map((name) => ({ name, qty: '', unit: '' }))); setBooklet('تخصصاتك'); setActiveLine(null)
+    if (!city || !cities.some((c) => c.en === city)) { setError('اختر المدينة، ثم اضغط التخصص للبحث عن مشترين.'); return }
+    setActiveLine(0); setQ(names[0])
+    void runSearchIn(names[0], city, undefined, 'marketing').then((found) => { if (found != null) setLines((ls) => ls.map((l, k) => (k === 0 ? { ...l, found } : l))) })
+  }
+  const startSheet = startOpen ? (
+    <StartSheet mobile={mobile} onClose={closeStart} onRfq={onRfq}
+      onBooklet={() => {
+        if (objective === 'marketing') { generation.current++; setObjective('purchase'); setRes(null); clearAreas(); setSelected(new Set()) }
+        fileInput.current?.click(); closeStart()
+      }}
+      onFreeSearch={() => { closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
+      onSellLines={startSelling} />
+  ) : null
+
   const fileField = (
     <input ref={fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden
       accept=".pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*"
       onChange={(e) => void onBooklet([...(e.target.files || [])])} />
-  )
-  const uploadButton = (label: string, variant: 'Secondary' | 'Ghost') => (
-    <Button variant={variant} size="S" icon="upload" disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => fileInput.current?.click()}>{label}</Button>
   )
   const linesPanel = (row: boolean) => (reading || readErr || lines.length) ? (
     <section aria-label="منتجات وخدمات الملف" className="flex flex-col gap-2">
@@ -279,7 +326,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
   // «جملة فقط» · «الحي» · «الشارع» under the search bar; an active filter is a chip with ×
   const areas = res?.areas
   const streets = useMemo(() => (areas?.streets || []).filter((x) => !filters.district || x.district === filters.district), [areas, filters.district])
-  const pickerCls = `max-w-[180px] shrink-0 appearance-none rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
+  const pickerCls = `max-w-[140px] shrink-0 appearance-none rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
   const areaBar = (row: boolean) => res && areas && (areas.districts.length || areas.streets.length || areas.wholesale || filters.wholesale || filters.district || filters.street) ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${row ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       {areas.wholesale || filters.wholesale ? (
@@ -351,7 +398,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
 
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
-  const sendBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
+  const sendBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
   const costLine = cost != null ? `≈ ${cost} ر.س قبل الضريبة` : 'سعر الرسالة يظهر في المراجعة'
   const saveDraft = () => {
@@ -379,14 +426,27 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     <section aria-labelledby="campaign-title" className={`flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-surface)] p-5 text-start shadow-[var(--elevation-lg)] ${mobile ? 'w-full' : 'w-[520px] max-w-[calc(100%-48px)]'}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="campaign-title" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">رسالة الحملة</h2>
-        {approved ? <Badge tone="Success" showDot={false} label="قالب واتساب معتمد" /> : tpl ? <Badge tone="Warning" showDot={false} label={`القالب: ${tpl.status}`} /> : tplError ? <Badge tone="Danger" showDot={false} label="حالة القالب غير معروفة" /> : null}
+        {approved || template !== OUTREACH_TEMPLATE ? <Badge tone="Success" showDot={false} label="قالب واتساب معتمد" /> : tpl ? <Badge tone="Warning" showDot={false} label={`القالب: ${tpl.status}`} /> : tplError ? <Badge tone="Danger" showDot={false} label="حالة القالب غير معروفة" /> : null}
       </div>
+      {templates.length ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">القالب (المعتمدة من ميتا)</span>
+          <select value={template} onChange={(e) => setTemplate(e.target.value)} className={`rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] ${FOCUS_RING}`}>
+            {templates.some((t) => t.name === OUTREACH_TEMPLATE) ? null : <option value={OUTREACH_TEMPLATE}>{OUTREACH_TEMPLATE}</option>}
+            {templates.map((t) => {
+              const fits = templateFits(t) || (t.name === OUTREACH_TEMPLATE && !templateBody(t))
+              return <option key={t.name} value={t.name} disabled={!fits}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{fits ? '' : ' — متغيراته ما تناسب الحملة'}</option>
+            })}
+          </select>
+        </label>
+      ) : null}
       <label className="flex flex-col rounded-[var(--radius-lg)] bg-[var(--color-bg-surface-2)] px-3.5 py-3 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
         <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المحل}'}،</span>
         <span className="sr-only">نص الرسالة</span>
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={900}
           className="w-full resize-none bg-transparent text-[16px] leading-[26px] text-[var(--color-text-primary)] outline-none" />
       </label>
+      {(() => { const body = template === OUTREACH_TEMPLATE ? '' : templateBody(templates.find((t) => t.name === template) || { name: '', status: '' }); return body ? <p className="text-[12px] leading-[18px] whitespace-pre-line text-[var(--color-text-secondary)]">معاينة: {previewOf(body, message)}</p> : null })()}
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="text-[16px] leading-[26px] font-medium">بيوصل لـ {n(chosen.length)} جهة</p>
@@ -416,6 +476,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         ) : null}
       </div>
       {clusterList}
+      <MyRequests refresh={savedTick} />
       {!res ? (
         <p className="border-t border-[var(--color-border-default)] px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : 'اكتب وش تبي توصل له (نشاط ومدينة) واضغط ابحث.'}</p>
       ) : !rows.length ? (
@@ -457,7 +518,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
 
   const basisOf = truncated ? `من أول ${n(rows.length)} نتيجة` : null
   const confirmSheet = confirming && holder ? (
-    <CampaignConfirmSheet holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price}
+    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price}
       onClose={() => setConfirming(false)} onSaveDraft={saveDraft}
       onDone={(sent, failed) => { setConfirming(false); setComposeOpen(false); try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage blocked */ } setNotice(`أُرسلت ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
@@ -473,7 +534,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
     )
     return (
       <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
-        <h1 className="sr-only">الاستهداف</h1>
+        <h1 className="sr-only">خريطة الفرص</h1>
         {/* Figma M07 `18396:2027`: map first, the list sheet starts collapsed. */}
         <div className="absolute inset-0">
           <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 170 : 130) + (areas ? 50 : 0) + (lines.length ? 70 : 0)} legend={false} {...mapClusters} />
@@ -514,7 +575,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
                   {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
                 </button>
               ) : null}
-              {uploadButton(objective === 'marketing' ? 'ارفع كتالوج' : 'ارفع قائمة', 'Ghost')}
+              <Button variant="Ghost" size="S" icon="plus" onClick={() => setStartOpen(true)}>طلب جديد</Button>
               <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
             </div>
           </div>
@@ -529,6 +590,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
           {sheetOpen && res ? <p className="px-4 pb-2 text-[12px] text-[var(--color-text-secondary)]">نعرض {n(rows.length)} من {n(res.total)} جهة؛ أعداد التواصل تخص المعروض فقط.{res.contact_enrichment === 'not_configured' ? ' البحث التلقائي عن الأرقام غير مفعّل بعد.' : ''}</p> : null}
           <ul ref={list} className={sheetOpen ? 'min-h-0 flex-1 overflow-y-auto' : 'hidden'}>
             {clusterList ? <li className="-mx-1">{clusterList}</li> : null}
+            <li className="-mx-1"><MyRequests mobile refresh={savedTick} /></li>
             {!res && !busy ? <li className="px-5 py-6 text-[14px] leading-[24px] text-[var(--color-text-secondary)]">{objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة»، أو ارفع كتالوجك ثم اختر تخصصًا أو منتجًا للبحث عن مشترين محتملين.' : 'اكتب المنتج أو الخدمة التي تحتاجها، أو ارفع قائمة احتياجاتك ثم اختر عنصرًا للبحث عن بائعين.'} اختر المدينة لتحديد نطاق البحث.</li> : null}
             {busy ? <li role="status" className="px-5 py-6 text-[14px]">نفهم المنتج أو الخدمة ونبحث عن الجهات المناسبة…</li> : null}
             {res && !rows.length ? <li className="px-5 py-6 text-[14px]">لم نجد جهات مناسبة لهذا العنصر في المدينة المختارة. جرّب وصفًا أوضح أو مدينة أخرى.</li> : null}
@@ -562,12 +624,13 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
         </section>
         {composeOpen ? (
           <div role="dialog" aria-modal="true" aria-label="رسالة الحملة" className="fixed inset-x-0 top-0 bottom-[72px] z-50 overflow-y-auto farq-dots">
-            <MessageStep count={chosen.length} cost={cost} message={message} onMessage={setMessage} onBack={() => setComposeOpen(false)}
+            <MessageStep template={template} onTemplate={setTemplate} count={chosen.length} cost={cost} message={message} onMessage={setMessage} onBack={() => setComposeOpen(false)}
               onNext={() => setConfirming(true)} onNewTemplate={onTemplates}
               blocked={objective === 'marketing' ? 'الإرسال غير متاح لمسار المشترين' : !holder && tpl ? 'ما فيه طلب حاضن للردود' : null} />
           </div>
         ) : null}
         {confirmSheet}
+        {startSheet}
       </div>
     )
   }
@@ -577,12 +640,12 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <header className={`flex flex-col gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 ${mobile ? 'px-4 py-4' : 'px-8 py-6'}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-3">
-            <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">الاستهداف</h1>
+            <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">خريطة الفرص</h1>
             {direction}
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">اكتشف البائعين أو المشترين المحتملين حسب هدفك</p>
           </div>
           <div className="flex items-center gap-2">
-            {uploadButton('ارفع كراسة', 'Secondary')}
+            <Button variant="Primary" size="S" icon="plus" onClick={() => setStartOpen(true)}>طلب جديد</Button>
             <Button variant="Secondary" size="S" icon="whatsapp" onClick={onTemplates}>قوالب واتساب</Button>
           </div>
           {fileField}
@@ -631,6 +694,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       </div>
 
       {confirmSheet}
+      {startSheet}
     </div>
   )
 }

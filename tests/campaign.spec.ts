@@ -19,6 +19,9 @@ async function setup(page: Page) {
     if (path.endsWith('/templates') && route.request().method() === 'GET') return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar' }, { name: 'monthly_prices', status: 'REJECTED', category: 'UTILITY', language: 'ar', rejected_reason: 'INCORRECT_CATEGORY', components: [{ type: 'BODY', text: 'تحديث الأسعار الشهري' }] }] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: false } })
     if (path.endsWith('/search')) return route.fulfill({ json: { total: 3, rows: [row('1', 'مؤسسة الأنابيب الحديثة'), row('2', 'مستودع الصناعية'), row('3', 'سباكة الخليج')], parsed: { keywords: ['سباكة'] } } })
+    // reads (POST only because of the body): trade clusters and specialty suggestions
+    if (path.endsWith('/clusters')) return route.fulfill({ json: { clusters: [], wholesale: 0, basis: '' } })
+    if (path.endsWith('/suggest-specialties')) return route.fulfill({ json: { suggestions: [] } })
     writes.push(`${route.request().method()} ${path}`)
     return route.fulfill({ status: 403, json: { error: 'QA_BLOCKED' } })
   })
