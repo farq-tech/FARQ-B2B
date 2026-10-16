@@ -241,7 +241,7 @@ async function fetchCatalogPayload(extra: Record<string, string>): Promise<any> 
   for (const [k, v] of Object.entries(extra)) params.set(k, v)
 
   const attempt = async () => {
-    const usedToken = farqSession.getAccessToken()
+    const usedToken = farqSession.sessionKey()
     const controller = new AbortController()
     const timer = window.setTimeout(() => controller.abort(), CATALOG_FETCH_TIMEOUT_MS)
     try {

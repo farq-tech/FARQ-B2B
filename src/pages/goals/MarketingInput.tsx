@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useProcurement } from '../../procurementContext'
+import { handoff, HANDOFF } from '../../lib/handoff'
 import { readBooklet } from '../../lib/readBooklet'
 
 export default function MarketingInput() {
@@ -31,7 +32,7 @@ export default function MarketingInput() {
     </label>
     {note ? <output>{note}</output> : null}
     {error ? <p role="alert">{error}</p> : null}
-    {text.trim() && !busy ? <div className="flex flex-col gap-3"><h2 className="font-semibold">اختر التخصص أو المنتج للبحث عن مشترين</h2>{text.split('\n').map(line => line.trim()).filter(Boolean).map((line, i) => <button key={i} type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'marketing'); sessionStorage.setItem('farq-target-query', line.slice(0, 120)) } catch { /* optional input handoff */ } navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 text-start">{line}</button>)}</div> : null}
+    {text.trim() && !busy ? <div className="flex flex-col gap-3"><h2 className="font-semibold">اختر التخصص أو المنتج للبحث عن مشترين</h2>{text.split('\n').map(line => line.trim()).filter(Boolean).map((line, i) => <button key={i} type="button" onClick={() => { handoff.set(HANDOFF.targetDirection, 'marketing'); handoff.set(HANDOFF.targetQuery, line.slice(0, 120)); navigate('targeting') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 text-start">{line}</button>)}</div> : null}
     <p className="text-sm text-[var(--color-text-secondary)]">هذه خطوة اكتشاف؛ لا تنشئ طلب شراء ولا ترسل رسائل للجهات.</p>
   </section>
 }

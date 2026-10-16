@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useProcurement } from '../../procurementContext'
+import { handoff, HANDOFF } from '../../lib/handoff'
 
 export default function NewGoal() {
   const { navigate } = useProcurement()
@@ -14,8 +15,8 @@ export default function NewGoal() {
         <span><span className="block font-semibold">{option.title}</span><span className="mt-1 block text-sm text-[var(--color-text-secondary)]">{option.description}</span></span>
       </label>)}
     </fieldset>
-    <button type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', direction) } catch { /* navigation remains available */ } navigate('create-upload') }} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-[var(--color-text-on-inverse)]">{direction === 'marketing' ? 'أضف ما تبي تسوّقه' : 'أضف ما تبي تسعّره'}</button>
-    {direction === 'purchase' ? <button type="button" onClick={() => { try { sessionStorage.setItem('farq-target-direction', 'purchase') } catch { /* optional preference */ } navigate('create-upload') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-5 py-3">عندي بنود جاهزة — أنشئ طلب عرض سعر</button> : null}
+    <button type="button" onClick={() => { handoff.set(HANDOFF.targetDirection, direction); navigate('create-upload') }} className="rounded-[12px] bg-[var(--color-bg-cta)] px-5 py-3 font-medium text-[var(--color-text-on-inverse)]">{direction === 'marketing' ? 'أضف ما تبي تسوّقه' : 'أضف ما تبي تسعّره'}</button>
+    {direction === 'purchase' ? <button type="button" onClick={() => { handoff.set(HANDOFF.targetDirection, 'purchase'); navigate('create-upload') }} className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-5 py-3">عندي بنود جاهزة — أنشئ طلب عرض سعر</button> : null}
     <button type="button" onClick={() => navigate('rfq-list')} className="self-start underline">رجوع للأهداف والطلبات</button>
   </section>
 }

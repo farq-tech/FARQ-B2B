@@ -1,6 +1,6 @@
 /*
- * Template drafts (screen 08) live in this browser only until the service has a template endpoint:
- * the targeting service can read one template's Meta status but cannot list, create or submit templates.
+ * Template drafts (screen 08) live in this tab's memory only (owner 2026-10-16: nothing stored on the device):
+ * a reload clears them. A server endpoint for drafts is being built; until then nothing persists.
  */
 export type TemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION'
 export type HeaderKind = 'NONE' | 'TEXT' | 'IMAGE' | 'DOCUMENT'
@@ -18,24 +18,21 @@ export type TemplateDraft = {
   savedAt: string
 }
 
-const KEY = 'farq.targeting.templateDrafts'
+let drafts: TemplateDraft[] = []
 
 export function loadDrafts(): TemplateDraft[] {
-  try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : [] } catch { return [] }
+  return [...drafts]
 }
 
 export function saveDraft(d: TemplateDraft): boolean {
-  try {
-    const all = loadDrafts().filter((x) => x.name !== d.name)
-    localStorage.setItem(KEY, JSON.stringify([d, ...all].slice(0, 50)))
-    return true
-  } catch { return false }
+  drafts = [d, ...drafts.filter((x) => x.name !== d.name)].slice(0, 50)
+  return true
 }
 
 export const CATEGORY_LABEL: Record<TemplateCategory, string> = { MARKETING: 'تسويق', UTILITY: 'خدمة', AUTHENTICATION: 'مصادقة' }
 
 export function removeDraft(name: string) {
-  try { localStorage.setItem(KEY, JSON.stringify(loadDrafts().filter((x) => x.name !== name))) } catch { /* storage blocked */ }
+  drafts = drafts.filter((x) => x.name !== name)
 }
 
 const varsOf = (body: string) => [...new Set([...body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]))].sort((a, b) => +a - +b)

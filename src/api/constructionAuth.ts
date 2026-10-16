@@ -31,7 +31,7 @@ export type AuthMode = 'session' | 'build-token' | 'demo'
 
 /** Which of the three paths the next request would take. */
 export function currentAuthMode(): AuthMode {
-  if (farqSession.getAccessToken()) return 'session'
+  if (farqSession.isAuthenticated()) return 'session'
   if (buildTimeAccessToken()) return 'build-token'
   return 'demo'
 }
@@ -45,10 +45,8 @@ export function currentAuthMode(): AuthMode {
  */
 export function constructionHeaders(extra: HeadersInit = {}): HeadersInit {
   const base: Record<string, string> = { Accept: 'application/json' }
-  const sessionToken = farqSession.getAccessToken()
-  if (sessionToken) {
-    base.Authorization = `Bearer ${sessionToken}`
-  } else {
+  // A real session rides on the proxy's sealed HttpOnly cookie: server.py attaches the Authorization header itself.
+  if (!farqSession.isAuthenticated()) {
     const fallback = buildTimeAccessToken()
     if (fallback) base.Authorization = `Bearer ${fallback}`
     // Demo mode is the last resort, and never alongside a bearer token: two

@@ -109,13 +109,14 @@ export function emptyCalibration(): BoqCalibration {
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>
 
+/** Calibration lives in memory for this tab only (owner 2026-10-16: nothing is kept on the device). */
+const memoryStore: Storage = (() => {
+  const map = new Map<string, string>()
+  return { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => void map.set(k, v) }
+})()
+
 function defaultStore(): Storage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage
-  } catch {
-    // Private-mode / sandboxed iframe: no calibration, so no estimate. Say so, don't guess.
-    return null
-  }
+  return memoryStore
 }
 
 function sanitizeSamples(value: unknown): BoqSizedSample[] {

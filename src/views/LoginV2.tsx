@@ -24,7 +24,7 @@ export function LoginV2({ navigate }: { navigate: (view: View) => void }) {
           <Brand />
           <p className="text-[14px]" style={{ color: 'var(--color-text-tertiary)' }}>تسجيل الدخول</p>
         </div>
-        {error ? <p className="mb-4 rounded-[12px] px-4 py-3 text-[14px] font-medium" style={{ background: 'var(--color-bg-danger)', color: 'var(--color-text-danger)' }}>{error}</p> : null}
+        {error ? <p role="alert" className="mb-4 rounded-[12px] px-4 py-3 text-[14px] font-medium" style={{ background: 'var(--color-bg-danger)', color: 'var(--color-text-danger)' }}>{error}</p> : null}
         <label htmlFor="login-email" className="mb-1 block text-[14px] font-medium">البريد الإلكتروني</label>
         <input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" className="mb-4 w-full rounded-[12px] border px-4 py-3 text-[16px] outline-none focus:border-[var(--color-border-primary)]" style={{ borderColor: 'var(--color-border-default)' }} />
         <label htmlFor="login-password" className="mb-1 block text-[14px] font-medium">كلمة المرور</label>

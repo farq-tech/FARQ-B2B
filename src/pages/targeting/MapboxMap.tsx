@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { farqSession } from '../../api/farqSession'
 import { waNumber, type TargetRow, type TradeCluster } from '../../api/targetingClient'
 
 /*
@@ -19,6 +18,27 @@ const KSA: [[number, number], [number, number]] = [[34.5, 16.3], [55.7, 32.2]]
 const RTL_PLUGIN = 'https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.3.0/mapbox-gl-rtl-text.js'
 
 const tok = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+/**
+ * The Farq light-grey look (owner 2026-10-16) on top of Mapbox light-v11, set at runtime: land grey, roads white with a
+ * light-grey casing, labels grey, no shop / POI labels (our own places are the only points on the map).
+ */
+export function applyFarqLight(m: mapboxgl.Map) {
+  const land = tok('--map-land'), road = tok('--map-road'), casing = tok('--map-road-case')
+  const water = tok('--map-water'), label = tok('--map-label'), building = tok('--map-building')
+  const set = (id: string, prop: string, value: unknown) => { try { m.setPaintProperty(id, prop as never, value as never) } catch { /* not on this layer */ } }
+  for (const l of m.getStyle()?.layers || []) {
+    const id = l.id
+    if (l.type === 'background') set(id, 'background-color', land)
+    else if (l.type === 'fill' && /water/.test(id)) set(id, 'fill-color', water)
+    else if (l.type === 'fill' && /land|park|national|pitch|building/.test(id)) { set(id, 'fill-color', id.includes('building') ? building : land); set(id, 'fill-opacity', id.includes('building') ? 0.6 : 1) }
+    else if (l.type === 'line' && /road|bridge|tunnel|street|motorway|trunk|primary|secondary/.test(id)) set(id, 'line-color', /case|casing/.test(id) ? casing : road)
+    else if (l.type === 'symbol') {
+      if (/poi|transit|airport/.test(id)) { try { m.setLayoutProperty(id, 'visibility', 'none') } catch { /* keep */ } continue }
+      set(id, 'text-color', label); set(id, 'text-halo-color', 'white'); set(id, 'text-halo-width', 1.2)
+    }
+  }
+}
 
 function hull(ps: [number, number][]) {
   if (ps.length < 3) return []
@@ -64,7 +84,7 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     if (!box.current) return
     mapboxgl.accessToken = MAPBOX_TOKEN
     if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') mapboxgl.setRTLTextPlugin(RTL_PLUGIN, null, true)
-    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar', transformRequest: url => { const token=farqSession.getAccessToken(); return url.startsWith(window.location.origin+'/_targeting/tiles/') && token ? {url,headers:{Authorization:`Bearer ${token}`}} : {url} } })
+    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar' })
     m.on('moveend', e => { if (!e.originalEvent) return; const b = m.getBounds(); if (b) latest.current.onViewportChange?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]) })
     m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left')
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left')
@@ -73,6 +93,7 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     m.on('error', e => { if (!ready.current) setLoadError(true);else if((e as unknown as {sourceId?:string}).sourceId==='directory-tiles'||e.error?.message?.includes('/_targeting/tiles/'))setTileError(true) })
     m.on('load', () => {
       setLoadError(false)
+      applyFarqLight(m)
       const wa = tok('--brand-accent'), em = tok('--brand-action-light'), none = tok('--brand-text-3'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
       const { rows: r0, selected: s0 } = latest.current
       // trade clusters sit under everything else: a light ring sized by shop count

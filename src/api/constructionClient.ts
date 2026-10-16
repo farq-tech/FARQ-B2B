@@ -554,7 +554,7 @@ async function send(
     // Captured before the call so a 401 can tell "my token expired" from
     // "another request already refreshed it" without spending the single-use
     // refresh token twice.
-    const usedToken = auth === 'buyer' ? farqSession.getAccessToken() : null
+    const usedToken = auth === 'buyer' ? farqSession.sessionKey() : null
     const headers =
       auth === 'supplier'
         ? supplierPortalHeaders(fetchInit.headers || {})

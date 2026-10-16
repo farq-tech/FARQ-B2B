@@ -17,7 +17,7 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 # scheduled sends store (Postgres); imported only when TARGETING_SCHEDULE_ENABLED=1
 RUN pip install --no-cache-dir 'psycopg[binary]==3.2.*'
-COPY server.py trial.py saudi_rhythm.py schedule.py ./
+COPY server.py trial.py saudi_rhythm.py schedule.py session_cookie.py ./
 ENV PORT=8080
 EXPOSE 8080
 CMD ["python3", "server.py"]

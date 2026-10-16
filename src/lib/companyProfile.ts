@@ -2,11 +2,12 @@
 /**
  * The buyer's company details, as printed on a request for quotation.
  *
- * Kept in this browser: the API has no company-profile endpoint yet, and the
- * settings screen used to toast «تم حفظ التغييرات» while saving nothing, so the
- * sender went on using values compiled into the bundle. What is saved here is
- * what `SendModal` sends. The defaults are Farq's own published contact details.
+ * Read from the server only (owner 2026-10-16: «لا اريد اي بيانات على الجهاز»): `loadCompanyProfile` maps the
+ * profile last fetched by src/api/companyProfileClient.ts (GET /api/business/company-profile, cached in memory for
+ * this tab), with Farq's published contact details as defaults. Saving goes through حسابي (PUT on the same route);
+ * `saveCompanyProfile` only updates this tab's memory. Nothing is written to the device.
  */
+import { cachedBusinessProfile } from '../api/companyProfileClient'
 
 export type CompanyProfile = {
   name: string
@@ -23,7 +24,8 @@ export type CompanyProfile = {
   defaultDeadlineDays: number
 }
 
-const KEY = 'farq.construction.companyProfile.v1'
+/** Overrides set in this tab via saveCompanyProfile; memory only. */
+let override: Partial<CompanyProfile> | null = null
 
 export const DEFAULT_COMPANY_PROFILE: CompanyProfile = Object.freeze({
   name: 'فرق للبناء',
@@ -52,9 +54,7 @@ function clean(value: unknown, fallback: string): string {
 
 export function loadCompanyProfile(): CompanyProfile {
   try {
-    const raw = window.localStorage.getItem(KEY)
-    if (!raw) return { ...DEFAULT_COMPANY_PROFILE }
-    const parsed = JSON.parse(raw) as Partial<CompanyProfile>
+    const parsed: Partial<CompanyProfile> = { ...cachedBusinessProfile(), ...(override || {}) }
     return {
       name: clean(parsed.name, DEFAULT_COMPANY_PROFILE.name),
       city: clean(parsed.city, DEFAULT_COMPANY_PROFILE.city),
@@ -72,24 +72,21 @@ export function loadCompanyProfile(): CompanyProfile {
   }
 }
 
-/** Returns false when the browser refused the write, so the screen can say so. */
+/** Memory only for this tab; the server copy is saved from حسابي. */
 export function saveCompanyProfile(profile: CompanyProfile): boolean {
   try {
-    window.localStorage.setItem(
-      KEY,
-      JSON.stringify({
-        name: clean(profile.name, DEFAULT_COMPANY_PROFILE.name),
-        city: clean(profile.city, DEFAULT_COMPANY_PROFILE.city),
-        phone: clean(profile.phone, DEFAULT_COMPANY_PROFILE.phone),
-        email: clean(profile.email, DEFAULT_COMPANY_PROFILE.email),
-        legalName: opt(profile.legalName),
-        crNumber: opt(profile.crNumber),
-        vatNumber: opt(profile.vatNumber),
-        nationalAddress: opt(profile.nationalAddress),
-        defaultDeliveryCity: clean(profile.defaultDeliveryCity, DEFAULT_COMPANY_PROFILE.defaultDeliveryCity),
-        defaultDeadlineDays: days(profile.defaultDeadlineDays),
-      }),
-    )
+    override = {
+      name: clean(profile.name, DEFAULT_COMPANY_PROFILE.name),
+      city: clean(profile.city, DEFAULT_COMPANY_PROFILE.city),
+      phone: clean(profile.phone, DEFAULT_COMPANY_PROFILE.phone),
+      email: clean(profile.email, DEFAULT_COMPANY_PROFILE.email),
+      legalName: opt(profile.legalName),
+      crNumber: opt(profile.crNumber),
+      vatNumber: opt(profile.vatNumber),
+      nationalAddress: opt(profile.nationalAddress),
+      defaultDeliveryCity: clean(profile.defaultDeliveryCity, DEFAULT_COMPANY_PROFILE.defaultDeliveryCity),
+      defaultDeadlineDays: days(profile.defaultDeadlineDays),
+    }
     return true
   } catch {
     return false

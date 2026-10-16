@@ -1,8 +1,7 @@
-import { farqSession } from './farqSession'
 
 /*
  * Targeting service client (screens 07–10). Same origin: server.py proxies /_targeting/* to the
- * targeting service after server-side account validation, with that service's password from its own environment.
+ * targeting service after server-side account validation (the session cookie; no token in the browser), with that service's password from its own environment.
  *
  * Endpoints (the service's own, unchanged):
  *   POST /suggest-specialties — { text, main_id? } → specialties a seller's products fit (read only)
@@ -68,6 +67,23 @@ export type TargetRow = {
   commercial_license?: string | null
   /** Normalized status from the service (raw status never leaves it). */
   status_class?: 'open' | 'closed_temporary' | 'inactive' | 'hidden' | 'unknown_empty' | 'unknown_invalid' | 'closed_permanent'
+  /** Farq taxonomy subcategory id, e.g. «build.plumbing_supply» (main = the part before the dot). */
+  taxonomy_sub?: string | null
+  /** يبيع، يشتري، جملة، تجزئة، مصنع، خدمات وتنفيذ */
+  role_badges?: string[]
+  /** De-duplicated specialty names (Arabic). */
+  specialties?: string[]
+  /** A commercial registration / municipal licence is on file (presence only, never the number). */
+  saudi_registered?: boolean
+  /** 'point' = a real position; otherwise the service sends latitude/longitude null (city or district centre). */
+  location_precision?: string | null
+  district_reliable?: boolean
+  /** Data completeness 0–100, when the service sends it. */
+  completeness?: number | null
+  completeness_pct?: number | null
+  /** Public rating out of 5, when the service sends it. */
+  rating?: number | null
+  service_radius_km?: number | null
 }
 
 export type TargetParse = { keywords?: string[]; category_hints?: string[]; seller_terms?: string[]; seller_label?: string | null; city?: string | null; region?: string | null; explain?: string; ai?: boolean }
@@ -95,7 +111,7 @@ export type TargetSearch = {
   understood?: { wholesale?: boolean; sub_ids?: (string | number)[] } & Record<string, unknown>
 }
 
-export type SearchAreas = { districts: { name: string; n: number }[]; streets: { name: string; district: string; n: number }[]; wholesale: number }
+export type SearchAreas = { districts: { name: string; n: number }[]; streets: { name: string; district: string; n: number }[]; wholesale: number; /** role badges with counts (before the role filter) */ roles?: { name: string; n: number }[]; /** specialties with counts (before the specialty filter) */ specialties?: { name: string; n: number }[] }
 
 /** A place where one trade concentrates (POST /clusters), e.g. «أدوات صحية وسباكة — شارع خالد بن الوليد، الملك فيصل», 37 shops. */
 export type TradeCluster = {
@@ -135,8 +151,6 @@ export class TargetingError extends Error {
 
 async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
-  const token = farqSession.getAccessToken()
-  if (token) headers.Authorization = `Bearer ${token}`
   const r = await fetch(`/_targeting${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
   let data: unknown = null
   try { data = await r.json() } catch { /* empty or not JSON */ }
@@ -157,7 +171,7 @@ export const targetingStatus = () => call<{ pois: number; whatsapp: number; emai
 /** Whether this environment lets a campaign leave (server.py TARGETING_SEND). Any error reads as closed. */
 export const sendStatus = () => call<{ send?: boolean }>('GET', '/send-status').then((r) => r?.send === true, () => false)
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
-export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]; /** exact district, e.g. «الفيصلية» */ district?:string; /** part of the street name */ street?:string; /** only businesses that say they sell wholesale */ wholesale?:boolean}
+export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]; /** exact district, e.g. «الفيصلية» */ district?:string; /** part of the street name */ street?:string; /** only businesses that say they sell wholesale */ wholesale?:boolean; /** one role badge, e.g. «مصنع» */ role?:string; /** one specialty name */ specialty?:string}
 export type DirectoryFacets = {categories:{value:string;label:string;count:number;subcategories:{value:string;label:string;count:number}[]}[]; size_available:boolean}
 export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
 export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
@@ -167,6 +181,9 @@ export const tradeClusters = (body: { city: string; q?: string; objective?: stri
 export type SpecialtySuggestion = { specialty_id: string | number; specialty_ar: string; sub_id?: string | number | null; sub_ar?: string | null; main_ar?: string | null }
 export const suggestSpecialties = (text: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text })
 export type City = { en: string; ar: string | null; n: number }
+/** District polygons of one city (GET /districts?city=Riyadh): properties ar, en, city_en, id. 404 or empty = no polygons for this city. */
+export type DistrictFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, { ar: string; en?: string | null; city_en?: string | null; id: string | number }>
+export const listDistricts = (city: string) => call<GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, DistrictFeature['properties']>>('GET', '/districts?city=' + encodeURIComponent(city))
 export const listCities = () => call<City[]>('GET', '/cities')
 
 /** Body text of a Meta template. */

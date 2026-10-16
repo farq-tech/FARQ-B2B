@@ -4,8 +4,9 @@ import { parseRoute, routePath } from '../src/procurementContext'
 const company = (id:string,name:string) => ({ poi_key:id,name_ar:name,name_en:null,category_ar:'أثاث وتجهيزات',category:null,city_en:'Riyadh',region_ar:'الرياض',district_ar:'النرجس',latitude:24.7+Number(id)/100,longitude:46.7+Number(id)/100,phone:'966512345678',has_whatsapp:true,email:null,source_count:1,sources:['qa_fixture'],reason:'بيانات اختبار معزولة — نشاط مطابق' })
 async function setup(page:Page) {
   const writes:string[]=[]
+  // the session lives in memory only; the DEV build seeds it from this global (src/api/farqSession.ts)
   await page.addInitScript(() => {
-    if (!localStorage.getItem('farq_construction_session_v1')) localStorage.setItem('farq_construction_session_v1',JSON.stringify({ accessToken:'qa-no-real-token',refreshToken:'qa-no-real-token',expiresAt:Math.floor(Date.now()/1000)+7200,user:{id:'qa-user',email:'abdulrhman@farq.sa',emailVerified:true,displayName:'اختبار'} }))
+    (window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken:'qa-no-real-token',refreshToken:'qa-no-real-token',expiresAt:Math.floor(Date.now()/1000)+7200,user:{id:'qa-user',email:'abdulrhman@farq.sa',emailVerified:true,displayName:'اختبار'} }
   })
   await page.route('**/_targeting/**',async route => {
     const path=new URL(route.request().url()).pathname
@@ -76,7 +77,10 @@ for(const width of [390,1440]) {
     await page.getByRole('button',{name:'بحث باسم الشركة',exact:true}).click()
     await expect(page.getByRole('heading',{name:'شركة الاختبار للأثاث',exact:true})).toBeVisible()
     await page.getByRole('button',{name:'أضف للاختيار',exact:true}).click()
-    await page.reload();await page.getByRole('button',{name:'كمل من حيث توقفت'}).click()
+    // the draft is kept in this tab's memory only (nothing on the device): leave Explore inside the app, then come back
+    await page.evaluate(()=>{history.pushState(null,'','/account');dispatchEvent(new PopStateEvent('popstate'))})
+    await expect(page.getByRole('heading',{name:'حسابي',exact:true})).toBeVisible()
+    await page.goBack();await page.getByRole('button',{name:'كمل من حيث توقفت'}).click()
     await expect(page.getByRole('button',{name:'عرض الاختيارات'})).toBeVisible()
     await page.screenshot({path:`docs/qa/b2b/explore-${width}.png`,fullPage:true})
     expect(writes).toEqual([])
@@ -118,16 +122,16 @@ for (const width of [390, 1440]) {
 
 test('purchase sends only selected company after explicit consent and paid WhatsApp confirmation', async ({page}) => {
   await setup(page)
-  await page.addInitScript(target => {
-    localStorage.setItem('farq.b2b.qa-user.purchase-seed.v1',JSON.stringify({lines:[{name:'كرسي عيادة',qty:'20',unit:'حبة',spec:''}],city:'الرياض',targets:[target]}))
-    localStorage.setItem('farq.b2b.qa-user.profile.v1',JSON.stringify({name:'عيادة اختبار',phone:'+966501234568',city:'الرياض',email:'buyer@example.com'}))
-  },company('1','شركة الاختبار للأثاث'))
+  // nothing is stored on the device: the company profile comes from the server, the purchase seed from Explore in this tab
   const requests:Array<{path:string,body:Record<string,unknown>}>=[]
   await page.route('**/_api/**',async route=>{
     const path=new URL(route.request().url()).pathname
     const body=route.request().method()==='POST'?route.request().postDataJSON():{}
     if(route.request().method()==='POST')requests.push({path,body})
     let data:unknown
+    if(path.endsWith('/api/business/context'))return route.fulfill({json:{ok:true,data:{organizations:[{id:'org-1',name:'عيادة اختبار',role:'OWNER',subscriptions:[{sectorCode:'construction'}]}]}}})
+    if(path.endsWith('/api/business/company-profile')){expect(route.request().headers()['x-farq-organization-id']).toBe('org-1');return route.fulfill({json:{ok:true,data:{profile:{name:'عيادة اختبار',phone:'+966501234568',city:'الرياض',email:'buyer@example.com'}}}})}
+    if(path.endsWith('/boq/match')||path.includes('/catalog'))return route.fallback()
     if(path.endsWith('/b2b/capabilities'))data={general_requests:true,sales_dispatch:false}
     else if(path.endsWith('/suppliers/import'))data={imported:[{id:'user-selected-company'}],imported_count:1}
     else if(path.endsWith('/rfqs'))data={id:'00000000-0000-4000-8000-000000000001'}
@@ -137,7 +141,16 @@ test('purchase sends only selected company after explicit consent and paid Whats
     else return route.fulfill({status:503,json:{ok:false,error:{message:'Unmocked request blocked'}}})
     return route.fulfill({json:{ok:true,data}})
   })
-  await page.goto('/new')
+  await page.goto('/explore');await page.getByLabel('المدينة',{exact:true}).selectOption('Riyadh')
+  await page.getByLabel('البحث',{exact:true}).fill('20 كرسي عيادة')
+  await page.getByRole('button',{name:'فهم الاحتياج والبحث'}).click()
+  await page.getByLabel('الوحدة',{exact:true}).fill('حبة')
+  await page.getByRole('button',{name:'ابحث عن جهات لهذا البند'}).click()
+  await page.locator('.farq-results').getByRole('button',{name:'أضف للاختيار'}).first().click()
+  await page.getByRole('button',{name:'عرض الاختيارات'}).click()
+  await page.getByRole('button',{name:'مراجعة الخطوة التالية'}).click()
+  await page.getByRole('button',{name:'جهّز طلب التسعير'}).click()
+  await expect(page).toHaveURL(/\/new$/)
   await page.getByRole('button',{name:'التالي',exact:true}).click()
   await page.getByRole('button',{name:'التالي: التوصيل',exact:true}).click()
   await expect(page.getByText('طلب أعمال · جهات اخترتها')).toBeVisible()

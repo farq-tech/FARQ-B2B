@@ -36,6 +36,8 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (method === 'GET' && url.includes(`/rfqs/${RFQ_ID}/comparison`)) return ok(awardVariant ? comparisonAward : comparison)
   if (method === 'GET' && url.includes(`/rfqs/${RFQ_ID}/supplier-outcomes`)) return ok(outcomes)
   if (method === 'GET' && url.includes(`/rfqs/${RFQ_ID}`)) return ok(awardVariant ? rfqClosed : rfq)
+  // company data lives on the server (GET /api/business/company-profile, being built): the harness account has none yet
+  if (method === 'GET' && (url.includes('/api/business/context') || url.includes('/api/business/company-profile'))) return new Response(JSON.stringify({ ok: false, errors: [{ code: 'NOT_FOUND' }] }), { status: 404, headers: { 'content-type': 'application/json' } })
   console.warn('[harness] refused', method, url)
   return new Response(JSON.stringify({ ok: false, error: { message: 'harness: network disabled' } }), { status: 503, headers: { 'content-type': 'application/json' } })
 }

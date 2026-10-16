@@ -1,77 +1,74 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { listCities, listTemplates, searchTargets, templateBody, templateFits, templateStatus, tradeClusters, type MetaTemplate, type City, type SearchFilters, type TradeCluster, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
 import {
-  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, InfoIcon, MessageTemplatesIcon, Money, NewRequestIcon,
-  SaudiEstablishmentBadge, SearchIcon, Stat, StreetIcon, SuccessIcon, useIsMobile, WarningIcon, WholesaleIcon, Icon, type Channel,
+  listCities, listDistricts, listTemplates, searchTargets, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
+} from '../../api/targetingClient'
+import {
+  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon, MessageTemplatesIcon, NewRequestIcon,
+  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, useIsMobile, WarningIcon, WholesaleIcon, type Channel,
 } from '../../ui'
-import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
-import SendTiming from './SendTiming'
 import { FOCUS_RING } from '../../ui/cx'
-import TargetMap from './TargetMap'
+import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
+import { handoff, HANDOFF } from '../../lib/handoff'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
-
-// Mapbox when the build has a public token (VITE_MAPBOX_TOKEN), else the drawn map; loaded on its own.
-const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
-const MapboxMap = lazy(() => import('./MapboxMap'))
-function MapView(props: Parameters<typeof TargetMap>[0]) {
-  if (!HAS_MAPBOX) return <TargetMap {...props} />
-  return (
-    <Suspense fallback={null}>
-      <MapboxMap {...props} />
-      {props.legend === false ? null : (
-        <div className="pointer-events-none absolute end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--color-bg-inverse)]/80 px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
-          {[['واتساب', 'var(--brand-accent)'], ['إيميل', 'var(--brand-action-light)'], ['لا يمكن', 'var(--brand-text-3)']].map(([l, c]) => (
-            <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
-          ))}
-        </div>
-      )}
-    </Suspense>
-  )
-}
+import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
-import MessageStep, { categoryAr, previewOf } from './MessageStep'
 import StartSheet from './StartSheet'
 import MyRequests from './MyRequests'
-import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
+import Counters from './map/Counters'
+import DrawnLayerMap from './map/DrawnLayerMap'
+import GuideTree from './map/GuideTree'
+import ProfileDrawer from './map/ProfileDrawer'
+import CampaignTray from './map/CampaignTray'
+import { RowBadges } from './map/Badges'
+import { LayerSwatch } from './map/glyphs'
+import {
+  countersOf, districtsFrom, districtsFromNames, guideOf, hasPoint, inDistricts, km, LAYERS, mainAr, mainIdOf, matchesFocus, pinsOf, safeName, subAr, subIdOf,
+  type District, type Focus, type Layer,
+} from './map/model'
+import type { LayerMapProps, Site } from './map/types'
 
 /*
- * «07 · خريطة الفرص» (was «الاستهداف» / «حملات الموردين») — Figma 51:2, on the targeting service's own data (POST /search over the
- * KSA places set). «10 · تأكيد إرسال الحملة» (54:607) opens in place from «أرسل الحملة».
+ * «خريطة الفرص» v2 — owner-approved redesign 2026-10-16 (Canva concepts: airy light-grey map, charcoal pins with white glyphs,
+ * soft green clusters, a clean results panel on the right). Everything comes from the targeting service (POST /search over
+ * the KSA places set, GET /districts, POST /clusters); nothing is invented and nothing is stored on the device.
  *
- * Only real numbers: the four counters, the results and the map come from the search answer.
- * Figma's «طلبوا الإيقاف» count and the batch pace are not in the service, so they are not shown.
- * The campaign is the approved WhatsApp template; only places with a valid mobile can be chosen.
+ *   · live counters over the visible cohort (rows inside the chosen districts, the guide pick and the site radius)
+ *   · one map layer at a time: main activities (charcoal pins) · subcategories (green circles) · specialties (navy chips)
+ *   · districts: dashed outlines, tap to choose (several allowed); pins show only inside chosen districts
+ *   · «الدليل» tree (main ▸ sub ▸ specialty) and «النتائج» cards; a card or a pin opens «ملف المنشأة» (no contact field ever)
+ *   · filters: الحي، الشارع، «جملة فقط» (manual only — «جملة» in the request ranks, it never narrows), الدور، التخصص
+ *   · trade clusters with market names, the project site with a delivery radius
+ *   · the campaign tray appears under the map once a recipient is chosen; sending is unchanged, scheduling is new
  */
 
-/** A campaign saved while sending is closed (Figma M11c «احفظ الحملة كمسودة»); this browser only. */
-const DRAFT_KEY = 'farq.targeting.draft'
-type Draft = { q: string; city: string; message: string; keys: string[]; at: number }
-const readDraft = (): Draft | null => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); return d && Array.isArray(d.keys) ? d : null } catch { return null } }
+const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
+const LayerMapbox = lazy(() => import('./map/LayerMapbox'))
+function LayerMap(props: LayerMapProps) {
+  if (!HAS_MAPBOX) return <DrawnLayerMap {...props} />
+  return <Suspense fallback={null}><LayerMapbox {...props} /></Suspense>
+}
+
 const PAGE = 150
 const FETCH = 200   // rows per server page (the API maximum); «حمّل أكثر» appends the next page
+const RADII = [5, 10, 25, 50, 100] as const
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
-const nameOf = (r: TargetRow) => r.name_ar || r.name_en || 'بدون اسم'
-const placeOf = (r: TargetRow) => [r.street_ar, r.district_ar || r.district_en, r.region_ar || r.city_en].filter(Boolean).join(' · ')
 const n = (v: number) => v.toLocaleString('en-US')
-const CITY_KEY = 'farq.targeting.city'
 /** «حدد المناسبين»: AI-likely places with WhatsApp; without an AI check, everyone with WhatsApp. */
 const pickBest = (rows: TargetRow[]) => {
   const ai = rows.some((r) => r.ai)
   return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
 }
-const rowSub = (r: TargetRow) => [r.reason || null, r.target_role === 'buyer' ? 'مشتري محتمل' : null, r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.target_role === 'buyer' ? null : r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
+const placeOf = (r: TargetRow) => [r.street_ar, r.district_ar || r.district_en, r.region_ar || r.city_en].filter(Boolean).join(' · ')
+const pathOf = (r: TargetRow) => { const m = mainIdOf(r), s = subAr(subIdOf(r)); return s ? `${mainAr(m)} ▸ ${s}` : r.taxonomy_sub ? mainAr(m) : r.category_ar || '' }
 const FIT = { L: { tone: 'Success', label: 'مناسب', icon: SuccessIcon }, M: { tone: 'Warning', label: 'محتمل', icon: WarningIcon }, N: { tone: 'Neutral', label: 'غير مناسب', icon: ErrorIcon } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} icon={FIT[r.ai].icon} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
-const wholesaleBadge = (r: TargetRow) => (r.is_wholesale ? <Badge tone="Neutral" icon={WholesaleIcon} label="جملة" className="text-[12px] leading-[18px]" /> : null)
 const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" icon={WarningIcon} label={l} className="text-[12px] leading-[18px]" /> : null }
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
-/** «جملة» in the request: the wholesale filter starts on (the service sets understood.wholesale on the same word). */
-const WHOLESALE_RX = /جمل[ةه]/
-/** The area filters under the search bar: exact district, a street inside it, wholesale only. */
-type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale'>
-/** «تجمعات هذا النشاط»: street / district clusters only, the first 8. */
+/** The narrowing filters under the search bar: district, street, wholesale (manual only), role and specialty. */
+type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty'>
 const clusterName = (c: TradeCluster) => [c.level === 'street' ? c.street_ar : null, c.district_ar].filter(Boolean).join('، ') || c.label_ar
 /** «سوق الزل للأقمشة — الديرة · 230 محل» when a curated popular name fits; otherwise «الشارع، الحي — 37 محل». */
 const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${clusterName(c)} · ${n(c.n)} محل` : `${clusterName(c)} — ${n(c.n)} محل`)
@@ -79,6 +76,7 @@ const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${
 function defaultMessage(cat: string | null, area: string | null) {
   return `معك أحمد من فرق. يوصلنا طلبات تسعير${cat ? ` ${cat}` : ''} من منشآت وشركات${area ? ` في ${area}` : ''} — تبي توصلك على واتساب؟\nللإيقاف أرسل: إيقاف`
 }
+const boxAround = (lat: number, lon: number, d = 0.012): [number, number, number, number] => [lon - d, lat - d, lon + d, lat + d]
 
 export default function TargetingPage({ onTemplates, startNew = false, onStartClosed, onRfq }: {
   onTemplates: () => void
@@ -89,15 +87,10 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   onRfq?: () => void
 }) {
   const mobile = useIsMobile()
-  const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => { try { return sessionStorage.getItem('farq-target-direction') === 'marketing' ? 'marketing' : 'purchase' } catch { return 'purchase' } })
+  // hand-offs from «هدف جديد» pages (memory only); the default is «بائعون»
+  const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => (handoff.take(HANDOFF.targetDirection) === 'marketing' ? 'marketing' : 'purchase'))
+  const [q, setQ] = useState(() => handoff.take(HANDOFF.targetQuery) || '')
   const generation = useRef(0)
-  const direction = <fieldset className="flex gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] p-2" aria-label="من تبحث عنه؟">
-    {([{ value: 'purchase', label: 'بائعون — أبي أشتري' }, { value: 'marketing', label: 'مشترون — أبي أبيع' }] as const).map(option => <label key={option.value} className="flex flex-1 flex-row items-center gap-2 text-[14px]">
-      <input type="radio" name="target-direction" checked={objective === option.value} onChange={() => { generation.current++; setObjective(option.value); setRes(null); clearAreas(); setSelected(new Set()); setLines(ls => ls.map(({ found: _found, ...line }) => line)); setActiveLine(null); setError(null); setConfirming(false); setComposeOpen(false) }} />{option.label}
-    </label>)}
-  </fieldset>
-  const [q, setQ] = useState(() => { try { return sessionStorage.getItem('farq-target-query') || '' } catch { return '' } })
-  useEffect(() => { try { sessionStorage.removeItem('farq-target-query') } catch { /* optional handoff */ } }, [])
   const [query, setQuery] = useState('')
   const [res, setRes] = useState<TargetSearch | null>(null)
   const [busy, setBusy] = useState(false)
@@ -108,15 +101,23 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
   const [tplError, setTplError] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [composeOpen, setComposeOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
-  // area filters (district / street / wholesale) and the trade clusters of the current request
   const [filters, setFilters] = useState<AreaFilters>({})
   const [clusters, setClusters] = useState<{ list: TradeCluster[]; basis?: string } | null>(null)
   const clusterGen = useRef(0)
-  const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; at: number } | null>(null)
-  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setFlyTo(null) }
+  // map state: districts, layer, guide pick, profile, site
+  const [polys, setPolys] = useState<District[] | null>(null)
+  const [chosenD, setChosenD] = useState<Set<string>>(new Set())
+  const [layer, setLayer] = useState<Layer>('main')
+  const [focus, setFocus] = useState<Focus>(null)
+  const [profile, setProfile] = useState<string | null>(null)
+  const [tab, setTab] = useState<'results' | 'guide'>('results')
+  const [site, setSite] = useState<Site | null>(null)
+  const [placingSite, setPlacingSite] = useState(false)
+  const [fit, setFit] = useState<LayerMapProps['fit']>(null)
+  const fitTo = (bounds: [number, number, number, number]) => setFit((f) => ({ bounds, at: (f?.at || 0) + 1 }))
+  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setFocus(null) }
   // a booklet turned into lines: tap a line to search for it in the chosen city
   const fileInput = useRef<HTMLInputElement>(null)
   const [lines, setLines] = useState<(BookletLine & { found?: number })[]>([])
@@ -124,60 +125,104 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const [reading, setReading] = useState<string | null>(null)
   const [readErr, setReadErr] = useState<string | null>(null)
   const [activeLine, setActiveLine] = useState<number | null>(null)
-  const list = useRef<HTMLUListElement>(null)
-  // the city is required: the search runs inside one city only
+  // the city: Riyadh by default (nothing is remembered on the device)
   const [cities, setCities] = useState<City[]>([])
-  const [city, setCity] = useState(() => { try { return localStorage.getItem(CITY_KEY) || '' } catch { return '' } })
-  const pickCity = (v: string) => { generation.current++; setCity(v); setError(null); setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines(ls => ls.map(({ found: _found, ...line }) => line)); try { localStorage.setItem(CITY_KEY, v) } catch { /* storage blocked */ } }
+  const [city, setCity] = useState('Riyadh')
+  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setConfirming(false); setProfile(null) }
+  const pickCity = (v: string) => { resetAll(); setCity(v); setChosenD(new Set()); setSite(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
-  // any approved template the send path can fill ({{1}} name, {{2}} text); the invitation template by default
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
   const [templates, setTemplates] = useState<MetaTemplate[]>([])
   useEffect(() => { listTemplates().then((r) => setTemplates(r?.ok ? (r.data || []).filter((t) => t.status === 'APPROVED') : []), () => setTemplates([])) }, [])
-  // «طلب جديد»: the start sheet opens when the route asks for it
   const [startOpen, setStartOpen] = useState(startNew)
   const [startSeen, setStartSeen] = useState(startNew)
   if (startNew !== startSeen) { setStartSeen(startNew); if (startNew) setStartOpen(true) }
   const closeStart = () => { setStartOpen(false); if (startNew) onStartClosed?.() }
-  // Cost = the server's price per message (GET /api/construction/whatsapp/pricing) × recipients (owner decision).
   const [price, setPrice] = useState<number | null>(null)
   useEffect(() => { void fetchConstructionWhatsAppPricing().then((p) => setPrice(p.enabled && p.price_sar ? Number(p.price_sar) : null)) }, [])
-  const [draft, setDraft] = useState<Draft | null>(() => readDraft())
-  const restoring = useRef<string[] | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
   useEffect(() => {
     let active = true
-    listCities().then(values => {
+    listCities().then((values) => {
       if (!active) return
       setCities(values)
-      setCity(saved => values.some(value => value.en === saved) ? saved : '')
+      setCity((c) => (values.some((v) => v.en === c) ? c : values.some((v) => v.en === 'Riyadh') ? 'Riyadh' : ''))
     }, () => { if (active) setCities([]) })
     return () => { active = false }
   }, [])
+  // district polygons of the city (GET /districts); 404 or none → the search answer's district names
+  useEffect(() => {
+    if (!city) { setPolys(null); return }
+    let on = true
+    setPolys(null)
+    listDistricts(city).then((fc) => { if (on) setPolys(districtsFrom(fc)) }, () => { if (on) setPolys([]) })
+    return () => { on = false }
+  }, [city])
   const cityName = (en: string) => cities.find((c) => c.en === en)?.ar || en
 
   const rows = useMemo(() => res?.rows || [], [res])
-  const counts = useMemo(() => {
-    let wa = 0, emailOnly = 0, none = 0
-    for (const r of rows) { const c = channelOf(r); if (c === 'WhatsApp') wa++; else if (c === 'Email') emailOnly++; else none++ }
-    return { wa, emailOnly, none }
-  }, [rows])
-  const truncated = res ? rows.length < res.total : false
+  const byKey = useMemo(() => new Map(rows.map((r) => [r.poi_key, r])), [rows])
+  const hasPolys = Boolean(polys && polys.length)
+  const districts = useMemo<District[]>(() => (hasPolys ? polys! : districtsFromNames(res?.areas?.districts || [])), [hasPolys, polys, res])
+  const chosenList = useMemo(() => districts.filter((d) => chosenD.has(d.id)), [districts, chosenD])
+  // the cohort: chosen districts (all rows before any is chosen), then the project site radius, then the guide pick
+  const areaRows = useMemo(() => {
+    let out = chosenList.length ? rows.filter((r) => inDistricts(r, chosenList)) : rows
+    if (site) out = out.filter((r) => hasPoint(r) && km(site, { lat: r.latitude!, lon: r.longitude! }) <= site.km)
+    return out
+  }, [rows, chosenList, site])
+  const cohort = useMemo(() => areaRows.filter((r) => matchesFocus(r, focus)), [areaRows, focus])
+  const counters = useMemo(() => countersOf(cohort, chosenD.size), [cohort, chosenD])
+  const guide = useMemo(() => guideOf(areaRows), [areaRows])
+  const pins = useMemo(() => (chosenList.length ? pinsOf(cohort, layer, selected, focus) : []), [chosenList, cohort, layer, selected, focus])
+  const approxCount = useMemo(() => cohort.filter((r) => !hasPoint(r)).length, [cohort])
+  const extent = useMemo<[number, number, number, number] | null>(() => {
+    const pts = rows.filter(hasPoint)
+    if (pts.length) return [Math.min(...pts.map((r) => r.longitude!)), Math.min(...pts.map((r) => r.latitude!)), Math.max(...pts.map((r) => r.longitude!)), Math.max(...pts.map((r) => r.latitude!))]
+    const c = cityCoords(city)
+    return c ? [c.lon - 0.15, c.lat - 0.12, c.lon + 0.15, c.lat + 0.12] : null
+  }, [rows, city])
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.poi_key)), [rows, selected])
+  const truncated = res ? rows.length < res.total : false
   const hasAi = Boolean(res?.ai_checked)
+  const waInCohort = counters.whatsapp
+
+  const toggleDistrict = (id: string) => {
+    setChosenD((s) => {
+      const x = new Set(s)
+      if (x.has(id)) x.delete(id)
+      else {
+        x.add(id)
+        const d = districts.find((y) => y.id === id)
+        if (x.size === 1 && d?.bbox) fitTo(d.bbox)
+      }
+      return x
+    })
+  }
+  const pickFocus = (f: Focus) => { setFocus(f); if (f) setLayer(f.level) }
+
   const citySelect = (cls: string) => (
     <>
       <label className="sr-only" htmlFor="targeting-city">المدينة</label>
       <span className="relative inline-flex shrink-0 items-center">
-      <CityIcon size={16} className="pointer-events-none absolute start-2 text-[var(--color-icon-secondary)]" />
-      <select id="targeting-city" required value={cities.some(value => value.en === city) ? city : ''} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
-        className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1.5 ps-7 pe-2 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
-        <option value="">اختر المدينة</option>
-        {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
-      </select>
+        <CityIcon size={16} className="pointer-events-none absolute start-2 text-[var(--color-icon-secondary)]" />
+        <select id="targeting-city" required value={cities.some((c) => c.en === city) ? city : ''} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
+          className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1.5 ps-7 pe-2 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
+          <option value="">اختر المدينة</option>
+          {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
+        </select>
       </span>
     </>
+  )
+  const direction = (
+    <fieldset className="flex gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-1" aria-label="من تبحث عنه؟">
+      {([{ value: 'purchase', label: 'بائعون — أبي أشتري' }, { value: 'marketing', label: 'مشترون — أبي أبيع' }] as const).map((option) => (
+        <label key={option.value} className={`flex cursor-pointer flex-row items-center gap-2 rounded-full px-3 py-1 text-[14px] leading-[22px] font-medium whitespace-nowrap ${objective === option.value ? 'bg-[var(--map-ink)] text-white' : 'text-[var(--color-text-secondary)]'}`}>
+          <input type="radio" name="target-direction" aria-label={option.label} className="sr-only" checked={objective === option.value} onChange={() => { resetAll(); setObjective(option.value) }} />
+          <span aria-hidden>{mobile ? option.label.split(' — ')[0] : option.label}</span>
+        </label>
+      ))}
+    </fieldset>
   )
 
   const chips = useMemo(() => {
@@ -186,21 +231,20 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     const cat = (p.keywords || []).filter(arabic)[0] || ''
     const area = p.city ? cityName(p.city) : null
     return [cat ? `المنتج: ${cat}` : null, p.seller_label ? `الجهات المناسبة: ${p.seller_label}` : null, area ? `المدينة: ${area}` : null].filter(Boolean) as string[]
-  }, [res, cities])
+  }, [res, cities]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function search(e?: FormEvent) {
     e?.preventDefault()
     setActiveLine(null)
-    await runSearch(q.trim())
+    await runSearchIn(q.trim(), city)
   }
   async function searchLine(i: number) {
-    if (!city || !cities.some(value => value.en === city)) { setError('اختر مدينة البحث من القائمة.'); return }
+    if (!city || !cities.some((value) => value.en === city)) { setError('اختر مدينة البحث من القائمة.'); return }
     setActiveLine(i); setQ(lines[i].name)
-    const found = await runSearch(lines[i].name)
+    const found = await runSearchIn(lines[i].name, city)
     if (found != null) setLines((ls) => ls.map((l, k) => (k === i ? { ...l, found } : l)))
   }
-  // «طلباتي»: a start that read something is saved as a request (references only, never file contents).
-  // Quiet when the API is off or refuses: the search itself never depends on it.
+  // «طلباتي»: a start that read something is saved as a request (references only, never file contents)
   const [savedTick, setSavedTick] = useState(0)
   function saveRequest(kind: OpportunityRequestKind, title: string, products: string[], fileRefs: string[]) {
     const cityAr = cities.find((c) => c.en === city)?.ar || city || undefined
@@ -219,8 +263,6 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       setReadErr(err instanceof Error ? err.message : 'تعذّرت قراءة الملف.')
     } finally { setReading(null); if (fileInput.current) fileInput.current.value = '' }
   }
-  async function runSearch(text: string): Promise<number | null> { return runSearchIn(text, city) }
-  // every result, not only the first page: the next server page is appended to the list and the map
   async function loadMore() {
     if (!res || res.next_offset == null || busy || !query) return
     setBusy(true); setError(null)
@@ -235,36 +277,34 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     } finally { setBusy(false) }
   }
   /** Where this trade concentrates in the city (POST /clusters); quiet when the service has none or is older. */
-  function loadClusters(text: string, city: string, wholesale: boolean, obj: typeof objective = objective) {
+  function loadClusters(text: string, inCity: string, wholesale: boolean, obj: typeof objective = objective) {
     const v = ++clusterGen.current
     setClusters(null)
-    tradeClusters({ city, q: text, objective: obj, ...(wholesale ? { wholesale: true } : {}) }).then(
-      (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)).map((x) => ({ ...x, popular_ar: marketNameFor(x, city, text) })), basis: c?.basis }) },
+    tradeClusters({ city: inCity, q: text, objective: obj, ...(wholesale ? { wholesale: true } : {}) }).then(
+      (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)).map((x) => ({ ...x, popular_ar: marketNameFor(x, inCity, text) })), basis: c?.basis }) },
       () => { if (v === clusterGen.current) setClusters(null) },
     )
   }
-  /** A new request (next = undefined) starts without area filters, wholesale on when it asks for «جملة»; otherwise the same request with these filters. */
-  async function runSearchIn(text: string, city: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters): Promise<number | null> {
-    if (!text || !city || busy) return null
+  /**
+   * A new request (next = undefined) starts without narrowing filters: «جملة» in the request only RANKS wholesalers first
+   * (the service does that); it never switches «جملة فقط» on (owner 2026-10-16). Otherwise: the same request with these filters.
+   */
+  async function runSearchIn(text: string, inCity: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters): Promise<number | null> {
+    if (!text || !inCity || busy) return null
     setBusy(true); setError(null); setNotice(null)
     const version = generation.current
     const fresh = next === undefined
-    let use: AreaFilters = fresh ? (initial ?? (WHOLESALE_RX.test(text) ? { wholesale: true } : {})) : next
+    const use: AreaFilters = fresh ? (initial ?? {}) : next
     try {
-      let r = await searchTargets(text, city, FETCH, obj, 0, use)
-      // the service read «جملة» where the page did not: turn the filter on and ask again
-      if (fresh && r.understood?.wholesale && !use.wholesale && version === generation.current) { use = { wholesale: true }; r = await searchTargets(text, city, FETCH, obj, 0, use) }
+      const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
-      const keep = restoring.current
-      restoring.current = null
-      if (fresh) setSelected(keep ? new Set(r.rows.filter((x) => keep.includes(x.poi_key) && waNumber(x)).map((x) => x.poi_key)) : new Set())
-      // narrowing keeps the places still in the results chosen
+      if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
-      if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, city, Boolean(use.wholesale), obj)
+      if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj)
       const p = r.parsed || {}
       const cat = (p.keywords || []).filter(arabic)[0] || null
-      if (fresh && !keep) setMessage(defaultMessage(cat, cityName(city)))
+      if (fresh) setMessage(defaultMessage(cat, cityName(inCity)))
       return r.total
     } catch (err) {
       if (version !== generation.current) return null
@@ -273,19 +313,22 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     } finally { setBusy(false) }
   }
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
+  const keep = (f: AreaFilters, drop: (keyof AreaFilters)[]) => { const x = { ...f }; for (const k of drop) delete x[k]; return x }
   const pickCluster = (c: TradeCluster) => {
-    setFlyTo((cur) => ({ lat: c.lat, lon: c.lon, at: (cur?.at || 0) + 1 }))
+    fitTo(boxAround(c.lat, c.lon))
     if (!c.district_ar) return
-    applyFilters({ wholesale: filters.wholesale, district: c.district_ar, street: c.level === 'street' && c.street_ar ? c.street_ar : undefined })
+    // the cluster's district is chosen on the map too, so its shops show
+    const d = districts.find((x) => x.ar === c.district_ar)
+    if (d) setChosenD((s) => new Set(s).add(d.id))
+    applyFilters({ ...keep(filters, ['district', 'street']), district: c.district_ar, street: c.level === 'street' && c.street_ar ? c.street_ar : undefined })
   }
 
   /** «أبي أبيع منتجاتي»: confirmed specialties become search lines on the buyers' side; the first one runs now. */
   const startSelling = (names: string[], files: string[] = []) => {
     closeStart()
     saveRequest(files.length ? 'SELLER_CATALOG' : 'SELLER_PRODUCTS', `أبيع: ${names.slice(0, 3).join('، ')}${names.length > 3 ? '…' : ''}`, names, files)
-    generation.current++
-    setObjective('marketing'); try { sessionStorage.setItem('farq-target-direction', 'marketing') } catch { /* optional */ }
-    setRes(null); clearAreas(); setSelected(new Set()); setError(null); setConfirming(false); setComposeOpen(false)
+    resetAll()
+    setObjective('marketing')
     setLines(names.map((name) => ({ name, qty: '', unit: '' }))); setBooklet('تخصصاتك'); setActiveLine(null)
     if (!city || !cities.some((c) => c.en === city)) { setError('اختر المدينة، ثم اضغط التخصص للبحث عن مشترين.'); return }
     setActiveLine(0); setQ(names[0])
@@ -293,30 +336,26 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   }
   const startSheet = startOpen ? (
     <StartSheet mobile={mobile} onClose={closeStart} onRfq={onRfq}
-      onBooklet={() => {
-        if (objective === 'marketing') { generation.current++; setObjective('purchase'); setRes(null); clearAreas(); setSelected(new Set()) }
-        fileInput.current?.click(); closeStart()
-      }}
+      onBooklet={() => { if (objective === 'marketing') { resetAll(); setObjective('purchase') } fileInput.current?.click(); closeStart() }}
       onFreeSearch={() => { closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
       onSellLines={startSelling} />
   ) : null
-
   const fileField = (
     <input ref={fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden
       accept=".pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*"
       onChange={(e) => void onBooklet([...(e.target.files || [])])} />
   )
-  const linesPanel = (row: boolean) => (reading || readErr || lines.length) ? (
+  const linesPanel = (reading || readErr || lines.length) ? (
     <section aria-label="منتجات وخدمات الملف" className="flex flex-col gap-2">
       {reading ? <p role="status" className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{reading}</p> : null}
       {readErr ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{readErr}</p> : null}
       {lines.length ? (
         <>
           <div className="flex items-center justify-between gap-2">
-            <p className={`text-[14px] leading-[22px] font-medium ${row ? 'text-[var(--color-text-on-inverse)]' : ''}`}>عناصر الملف ({n(lines.length)}){booklet ? <span className={row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'}> · <bdi>{booklet}</bdi></span> : null}</p>
-            <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] ${row ? 'text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-tertiary)]'} hover:underline ${FOCUS_RING}`}>إزالة</button>
+            <p className="text-[14px] leading-[22px] font-medium">عناصر الملف ({n(lines.length)}){booklet ? <span className="text-[var(--color-text-tertiary)]"> · <bdi>{booklet}</bdi></span> : null}</p>
+            <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] text-[var(--color-text-tertiary)] hover:underline ${FOCUS_RING}`}>إزالة</button>
           </div>
-          <ul className={row ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
+          <ul className={mobile ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
             {lines.map((l, i) => (
               <li key={i} className="shrink-0">
                 <button type="button" onClick={() => void searchLine(i)} disabled={busy} aria-pressed={activeLine === i} title={l.name}
@@ -333,49 +372,43 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     </section>
   ) : null
 
-  // «جملة فقط» · «الحي» · «الشارع» under the search bar; an active filter is a chip with ×
+  // «جملة فقط» · «الحي» · «الشارع» · «الدور» · «التخصص»; an active filter is a chip with ×
   const areas = res?.areas
   const streets = useMemo(() => (areas?.streets || []).filter((x) => !filters.district || x.district === filters.district), [areas, filters.district])
-  const pickerCls = `max-w-[140px] shrink-0 appearance-none rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-2 ps-9 pe-4 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
-  const areaBar = (row: boolean) => res && areas && (areas.districts.length || areas.streets.length || areas.wholesale || filters.wholesale || filters.district || filters.street) ? (
-    <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${row ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
+  const pickerCls = `max-w-[150px] shrink-0 appearance-none rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-2 ps-9 pe-4 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
+  const picker = (id: string, label: string, icon: typeof DistrictIcon, options: { value: string; text: string }[], onPick: (v: string) => void) => options.length ? (
+    <>
+      <label className="sr-only" htmlFor={id}>{label}</label>
+      <span className="relative inline-flex shrink-0 items-center">
+        <IconSlot icon={icon} />
+        <select id={id} value="" disabled={busy} className={pickerCls} onChange={(e) => { if (e.target.value !== '') onPick(e.target.value) }}>
+          <option value="">{label} ▾</option>
+          {options.map((o) => <option key={o.value} value={o.value}>{o.text}</option>)}
+        </select>
+      </span>
+    </>
+  ) : null
+  const areaBar = res && areas ? (
+    <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
           onClick={() => applyFilters({ ...filters, wholesale: !filters.wholesale || undefined })} />
       ) : null}
-      {filters.district ? (
-        <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters({ wholesale: filters.wholesale })} />
-      ) : areas.districts.length ? (
-        <>
-          <label className="sr-only" htmlFor="targeting-district">الحي</label>
-          <span className="relative inline-flex shrink-0 items-center">
-            <DistrictIcon size={16} className="pointer-events-none absolute start-3 text-[var(--color-icon-secondary)]" />
-            <select id="targeting-district" value="" disabled={busy} className={pickerCls} onChange={(e) => { if (e.target.value) applyFilters({ wholesale: filters.wholesale, district: e.target.value }) }}>
-              <option value="">الحي ▾</option>
-              {areas.districts.map((d) => <option key={d.name} value={d.name}>{d.name} ({n(d.n)})</option>)}
-            </select>
-          </span>
-        </>
-      ) : null}
-      {filters.street ? (
-        <Chip className="shrink-0" icon={StreetIcon} label={`الشارع: ${filters.street}`} selected disabled={busy} onRemove={() => applyFilters({ wholesale: filters.wholesale, district: filters.district })} />
-      ) : streets.length ? (
-        <>
-          <label className="sr-only" htmlFor="targeting-street">الشارع</label>
-          <span className="relative inline-flex shrink-0 items-center">
-          <StreetIcon size={16} className="pointer-events-none absolute start-3 text-[var(--color-icon-secondary)]" />
-          <select id="targeting-street" value="" disabled={busy} className={pickerCls}
-            onChange={(e) => { const st = streets[Number(e.target.value)]; if (e.target.value && st) applyFilters({ wholesale: filters.wholesale, district: filters.district || st.district || undefined, street: st.name }) }}>
-            <option value="">الشارع ▾</option>
-            {streets.map((st, i) => <option key={`${st.district}|${st.name}`} value={i}>{st.name}{filters.district || !st.district ? '' : ` — ${st.district}`} ({n(st.n)})</option>)}
-          </select>
-          </span>
-        </>
-      ) : null}
+      {filters.district
+        ? <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['district', 'street']))} />
+        : picker('targeting-district', 'الحي', DistrictIcon, areas.districts.map((d) => ({ value: d.name, text: `${d.name} (${n(d.n)})` })), (v) => applyFilters({ ...keep(filters, ['street']), district: v }))}
+      {filters.street
+        ? <Chip className="shrink-0" icon={StreetIcon} label={`الشارع: ${filters.street}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['street']))} />
+        : picker('targeting-street', 'الشارع', StreetIcon, streets.map((st, i) => ({ value: String(i), text: `${st.name}${filters.district || !st.district ? '' : ` — ${st.district}`} (${n(st.n)})` })), (v) => { const st = streets[Number(v)]; if (st) applyFilters({ ...filters, district: filters.district || st.district || undefined, street: st.name }) })}
+      {filters.role
+        ? <Chip className="shrink-0" icon={SupplierIcon} label={`الدور: ${filters.role}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['role']))} />
+        : picker('targeting-role', 'الدور', SupplierIcon, (areas.roles || []).map((x) => ({ value: x.name, text: `${x.name} (${n(x.n)})` })), (v) => applyFilters({ ...filters, role: v }))}
+      {filters.specialty
+        ? <Chip className="shrink-0" icon={SpecialtiesIcon} label={`التخصص: ${filters.specialty}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['specialty']))} />
+        : picker('targeting-specialty', 'التخصص', SpecialtiesIcon, (areas.specialties || []).map((x) => ({ value: x.name, text: `${x.name} (${n(x.n)})` })), (v) => applyFilters({ ...filters, specialty: v }))}
     </fieldset>
   ) : null
-  // before a search: the words people say («حدايد وبويات»، «مليس»…) and the city's known markets («سوق الزل للأقمشة»)
   const examples = objective === 'marketing' ? SELL_EXAMPLES : BUY_EXAMPLES
   const markets = useMemo(() => (objective === 'purchase' ? marketSuggestions(city) : []), [city, objective])
   const tryExample = (term: string, district?: string) => {
@@ -383,16 +416,16 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     if (!city) { setError('اختر المدينة، ثم اضغط المثال.'); requestAnimationFrame(() => input.current?.focus()); return }
     void runSearchIn(term, city, undefined, objective, district ? { district } : undefined)
   }
-  const suggestBar = (row: boolean) => !res && !busy ? (
-    <div aria-label="أمثلة للبحث" role="group" className={row ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>
-      <span className={`shrink-0 text-[14px] leading-[22px] font-medium ${row ? 'rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[var(--color-text-secondary)]' : 'text-[var(--color-text-secondary)]'}`}>جرّب:</span>
+  const suggestBar = !res && !busy ? (
+    <div aria-label="أمثلة للبحث" role="group" className={mobile ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>
+      <span className="shrink-0 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]">جرّب:</span>
       {examples.map((t) => <Chip key={t} className="shrink-0" label={t} onClick={() => tryExample(t)} />)}
       {markets.map((m) => <Chip key={m.label} className="shrink-0" label={m.label} onClick={() => tryExample(m.term, m.district)} />)}
     </div>
   ) : null
   const clusterTop = useMemo(() => (clusters?.list || []).filter((c) => c.level !== 'cell').slice(0, 8), [clusters])
   const clusterList = clusterTop.length ? (
-    <details open className="group border-t border-[var(--color-border-default)] px-5 py-3">
+    <details open className="group border-b border-[var(--color-border-default)] px-5 py-3">
       <summary className={`flex cursor-pointer list-none items-center justify-between gap-2 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>
         <span className="flex items-center gap-2"><ClustersIcon size={18} className="text-[var(--color-icon-secondary)]" />تجمعات هذا النشاط</span>
         <Icon name="chevron-down" size={16} className="text-[var(--color-icon-secondary)] transition-transform group-open:rotate-180" />
@@ -407,7 +440,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
                 className={`fi-host flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${on ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
                 {c.level === 'street' ? <StreetIcon size={16} /> : <DistrictIcon size={16} />}
                 <span className="min-w-0 flex-1 truncate">{clusterText(c)}</span>
-                {c.wholesale_pct >= 30 ? <Badge tone="Neutral" icon={WholesaleIcon} label="جملة" className="px-2 py-0 text-[12px] leading-[18px]" /> : null}
+                {c.wholesale_pct >= 30 ? <span className="rounded-full border border-[var(--map-sand)] bg-[color-mix(in_srgb,var(--map-sand)_25%,white)] px-2 text-[12px] leading-[18px] font-medium">جملة</span> : null}
               </button>
             </li>
           )
@@ -415,254 +448,208 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       </ul>
     </details>
   ) : null
-  const mapClusters = { clusters: clusters?.list || [], onCluster: pickCluster, flyTo }
 
   const toggle = (r: TargetRow) => {
     if (!waNumber(r)) return
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
   }
-  const focusRow = (key: string) => {
-    const i = rows.findIndex((r) => r.poi_key === key)
-    if (i < 0) return
-    if (i >= shown) setShown(i + 1)
-    requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
-  }
-
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
-  const sendBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
+  const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && templateFits(t)) ? 'القالب ما يناسب الحملة' : null
+  const marketingBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : null
+  const sendBlock = marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
+  const scheduleBlock = marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
-  const costLine = cost != null ? <>≈ <Money amount={cost} vat="excl" noteClassName="text-[length:inherit] leading-[inherit] font-[inherit]" /></> : 'سعر الرسالة يظهر في المراجعة'
+  const templateBadge = approved || template !== OUTREACH_TEMPLATE ? { tone: 'Success' as const, label: 'قالب واتساب معتمد' } : tpl ? { tone: 'Warning' as const, label: `القالب: ${tpl.status}` } : tplError ? { tone: 'Danger' as const, label: 'حالة القالب غير معروفة' } : null
+  // drafts live in this page only (owner: nothing on the device); a reload clears them
   const saveDraft = () => {
-    const d: Draft = { q: query, city, message: message.trim(), keys: chosen.map((r) => r.poi_key), at: Date.now() }
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch { /* storage blocked */ }
-    setDraft(d); setConfirming(false); setComposeOpen(false)
-    setNotice(`أبشر، حفظنا الحملة كمسودة على هذا الجهاز (${n(d.keys.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال.`)
+    setConfirming(false)
+    setNotice(`أبشر، الحملة محفوظة كمسودة في هذه الصفحة (${n(chosen.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال؛ تحديث الصفحة يمسحها.`)
   }
-  const resumeDraft = async () => {
-    if (!draft) return
-    restoring.current = draft.keys
-    setQ(draft.q); setMessage(draft.message)
-    if (draft.city !== city) pickCity(draft.city)
-    setDraft(null)
-    await runSearchIn(draft.q, draft.city)
-  }
-  const draftBanner = draft && !res ? (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface)] px-3 py-2 text-[14px] leading-[22px] shadow-[var(--elevation-lg)]">
-      <span>عندك حملة محفوظة: {draft.q} · <bdi dir="ltr">{n(draft.keys.length)}</bdi> موردين</span>
-      <span className="flex gap-1"><Button variant="Ghost" size="S" onClick={() => void resumeDraft()}>كمّلها</Button><Button variant="Ghost" size="S" onClick={() => { try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage blocked */ } setDraft(null) }}>احذفها</Button></span>
-    </div>
-  ) : null
 
-  const compose = (
-    <section aria-labelledby="campaign-title" className={`flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-surface)] p-5 text-start shadow-[var(--elevation-lg)] ${mobile ? 'w-full' : 'w-[520px] max-w-[calc(100%-48px)]'}`}>
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="campaign-title" className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">رسالة الحملة</h2>
-        {approved || template !== OUTREACH_TEMPLATE ? <Badge tone="Success" showDot={false} label="قالب واتساب معتمد" /> : tpl ? <Badge tone="Warning" showDot={false} label={`القالب: ${tpl.status}`} /> : tplError ? <Badge tone="Danger" showDot={false} label="حالة القالب غير معروفة" /> : null}
-      </div>
-      {templates.length ? (
-        <label className="flex flex-col gap-1">
-          <span className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">القالب (المعتمدة من ميتا)</span>
-          <select value={template} onChange={(e) => setTemplate(e.target.value)} className={`rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] ${FOCUS_RING}`}>
-            {templates.some((t) => t.name === OUTREACH_TEMPLATE) ? null : <option value={OUTREACH_TEMPLATE}>{OUTREACH_TEMPLATE}</option>}
-            {templates.map((t) => {
-              const fits = templateFits(t) || (t.name === OUTREACH_TEMPLATE && !templateBody(t))
-              return <option key={t.name} value={t.name} disabled={!fits}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{fits ? '' : ' — متغيراته ما تناسب الحملة'}</option>
-            })}
-          </select>
-        </label>
-      ) : null}
-      <label className="flex flex-col rounded-[var(--radius-lg)] bg-[var(--color-bg-surface-2)] px-3.5 py-3 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
-        <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المحل}'}،</span>
-        <span className="sr-only">نص الرسالة</span>
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={900}
-          className="w-full resize-none bg-transparent text-[16px] leading-[26px] text-[var(--color-text-primary)] outline-none" />
-      </label>
-      {(() => { const body = template === OUTREACH_TEMPLATE ? '' : templateBody(templates.find((t) => t.name === template) || { name: '', status: '' }); return body ? <p className="text-[12px] leading-[18px] whitespace-pre-line text-[var(--color-text-secondary)]">معاينة: {previewOf(body, message)}</p> : null })()}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="text-[16px] leading-[26px] font-medium">بيوصل لـ {n(chosen.length)} جهة</p>
-          <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">
-            {res ? <>{n(counts.wa)} عندهم واتساب · {costLine}</> : 'ابحث عن الجهات أولًا'}
-          </p>
+  const resultCard = (r: TargetRow) => {
+    const ch = channelOf(r), can = ch === 'WhatsApp', on = selected.has(r.poi_key), name = safeName(r)
+    return (
+      <li key={r.poi_key} data-key={r.poi_key} className="border-b border-[var(--color-border-default)]">
+        <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
+          <input type="checkbox" checked={on} disabled={!can} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
+            className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
+          <button type="button" onClick={() => setProfile(r.poi_key)} className={`flex min-w-0 flex-1 flex-col gap-1 text-start ${FOCUS_RING}`}>
+            <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
+            {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
+            <RowBadges r={r} />
+            <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}{hasPoint(r) ? '' : ' · موقع تقريبي'}</span>
+          </button>
+          <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
         </div>
-        <Button variant="Primary" size="M" icon="send" disabled={Boolean(sendBlock)} title={sendBlock || undefined} onClick={() => setConfirming(true)}>أرسل الحملة</Button>
-      </div>
-      {sendBlock && res ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{sendBlock}</p> : null}
-      {objective === 'purchase' ? <SendTiming city={city} /> : null}
-      {notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null}
-    </section>
+      </li>
+    )
+  }
+  const resultsBody = !res ? (
+    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض محلاته.'}</p>
+  ) : !cohort.length ? (
+    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
+  ) : (
+    <ul>
+      {cohort.slice(0, shown).map(resultCard)}
+      {shown < cohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, cohort.length - shown))} أكثر</Button></li> : null}
+      {truncated && shown >= cohort.length ? (
+        <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
+          <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
+          <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
+        </li>
+      ) : null}
+    </ul>
   )
-
-  const results = (
-    <section aria-labelledby="results-title" className={`flex min-h-0 flex-col bg-[var(--color-bg-surface)] ${mobile ? 'w-full border-t' : 'h-full w-[380px] shrink-0 border-e'} border-[var(--color-border-default)]`}>
-      <div className="flex items-baseline justify-between gap-2 px-5 py-4">
-        <h2 id="results-title" className="flex items-baseline gap-2">
-          <span className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-medium">النتائج</span>
-          {res ? <span className="text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]">{n(res.total)}</span> : null}
-        </h2>
-        {res && counts.wa ? (
+  const panelHead = (
+    <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
+      <div className="flex items-center justify-between gap-2">
+        <div role="tablist" aria-label="اللوحة" className="flex gap-1 rounded-full bg-[var(--color-bg-surface-2)] p-1">
+          {([['results', `النتائج${res ? ` · ${n(cohort.length)}` : ''}`], ['guide', 'الدليل']] as const).map(([k, l]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+              className={`rounded-full px-4 py-1.5 text-[14px] leading-[22px] font-medium ${tab === k ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[var(--farq-button-shadow)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>{l}</button>
+          ))}
+        </div>
+        {res && waInCohort ? (
           <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] hover:underline ${FOCUS_RING}`}
-            onClick={() => setSelected(chosen.length ? new Set() : pickBest(rows))}>
-            {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد اللي عندهم واتساب'}
+            onClick={() => setSelected(chosen.length ? new Set() : pickBest(cohort))}>
+            {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
           </button>
         ) : null}
       </div>
-      {clusterList}
-      <MyRequests refresh={savedTick} />
-      {!res ? (
-        <p className="border-t border-[var(--color-border-default)] px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : 'اكتب وش تبي توصل له (نشاط ومدينة) واضغط ابحث.'}</p>
-      ) : !rows.length ? (
-        <p className="border-t border-[var(--color-border-default)] px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{filters.district || filters.street || filters.wholesale ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
-      ) : (
-        <ul ref={list} className={`${mobile ? 'max-h-[60dvh]' : 'min-h-0 flex-1'} overflow-y-auto`}>
-          {rows.slice(0, shown).map((r) => {
-            const ch = channelOf(r)
-            const on = selected.has(r.poi_key)
-            const can = ch === 'WhatsApp'
-            return (
-              <li key={r.poi_key} data-key={r.poi_key} className="border-t border-[var(--color-border-default)]">
-                <label className={`flex flex-row items-center gap-3 px-5 py-3.5 ${can ? 'cursor-pointer hover:bg-[var(--color-bg-surface-2)]' : ''}`} title={can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده وسيلة تواصل صالحة'}>
-                  <input type="checkbox" checked={on} disabled={!can} onChange={() => toggle(r)} className={`size-5 shrink-0 accent-[var(--color-bg-primary)] ${FOCUS_RING}`} />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className={`truncate text-[16px] leading-[26px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
-                    <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{rowSub(r)}</span>
-                  </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{wholesaleBadge(r)}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
-                </label>
-              </li>
-            )
-          })}
-          {shown < rows.length ? (
-            <li className="border-t border-[var(--color-border-default)] px-5 py-3">
-              <Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, rows.length - shown))} أكثر</Button>
-            </li>
-          ) : null}
-          {truncated && shown >= rows.length ? (
-            <li className="flex flex-row items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-5 py-3">
-              <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
-              <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
-            </li>
-          ) : null}
-        </ul>
-      )}
-    </section>
+      {res ? (
+        <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
+          {chosenD.size ? `داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : 'كل نتائج البحث — اختر حياً على الخريطة لتضييقها وعرض الدبابيس'}
+          {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
+          {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
+          {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
+        </p>
+      ) : null}
+    </div>
+  )
+  const panelBody = tab === 'results' ? (
+    <>{clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{resultsBody}</>
+  ) : (
+    <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه محلات.' : 'ابحث أولاً، ثم اختر حياً لعرض أنشطته وتخصصاته هنا.'} />
   )
 
-  const basisOf = truncated ? `من أول ${n(rows.length)} نتيجة` : null
+  // ---------- the map with its floating controls
+  const fallbackChips = !hasPolys && polys !== null && districts.length ? (
+    <div role="group" aria-label="الأحياء" className="pointer-events-auto flex max-w-full gap-1.5 overflow-x-auto pb-1">
+      {districts.map((d) => {
+        const c = res?.areas?.districts.find((x) => x.name === d.ar)?.n
+        return <Chip key={d.id} className="shrink-0" icon={DistrictIcon} label={`${d.ar}${c != null ? ` · ${n(c)}` : ''}`} selected={chosenD.has(d.id)} onClick={() => toggleDistrict(d.id)} />
+      })}
+    </div>
+  ) : null
+  const mapBlock = (
+    <div className={`relative min-h-0 overflow-hidden rounded-[18px] border border-[var(--color-border-default)] bg-[var(--map-land)] ${mobile ? 'h-[52dvh] shrink-0' : 'flex-1'}`}>
+      <LayerMap districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} layer={layer} onPin={(k) => setProfile(k)}
+        nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusters?.list || []} onCluster={pickCluster}
+        site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false) }} fit={fit} extent={extent} />
+      <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div role="radiogroup" aria-label="طبقة الخريطة" className="pointer-events-auto flex gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-1 shadow-[var(--farq-soft-shadow)]">
+            {LAYERS.map((l) => (
+              <button key={l.key} type="button" role="radio" aria-checked={layer === l.key} onClick={() => { setLayer(l.key); if (focus && focus.level !== l.key) setFocus(null) }}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] leading-[20px] font-medium ${layer === l.key ? 'bg-[var(--map-ink)] text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
+                <LayerSwatch layer={l.key} />{mobile ? l.label.replace('الأنشطة ', '') : l.label}
+              </button>
+            ))}
+          </div>
+          <div className="pointer-events-auto flex flex-wrap gap-1.5">
+            {districts.length ? <>
+              <button type="button" onClick={() => setChosenD(new Set(districts.map((d) => d.id)))} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>كل الأحياء</button>
+              <button type="button" disabled={!chosenD.size} onClick={() => { setChosenD(new Set()); setFocus(null) }} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] disabled:opacity-50 ${FOCUS_RING}`}>إزالة الكل</button>
+            </> : null}
+            {site ? (
+              <span className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
+                <label htmlFor="site-radius">موقع المشروع · نطاق التوصيل</label>
+                <select id="site-radius" value={site.km} onChange={(e) => setSite({ ...site, km: Number(e.target.value) })} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2 py-0.5 ${FOCUS_RING}`}>
+                  {RADII.map((r) => <option key={r} value={r}>{r} كم</option>)}
+                </select>
+                <button type="button" aria-label="إزالة موقع المشروع" onClick={() => setSite(null)} className={`flex size-7 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
+              </span>
+            ) : (
+              <button type="button" aria-pressed={placingSite} onClick={() => setPlacingSite((p) => !p)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${placingSite ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'} ${FOCUS_RING}`}>
+                <Icon name="map-pin" size={14} />{placingSite ? 'اضغط على الخريطة' : 'موقع المشروع'}
+              </button>
+            )}
+          </div>
+        </div>
+        {fallbackChips}
+      </div>
+      {!chosenD.size ? (
+        <p role="status" className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] leading-[22px] font-medium whitespace-nowrap shadow-[var(--farq-soft-shadow)]">
+          {polys === null ? 'نحمّل الأحياء…' : 'اختر حياً لعرض محلاته'}
+        </p>
+      ) : null}
+      {profile && byKey.get(profile) && !mobile ? (
+        <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} />
+      ) : null}
+    </div>
+  )
+
+  const tray = chosen.length ? (
+    <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage}
+      template={template} onTemplate={setTemplate} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
+      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onClear={() => setSelected(new Set())} onNotice={setNotice} />
+  ) : null
   const confirmSheet = confirming && holder ? (
     <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price} city={city}
       onClose={() => setConfirming(false)} onSaveDraft={saveDraft}
-      onDone={(sent, failed) => { setConfirming(false); setComposeOpen(false); try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage blocked */ } setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
+      onDone={(sent, failed) => { setConfirming(false); setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
+  const noticeLine = notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null
+  const errorLine = error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} />{error}</p> : null
+  const understood = chips.length ? (
+    <div className={mobile ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>
+      {mobile ? null : <span className="flex items-center gap-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]"><Icon name="bolt" size={16} />فهمنا طلبك كذا:</span>}
+      {chips.map((c) => (
+        <button key={c} type="button" onClick={() => input.current?.focus()} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-bg-surface)] px-3 py-1 text-[13px] leading-[20px] font-medium whitespace-nowrap ${FOCUS_RING}`}>
+          {mobile ? c.replace(/^[^:]+:\s*/, '') : c}<Icon name="edit" size={13} />
+        </button>
+      ))}
+    </div>
+  ) : null
+  const searchForm = (
+    <form role="search" onSubmit={search} className={`flex items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'py-1 ps-3 pe-1' : 'py-1.5 ps-4 pe-1.5'} shadow-[var(--farq-card-shadow)] focus-within:border-[var(--map-ink)]`}>
+      <SearchIcon size={mobile ? 18 : 20} className="text-[var(--color-icon-secondary)]" />
+      <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
+      <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
+        className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
+      {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
+      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busy} loadingLabel={mobile ? '…' : 'جارٍ البحث…'}>ابحث</Button>
+    </form>
+  )
 
-  // Phones: Figma M07 (59:439) — the map fills the screen under a floating search; counters, results and the
-  // campaign button sit in a bottom sheet; the message opens in its own sheet, then the confirm sheet (10).
   if (mobile) {
-    const mini = (label: string, value: number, color: string) => (
-      <div className="flex flex-col items-center rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] py-2">
-        <span className="font-[family-name:var(--font-display)] text-[18px] leading-[26px] font-semibold tabular-nums" style={{ color }}>{n(value)}</span>
-        <span className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{label}</span>
-      </div>
-    )
     return (
-      <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
+      <div className="flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6">
         <h1 className="sr-only">خريطة الفرص</h1>
-        {/* Figma M07 `18396:2027`: map first, the list sheet starts collapsed. */}
-        <div className="absolute inset-0">
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 170 : 130) + (areas ? 50 : 0) + (lines.length ? 70 : 0)} legend={false} {...mapClusters} />
-        </div>
-        <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {direction}
-          <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
-            <SearchIcon size={18} className="text-[var(--color-icon-secondary)]" />
-            <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? SELL_PLACEHOLDER_SHORT : BUY_PLACEHOLDER_SHORT}
-              className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-            {citySelect('max-w-[116px] text-[14px]')}
-            <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="…">ابحث</Button>
-          </form>
-          {suggestBar(true)}
-          {chips.length ? (
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-              {chips.map((c) => <button key={c} type="button" onClick={() => input.current?.focus()} className={`shrink-0 whitespace-nowrap rounded-full bg-[var(--color-bg-surface)] px-4 py-1.5 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>{c.replace(/^[^:]+:\s*/, '')}</button>)}
-            </div>
-          ) : null}
-          {areaBar(true)}
-          {error ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{error}</p> : null}
-          {linesPanel(true)}
-          {draftBanner}
-          {res && rows.length && !sheetOpen ? <p className="flex items-center gap-1.5 self-center rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] shadow-[var(--elevation-lg)]"><InfoIcon size={16} />اضغط الدبوس لتختار المورد</p> : null}
-          {fileField}
+          <div className="flex gap-1">
+            <Button variant="Ghost" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
+            <Button variant="Ghost" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>القوالب</Button>
+          </div>
         </div>
-        <section aria-label="النتائج" className={`absolute inset-x-0 bottom-0 flex flex-col rounded-t-[var(--radius-xl)] bg-[var(--color-bg-surface)] shadow-[var(--elevation-lg)] ${sheetOpen ? 'h-[72%]' : ''}`}>
-          <button type="button" aria-expanded={sheetOpen} onClick={() => setSheetOpen((o) => !o)} className={`flex min-h-11 w-full flex-col items-center gap-1 px-4 pt-2 ${FOCUS_RING}`}>
-            <span aria-hidden className="h-1 w-10 rounded-full bg-[var(--color-border-strong)]" />
-            <span className="sr-only">{sheetOpen ? 'صغّر القائمة' : 'افتح القائمة'}</span>
-          </button>
-          <div className="flex items-center justify-between gap-2 px-4 pt-2">
-            <button type="button" onClick={() => setSheetOpen((o) => !o)} className={`min-h-11 text-start text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>{res ? <><bdi dir="ltr">{n(res.total)}</bdi> نتيجة{sheetOpen ? '' : ' · اسحب للأعلى للقائمة'}</> : objective === 'marketing' ? 'ابحث عن مشترين محتملين' : 'ابحث عن بائعين'}</button>
-            <div className="flex items-center gap-3">
-              {res && counts.wa ? (
-                <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] ${FOCUS_RING}`}
-                  onClick={() => setSelected(chosen.length ? new Set() : pickBest(rows))}>
-                  {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
-                </button>
-              ) : null}
-              <Button variant="Ghost" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
-              <Button variant="Ghost" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>القوالب</Button>
-            </div>
-          </div>
-          {sheetOpen && res ? (
-            <div className="grid grid-cols-4 gap-2 px-4 py-3">
-              {mini('وُجد', res.total, 'var(--color-text-primary)')}
-              {mini('واتساب المعروض', counts.wa, 'var(--color-text-success)')}
-              {mini('إيميل المعروض', counts.emailOnly, 'var(--color-text-info)')}
-              {mini('بلا قناة مؤكدة', counts.none, 'var(--color-text-tertiary)')}
-            </div>
-          ) : null}
-          {sheetOpen && res ? <p className="px-4 pb-2 text-[12px] text-[var(--color-text-secondary)]">نعرض {n(rows.length)} من {n(res.total)} جهة؛ أعداد التواصل تخص المعروض فقط.{res.contact_enrichment === 'not_configured' ? ' البحث التلقائي عن الأرقام غير مفعّل بعد.' : ''}</p> : null}
-          <ul ref={list} className={sheetOpen ? 'min-h-0 flex-1 overflow-y-auto' : 'hidden'}>
-            {clusterList ? <li className="-mx-1">{clusterList}</li> : null}
-            <li className="-mx-1"><MyRequests mobile refresh={savedTick} /></li>
-            {!res && !busy ? <li className="px-5 py-6 text-[14px] leading-[24px] text-[var(--color-text-secondary)]">{objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة»، أو ارفع كتالوجك ثم اختر تخصصًا أو منتجًا للبحث عن مشترين محتملين.' : 'اكتب المنتج أو الخدمة التي تحتاجها، أو ارفع قائمة احتياجاتك ثم اختر عنصرًا للبحث عن بائعين.'} اختر المدينة لتحديد نطاق البحث.</li> : null}
-            {busy ? <li role="status" className="px-5 py-6 text-[14px]">نفهم المنتج أو الخدمة ونبحث عن الجهات المناسبة…</li> : null}
-            {res && !rows.length ? <li className="px-5 py-6 text-[14px]">لم نجد جهات مناسبة لهذا العنصر في المدينة المختارة. جرّب وصفًا أوضح أو مدينة أخرى.</li> : null}
-            {rows.slice(0, shown).map((r) => {
-              const ch = channelOf(r), can = ch === 'WhatsApp'
-              return (
-                <li key={r.poi_key} data-key={r.poi_key}>
-                  <label className="flex flex-row items-center gap-3 px-4 py-2.5">
-                    <input type="checkbox" checked={selected.has(r.poi_key)} disabled={!can} onChange={() => toggle(r)} className={`size-5 shrink-0 accent-[var(--color-bg-primary)] ${FOCUS_RING}`} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className={`truncate text-[16px] leading-[24px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
-                      <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{rowSub(r)}</span>
-                      {r.phone_source && r.phone ? <span className="text-[12px]">هاتف عام: <bdi dir="ltr">{r.phone}</bdi> · واتساب غير مؤكد</span> : null}
-                    </span>
-                    <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{wholesaleBadge(r)}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
-                  </label>
-                </li>
-              )
-            })}
-            {shown < rows.length ? <li className="px-4 py-2"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, rows.length - shown))} أكثر</Button></li> : null}
-          </ul>
-          {notice ? <p role="status" className="mx-4 mb-2 rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null}
-          {/* Figma summary bar: what is chosen and what it costs, from step 1. */}
-          <div className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
-            <div className="flex min-w-0 flex-col">
-              <p className="text-[16px] leading-[26px] font-medium">اخترت <bdi dir="ltr">{n(chosen.length)}</bdi> موردين</p>
-              <p className="text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">واتساب <bdi dir="ltr">{n(chosen.length)}</bdi>{cost != null ? <> · = <Money amount={cost} vat="excl" noteClassName="text-[length:inherit] leading-[inherit] text-[var(--color-text-on-inverse-secondary)]" /></> : null}</p>
-            </div>
-            <Button variant="Secondary" size="M" disabled={!chosen.length} title={chosen.length ? undefined : 'اختر مورد واحد على الأقل'} onClick={() => setComposeOpen(true)}>التالي</Button>
-          </div>
+        {searchForm}
+        {suggestBar}
+        {understood}
+        {areaBar}
+        {errorLine}
+        {linesPanel}
+        {fileField}
+        <Counters values={counters} compact />
+        {mapBlock}
+        {tray}
+        {noticeLine}
+        <section aria-label="النتائج والدليل" className="-mx-4 flex flex-col bg-[var(--color-bg-surface)]">
+          {panelHead}
+          {panelBody}
         </section>
-        {composeOpen ? (
-          <div role="dialog" aria-modal="true" aria-label="رسالة الحملة" className="fixed inset-x-0 top-0 bottom-[72px] z-50 overflow-y-auto farq-dots">
-            <MessageStep city={city} template={template} onTemplate={setTemplate} count={chosen.length} cost={cost} message={message} onMessage={setMessage} onBack={() => setComposeOpen(false)}
-              onNext={() => setConfirming(true)} onNewTemplate={onTemplates}
-              blocked={objective === 'marketing' ? 'الإرسال غير متاح لمسار المشترين' : !holder && tpl ? 'ما فيه طلب حاضن للردود' : null} />
-          </div>
-        ) : null}
+        {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} /> : null}
         {confirmSheet}
         {startSheet}
       </div>
@@ -670,13 +657,12 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   }
 
   return (
-    <div className={`flex min-w-0 flex-col ${mobile ? '' : 'h-dvh'}`}>
-      <header className={`flex flex-col gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 ${mobile ? 'px-4 py-4' : 'px-8 py-6'}`}>
+    <div className="flex h-dvh min-w-0 flex-col bg-[var(--color-bg-canvas)]">
+      <header className="flex flex-col gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-center gap-4">
             <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">خريطة الفرص</h1>
             {direction}
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">اكتشف البائعين أو المشترين المحتملين حسب هدفك</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="Primary" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
@@ -684,52 +670,32 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           </div>
           {fileField}
         </div>
-        <form role="search" onSubmit={search} className="flex items-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-surface)] py-2 ps-4 pe-2">
-          <SearchIcon size={22} className="text-[var(--color-icon-secondary)]" />
-          <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? SELL_PLACEHOLDER : BUY_PLACEHOLDER}
-            className="min-w-0 flex-1 bg-transparent text-[18px] leading-[30px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-          {citySelect('w-[170px] text-[16px]')}
-          <Button type="submit" variant="Primary" size="M" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="جارٍ البحث…">ابحث</Button>
-        </form>
-        {chips.length ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="flex items-center gap-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]"><Icon name="bolt" size={16} />فهمنا طلبك كذا:</span>
-            {chips.map((c) => (
-              <button key={c} type="button" onClick={() => input.current?.focus()} className={`inline-flex items-center gap-1.5 rounded-full bg-[var(--color-bg-info)] px-3 py-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] ${FOCUS_RING}`}>
-                {c}<Icon name="edit" size={14} />
-              </button>
-            ))}
-            {res?.parsed?.ai === false ? <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">(فهم بالقاموس الداخلي)</span> : null}
-          </div>
-        ) : null}
-        {suggestBar(false)}
-        {areaBar(false)}
-        {error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} />{error}</p> : null}
-        {linesPanel(false)}
-        {draftBanner}
+        {searchForm}
+        {understood}
+        {suggestBar}
+        {areaBar}
+        {errorLine}
+        {linesPanel}
       </header>
-
-      {res ? (
-        <div className={`grid gap-4 ${mobile ? 'grid-cols-2 px-4 py-4' : 'grid-cols-4 px-8 py-4'}`}>
-          <Stat label="وُجد" value={n(res.total)} basis={res.ai_checked ? `الذكاء فحص ${n(res.ai_checked)}: مناسب ${n(res.ai_likely || 0)} · محتمل ${n(res.ai_maybe || 0)}` : res.parsed?.ai === false ? 'بيانات عامة · فهم بالقاموس' : 'بيانات عامة · فهم بالذكاء'} />
-          <Stat label="عندهم واتساب" tone="Success" value={n(counts.wa)} basis={basisOf || 'رقم جوال سعودي صيغته صحيحة'} />
-          <Stat label="إيميل فقط" value={n(counts.emailOnly)} basis={basisOf || 'ما عندهم واتساب معروف'} />
-          <Stat label="لا يمكن الإرسال" tone="Danger" value={n(counts.none)} basis={basisOf || 'بدون وسيلة تواصل صالحة'} />
-        </div>
-      ) : null}
-
-      <div className={`flex min-h-0 flex-1 ${mobile ? 'flex-col' : 'flex-row'}`}>
-        {results}
-        <div className={`relative min-w-0 flex-1 overflow-hidden bg-[var(--color-bg-inverse)] ${mobile ? 'h-[360px] flex-none' : ''}`}>
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} bottomInset={320} {...mapClusters} />
-          {mobile ? null : <div className="pointer-events-none absolute inset-x-6 bottom-6 flex justify-start"><div className="pointer-events-auto">{compose}</div></div>}
-        </div>
-        {mobile ? <div className="p-4">{compose}</div> : null}
+      <div className="flex min-h-0 flex-1 flex-row">
+        <aside aria-label="النتائج والدليل" className="flex w-[400px] shrink-0 flex-col border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
+          {panelHead}
+          <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
+        </aside>
+        <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+          <Counters values={counters} />
+          {mapBlock}
+          {noticeLine}
+          {tray}
+        </main>
       </div>
-
       {confirmSheet}
       {startSheet}
     </div>
   )
+}
+
+/** A leading icon inside a picker <select>. */
+function IconSlot({ icon: I }: { icon: typeof DistrictIcon }) {
+  return <I size={16} className="pointer-events-none absolute start-3 text-[var(--color-icon-secondary)]" />
 }

@@ -210,7 +210,7 @@ def _org_of(server, handler):
     """The organisation the request acts for: X-Organization-Id when it is one of the user's, else the first one."""
     try:
         import urllib.request
-        req = urllib.request.Request(server.API + '/api/business/context', headers={'Authorization': handler.headers.get('Authorization', ''), 'Accept': 'application/json'})
+        req = urllib.request.Request(server.API + '/api/business/context', headers={'Authorization': handler._bearer() if hasattr(handler, '_bearer') else handler.headers.get('Authorization', ''), 'Accept': 'application/json'})
         with urllib.request.urlopen(req, timeout=10) as r: d = json.load(r)
         orgs = [str(o.get('id')) for o in ((d.get('data') or d).get('organizations') or []) if o.get('id')]
     except Exception: return None

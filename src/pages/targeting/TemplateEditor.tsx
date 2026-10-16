@@ -10,7 +10,7 @@ import { CATEGORY_LABEL, removeDraft, saveDraft, submitBlock, toMetaComponents, 
  * with a live phone preview and the pre-submission checks.
  *
  * «أرسل للاعتماد» asks yes/no, then submits the template to Meta for review (POST /templates on the
- * targeting service). That sends no message to anyone. «احفظ مسودة» keeps the draft in this browser.
+ * targeting service). That sends no message to anyone. «احفظ مسودة» keeps the draft in this tab only (memory, nothing on the device).
  */
 
 const BODY_MAX = 1024, HEADER_MAX = 60
@@ -73,7 +73,7 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
   const canSave = nameOk && d.body.trim().length > 0
   const save = () => {
     if (!canSave) return
-    setSaved(saveDraft({ ...d, savedAt: new Date().toISOString() }) ? 'انحفظت المسودة في هذا المتصفح.' : 'ما قدرنا نحفظ المسودة في هذا المتصفح.')
+    setSaved(saveDraft({ ...d, savedAt: new Date().toISOString() }) ? 'انحفظت المسودة في هذه الصفحة (تنمسح إذا حدّثتها).' : 'ما قدرنا نحفظ المسودة.')
   }
 
   const preview = (

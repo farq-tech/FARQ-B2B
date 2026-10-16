@@ -39,7 +39,7 @@ async function post<T>(path: string, body: unknown, retried = false): Promise<T>
   }).catch(() => null)
   if (!res) throw new Error('تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة.')
   if (res.status === 401 && !retried) {
-    const outcome = await farqSession.refreshForRequest(farqSession.getAccessToken()).catch(() => null)
+    const outcome = await farqSession.refreshForRequest(farqSession.sessionKey()).catch(() => null)
     if (outcome?.status === 'refreshed') return post<T>(path, body, true)
   }
   const json = await res.json().catch(() => null)
@@ -62,25 +62,15 @@ export function scanPurchaseRequest(pages: Array<{ mime: string; base64: string 
   })
 }
 
-/* ---------- drafts on this phone ---------- */
+/* ---------- drafts for this tab (memory only: nothing is kept on the device) ---------- */
 
-const KEY = 'farq_mobile_drafts_v1'
+let drafts: Draft[] = []
 
 function load(): Draft[] {
-  try {
-    const raw = localStorage.getItem(KEY)
-    const list = raw ? (JSON.parse(raw) as Draft[]) : []
-    return Array.isArray(list) ? list : []
-  } catch {
-    return []
-  }
+  return [...drafts]
 }
 function store(list: Draft[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list.slice(0, 30)))
-  } catch {
-    /* storage full or private mode: the draft still opens now */
-  }
+  drafts = list.slice(0, 30)
 }
 
 export function listDrafts(): Draft[] {

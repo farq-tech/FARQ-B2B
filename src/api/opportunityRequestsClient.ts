@@ -14,7 +14,7 @@ import { isReadOnlyBuild } from './readOnlyMode'
  *   GET    /:id/audit                                                   who, role, organization, plan, action, time
  *   DELETE /:id → 405: requests are never deleted, and this client never calls it.
  *
- * Every call sends the session Bearer and x-farq-organization-id (from GET /api/business/context).
+ * Every call rides on the session cookie (server.py adds the Bearer) and sends x-farq-organization-id (from GET /api/business/context).
  * 404 = the flag is off (or the API is older): the page shows a quiet «قريباً». 503 = storage unavailable.
  * Permissions: VIEWER reads only; MEMBER acts on its own requests; OWNER / ADMIN on all of the organization's.
  */
@@ -84,12 +84,11 @@ export class OpportunityRequestsError extends Error {
 
 type Envelope<T> = { ok?: boolean; success?: boolean; data?: T; errors?: { code?: string; message?: string }[]; error?: string | { code?: string } }
 
-async function raw<T>(method: 'GET' | 'POST', path: string, orgId: string | null, body?: unknown): Promise<T> {
+/** Shared with companyProfileClient: same base URL, cookie session (Bearer added by server.py) and envelope handling. */
+export async function raw<T>(method: 'GET' | 'POST' | 'PUT', path: string, orgId: string | null, body?: unknown): Promise<T> {
   if (method !== 'GET' && isReadOnlyBuild()) throw new OpportunityRequestsError(403, 'هذه النسخة للقراءة فقط.')
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  const token = farqSession.getAccessToken()
-  if (token) headers.Authorization = `Bearer ${token}`
   if (orgId) headers['x-farq-organization-id'] = orgId
   let r: Response
   try {

@@ -39,7 +39,7 @@ test('RTL, lang, landmarks, one h1, SEO tags applied', async ({ page }) => {
   await expect(page.locator('main#main')).toHaveCount(1)
   await expect(page.locator('footer')).toHaveCount(1)
   await expect(page.locator('h1')).toHaveCount(1)
-  await expect(page).toHaveTitle('فرق تسعير — قبل ما تشتري، شوف الفرق')
+  await expect(page).toHaveTitle('FARQ B2B — من احتياجك للجهة المناسبة') // seo.ts since 5318f1a (product «Farq B2B», 876bdfd)
   for (const sel of ['meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]', 'meta[property="og:url"]', 'meta[name="twitter:card"]', 'link[rel="canonical"]']) {
     await expect(page.locator(sel)).toHaveCount(1)
   }
@@ -50,8 +50,10 @@ test('RTL, lang, landmarks, one h1, SEO tags applied', async ({ page }) => {
 test('contact: every WhatsApp link has the ready message, opens a new tab safely; number and email are LTR', async ({ page }) => {
   await page.goto(URL)
   await expect(page.locator('footer')).toBeVisible()
+  // The hero start is the goal chooser (#goal-start, 8e36597) and every FAQ has a real answer, so WhatsApp lives in
+  // the footer: the number link and «كلمنا واتساب».
   const links = page.locator('a[href^="https://wa.me"]')
-  expect(await links.count()).toBeGreaterThanOrEqual(5)
+  expect(await links.count()).toBeGreaterThanOrEqual(2)
   for (const a of await links.all()) {
     await expect(a).toHaveAttribute('href', WA)
     await expect(a).toHaveAttribute('target', '_blank')
@@ -76,7 +78,10 @@ test('keyboard: skip link, nav links, hero CTA with a visible focus ring on the 
   await expect(page.locator('#faq')).toBeVisible()
   f = await tabUntil(page, (x) => x.text === 'كيف تعمل' && x.href === '#how')
   expect(f.outline).toMatch(/solid [2-9]/)
-  f = await tabUntil(page, (x) => x.text.includes('ابدأ التسعير') && x.href === WA)
+  // Header start, then the hero start: both «حدد هدفك وابدأ» → the goal chooser (8e36597; was «ابدأ التسعير» → WhatsApp).
+  f = await tabUntil(page, (x) => x.text === 'حدد هدفك وابدأ' && x.href === '#goal-start')
+  expect(f.outline).toMatch(/solid [2-9]/)
+  f = await tabUntil(page, (x) => x.text === 'حدد هدفك وابدأ' && x.href === '#goal-start')
   expect(f.outline).toMatch(/solid [2-9]/)
   // The header and hero are light now (one calm light page): the ring keeps the shared focus colour, visible on light.
   const ring = await page.evaluate(() => {
@@ -98,7 +103,7 @@ test('keyboard: FAQ items open and close with Enter and Space', async ({ page })
   await second.locator('summary').focus()
   await page.keyboard.press('Enter')
   await expect(second).toHaveAttribute('open', '')
-  await expect(second).toContainText('الإجابة قيد الإعداد')
+  await expect(second).toContainText('قارن المواصفات والتوفر') // real answer replaced the «الإجابة قيد الإعداد» placeholder
   await page.keyboard.press(' ')
   await expect(second).not.toHaveAttribute('open', '')
 })
