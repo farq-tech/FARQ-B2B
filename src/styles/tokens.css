@@ -114,6 +114,18 @@ html[data-farq-app="b2b"] {
 }
 
 :root {
+  /* خريطة الفرص v2 (owner 2026-10-16): airy light-grey map, charcoal pins, green subcategories / clusters,
+     navy only for specialty chips, sand only for the «جملة» badge. */
+  --map-land: #eceeec;
+  --map-road: #ffffff;
+  --map-road-case: #d3d6d3;
+  --map-water: #dfe4e2;
+  --map-building: #e4e6e4;
+  --map-label: #616161;
+  --map-ink: #303030;
+  --map-green: #008060;
+  --map-navy: #2b4c7e;
+  --map-sand: #c8a97e;
   --farq-canvas-gradient: linear-gradient(90deg, #f4f8f2, #e7f1e5);
   --farq-map-surface: #e6efe4;
   --farq-panel-surface: rgba(247, 250, 245, .92);
