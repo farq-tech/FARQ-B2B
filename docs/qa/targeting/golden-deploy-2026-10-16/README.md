@@ -25,3 +25,9 @@ the release folder's data (nothing deployed). Staging now holds real copies of t
 The release folder was restored to `export/targets_golden_z19.parquet` (2,250,123 rows, 188,777 WhatsApp) — the live service was
 deployed from a later export with 190,756 WhatsApp, whose exact bytes were not kept. The live service is unaffected; the next deploy
 should ship the staging export, which includes the Farq-supplier WhatsApp numbers.
+
+## Deploy 2 — specialties (owner «انشر», 2026-10-16)
+Staging → release: specialty-first search with category fallback, POST /suggest-specialties (auth required), delivery-radius `site`
+filter, data/taxonomy/specialties.csv, export with specialty columns (2,271,487 rows, 190,756 WhatsApp, 483,692 with a specialty).
+Tests: taxonomy_search 15 OK, staging tests 9 OK. railway up → Deploy complete, health 200, container started cleanly.
+Backup of the previous release: /Volumes/Archive/backups/farq-targeting-b2b-release_before_specialties_2026-10-16.
