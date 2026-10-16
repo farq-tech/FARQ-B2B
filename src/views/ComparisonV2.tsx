@@ -368,11 +368,13 @@ export function ComparisonV2({ navigate }: NavProps) {
           <section aria-label="ملخص الأسعار" data-tone="deep" className="flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-4">
             <div className="flex flex-col items-start gap-0.5">
               <p className="text-[14px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].label}</p>
-              <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-bg-brand)]">{figures[0].value}</div>
+              {/* S5: the figure is light text on charcoal (11.7:1); green #008060 is only 2.7:1 on charcoal, so it is a marker, never text. */}
+              <div className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-text-on-inverse)]"><span aria-hidden className="h-6 w-1 shrink-0 rounded-full bg-[var(--color-bg-delta)]" />{figures[0].value}</div>
               <p className="text-[12px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].basis}</p>
             </div>
-            <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--color-bg-brand)] px-4 py-3 text-[var(--color-text-on-brand)]">
-              <div className="flex flex-wrap items-baseline gap-x-1.5 text-[14px] font-medium">الوفر <span className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency, savingBasis, 'text-[var(--color-text-on-brand)]') : '—'}</span></div>
+            {/* «الوفر»: green fill with white text (4.9:1); --color-bg-brand is charcoal in S5 and vanished into the band. */}
+            <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--color-bg-delta)] px-4 py-3 text-[var(--color-text-on-cta)]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 text-[14px] font-medium">الوفر <span className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency, savingBasis, 'text-[var(--color-text-on-cta)]') : '—'}</span></div>
               <p className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingPct != null ? ltr(`${savingPct.toFixed(1)}%`) : '—'}</p>
             </div>
             {/* Not in the Figma phone frame; kept so the phone shows the same figures as the desktop. */}
@@ -456,13 +458,13 @@ export function ComparisonV2({ navigate }: NavProps) {
           {figures.map((f) => (
             <div key={f.label} className="flex min-w-0 flex-1 flex-col items-start gap-1">
               <p className="text-[14px] leading-[22px] font-medium text-[var(--color-text-on-inverse-secondary)]">{f.label}</p>
-              <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: f.mint ? 'var(--color-bg-brand)' : 'var(--color-text-on-inverse)' }}>{f.value}</div>
+              <div className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-text-on-inverse)]">{f.mint ? <span aria-hidden className="h-6 w-1 shrink-0 rounded-full bg-[var(--color-bg-delta)]" /> : null}{f.value}</div>
               <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse-secondary)]">{f.basis}</p>
             </div>
           ))}
-          <div className="flex flex-col items-start gap-1 rounded-[var(--radius-lg)] bg-[var(--color-bg-brand)] px-5 py-4 text-[var(--color-text-on-brand)]">
+          <div className="flex flex-col items-start gap-1 rounded-[var(--radius-lg)] bg-[var(--color-bg-delta)] px-5 py-4 text-[var(--color-text-on-cta)]">
             <p className="text-[14px] leading-[22px] font-medium">الوفر</p>
-            <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency, savingBasis, 'text-[var(--color-text-on-brand)]') : '—'}</div>
+            <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency, savingBasis, 'text-[var(--color-text-on-cta)]') : '—'}</div>
             <p className="text-[12px] leading-[18px] font-medium">{savingPct != null ? `${ltr(`${savingPct.toFixed(1)}%`)} أقل من أعلى عرض` : 'يُحسب عند اكتمال عرضين على الأقل'}</p>
           </div>
         </section>
