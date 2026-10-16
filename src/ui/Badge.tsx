@@ -1,5 +1,6 @@
 import { cx } from './cx'
-import { Icon, type IconName } from './Icon'
+import { Icon, IconFrom, type IconName, type IconSource } from './Icon'
+import { CancelIcon, WhatsAppGenericIcon } from './icons'
 
 /*
  * Badge — Figma «Badge» (18:41). Tone: Success · Warning · Danger · Info · Neutral.
@@ -16,11 +17,12 @@ const TONE: Record<BadgeTone, { bg: string; fg: string; dot: string }> = {
   Neutral: { bg: 'var(--color-bg-neutral)', fg: 'var(--color-text-neutral)', dot: 'var(--color-icon-secondary)' },
 }
 
-export function Badge({ tone = 'Neutral', label, showDot = true, className }: { tone?: BadgeTone; label: string; showDot?: boolean; className?: string }) {
+/** `icon` (a Farq status icon) replaces the dot: the status chips on خريطة الفرص and طلباتي. */
+export function Badge({ tone = 'Neutral', label, showDot = true, icon, className }: { tone?: BadgeTone; label: string; showDot?: boolean; icon?: IconSource; className?: string }) {
   const t = TONE[tone]
   return (
     <span className={cx('inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[14px] leading-[22px] font-medium whitespace-nowrap', className)} style={{ background: t.bg, color: t.fg }}>
-      {showDot ? <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: t.dot }} /> : null}
+      {icon ? <span className="inline-flex" style={{ color: t.dot }}><IconFrom icon={icon} size={14} /></span> : showDot ? <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: t.dot }} /> : null}
       {label}
     </span>
   )
@@ -48,17 +50,17 @@ export function EvidenceBadge({ level, label, className }: { level: EvidenceLeve
  * «Haraj» is not in Figma; it is a real channel in the API, so it renders in the neutral style.
  */
 export type Channel = 'WhatsApp' | 'Email' | 'Unreachable' | 'Haraj'
-const CHANNEL: Record<Channel, { bg: string; fg: string; icon: IconName | null; label: string }> = {
-  WhatsApp: { bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)', icon: 'whatsapp', label: 'واتساب' },
+const CHANNEL: Record<Channel, { bg: string; fg: string; icon: IconSource | null; label: string }> = {
+  WhatsApp: { bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)', icon: WhatsAppGenericIcon, label: 'واتساب' },
   Email: { bg: 'var(--color-bg-info)', fg: 'var(--color-text-info)', icon: 'mail', label: 'إيميل' },
-  Unreachable: { bg: 'var(--color-bg-neutral)', fg: 'var(--color-text-tertiary)', icon: 'x-circle', label: 'لا يمكن الإرسال' },
+  Unreachable: { bg: 'var(--color-bg-neutral)', fg: 'var(--color-text-tertiary)', icon: CancelIcon, label: 'لا يمكن الإرسال' },
   Haraj: { bg: 'var(--color-bg-neutral)', fg: 'var(--color-text-secondary)', icon: null, label: 'حراج' },
 }
 export function ChannelBadge({ channel, className }: { channel: Channel; className?: string }) {
   const c = CHANNEL[channel]
   return (
     <span className={cx('inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium whitespace-nowrap', className)} style={{ background: c.bg, color: c.fg }}>
-      {c.icon ? <Icon name={c.icon} size={14} /> : null}
+      {c.icon ? <IconFrom icon={c.icon} size={14} /> : null}
       {c.label}
     </span>
   )

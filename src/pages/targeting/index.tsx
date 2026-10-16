@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { listCities, listTemplates, searchTargets, templateBody, templateFits, templateStatus, tradeClusters, type MetaTemplate, type City, type SearchFilters, type TradeCluster, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
-import { Badge, Button, ChannelBadge, Chip, Icon, Stat, useIsMobile, type Channel } from '../../ui'
+import {
+  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, InfoIcon, MessageTemplatesIcon, NewRequestIcon,
+  RiyalSign, SearchIcon, Stat, StreetIcon, SuccessIcon, useIsMobile, WarningIcon, WholesaleIcon, Icon, type Channel,
+} from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
@@ -57,10 +60,10 @@ const pickBest = (rows: TargetRow[]) => {
   return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
 }
 const rowSub = (r: TargetRow) => [r.reason || null, r.target_role === 'buyer' ? 'مشتري محتمل' : null, r.sources?.includes('farq_supplier') ? 'مورد في فرق' : null, r.target_role === 'buyer' ? null : r.match === 'seller' ? 'يبيعه غالبًا' : r.match === 'product' ? 'يذكر المنتج' : null, placeOf(r)].filter(Boolean).join(' · ') || '—'
-const FIT = { L: { tone: 'Success', label: 'مناسب' }, M: { tone: 'Warning', label: 'محتمل' }, N: { tone: 'Neutral', label: 'غير مناسب' } } as const
-const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} showDot={false} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
-const wholesaleBadge = (r: TargetRow) => (r.is_wholesale ? <Badge tone="Neutral" showDot={false} label="جملة" className="text-[12px] leading-[18px]" /> : null)
-const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" showDot={false} label={l} className="text-[12px] leading-[18px]" /> : null }
+const FIT = { L: { tone: 'Success', label: 'مناسب', icon: SuccessIcon }, M: { tone: 'Warning', label: 'محتمل', icon: WarningIcon }, N: { tone: 'Neutral', label: 'غير مناسب', icon: ErrorIcon } } as const
+const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} icon={FIT[r.ai].icon} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
+const wholesaleBadge = (r: TargetRow) => (r.is_wholesale ? <Badge tone="Neutral" icon={WholesaleIcon} label="جملة" className="text-[12px] leading-[18px]" /> : null)
+const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" icon={WarningIcon} label={l} className="text-[12px] leading-[18px]" /> : null }
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
 /** «جملة» in the request: the wholesale filter starts on (the service sets understood.wholesale on the same word). */
 const WHOLESALE_RX = /جمل[ةه]/
@@ -162,11 +165,14 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const citySelect = (cls: string) => (
     <>
       <label className="sr-only" htmlFor="targeting-city">المدينة</label>
+      <span className="relative inline-flex shrink-0 items-center">
+      <CityIcon size={16} className="pointer-events-none absolute start-2 text-[var(--color-icon-secondary)]" />
       <select id="targeting-city" required value={cities.some(value => value.en === city) ? city : ''} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
-        className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
+        className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1.5 ps-7 pe-2 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
         <option value="">اختر المدينة</option>
         {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
       </select>
+      </span>
     </>
   )
 
@@ -326,34 +332,41 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   // «جملة فقط» · «الحي» · «الشارع» under the search bar; an active filter is a chip with ×
   const areas = res?.areas
   const streets = useMemo(() => (areas?.streets || []).filter((x) => !filters.district || x.district === filters.district), [areas, filters.district])
-  const pickerCls = `max-w-[140px] shrink-0 appearance-none rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
+  const pickerCls = `max-w-[140px] shrink-0 appearance-none rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-2 ps-9 pe-4 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
   const areaBar = (row: boolean) => res && areas && (areas.districts.length || areas.streets.length || areas.wholesale || filters.wholesale || filters.district || filters.street) ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${row ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
+      <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
       {areas.wholesale || filters.wholesale ? (
-        <Chip className="shrink-0" label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
+        <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
           onClick={() => applyFilters({ ...filters, wholesale: !filters.wholesale || undefined })} />
       ) : null}
       {filters.district ? (
-        <Chip className="shrink-0" label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters({ wholesale: filters.wholesale })} />
+        <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters({ wholesale: filters.wholesale })} />
       ) : areas.districts.length ? (
         <>
           <label className="sr-only" htmlFor="targeting-district">الحي</label>
-          <select id="targeting-district" value="" disabled={busy} className={pickerCls} onChange={(e) => { if (e.target.value) applyFilters({ wholesale: filters.wholesale, district: e.target.value }) }}>
-            <option value="">الحي ▾</option>
-            {areas.districts.map((d) => <option key={d.name} value={d.name}>{d.name} ({n(d.n)})</option>)}
-          </select>
+          <span className="relative inline-flex shrink-0 items-center">
+            <DistrictIcon size={16} className="pointer-events-none absolute start-3 text-[var(--color-icon-secondary)]" />
+            <select id="targeting-district" value="" disabled={busy} className={pickerCls} onChange={(e) => { if (e.target.value) applyFilters({ wholesale: filters.wholesale, district: e.target.value }) }}>
+              <option value="">الحي ▾</option>
+              {areas.districts.map((d) => <option key={d.name} value={d.name}>{d.name} ({n(d.n)})</option>)}
+            </select>
+          </span>
         </>
       ) : null}
       {filters.street ? (
-        <Chip className="shrink-0" label={`الشارع: ${filters.street}`} selected disabled={busy} onRemove={() => applyFilters({ wholesale: filters.wholesale, district: filters.district })} />
+        <Chip className="shrink-0" icon={StreetIcon} label={`الشارع: ${filters.street}`} selected disabled={busy} onRemove={() => applyFilters({ wholesale: filters.wholesale, district: filters.district })} />
       ) : streets.length ? (
         <>
           <label className="sr-only" htmlFor="targeting-street">الشارع</label>
+          <span className="relative inline-flex shrink-0 items-center">
+          <StreetIcon size={16} className="pointer-events-none absolute start-3 text-[var(--color-icon-secondary)]" />
           <select id="targeting-street" value="" disabled={busy} className={pickerCls}
             onChange={(e) => { const st = streets[Number(e.target.value)]; if (e.target.value && st) applyFilters({ wholesale: filters.wholesale, district: filters.district || st.district || undefined, street: st.name }) }}>
             <option value="">الشارع ▾</option>
             {streets.map((st, i) => <option key={`${st.district}|${st.name}`} value={i}>{st.name}{filters.district || !st.district ? '' : ` — ${st.district}`} ({n(st.n)})</option>)}
           </select>
+          </span>
         </>
       ) : null}
     </fieldset>
@@ -362,7 +375,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const clusterList = clusterTop.length ? (
     <details open className="group border-t border-[var(--color-border-default)] px-5 py-3">
       <summary className={`flex cursor-pointer list-none items-center justify-between gap-2 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>
-        <span>تجمعات هذا النشاط</span>
+        <span className="flex items-center gap-2"><ClustersIcon size={18} className="text-[var(--color-icon-secondary)]" />تجمعات هذا النشاط</span>
         <Icon name="chevron-down" size={16} className="text-[var(--color-icon-secondary)] transition-transform group-open:rotate-180" />
       </summary>
       {clusters?.basis ? <p className="mt-1 text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{clusters.basis}</p> : null}
@@ -372,10 +385,10 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           return (
             <li key={`${c.level}|${c.district_ar}|${c.street_ar}|${i}`}>
               <button type="button" disabled={busy} aria-pressed={on} onClick={() => pickCluster(c)}
-                className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${on ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
-                <Icon name="map-pin" size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+                className={`fi-host flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${on ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
+                {c.level === 'street' ? <StreetIcon size={16} /> : <DistrictIcon size={16} />}
                 <span className="min-w-0 flex-1 truncate">{clusterName(c)} — <bdi>{n(c.n)}</bdi> محل</span>
-                {c.wholesale_pct >= 30 ? <Badge tone="Neutral" showDot={false} label="جملة" className="px-2 py-0 text-[12px] leading-[18px]" /> : null}
+                {c.wholesale_pct >= 30 ? <Badge tone="Neutral" icon={WholesaleIcon} label="جملة" className="px-2 py-0 text-[12px] leading-[18px]" /> : null}
               </button>
             </li>
           )
@@ -400,7 +413,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const holder = tpl?.holder?.holder_rfq_id || null
   const sendBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
-  const costLine = cost != null ? `≈ ${cost} ر.س قبل الضريبة` : 'سعر الرسالة يظهر في المراجعة'
+  const costLine = cost != null ? <>≈ <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : 'سعر الرسالة يظهر في المراجعة'
   const saveDraft = () => {
     const d: Draft = { q: query, city, message: message.trim(), keys: chosen.map((r) => r.poi_key), at: Date.now() }
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch { /* storage blocked */ }
@@ -451,7 +464,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="text-[16px] leading-[26px] font-medium">بيوصل لـ {n(chosen.length)} جهة</p>
           <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">
-            {res ? `${n(counts.wa)} عندهم واتساب · ${costLine}` : 'ابحث عن الجهات أولًا'}
+            {res ? <>{n(counts.wa)} عندهم واتساب · {costLine}</> : 'ابحث عن الجهات أولًا'}
           </p>
         </div>
         <Button variant="Primary" size="M" icon="send" disabled={Boolean(sendBlock)} title={sendBlock || undefined} onClick={() => setConfirming(true)}>أرسل الحملة</Button>
@@ -542,11 +555,11 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
           {direction}
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
-            <Icon name="search" size={18} className="text-[var(--color-icon-secondary)]" />
+            <SearchIcon size={18} className="text-[var(--color-icon-secondary)]" />
             <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
             <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "وش تخصصك أو وش تبيع؟" : "وش تبي تشتري؟ منتج أو خدمة"}
               className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-            {citySelect('max-w-[96px] text-[14px]')}
+            {citySelect('max-w-[116px] text-[14px]')}
             <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="…">ابحث</Button>
           </form>
           {chips.length ? (
@@ -558,7 +571,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           {error ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{error}</p> : null}
           {linesPanel(true)}
           {draftBanner}
-          {res && rows.length && !sheetOpen ? <p className="flex items-center gap-1.5 self-center rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] shadow-[var(--elevation-lg)]"><Icon name="info" size={16} />اضغط الدبوس لتختار المورد</p> : null}
+          {res && rows.length && !sheetOpen ? <p className="flex items-center gap-1.5 self-center rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] shadow-[var(--elevation-lg)]"><InfoIcon size={16} />اضغط الدبوس لتختار المورد</p> : null}
           {fileField}
         </div>
         <section aria-label="النتائج" className={`absolute inset-x-0 bottom-0 flex flex-col rounded-t-[var(--radius-xl)] bg-[var(--color-bg-surface)] shadow-[var(--elevation-lg)] ${sheetOpen ? 'h-[72%]' : ''}`}>
@@ -575,8 +588,8 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
                   {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : 'حدد واتساب'}
                 </button>
               ) : null}
-              <Button variant="Ghost" size="S" icon="plus" onClick={() => setStartOpen(true)}>طلب جديد</Button>
-              <Button variant="Ghost" size="S" icon="whatsapp" onClick={onTemplates}>القوالب</Button>
+              <Button variant="Ghost" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
+              <Button variant="Ghost" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>القوالب</Button>
             </div>
           </div>
           {sheetOpen && res ? (
@@ -617,7 +630,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           <div className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
             <div className="flex min-w-0 flex-col">
               <p className="text-[16px] leading-[26px] font-medium">اخترت <bdi dir="ltr">{n(chosen.length)}</bdi> موردين</p>
-              <p className="text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">واتساب <bdi dir="ltr">{n(chosen.length)}</bdi>{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> ر.س قبل الضريبة</> : null}</p>
+              <p className="text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">واتساب <bdi dir="ltr">{n(chosen.length)}</bdi>{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : null}</p>
             </div>
             <Button variant="Secondary" size="M" disabled={!chosen.length} title={chosen.length ? undefined : 'اختر مورد واحد على الأقل'} onClick={() => setComposeOpen(true)}>التالي</Button>
           </div>
@@ -645,13 +658,13 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">اكتشف البائعين أو المشترين المحتملين حسب هدفك</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="Primary" size="S" icon="plus" onClick={() => setStartOpen(true)}>طلب جديد</Button>
-            <Button variant="Secondary" size="S" icon="whatsapp" onClick={onTemplates}>قوالب واتساب</Button>
+            <Button variant="Primary" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
+            <Button variant="Secondary" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>قوالب واتساب</Button>
           </div>
           {fileField}
         </div>
         <form role="search" onSubmit={search} className="flex items-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-surface)] py-2 ps-4 pe-2">
-          <Icon name="search" size={22} className="text-[var(--color-icon-secondary)]" />
+          <SearchIcon size={22} className="text-[var(--color-icon-secondary)]" />
           <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
           <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "مثال: مواد سباكة أو أجهزة كمبيوتر" : "مثال: أشتري أجهزة كمبيوتر"}
             className="min-w-0 flex-1 bg-transparent text-[18px] leading-[30px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
@@ -670,7 +683,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           </div>
         ) : null}
         {areaBar(false)}
-        {error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><Icon name="alert" size={18} />{error}</p> : null}
+        {error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} />{error}</p> : null}
         {linesPanel(false)}
         {draftBanner}
       </header>

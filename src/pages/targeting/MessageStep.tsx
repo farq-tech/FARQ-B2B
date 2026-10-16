@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { listTemplates, templateStatus, templateBody, templateFits, OUTREACH_TEMPLATE, type MetaTemplate } from '../../api/targetingClient'
-import { Badge, Button, Icon, MobileAppBar, type BadgeTone } from '../../ui'
+import { Badge, Button, Icon, MobileAppBar, RiyalSign, type BadgeTone } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { metaReasonAr } from './metaReason'
 
@@ -122,7 +122,7 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
       </div>
       <SummaryBar
         title={chosen ? <>القالب: <bdi dir="ltr">{chosen.name}</bdi> · معتمد</> : 'اختر قالباً'}
-        detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> ر.س قبل الضريبة</> : null}</>}
+        detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : null}</>}
         action={<Button variant="Secondary" size="M" disabled={Boolean(block)} title={block || undefined} onClick={onNext}>التالي</Button>}
         reason={block}
       />

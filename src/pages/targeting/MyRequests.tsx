@@ -4,7 +4,7 @@ import {
   organizationAccess, OpportunityRequestsOff, restoreOpportunityRequest, unhideOpportunityRequest,
   type OpportunityAuditEvent, type OpportunityRequest, type OpportunityRequestFilter, type OrganizationAccess,
 } from '../../api/opportunityRequestsClient'
-import { Badge, Button, Icon } from '../../ui'
+import { ArchiveIcon, Badge, Button, CancelIcon, HideIcon, HistoryIcon, Icon, RestoreIcon, ShowIcon, type IconComponent } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
 /*
@@ -19,8 +19,8 @@ const ACTION: Record<string, string> = { CREATE: 'أنشأ الطلب', UPDATE: 
 const ROLE: Record<string, string> = { OWNER: 'مالك', ADMIN: 'مدير', MEMBER: 'عضو', VIEWER: 'مشاهد' }
 const KIND: Record<string, string> = { BOOKLET: 'كراسة', PURCHASE_REQUEST: 'طلب شراء', SELLER_CATALOG: 'كتالوج', SELLER_PRODUCTS: 'منتجاتي', SEARCH: 'بحث' }
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) }
-const small = `rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-50 ${FOCUS_RING}`
-const tag = (label: string) => <Badge tone="Neutral" showDot={false} label={label} className="px-2 py-0 text-[12px] leading-[18px]" />
+const small = `fi-host inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-50 ${FOCUS_RING}`
+const tag = (label: string, icon: IconComponent) => <Badge tone="Neutral" icon={icon} label={label} className="px-2 py-0 text-[12px] leading-[18px]" />
 
 export default function MyRequests({ mobile = false, refresh = 0 }: { mobile?: boolean; /** bump to reload (a request was just saved) */ refresh?: number }) {
   const [filter, setFilter] = useState<OpportunityRequestFilter>('all')
@@ -95,9 +95,9 @@ export default function MyRequests({ mobile = false, refresh = 0 }: { mobile?: b
                 <li key={r.id} className="flex flex-col gap-1 border-t border-[var(--color-border-default)] py-2 first:border-t-0">
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-[14px] leading-[22px] font-medium">{r.title}</span>
-                    {r.status === 'CANCELLED' || r.cancelledAt ? tag('ملغي') : null}
-                    {r.hidden ? tag('مخفي') : null}
-                    {r.status === 'ARCHIVED' ? tag('مؤرشف') : null}
+                    {r.status === 'CANCELLED' || r.cancelledAt ? tag('ملغي', CancelIcon) : null}
+                    {r.hidden ? tag('مخفي', HideIcon) : null}
+                    {r.status === 'ARCHIVED' ? tag('مؤرشف', ArchiveIcon) : null}
                   </div>
                   <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{[KIND[r.kind] || r.kind, r.payload?.city, when(r.createdAt)].filter(Boolean).join(' · ')}</span>
                   {cancelling === r.id ? (
@@ -113,11 +113,11 @@ export default function MyRequests({ mobile = false, refresh = 0 }: { mobile?: b
                     </div>
                   ) : (
                     <div className="-ms-2.5 flex flex-wrap gap-0.5">
-                      {can && r.status === 'ACTIVE' ? <button type="button" className={small} disabled={busy === r.id} onClick={() => { setCancelling(r.id); setReason('') }}>إلغاء الطلب</button> : null}
-                      {can ? <button type="button" className={small} disabled={busy === r.id} onClick={() => void act(r.id, () => (r.hidden ? unhideOpportunityRequest(r.id) : hideOpportunityRequest(r.id)))}>{r.hidden ? 'إظهار' : 'إخفاء'}</button> : null}
-                      {can && r.status !== 'ARCHIVED' ? <button type="button" className={small} disabled={busy === r.id} onClick={() => void act(r.id, () => archiveOpportunityRequest(r.id))}>أرشفة</button> : null}
-                      {can && r.status === 'ARCHIVED' ? <button type="button" className={small} disabled={busy === r.id} onClick={() => void act(r.id, () => restoreOpportunityRequest(r.id))}>استرجاع</button> : null}
-                      <button type="button" className={small} onClick={() => openAudit(r)}>السجل</button>
+                      {can && r.status === 'ACTIVE' ? <button type="button" className={small} disabled={busy === r.id} onClick={() => { setCancelling(r.id); setReason('') }}><CancelIcon size={14} />إلغاء الطلب</button> : null}
+                      {can ? <button type="button" className={small} disabled={busy === r.id} onClick={() => void act(r.id, () => (r.hidden ? unhideOpportunityRequest(r.id) : hideOpportunityRequest(r.id)))}>{r.hidden ? <><ShowIcon size={14} />إظهار</> : <><HideIcon size={14} />إخفاء</>}</button> : null}
+                      {can && r.status !== 'ARCHIVED' ? <button type="button" className={small} disabled={busy === r.id} onClick={() => void act(r.id, () => archiveOpportunityRequest(r.id))}><ArchiveIcon size={14} />أرشفة</button> : null}
+                      {can && r.status === 'ARCHIVED' ? <button type="button" className={small} disabled={busy === r.id} onClick={() => void act(r.id, () => restoreOpportunityRequest(r.id))}><RestoreIcon size={14} />استرجاع</button> : null}
+                      <button type="button" className={small} onClick={() => openAudit(r)}><HistoryIcon size={14} />السجل</button>
                     </div>
                   )}
                 </li>

@@ -1,13 +1,13 @@
 import { cx, FOCUS_RING } from './cx'
-import { Icon } from './Icon'
+import { Icon, IconFrom, type IconSource } from './Icon'
 
 /*
  * Chip — Figma «Chip» (21:99). State: Default · Hover · Selected · Disabled.
  * A toggle button: aria-pressed carries the Selected state to assistive tech.
  */
-type ChipProps = { label: string; selected?: boolean; disabled?: boolean; onClick?: () => void; onRemove?: () => void; className?: string }
+type ChipProps = { label: string; /** leading Farq icon (filters on خريطة الفرص) */ icon?: IconSource; selected?: boolean; disabled?: boolean; onClick?: () => void; onRemove?: () => void; className?: string }
 
-export function Chip({ label, selected, disabled, onClick, onRemove, className }: ChipProps) {
+export function Chip({ label, icon, selected, disabled, onClick, onRemove, className }: ChipProps) {
   return (
     <span className={cx('inline-flex items-center', className)}>
       <button
@@ -23,6 +23,7 @@ export function Chip({ label, selected, disabled, onClick, onRemove, className }
           FOCUS_RING,
         )}
       >
+        {icon ? <IconFrom icon={icon} size={16} /> : null}
         {label}
         {selected ? <Icon name="check" size={16} /> : null}
       </button>

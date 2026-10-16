@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { cx, FOCUS_RING } from './cx'
-import { Icon, type IconName } from './Icon'
+import { IconFrom, type IconSource } from './Icon'
 
 /*
  * Button — Figma «Button» (9:110). Props follow Figma: Style · Size · State.
@@ -13,7 +13,7 @@ export type ButtonSize = 'S' | 'M' | 'L'
 type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> & {
   variant?: ButtonStyle
   size?: ButtonSize
-  icon?: IconName
+  icon?: IconSource
   loading?: boolean
   loadingLabel?: string
   fullWidth?: boolean
@@ -45,20 +45,20 @@ export function Button({ variant = 'Primary', size = 'M', icon, loading, loading
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx('farq-legacy-button', `farq-legacy-button--${variant}`, 'inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] font-medium transition-[transform,box-shadow,background-color] duration-150 disabled:cursor-not-allowed', loading ? 'disabled:opacity-100' : 'disabled:opacity-40', fullWidth ? s.wide : s.box, s.text, STYLE[variant], FOCUS_RING, fullWidth ? 'w-full text-center' : 'whitespace-nowrap', className)}
+      className={cx('fi-motion farq-legacy-button', `farq-legacy-button--${variant}`, 'inline-flex shrink-0 items-center justify-center rounded-[var(--radius-md)] font-medium transition-[transform,box-shadow,background-color] duration-150 disabled:cursor-not-allowed', loading ? 'disabled:opacity-100' : 'disabled:opacity-40', fullWidth ? s.wide : s.box, s.text, STYLE[variant], FOCUS_RING, fullWidth ? 'w-full text-center' : 'whitespace-nowrap', className)}
       {...rest}
     >
-      {loading ? <Spinner size={16} /> : icon ? <Icon name={icon} size={s.icon} /> : null}
+      {loading ? <Spinner size={16} /> : icon ? <IconFrom icon={icon} size={s.icon} /> : null}
       {fullWidth ? <span className="min-w-0">{loading ? loadingLabel : children}</span> : loading ? loadingLabel : children}
     </button>
   )
 }
 
 /** Square icon-only button (Top Bar «Icon button»). Always needs an accessible label. */
-export function IconButton({ icon, label, className, ...rest }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style' | 'children'> & { icon: IconName; label: string }) {
+export function IconButton({ icon, label, className, ...rest }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style' | 'children'> & { icon: IconSource; label: string }) {
   return (
-    <button type="button" aria-label={label} title={label} className={cx('inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-40', FOCUS_RING, className)} {...rest}>
-      <Icon name={icon} size={20} />
+    <button type="button" aria-label={label} title={label} className={cx('fi-motion inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-40', FOCUS_RING, className)} {...rest}>
+      <IconFrom icon={icon} size={20} />
     </button>
   )
 }

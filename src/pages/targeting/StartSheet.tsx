@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { suggestSpecialties, TargetingError, type SpecialtySuggestion } from '../../api/targetingClient'
 import { readBooklet } from '../../lib/readBooklet'
-import { Button, Chip, Icon, type IconName } from '../../ui'
+import { Button, Chip, Icon, IconFrom, PricingRequestsIcon, SearchIcon, SpecialtiesIcon, UploadBookletIcon, UploadCatalogIcon, WriteProductsIcon, type IconSource } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
 /*
@@ -23,11 +23,11 @@ type Props = {
   onRfq?: () => void
 }
 
-function Row({ icon, title, hint, onClick }: { icon: IconName; title: string; hint: string; onClick: () => void }) {
+function Row({ icon, title, hint, onClick }: { icon: IconSource; title: string; hint: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className={`flex w-full items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3.5 text-start hover:border-[var(--color-border-strong)] ${FOCUS_RING}`}>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-bg-surface-2)]"><Icon name={icon} size={20} /></span>
+      className={`fi-host flex w-full items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3.5 text-start hover:border-[var(--color-border-strong)] ${FOCUS_RING}`}>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-bg-surface-2)]"><IconFrom icon={icon} size={20} /></span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-[16px] leading-[26px] font-medium">{title}</span>
         <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{hint}</span>
@@ -95,13 +95,13 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
           <>
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">من وين تبدأ؟ كلها توصلك لنفس البحث والخريطة.</p>
             <div className="flex flex-col gap-2">
-              <Row icon="upload" title="كراسة أو طلب شراء" hint="ارفع الملف ونطلع بنوده، وتبحث عن بائعين لكل بند" onClick={onBooklet} />
-              <Row icon="tag" title="أبي أبيع منتجاتي" hint="ارفع كتالوجك أو اكتب منتجاتك، ونلقى لك مشترين" onClick={() => setStep('sell')} />
-              <Row icon="search" title="بحث حر" hint="اكتب وش تبي في خانة البحث" onClick={onFreeSearch} />
+              <Row icon={UploadBookletIcon} title="كراسة أو طلب شراء" hint="ارفع الملف ونطلع بنوده، وتبحث عن بائعين لكل بند" onClick={onBooklet} />
+              <Row icon={UploadCatalogIcon} title="أبي أبيع منتجاتي" hint="ارفع كتالوجك أو اكتب منتجاتك، ونلقى لك مشترين" onClick={() => setStep('sell')} />
+              <Row icon={SearchIcon} title="بحث حر" hint="اكتب وش تبي في خانة البحث" onClick={onFreeSearch} />
             </div>
             {onRfq ? (
               <button type="button" onClick={onRfq} className={`flex items-center gap-2 self-start text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] hover:underline ${FOCUS_RING}`}>
-                <Icon name="list" size={16} />طلب تسعير من الموردين
+                <PricingRequestsIcon size={16} />طلب تسعير من الموردين
                 <span className="font-normal text-[var(--color-text-tertiary)]">· بنود وتوصيل وإرسال للموردين</span>
               </button>
             ) : null}
@@ -109,7 +109,7 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
         ) : (
           <>
             <label className="flex flex-col gap-1.5">
-              <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">اكتب منتجاتك، سطر لكل منتج، أو ارفع الكتالوج</span>
+              <span className="flex items-center gap-1.5 text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><WriteProductsIcon size={16} />اكتب منتجاتك، سطر لكل منتج، أو ارفع الكتالوج</span>
               <textarea value={text} onChange={(e) => { setText(e.target.value); setSuggestions(null) }} rows={5} maxLength={4000} placeholder={'مثال:\nمواسير PPR\nخلاطات مغاسل\nسخانات مياه'}
                 className={`w-full resize-none rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[16px] leading-[26px] placeholder:text-[var(--color-text-tertiary)] ${FOCUS_RING}`} />
             </label>
@@ -117,14 +117,14 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
               accept=".pdf,application/pdf,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*"
               onChange={(e) => void onCatalog([...(e.target.files || [])])} />
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="Secondary" size="S" icon="upload" disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => file.current?.click()}>ارفع الكتالوج</Button>
+              <Button variant="Secondary" size="S" icon={UploadCatalogIcon} disabled={Boolean(reading)} loading={Boolean(reading)} loadingLabel="نقرأ…" onClick={() => file.current?.click()}>ارفع الكتالوج</Button>
               <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">PDF أو Excel أو صورة</span>
             </div>
             {reading ? <p role="status" className="text-[14px] text-[var(--color-text-secondary)]">{reading}</p> : null}
             {error ? <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">{error}</p> : null}
             {suggestions?.length ? (
               <div className="flex flex-col gap-2">
-                <p className="text-[14px] leading-[22px] font-medium">تخصصاتك — شِل اللي ما يناسب</p>
+                <p className="flex items-center gap-1.5 text-[14px] leading-[22px] font-medium"><SpecialtiesIcon size={16} />تخصصاتك — شِل اللي ما يناسب</p>
                 <div className="flex flex-wrap gap-2">
                   {suggestions.map((s) => (
                     <Chip key={keyOf(s)} label={s.specialty_ar} selected={picked.has(keyOf(s))}
