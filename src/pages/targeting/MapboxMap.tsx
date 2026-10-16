@@ -43,7 +43,7 @@ const tradeOf = (cs: TradeCluster[]): GeoJSON.FeatureCollection => ({
   type: 'FeatureCollection',
   features: cs.filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon)).map((c, i) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
-    properties: { i, n: c.n, wh: c.wholesale_pct >= 30 ? 1 : 0, label: `${(c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${c.n.toLocaleString('en-US')} محل` },
+    properties: { i, n: c.n, wh: c.wholesale_pct >= 30 ? 1 : 0, label: `${c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${c.n.toLocaleString('en-US')} محل` },
   })),
 })
 const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => {

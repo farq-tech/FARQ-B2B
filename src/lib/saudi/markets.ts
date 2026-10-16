@@ -16,7 +16,7 @@ export type MarketName = {
   /** or its street_ar must contain one of these */
   street?: string[]
   /** trade words matched against the cluster's trade (sub_ar / label_ar) or the request; label = the trade suffix shown */
-  trades: { match: RegExp; label: string }[]
+  trades: { match: RegExp; label: string; term: string }[]
 }
 
 export const MARKET_NAMES: MarketName[] = [
@@ -26,10 +26,10 @@ export const MARKET_NAMES: MarketName[] = [
     city: ['Riyadh', 'الرياض'],
     district: ['الديرة'],
     trades: [
-      { match: /أقمش|قماش|منسوجات|خياط/, label: 'للأقمشة' },
-      { match: /سجاد|موكيت|زوالي/, label: 'للسجاد' },
-      { match: /بشوت|بشت|مشالح|ملابس رجالي/, label: 'للبشوت' },
-      { match: /عطور|عطر|بخور|عود/, label: 'للعطور والبخور' },
+      { match: /أقمش|قماش|منسوجات|خياط/, label: 'للأقمشة', term: 'أقمشة' },
+      { match: /سجاد|موكيت|زوالي/, label: 'للسجاد', term: 'سجاد' },
+      { match: /بشوت|بشت|مشالح|ملابس رجالي/, label: 'للبشوت', term: 'بشوت' },
+      { match: /عطور|عطر|بخور|عود/, label: 'للعطور والبخور', term: 'عطور وبخور' },
     ],
   },
   {
@@ -38,8 +38,8 @@ export const MARKET_NAMES: MarketName[] = [
     city: ['Riyadh', 'الرياض'],
     district: ['السلي'],
     trades: [
-      { match: /قطع غيار|ورش|ورشة|سيارات|ميكانيك|كهرباء سيارات|سمكرة/, label: '' },
-      { match: /حداد|لحام|ألمنيوم|المنيوم|خراط/, label: '' },
+      { match: /قطع غيار|ورش|ورشة|سيارات|ميكانيك|كهرباء سيارات|سمكرة/, label: '', term: 'قطع غيار سيارات' },
+      { match: /حداد|لحام|ألمنيوم|المنيوم|خراط/, label: '', term: 'حدادة وألمنيوم' },
     ],
   },
 ]
@@ -86,6 +86,22 @@ export function marketsIn(city: string | null | undefined): MarketName[] {
   return cityKey ? MARKET_NAMES.filter((m) => m.city.some((x) => normCity(x) === cityKey)) : []
 }
 
+/** Suggestion chips for a city: «سوق الزل للأقمشة» → search «أقمشة» inside district الديرة. */
+export function marketSuggestions(city: string | null | undefined, max = 4): { label: string; term: string; district?: string }[] {
+  const out: { label: string; term: string; district?: string }[] = []
+  for (const m of marketsIn(city)) {
+    // one chip per distinct term (a market listed twice with an empty label would repeat its name)
+    const seen = new Set<string>()
+    for (const t of m.trades) {
+      const label = t.label ? `${m.name} ${t.label}` : m.name
+      if (seen.has(label)) continue
+      seen.add(label)
+      out.push({ label, term: t.term, district: m.district?.[0] })
+    }
+  }
+  return out.slice(0, max)
+}
+
 /*
  * Market vocabulary: how buyers and shop owners actually ask. Used as example chips and in placeholders.
  * «كوري وصيني» = Korean and Chinese car parts; «مليس» = plaster skim coat; «جملة وقطاعي» = wholesale and retail.
@@ -94,3 +110,6 @@ export const BUY_EXAMPLES = ['حدايد وبويات', 'بلاط', 'مليس', 
 export const SELL_EXAMPLES = ['حدايد وبويات', 'بلاط وسيراميك', 'قطع غيار كوري وصيني', 'جملة وقطاعي'] as const
 export const BUY_PLACEHOLDER = 'وش تبي تسعّر؟ مثل: حدايد وبويات، بلاط، مليس'
 export const SELL_PLACEHOLDER = 'وش تبيع؟ مثل: قطع غيار كوري وصيني، جملة وقطاعي'
+/** phones: the question alone (the example chips sit right under it) */
+export const BUY_PLACEHOLDER_SHORT = 'وش تبي تسعّر؟'
+export const SELL_PLACEHOLDER_SHORT = 'وش تبيع؟'

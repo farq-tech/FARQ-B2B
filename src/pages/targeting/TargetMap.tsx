@@ -91,11 +91,11 @@ export default function TargetMap({ rows, selected, focusedKey, onToggle, topIns
         {seg.length ? <polygon points={seg.map((p) => `${p.x},${p.y}`).join(' ')} fill={COLOR.wa} fillOpacity={0.12} stroke={COLOR.wa} strokeWidth={2} strokeLinejoin="round" /> : null}
       </svg>
       {trade.map(({ c, x, y, d }, i) => (
-        <button key={`t${i}`} type="button" onClick={() => onCluster?.(c)} aria-label={`${c.label_ar} — ${c.n} محل${c.wholesale_pct >= 30 ? ' · جملة' : ''}`} title={c.label_ar}
+        <button key={`t${i}`} type="button" onClick={() => onCluster?.(c)} aria-label={`${c.popular_ar ? `${c.popular_ar} — ` : ''}${c.label_ar} — ${c.n} محل${c.wholesale_pct >= 30 ? ' · جملة' : ''}`} title={c.popular_ar || c.label_ar}
           className={`absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-2 border-dashed border-[var(--color-text-on-inverse)] bg-[var(--white-a16)] ${FOCUS_RING}`}
           style={{ left: x, top: y, width: d, height: d }}>
           {c.wholesale_pct >= 30 ? <span className="absolute -top-2 rounded-full bg-[var(--color-bg-surface)] px-1.5 text-[11px] leading-[16px] font-medium text-[var(--color-text-primary)]">جملة</span> : null}
-          <span className="pointer-events-none absolute top-full mt-1 max-w-[140px] truncate rounded-full bg-[var(--color-bg-inverse)]/80 px-2 text-[11px] leading-[16px] font-medium whitespace-nowrap text-[var(--color-text-on-inverse)]">{(c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar} · {c.n}</span>
+          <span className="pointer-events-none absolute top-full mt-1 max-w-[140px] truncate rounded-full bg-[var(--color-bg-inverse)]/80 px-2 text-[11px] leading-[16px] font-medium whitespace-nowrap text-[var(--color-text-on-inverse)]">{c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar} · {c.n}</span>
         </button>
       ))}
       {groupsOf.map((c) => {
