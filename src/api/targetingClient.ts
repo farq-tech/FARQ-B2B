@@ -245,8 +245,7 @@ export type ScheduleAnswer<T> = { available: false } | ({ available: true } & T)
 export const SCHEDULE_SOON = 'الجدولة قريباً'
 async function scheduleCall<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<ScheduleAnswer<T>> {
   const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
-  const token = farqSession.getAccessToken()
-  if (token) headers.Authorization = `Bearer ${token}`
+  // the login travels in the HttpOnly session cookie (server.py adds the bearer); nothing is read from the page
   const r = await fetch(`/api/targeting/schedule${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
   let data: Record<string, unknown> = {}
   try { data = await r.json() } catch { /* empty */ }
