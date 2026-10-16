@@ -1,5 +1,6 @@
 // «فرق تسعير» UI library — one component per Figma component set (file 9QCDDpoILFHMkWkmHtIJ0m, page Components).
-export { Icon, ICON_NAMES, type IconName } from './Icon'
+export { Icon, IconFrom, ICON_NAMES, type IconName, type IconSource, type IconComponent } from './Icon'
+export * from './icons'
 export { Logo } from './Logo'
 export { Button, IconButton, Spinner, type ButtonStyle, type ButtonSize } from './Button'
 export { Input } from './Input'

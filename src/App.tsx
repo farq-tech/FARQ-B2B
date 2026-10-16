@@ -3,13 +3,14 @@ import { ProcurementProvider, useProcurement, type View } from './procurementCon
 import { useFarqSession } from './api/useFarqSession'
 import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
-import { Button, MobileBottomNav, NavItem, Sidebar, useIsMobile } from './ui'
+import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MessageTemplatesIcon, MobileBottomNav, NavItem, NewRequestIcon, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
 import './b2b/b2b.css'
 
 /*
  * Shell = Figma «✦ Farq B2B: Screens» (file gxlY4uu8hzkUNrcN61uQZt): web W00 sidebar 18371:99,
- * mobile Tab Bars (4): الطلبات · طلب جديد · الوارد · الموردين. «الموردين» opens the supplier campaign
- * (targeting map → message → Meta approval → review & cost). Explore (/explore), opportunities and
+ * mobile Tab Bars (4): الطلبات · طلب جديد · الوارد · خريطة الفرص. «خريطة الفرص» (was «حملات الموردين») opens the
+ * targeting map → message → Meta approval → review & cost. «طلب جديد» opens خريطة الفرص with its start sheet
+ * (booklet / catalog / free search); the buyer RFQ wizard (/new) stays, linked from that sheet. Explore (/explore), opportunities and
  * account stay reachable (landing entry, saved opportunities, «حسابي» under the account row).
  */
 const RfqList = lazy(() => import('./views/RfqListV2').then(m => ({ default: m.RfqListV2 })))
@@ -28,15 +29,15 @@ const Loading = () => <p role="status" className="farq-loading">جارٍ الت�
 const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
 
 const REQUESTS: View[] = ['rfq-list', 'rfq-detail', 'comparison', 'award', 'login']
-const CAMPAIGN: View[] = ['targeting', 'templates', 'template-new']
+const CAMPAIGN: View[] = ['targeting', 'targeting-new', 'templates', 'template-new']
 
 /** The landing's «حدد هدفك وابدأ» stores a goal; that visit opens Explore once, later visits open the requests. */
 function landingGoal(): boolean {
   try { return Boolean(sessionStorage.getItem('farq-entry-goal')) } catch { return false }
 }
 
-function SectionLabel({ children }: { children: string }) {
-  return <p className="px-3 pt-3 pb-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{children}</p>
+function SectionLabel({ children, icon: I }: { children: string; icon?: IconComponent }) {
+  return <p className="flex items-center gap-1.5 px-3 pt-3 pb-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{I ? <I size={14} /> : null}{children}</p>
 }
 
 function Routes() {
@@ -76,14 +77,14 @@ function Routes() {
           className="sticky top-0"
           nav={<>
             <SectionLabel>التسعير</SectionLabel>
-            <NavItem icon="list" label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
-            <NavItem icon="plus" label="طلب جديد" onClick={() => navigate('create-upload')} />
-            <SectionLabel>الموردين</SectionLabel>
-            <NavItem icon="inbox" label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
-            <NavItem icon="map-pin" label="حملات الموردين" active={view === 'targeting'} onClick={() => navigate('targeting')} />
-            <NavItem icon="whatsapp" label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
+            <NavItem icon={PricingRequestsIcon} label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
+            <NavItem icon={NewRequestIcon} label="طلب جديد" active={view === 'targeting-new'} onClick={() => navigate('targeting-new')} />
+            <SectionLabel icon={MarketIcon}>السوق</SectionLabel>
+            <NavItem icon={InboxIcon} label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
+            <NavItem icon={OpportunityMapIcon} label="خريطة الفرص" active={view === 'targeting'} onClick={() => navigate('targeting')} />
+            <NavItem icon={MessageTemplatesIcon} label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
           </>}
-          footerNav={<NavItem icon="building" label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
+          footerNav={<NavItem icon={AccountIcon} label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
           account={{ name: email || 'المالك', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
         />
       )}
@@ -94,7 +95,7 @@ function Routes() {
           {view === 'comparison' && <Comparison navigate={navigate} />}
           {view === 'award' && selectedRfqId && <Award rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')} onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />}
           {view === 'inbox' && <Inbox onOpenRequest={openRequest} />}
-          {view === 'targeting' && <Targeting onTemplates={() => navigate('templates')} />}
+          {(view === 'targeting' || view === 'targeting-new') && <Targeting onTemplates={() => navigate('templates')} startNew={view === 'targeting-new'} onStartClosed={() => navigate('targeting')} onRfq={() => navigate('create-upload')} />}
           {view === 'templates' && <Templates onBack={() => navigate('targeting')} onNew={() => navigate('template-new')} />}
           {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
           {view === 'account' && <Account />}
@@ -104,10 +105,10 @@ function Routes() {
       </main>
       {mobile ? (
         <MobileBottomNav tabs={[
-          { label: 'الطلبات', icon: 'list', active: onRequests, onClick: () => navigate('rfq-list') },
-          { label: 'طلب جديد', icon: 'plus', onClick: () => navigate('create-upload') },
-          { label: 'الوارد', icon: 'inbox', active: view === 'inbox', onClick: () => navigate('inbox') },
-          { label: 'الموردين', icon: 'map-pin', active: onCampaign, onClick: () => navigate('targeting') },
+          { label: 'الطلبات', icon: PricingRequestsIcon, active: onRequests, onClick: () => navigate('rfq-list') },
+          { label: 'طلب جديد', icon: NewRequestIcon, active: view === 'targeting-new', onClick: () => navigate('targeting-new') },
+          { label: 'الوارد', icon: InboxIcon, active: view === 'inbox', onClick: () => navigate('inbox') },
+          { label: 'خريطة الفرص', icon: OpportunityMapIcon, active: onCampaign && view !== 'targeting-new', onClick: () => navigate('targeting') },
         ]} />
       ) : null}
     </div>

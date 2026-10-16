@@ -1,0 +1,41 @@
+/*
+ * Farq icons — states, RTL mirroring and hover motion (CSS only).
+ * A host (button, link, nav item) opts in with the class `fi-host`: its icon is grey, darkens on hover,
+ * turns green when the host is aria-current / aria-pressed / data-active. Icons outside a host keep the
+ * surrounding text colour (currentColor) unless given `active` or `state`.
+ * `fi-motion` (Button, IconButton) plays the hover motion without changing the icon colour.
+ */
+.farq-icon { flex-shrink: 0; overflow: visible; transition: color 200ms ease-out; }
+.farq-icon .fi-fill { fill: currentColor; fill-opacity: 0; transition: fill-opacity 240ms ease-out; }
+.farq-icon .fi-m { transform-box: fill-box; }
+
+/* RTL: arrows, logout, delivery truck and other directional icons flip */
+[dir="rtl"] .farq-icon[data-mirror] { transform: scaleX(-1); }
+[dir="ltr"] .farq-icon[data-mirror] { transform: none; }
+
+/* states */
+.fi-host .farq-icon, .farq-icon[data-state="default"] { color: var(--farq-icon-default); }
+.fi-host:hover:not(:disabled) .farq-icon, .farq-icon[data-state="hover"] { color: var(--farq-icon-hover); }
+.fi-host[aria-current="page"] .farq-icon, .fi-host[aria-current="true"] .farq-icon, .fi-host[aria-pressed="true"] .farq-icon,
+.fi-host[data-active] .farq-icon, .farq-icon[data-state="active"] { color: var(--farq-icon-active); }
+.fi-host[aria-current="page"] .farq-icon:not([data-fill="off"]) .fi-fill, .fi-host[aria-current="true"] .farq-icon:not([data-fill="off"]) .fi-fill,
+.fi-host[aria-pressed="true"] .farq-icon:not([data-fill="off"]) .fi-fill, .fi-host[data-active] .farq-icon:not([data-fill="off"]) .fi-fill,
+.farq-icon[data-state="active"]:not([data-fill="off"]) .fi-fill { fill-opacity: var(--farq-icon-active-fill); }
+
+/* hover motion — under 400ms, only when the viewer allows motion */
+@media (prefers-reduced-motion: no-preference) {
+  :is(.fi-host, .fi-motion):hover:not(:disabled) .farq-icon[data-motion="truck"] .fi-m, .farq-icon[data-motion="truck"]:hover .fi-m { animation: fi-truck 360ms cubic-bezier(.3, .7, .4, 1); }
+  :is(.fi-host, .fi-motion):hover:not(:disabled) .farq-icon[data-motion="pin"] .fi-m, .farq-icon[data-motion="pin"]:hover .fi-m { animation: fi-pin 380ms cubic-bezier(.3, .7, .4, 1); }
+  :is(.fi-host, .fi-motion):hover:not(:disabled) .farq-icon[data-motion="boxes"] .fi-m, .farq-icon[data-motion="boxes"]:hover .fi-m { animation: fi-boxes 340ms ease-in-out; transform-origin: 50% 100%; }
+  :is(.fi-host, .fi-motion):hover:not(:disabled) .farq-icon[data-motion="rise"] .fi-m, .farq-icon[data-motion="rise"]:hover .fi-m { animation: fi-rise 320ms cubic-bezier(.3, .7, .4, 1); }
+  :is(.fi-host, .fi-motion):hover:not(:disabled) .farq-icon[data-motion="bell"] .fi-m, .farq-icon[data-motion="bell"]:hover .fi-m { animation: fi-bell 380ms ease-in-out; transform-origin: 50% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .farq-icon, .farq-icon * { transition: none !important; animation: none !important; }
+}
+
+@keyframes fi-truck { 0% { transform: translateX(0); } 45% { transform: translateX(1.5px); } 100% { transform: translateX(0); } }
+@keyframes fi-pin { 0% { transform: translateY(0); } 25% { transform: translateY(-3px); } 60% { transform: translateY(0); } 80% { transform: translateY(-1px); } 100% { transform: translateY(0); } }
+@keyframes fi-boxes { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 50% { transform: rotate(3deg); } 75% { transform: rotate(-1.5deg); } }
+@keyframes fi-rise { 0% { transform: translateY(0); } 50% { transform: translateY(-2px); } 100% { transform: translateY(0); } }
+@keyframes fi-bell { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 45% { transform: rotate(-11deg); } 70% { transform: rotate(6deg); } 88% { transform: rotate(-3deg); } }

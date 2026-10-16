@@ -1,5 +1,5 @@
 import { cx, FOCUS_RING } from './cx'
-import { Icon, type IconName } from './Icon'
+import { Icon, IconFrom, type IconSource } from './Icon'
 
 /*
  * Mobile App Bar — Figma (55:552): back chevron on the start (right) pointing right,
@@ -21,7 +21,7 @@ export function MobileAppBar({ title, onBack, titleAsText = false }: { title: st
   )
 }
 
-export type BottomTab = { label: string; icon: IconName; active?: boolean; onClick?: () => void; href?: string }
+export type BottomTab = { label: string; icon: IconSource; active?: boolean; onClick?: () => void; href?: string }
 
 export function MobileBottomNav({ tabs }: { tabs: BottomTab[] }) {
   return (
@@ -29,11 +29,11 @@ export function MobileBottomNav({ tabs }: { tabs: BottomTab[] }) {
       {tabs.map((t) => {
         const body = (
           <>
-            <span className={cx('flex rounded-full px-3.5 py-1', t.active && 'bg-[var(--color-bg-primary-subtle)]')}><Icon name={t.icon} size={22} /></span>
+            <span className={cx('flex rounded-full px-3.5 py-1', t.active && 'bg-[var(--color-bg-primary-subtle)]')}><IconFrom icon={t.icon} size={22} /></span>
             <span className={cx('text-[12px] leading-[18px] font-medium', t.active ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]')}>{t.label}</span>
           </>
         )
-        const cls = cx('flex h-[52px] w-[70px] flex-col items-center justify-center gap-1 rounded-[var(--radius-md)]', t.active ? 'text-[var(--color-icon-primary)]' : 'text-[var(--color-icon-secondary)]', FOCUS_RING)
+        const cls = cx('fi-host flex h-[52px] w-[70px] flex-col items-center justify-center gap-1 rounded-[var(--radius-md)]', t.active ? 'text-[var(--color-icon-primary)]' : 'text-[var(--color-icon-secondary)]', FOCUS_RING)
         return t.href
           ? <a key={t.label} href={t.href} target="_blank" rel="noopener noreferrer" className={cls}>{body}<span className="sr-only">(يفتح في نافذة جديدة)</span></a>
           : <button key={t.label} type="button" onClick={t.onClick} aria-current={t.active ? 'page' : undefined} className={cls}>{body}</button>

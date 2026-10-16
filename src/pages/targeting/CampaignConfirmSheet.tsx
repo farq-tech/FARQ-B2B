@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { sendCampaign, sendStatus, TargetingError, OUTREACH_TEMPLATE, type TargetRow } from '../../api/targetingClient'
-import { Badge, Button, Icon, useIsMobile } from '../../ui'
+import { Badge, Button, RiyalSign, useIsMobile, WarningIcon } from '../../ui'
 
 /*
  * «المراجعة والتكلفة» — Figma B2B M11 `18375:23935` / M11c `18416:2498` (sending not enabled).
@@ -15,7 +15,9 @@ import { Badge, Button, Icon, useIsMobile } from '../../ui'
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft }: {
+export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft, template = OUTREACH_TEMPLATE }: {
+  /** The approved template chosen on the page ({{1}} name, {{2}} campaign text); the invitation template by default. */
+  template?: string
   holderRfqId: string
   rows: TargetRow[]
   message: string
@@ -63,7 +65,7 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
     if (lock.current) return
     lock.current = true; setBusy(true); setError(null)
     try {
-      const r = await sendCampaign(holderRfqId, rows, message, query)
+      const r = await sendCampaign(holderRfqId, rows, message, query, template)
       if (!r.ok) { setError(`ما انرسلت الحملة: ${r.error || 'خطأ غير معروف'}${r.sent?.length ? ` (انرسل ${r.sent.length} قبل الخطأ)` : ''}`); return }
       setResult({ sent: new Set((r.sent || []).map((x) => x.poi_key)), failed: new Map((r.failed || []).map((x) => [x.poi_key, x.error])) })
     } catch (e) {
@@ -120,9 +122,9 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
         <h2 id={titleId} ref={heading} tabIndex={-1} className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold outline-none">المراجعة والتكلفة</h2>
         <dl className="mt-4 flex flex-col gap-3">
           {row('المستلمون', <><bdi dir="ltr">{count}</bdi> موردين · واتساب <bdi dir="ltr">{count}</bdi></>)}
-          {row('القالب', <><bdi dir="ltr">{OUTREACH_TEMPLATE}</bdi> · معتمد</>)}
-          {row('سعر الرسالة', price != null ? <><bdi dir="ltr">{money(price)} ر.س × {count}</bdi> · تسويق</> : 'ما وصلنا السعر الحين')}
-          {row('التكلفة', cost != null ? <bdi dir="ltr">{cost} ر.س</bdi> : '—', true)}
+          {row('القالب', <><bdi dir="ltr">{template}</bdi> · معتمد</>)}
+          {row('سعر الرسالة', price != null ? <><bdi dir="ltr">{money(price)} <RiyalSign /> × {count}</bdi> · تسويق</> : 'ما وصلنا السعر الحين')}
+          {row('التكلفة', cost != null ? <bdi dir="ltr">{cost} <RiyalSign /></bdi> : '—', true)}
         </dl>
         <p className="mt-3 text-[14px] leading-[22px] font-medium">السعر قبل الضريبة. الضريبة تُضاف حسب الفاتورة.</p>
         {open === false ? (
@@ -138,12 +140,12 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
         </div>
         {error ? (
           <p role="alert" className="mt-4 flex items-start gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]">
-            <Icon name="alert" size={18} className="mt-0.5 shrink-0" />{error}
+            <WarningIcon size={18} className="mt-0.5 shrink-0" />{error}
           </p>
         ) : null}
         <div className="mt-6 flex flex-col gap-3">
           <Button variant="Primary" size="L" fullWidth disabled={busy || !rows.length || open !== true} title={closedReason || undefined} loading={busy} loadingLabel="جارٍ الإرسال…" onClick={() => void send()}>
-            أرسل إلى {count} موردين{cost != null ? ` · التكلفة ${cost} ر.س` : ''}
+            أرسل إلى {count} موردين{cost != null ? <> · التكلفة {cost} <RiyalSign /></> : null}
           </Button>
           {open === true ? <Button variant="Secondary" size="L" fullWidth disabled={busy} onClick={onClose}>رجوع</Button>
             : <Button variant="Secondary" size="L" fullWidth disabled={busy} onClick={onSaveDraft}>احفظ الحملة كمسودة</Button>}

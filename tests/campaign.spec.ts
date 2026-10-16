@@ -19,6 +19,9 @@ async function setup(page: Page) {
     if (path.endsWith('/templates') && route.request().method() === 'GET') return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar' }, { name: 'monthly_prices', status: 'REJECTED', category: 'UTILITY', language: 'ar', rejected_reason: 'INCORRECT_CATEGORY', components: [{ type: 'BODY', text: 'تحديث الأسعار الشهري' }] }] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: false } })
     if (path.endsWith('/search')) return route.fulfill({ json: { total: 3, rows: [row('1', 'مؤسسة الأنابيب الحديثة'), row('2', 'مستودع الصناعية'), row('3', 'سباكة الخليج')], parsed: { keywords: ['سباكة'] } } })
+    // reads (POST only because of the body): trade clusters and specialty suggestions
+    if (path.endsWith('/clusters')) return route.fulfill({ json: { clusters: [], wholesale: 0, basis: '' } })
+    if (path.endsWith('/suggest-specialties')) return route.fulfill({ json: { suggestions: [] } })
     writes.push(`${route.request().method()} ${path}`)
     return route.fulfill({ status: 403, json: { error: 'QA_BLOCKED' } })
   })
@@ -48,7 +51,8 @@ test('campaign: map first → choose → review says sending is closed → save 
   await page.getByRole('checkbox').nth(2).check()
   // summary bar: server price × recipients, before tax
   await expect(page.getByText('اخترت 3 موردين')).toBeVisible()
-  await expect(page.getByText(/= 0\.51 ر\.س قبل الضريبة/)).toBeVisible()
+  await expect(page.getByText(/= 0\.51\s+قبل الضريبة/)).toBeVisible()
+  await expect(page.getByRole('img', { name: 'ريال' }).first()).toBeVisible()
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m07.png' })
   await page.getByRole('button', { name: 'التالي', exact: true }).click()
   // M08: the approved campaign template is chosen; the rejected one says why, in Arabic, with Meta's code kept
@@ -61,7 +65,7 @@ test('campaign: map first → choose → review says sending is closed → save 
   const review = page.getByRole('dialog', { name: 'المراجعة والتكلفة' })
   await expect(review).toBeVisible()
   await expect(review.getByText('الإرسال غير مفعّل')).toBeVisible()
-  await expect(review.getByRole('button', { name: /أرسل إلى 3 موردين · التكلفة 0\.51 ر\.س/ })).toBeDisabled()
+  await expect(review.getByRole('button', { name: /أرسل إلى 3 موردين · التكلفة 0\.51 ريال/ })).toBeDisabled()
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m11c.png' })
   await review.getByRole('button', { name: 'احفظ الحملة كمسودة' }).click()
   await expect(page.getByText(/حفظنا الحملة كمسودة/)).toBeVisible()

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { farqSession } from '../../api/farqSession'
-import { waNumber, type TargetRow } from '../../api/targetingClient'
+import { waNumber, type TargetRow, type TradeCluster } from '../../api/targetingClient'
 
 /*
  * Mapbox map for 07 (dark style, Arabic labels). Shown before any search, framed on Saudi Arabia;
@@ -10,6 +10,8 @@ import { waNumber, type TargetRow } from '../../api/targetingClient'
  * Places are a clustered GeoJSON source: colour = best reachable channel (Map Marker 24:188), chosen
  * places get a light ring, the outline around the chosen places is the segment. Tap a cluster to zoom in,
  * tap a place to choose it. Colours are read from the design tokens at runtime.
+ * Trade clusters (POST /clusters) are light rings sized by their shop count, under the places, with a short label
+ * and a «جملة» tag when ≥ 30% of their shops sell wholesale; tapping one narrows the search and flies there.
  */
 
 export const MAPBOX_TOKEN = String(import.meta.env.VITE_MAPBOX_TOKEN || '')
@@ -36,19 +38,27 @@ const placesOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureColl
     properties: { key: r.poi_key, name: r.name_ar || r.name_en || '', ch: waNumber(r) ? 'wa' : r.email ? 'email' : 'none', on: selected.has(r.poi_key) ? 1 : 0 },
   })),
 })
+const NO_CLUSTERS: TradeCluster[] = []
+const tradeOf = (cs: TradeCluster[]): GeoJSON.FeatureCollection => ({
+  type: 'FeatureCollection',
+  features: cs.filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon)).map((c, i) => ({
+    type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
+    properties: { i, n: c.n, wh: c.wholesale_pct >= 30 ? 1 : 0, label: `${(c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${c.n.toLocaleString('en-US')} محل` },
+  })),
+})
 const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => {
   const ring = hull(rows.filter((r) => selected.has(r.poi_key) && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).map((r) => [r.longitude!, r.latitude!] as [number, number]))
   return { type: 'FeatureCollection', features: ring.length ? [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }] : [] }
 }
 
-export default function MapboxMap({ rows, selected, focusedKey, onToggle, onViewportChange, tileQuery, onTileClick, onTileRefresh, topInset = 72, bottomInset = 48 }: { onTileRefresh?:()=>void; tileQuery?: string; onTileClick?: (key:string)=>void; rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; onViewportChange?: (bounds: [number, number, number, number]) => void; topInset?: number; bottomInset?: number; legend?: boolean }) {
+export default function MapboxMap({ rows, selected, focusedKey, onToggle, onViewportChange, tileQuery, onTileClick, onTileRefresh, topInset = 72, bottomInset = 48, clusters = NO_CLUSTERS, onCluster, flyTo }: { onTileRefresh?:()=>void; tileQuery?: string; onTileClick?: (key:string)=>void; rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; onViewportChange?: (bounds: [number, number, number, number]) => void; topInset?: number; bottomInset?: number; legend?: boolean; clusters?: TradeCluster[]; onCluster?: (c: TradeCluster) => void; flyTo?: { lat: number; lon: number; at: number } | null }) {
   const [tileError,setTileError]=useState(false)
   const [loadError, setLoadError] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const ready = useRef(false)
-  const latest = useRef({ rows, selected, onToggle, onViewportChange, focusedKey, tileQuery, onTileClick })
-  useEffect(() => { latest.current = { rows, selected, onToggle, onViewportChange, focusedKey, tileQuery, onTileClick } })
+  const latest = useRef({ rows, selected, onToggle, onViewportChange, focusedKey, tileQuery, onTileClick, clusters, onCluster })
+  useEffect(() => { latest.current = { rows, selected, onToggle, onViewportChange, focusedKey, tileQuery, onTileClick, clusters, onCluster } })
 
   useEffect(() => {
     if (!box.current) return
@@ -65,6 +75,10 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
       setLoadError(false)
       const wa = tok('--brand-accent'), em = tok('--brand-action-light'), none = tok('--brand-text-3'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
       const { rows: r0, selected: s0 } = latest.current
+      // trade clusters sit under everything else: a light ring sized by shop count
+      const ring = tok('--color-text-primary'), paper = tok('--color-bg-surface')
+      m.addSource('trade', { type: 'geojson', data: tradeOf(latest.current.clusters) })
+      m.addLayer({ id: 'trade-circle', type: 'circle', source: 'trade', paint: { 'circle-color': ring, 'circle-opacity': 0.1, 'circle-stroke-color': ring, 'circle-stroke-width': 2, 'circle-stroke-opacity': 0.7, 'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 2, 16, 8, 30, 20, 44] } })
       m.addSource('highlight',{type:'geojson',data:placesOf([],new Set())})
       m.addLayer({id:'highlight-ring',type:'circle',source:'highlight',paint:{'circle-radius':13,'circle-color':wa,'circle-opacity':0.25,'circle-stroke-color':deep,'circle-stroke-width':3}})
       m.addSource('segment', { type: 'geojson', data: segmentOf(r0, s0) })
@@ -79,6 +93,16 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
         'circle-radius': ['case', ['==', ['get', 'on'], 1], 9, 7],
         'circle-stroke-color': ink, 'circle-stroke-width': ['case', ['==', ['get', 'on'], 1], 3, 2],
       } })
+      m.addLayer({ id: 'trade-label', type: 'symbol', source: 'trade', layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1.6], 'text-max-width': 12, 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] }, paint: { 'text-color': ring, 'text-halo-color': paper, 'text-halo-width': 1.5 } })
+      m.addLayer({ id: 'trade-wholesale', type: 'symbol', source: 'trade', filter: ['==', ['get', 'wh'], 1], layout: { 'text-field': 'جملة', 'text-size': 11, 'text-anchor': 'bottom', 'text-offset': [0, -1.4], 'text-allow-overlap': true, 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] }, paint: { 'text-color': paper, 'text-halo-color': ring, 'text-halo-width': 4 } })
+      m.on('click', 'trade-circle', (e) => {
+        // a place or a group of places on top wins the tap
+        if (m.queryRenderedFeatures(e.point, { layers: ['place-hit', 'clusters'].filter((id) => m.getLayer(id) && m.getLayoutProperty(id, 'visibility') !== 'none') }).length) return
+        const c = latest.current.clusters[Number(e.features?.[0]?.properties?.i)]
+        if (c) latest.current.onCluster?.(c)
+      })
+      m.on('mouseenter', 'trade-circle', () => { m.getCanvas().style.cursor = 'pointer' })
+      m.on('mouseleave', 'trade-circle', () => { m.getCanvas().style.cursor = '' })
       m.on('click', 'clusters', (e) => {
         const f = e.features?.[0]
         if (!f) return
@@ -142,6 +166,11 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
   }
 
   useEffect(() => { sync(!tileQuery) }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ready.current) (map.current?.getSource('trade') as mapboxgl.GeoJSONSource | undefined)?.setData(tradeOf(clusters)) }, [clusters])
+  useEffect(() => {
+    if (!flyTo || !map.current) return
+    map.current.flyTo({ center: [flyTo.lon, flyTo.lat], zoom: Math.max(map.current.getZoom(), 14), duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600 })
+  }, [flyTo])
   useEffect(() => {
     sync(false)
     const target = rows.find(row => row.poi_key === focusedKey)

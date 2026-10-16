@@ -1,14 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { listTemplates, templateStatus, OUTREACH_TEMPLATE, type MetaTemplate } from '../../api/targetingClient'
-import { Badge, Button, Icon, MobileAppBar, type BadgeTone } from '../../ui'
+import { listTemplates, templateStatus, templateBody, templateFits, OUTREACH_TEMPLATE, type MetaTemplate } from '../../api/targetingClient'
+import { Badge, Button, Icon, MobileAppBar, RiyalSign, type BadgeTone } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { metaReasonAr } from './metaReason'
 
 /*
  * «الرسالة» — Figma B2B M08 `18375:467`: choose a Meta-approved template, see the message as each supplier
  * gets it, «قالب جديد», and the summary bar (template · recipients · cost) with «التالي» → review (M11).
- * Sending supports the campaign template (farq_outreach_ar) only; its {{2}} is the campaign text edited here.
- * Other templates are listed with their real state and why they can't be chosen yet.
+ * Any approved Arabic template whose body takes exactly {{1}} (the place's name) and {{2}} (the campaign text edited
+ * here) can be chosen: that is what the send path fills. Others are listed with their real state and why not.
  */
 
 export const CAMPAIGN_STEPS = ['الشريحة المستهدفة', 'الرسالة', 'موافقة ميتا', 'المراجعة والإرسال'] as const
@@ -26,19 +26,30 @@ export function Steps({ current }: { current: number }) {
   )
 }
 
-type Choice = { name: string; title: string; detail: string; tone: BadgeTone; badge: string; usable: boolean; reason?: { ar: string; original: string } | null }
+type Choice = { name: string; title: string; detail: string; tone: BadgeTone; badge: string; usable: boolean; body: string; reason?: { ar: string; original: string } | null }
+const CATEGORY: Record<string, string> = { MARKETING: 'تسويق', UTILITY: 'خدمة', AUTHENTICATION: 'تحقق' }
+export const categoryAr = (c?: string) => (c ? CATEGORY[c] || c : '')
 
 const titleOf = (t: MetaTemplate) => (t.name === OUTREACH_TEMPLATE ? 'دعوة الموردين للانضمام' : (t.components || []).find((c) => c.type === 'BODY')?.text?.split('\n')[0]?.slice(0, 40) || t.name)
 
 function choiceOf(t: MetaTemplate): Choice {
   const reason = t.status === 'REJECTED' ? metaReasonAr(t.rejected_reason) : null
-  if (t.status === 'APPROVED' && t.name === OUTREACH_TEMPLATE) return { name: t.name, title: titleOf(t), detail: `${t.name} · تسويق`, tone: 'Success', badge: 'معتمد', usable: true }
-  if (t.status === 'APPROVED') return { name: t.name, title: titleOf(t), detail: 'معتمد، لكن الحملات ترسل قالب الدعوة فقط حالياً', tone: 'Success', badge: 'معتمد', usable: false }
-  if (t.status === 'REJECTED') return { name: t.name, title: titleOf(t), detail: 'ما ينفع للإرسال · عدّله', tone: 'Danger', badge: 'مرفوض', usable: false, reason }
-  return { name: t.name, title: titleOf(t), detail: 'ما ينفع للإرسال الآن', tone: 'Warning', badge: 'قيد المراجعة', usable: false }
+  const body = templateBody(t)
+  // the status endpoint gives no body for the invitation template: it is known to take {{1}} and {{2}}
+  const fits = templateFits(t) || (t.status === 'APPROVED' && t.name === OUTREACH_TEMPLATE && !body)
+  if (fits) return { name: t.name, title: titleOf(t), detail: [t.name, categoryAr(t.category)].filter(Boolean).join(' · '), tone: 'Success', badge: 'معتمد', usable: true, body }
+  if (t.status === 'APPROVED') return { name: t.name, title: titleOf(t), detail: 'معتمد، لكن متغيراته ما تناسب الحملة ({{1}} الاسم و{{2}} النص)', tone: 'Success', badge: 'معتمد', usable: false, body }
+  if (t.status === 'REJECTED') return { name: t.name, title: titleOf(t), detail: 'ما ينفع للإرسال · عدّله', tone: 'Danger', badge: 'مرفوض', usable: false, reason, body }
+  return { name: t.name, title: titleOf(t), detail: 'ما ينفع للإرسال الآن', tone: 'Warning', badge: 'قيد المراجعة', usable: false, body }
 }
 
-export default function MessageStep({ count, cost, message, onMessage, onBack, onNext, onNewTemplate, blocked }: {
+/** Fills a template body for the preview: {{1}} = the place's name, {{2}} = the campaign text. */
+export const previewOf = (body: string, message: string) => body.replace(/\{\{\s*1\s*\}\}/g, '{اسم المنشأة}').replace(/\{\{\s*2\s*\}\}/g, message.trim() || '…')
+
+export default function MessageStep({ count, cost, message, onMessage, onBack, onNext, onNewTemplate, blocked, template, onTemplate }: {
+  /** The chosen template (page state, so the confirm sheet sends it). */
+  template?: string
+  onTemplate?: (name: string) => void
   /** A reason from the page that stops «التالي» (e.g. no holder request for replies). */
   blocked?: string | null
   count: number
@@ -51,7 +62,9 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
 }) {
   const [choices, setChoices] = useState<Choice[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [picked, setPicked] = useState<string | null>(null)
+  const [own, setOwn] = useState<string | null>(null)
+  const picked = template ?? own
+  const setPicked = (name: string) => { setOwn(name); onTemplate?.(name) }
   useEffect(() => {
     let on = true
     listTemplates().then((r) => { if (!r.ok) throw new Error(r.error); return r.data })
@@ -59,10 +72,12 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
       .then((list) => {
         if (!on) return
         const rows = list.map(choiceOf).sort((a, b) => Number(b.usable) - Number(a.usable))
-        setChoices(rows); setPicked(rows.find((c) => c.usable)?.name || null)
+        setChoices(rows)
+        const first = rows.find((c) => c.usable && c.name === (template || OUTREACH_TEMPLATE)) || rows.find((c) => c.usable)
+        if (first) { setOwn(first.name); onTemplate?.(first.name) }
       }, () => { if (on) setFailed(true) })
     return () => { on = false }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const chosen = choices?.find((c) => c.name === picked) || null
   const rejected = choices?.filter((c) => c.reason) || []
   const block = blocked ? blocked : failed ? 'تعذّر التحقق من القوالب' : !choices ? 'نتحقق من القوالب…' : !chosen ? 'ما فيه قالب معتمد للإرسال بعد' : !message.trim() ? 'اكتب نص الرسالة' : null
@@ -103,10 +118,11 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
             <textarea value={message} onChange={(e) => onMessage(e.target.value)} rows={4} maxLength={900} aria-label="نص الرسالة" className="w-full resize-none border-0 bg-transparent p-0 text-[14px] leading-[22px] outline-none" />
           </span>
         </label>
+        {chosen?.body ? <p className="rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] px-4 py-3 text-[14px] leading-[22px] whitespace-pre-line text-[var(--color-text-secondary)]">{previewOf(chosen.body, message)}</p> : null}
       </div>
       <SummaryBar
         title={chosen ? <>القالب: <bdi dir="ltr">{chosen.name}</bdi> · معتمد</> : 'اختر قالباً'}
-        detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> ر.س قبل الضريبة</> : null}</>}
+        detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : null}</>}
         action={<Button variant="Secondary" size="M" disabled={Boolean(block)} title={block || undefined} onClick={onNext}>التالي</Button>}
         reason={block}
       />
