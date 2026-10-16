@@ -1,4 +1,8 @@
+import type { ReactNode } from 'react'
+import type { FarqIconProps } from './icons/base'
+
 /*
+ * Legacy icon set (chevrons, close, send …). New UI icons live in src/ui/icons (Farq icon system).
  * Icon set exported from Figma «Components › Icons» (Icon/* · 24px stroke, 1.75, round caps).
  * Colour follows currentColor — recolour with a text/icon token, never a hex.
  */
@@ -63,3 +67,15 @@ export function Icon({ name, size = 20, className, style, label }: IconProps) {
 }
 
 export const ICON_NAMES = Object.keys(PATHS) as IconName[]
+
+/** A Farq icon component (src/ui/icons). */
+export type IconComponent = (props: FarqIconProps) => ReactNode
+/** What an `icon` prop accepts: a legacy name from this file, or a Farq icon component. */
+export type IconSource = IconName | IconComponent
+
+/** Renders either kind of icon. Farq icons take their colour from a `fi-host` ancestor (states) or currentColor. */
+export function IconFrom({ icon, size = 20, className, active }: { icon: IconSource; size?: number; className?: string; active?: boolean }) {
+  if (typeof icon === 'string') return <Icon name={icon} size={size} className={className} />
+  const C = icon
+  return <C size={size} className={className} active={active} />
+}

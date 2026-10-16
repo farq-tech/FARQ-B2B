@@ -340,3 +340,11 @@ html[data-farq-app="b2b"] {
   --farq-button-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 3px 8px rgba(23,58,40,.14);
   --farq-button-focus: #789b35;
 }
+
+/* Farq icon states (src/ui/icons): default · hover · active, plus the 12% active fill. */
+:root {
+  --farq-icon-default: #616161;
+  --farq-icon-hover: #303030;
+  --farq-icon-active: #008060;
+  --farq-icon-active-fill: 0.12;
+}

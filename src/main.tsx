@@ -6,7 +6,7 @@ import './index.css'
  * Two separate bundles behind one index.html:
  *   / and /landing   public landing (src/pages/landing) — imports no app code and no API client
  *   everything else  the owner-only app (src/App) — server.py keeps these chunks behind the site gate
- * Dev only (dropped from `vite build`): /ui component gallery, /live-bg background preview, ?harness= fixtures.
+ * Dev only (dropped from `vite build`): /ui component gallery, /ui/icons Farq icon gallery, /live-bg background preview, ?harness= fixtures.
  */
 class PageBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -27,7 +27,9 @@ const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const search = new URLSearchParams(window.location.search)
 const harness = import.meta.env.DEV ? search.get('harness') : null
 
-if (import.meta.env.DEV && path === '/ui') {
+if (import.meta.env.DEV && path === '/ui/icons') {
+  void import('./dev/iconGallery').then((m) => m.mountIconGallery())
+} else if (import.meta.env.DEV && path === '/ui') {
   void import('./dev/uiGallery').then((m) => m.mountGallery())
 } else if (import.meta.env.DEV && path === '/live-bg') {
   void import('./live-bg/DevPage').then((m) => createRoot(document.getElementById('root')!).render(<m.default />))

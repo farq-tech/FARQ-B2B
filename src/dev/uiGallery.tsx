@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react'
 import {
   Badge, Button, ChannelBadge, Chip, Dropzone, EvidenceBadge, Icon, ICON_NAMES, Input, Logo, NavItem, PriceCell,
   QuoteCard, Sidebar, Stat, Tabs, TimelineStep, Toast, TopBar, IconButton, SearchField,
-  type ButtonStyle,
+  type ButtonStyle, FARQ_ICONS, AccountIcon, InboxIcon, MessageTemplatesIcon, OpportunityMapIcon, PricingRequestsIcon, SettingsIcon,
 } from '../ui'
 
 const FOCUS = 'outline-2 outline-offset-2 outline-[var(--color-border-primary)]'
@@ -59,7 +59,10 @@ function Gallery() {
             <h1 className="font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">مكتبة الواجهة — src/ui</h1>
             <p className="text-[14px] text-[var(--color-text-secondary)]">صفحة تطوير فقط. كل مكوّن بكل حالاته، وبجانبه لقطة Figma.</p>
           </div>
-          <Logo />
+          <div className="flex items-center gap-4">
+            <a href="/ui/icons" className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] font-medium">أيقونات فرق ({FARQ_ICONS.length}) ←</a>
+            <Logo />
+          </div>
         </header>
 
         <Section id="farq-glass" title="FARQ · الأزرار المعتمدة">
@@ -170,17 +173,17 @@ function Gallery() {
 
         <Section id="nav" title="Nav Item" figma="nav-item">
           <div className="flex w-[232px] flex-col gap-1">
-            <NavItem icon="grid" label="Default" />
-            <NavItem icon="list" label="Active" active count={3} />
-            <NavItem icon="inbox" label="مع عدّاد" count={5} />
+            <NavItem icon={OpportunityMapIcon} label="Default" />
+            <NavItem icon={PricingRequestsIcon} label="Active" active count={3} />
+            <NavItem icon={InboxIcon} label="مع عدّاد" count={5} />
           </div>
         </Section>
 
         <Section id="sidebar" title="Sidebar" figma="sidebar">
           <div className="h-[640px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)]">
             <Sidebar className="!h-full" onNewRequest={() => undefined}
-              nav={<><NavItem icon="list" label="طلبات التسعير" active count={3} /><NavItem icon="inbox" label="صندوق الوارد" count={5} /><NavItem icon="map-pin" label="الاستهداف" href="#" external /></>}
-              footerNav={<NavItem icon="sliders" label="الإعدادات" />}
+              nav={<><NavItem icon={PricingRequestsIcon} label="طلبات التسعير" active count={3} /><NavItem icon={InboxIcon} label="صندوق الوارد" count={5} /><NavItem icon={OpportunityMapIcon} label="خريطة الفرص" /><NavItem icon={MessageTemplatesIcon} label="قوالب واتساب" /></>}
+              footerNav={<><NavItem icon={AccountIcon} label="حسابي" /><NavItem icon={SettingsIcon} label="الإعدادات" /></>}
               account={{ name: 'abdulrhman@farq.sa', onSignOut: () => undefined }} />
           </div>
         </Section>
@@ -191,7 +194,7 @@ function Gallery() {
           <Toast floating={false} tone="Error" title="تعذّر الإرسال" body="رقم الواتساب غير صحيح لـ 2 من الموردين" onClose={() => undefined} />
         </Section>
 
-        <Section id="icons" title={`Icons (${ICON_NAMES.length})`}>
+        <Section id="icons" title={`Icons — legacy (${ICON_NAMES.length})`} note="الأيقونات الجديدة في /ui/icons">
           <div className="flex flex-wrap gap-3">
             {ICON_NAMES.map((n) => <span key={n} title={n} className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border-default)]"><Icon name={n} size={20} /></span>)}
           </div>
