@@ -31,3 +31,8 @@ Staging → release: specialty-first search with category fallback, POST /sugges
 filter, data/taxonomy/specialties.csv, export with specialty columns (2,271,487 rows, 190,756 WhatsApp, 483,692 with a specialty).
 Tests: taxonomy_search 15 OK, staging tests 9 OK. railway up → Deploy complete, health 200, container started cleanly.
 Backup of the previous release: /Volumes/Archive/backups/farq-targeting-b2b-release_before_specialties_2026-10-16.
+
+## Deploy 3 — search root fix (owner «انشر», 2026-10-16)
+taxonomy_search.py commit 9223ffc: one resolver specialty → subcategory → family; Arabic broken plurals; occasional sellers as a labelled
+fallback. 19 tests OK. railway up → Deploy complete, container started. Previous taxonomy_search.py kept at
+/Volumes/Archive/backups/farq-targeting-b2b-release_before_specialties_2026-10-16/taxonomy_search.deploy2.py.
