@@ -352,9 +352,9 @@ class Taxonomy:
         if not hasattr(self, '_has_spec_col'):
             self._has_spec_col = 'specialty_ids' in {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
         spec_col = "coalesce(t.specialty_ids,'')" if self._has_spec_col else "''"
-        if not hasattr(self, '_has_ws_col'):
-            self._has_ws_col = 'is_wholesale' in {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
-        spec_col += ", t.street_ar, " + ("coalesce(t.is_wholesale,false)" if self._has_ws_col else "false")
+        if not hasattr(self, '_dir_cols'):
+            self._dir_cols = {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
+        spec_col += (", t.street_ar" if 'street_ar' in self._dir_cols else ", null") + (", coalesce(t.is_wholesale,false)" if 'is_wholesale' in self._dir_cols else ", false")
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
