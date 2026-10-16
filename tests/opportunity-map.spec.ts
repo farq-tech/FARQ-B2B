@@ -53,6 +53,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string } 
       { name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] },
       { name: 'monthly_offer', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'هلا {{1}}، عندنا عرض الشهر: {{2}}' }] },
       { name: 'order_update', status: 'APPROVED', category: 'UTILITY', language: 'ar', components: [{ type: 'BODY', text: 'طلبك {{1}} وصل' }] },
+      { name: 'logo_offer', status: 'APPROVED', category: 'UTILITY', language: 'ar', components: [{ type: 'HEADER', format: 'IMAGE' }, { type: 'BODY', text: 'هلا {{1}}، {{2}}' }] },
     ] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: false } })
     if (path.endsWith('/search')) {
@@ -135,6 +136,7 @@ test.describe('desktop 1440', () => {
     // template choice in the campaign panel: the fitting approved ones; the one with other variables is disabled
     const tpl = page.getByLabel('القالب (المعتمدة من ميتا)')
     await expect(tpl.locator('option[value="order_update"]')).toHaveAttribute('disabled', '')
+    await expect(tpl.locator('option[value="logo_offer"]')).toHaveAttribute('disabled', '') // image header: the send path sends body values only
     await tpl.selectOption('monthly_offer')
     await expect(page.getByText(/معاينة: هلا \{اسم المنشأة\}، عندنا عرض الشهر/)).toBeVisible()
     // «طلباتي»: filter + cancel with a reason + audit drawer

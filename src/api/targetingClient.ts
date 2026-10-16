@@ -172,6 +172,14 @@ export const templateBody = (t: MetaTemplate) => (t.components || []).find((c) =
 export const templateFits = (t: MetaTemplate) => {
   if (t.status !== 'APPROVED') return false
   if (t.language && t.language !== 'ar') return false
+  // the send path fills the body only: a media header (logo image…) or variables in a header / button need values it never sends
+  const needsMore = (t.components || []).some((c) => {
+    const x = c as { type: string; text?: string; format?: string; buttons?: { url?: string; text?: string }[] }
+    if (x.type === 'HEADER') return (x.format && x.format !== 'TEXT') || /\{\{/.test(x.text || '')
+    if (x.type === 'BUTTONS') return (x.buttons || []).some((b) => /\{\{/.test(`${b.url || ''}${b.text || ''}`))
+    return false
+  })
+  if (needsMore) return false
   const vars = [...new Set((templateBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => m.replace(/\D/g, '')))].sort()
   return vars.join(',') === '1,2'
 }
