@@ -67,6 +67,9 @@ def plural_variants(t):
     if len(t) > 3 and t.endswith('ه'): out.add(t[:-1])
     if len(t) > 3 and t.endswith('s'): out.add(t[:-1])
     if len(t) > 4 and t.endswith('es'): out.add(t[:-2])
+    # common Arabic broken plurals: فواعل → فاعل («لواصق» → «لاصق», «عوازل» → «عازل»), أفعلة → فعيل («أشرطة» → «شريط»)
+    if len(t) == 5 and t[1] == 'و' and t[2] == 'ا': out.add(t[0] + 'ا' + t[3:])
+    if len(t) == 5 and t[0] == 'ا' and t[-1] == 'ه': out.add(t[1:3] + 'ي' + t[3])
     return out
 
 
@@ -126,6 +129,17 @@ class Taxonomy:
                 terms = [t for t in terms if t and t not in GENERIC]
                 if terms:
                     self.spec_rx.append((re.compile(r'(?:^|\s)(?:وال|بال|لل|ال|و|ب|ل)?(?:' + '|'.join(re.escape(t) for t in terms) + r')(?=\s|$)'), r['specialty_id'], max(len(t) for t in terms)))
+        # the same specialty terms as an exact-gram index, scored on the families/subcategories scale (see resolve())
+        self.spec_terms, self.spec_buyers = {}, {}
+        for sid, r in self.specs.items():
+            for text in (r['match_terms'] or '').split('|') + [r['specialty_ar'], r['specialty_en']]:
+                for part in re.split(r'\(|\)|،|/', text or ''):
+                    t = norm(part)
+                    if len(t) < 3 or t in GENERIC or t.isdigit(): continue
+                    for v in plural_variants(t) | {t}:
+                        self.spec_terms.setdefault(v, set()).add(sid)
+            for bought in filter(None, (r.get('buys_material_specialties') or '').split('|')):
+                self.spec_buyers.setdefault(bought.strip(), set()).add(r['sub_id'])
         self.market_terms = set()
         for fn, mined in (('saudi_market_terms.csv', False), ('search_lexicon.csv', True)):
             path = os.path.join(tax_dir, fn)
@@ -140,7 +154,7 @@ class Taxonomy:
                 for v in plural_variants(t) | {t}:
                     self.sub_terms.setdefault(v, set()).add(sid)
                     if not mined: self.market_terms.add(v)
-        self.max_n = max(len(t.split()) for t in list(self.terms) + list(self.sub_terms))
+        self.max_n = max(len(t.split()) for t in list(self.terms) + list(self.sub_terms) + list(self.spec_terms))
 
     def _grams(self, q):
         raw = norm(q).split()
@@ -173,6 +187,17 @@ class Taxonomy:
                 if sc > best: best, subs = sc, set(self.sub_terms[g])
                 elif sc == best: subs |= self.sub_terms[g]
         return sorted(subs)[:4], best
+
+    def spec_hits(self, q):
+        """Specialties named in the request, scored like families_in/subs_in (tokens*10 + length) so the three levels compare."""
+        best, found = 0, set()
+        for g, n in self._grams(q):
+            if g in self.spec_terms:
+                sc = n * 10 + 0.05   # by words only: «لواصق» and its singular «لاصق» are the same mention
+                if sc > best + 1e-9: best, found = sc, set(self.spec_terms[g])
+                elif abs(sc - best) < 1e-9: found |= self.spec_terms[g]
+        # commercial trades first (a shop before a factory or a training course), then by id for a stable order
+        return sorted(found, key=lambda x: (not self.specs[x]['sub_id'].startswith(('build.', 'home.', 'elec.', 'food.', 'retail.', 'equip.', 'auto.', 'health.', 'beauty.', 'fashion.')), x))[:4], best
 
     def specialties_in(self, q):
         """Specialties named in the request; the most specific (longest term) wins when several overlap."""
@@ -226,8 +251,18 @@ class Taxonomy:
         return self.subs[sub]['commercial'] in (True, 'yes')
 
     def understand(self, q, objective):
+        """One resolver over the three levels (specialty → subcategory → product family). The most specific level the request
+        names anchors the targets; broader levels only describe it. Root cause fixed 2026-10-16: the family list used to decide
+        first and the specialty was a late override, so «شريط …» became «لواصق وأشرطة» sold by hardware and rubber shops."""
+        specs, pscore = self.spec_hits(q)
+        specs = [x for x in specs if self._sub_ok(self.specs[x]['sub_id'])]
         fams, fscore = self.families_in(q)
         named, sscore = self.subs_in(q)
+        relation = 'buys' if objective == 'marketing' else 'sells'
+        # a specialty wins over a family named by the same or fewer words; a business type named as precisely («سباك», «كاميرات
+        # مراقبة») keeps the lead and the specialty only refines ranking inside it (market terms carry +20 in subs_in)
+        if specs and pscore + 5 >= fscore and (not named or pscore > sscore):
+            return self._from_specialties(q, specs, objective, relation)
         source = 'taxonomy'
         if fams and fscore < 12:   # only a loose one-word match («كراسي»): let the model choose among the candidates when available
             picked = ai_families(q, {f: self.families[f] for f in fams})
@@ -269,26 +304,48 @@ class Taxonomy:
                 sold = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for s, w in lst if s in targets), key=lambda x: -x[1])]
                 # describe what the named shops sell; keep a matched product only if those shops sell it
                 fams = [f for f in fams if f in sold] or sold[:2]
-        specs = self.specialties_in(q) if objective != 'marketing' else []
-        if specs and fscore < 12 and sscore < 20:   # loose family word and no Saudi market word: the full specialty name wins
-            named = []
-            # a loose one-word family match («شريط») loses to a specialty named in full («شريط بيوتيل»)
-            targets = {}
-        if targets:
-            # the request is already understood: a specialty only refines ranking inside those subcategories («جبس بورد» is not mining)
-            specs = [x for x in specs if self.specs[x]['sub_id'] in targets]
-        else:
-            # nothing else matched («شريط بيوتيل»): the specialty names the subcategory
-            for sid in specs:
-                sub = self.specs[sid]['sub_id']
-                if self._sub_ok(sub): targets[sub] = 2.5
-        return {'families': fams, 'named_subs': named, 'relation': relation, 'targets': targets, 'source': source, 'specialties': specs}
+        fallback = {}
+        if objective != 'marketing' and any(w >= 2 for w in targets.values()):
+            # trades that only sometimes sell the product («مطاط» for «لواصق») are not the answer: kept as a labelled fallback,
+            # unless one of their specialties is what the request names («غراء ولواصق» under hardware shops)
+            spec_subs = {self.specs[x]['sub_id'] for x in specs}
+            fallback = {k: v for k, v in targets.items() if v < 2 and k not in spec_subs}
+            targets = {k: max(v, 2.0) for k, v in targets.items() if k not in fallback}
+        # a weaker specialty mention only refines ranking inside the understood subcategories («جبس بورد» is not mining)
+        specs = [x for x in specs if self.specs[x]['sub_id'] in targets] if objective != 'marketing' else []
+        return {'families': fams, 'named_subs': named, 'relation': relation, 'targets': targets, 'source': source, 'specialties': specs,
+                'anchor': 'family' if fams else 'subcategory' if targets else 'none', 'fallback_targets': fallback}
+
+    def _from_specialties(self, q, specs, objective, relation):
+        spec_subs = list(dict.fromkeys(self.specs[x]['sub_id'] for x in specs))
+        # the families the specialty's own subcategory sells: used to describe it and, for a seller, to find its usual buyers
+        sold = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for sub, w in lst if sub in spec_subs), key=lambda x: -x[1])]
+        if objective != 'marketing':
+            targets = {sub: 3.0 for sub in spec_subs}
+            # other shops that sell the same family: shown only after the specialty's own trade, and only if that trade is thin
+            fallback = {sub: 0.5 for f in sold[:1] for sub, _ in self.rel['sells'].get(f, []) if self._sub_ok(sub) and sub not in targets}
+            return {'families': sold[:1], 'named_subs': spec_subs, 'relation': relation, 'targets': targets, 'source': 'taxonomy',
+                    'specialties': specs, 'anchor': 'specialty', 'fallback_targets': fallback}
+        # seller: buyers of this exact specialty (contractor classes that list it), then the usual buyers of its family
+        targets = {}
+        for x in specs:
+            for sub in self.spec_buyers.get(x, ()):
+                if self._sub_ok(sub): targets[sub] = 3.0
+        sellers_of = set(spec_subs) | {sub for f in sold[:2] for sub, _ in self.rel['sells'].get(f, [])}
+        for f in sold[:2]:
+            for sub, w in self.rel['buys'].get(f, []):
+                if self._sub_ok(sub) and sub not in sellers_of: targets[sub] = max(targets.get(sub, 0), w)
+        customers = [s for s in self.customer_subs(q) if self._sub_ok(s)]
+        if customers: targets = {s: targets.get(s, 2.0) for s in customers}
+        return {'families': sold[:1], 'named_subs': spec_subs, 'relation': relation, 'targets': targets, 'source': 'taxonomy',
+                'specialties': [], 'asked_specialties': specs, 'anchor': 'specialty', 'fallback_targets': {}}
 
     def search(self, db, directory_path, q, city, objective, search_sql='true'):
         """Returns the same result shape as trial_search.Directory.search (before paging), or None when no family is understood."""
         u = self.understand(q, objective)
         if not u['targets']: return None
-        subs = list(u['targets'])
+        subs = list(u['targets']) + [x for x in u.get('fallback_targets', {}) if x not in u['targets']]
+        u['targets'] = {**u.get('fallback_targets', {}), **u['targets']}
         overlay_join = ('left join read_parquet(?) o using (poi_key)' if self.overlay else '') + (' left join read_parquet(?) h using (poi_key)' if self.hudhud else '')
         overlay_cols = ('o.phone, o.phone_kind, o.has_whatsapp, o.phone_source, o.phone_source_name' if self.overlay else 'null, null, null, null, null') + \
             (", (h.last_operation='delete' and h.last_review_status='approved') hh_deleted" if self.hudhud else ', false')
@@ -308,7 +365,11 @@ class Taxonomy:
         qn = norm(q).split()
         qwords = [w for w in (strip_pfx(t) for t in qn) if len(w) >= 3 and w not in GENERIC and w not in BUY_CUES and w not in SELL_CUES and w not in TARGET_CUES]
         wholesale = bool(set(qn) & {'جمله', 'بالجمله', 'wholesale', 'موزع', 'موزعين', 'مصنع', 'مصانع'})
-        fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
+        named_specs = u.get('specialties') or u.get('asked_specialties') or []
+        if u.get('anchor') == 'specialty':
+            fam_ar = '، '.join(dict.fromkeys(self.specs[x]['specialty_ar'] for x in named_specs))
+        else:
+            fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
         asked_specs = u.get('specialties') or []
         asked_subs = {self.specs[x]['sub_id'] for x in asked_specs}
         out, seen = [], set()
@@ -363,7 +424,17 @@ class Taxonomy:
                 'match_confidence': {'score': int(min(95, 55 + 15 * weight)), 'basis': 'تصنيف النشاط وعلاقة يبيع/يشتري؛ ليس تأكيدًا للتوفر أو نية الشراء', 'method': 'taxonomy_relation_heuristic_not_probability'},
             }))
         out.sort(key=lambda x: (-x[0], x[1]['name_ar'] or ''))
-        top_subs = sorted(u['targets'], key=lambda s: -u['targets'][s])
+        fb = u.get('fallback_targets') or {}
+        if fb:
+            primary = [r for _, r in out if r['taxonomy_sub'] not in fb]
+            if len(primary) >= 10:   # the specialty's own trade is enough: never pad it with loosely related shops
+                out = [x for x in out if x[1]['taxonomy_sub'] not in fb]
+            else:
+                for _, r in out:
+                    if r['taxonomy_sub'] in fb:
+                        r['match_level'] = 'related'
+                        r['reason'] = f'نشاطها «{self.subs[r["taxonomy_sub"]]["sub_ar"]}» قريب من «{fam_ar}» وليس متخصصًا فيه؛ يحتاج تأكيد'
+        top_subs = sorted((x for x in u['targets'] if x not in fb), key=lambda s: -u['targets'][s])
         label = '، '.join(self.subs[s]['sub_ar'] for s in top_subs[:4])
         spec_ar = [self.specs[x]['specialty_ar'] for x in asked_specs]
         return {'rows': [r for _, r in out], 'total': len(out), 'intent': fam_ar or '، '.join(spec_ar), 'ranking': 'taxonomy',

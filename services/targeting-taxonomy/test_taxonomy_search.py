@@ -53,6 +53,26 @@ class Understand(unittest.TestCase):
     def test_specialty_does_not_widen_an_understood_request(self):   # «جبس بورد» stays building gypsum, never mining
         self.assertNotIn('energy.mining', self.fam('ادور محلات مختصة بالواح الجبس بورد')['targets'])
 
+    def test_broken_plural_names_the_trade(self):   # owner report 2026-10-16: «لواصق» went to rubber and industrial-supply shops
+        u = self.fam('لواصق')
+        self.assertIn('build.construction_chemicals', u['targets']); self.assertIn('build.hardware_tools', u['targets'])
+        self.assertNotIn('ind.rubber', u['targets']); self.assertNotIn('ind.industrial_supplies', u['targets'])
+        self.assertIn('ind.rubber', u['fallback_targets'])
+
+    def test_specialty_anchors_before_family(self):   # the most specific level the request names decides the targets
+        for q, sub in [('شريط بيوتيل', 'build.insulation'), ('غراء', 'build.hardware_tools'), ('ممبرين', 'build.insulation')]:
+            u = self.fam(q)
+            self.assertEqual(u['anchor'], 'specialty', q); self.assertIn(sub, u['targets'], q)
+            self.assertNotIn('ind.rubber', u['targets'], q)
+
+    def test_trade_word_keeps_the_lead(self):   # «سباك» is a trade, not the sanitary-shop specialty that mentions it
+        u = self.fam('سباك')
+        self.assertIn('contract.plumbing', u['targets']); self.assertNotIn('build.general_materials', u['targets'])
+
+    def test_seller_specialty_targets_its_buyers(self):
+        u = self.fam('شريط بيوتيل', 'marketing')
+        self.assertIn('contract.waterproofing', u['targets']); self.assertNotIn('build.insulation', u['targets'])
+
     def test_onboarding_suggestions(self):
         main = self.tx.subs['build.insulation']['main_id']   # the supplier picks his sector first
         got = {x['specialty_id'] for x in self.tx.suggest_specialties('ممبرين، شريط بيوتيل، فوم رش', main)}
