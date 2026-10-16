@@ -7,7 +7,7 @@ import { CATEGORY_LABEL, loadDrafts, type TemplateCategory } from './drafts'
  * «09 · قوالب واتساب» — Figma 54:349. Real rows only:
  *   - every template of the WhatsApp Business account with its Meta status (GET /templates;
  *     if that fails, the campaign template alone from GET /template-status);
- *   - drafts saved from the editor (08) in this browser.
+ *   - drafts saved from the editor (08) in this tab (memory only).
  * The service keeps no usage or reply rates, so «آخر استخدام» and «نسبة الرد» show «—».
  */
 

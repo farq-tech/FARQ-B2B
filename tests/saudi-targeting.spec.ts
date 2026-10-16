@@ -23,13 +23,11 @@ async function setup(page: Page, opts: { send?: boolean; at: Date; prayerBlock?:
   const writes: string[] = []
   const searches: Record<string, unknown>[] = []
   await page.clock.setFixedTime(opts.at)
-  await page.addInitScript(() => {
-    localStorage.setItem('farq_construction_session_v1', JSON.stringify({ accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 7200, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' } }))
-    localStorage.setItem('farq.targeting.city', 'Riyadh')
-  })
+  await page.addInitScript(QA_SESSION) // memory-only session (DEV seed); Riyadh is the default city
   await page.route('**/_targeting/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
+    if (path.endsWith('/districts')) return route.fulfill({ status: 404, json: { error: 'not_found' } }) // no polygons: district chips
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] }] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: Boolean(opts.send) } })
@@ -99,7 +97,8 @@ test.describe('desktop 1440', () => {
     await expect(page.getByText('منشأة سعودية')).toHaveCount(2)
     // the send step: riyal sign, before tax, prayer note, usual window
     await page.getByRole('button', { name: 'حدد اللي عندهم واتساب' }).click()
-    const compose = page.getByRole('region', { name: 'رسالة الحملة' })
+    const compose = page.getByTestId('campaign-tray')
+    await compose.getByRole('button', { name: 'اكتب الرسالة' }).click()
     await expect(compose.getByRole('img', { name: 'ريال' })).toBeVisible()
     await expect(compose.getByText('قبل الضريبة')).toBeVisible()
     await expect(compose.getByText(/الردود قد تتأخر وقت الصلاة\. الإرسال ينتظر صلاة العصر، ويفتح الساعة 3:2\d م\./)).toBeVisible()
@@ -114,7 +113,9 @@ test.describe('desktop 1440', () => {
     await page.goto('/opportunity-map')
     await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
-    const compose = page.getByRole('region', { name: 'رسالة الحملة' })
+    await page.getByRole('button', { name: 'حدد اللي عندهم واتساب' }).click()
+    const compose = page.getByTestId('campaign-tray')
+    await compose.getByRole('button', { name: 'اكتب الرسالة' }).click()
     await expect(compose.getByText('وضع رمضان')).toBeVisible()
     await expect(compose.getByText('أنسب وقت للإرسال في رمضان: بعد التراويح، من 9:30 م إلى 1:00 ص')).toBeVisible()
     await expect(compose.getByText(/الردود قد تتأخر/)).toHaveCount(0)
@@ -127,6 +128,7 @@ test.describe('desktop 1440', () => {
     await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await page.getByRole('button', { name: 'حدد اللي عندهم واتساب' }).click()
+    await page.getByTestId('campaign-tray').getByRole('button', { name: 'اكتب الرسالة' }).click()
     await page.getByRole('button', { name: 'أرسل الحملة' }).click()
     const sheet = page.getByRole('dialog', { name: 'المراجعة والتكلفة' })
     await expect(sheet.getByText(/الردود قد تتأخر وقت الصلاة/)).toBeVisible()
@@ -200,18 +202,17 @@ test.describe('desktop 1440', () => {
 test.describe('mobile 390', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('vocabulary chips, popular name in the sheet, prayer note in the message step', async ({ page }) => {
+  test('vocabulary chips, popular name in the list, prayer note in the campaign tray', async ({ page }) => {
     await setup(page, { at: ksa(2026, 10, 16, 12, 0) }) // Friday prayer
     await page.goto('/opportunity-map')
     await expect(page.getByRole('group', { name: 'أمثلة للبحث' }).getByRole('button', { name: 'حدايد وبويات', exact: true })).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-1-start.png` })
     await page.getByRole('group', { name: 'أمثلة للبحث' }).getByRole('button', { name: 'سوق الزل للأقمشة', exact: true }).click()
-    await page.getByRole('button', { name: /نتيجة · اسحب للأعلى للقائمة/ }).click()
     await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · 230 محل/ })).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-2-sheet.png` })
     await page.getByRole('button', { name: 'حدد واتساب' }).click()
-    await page.getByRole('button', { name: 'التالي', exact: true }).click()
-    const step = page.getByRole('dialog', { name: 'رسالة الحملة' })
+    const step = page.getByTestId('campaign-tray')
+    await step.getByRole('button', { name: 'اكتب الرسالة' }).click()
     await expect(step.getByText(/الإرسال ينتظر صلاة الجمعة، ويفتح الساعة 1:30 م\./)).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-3-message-friday.png` })
   })
