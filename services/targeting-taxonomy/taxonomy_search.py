@@ -355,6 +355,12 @@ class Taxonomy:
         if not hasattr(self, '_dir_cols'):
             self._dir_cols = {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
         spec_col += (", t.street_ar" if 'street_ar' in self._dir_cols else ", null") + (", coalesce(t.is_wholesale,false)" if 'is_wholesale' in self._dir_cols else ", false")
+        # owner 2026-10-16: a business sitting on a city/district centre is not drawn on the map and not counted in a district filter
+        spec_col += (", coalesce(t.location_precision,'point'), coalesce(t.district_reliable,true)" if 'location_precision' in self._dir_cols else ", 'point', true")
+        spec_col += (", coalesce(t.role_badges,''), coalesce(t.specialty_concepts_ar,'')" if 'role_badges' in self._dir_cols else ", '', ''")
+        # «منشأة سعودية» (owner 2026-10-16): a commercial registration / municipal licence on file — presence only, never the number
+        spec_col += ", t.commercial_license is not null" if 'commercial_license' in self._dir_cols else ", false"
+        spec_col += (", try_cast(t.rating as double)" if 'rating' in self._dir_cols else ", null") + (", t.source_count" if 'source_count' in self._dir_cols else ", null")
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
@@ -379,7 +385,7 @@ class Taxonomy:
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
              source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
-             street, is_ws) = r
+             street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -419,9 +425,13 @@ class Taxonomy:
                 extra = {**extra, 'hudhud_deleted': True, 'sendable': False,
                          'warning': 'حذفها مسّاحو هدهد بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
             out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000 - (100 if hh_deleted else 0), {
-                'poi_key': key, 'name_ar': name, 'category_ar': cat_ar, 'district_ar': district, 'latitude': lat, 'longitude': lon,
+                'poi_key': key, 'name_ar': display_name(name), 'category_ar': cat_ar, 'district_ar': district if district_ok else '',
+                'latitude': lat if loc_precision == 'point' else None, 'longitude': lon if loc_precision == 'point' else None,
                 'city_en': city_en, 'region_ar': region_ar, 'region_en': region_en, 'name_en': name_en, 'phone': phone, 'phone_kind': phone_kind,
-                'has_whatsapp': bool(wa), 'email': email, 'street_ar': street, 'is_wholesale': bool(is_ws), 'source_count': source_count, 'category': category, 'legal_name': legal,
+                'has_whatsapp': bool(wa), 'email': email, 'street_ar': street, 'is_wholesale': bool(is_ws),
+                'location_precision': loc_precision, 'district_reliable': bool(district_ok), 'saudi_registered': bool(has_licence),
+                'completeness_pct': float(complete or 0), 'rating': rating, 'sources_count': n_sources,
+                'role_badges': [x for x in (role_badges or '').split('|') if x], 'specialties': [x for x in (concepts or '').split('، ') if x], 'source_count': source_count, 'category': category, 'legal_name': legal,
                 'brand_name': brand, 'secondary_category': secondary, 'category_l3': l3, '_status': (company_status, lifecycle),
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
@@ -454,6 +464,13 @@ class Taxonomy:
 # Default delivery/service radius by business type until the supplier sets its own (owner rule 2026-10-16: delivery radius is a
 # primary filter beside specialty and confidence). Factories deliver nationwide, wholesalers across the region, shops and
 # technicians within the city.
+_PHONE_IN_NAME = re.compile(r'(?:\+?966|00966)?[\s\-]*0?5[\d\s\-]{8,}|[\d٠-٩][\d٠-٩\s\-]{6,}[\d٠-٩]')
+def display_name(n):
+    """Owner 2026-10-16: no contact number is ever shown — some businesses put their phone inside their name."""
+    out = re.sub(r'\s{2,}', ' ', _PHONE_IN_NAME.sub(' ', n or '')).strip(' -|،,:')
+    return out or (n or '')
+
+
 def service_radius(sub, roles):
     if sub.startswith('ind.') or sub.endswith(('_mfg', '_factory')) or 'factory' in sub: return 1000
     if 'wholesale' in (roles or '') and 'retail' not in (roles or ''): return 300
