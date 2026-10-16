@@ -26,8 +26,9 @@ db.execute(f"""copy (select g.poi_key, case when g.poi_key like 'hh:%' then try_
    coalesce(t.rating, g.google_rating::varchar) rating, coalesce(t.reviews_count, g.reviews_count::varchar) reviews_count,
    coalesce(g.license_no, g.commercial_license) commercial_license, g.sources, len(g.sources) source_count,
    round(100.0 * g.completeness_score / 6, 1) completeness_pct,
-   lower(concat_ws(' ', g.name_ar, g.name_en, g.brand, g.sub_ar, s_en.sub_en, g.main_ar, coalesce(g.district_ar, g.district), g.district_en, g.city_ar, g.city_en, g.street_ar)) search_text,
+   lower(concat_ws(' ', g.name_ar, g.name_en, g.brand, g.sub_ar, array_to_string(g.specialties_ar, ' '), s_en.sub_en, g.main_ar, coalesce(g.district_ar, g.district), g.district_en, g.city_ar, g.city_en, g.street_ar)) search_text,
    g.sub_id, g.cls_confidence, g.sector, g.governorate_ar, g.street_ar, g.building_no, g.postal_code, g.national_address, g.license_expired, g.surveyor_verified_at, g.phone_source, g.district_method, g.city_method,
+   array_to_string(g.specialties_ar, '، ') specialties_ar, array_to_string(g.specialty_ids, '|') specialty_ids,
    g.menu_link, g.order_link, g.reservation_link, g.amenities_ids, g.tradename, g.google_place_id, g.google_cid, g.floor_no
    from g left join t using(poi_key) left join s_en using(sub_id)
    order by city_en, sub_id, g.poi_key) to '{O}targets_golden.parquet' (format parquet, compression zstd, compression_level 19, row_group_size 200000)""")

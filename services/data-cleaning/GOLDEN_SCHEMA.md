@@ -22,6 +22,10 @@ Targetable rows (`in_golden`): **2,271,487**.
 | `isic4` | VARCHAR | 2,271,487 (100%) | Primary ISIC4 code of the subcategory. | taxonomy |
 | `cls_source` | VARCHAR | 2,271,487 (100%) | Evidence used for the subcategory. |  |
 | `cls_confidence` | VARCHAR | 2,271,487 (100%) | high / medium / low. |  |
+| `specialty_ids` | VARCHAR[] | 483,692 (21%) | Specialties of the row inside its subcategory (docs/qa/targeting/taxonomy/specialties.csv, 4,073); several allowed; none when there is no evidence. | Farq supplier items → explicit source labels → business name |
+| `specialties_ar` | VARCHAR[] | 483,692 (21%) | Specialty names (Arabic), same order as specialty_ids. |  |
+| `specialty_sources` | VARCHAR[] | 483,692 (21%) | Evidence per specialty: farq_items / source_label / name. |  |
+| `specialty_confidence` | VARCHAR | 483,692 (21%) | high when any specialty comes from supplier items or a source label, else medium (name only). |  |
 | `sector` | VARCHAR | 68,497 (3%) | government / private for schools, hospitals, universities, institutes. | sector rules |
 | `latitude` | DOUBLE | 2,271,487 (100%) | Latitude (WGS84). For location_precision city/district it is a reference point, not the address. | source → Farq district/city point |
 | `longitude` | DOUBLE | 2,271,487 (100%) | Longitude (WGS84). |  |

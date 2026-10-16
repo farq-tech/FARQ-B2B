@@ -46,6 +46,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    case when cr.name_ar is not null then 'crs_surveyor' when regexp_matches(coalesce(b.name_ar,''),'[؀-ۿ]') then 'source' else nf.name_ar_source end name_ar_source,
    case when cr.name_en is not null then 'crs_surveyor' when regexp_matches(coalesce(b.name_en,''),'[A-Za-z]') then 'source' else nf.name_en_source end name_en_source,
    c.sub_id, s.sub_ar, s.main_id, s.main_ar, s.roles, s.isic4, c.cls_source, c.cls_confidence,
+   spa.specialty_ids, spa.specialties_ar, spa.specialty_sources, spa.specialty_confidence,
    sec.sector, coalesce(b.latitude, fq.district_lat, fq.city_lat) latitude, coalesce(b.longitude, fq.district_lon, fq.city_lon) longitude,
    case when b.latitude is not null then 'point' when fq.district_lat is not null then 'district' when fq.city_lat is not null then 'city' end location_precision,
    fq.farq_district_ar, fq.farq_district_en, fq.merged_into farq_merged_into, fqm.farq_suppliers_merged, fqm.farq_items_merged, coalesce(fq.farq_phone, fqm.farq_phone) farq_supplier_phone, coalesce(fq.farq_wa, fqm.farq_wa) farq_supplier_whatsapp, fq.farq_city_method,
@@ -107,6 +108,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    left join (select poi_key, working_hours, x_link, snapchat, tiktok, description_ar, description_en, reviews_count from read_parquet('{P}')) tt using(poi_key)
    left join (select *, case when gm_phone is not null then '+966' || regexp_replace(regexp_replace(gm_phone,'[^0-9]','','g'), '^(00966|966|0)', '') end gm_phone_norm
        from read_parquet('{D}enrich/serper_maps.parquet') qualify row_number() over (partition by poi_key)=1) sm using(poi_key)
+   left join (select * from read_parquet('{D}enrich/specialty_assign.parquet') qualify row_number() over (partition by poi_key)=1) spa using(poi_key)
    left join (select * from read_parquet('{D}enrich/fsq_match.parquet') qualify row_number() over (partition by poi_key)=1) fm using(poi_key)
    left join (select * from read_parquet('{D}enrich/osm_poi_match.parquet') qualify row_number() over (partition by poi_key)=1) om using(poi_key)
    left join (select * from read_parquet('{D}golden/osm_admin.parquet') qualify row_number() over (partition by poi_key)=1) oa using(poi_key)
