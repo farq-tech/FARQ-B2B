@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { farqSession } from '../../api/farqSession'
 import { waNumber, type TargetRow, type TradeCluster } from '../../api/targetingClient'
 
 /*
@@ -85,7 +84,7 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     if (!box.current) return
     mapboxgl.accessToken = MAPBOX_TOKEN
     if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') mapboxgl.setRTLTextPlugin(RTL_PLUGIN, null, true)
-    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar', transformRequest: url => { const token=farqSession.getAccessToken(); return url.startsWith(window.location.origin+'/_targeting/tiles/') && token ? {url,headers:{Authorization:`Bearer ${token}`}} : {url} } })
+    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, fitBoundsOptions: { padding: { top: topInset, bottom: 24, left: 24, right: 24 } }, attributionControl: false, language: 'ar' })
     m.on('moveend', e => { if (!e.originalEvent) return; const b = m.getBounds(); if (b) latest.current.onViewportChange?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]) })
     m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left')
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left')

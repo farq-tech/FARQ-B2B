@@ -39,7 +39,7 @@ async function post<T>(path: string, body: unknown, retried = false): Promise<T>
   }).catch(() => null)
   if (!res) throw new Error('تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة.')
   if (res.status === 401 && !retried) {
-    const outcome = await farqSession.refreshForRequest(farqSession.getAccessToken()).catch(() => null)
+    const outcome = await farqSession.refreshForRequest(farqSession.sessionKey()).catch(() => null)
     if (outcome?.status === 'refreshed') return post<T>(path, body, true)
   }
   const json = await res.json().catch(() => null)

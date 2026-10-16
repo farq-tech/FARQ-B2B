@@ -1,4 +1,3 @@
-import { farqSession } from './farqSession'
 
 /*
  * Scheduled campaign sends — POST /api/targeting/schedule on the pricing proxy (server.py, being built).
@@ -8,9 +7,8 @@ import { farqSession } from './farqSession'
 export type ScheduleOutcome = { status: 'scheduled'; id?: string } | { status: 'soon' } | { status: 'error'; message: string }
 
 export async function scheduleCampaign(body: { keys: string[]; message: string; template: string; send_at: string }): Promise<ScheduleOutcome> {
+  // the session rides on the proxy's HttpOnly cookie (same origin); no token here
   const headers: Record<string, string> = { 'content-type': 'application/json' }
-  const token = farqSession.getAccessToken()
-  if (token) headers.Authorization = `Bearer ${token}`
   let r: Response
   try {
     r = await fetch('/api/targeting/schedule', { method: 'POST', headers, body: JSON.stringify(body), credentials: 'same-origin' })

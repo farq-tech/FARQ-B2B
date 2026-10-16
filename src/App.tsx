@@ -61,7 +61,10 @@ function Routes() {
     if (e) setChecked(ALLOWED.includes(e) ? 'ok' : 'denied')
   }, [session.isAuthenticated, email])
   useEffect(() => { if (session.isAuthenticated && view === 'login') navigate(landingGoal() ? 'explore' : 'rfq-list') }, [session.isAuthenticated, view, navigate])
+  // landing → app while already signed in (the session cookie survives the full page load): the chosen goal opens Explore
+  useEffect(() => { if (session.isAuthenticated && landingGoal() && view !== 'explore' && view !== 'login') navigate('explore') }, [session.isAuthenticated, view, navigate])
 
+  if (session.checking) return <Loading />
   if (!session.isAuthenticated) return <LoginV2 navigate={navigate} />
   if (checked === 'denied') {
     return (

@@ -1,13 +1,14 @@
 import hmac, re
 # -*- coding: utf-8 -*-
 """Serve the public landing and account-login app; proxy Farq with each user's
-Authorization header. Farq enforces API permissions. Targeting uses a server
+Authorization header, taken from the sealed HttpOnly session cookie (session_cookie.py) — the browser never holds a token. Farq enforces API permissions. Targeting uses a server
 credential only after /api/auth/me validates an allowed account. Sending is
 still disabled unless TARGETING_SEND=1.
 """
 import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
 from trial import handle as handle_trial
 from saudi_rhythm import block_for_body
+import session_cookie as sc
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__)); DIST = os.path.join(HERE, 'dist')
@@ -59,9 +60,80 @@ HOP = {'connection', 'keep-alive', 'transfer-encoding', 'host', 'content-length'
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
+    # ---- session (sealed HttpOnly cookie; see session_cookie.py)
+    _cookies = None
+    _sess_done = False
+    _sess = None
+    def _session(self):
+        """This request's Farq session from the cookie, renewed when close to expiry. Cookie changes go out with the response."""
+        if self._sess_done: return self._sess
+        self._sess_done, self._cookies = True, []
+        s = sc.read(self.headers.get('Cookie'))
+        if s:
+            s, changed, refused = sc.refresh(API, s)
+            if refused: self._cookies.append(sc.clear_cookie())
+            elif changed: self._cookies.append(sc.set_cookie(s))
+        self._sess = s
+        return s
+    def _force_refresh(self):
+        s = self._session()
+        if not s: return None
+        s, changed, refused = sc.refresh(API, s, force=True)
+        self._cookies = [c for c in self._cookies if not c[1].startswith(sc.COOKIE + '=')]
+        if refused: self._cookies.append(sc.clear_cookie())
+        elif changed: self._cookies.append(sc.set_cookie(s))
+        self._sess = s if not refused else None
+        return self._sess
+    def _csrf_ok(self):
+        """State-changing requests that carry the session cookie must come from this site (Origin / Referer check)."""
+        if self.command in ('GET', 'HEAD', 'OPTIONS'): return True
+        if sc.COOKIE + '=' not in (self.headers.get('Cookie') or ''): return True
+        return sc.same_origin(self.headers, self.headers.get('Host'))
+    def _bearer(self):
+        s = self._session()
+        if s: return 'Bearer ' + s['a']
+        return self.headers.get('Authorization', '')
+    def _session_route(self, path):
+        """/_session/me (GET) · login · refresh · logout · password (POST). Answers carry the user, never a token."""
+        j = lambda code, obj, extra=None: self._send(code, json.dumps(obj, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8', extra)
+        if path == '/_session/me' and self.command == 'GET':
+            s = self._session()
+            return j(200, {'ok': True, 'data': sc.public(s)}) if s else j(401, {'ok': False, 'error': 'NO_SESSION'})
+        if self.command != 'POST': return j(405, {'ok': False})
+        if not sc.same_origin(self.headers, self.headers.get('Host')): return j(403, {'ok': False, 'error': 'CSRF'})
+        n = int(self.headers.get('Content-Length') or 0)
+        try: body = json.loads(self.rfile.read(n) or b'{}') if n else {}
+        except Exception: body = {}
+        if path in ('/_session/login', '/_session/signup'):
+            fields = {k: body.get(k) for k in ('email', 'password') if isinstance(body.get(k), str)}
+            status, data = sc.api_post(API, '/api/auth/login' if path.endswith('login') else '/api/auth/signup', fields)
+            nxt = sc.from_payload(data) if 200 <= status < 300 else None
+            if not nxt:
+                err = (data or {}).get('errors') if isinstance(data, dict) else None
+                return j(status if status >= 400 else 502, {'ok': False, 'errors': err or [{'code': 'LOGIN_FAILED', 'message': 'تعذّر الوصول إلى خدمة الحسابات.' if not status else ''}]})
+            return j(200, {'ok': True, 'data': sc.public(nxt)}, [sc.set_cookie(nxt)])
+        if path == '/_session/refresh':
+            s = self._force_refresh()
+            if s: return j(200, {'ok': True, 'data': sc.public(s)})
+            return j(401, {'ok': False, 'error': 'NO_SESSION'})
+        if path == '/_session/logout':
+            s = sc.read(self.headers.get('Cookie'))
+            self._sess_done, self._cookies = True, [sc.clear_cookie()]
+            if s:
+                if body.get('scope') == 'global': sc.api_post(API, '/api/auth/logout', {'scope': 'global'}, bearer=s['a'])
+                else: sc.api_post(API, '/api/auth/logout', {'refresh_token': s['r']})
+            return j(200, {'ok': True})
+        if path == '/_session/password':
+            s = self._session()
+            if not s: return j(401, {'ok': False, 'error': 'NO_SESSION'})
+            status, data = sc.api_post(API, '/api/auth/password', {k: body.get(k) for k in ('current_password', 'new_password')}, bearer=s['a'])
+            if not 200 <= status < 300: return j(status or 502, data or {'ok': False})
+            nxt = sc.from_payload(data)
+            return j(200, {'ok': True, 'data': sc.public(nxt or s)}, [sc.set_cookie(nxt)] if nxt else None)
+        return j(404, {'ok': False})
     def _authed(self):
         """Validate the account on Farq before using the server's targeting credential."""
-        bearer = self.headers.get('Authorization', '')
+        bearer = self._bearer()
         if not bearer.startswith('Bearer ') or len(bearer) > 8192: return False
         req = urllib.request.Request(API + '/api/auth/me', headers={'Authorization': bearer, 'Accept': 'application/json'})
         try:
@@ -72,22 +144,36 @@ class H(BaseHTTPRequestHandler):
         except Exception: return False
     def _send(self, code, body, ctype='text/html; charset=utf-8', extra=None):
         self.send_response(code); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(body))); self.send_header('Cache-Control', 'no-store')
-        for k, v in (extra or []): self.send_header(k, v)
+        for k, v in (extra or []) + [c for c in (self._cookies or []) if c not in (extra or [])]: self.send_header(k, v)
         self.end_headers(); self.wfile.write(body)
     def _proxy(self):
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
         path = self.path[len('/_api'):] or '/'
-        req = urllib.request.Request(API + path, data=body, method=self.command)
-        for k, v in self.headers.items():
-            if k.lower() not in HOP and k.lower() != 'cookie': req.add_header(k, v)
+        # tokens never travel to the browser: sign-in, refresh and sign-out go through /_session/*
+        if re.match(r'/api/auth/(login|signup|refresh|logout|password|claim)', path): return self._send(404, b'{"ok":false,"error":"USE_SESSION_ROUTES"}', 'application/json')
+        if not self._csrf_ok(): return self._send(403, b'{"ok":false,"error":"CSRF"}', 'application/json')
+        def build():
+            req = urllib.request.Request(API + path, data=body, method=self.command)
+            s = self._session()
+            for k, v in self.headers.items():
+                if k.lower() in HOP or k.lower() == 'cookie' or (s and k.lower() == 'authorization'): continue
+                req.add_header(k, v)
+            if s: req.add_header('Authorization', 'Bearer ' + s['a'])
+            return req
         try:
-            with urllib.request.urlopen(req, timeout=60) as r: status, hdrs, data = r.status, r.headers, r.read()
+            try:
+                with urllib.request.urlopen(build(), timeout=60) as r: status, hdrs, data = r.status, r.headers, r.read()
+            except urllib.error.HTTPError as e:
+                # an access token rejected mid-life (secret rotation, revoke): one forced renewal, one retry
+                if e.code != 401 or not self._session() or not self._force_refresh(): raise
+                with urllib.request.urlopen(build(), timeout=60) as r: status, hdrs, data = r.status, r.headers, r.read()
         except urllib.error.HTTPError as e: status, hdrs, data = e.code, e.headers, e.read()
         except Exception as e: self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json'); return
         self.send_response(status)
         for k, v in hdrs.items():
             if k.lower() in HOP or k.lower() == 'content-encoding': continue
             self.send_header(k, v)
+        for k, v in (self._cookies or []): self.send_header(k, v)
         self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
     def _targeting(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -121,6 +207,7 @@ class H(BaseHTTPRequestHandler):
         self._send(200, page.encode())
     def do_GET(self):
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
+        if self.path.startswith('/_session/'): return self._session_route(urllib.parse.urlparse(self.path).path)
         if self.path.startswith('/_api/'): return self._proxy()
         if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         u = urllib.parse.urlparse(self.path); p = u.path
@@ -148,8 +235,11 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if urllib.parse.urlparse(self.path).path == '/__gate':
             return self._send(410, b'{"error":"USE_ACCOUNT_LOGIN"}', 'application/json')
+        if self.path.startswith('/_session/'): return self._session_route(urllib.parse.urlparse(self.path).path)
         if self.path.startswith('/_api/'): return self._proxy()
-        if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+        if self.path.startswith('/_targeting/'):
+            if not self._csrf_ok(): return self._send(403, b'{"ok":false,"error":"CSRF"}', 'application/json')
+            return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
         self._send(404, b'')
     do_PUT = do_PATCH = do_DELETE = do_POST
 

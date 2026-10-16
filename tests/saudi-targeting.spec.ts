@@ -62,7 +62,7 @@ async function companyProfileApi(page: Page, mode: 'on' | 'off') {
     if (mode === 'on' && path.endsWith('/api/business/context')) return route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } })
     if (path.endsWith('/api/business/company-profile')) {
       if (mode === 'off') return route.fulfill({ status: 404, json: { ok: false, error: 'NOT_FOUND' } })
-      expect(route.request().headers()['authorization']).toBe('Bearer qa-no-real-token')
+      expect(route.request().headers()['authorization']).toBeUndefined() // the browser holds no token: server.py adds it from the session cookie
       expect(route.request().headers()['x-farq-organization-id']).toBe('org-1')
       if (route.request().method() === 'PUT') { const body = route.request().postDataJSON(); puts.push(body); return route.fulfill({ json: { ok: true, data: { profile: body } } }) }
       return route.fulfill({ json: { ok: true, data: { profile: { name: 'مؤسسة الاختبار', phone: '0500000000', email: 'qa@example.com', city: 'الرياض' } } } })

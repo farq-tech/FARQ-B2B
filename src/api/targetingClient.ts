@@ -1,8 +1,7 @@
-import { farqSession } from './farqSession'
 
 /*
  * Targeting service client (screens 07–10). Same origin: server.py proxies /_targeting/* to the
- * targeting service after server-side account validation, with that service's password from its own environment.
+ * targeting service after server-side account validation (the session cookie; no token in the browser), with that service's password from its own environment.
  *
  * Endpoints (the service's own, unchanged):
  *   POST /suggest-specialties — { text, main_id? } → specialties a seller's products fit (read only)
@@ -152,8 +151,6 @@ export class TargetingError extends Error {
 
 async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
-  const token = farqSession.getAccessToken()
-  if (token) headers.Authorization = `Bearer ${token}`
   const r = await fetch(`/_targeting${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
   let data: unknown = null
   try { data = await r.json() } catch { /* empty or not JSON */ }

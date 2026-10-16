@@ -1,4 +1,4 @@
-// Copied from فرق بناء (read-only source): farqconstraction/src/api/useFarqSession.ts — ios-app@5147808, identical to 5147808. Do not edit business logic here.
+// Copied from فرق بناء (farqconstraction/src/api/useFarqSession.ts, ios-app@5147808); adds `checking` for the server-held session.
 /**
  * React binding for the one `farqSession` instance.
  *
@@ -17,6 +17,8 @@ export type SessionView = {
   isAuthenticated: boolean
   /** `demo` means no real session — the app is running on the demo actor. */
   mode: AuthMode
+  /** The proxy has not answered /_session/me yet: show a loading state, not the sign-in form. */
+  checking: boolean
 }
 
 function snapshot(): SessionView {
@@ -24,6 +26,7 @@ function snapshot(): SessionView {
     user: farqSession.getUser(),
     isAuthenticated: farqSession.isAuthenticated(),
     mode: currentAuthMode(),
+    checking: farqSession.isChecking(),
   }
 }
 
