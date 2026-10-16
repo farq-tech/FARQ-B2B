@@ -18,3 +18,10 @@ Rollback: copy the backup folder back and `railway up`.
 - Export: `has_whatsapp` also true when the Farq supplier gave a WhatsApp number (190,756 rows).
 - pricing `/targeting`: 200 rows per server page and «حمّل أكثر» appends the next page (was 10 rows).
 - pricing service variable `TARGETING_SEND=1` set on the owner's explicit request («فعل الارسال»). Service eligibility unchanged: open/temporarily closed + WhatsApp (source flag accepted since 2026-10-15); the Meta template must be approved.
+
+## Note 2026-10-16 (later)
+staging-targeting/data/*.parquet were symlinks into the release folder; copying the specialty export into staging overwrote
+the release folder's data (nothing deployed). Staging now holds real copies of the specialty export (2,271,487 rows, specialty columns).
+The release folder was restored to `export/targets_golden_z19.parquet` (2,250,123 rows, 188,777 WhatsApp) — the live service was
+deployed from a later export with 190,756 WhatsApp, whose exact bytes were not kept. The live service is unaffected; the next deploy
+should ship the staging export, which includes the Farq-supplier WhatsApp numbers.
