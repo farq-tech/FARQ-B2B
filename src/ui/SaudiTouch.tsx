@@ -38,14 +38,15 @@ export function Greeting({ name, className }: { name?: string | null; className?
   return <p className={cx('text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]', className)}>{greeting(now)}{name ? `، ${name}` : ''}</p>
 }
 
-const DISMISS_KEY = 'farq.occasion.dismissed'
+/** Dismissed occasion, in memory for this tab only (nothing on the device): it may show again on the next visit. */
+let dismissedOccasion: string | null = null
 /** A quiet, dismissible greeting on Eid al-Fitr, Eid al-Adha, National Day and Founding Day. No flag, emblem or imagery. */
 export function OccasionBanner({ at, className }: { at?: Date; className?: string }) {
   const now = useNow()
   const occasion = occasionOn(at || now)
-  const [dismissed, setDismissed] = useState<string | null>(() => { try { return localStorage.getItem(DISMISS_KEY) } catch { return null } })
+  const [dismissed, setDismissed] = useState<string | null>(() => dismissedOccasion)
   if (!occasion || dismissed === occasion.id) return null
-  const close = () => { setDismissed(occasion.id); try { localStorage.setItem(DISMISS_KEY, occasion.id) } catch { /* storage blocked */ } }
+  const close = () => { setDismissed(occasion.id); dismissedOccasion = occasion.id }
   return (
     <aside aria-label={occasion.title} className={cx('flex items-center justify-between gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] leading-[22px]', className)}>
       <p className="min-w-0"><span className="font-semibold">{occasion.title}</span> <span className="text-[var(--color-text-secondary)]">{occasion.text}</span></p>

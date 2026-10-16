@@ -18,7 +18,8 @@ import {
 import { resolveRfqSupplierIds } from '../api/constructionSuppliers'
 import { farqSession } from '../api/farqSession'
 import { autoPickFor, buildPickContext } from '../lib/autoPick'
-import { loadBusinessProfile as loadCompanyProfile, readLocal, writeLocal } from '../b2b/storage'
+import { readLocal, writeLocal } from '../b2b/storage'
+import { cachedBusinessProfile, fetchBusinessProfile } from '../api/companyProfileClient'
 import { waNumber, type TargetRow } from '../api/targetingClient'
 import type { BookletLine } from '../lib/readBooklet'
 import { matchSuppliersForItems, rowsToLines, sanitizeBoqLines, type ParsedLine } from '../lib/parseBoq'
@@ -108,11 +109,21 @@ export function NewRequestV2({ navigate }: NavProps) {
   const [showAll, setShowAll] = useState(false)
 
   // delivery
-  const profile = loadCompanyProfile()
+  // company details come from the server (حسابي → GET /api/business/company-profile), never from the device
+  const [profile, setProfile] = useState(cachedBusinessProfile)
   // «هلا سارة» in Figma: only a real display name, never the e-mail.
   const greeting = (farqSession.getUser()?.displayName || '').trim().split(/\s+/)[0] || ''
   const [project, setProject] = useState(draft?.project || '')
   const [city, setCity] = useState(draft?.city || seed?.city || profile.defaultDeliveryCity || '')
+  useEffect(() => {
+    let live = true
+    fetchBusinessProfile().then((r) => {
+      if (!live || r.status !== 'ok') return
+      setProfile(r.profile)
+      setCity((c) => c || r.profile.defaultDeliveryCity || '')
+    }).catch(() => { /* stays empty: the send step asks to complete حسابي */ })
+    return () => { live = false }
+  }, [])
   // Both dates land on the Saudi working week (Sunday–Thursday); a Friday/Saturday pick moves to Sunday, with a note.
   const [requiredDate, setRequiredDate] = useState(() => toBusinessDay(draft?.requiredDate || isoIn(profile.defaultDeadlineDays || 14)))
   const [quoteDeadline, setQuoteDeadline] = useState(() => toBusinessDay(draft?.quoteDeadline || isoIn(5)))

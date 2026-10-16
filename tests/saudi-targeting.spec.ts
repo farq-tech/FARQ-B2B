@@ -54,6 +54,26 @@ async function setup(page: Page, opts: { send?: boolean; at: Date; prayerBlock?:
   return { writes, searches }
 }
 
+/** حسابي / occasions: the session is memory-only (DEV seed) and the company profile lives on the server, never on the device. */
+const QA_SESSION = () => { (window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 7200, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' } } }
+async function companyProfileApi(page: Page, mode: 'on' | 'off') {
+  const puts: Record<string, unknown>[] = []
+  await page.addInitScript(QA_SESSION)
+  await page.route('**/_api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (mode === 'on' && path.endsWith('/api/business/context')) return route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } })
+    if (path.endsWith('/api/business/company-profile')) {
+      if (mode === 'off') return route.fulfill({ status: 404, json: { ok: false, error: 'NOT_FOUND' } })
+      expect(route.request().headers()['authorization']).toBe('Bearer qa-no-real-token')
+      expect(route.request().headers()['x-farq-organization-id']).toBe('org-1')
+      if (route.request().method() === 'PUT') { const body = route.request().postDataJSON(); puts.push(body); return route.fulfill({ json: { ok: true, data: { profile: body } } }) }
+      return route.fulfill({ json: { ok: true, data: { profile: { name: 'مؤسسة الاختبار', phone: '0500000000', email: 'qa@example.com', city: 'الرياض' } } } })
+    }
+    return route.fallback()
+  })
+  return puts
+}
+
 test.describe('desktop 1440', () => {
   test.use({ viewport: { width: 1440, height: 1000 } })
 
@@ -118,7 +138,9 @@ test.describe('desktop 1440', () => {
 
   test('حسابي: CR, VAT and national address are checked before saving', async ({ page }) => {
     await setup(page, { at: ksa(2026, 10, 15, 10) })
+    const puts = await companyProfileApi(page, 'on')
     await page.goto('/account')
+    await expect(page.getByLabel('اسم المنشأة')).toHaveValue('مؤسسة الاختبار') // read from GET /api/business/company-profile
     await page.getByLabel('اسم المنشأة').fill('مؤسسة الاختبار')
     await page.getByLabel('رقم التواصل').fill('0500000000')
     await page.getByLabel('البريد الإلكتروني').fill('qa@example.com')
@@ -128,6 +150,7 @@ test.describe('desktop 1440', () => {
     await page.getByLabel('العنوان المختصر').fill('RRD29')
     await page.getByRole('button', { name: 'حفظ بيانات المنشأة' }).click()
     await expect(page.getByText('السجل التجاري ١٠ أرقام.')).toBeVisible()
+    expect(puts).toHaveLength(0) // invalid fields never reach the server
     await expect(page.getByText('الرقم الضريبي يبدأ بـ 3 وينتهي بـ 3.')).toBeVisible()
     await expect(page.getByText('العنوان المختصر ٤ حروف إنجليزية ثم ٤ أرقام، مثل RRRD2929.')).toBeVisible()
     await expect(page.getByRole('status')).toHaveText('راجع الخانات المعلّمة بالأحمر قبل الحفظ.')
@@ -141,21 +164,36 @@ test.describe('desktop 1440', () => {
     await page.getByLabel('المدينة', { exact: true }).fill('الرياض')
     await page.getByLabel('الرمز البريدي').fill('12241')
     await page.getByRole('button', { name: 'حفظ بيانات المنشأة' }).click()
-    await expect(page.getByRole('status')).toHaveText('تم بحمد الله، حفظنا بيانات منشأتك على هذا الجهاز.')
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('farq.b2b.qa-user.profile.v1') || '{}'))
-    expect(saved).toMatchObject({ crNumber: '1010123456', vatNumber: '310123456700003', nationalAddress: 'RRRD2929 · 2929 شارع الأمير محمد بن عبدالعزيز · حي العليا · الرياض 12241' })
+    await expect(page.getByRole('status')).toHaveText('تم بحمد الله، حفظنا بيانات منشأتك في حسابك.')
+    expect(puts).toHaveLength(1)
+    expect(puts[0]).toMatchObject({ name: 'مؤسسة الاختبار', crNumber: '1010123456', vatNumber: '310123456700003', nationalAddress: 'RRRD2929 · 2929 شارع الأمير محمد بن عبدالعزيز · حي العليا · الرياض 12241', nationalAddressParts: { shortAddress: 'RRRD2929', buildingNo: '2929', postalCode: '12241' } })
+    expect(await page.evaluate(() => Object.keys(localStorage).concat(Object.keys(sessionStorage)).filter((k) => k.startsWith('farq.b2b')))).toEqual([]) // nothing on the device
+  })
+
+  test('حسابي before the server has the endpoint (404): «قريباً», read-only', async ({ page }) => {
+    await setup(page, { at: ksa(2026, 10, 15, 10) })
+    await companyProfileApi(page, 'off')
+    await page.goto('/account')
+    await expect(page.getByText('قريباً')).toBeVisible()
+    await expect(page.getByLabel('السجل التجاري')).toBeDisabled()
+    await expect(page.getByLabel('الرقم الضريبي')).toBeDisabled()
+    await expect(page.getByLabel('العنوان المختصر')).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'حفظ بيانات المنشأة' })).toHaveCount(0)
   })
 
   test('occasions: a quiet, dismissible greeting on National Day', async ({ page }) => {
     await setup(page, { at: ksa(2026, 9, 23, 10) })
+    await companyProfileApi(page, 'off')
     await page.goto('/account')
     const banner = page.getByRole('complementary', { name: 'اليوم الوطني السعودي' })
     await expect(banner).toContainText('كل عام والوطن بخير.')
     await page.screenshot({ path: `${SHOTS}/desktop-6-national-day.png` })
     await banner.getByRole('button', { name: 'إخفاء التهنئة' }).click()
     await expect(banner).toHaveCount(0)
+    // dismissed for this visit only: nothing is stored on the device, so a reload may greet again
+    expect(await page.evaluate(() => Object.keys(localStorage).concat(Object.keys(sessionStorage)).filter((k) => k.startsWith('farq.occasion')))).toEqual([])
     await page.reload()
-    await expect(page.getByRole('complementary', { name: 'اليوم الوطني السعودي' })).toHaveCount(0)
+    await expect(page.getByRole('complementary', { name: 'اليوم الوطني السعودي' })).toBeVisible()
   })
 })
 
@@ -180,6 +218,7 @@ test.describe('mobile 390', () => {
 
   test('حسابي on a phone', async ({ page }) => {
     await setup(page, { at: ksa(2026, 10, 15, 10) })
+    await companyProfileApi(page, 'on')
     await page.goto('/account')
     await expect(page.getByLabel('العنوان المختصر')).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-4-account.png`, fullPage: true })

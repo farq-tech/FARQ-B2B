@@ -84,7 +84,8 @@ export class OpportunityRequestsError extends Error {
 
 type Envelope<T> = { ok?: boolean; success?: boolean; data?: T; errors?: { code?: string; message?: string }[]; error?: string | { code?: string } }
 
-async function raw<T>(method: 'GET' | 'POST', path: string, orgId: string | null, body?: unknown): Promise<T> {
+/** Shared with companyProfileClient: same base URL, Bearer session and envelope handling. */
+export async function raw<T>(method: 'GET' | 'POST' | 'PUT', path: string, orgId: string | null, body?: unknown): Promise<T> {
   if (method !== 'GET' && isReadOnlyBuild()) throw new OpportunityRequestsError(403, 'هذه النسخة للقراءة فقط.')
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'

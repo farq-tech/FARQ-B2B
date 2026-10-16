@@ -10,8 +10,8 @@
  *
  * Decisions worth knowing before changing anything:
  *
- *  - **One account per browser.** The session lives under a single storage
- *    key. Signing in as someone else replaces it rather than running two
+ *  - **One account per tab, in memory.** The session lives under a single
+ *    key of an in-memory store (nothing is kept on the device). Signing in as someone else replaces it rather than running two
  *    identities side by side, and every listener is told the identity changed
  *    so per-user working state (uploaded كراسة, draft RFQ) is dropped instead
  *    of being shown to the next account.
@@ -115,18 +115,18 @@ function memoryStorage(): SessionStorageLike {
   }
 }
 
-/** Real `localStorage` when the browser allows it; memory otherwise. */
+/**
+ * Memory only (owner 2026-10-16: «لا اريد اي بيانات على الجهاز»): nothing is written to the device, so a reload
+ * or a new tab asks for the password again. In development builds only, Playwright can seed a signed-in session
+ * through `window.__FARQ_QA_SESSION__` (same JSON shape as FarqSession); the DEV check strips this from production.
+ */
 function defaultStorage(): SessionStorageLike {
-  try {
-    if (typeof localStorage === 'undefined') return memoryStorage()
-    // Private mode can expose the object and throw on write.
-    const probe = '__farq_probe__'
-    localStorage.setItem(probe, '1')
-    localStorage.removeItem(probe)
-    return localStorage
-  } catch {
-    return memoryStorage()
+  const mem = memoryStorage()
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    const seed = (window as unknown as { __FARQ_QA_SESSION__?: unknown }).__FARQ_QA_SESSION__
+    if (seed && typeof seed === 'object') mem.setItem(STORAGE_KEY, JSON.stringify(seed))
   }
+  return mem
 }
 
 type ApiSessionPayload = {

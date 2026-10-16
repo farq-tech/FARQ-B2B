@@ -4,6 +4,7 @@ import { useFarqSession } from './api/useFarqSession'
 import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
 import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MessageTemplatesIcon, MobileBottomNav, NavItem, NewRequestIcon, OccasionBanner, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
+import { handoff, HANDOFF } from './lib/handoff'
 import './b2b/b2b.css'
 
 /*
@@ -31,9 +32,17 @@ const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.s
 const REQUESTS: View[] = ['rfq-list', 'rfq-detail', 'comparison', 'award', 'login']
 const CAMPAIGN: View[] = ['targeting', 'targeting-new', 'templates', 'template-new']
 
-/** The landing's «حدد هدفك وابدأ» stores a goal; that visit opens Explore once, later visits open the requests. */
+/*
+ * The landing's «حدد هدفك وابدأ» links to /requests?goal=marketing|purchase (a full page load, so memory cannot carry it).
+ * Read it once here, before the router rewrites the URL, into the in-memory hand-off: after sign-in that visit opens
+ * Explore, which takes the goal. Nothing is stored on the device.
+ */
+{
+  const goal = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('goal')
+  if (goal === 'marketing' || goal === 'purchase') handoff.set(HANDOFF.entryGoal, goal)
+}
 function landingGoal(): boolean {
-  try { return Boolean(sessionStorage.getItem('farq-entry-goal')) } catch { return false }
+  return Boolean(handoff.get(HANDOFF.entryGoal))
 }
 
 function SectionLabel({ children, icon: I }: { children: string; icon?: IconComponent }) {

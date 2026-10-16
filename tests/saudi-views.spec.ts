@@ -22,7 +22,8 @@ async function setup(page: Page, at: Date) {
   const refused: string[] = []
   await page.clock.setFixedTime(at)
   await page.addInitScript(() => {
-    localStorage.setItem('farq_construction_session_v1', JSON.stringify({ accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 30 * 86400, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'سارة العتيبي' } }))
+    // memory-only session, seeded by the DEV build from this global (src/api/farqSession.ts)
+    ;(window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 30 * 86400, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'سارة العتيبي' } }
   })
   await page.route('**/_targeting/**', (route) => { refused.push(route.request().url()); return route.fulfill({ status: 403, json: { error: 'QA_BLOCKED' } }) })
   await page.route('**/_api/**', async (route) => {
