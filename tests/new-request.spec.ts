@@ -8,7 +8,7 @@ test('01→02→التوصيل→الإرسال: typed items, photo scan, review
   const refused: string[] = []
   page.on('console', (m) => { if (m.text().startsWith('[harness] refused')) refused.push(m.text()) })
   await page.goto('/?harness=new')
-  await expect(page.getByRole('heading', { name: 'وش تبي نسعّر لك اليوم؟' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'وش تبي تسعّر؟' })).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/01-method.png` })
 
   // photo: scan answers three lines

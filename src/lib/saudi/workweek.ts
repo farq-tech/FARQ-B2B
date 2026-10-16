@@ -1,4 +1,5 @@
 import { ksaParts } from './time'
+import { gregorianLabel } from './hijri'
 
 /*
  * The Saudi working week: Sunday to Thursday. Friday and Saturday are the weekend.
@@ -55,5 +56,5 @@ export function ksaToday(at: Date = new Date()): string {
 
 /** «الجمعة إجازة نهاية الأسبوع» — or null on a working day. */
 export function weekendNote(iso: string): string | null {
-  return isWeekendDay(iso) ? `${WEEK_AR[weekdayOf(iso)]} إجازة نهاية الأسبوع، وأقرب يوم عمل ${WEEK_AR[weekdayOf(toBusinessDay(iso))]} ${toBusinessDay(iso)}.` : null
+  return isWeekendDay(iso) ? `${WEEK_AR[weekdayOf(iso)]} إجازة نهاية الأسبوع، وأقرب يوم عمل ${WEEK_AR[weekdayOf(toBusinessDay(iso))]} ${gregorianLabel(toBusinessDay(iso) + 'T12:00:00+03:00')}.` : null
 }

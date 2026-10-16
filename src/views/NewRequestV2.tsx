@@ -27,7 +27,8 @@ import { cleanLineName, parseQty, readQty } from '../lib/sendGuards'
 import { shrinkImage } from '../lib/imageShrink'
 import { scanPurchaseRequest } from '../lib/purchaseRequests'
 import type { BOQItem, Supplier } from '../types'
-import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, Icon, Input, OptionCard, Tabs, useIsMobile, type EvidenceLevel } from '../ui'
+import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, Icon, Input, OptionCard, RiyalSign, Tabs, useIsMobile, type EvidenceLevel } from '../ui'
+import { addDaysToBusinessDay, dualDateLabel, hijriLabel, ksaToday, toBusinessDay, weekendNote } from '../lib/saudi'
 
 /*
  * «01 طلب جديد ← 02 مراجعة البنود ← التوصيل ← الإرسال» — Figma 38:2 and 42:44.
@@ -46,11 +47,10 @@ const DEPT_LABEL = Object.fromEntries(DEPARTMENTS) as Record<string, string>
 const AUTO_PICK = 10
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-function isoIn(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
+/** `days` calendar days from today (Saudi day), moved to the next working day when it lands on Friday/Saturday. */
+const isoIn = (days: number): string => addDaysToBusinessDay(ksaToday(), days)
+/** «4 ربيع الآخر 1448 هـ» for a «YYYY-MM-DD» picker value, or ''. */
+const hijriOf = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? hijriLabel(iso) : '')
 
 /** Every supplier the item knows about, de-duplicated (same order as the source flow). */
 function candidatesFor(item: BOQItem): Supplier[] {
@@ -113,8 +113,12 @@ export function NewRequestV2({ navigate }: NavProps) {
   const greeting = (farqSession.getUser()?.displayName || '').trim().split(/\s+/)[0] || ''
   const [project, setProject] = useState(draft?.project || '')
   const [city, setCity] = useState(draft?.city || seed?.city || profile.defaultDeliveryCity || '')
-  const [requiredDate, setRequiredDate] = useState(draft?.requiredDate || isoIn(profile.defaultDeadlineDays || 14))
-  const [quoteDeadline, setQuoteDeadline] = useState(draft?.quoteDeadline || isoIn(5))
+  // Both dates land on the Saudi working week (Sunday–Thursday); a Friday/Saturday pick moves to Sunday, with a note.
+  const [requiredDate, setRequiredDate] = useState(() => toBusinessDay(draft?.requiredDate || isoIn(profile.defaultDeadlineDays || 14)))
+  const [quoteDeadline, setQuoteDeadline] = useState(() => toBusinessDay(draft?.quoteDeadline || isoIn(5)))
+  const [requiredNote, setRequiredNote] = useState<string | null>(null)
+  const [deadlineNote, setDeadlineNote] = useState<string | null>(null)
+  const pickWorkingDay = (value: string, set: (v: string) => void, note: (v: string | null) => void) => { set(value ? toBusinessDay(value) : value); note(value ? weekendNote(value) : null) }
   const [requestType, setRequestType] = useState<'SUPPLY_ONLY' | 'SUPPLY_AND_INSTALL'>(draft?.requestType || 'SUPPLY_ONLY')
   const [department, setDepartment] = useState(draft?.department || '')
 
@@ -438,7 +442,7 @@ export function NewRequestV2({ navigate }: NavProps) {
           <section aria-labelledby="q-h" className={mobile ? 'flex flex-col items-stretch gap-4 pt-2' : 'mx-auto flex max-w-[760px] flex-col items-center gap-8 pt-12'}>
             <div className={mobile ? 'flex flex-col items-start gap-1' : 'flex flex-col items-center gap-2 text-center'}>
               {greeting ? <p className="text-[18px] leading-[30px] text-[var(--color-text-secondary)]">هلا {greeting}</p> : null}
-              <h1 id="q-h" className={`font-[family-name:var(--font-display)] font-bold tracking-[-0.5px] ${mobile ? 'text-[32px] leading-[48px]' : 'text-[40px] leading-[60px]'}`}>وش تبي نسعّر لك اليوم؟</h1>
+              <h1 id="q-h" className={`font-[family-name:var(--font-display)] font-bold tracking-[-0.5px] ${mobile ? 'text-[32px] leading-[48px]' : 'text-[40px] leading-[60px]'}`}>وش تبي تسعّر؟</h1>
               {mobile ? null : <p className="text-[16px] leading-[26px] text-[var(--color-text-secondary)]">اختر الطريقة الأسهل — تقدر تجمع بينها في نفس الطلب.</p>}
             </div>
             <div role="radiogroup" aria-label="طريقة إدخال الطلب" className={mobile ? 'flex flex-col gap-3' : 'flex gap-4'}>
@@ -634,8 +638,8 @@ export function NewRequestV2({ navigate }: NavProps) {
             <div className={`grid gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'grid-cols-1 p-4' : 'grid-cols-2 p-6'}`}>
               <Input label="اسم المشروع" placeholder="مثال: تجهيز العيادة" value={project} onChange={(e) => setProject(e.target.value)} helper="يظهر للموردين مع المدينة" />
               <Input label="مدينة التسليم" value={city} onChange={(e) => setCity(e.target.value)} error={!city.trim() ? 'اكتب مدينة التسليم.' : undefined} />
-              <Input label="موعد التوريد" type="date" value={requiredDate} onChange={(e) => setRequiredDate(e.target.value)} />
-              <Input label="آخر موعد للعروض" type="date" value={quoteDeadline} onChange={(e) => setQuoteDeadline(e.target.value)} helper="الساعة 5:00 م" error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
+              <Input label="موعد التوريد" type="date" value={requiredDate} onChange={(e) => pickWorkingDay(e.target.value, setRequiredDate, setRequiredNote)} helper={requiredNote || hijriOf(requiredDate) || undefined} />
+              <Input label="آخر موعد للعروض" type="date" value={quoteDeadline} onChange={(e) => pickWorkingDay(e.target.value, setQuoteDeadline, setDeadlineNote)} helper={deadlineNote || ['الساعة 5:00 م', hijriOf(quoteDeadline)].filter(Boolean).join(' · ')} error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 text-[14px] leading-[22px] font-medium">نوع الطلب</legend>
                 <div className="flex gap-2">
@@ -655,9 +659,9 @@ export function NewRequestV2({ navigate }: NavProps) {
 
         {step === 3 ? (
           <section aria-labelledby="sd-h" className={mobile ? 'flex flex-col gap-4 pt-4' : 'mx-auto flex max-w-[752px] flex-col gap-6 pt-12'}>
-            <h1 id="sd-h" className="font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{summary ? 'وصل طلبك للموردين' : createdId ? 'نرسل الطلب…' : 'جاهز للإرسال'}</h1>
+            <h1 id="sd-h" className="font-[family-name:var(--font-display)] text-[32px] leading-[48px] font-bold">{summary ? 'أبشر، وصل طلبك للموردين' : createdId ? 'نرسل الطلب…' : 'جاهز للإرسال'}</h1>
             <dl className={mobile ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-3 gap-4'}>
-              {[['البنود', `${readyItems.length} بند`], ['الموردين', `${allPicked.length} مورد`], ['التسليم', `${city} · ${requiredDate}`]].map(([k, v]) => (
+              {[['البنود', `${readyItems.length} بند`], ['الموردين', `${allPicked.length} مورد`], ['التسليم', `${city} · ${dualDateLabel(requiredDate) || requiredDate}`]].map(([k, v]) => (
                 <div key={k} className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-5 py-4">
                   <dt className="text-[14px] font-medium text-[var(--color-text-secondary)]">{k}</dt>
                   <dd className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">{v}</dd>
@@ -669,7 +673,8 @@ export function NewRequestV2({ navigate }: NavProps) {
 
             {waAsk ? (
               <div role="alertdialog" aria-labelledby="wa-h" className="flex flex-col gap-3 rounded-[var(--radius-lg)] border-[1.5px] border-[var(--color-border-warning)] bg-[var(--color-bg-surface)] p-5">
-                <p id="wa-h" className="text-[16px] font-medium">{waAsk.count} مورد يوصلهم الطلب عبر واتساب برسوم {waAsk.price} ر.س للرسالة. نرسل لهم؟</p>
+                {/* VAT basis unknown in the API (price_sar carries no tax flag), so no basis is claimed. */}
+                <p id="wa-h" className="text-[16px] font-medium">{waAsk.count} مورد يوصلهم الطلب عبر واتساب برسوم <bdi dir="ltr" className="inline-flex items-baseline gap-1">{waAsk.price}<RiyalSign /></bdi> للرسالة. نرسل لهم؟</p>
                 <div className="flex gap-3">
                   <Button variant="Primary" onClick={() => waAsk.resolve(true)}>نعم، أرسل عبر واتساب</Button>
                   <Button variant="Secondary" onClick={() => waAsk.resolve(false)}>لا، بدون واتساب</Button>
@@ -679,7 +684,7 @@ export function NewRequestV2({ navigate }: NavProps) {
 
             {sending ? (
               <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-5" aria-live="polite">
-                <p className="text-[16px] font-medium">{summary ? `تم الإرسال لـ ${summary.sent} من ${summary.total}${summary.failed ? ` · تعذّر ${summary.failed}` : ''}` : progress.text}</p>
+                <p className="text-[16px] font-medium">{summary ? `${summary.failed ? 'أرسلنا' : 'تم بحمد الله، أرسلنا'} لـ ${summary.sent} من ${summary.total}${summary.failed ? ` · تعذّر ${summary.failed}` : ''}` : progress.text}</p>
                 {progress.total && !summary ? (
                   <span aria-hidden className="block h-1.5 w-full overflow-hidden rounded-[3px] bg-[var(--color-bg-surface-2)]"><span className="block h-full rounded-[3px] bg-[var(--color-bg-brand)] transition-[width]" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></span>
                 ) : null}

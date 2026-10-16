@@ -153,7 +153,7 @@ test('purchase sends only selected company after explicit consent and paid Whats
   expect(created.manual_send).toBe(true)
   expect((created.lines as Array<Record<string,unknown>>)[0]).toMatchObject({name_ar:'كرسي عيادة',quantity:20,uom:'حبة',farq_spec_id:null})
   await page.getByRole('button',{name:'نعم، أرسل عبر واتساب',exact:true}).click()
-  await expect(page.getByText('تم الإرسال لـ 1 من 1')).toBeVisible()
+  await expect(page.getByText('تم بحمد الله، أرسلنا لـ 1 من 1')).toBeVisible()
   expect(requests.filter(r=>r.path.endsWith('/dispatch'))).toHaveLength(1)
   expect(requests.find(r=>r.path.endsWith('/dispatch'))!.body.whatsapp_paid).toBe(true)
 })

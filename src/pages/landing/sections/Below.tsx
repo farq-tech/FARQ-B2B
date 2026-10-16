@@ -1,5 +1,6 @@
 import { Badge } from '../../../ui/Badge'
 import { PriceCell } from '../../../ui/PriceCell'
+import { Money, RiyalSign } from '../../../ui/Riyal'
 import { Icon } from '../../../ui/Icon'
 import Brand from '../../../b2b/Brand'
 import { cx, FOCUS_RING } from '../../../ui/cx'
@@ -68,10 +69,12 @@ function HowItWorks() {
 }
 
 /* ── Difference explainer 35:115 · mobile 60:815 ── */
+// Illustrative figures. «سعر البنود» is before VAT (VAT is its own row); «التكلفة الواصلة» = items + delivery + VAT 15 %.
+const delta = (v: number, pct: string) => <bdi dir="ltr" className="inline-flex items-baseline gap-1 whitespace-nowrap">+{v.toLocaleString('en-US', { minimumFractionDigits: 2 })}<RiyalSign /> ({pct}%)</bdi>
 const OFFERS = [
-  { name: 'مورد أ — افتراضي', short: 'مورد أ', best: true, items: '41,200.00 ر.س', delivery: 'مجاني', vat: '6,180.00 ر.س', days: '3 أيام', warranty: 'سنة', landed: '47,380.00 ر.س', delta: 'الأقل' },
-  { name: 'مورد ب — افتراضي', short: 'مورد ب', best: false, items: '42,500.00 ر.س', delivery: '350.00 ر.س', vat: '6,427.50 ر.س', days: '5 أيام', warranty: 'سنة', landed: '49,277.50 ر.س', delta: '+1,897.50 ر.س (4.0%)' },
-  { name: 'مورد ج — افتراضي', short: 'مورد ج', best: false, items: '44,800.00 ر.س', delivery: 'مجاني', vat: '6,720.00 ر.س', days: '7 أيام', warranty: 'بدون', landed: '51,520.00 ر.س', delta: '+4,140.00 ر.س (8.7%)' },
+  { name: 'مورد أ — افتراضي', short: 'مورد أ', best: true, items: <Money amount={41200} />, delivery: 'مجاني', vat: <Money amount={6180} />, days: '3 أيام', warranty: 'سنة', landed: 47380, delta: 'الأقل' },
+  { name: 'مورد ب — افتراضي', short: 'مورد ب', best: false, items: <Money amount={42500} />, delivery: <Money amount={350} />, vat: <Money amount={6427.5} />, days: '5 أيام', warranty: 'سنة', landed: 49277.5, delta: delta(1897.5, '4.0') },
+  { name: 'مورد ج — افتراضي', short: 'مورد ج', best: false, items: <Money amount={44800} />, delivery: 'مجاني', vat: <Money amount={6720} />, days: '7 أيام', warranty: 'بدون', landed: 51520, delta: delta(4140, '8.7') },
 ]
 const ROWS: Array<{ key: 'items' | 'delivery' | 'vat' | 'days' | 'warranty'; label: string; differs?: boolean; num?: boolean }> = [
   { key: 'items', label: 'سعر البنود', num: true },
@@ -128,7 +131,7 @@ function Difference() {
                 </th>
                 {OFFERS.map((o) => (
                   <td key={o.name} className={cx(cell, o.best && 'bg-[var(--color-bg-success)]')}>
-                    <span className={cx(T.numBase, 'block')}>{o.landed}</span>
+                    <span className={cx(T.numBase, 'block')}><Money amount={o.landed} vat="incl" noteClassName="font-normal" /></span>
                     <span className={cx(T.caption, 'block', o.best ? 'text-[var(--color-text-success)]' : 'text-[var(--color-text-secondary)]')}>{o.delta}</span>
                   </td>
                 ))}
@@ -144,7 +147,7 @@ function Difference() {
             {OFFERS.map((o) => (
               <li key={o.name} className="flex items-center justify-between gap-[var(--space-12)]">
                 <span className={cx(T.small, 'text-[var(--color-text-secondary)]')}>{o.short}</span>
-                <PriceCell state={o.best ? 'Best' : 'Normal'} price={o.landed} delta={o.best ? 'الأقل سعرًا' : o.delta} />
+                <PriceCell state={o.best ? 'Best' : 'Normal'} price={<Money amount={o.landed} vat="incl" />} delta={o.best ? 'الأقل سعرًا' : o.delta} />
               </li>
             ))}
           </ul>
