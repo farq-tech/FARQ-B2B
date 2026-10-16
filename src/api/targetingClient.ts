@@ -217,3 +217,28 @@ export async function sendCampaign(holderRfqId: string, rows: TargetRow[], messa
   }
   return out
 }
+
+/*
+ * Scheduled sends (server.py → schedule.py, same origin, same account login). Off unless the server has
+ * TARGETING_SCHEDULE_ENABLED=1: every route then answers 404, read here as `available: false` → «الجدولة قريباً».
+ * Recipients are poi_keys only; the targeting service takes names and numbers from its directory.
+ */
+export type ScheduledCampaign = { id: string; status: 'scheduled' | 'running' | 'sent' | 'partial' | 'failed' | 'cancelled' | 'interrupted'; send_at: string; requested_send_at: string; template: string; message: string; keys: string[]; notes: { kind: string; message_ar?: string }[]; recipients: Record<string, number> }
+export type ScheduleAnswer<T> = { available: false } | ({ available: true } & T)
+export const SCHEDULE_SOON = 'الجدولة قريباً'
+async function scheduleCall<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<ScheduleAnswer<T>> {
+  const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
+  const token = farqSession.getAccessToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const r = await fetch(`/api/targeting/schedule${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
+  let data: Record<string, unknown> = {}
+  try { data = await r.json() } catch { /* empty */ }
+  // flag off: {"error":"not_found"} on every route
+  if (r.status === 404 && data.error === 'not_found') return { available: false }
+  if (!r.ok) throw new TargetingError(String(data.error || r.status), r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : data.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : 'ما قدرنا نجدول الحملة. حاول بعد شوي.')
+  return { available: true, ...(data as T) }
+}
+export const scheduleCampaign = (b: { keys: string[]; message: string; template: string; send_at: string; cities?: string[]; query?: string }) =>
+  scheduleCall<{ id: string; send_at: string; send_at_ar: string; shifted: boolean; message_ar?: string; eligible: number; rejected: Record<string, string> }>('POST', '', b)
+export const listScheduled = () => scheduleCall<{ data: ScheduledCampaign[] }>('GET', '')
+export const cancelScheduled = (id: string) => scheduleCall<{ id: string; status: 'cancelled' }>('POST', `/${encodeURIComponent(id)}/cancel`)

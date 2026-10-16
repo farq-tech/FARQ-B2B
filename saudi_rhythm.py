@@ -265,17 +265,25 @@ def city_coords(name):
 def _iso(dt): return dt.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%S.') + f'{dt.microsecond // 1000:03d}Z'
 
 
+def shift_for_cities(city_names, at):
+    """(first allowed moment from `at` on in every one of the cities, the window `at` falls in or None).
+    No cities -> Riyadh, as the send path does."""
+    coords = list(dict.fromkeys(city_coords(c) for c in (city_names or []))) or [CITIES['riyadh']]
+    hit = next((w for w in (quiet_window_at(at, *c) for c in coords) if w), None)
+    t = at
+    if hit:
+        for _ in range(12):  # later than every city's window
+            nxt = max(next_allowed(t, *c) for c in coords)
+            if nxt == t: break
+            t = nxt
+    return t, hit
+
+
 def block_for_cities(city_names, now_utc=None):
     """The 409 payload if a send now would fall in a prayer window in any of the cities, else None."""
     now = now_utc or globals()['now_utc']()
-    coords = list(dict.fromkeys(city_coords(c) for c in (city_names or []))) or [CITIES['riyadh']]
-    hit = next((w for w in (quiet_window_at(now, *c) for c in coords) if w), None)
+    t, hit = shift_for_cities(city_names, now)
     if not hit: return None
-    t = now
-    for _ in range(12):  # later than every city's window
-        nxt = max(next_allowed(t, *c) for c in coords)
-        if nxt == t: break
-        t = nxt
     clock = ksa_clock(t)
     return {'ok': False, 'error': 'PRAYER_WINDOW', 'prayer': hit[0],
             'message_ar': f'الحين وقت صلاة {PRAYER_AR[hit[0]]}، فما أرسلنا الحملة. تقدر ترسلها من الساعة {clock}.',

@@ -5,7 +5,8 @@ Authorization header. Farq enforces API permissions. Targeting uses a server
 credential only after /api/auth/me validates an allowed account. Sending is
 still disabled unless TARGETING_SEND=1.
 """
-import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
+import os, sys, json, hashlib, html, urllib.request, urllib.parse, mimetypes
+import schedule
 from trial import handle as handle_trial
 from saudi_rhythm import block_for_body
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -55,6 +56,33 @@ T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates')
 T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
 T_SEND = {('POST', '/send-farq')}
 
+def targeting_call(method, path, body=None):
+    """One call to the targeting service with the server's service header: (status, data, content-type).
+    The proxy and the scheduled-send runner (schedule.py) both go through here."""
+    req = urllib.request.Request(TARGETING + path, data=body, method=method, headers={'content-type': 'application/json'})
+    if TARGETING_SERVICE: req.add_header('X-Farq-Service', TARGETING_SERVICE)
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r: return r.status, r.read(), r.headers.get("Content-Type","application/json")
+    except urllib.error.HTTPError as e: return e.code, e.read(), "application/json"
+
+
+def send_gate(body):
+    """(code, payload) when a /send-farq call must not be forwarded now, else None: closed unless TARGETING_SEND=1, and
+    held during prayer (saudi_rhythm). The one gate of the immediate path and of scheduled sends."""
+    if not TARGETING_SEND: return 403, {'ok': False, 'error': 'SEND_DISABLED'}
+    # Owner-approved send rule (2026-10-16): no campaign send from a prayer's start until 25 min after it, nor during
+    # Friday prayer (11:30–13:30 Saudi time), in any target city (saudi_rhythm.py). 409, not forwarded.
+    blk = block_for_body(body)
+    return (409, blk) if blk else None
+
+
+def send_farq(body):
+    """The immediate send path as a function: gate, then forward /send-farq unchanged. (status, data, content-type)."""
+    g = send_gate(body)
+    if g: return g[0], json.dumps(g[1], ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8'
+    return targeting_call('POST', '/send-farq', body)
+
+
 HOP = {'connection', 'keep-alive', 'transfer-encoding', 'host', 'content-length', 'accept-encoding'}
 
 class H(BaseHTTPRequestHandler):
@@ -68,7 +96,9 @@ class H(BaseHTTPRequestHandler):
             with urllib.request.urlopen(req, timeout=10) as response:
                 user = json.load(response).get('data', {}).get('user', {})
             allowed = {e.strip().lower() for e in os.environ.get('ALLOWED_EMAILS', 'abdulrhman@farq.sa').split(',') if e.strip()}
-            return bool(user.get('id') and str(user.get('email', '')).lower() in allowed)
+            ok = bool(user.get('id') and str(user.get('email', '')).lower() in allowed)
+            self._user = user if ok else None  # the owner identity scheduled campaigns are stored under
+            return ok
         except Exception: return False
     def _send(self, code, body, ctype='text/html; charset=utf-8', extra=None):
         self.send_response(code); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(body))); self.send_header('Cache-Control', 'no-store')
@@ -96,18 +126,10 @@ class H(BaseHTTPRequestHandler):
         key = (self.command, path)
         # Read-only: lets the review screen say up front whether sending is open (Figma M11c). Never changes the flag.
         if key == ('GET', '/send-status'): return self._send(200, json.dumps({'send': TARGETING_SEND}).encode(), 'application/json')
-        if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
         if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
+        if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
-        # Owner-approved send rule (2026-10-16): no campaign send from a prayer's start until 25 min after it, nor during
-        # Friday prayer (11:30–13:30 Saudi time), in any target city (saudi_rhythm.py). Nothing is scheduled: 409, not forwarded.
-        if key in T_SEND and (blk := block_for_body(body)):
-            return self._send(409, json.dumps(blk, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
-        req = urllib.request.Request(TARGETING + path + (("?"+parsed.query) if parsed.query else ""), data=body, method=self.command, headers={'content-type': 'application/json'})
-        if TARGETING_SERVICE: req.add_header('X-Farq-Service', TARGETING_SERVICE)
-        try:
-            with urllib.request.urlopen(req, timeout=120) as r: status, data, ctype = r.status, r.read(), r.headers.get("Content-Type","application/json")
-        except urllib.error.HTTPError as e: status, data, ctype = e.code, e.read(), "application/json"
+        try: status, data, ctype = send_farq(body) if key in T_SEND else targeting_call(self.command, path + (("?"+parsed.query) if parsed.query else ""), body)
         except Exception as e: return self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json')
         self._send(status, data, ctype)
     def _origin(self): return SITE_URL or ('https://' + (self.headers.get('Host') or 'localhost'))
@@ -120,6 +142,7 @@ class H(BaseHTTPRequestHandler):
         page = page.replace('<meta name="robots" content="noindex, nofollow" />', '', 1).replace('<title>FARQ B2B</title>', landing_head(self._origin()), 1)
         self._send(200, page.encode())
     def do_GET(self):
+        if self.path.startswith('/api/targeting/schedule') and schedule.handle(sys.modules[__name__], self, 'GET'): return
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if self.path.startswith('/_api/'): return self._proxy()
         if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
@@ -145,6 +168,7 @@ class H(BaseHTTPRequestHandler):
         if not n.startswith('/') or n.startswith('//') or '\\' in n or n.startswith('/__gate') or any(ord(ch) < 32 for ch in n): return '/requests'
         return n
     def do_POST(self):
+        if self.path.startswith('/api/targeting/schedule') and schedule.handle(sys.modules[__name__], self, self.command): return
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if urllib.parse.urlparse(self.path).path == '/__gate':
             return self._send(410, b'{"error":"USE_ACCOUNT_LOGIN"}', 'application/json')
@@ -154,5 +178,6 @@ class H(BaseHTTPRequestHandler):
     do_PUT = do_PATCH = do_DELETE = do_POST
 
 if __name__ == '__main__':
-    print(f'farq-pricing on :{PORT} -> {API} (account login; targeting -> {TARGETING}, send: {"ON" if TARGETING_SEND else "off"})', flush=True)
+    print(f'farq-pricing on :{PORT} -> {API} (account login; targeting -> {TARGETING}, send: {"ON" if TARGETING_SEND else "off"}, schedule: {"ON" if schedule.ENABLED and schedule.DB_URL else "off"})', flush=True)
+    schedule.start(sys.modules[__name__])  # scheduled sends: only with TARGETING_SCHEDULE_ENABLED=1 and a store
     ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()

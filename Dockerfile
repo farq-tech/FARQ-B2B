@@ -15,7 +15,9 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 COPY --from=build /app/dist ./dist
-COPY server.py trial.py saudi_rhythm.py ./
+# scheduled sends store (Postgres); imported only when TARGETING_SCHEDULE_ENABLED=1
+RUN pip install --no-cache-dir 'psycopg[binary]==3.2.*'
+COPY server.py trial.py saudi_rhythm.py schedule.py ./
 ENV PORT=8080
 EXPOSE 8080
 CMD ["python3", "server.py"]
