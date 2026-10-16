@@ -46,6 +46,24 @@ class Understand(unittest.TestCase):
             self.assertFalse([s for s in self.fam(q, obj)['targets'] if s.startswith(('noncom.', 'unc.'))])
 
 
+    def test_specialty_names_its_subcategory(self):   # «شريط بيوتيل» alone: the specialty gives the subcategory
+        u = self.fam('أبي شريط بيوتيل')
+        self.assertIn('build.insulation', u['targets']); self.assertIn('build.insulation.butyl_tape', u['specialties'])
+
+    def test_specialty_does_not_widen_an_understood_request(self):   # «جبس بورد» stays building gypsum, never mining
+        self.assertNotIn('energy.mining', self.fam('ادور محلات مختصة بالواح الجبس بورد')['targets'])
+
+    def test_onboarding_suggestions(self):
+        main = self.tx.subs['build.insulation']['main_id']   # the supplier picks his sector first
+        got = {x['specialty_id'] for x in self.tx.suggest_specialties('ممبرين، شريط بيوتيل، فوم رش', main)}
+        self.assertIn('build.insulation.butyl_tape', got); self.assertIn('build.insulation.bitumen_membrane', got)
+        self.assertTrue(all(self.tx.subs[self.tx.specs[x]['sub_id']]['main_id'] == main for x in got))
+
+    def test_service_radius_defaults(self):
+        self.assertEqual(ts.service_radius('ind.plastic', ''), 1000)
+        self.assertGreater(ts.service_radius('build.insulation', 'wholesale|retail'), ts.service_radius('food.cafe', 'retail'))
+
+
 class Search(unittest.TestCase):
     def test_rows_and_reason(self):
         d = tempfile.mkdtemp()

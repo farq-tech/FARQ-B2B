@@ -115,6 +115,17 @@ class Taxonomy:
         # market vocabulary: hand-written Saudi terms (saudi_market_terms.csv) and the mined lexicon (search_lexicon.csv: activity labels,
         # HudHud keywords, Google/Urbi categories, words frequent in the names of one subcategory). Mined name-only words must be
         # specific (share >= 0.6, support >= 5) and never a family-name style word («الحربي»).
+        # specialty layer (specialties.csv): what a buyer may name exactly («شريط بيوتيل») under a subcategory («مواد عزل»)
+        self.specs, self.spec_rx = {}, []
+        sp = os.path.join(tax_dir, 'specialties.csv')
+        if os.path.isfile(sp):
+            for r in csv.DictReader(open(sp, encoding='utf-8')):
+                if r['specialty_ar'] in ('', '—') or r['sub_id'] not in self.subs: continue
+                self.specs[r['specialty_id']] = r
+                terms = sorted({norm(t) for t in (r['match_terms'] or '').split('|') if len(norm(t)) >= 3} | {norm(r['specialty_ar'])}, key=len, reverse=True)
+                terms = [t for t in terms if t and t not in GENERIC]
+                if terms:
+                    self.spec_rx.append((re.compile(r'(?:^|\s)(?:وال|بال|لل|ال|و|ب|ل)?(?:' + '|'.join(re.escape(t) for t in terms) + r')(?=\s|$)'), r['specialty_id'], max(len(t) for t in terms)))
         self.market_terms = set()
         for fn, mined in (('saudi_market_terms.csv', False), ('search_lexicon.csv', True)):
             path = os.path.join(tax_dir, fn)
@@ -162,6 +173,28 @@ class Taxonomy:
                 if sc > best: best, subs = sc, set(self.sub_terms[g])
                 elif sc == best: subs |= self.sub_terms[g]
         return sorted(subs)[:4], best
+
+    def specialties_in(self, q):
+        """Specialties named in the request; the most specific (longest term) wins when several overlap."""
+        t = ' ' + norm(q) + ' '
+        hits = [(sid, n) for rx, sid, n in self.spec_rx if rx.search(t)]
+        if not hits: return []
+        best = max(n for _, n in hits)
+        return [sid for sid, n in hits if n >= best - 2][:4]
+
+    def suggest_specialties(self, text, main_id=None, limit=12):
+        """Supplier onboarding: from free text («أبيع ممبرين وفوم وشريط بيوتيل») suggest specialties to confirm, never a 4,000-item tree."""
+        found = {}
+        for line in re.split(r'[\n،,;|/]+', text or ''):
+            t = ' ' + norm(line) + ' '
+            if not t.strip(): continue
+            for rx, sid, n in self.spec_rx:
+                sub = self.specs[sid]['sub_id']
+                if main_id and self.subs[sub].get('main_id') != main_id: continue
+                if rx.search(t): found[sid] = max(found.get(sid, 0), n)
+        ranked = sorted(found, key=lambda s: -found[s])[:limit]
+        return [{'specialty_id': s, 'specialty_ar': self.specs[s]['specialty_ar'], 'sub_id': self.specs[s]['sub_id'],
+                 'sub_ar': self.subs[self.specs[s]['sub_id']]['sub_ar'], 'main_ar': self.specs[s]['main_ar']} for s in ranked]
 
     def customer_subs(self, q):
         """Business types the seller names as customers: «للمطاعم», «لمحلات الحلاقة»."""
@@ -236,7 +269,20 @@ class Taxonomy:
                 sold = [f for f, _ in sorted(((f, w) for f, lst in self.rel['sells'].items() for s, w in lst if s in targets), key=lambda x: -x[1])]
                 # describe what the named shops sell; keep a matched product only if those shops sell it
                 fams = [f for f in fams if f in sold] or sold[:2]
-        return {'families': fams, 'named_subs': named, 'relation': relation, 'targets': targets, 'source': source}
+        specs = self.specialties_in(q) if objective != 'marketing' else []
+        if specs and fscore < 12 and sscore < 20:   # loose family word and no Saudi market word: the full specialty name wins
+            named = []
+            # a loose one-word family match («شريط») loses to a specialty named in full («شريط بيوتيل»)
+            targets = {}
+        if targets:
+            # the request is already understood: a specialty only refines ranking inside those subcategories («جبس بورد» is not mining)
+            specs = [x for x in specs if self.specs[x]['sub_id'] in targets]
+        else:
+            # nothing else matched («شريط بيوتيل»): the specialty names the subcategory
+            for sid in specs:
+                sub = self.specs[sid]['sub_id']
+                if self._sub_ok(sub): targets[sub] = 2.5
+        return {'families': fams, 'named_subs': named, 'relation': relation, 'targets': targets, 'source': source, 'specialties': specs}
 
     def search(self, db, directory_path, q, city, objective, search_sql='true'):
         """Returns the same result shape as trial_search.Directory.search (before paging), or None when no family is understood."""
@@ -246,12 +292,15 @@ class Taxonomy:
         overlay_join = ('left join read_parquet(?) o using (poi_key)' if self.overlay else '') + (' left join read_parquet(?) h using (poi_key)' if self.hudhud else '')
         overlay_cols = ('o.phone, o.phone_kind, o.has_whatsapp, o.phone_source, o.phone_source_name' if self.overlay else 'null, null, null, null, null') + \
             (", (h.last_operation='delete' and h.last_review_status='approved') hh_deleted" if self.hudhud else ', false')
+        if not hasattr(self, '_has_spec_col'):
+            self._has_spec_col = 'specialty_ids' in {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
+        spec_col = "coalesce(t.specialty_ids,'')" if self._has_spec_col else "''"
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
                    t.latitude, t.longitude, t.city_en, t.region_ar, t.region_en, t.name_en, t.phone_norm, t.phone_kind, t.has_whatsapp,
                    t.email, t.source_count, t.category, t.legal_name, t.brand_name, t.secondary_category, t.category_l3,
-                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}
+                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
@@ -260,10 +309,12 @@ class Taxonomy:
         qwords = [w for w in (strip_pfx(t) for t in qn) if len(w) >= 3 and w not in GENERIC and w not in BUY_CUES and w not in SELL_CUES and w not in TARGET_CUES]
         wholesale = bool(set(qn) & {'جمله', 'بالجمله', 'wholesale', 'موزع', 'موزعين', 'مصنع', 'مصانع'})
         fam_ar = '، '.join(self.families[f]['family_ar'] for f in u['families']) or '، '.join(self.subs[x]['sub_ar'] for x in u['named_subs'])
+        asked_specs = u.get('specialties') or []
+        asked_subs = {self.specs[x]['sub_id'] for x in asked_specs}
         out, seen = [], set()
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
-             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted) = r
+             source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -286,6 +337,17 @@ class Taxonomy:
                 reason = f'نشاطها «{sub_ar}» يشتري عادةً {fam_ar}؛ احتياج الشراء غير مثبت'
             else:
                 reason = f'نشاطها «{sub_ar}» يبيع عادةً {fam_ar}؛ التوفر والسعر يحتاجان تأكيد الجهة'
+            # specialty first, then the parent subcategory as an explicit fallback (never presented as a confirmed specialty)
+            match_level = 'category'
+            if asked_specs:
+                have = set(filter(None, (row_specs or '').split('|')))
+                hit = [x for x in asked_specs if x in have]
+                if hit:
+                    match_level, weight = 'specialty', weight + 2.0
+                    reason = f'يوفّر «{self.specs[hit[0]]["specialty_ar"]}» حسب بياناته؛ السعر والتوفر يحتاجان تأكيد الجهة'
+                elif sub in asked_subs:
+                    match_level = 'category_fallback'
+                    reason = f'مورد عام في «{sub_ar}»؛ ما تأكدنا أنه يوفّر «{self.specs[asked_specs[0]]["specialty_ar"]}» بالذات'
             if hh_deleted:
                 extra = {**extra, 'hudhud_deleted': True, 'sendable': False,
                          'warning': 'حذفها مسّاحو هدهد بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
@@ -297,15 +359,29 @@ class Taxonomy:
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
                 'evidence': {'source': 'farq_taxonomy', 'text': sub_ar, 'confidence': 'activity_inference' if objective == 'marketing' else 'business_evidence'},
-                'purchase_intent': 'unknown', **extra,
+                'purchase_intent': 'unknown', 'match_level': match_level, 'service_radius_km': service_radius(sub, self.subs.get(sub, {}).get('roles', '')), **extra,
                 'match_confidence': {'score': int(min(95, 55 + 15 * weight)), 'basis': 'تصنيف النشاط وعلاقة يبيع/يشتري؛ ليس تأكيدًا للتوفر أو نية الشراء', 'method': 'taxonomy_relation_heuristic_not_probability'},
             }))
         out.sort(key=lambda x: (-x[0], x[1]['name_ar'] or ''))
         top_subs = sorted(u['targets'], key=lambda s: -u['targets'][s])
         label = '، '.join(self.subs[s]['sub_ar'] for s in top_subs[:4])
-        return {'rows': [r for _, r in out], 'total': len(out), 'intent': fam_ar, 'ranking': 'taxonomy',
+        spec_ar = [self.specs[x]['specialty_ar'] for x in asked_specs]
+        return {'rows': [r for _, r in out], 'total': len(out), 'intent': fam_ar or '، '.join(spec_ar), 'ranking': 'taxonomy',
+                'specialty': {'asked': spec_ar, 'exact': sum(1 for _, r in out if r['match_level'] == 'specialty'),
+                              'fallback': sum(1 for _, r in out if r['match_level'] == 'category_fallback')} if asked_specs else None,
                 'understood': {'direction': 'buyer' if objective == 'marketing' else 'seller', 'family': fam_ar, 'target_label': label,
                                'target_types': [self.subs[s]['sub_ar'] for s in top_subs], 'source': u['source'], 'families': u['families']}}
+
+
+# Default delivery/service radius by business type until the supplier sets its own (owner rule 2026-10-16: delivery radius is a
+# primary filter beside specialty and confidence). Factories deliver nationwide, wholesalers across the region, shops and
+# technicians within the city.
+def service_radius(sub, roles):
+    if sub.startswith('ind.') or sub.endswith(('_mfg', '_factory')) or 'factory' in sub: return 1000
+    if 'wholesale' in (roles or '') and 'retail' not in (roles or ''): return 300
+    if 'wholesale' in (roles or ''): return 150
+    if 'service' in (roles or ''): return 60
+    return 40
 
 
 def ai_families(q, families, timeout=6):
