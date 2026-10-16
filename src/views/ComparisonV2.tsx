@@ -368,7 +368,7 @@ export function ComparisonV2({ navigate }: NavProps) {
           <section aria-label="ملخص الأسعار" data-tone="deep" className="flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-4">
             <div className="flex flex-col items-start gap-0.5">
               <p className="text-[14px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].label}</p>
-              {/* S5: the figure is light text on charcoal (11.7:1); green #008060 is only 2.7:1 on charcoal, so it is a marker, never text. */}
+              {/* S5: the figure is light text on charcoal (11.7:1); the green accent (--color-bg-delta) is only 2.7:1 on charcoal, so it is a marker, never text. */}
               <div className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-text-on-inverse)]"><span aria-hidden className="h-6 w-1 shrink-0 rounded-full bg-[var(--color-bg-delta)]" />{figures[0].value}</div>
               <p className="text-[12px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].basis}</p>
             </div>
