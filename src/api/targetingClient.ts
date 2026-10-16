@@ -5,6 +5,7 @@ import { farqSession } from './farqSession'
  * targeting service after server-side account validation, with that service's password from its own environment.
  *
  * Endpoints (the service's own, unchanged):
+ *   POST /clusters          — { city, q?, objective?, sub_ids?, wholesale?, bounds? } → where a trade concentrates (street / district / cell)
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
  *   GET  /send-status       — answered by server.py itself: { send } (read-only view of TARGETING_SEND)
@@ -38,6 +39,10 @@ export type TargetRow = {
   region_en: string | null
   region_ar: string | null
   city_en: string | null
+  /** Street name from the place's address, when known. */
+  street_ar?: string | null
+  /** The business says it sells wholesale (جملة). */
+  is_wholesale?: boolean
   district_en: string | null
   district_ar: string | null
   latitude: number | null
@@ -79,7 +84,30 @@ export type TargetSearch = {
   with_email: number
   by_region: [string | null, number][]
   rows: TargetRow[]
+  /** Districts and streets of this request's places, counted before the district / street filters (so pickers keep their options). */
+  areas?: SearchAreas
+  /** What the service read from the request: wholesale = it asks for «جملة»; sub_ids = the targeted subcategories. */
+  understood?: { wholesale?: boolean; sub_ids?: (string | number)[] } & Record<string, unknown>
 }
+
+export type SearchAreas = { districts: { name: string; n: number }[]; streets: { name: string; district: string; n: number }[]; wholesale: number }
+
+/** A place where one trade concentrates (POST /clusters), e.g. «أدوات صحية وسباكة — شارع خالد بن الوليد، الملك فيصل», 37 shops. */
+export type TradeCluster = {
+  level: 'street' | 'district' | 'cell'
+  label_ar: string
+  sub_id: string | number | null
+  sub_ar: string | null
+  district_ar: string | null
+  street_ar: string | null
+  n: number
+  n_wholesale: number
+  wholesale_pct: number
+  lift: number
+  lat: number
+  lon: number
+}
+export type TradeClusters = { clusters: TradeCluster[]; wholesale?: number; basis?: string }
 
 export type TemplateStatus = {
   name: string
@@ -121,12 +149,13 @@ export const targetingStatus = () => call<{ pois: number; whatsapp: number; emai
 /** Whether this environment lets a campaign leave (server.py TARGETING_SEND). Any error reads as closed. */
 export const sendStatus = () => call<{ send?: boolean }>('GET', '/send-status').then((r) => r?.send === true, () => false)
 export const templateStatus = () => call<TemplateStatus>('GET', '/template-status')
-export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]}
+export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]; /** exact district, e.g. «الفيصلية» */ district?:string; /** part of the street name */ street?:string; /** only businesses that say they sell wholesale */ wholesale?:boolean}
 export type DirectoryFacets = {categories:{value:string;label:string;count:number;subcategories:{value:string;label:string;count:number}[]}[]; size_available:boolean}
 export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
 export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
 export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
 export const searchTargets = (q: string, city: string, limit = 30, objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase', offset = 0, filters:SearchFilters = {}) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false })
+export const tradeClusters = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[]; wholesale?: boolean; bounds?: [number, number, number, number] }) => call<TradeClusters>('POST', '/clusters', body)
 export type City = { en: string; ar: string | null; n: number }
 export const listCities = () => call<City[]>('GET', '/cities')
 

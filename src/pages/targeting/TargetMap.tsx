@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { waNumber, type TargetRow } from '../../api/targetingClient'
+import { waNumber, type TargetRow, type TradeCluster } from '../../api/targetingClient'
 import { FOCUS_RING } from '../../ui/cx'
 
 /*
@@ -7,10 +7,13 @@ import { FOCUS_RING } from '../../ui/cx'
  * real coordinates (equirectangular, fitted to the results). No tiles and no drawn roads: nothing on
  * this map is invented. Map Marker (24:188): colour = best reachable channel; Selected = ring; Cluster =
  * count in a dark circle (tap to zoom in). The segment is the outline around the chosen places.
+ * Trade clusters (where this trade concentrates) are light rings sized by their shop count, under the places;
+ * tapping one narrows the search to its district / street (the frame then follows the narrowed results).
  */
 
 type Pt = { r: TargetRow; x: number; y: number }
 const CELL = 50
+const NO_CLUSTERS: TradeCluster[] = []
 const COLOR = { wa: 'var(--brand-accent)', email: 'var(--brand-action-light)', none: 'var(--brand-text-3)' }
 const colorOf = (r: TargetRow) => (waNumber(r) ? COLOR.wa : r.email ? COLOR.email : COLOR.none)
 
@@ -24,7 +27,7 @@ function hull(ps: { x: number; y: number }[]) {
   return lo.slice(0, -1).concat(up.slice(0, -1))
 }
 
-export default function TargetMap({ rows, selected, focusedKey, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean }) {
+export default function TargetMap({ rows, selected, focusedKey, onToggle, topInset = 72, legend = true, clusters = NO_CLUSTERS, onCluster }: { rows: TargetRow[]; selected: Set<string>; focusedKey?: string; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean; /** trade clusters from POST /clusters */ clusters?: TradeCluster[]; onCluster?: (c: TradeCluster) => void; /** Mapbox only: the drawn map frames the results */ flyTo?: { lat: number; lon: number; at: number } | null }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   // zoom belongs to one result set: a new search shows everything again
@@ -40,10 +43,10 @@ export default function TargetMap({ rows, selected, focusedKey, onToggle, topIns
   }, [])
 
   const geo = useMemo(() => rows.filter((r) => r.latitude != null && r.longitude != null && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)), [rows])
-  const { pts, clusters, outside } = useMemo(() => {
+  const { pts, clusters: groupsOf, outside, proj } = useMemo(() => {
     let outside = 0
     const view = zoom ? geo.filter((r) => zoom.includes(r.poi_key)) : geo
-    if (!view.length || !size.w || !size.h) return { pts: [] as Pt[], clusters: [] as Pt[][], outside: 0 }
+    if (!view.length || !size.w || !size.h) return { pts: [] as Pt[], clusters: [] as Pt[][], outside: 0, proj: null }
     // robust frame: the middle 96% of the places, so a few far-off points do not shrink the dense area
     const q = (a: number[], f: number) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))]
     const lons = view.map((r) => r.longitude!).sort((a, b) => a - b), lats = view.map((r) => r.latitude!).sort((a, b) => a - b)
@@ -54,7 +57,8 @@ export default function TargetMap({ rows, selected, focusedKey, onToggle, topIns
     const spanX = Math.max((x1 - x0) * k, 0.01), spanY = Math.max(y1 - y0, 0.01)
     const s = Math.min((size.w - pad * 2) / spanX, (size.h - top - bottom) / spanY)
     const ox = (size.w - spanX * s) / 2, oy = top + (size.h - top - bottom - spanY * s) / 2
-    const all: Pt[] = view.map((r) => ({ r, x: ox + (r.longitude! - x0) * k * s, y: oy + (y1 - r.latitude!) * s }))
+    const proj = (lat: number, lon: number) => ({ x: ox + (lon - x0) * k * s, y: oy + (y1 - lat) * s })
+    const all: Pt[] = view.map((r) => ({ r, ...proj(r.latitude!, r.longitude!) }))
     const inside = all.filter((p) => p.x > 12 && p.x < size.w - 12 && p.y > (legend ? 56 : topInset - 24) && p.y < size.h - 12)
     // greedy clustering: a place joins the first group whose centre is closer than CELL
     const groups: { x: number; y: number; ps: Pt[] }[] = []
@@ -65,20 +69,36 @@ export default function TargetMap({ rows, selected, focusedKey, onToggle, topIns
     const single: Pt[] = [], many: Pt[][] = []
     for (const g of groups) { if (g.ps.length === 1) single.push(g.ps[0]); else many.push(g.ps) }
     outside = view.length - inside.length
-    return { pts: single, clusters: many, outside }
+    return { pts: single, clusters: many, outside, proj }
   }, [geo, zoom, size, topInset, legend])
+  // trade clusters inside the frame, biggest first so the small ones stay on top and tappable
+  const trade = useMemo(() => {
+    if (!proj || !clusters.length) return []
+    const top = Math.max(...clusters.map((c) => c.n), 1)
+    return clusters.map((c) => ({ c, ...proj(c.lat, c.lon), d: Math.round(32 + 48 * Math.sqrt(c.n / top)) }))
+      .filter((p) => p.x > 12 && p.x < size.w - 12 && p.y > (legend ? 56 : topInset - 24) && p.y < size.h - 12)
+      .sort((a, b) => b.d - a.d)
+  }, [proj, clusters, size, legend, topInset])
 
   const seg = useMemo(() => {
-    const ch = [...pts, ...clusters.flat()].filter((p) => selected.has(p.r.poi_key))
+    const ch = [...pts, ...groupsOf.flat()].filter((p) => selected.has(p.r.poi_key))
     return ch.length >= 3 ? hull(ch) : []
-  }, [pts, clusters, selected])
+  }, [pts, groupsOf, selected])
 
   return (
     <div ref={box} className="absolute inset-0">
       <svg width={size.w} height={size.h} className="absolute inset-0" aria-hidden>
         {seg.length ? <polygon points={seg.map((p) => `${p.x},${p.y}`).join(' ')} fill={COLOR.wa} fillOpacity={0.12} stroke={COLOR.wa} strokeWidth={2} strokeLinejoin="round" /> : null}
       </svg>
-      {clusters.map((c) => {
+      {trade.map(({ c, x, y, d }, i) => (
+        <button key={`t${i}`} type="button" onClick={() => onCluster?.(c)} aria-label={`${c.label_ar} — ${c.n} محل${c.wholesale_pct >= 30 ? ' · جملة' : ''}`} title={c.label_ar}
+          className={`absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border-2 border-dashed border-[var(--color-text-on-inverse)] bg-[var(--white-a16)] ${FOCUS_RING}`}
+          style={{ left: x, top: y, width: d, height: d }}>
+          {c.wholesale_pct >= 30 ? <span className="absolute -top-2 rounded-full bg-[var(--color-bg-surface)] px-1.5 text-[11px] leading-[16px] font-medium text-[var(--color-text-primary)]">جملة</span> : null}
+          <span className="pointer-events-none absolute top-full mt-1 max-w-[140px] truncate rounded-full bg-[var(--color-bg-inverse)]/80 px-2 text-[11px] leading-[16px] font-medium whitespace-nowrap text-[var(--color-text-on-inverse)]">{(c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar} · {c.n}</span>
+        </button>
+      ))}
+      {groupsOf.map((c) => {
         const x = c.reduce((a, p) => a + p.x, 0) / c.length, y = c.reduce((a, p) => a + p.y, 0) / c.length
         const big = c.length >= 100
         return (
