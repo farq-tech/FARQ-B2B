@@ -18,7 +18,12 @@ spec = list(csv.DictReader(open(T, encoding='utf-8')))
 import json as _json
 _tax = {x['sub_id']: x for x in _json.load(open('/Users/m4pro/farq-pricing/docs/qa/targeting/taxonomy/farq_taxonomy.json'))['subs']}
 # a term is evidence for ONE specialty only if it is not the subcategory's own wording («مقاولات», «زجاج», «عزل») and no sibling shares it
-_sub_words = {sid: set(norm(x['sub_ar'] + ' ' + (x.get('sub_en') or '')).split()) | {w[2:] for w in norm(x['sub_ar']).split() if w.startswith('ال')} for sid, x in _tax.items()}
+def _bare(w):
+    # «وسياحه», «والسفر», «للسفر» are the subcategory's own words too (owner 2026-10-16: «سياحة» made 4,700 travel agencies «باقات سياحية خارجية»)
+    for p in ('وال', 'بال', 'لل', 'ال', 'و'):
+        if w.startswith(p) and len(w) - len(p) >= 3: return w[len(p):]
+    return w
+_sub_words = {sid: {v for w in norm(x['sub_ar'] + ' ' + (x.get('sub_en') or '')).split() for v in (w, _bare(w))} for sid, x in _tax.items()}
 _term_owners = collections.defaultdict(set)
 for r in spec:
     for t in (r['match_terms'] or '').split('|'):
@@ -83,12 +88,28 @@ sub_rows = dict(db.execute("select sub_id, count(*) from g group by 1").fetchall
 name_hits = collections.Counter((SUB[i], i) for x in out for i, src in zip(x[1], x[3]) if src == 'name')
 generic = {i for (sub, i), n in name_hits.items() if sub_rows.get(sub, 0) >= 30 and n / sub_rows[sub] > 0.33}
 print('generic-by-name specialties dropped from name evidence:', sorted(AR[i] for i in generic)[:30])
+# the same test for source labels: a label carried by a third of a subcategory («travel agency») names the trade, not one specialty
+label_hits = collections.Counter((SUB[i], i) for x in out for i, src in zip(x[1], x[3]) if src == 'source_label')
+generic_label = {i for (sub, i), n in label_hits.items() if sub_rows.get(sub, 0) >= 30 and n / sub_rows[sub] > 0.33}
+print('generic-by-label specialties dropped from label evidence:', sorted(AR[i] for i in generic_label)[:30])
 clean = []
 for key, ids, ars, srcs, conf in out:
-    keep = [(i, src) for i, src in zip(ids, srcs) if not (src == 'name' and i in generic)]
+    keep = [(i, src) for i, src in zip(ids, srcs) if not ((src == 'name' and i in generic) or (src == 'source_label' and i in generic_label))]
     if keep:
         clean.append((key, [i for i, _ in keep], [AR[i] for i, _ in keep], [src for _, src in keep], 'high' if any(src != 'name' for _, src in keep) else 'medium'))
 out = clean
+# last pass (owner 2026-10-16 «تأكد بان المشكلة ليست موجودة بامثله وتخصصات اخرى»): a specialty that still covers more than a third of
+# a subcategory («معدات مطابخ ومطاعم», «مكافحة حشرات عامة», «مقهى شيشة») is the subcategory itself, not a specialty — kept only where the
+# supplier declared it (farq_items)
+hits = collections.Counter(SUB[i] + '|' + i for x in out for i in x[1])
+too_common = {k.split('|', 1)[1] for k, n in hits.items() if sub_rows.get(k.split('|', 1)[0], 0) >= 30 and n / sub_rows[k.split('|', 1)[0]] > 0.33}
+print('specialties covering >1/3 of their subcategory (kept only when supplier-declared):', sorted(AR[i] for i in too_common)[:40])
+final = []
+for key, ids, ars, srcs, conf in out:
+    keep = [(i, src) for i, src in zip(ids, srcs) if i not in too_common or src == 'farq_items']
+    if keep:
+        final.append((key, [i for i, _ in keep], [AR[i] for i, _ in keep], [src for _, src in keep], 'high' if any(src != 'name' for _, src in keep) else 'medium'))
+out = final
 db.execute("create table o (poi_key varchar, specialty_ids varchar[], specialties_ar varchar[], specialty_sources varchar[], specialty_confidence varchar)")
 db.executemany("insert into o values (?,?,?,?,?)", out)
 db.execute(f"copy o to '{D}enrich/specialty_assign.parquet' (format parquet)")
