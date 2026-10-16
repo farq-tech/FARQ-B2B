@@ -6,6 +6,7 @@ import {
 } from '../../api/opportunityRequestsClient'
 import { Badge, Button, Icon } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
+import { hijriLabel } from '../../lib/saudi'
 
 /*
  * «طلباتي» on خريطة الفرص: the organization's requests, compact. A request can be cancelled (confirm + optional
@@ -18,7 +19,8 @@ const FILTERS: [OpportunityRequestFilter, string][] = [['all', 'الكل'], ['ac
 const ACTION: Record<string, string> = { CREATE: 'أنشأ الطلب', UPDATE: 'عدّل الطلب', CANCEL: 'ألغى الطلب', HIDE: 'أخفى الطلب', UNHIDE: 'أظهر الطلب', ARCHIVE: 'أرشف الطلب', RESTORE: 'استرجع الطلب' }
 const ROLE: Record<string, string> = { OWNER: 'مالك', ADMIN: 'مدير', MEMBER: 'عضو', VIEWER: 'مشاهد' }
 const KIND: Record<string, string> = { BOOKLET: 'كراسة', PURCHASE_REQUEST: 'طلب شراء', SELLER_CATALOG: 'كتالوج', SELLER_PRODUCTS: 'منتجاتي', SEARCH: 'بحث' }
-const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) }
+// Gregorian (explicit: ar-SA alone defaults to the Hijri calendar) with the Umm al-Qura date beside it
+const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : `${d.toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' })} · ${hijriLabel(d)}` }
 const small = `rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-50 ${FOCUS_RING}`
 const tag = (label: string) => <Badge tone="Neutral" showDot={false} label={label} className="px-2 py-0 text-[12px] leading-[18px]" />
 
