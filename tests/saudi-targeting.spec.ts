@@ -27,6 +27,7 @@ async function setup(page: Page, opts: { send?: boolean; at: Date; prayerBlock?:
   await page.route('**/_targeting/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
+    if (path.endsWith('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [] } })
     if (path.endsWith('/districts')) return route.fulfill({ status: 404, json: { error: 'not_found' } }) // no polygons: district chips
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] }] } })

@@ -1,4 +1,4 @@
-import { waNumber, type DistrictFeature, type TargetRow } from '../../../api/targetingClient'
+import { waNumber, type DistrictFeature, type StreetDensityProps, type StreetLine, type TargetRow } from '../../../api/targetingClient'
 import { MAINS, SUBS } from './taxonomy.data'
 
 /*
@@ -167,3 +167,53 @@ export function km(a: { lat: number; lon: number }, b: { lat: number; lon: numbe
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2
   return 2 * R * Math.asin(Math.sqrt(h))
 }
+
+// ---------- dense streets (POST /street-density) and district density (choropleth)
+export type Street = {
+  id: string
+  props: StreetDensityProps
+  lines: number[][][]
+  /** a point half-way along the longest piece: where the label pill sits */
+  mid: [number, number]
+  bbox: [number, number, number, number]
+}
+const segLen = (a: number[], b: number[]) => Math.hypot((b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), b[1] - a[1])
+function halfway(line: number[][]): [number, number] {
+  const total = line.slice(1).reduce((s, p, i) => s + segLen(line[i], p), 0)
+  let left = total / 2
+  for (let i = 1; i < line.length; i++) {
+    const d = segLen(line[i - 1], line[i])
+    if (d >= left && d > 0) { const t = left / d; return [line[i - 1][0] + (line[i][0] - line[i - 1][0]) * t, line[i - 1][1] + (line[i][1] - line[i - 1][1]) * t] }
+    left -= d
+  }
+  return [line[0][0], line[0][1]]
+}
+export function streetsFrom(fc: { features?: StreetLine[] } | null | undefined): Street[] {
+  return (fc?.features || []).filter((f) => f?.geometry && f.properties?.street_ar).map((f, i) => {
+    const lines = f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.coordinates
+    const longest = [...lines].sort((a, b) => b.reduce((s, p, k) => s + (k ? segLen(b[k - 1], p) : 0), 0) - a.reduce((s, p, k) => s + (k ? segLen(a[k - 1], p) : 0), 0))[0]
+    const xs = lines.flat().map((p) => p[0]), ys = lines.flat().map((p) => p[1])
+    return { id: `${f.properties.street_ar}|${f.properties.sub_id ?? ''}|${i}`, props: f.properties, lines, mid: halfway(longest), bbox: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as [number, number, number, number] }
+  })
+}
+/** Dense first: shops per 100 m, then the number of shops. */
+export const topStreets = (streets: Street[], max = 8) => [...streets].sort((a, b) => b.props.per_100m - a.props.per_100m || b.props.n - a.props.n).slice(0, max)
+/** The district (polygon) a point falls in. */
+export const districtAt = (lon: number, lat: number, districts: District[]) => districts.find((d) => inFeature(lon, lat, d)) || null
+/** How many places of this request each district holds: the service's own district counts by name, else the rows inside. */
+export function densityOf(districts: District[], counts: { name: string; n: number }[], rows: TargetRow[]): Map<string, number> {
+  const out = new Map<string, number>()
+  const byName = new Map(counts.map((c) => [norm(c.name), c.n]))
+  for (const d of districts) {
+    const n = byName.get(norm(d.ar))
+    if (n) out.set(d.id, n)
+  }
+  if (!out.size) for (const r of rows) {
+    const d = hasPoint(r) ? districtAt(r.longitude!, r.latitude!, districts) : null
+    if (d) out.set(d.id, (out.get(d.id) || 0) + 1)
+  }
+  return out
+}
+/** 0 (none) … 4 (densest) on a square-root scale, so one huge district does not wash out the rest. */
+export const densityStep = (n: number, max: number) => (!n || !max ? 0 : Math.max(1, Math.min(4, Math.ceil((Math.sqrt(n) / Math.sqrt(max)) * 4))))
+export const fmtMeters = (m: number) => (m >= 1000 ? `${(m / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} كم` : `${Math.round(m).toLocaleString('en-US')} م`)

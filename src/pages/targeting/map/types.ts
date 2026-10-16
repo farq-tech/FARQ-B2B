@@ -1,5 +1,5 @@
 import type { TradeCluster } from '../../../api/targetingClient'
-import type { District, Layer, Pin } from './model'
+import type { District, Layer, Pin, Street } from './model'
 
 /** The customer's site and delivery radius (owner 2026-10-16). */
 export type Site = { lat: number; lon: number; km: number }
@@ -24,4 +24,11 @@ export type LayerMapProps = {
   fit: { bounds: [number, number, number, number]; at: number } | null
   /** rows' extent before any district geometry is known */
   extent: [number, number, number, number] | null
+  /** the densest streets of this request, drawn along the street */
+  streets: Street[]
+  activeStreet: string | null
+  onStreet: (id: string) => void
+  /** places per district for the choropleth (district id → n) and its maximum */
+  density: Map<string, number>
+  densityMax: number
 }

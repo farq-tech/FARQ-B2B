@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
-  listCities, listDistricts, listTemplates, searchTargets, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  listCities, listDistricts, listTemplates, searchTargets, streetDensity, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -21,11 +21,13 @@ import DrawnLayerMap from './map/DrawnLayerMap'
 import GuideTree from './map/GuideTree'
 import ProfileDrawer from './map/ProfileDrawer'
 import CampaignTray from './map/CampaignTray'
+import StepStrip from './map/StepStrip'
+import MapLegend from './map/MapLegend'
 import { RowBadges } from './map/Badges'
 import { LayerSwatch } from './map/glyphs'
 import {
-  countersOf, districtsFrom, districtsFromNames, guideOf, hasPoint, inDistricts, km, LAYERS, mainAr, mainIdOf, matchesFocus, pinsOf, safeName, subAr, subIdOf,
-  type District, type Focus, type Layer,
+  countersOf, densityOf, districtAt, districtsFrom, fmtMeters, streetsFrom, topStreets, districtsFromNames, guideOf, hasPoint, inDistricts, km, LAYERS, mainAr, mainIdOf, matchesFocus, pinsOf, safeName, subAr, subIdOf,
+  type District, type Focus, type Layer, type Street,
 } from './map/model'
 import type { LayerMapProps, Site } from './map/types'
 
@@ -105,6 +107,9 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const input = useRef<HTMLInputElement>(null)
   const [filters, setFilters] = useState<AreaFilters>({})
   const [clusters, setClusters] = useState<{ list: TradeCluster[]; basis?: string } | null>(null)
+  // the densest streets of this request, drawn along the street (POST /street-density); the one picked
+  const [dense, setDense] = useState<{ list: Street[]; basis?: string } | null>(null)
+  const [activeStreet, setActiveStreet] = useState<string | null>(null)
   const clusterGen = useRef(0)
   // map state: districts, layer, guide pick, profile, site
   const [polys, setPolys] = useState<District[] | null>(null)
@@ -117,7 +122,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const [placingSite, setPlacingSite] = useState(false)
   const [fit, setFit] = useState<LayerMapProps['fit']>(null)
   const fitTo = (bounds: [number, number, number, number]) => setFit((f) => ({ bounds, at: (f?.at || 0) + 1 }))
-  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setFocus(null) }
+  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setDense(null); setActiveStreet(null); setFocus(null) }
   // a booklet turned into lines: tap a line to search for it in the chosen city
   const fileInput = useRef<HTMLInputElement>(null)
   const [lines, setLines] = useState<(BookletLine & { found?: number })[]>([])
@@ -284,6 +289,18 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)).map((x) => ({ ...x, popular_ar: marketNameFor(x, inCity, text) })), basis: c?.basis }) },
       () => { if (v === clusterGen.current) setClusters(null) },
     )
+    setDense(null); setActiveStreet(null)
+    streetDensity({ city: inCity, q: text, objective: obj }).then(
+      (d) => {
+        if (v !== clusterGen.current) return
+        const list = streetsFrom(d)
+        setDense({ list, basis: d?.basis })
+        // right after a search: frame the densest streets so the map shows WHERE at once
+        const top = topStreets(list)
+        if (top.length) fitTo([Math.min(...top.map((x) => x.bbox[0])), Math.min(...top.map((x) => x.bbox[1])), Math.max(...top.map((x) => x.bbox[2])), Math.max(...top.map((x) => x.bbox[3]))])
+      },
+      () => { if (v === clusterGen.current) setDense({ list: [] }) },
+    )
   }
   /**
    * A new request (next = undefined) starts without narrowing filters: «جملة» in the request only RANKS wholesalers first
@@ -321,6 +338,18 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     const d = districts.find((x) => x.ar === c.district_ar)
     if (d) setChosenD((s) => new Set(s).add(d.id))
     applyFilters({ ...keep(filters, ['district', 'street']), district: c.district_ar, street: c.level === 'street' && c.street_ar ? c.street_ar : undefined })
+  }
+
+  /** A dense street (line, its label or the list): zoom to it, choose its district, narrow the results to it, show its card. */
+  const pickStreet = (id: string) => {
+    const st = dense?.list.find((x) => x.id === id)
+    if (!st) return
+    const [w, so, e, no] = st.bbox, pad = 0.002
+    fitTo([w - pad, so - pad, e + pad, no + pad])
+    setActiveStreet(id)
+    const d = hasPolys ? districtAt(st.mid[0], st.mid[1], districts) : null
+    if (d) setChosenD((x) => new Set(x).add(d.id))
+    applyFilters({ ...keep(filters, ['street']), street: st.props.street_ar })
   }
 
   /** «أبي أبيع منتجاتي»: confirmed specialties become search lines on the buyers' side; the first one runs now. */
@@ -423,11 +452,55 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       {markets.map((m) => <Chip key={m.label} className="shrink-0" label={m.label} onClick={() => tryExample(m.term, m.district)} />)}
     </div>
   ) : null
-  const clusterTop = useMemo(() => (clusters?.list || []).filter((c) => c.level !== 'cell').slice(0, 8), [clusters])
+  // dense streets are the primary «تجمعات»: a circle stays only where no street line covers it
+  const denseList = useMemo(() => dense?.list || [], [dense])
+  const streetNames = useMemo(() => new Set(denseList.map((x) => x.props.street_ar)), [denseList])
+  const streetDistricts = useMemo(() => new Set(hasPolys ? denseList.map((x) => districtAt(x.mid[0], x.mid[1], districts)?.ar).filter(Boolean) as string[] : []), [denseList, hasPolys, districts])
+  const circles = useMemo(() => (clusters?.list || []).filter((c) => !(c.level === 'street' && c.street_ar && streetNames.has(c.street_ar)) && !(c.level !== 'street' && c.district_ar && streetDistricts.has(c.district_ar))), [clusters, streetNames, streetDistricts])
+  const clusterTop = useMemo(() => circles.filter((c) => c.level !== 'cell').slice(0, 8), [circles])
+  const activeStreetId = activeStreet && dense?.list.find((x) => x.id === activeStreet)?.props.street_ar === filters.street ? activeStreet : null
+  const pickedStreet = activeStreetId ? dense!.list.find((x) => x.id === activeStreetId)! : null
+  // choropleth: places of this request per district (service counts by name, else rows inside)
+  const density = useMemo(() => (hasPolys && res ? densityOf(districts, res.areas?.districts || [], rows) : new Map<string, number>()), [hasPolys, res, districts, rows])
+  const densityMax = useMemo(() => Math.max(0, ...density.values()), [density])
+  const anyChosen = chosenD.size > 0 || Boolean(filters.street)
+  const step: 1 | 2 | 3 | 4 = !res ? 1 : !anyChosen ? 2 : !selected.size ? 3 : 4
+  const topDistricts = useMemo(() => [...(res?.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 6), [res])
+  const densePanel = res && (denseList.length || topDistricts.length) ? (
+    <section aria-labelledby="dense-title" className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-5 py-3">
+      {denseList.length ? <>
+        <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة</h2>
+        {dense?.basis ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{dense.basis}</p> : null}
+        <ol className="flex flex-col" data-testid="dense-streets">
+          {topStreets(denseList).map((st, i) => (
+            <li key={st.id}>
+              <button type="button" disabled={busy} aria-pressed={activeStreetId === st.id} onClick={() => pickStreet(st.id)}
+                className={`fi-host flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${activeStreetId === st.id ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
+                <span aria-hidden className="w-4 text-center text-[12px] tabular-nums text-[var(--color-text-tertiary)]">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{st.props.street_ar}</span>
+                <span className="shrink-0 text-[12px] tabular-nums text-[var(--color-text-secondary)]">{n(st.props.n)} محل · {st.props.per_100m.toLocaleString('en-US', { maximumFractionDigits: 1 })} لكل ١٠٠ م</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </> : <h2 id="dense-title" className="sr-only">أكثر الأحياء</h2>}
+      {topDistricts.length ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">أكثر الأحياء بهذا النشاط</p>
+          <div role="group" aria-label="أكثر الأحياء" className="flex flex-wrap gap-1.5">
+            {topDistricts.map((d) => {
+              const dist = districts.find((x) => x.ar === d.name)
+              return dist ? <Chip key={d.name} className="shrink-0" icon={DistrictIcon} label={`${d.name} · ${n(d.n)}`} selected={chosenD.has(dist.id)} onClick={() => toggleDistrict(dist.id)} /> : null
+            })}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  ) : null
   const clusterList = clusterTop.length ? (
     <details open className="group border-b border-[var(--color-border-default)] px-5 py-3">
       <summary className={`flex cursor-pointer list-none items-center justify-between gap-2 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>
-        <span className="flex items-center gap-2"><ClustersIcon size={18} className="text-[var(--color-icon-secondary)]" />تجمعات هذا النشاط</span>
+        <span className="flex items-center gap-2"><ClustersIcon size={18} className="text-[var(--color-icon-secondary)]" />{denseList.length ? 'تجمعات أخرى' : 'تجمعات هذا النشاط'}</span>
         <Icon name="chevron-down" size={16} className="text-[var(--color-icon-secondary)] transition-transform group-open:rotate-180" />
       </summary>
       {clusters?.basis ? <p className="mt-1 text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{clusters.basis}</p> : null}
@@ -528,7 +601,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     </div>
   )
   const panelBody = tab === 'results' ? (
-    <>{clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{resultsBody}</>
+    <>{densePanel}{clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{resultsBody}</>
   ) : (
     <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه محلات.' : 'ابحث أولاً، ثم اختر حياً لعرض أنشطته وتخصصاته هنا.'} />
   )
@@ -545,14 +618,16 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const mapBlock = (
     <div className={`relative min-h-0 overflow-hidden rounded-[18px] border border-[var(--color-border-default)] bg-[var(--map-land)] ${mobile ? 'h-[52dvh] shrink-0' : 'flex-1'}`}>
       <LayerMap districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} layer={layer} onPin={(k) => setProfile(k)}
-        nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusters?.list || []} onCluster={pickCluster}
+        nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={circles} onCluster={pickCluster}
+        streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false) }} fit={fit} extent={extent} />
       <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div role="radiogroup" aria-label="طبقة الخريطة" className="pointer-events-auto flex gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-1 shadow-[var(--farq-soft-shadow)]">
+          <div role="radiogroup" aria-label="طبقة الخريطة" className="pointer-events-auto flex items-center gap-1 rounded-[14px] border-2 border-[var(--map-ink)] bg-[var(--color-bg-surface)] p-1 shadow-[var(--farq-soft-shadow)]">
+            {mobile ? null : <span aria-hidden className="px-2 text-[13px] font-semibold text-[var(--color-text-secondary)]">اعرض المحلات حسب:</span>}
             {LAYERS.map((l) => (
               <button key={l.key} type="button" role="radio" aria-checked={layer === l.key} onClick={() => { setLayer(l.key); if (focus && focus.level !== l.key) setFocus(null) }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] leading-[20px] font-medium ${layer === l.key ? 'bg-[var(--map-ink)] text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
+                className={`flex items-center gap-1.5 rounded-[10px] ${mobile ? 'px-2.5 py-1.5 text-[13px]' : 'px-3.5 py-2 text-[14px]'} leading-[20px] font-semibold ${layer === l.key ? 'bg-[var(--map-ink)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
                 <LayerSwatch layer={l.key} />{mobile ? l.label.replace('الأنشطة ', '') : l.label}
               </button>
             ))}
@@ -579,11 +654,32 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         </div>
         {fallbackChips}
       </div>
-      {!chosenD.size ? (
-        <p role="status" className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-[14px] leading-[22px] font-medium whitespace-nowrap shadow-[var(--farq-soft-shadow)]">
-          {polys === null ? 'نحمّل الأحياء…' : 'اختر حياً لعرض محلاته'}
+      {!anyChosen ? (
+        <p role="status" data-testid="map-hint" className={`pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] ${mobile ? 'top-[96px] w-[88%]' : 'bottom-4 max-w-[56%]'}`}>
+          {polys === null ? 'نحمّل أحياء المدينة…'
+            : !res ? 'اكتب وش تبي فوق واضغط «ابحث»، ونوريك وين يتركز في المدينة.'
+            : busy ? 'نحسب أكثف الشوارع والأحياء…'
+            : denseList.length ? 'الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها محلات أكثر. اضغط شارعاً أو حياً لتظهر محلاته.'
+            : hasPolys ? 'الأحياء الأغمق فيها محلات أكثر. اضغط حياً لتظهر محلاته.'
+            : 'اختر حياً من القائمة فوق لتظهر محلاته.'}
         </p>
       ) : null}
+      {pickedStreet ? (
+        <div data-testid="street-card" className="absolute start-3 top-[64px] z-10 flex w-[min(300px,80%)] flex-col gap-1.5 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-3 text-[13px] leading-[20px] shadow-[var(--farq-soft-shadow)]">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold"><StreetIcon size={15} className="me-1 inline text-[var(--map-green)]" />{pickedStreet.props.street_ar}</p>
+            <button type="button" aria-label="إغلاق بطاقة الشارع" onClick={() => { setActiveStreet(null); applyFilters(keep(filters, ['street'])) }} className={`flex size-7 shrink-0 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
+          </div>
+          {pickedStreet.props.sub_ar ? <p className="text-[var(--color-text-secondary)]">{pickedStreet.props.sub_ar}</p> : null}
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">المحلات</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n)} محل</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">طول المقطع</dt><dd className="m-0 font-semibold tabular-nums">{fmtMeters(pickedStreet.props.length_m)}</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{pickedStreet.props.per_100m.toLocaleString('en-US', { maximumFractionDigits: 1 })} محل لكل ١٠٠ م</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">جملة</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n_wholesale)} محل</dd></div>
+          </dl>
+        </div>
+      ) : null}
+      <MapLegend mobile={mobile} />
       {profile && byKey.get(profile) && !mobile ? (
         <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} />
       ) : null}
@@ -641,6 +737,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         {errorLine}
         {linesPanel}
         {fileField}
+        <StepStrip current={step} mobile />
         <Counters values={counters} compact />
         {mapBlock}
         {tray}
@@ -683,6 +780,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
         </aside>
         <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+          <StepStrip current={step} mobile={false} />
           <Counters values={counters} />
           {mapBlock}
           {noticeLine}

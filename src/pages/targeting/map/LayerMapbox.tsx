@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { applyFarqLight, MAPBOX_TOKEN } from '../MapboxMap'
 import { chipImage, circleSvg, palette, pinSvg, svgImage } from './glyphs'
 import type { LayerMapProps } from './types'
+import { densityStep } from './model'
 
 /*
  * خريطة الفرص v2 on Mapbox (light-v11 tuned at runtime to the Farq light grey): district outlines (dashed, a chosen one
@@ -46,8 +47,16 @@ export default function LayerMapbox(props: LayerMapProps) {
       applyFarqLight(m)
       const { green: GREEN, ink: INK, label: LABEL } = palette()
       m.addSource('districts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'fid' })
-      m.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ['case', ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'fill-opacity': ['case', ['boolean', ['feature-state', 'on'], false], 0.12, ['boolean', ['feature-state', 'hover'], false], 0.06, 0.015] } })
-      m.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': ['case', ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'line-opacity': ['case', ['boolean', ['feature-state', 'on'], false], 0.9, 0.35], 'line-width': ['case', ['boolean', ['feature-state', 'on'], false], 2, 1], 'line-dasharray': [3, 2] } })
+      // choropleth: light-to-darker green by the district's share of this request (feature-state step 0…4)
+      m.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ['case', ['>', ['coalesce', ['feature-state', 'step'], 0], 0], GREEN, ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'fill-opacity': ['max', ['case', ['boolean', ['feature-state', 'on'], false], 0.16, ['boolean', ['feature-state', 'hover'], false], 0.06, 0.015], ['match', ['coalesce', ['feature-state', 'step'], 0], 1, 0.08, 2, 0.15, 3, 0.24, 4, 0.34, 0]] } })
+      m.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': INK, 'line-opacity': ['case', ['boolean', ['feature-state', 'on'], false], 0.95, 0.35], 'line-width': ['case', ['boolean', ['feature-state', 'on'], false], 2.5, 1], 'line-dasharray': [3, 2] } })
+      // dense streets along the real street: a blurred glow under a green core, width / strength by shops per 100 m
+      m.addSource('streets', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      m.addLayer({ id: 'street-glow', type: 'line', source: 'streets', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': GREEN, 'line-blur': 6, 'line-opacity': ['+', 0.18, ['*', 0.2, ['get', 'ratio']]], 'line-width': ['*', ['+', 3, ['*', 5, ['get', 'ratio']]], 3.2] } })
+      m.addLayer({ id: 'street-case', type: 'line', source: 'streets', filter: ['==', ['get', 'on'], 1], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': 'white', 'line-width': ['+', 7, ['*', 5, ['get', 'ratio']]] } })
+      m.addLayer({ id: 'street-line', type: 'line', source: 'streets', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': GREEN, 'line-opacity': ['+', 0.55, ['*', 0.45, ['get', 'ratio']]], 'line-width': ['+', 3, ['*', 5, ['get', 'ratio']]] } })
+      m.addSource('street-mid', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      m.addLayer({ id: 'street-label', type: 'symbol', source: 'street-mid', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-font': FONT, 'text-allow-overlap': false }, paint: { 'text-color': INK, 'text-halo-color': 'white', 'text-halo-width': 6 } })
       m.addLayer({ id: 'district-label', type: 'symbol', source: 'districts', layout: { 'text-field': ['get', 'ar'], 'text-size': 12, 'text-font': FONT }, paint: { 'text-color': ['case', ['boolean', ['feature-state', 'on'], false], GREEN, LABEL], 'text-halo-color': 'white', 'text-halo-width': 1.5 } })
       m.addSource('site', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       m.addLayer({ id: 'site-area', type: 'fill', source: 'site', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': GREEN, 'fill-opacity': 0.06 } })
@@ -63,6 +72,8 @@ export default function LayerMapbox(props: LayerMapProps) {
         if (L.placingSite) { L.onPlaceSite(e.lngLat.lat, e.lngLat.lng); return }
         const pin = m.queryRenderedFeatures(e.point, { layers: ['pins'] })[0]
         if (pin) { L.onPin(String(pin.properties?.key)); return }
+        const st = m.queryRenderedFeatures(e.point, { layers: ['street-line', 'street-glow', 'street-label'] })[0]
+        if (st) { L.onStreet(String(st.properties?.id)); return }
         const tr = m.queryRenderedFeatures(e.point, { layers: ['trade-circle'] })[0]
         if (tr) { const c = L.clusters[Number(tr.properties?.i)]; if (c) L.onCluster(c); return }
         const d = m.queryRenderedFeatures(e.point, { layers: ['district-fill'] })[0]
@@ -88,7 +99,7 @@ export default function LayerMapbox(props: LayerMapProps) {
   }, [])
 
   // districts (geometry once per city; selection as feature state)
-  const { districts, chosen, pins, clusters, site, fit, extent } = props
+  const { districts, chosen, pins, clusters, site, fit, extent, streets, activeStreet, density, densityMax } = props
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
@@ -101,8 +112,15 @@ export default function LayerMapbox(props: LayerMapProps) {
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
-    districts.filter((d) => d.feature).forEach((d, i) => m.setFeatureState({ source: 'districts', id: i }, { on: chosen.has(d.id) }))
-  }, [loaded, districts, chosen])
+    districts.filter((d) => d.feature).forEach((d, i) => m.setFeatureState({ source: 'districts', id: i }, { on: chosen.has(d.id), step: densityStep(density.get(d.id) || 0, densityMax) }))
+  }, [loaded, districts, chosen, density, densityMax])
+  useEffect(() => {
+    const m = map.current
+    if (!loaded || !m) return
+    const maxPer = Math.max(1, ...streets.map((st) => st.props.per_100m))
+    ;(m.getSource('streets') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: streets.map((st) => ({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: st.lines }, properties: { id: st.id, ratio: Math.min(1, st.props.per_100m / maxPer), on: activeStreet === st.id ? 1 : 0 } })) })
+    ;(m.getSource('street-mid') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: streets.map((st) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: st.mid }, properties: { id: st.id, label: `${st.props.street_ar} · ${st.props.n.toLocaleString('en-US')}` } })) })
+  }, [loaded, streets, activeStreet])
   useEffect(() => {
     const m = map.current
     if (!loaded || !m || !fit) return

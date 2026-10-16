@@ -6,6 +6,7 @@
  * Endpoints (the service's own, unchanged):
  *   POST /suggest-specialties — { text, main_id? } → specialties a seller's products fit (read only)
  *   POST /clusters          — { city, q?, objective?, sub_ids?, wholesale?, bounds? } → where a trade concentrates (street / district / cell)
+ *   POST /street-density    — { city, q?, objective?, sub_ids? } → GeoJSON LineStrings: the densest streets for a trade (n, length_m, per_100m)
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
  *   GET  /send-status       — answered by server.py itself: { send } (read-only view of TARGETING_SEND)
@@ -131,6 +132,11 @@ export type TradeCluster = {
   popular_ar?: string | null
 }
 export type TradeClusters = { clusters: TradeCluster[]; wholesale?: number; basis?: string }
+/** One street where a trade concentrates, drawn along the real street (POST /street-density). */
+export type StreetDensityProps = { sub_id: string | number | null; sub_ar: string | null; street_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number; label_ar: string }
+export type StreetLine = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.MultiLineString, StreetDensityProps>
+export type StreetDensity = { type?: 'FeatureCollection'; features: StreetLine[]; basis?: string }
+export const streetDensity = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[] }) => call<StreetDensity>('POST', '/street-density', body)
 
 export type TemplateStatus = {
   name: string

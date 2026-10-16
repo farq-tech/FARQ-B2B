@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { chipWidth, clip, MAP_ICON_BODY, palette, TEARDROP } from './glyphs'
+import { densityStep } from './model'
+
+/** District fill strength by density step (0 none … 4 densest): a light-to-darker green choropleth. */
+const CHORO = [0.02, 0.08, 0.15, 0.24, 0.34]
 import type { LayerMapProps } from './types'
 
 /*
@@ -26,7 +30,7 @@ function viewFor(b: [number, number, number, number], w: number, h: number, pad 
 const RIYADH_BOX: [number, number, number, number] = [46.55, 24.55, 46.85, 24.85]
 const enter = (fn: () => void) => (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 
-export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent }: LayerMapProps) {
+export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax }: LayerMapProps) {
   const box = useRef<HTMLDivElement>(null)
   const P = useMemo(() => palette(), [])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -104,6 +108,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
     const p = toLonLat(e.clientX - r.left, e.clientY - r.top)
     onPlaceSite(p.lat, p.lon)
   }
+  const maxPer = Math.max(1, ...streets.map((st) => st.props.per_100m))
   const ordered = [...pins].sort((a, b) => Number(a.chosen) - Number(b.chosen) || b.lat - a.lat)
   const siteR = site ? (site.km / 111.32) * v.k : 0
 
@@ -117,13 +122,14 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
           <g transform={`translate(${size.w / 2 - v.cx * v.k} ${size.h / 2 - v.cy * v.k}) scale(${v.k})`}>
             {paths.map((p) => {
               const on = chosen.has(p.id)
+              const step = densityStep(density.get(p.id) || 0, densityMax)
               return (
-                <path key={p.id} d={p.d} role="button" tabIndex={0} aria-pressed={on} aria-label={`حي ${p.ar}`} data-district={p.ar}
+                <path key={p.id} d={p.d} role="button" tabIndex={0} aria-pressed={on} aria-label={`حي ${p.ar}${density.get(p.id) ? ` — ${density.get(p.id)} منشأة` : ''}`} data-district={p.ar} data-density={step}
                   onClick={(e) => { e.stopPropagation(); if (!wasDrag() && !placingSite) onDistrict(p.id); else if (placingSite) clickLand(e) }}
                   onKeyDown={enter(() => onDistrict(p.id))}
                   className={`cursor-pointer outline-none transition-[fill-opacity] focus-visible:stroke-[var(--map-ink)] ${on ? '' : 'hover:fill-opacity-[0.06]'}`}
-                  fill={on ? P.green : P.ink} fillOpacity={on ? 0.12 : 0.02} stroke={on ? P.green : P.ink} strokeOpacity={on ? 0.9 : 0.35}
-                  strokeWidth={on ? 2 : 1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+                  fill={step || on ? P.green : P.ink} fillOpacity={Math.max(on ? 0.16 : 0, CHORO[step])} stroke={on ? P.ink : P.ink} strokeOpacity={on ? 0.95 : 0.35}
+                  strokeWidth={on ? 2.5 : 1} strokeDasharray={on ? undefined : '4 3'} vectorEffect="non-scaling-stroke" />
               )
             })}
           </g>
@@ -142,6 +148,32 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
               <circle cx={sx(site.lon)} cy={sy(site.lat)} r={siteR} fill={P.green} fillOpacity={0.06} stroke={P.green} strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="6 4" />
             </g>
           ) : null}
+          {/* dense streets: a soft glow under a green core, width and strength by shops per 100 m; a pill at the middle */}
+          {streets.map((st) => {
+            const ratio = Math.min(1, st.props.per_100m / maxPer)
+            const w = 3 + 5 * ratio, on = activeStreet === st.id
+            const d = st.lines.map((line) => line.map(([x, y], i) => `${i ? 'L' : 'M'}${sx(x).toFixed(1)} ${sy(y).toFixed(1)}`).join('')).join('')
+            const go = () => onStreet(st.id)
+            return (
+              <g key={st.id} role="button" tabIndex={0} aria-pressed={on} aria-label={st.props.label_ar || `${st.props.street_ar} — ${st.props.n} محل`} data-street={st.props.street_ar}
+                className={`cursor-pointer ${FOCUS_RING}`} onClick={(e) => { e.stopPropagation(); if (!wasDrag()) go() }} onKeyDown={enter(go)}>
+                <path d={d} fill="none" stroke={P.green} strokeOpacity={on ? 0.35 : 0.16 + 0.12 * ratio} strokeWidth={w * 3.2} strokeLinecap="round" strokeLinejoin="round" />
+                {on ? <path d={d} fill="none" stroke={P.white} strokeWidth={w + 4} strokeLinecap="round" strokeLinejoin="round" /> : null}
+                <path d={d} fill="none" stroke={P.green} strokeOpacity={0.55 + 0.45 * ratio} strokeWidth={on ? w + 1.5 : w} strokeLinecap="round" strokeLinejoin="round" />
+              </g>
+            )
+          })}
+          {streets.map((st) => {
+            const x = sx(st.mid[0]), y = sy(st.mid[1]), on = activeStreet === st.id
+            const text = `${st.props.street_ar.length > 24 ? `${st.props.street_ar.slice(0, 23)}…` : st.props.street_ar} · ${st.props.n.toLocaleString('en-US')}`
+            const w = Math.min(220, 20 + text.length * 6.1)
+            return (
+              <g key={`p${st.id}`} transform={`translate(${x - w / 2} ${y - 13})`} className="cursor-pointer" aria-hidden onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onStreet(st.id) }}>
+                <rect width={w} height={22} rx={11} fill={on ? P.ink : P.white} stroke={P.green} strokeWidth={1.5} />
+                <text x={w / 2} y={12} textAnchor="middle" dominantBaseline="middle" className="text-[11px] font-semibold" fill={on ? P.white : P.ink}>{text}</text>
+              </g>
+            )
+          })}
           {clusters.map((c, i) => {
             const x = sx(c.lon), y = sy(c.lat)
             const r = Math.max(16, Math.min(44, 8 + Math.sqrt(c.n) * 4))
