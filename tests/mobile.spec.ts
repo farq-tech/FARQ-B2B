@@ -33,7 +33,7 @@ test('M04 comparison', async ({ page }) => {
 
 test('M01 → M02 new request', async ({ page }) => {
   await page.goto('/?harness=new')
-  await expect(page.getByRole('heading', { name: 'وش تبي نسعّر لك اليوم؟' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'وش تبي تسعّر؟' })).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/m01.png` })
   await page.getByRole('radio', { name: /صوّرها/ }).click()
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: /اسحب الملف هنا/ }).click()])

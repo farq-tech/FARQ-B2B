@@ -141,6 +141,8 @@ test.describe('desktop 1440', () => {
     await expect(page.getByText(/معاينة: هلا \{اسم المنشأة\}، عندنا عرض الشهر/)).toBeVisible()
     // «طلباتي»: filter + cancel with a reason + audit drawer
     await page.getByText('طلباتي').click()
+    // the Gregorian date with the Umm al-Qura date beside it (14 Oct 2026 = 3 Jumada al-Ula 1448)
+    await expect(page.getByRole('listitem').filter({ hasText: 'مواسير PPR — الرياض' }).getByText(/2026.* · 3 جمادى الأولى 1448 هـ/)).toBeVisible()
     await page.getByRole('button', { name: 'إلغاء الطلب', exact: true }).first().click()
     await page.getByLabel('السبب (اختياري)').fill('تغيّرت الكمية')
     await page.screenshot({ path: `${SHOTS}/desktop-3-my-requests-cancel.png` })

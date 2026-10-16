@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ConstructionApiError, createConstructionAward, createConstructionProject, formatRfqTitle, getConstructionComparison, getConstructionProjects, getConstructionRfq, openConstructionRfqEnvelopes, type ConstructionComparison, type ConstructionProject, type ConstructionRfq } from '../../api/constructionClient'
 import { awardBlockReason, awardReviewSignature, pricedAwardLineIds, type AwardOffer } from '../../lib/awardFlow'
 import { leadTimeLabel, quoteCoverage, taxLabel } from '../../lib/requestFile'
-import { Button, Chip, Icon, Input, useIsMobile } from '../../ui'
+import { Button, Chip, DualDate, Icon, Input, Money, useIsMobile, useNow } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
 /*
@@ -19,8 +19,11 @@ import { FOCUS_RING } from '../../ui/cx'
 
 const REASONS = ['أفضل سعر', 'أسرع توريد', 'أفضل مطابقة للمواصفات', 'مورد مفضل', 'أفضل شروط تجارية', 'أخرى'] as const
 
-const money = (n?: number | null, currency = 'SAR') =>
-  n == null || !Number.isFinite(Number(n)) ? null : `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === 'SAR' ? 'ر.س' : currency}`
+/** The offer total with the riyal sign; the basis is the offer's own `prices_include_tax`. null: VAT basis unknown in the API — nothing claimed. */
+const money = (n: number | null | undefined, currency: string, includesTax: boolean | null | undefined) =>
+  n == null || !Number.isFinite(Number(n)) ? null
+    : currency && currency !== 'SAR' ? `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+      : <Money amount={Number(n)} vat={includesTax === true ? 'incl' : includesTax === false ? 'excl' : null} className="justify-end" />
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -146,7 +149,8 @@ export default function AwardConfirmSheet({ rfq, comparison, offer, coverage, on
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  const amount = money(offer.offer.totals?.total, offer.offer.currency || 'SAR')
+  const amount = money(offer.offer.totals?.total, offer.offer.currency || 'SAR', offer.offer.prices_include_tax)
+  const today = useNow()
   const requestedCount = rfq.current_version?.payload?.lines?.length || comparison.quote_matrix?.requested_line_count || 0
   const fieldCls = `w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3 text-[14px] leading-[22px] text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`
 
@@ -166,7 +170,8 @@ export default function AwardConfirmSheet({ rfq, comparison, offer, coverage, on
           <div className="flex items-baseline justify-between gap-3"><dt className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">البنود</dt><dd className="text-[14px] leading-[22px] font-medium">{lineIds.length} بند ضمن نطاق الترسية{requestedCount ? ` من ${requestedCount}` : ''}</dd></div>
           <div className="flex items-baseline justify-between gap-3"><dt className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">التغطية</dt><dd className="text-[14px] leading-[22px] font-medium">{coverage?.label || 'تغطية البنود غير مؤكدة'}</dd></div>
           <div className="flex items-baseline justify-between gap-3"><dt className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">مدة التوريد</dt><dd className="text-[14px] leading-[22px] font-medium">{leadTimeLabel(offer.offer)}</dd></div>
-          <div className="flex items-baseline justify-between gap-3"><dt className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">الإجمالي {taxLabel(offer.offer.prices_include_tax)}</dt><dd className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-semibold tabular-nums">{amount || 'غير مكتملة'}</dd></div>
+          <div className="flex items-baseline justify-between gap-3"><dt className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">الإجمالي{offer.offer.prices_include_tax == null ? ` (${taxLabel(null)})` : ''}</dt><dd className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-semibold tabular-nums">{amount || 'غير مكتملة'}</dd></div>
+          <div className="flex items-baseline justify-between gap-3"><dt className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">تاريخ الترسية</dt><dd className="text-end text-[14px] leading-[22px] font-medium"><DualDate value={today} /></dd></div>
         </dl>
 
         {partial ? (

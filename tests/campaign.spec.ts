@@ -51,7 +51,7 @@ test('campaign: map first → choose → review says sending is closed → save 
   await page.getByRole('checkbox').nth(2).check()
   // summary bar: server price × recipients, before tax
   await expect(page.getByText('اخترت 3 موردين')).toBeVisible()
-  await expect(page.getByText(/= 0\.51\s+قبل الضريبة/)).toBeVisible()
+  await expect(page.getByText(/= 0\.51\s*قبل الضريبة/)).toBeVisible()
   await expect(page.getByRole('img', { name: 'ريال' }).first()).toBeVisible()
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m07.png' })
   await page.getByRole('button', { name: 'التالي', exact: true }).click()
@@ -65,7 +65,7 @@ test('campaign: map first → choose → review says sending is closed → save 
   const review = page.getByRole('dialog', { name: 'المراجعة والتكلفة' })
   await expect(review).toBeVisible()
   await expect(review.getByText('الإرسال غير مفعّل')).toBeVisible()
-  await expect(review.getByRole('button', { name: /أرسل إلى 3 موردين · التكلفة 0\.51 ريال/ })).toBeDisabled()
+  await expect(review.getByRole('button', { name: /أرسل إلى 3 موردين · التكلفة 0\.51 ريال قبل الضريبة/ })).toBeDisabled()
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m11c.png' })
   await review.getByRole('button', { name: 'احفظ الحملة كمسودة' }).click()
   await expect(page.getByText(/حفظنا الحملة كمسودة/)).toBeVisible()
@@ -95,7 +95,7 @@ test('campaign results (mocked in the browser, no network): each recipient shows
   await expect(result.getByRole('button', { name: /أعد|إعادة/ })).toHaveCount(0)
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m12.png' })
   await result.getByRole('button', { name: 'تم' }).click()
-  await expect(page.getByText(/أُرسلت 2 رسالة · ما وصلت 1/)).toBeVisible()
+  await expect(page.getByText(/تم بحمد الله، أرسلنا 2 رسالة · ما وصلت 1/)).toBeVisible()
   expect(sends).toEqual(['register', 'template']) // one register + one send, never a retry
   expect(writes).toEqual([])
 })

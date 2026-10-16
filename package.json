@@ -12,6 +12,7 @@
     "test:keyboard": "playwright test"
   },
   "dependencies": {
+    "adhan": "^4.4.3",
     "mapbox-gl": "^3.15.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",

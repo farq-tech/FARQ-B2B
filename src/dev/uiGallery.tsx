@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { useState, type ReactNode } from 'react'
 import {
   Badge, Button, ChannelBadge, Chip, Dropzone, EvidenceBadge, Icon, ICON_NAMES, Input, Logo, NavItem, PriceCell,
-  QuoteCard, Sidebar, Stat, Tabs, TimelineStep, Toast, TopBar, IconButton, SearchField,
+  QuoteCard, Money, RiyalSign, Sidebar, Stat, Tabs, TimelineStep, Toast, TopBar, IconButton, SearchField,
   type ButtonStyle, FARQ_ICONS, AccountIcon, InboxIcon, MessageTemplatesIcon, OpportunityMapIcon, PricingRequestsIcon, SettingsIcon,
 } from '../ui'
 
@@ -136,18 +136,18 @@ function Gallery() {
 
         <Section id="quote" title="Quote Card" figma="quote-card" note="الحقائق (ضمان/توريد/توصيل) تظهر فقط إذا ذكرها المورد">
           <div className="grid grid-cols-2 gap-4">
-            <QuoteCard state="Default" supplier="مستودع الرياض للكهرباء" meta="قبل 25 دقيقة · واتساب" amount="41,200.00 ر.س" amountNote="شامل الضريبة والتوصيل" coverageLabel="12 من 14 بند" facts={[{ icon: 'truck', label: 'توصيل مجاني' }, { icon: 'clock', label: 'التوريد 3 أيام' }, { icon: 'shield', label: 'ضمان سنة' }]} />
-            <QuoteCard state="New" supplier="مؤسسة النور للكهرباء" meta="وصل الحين · إيميل" amount="42,500.00 ر.س" amountNote="شامل الضريبة" facts={[{ icon: 'clock', label: 'التوريد 5 أيام' }]} />
-            <QuoteCard state="Best" supplier="شركة الخليج للكابلات" meta="قبل ساعة · واتساب" amount="39,850.00 ر.س" amountNote="قبل الضريبة" />
+            <QuoteCard state="Default" supplier="مستودع الرياض للكهرباء" meta="قبل 25 دقيقة · واتساب" amount={<Money amount={41200} />} amountNote="شامل الضريبة ١٥٪ والتوصيل" coverageLabel="12 من 14 بند" facts={[{ icon: 'truck', label: 'توصيل مجاني' }, { icon: 'clock', label: 'التوريد 3 أيام' }, { icon: 'shield', label: 'ضمان سنة' }]} />
+            <QuoteCard state="New" supplier="مؤسسة النور للكهرباء" meta="وصل الحين · إيميل" amount={<Money amount={42500} />} amountNote="شامل الضريبة ١٥٪" facts={[{ icon: 'clock', label: 'التوريد 5 أيام' }]} />
+            <QuoteCard state="Best" supplier="شركة الخليج للكابلات" meta="قبل ساعة · واتساب" amount={<Money amount={39850} />} amountNote="قبل الضريبة" />
           </div>
         </Section>
 
         <Section id="price" title="Price Cell" figma="price-cell">
           <Row label="State">
-            <PriceCell state="Best" price="41,200.00 ر.س" delta="الأقل سعرًا" />
-            <PriceCell state="Normal" price="42,100.00 ر.س" delta="+900.00 ر.س (2.2%)" />
-            <PriceCell state="Higher" price="47,000.00 ر.س" delta="+5,800.00 ر.س (14.1%)" />
-            <PriceCell state="Not comparable" price="41,200.00 ر.س" delta="وحدة مختلفة" />
+            <PriceCell state="Best" price={<Money amount={41200} vat="incl" />} delta="الأقل سعرًا" />
+            <PriceCell state="Normal" price={<Money amount={42100} vat="incl" />} delta={<bdi dir="ltr">+900.00 <RiyalSign /> (2.2%)</bdi>} />
+            <PriceCell state="Higher" price={<Money amount={47000} vat="incl" />} delta={<bdi dir="ltr">+5,800.00 <RiyalSign /> (14.1%)</bdi>} />
+            <PriceCell state="Not comparable" price={<Money amount={41200} />} delta="وحدة مختلفة" />
             <PriceCell state="Pending" delta="بانتظار الرد" />
           </Row>
         </Section>

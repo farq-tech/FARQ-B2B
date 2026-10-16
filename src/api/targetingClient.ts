@@ -17,6 +17,7 @@ import { farqSession } from './farqSession'
  *   POST /templates         — submits one template to Meta for review (sends nothing to anyone)
  *   POST /send-farq         — registers the chosen places on the holder request, then (mode: 'template')
  *                             sends farq_outreach_ar to each. Closed unless server.py has TARGETING_SEND=1;
+ *                             held by server.py during prayer (409 PRAYER_WINDOW + message_ar, owner 2026-10-16);
  *                             the dev server always answers 403.
  */
 
@@ -62,6 +63,9 @@ export type TargetRow = {
   hudhud_deleted?: boolean
   sendable?: boolean
   warning?: string
+  /** Commercial registration / trade licence when the service returns them (for «منشأة سعودية»; never guessed). */
+  cr_number?: string | null
+  commercial_license?: string | null
   /** Normalized status from the service (raw status never leaves it). */
   status_class?: 'open' | 'closed_temporary' | 'inactive' | 'hidden' | 'unknown_empty' | 'unknown_invalid' | 'closed_permanent'
 }
@@ -107,6 +111,8 @@ export type TradeCluster = {
   lift: number
   lat: number
   lon: number
+  /** Set by the page, not the service: the curated popular name («سوق الزل للأقمشة») when city + district + trade match. */
+  popular_ar?: string | null
 }
 export type TradeClusters = { clusters: TradeCluster[]; wholesale?: number; basis?: string }
 
@@ -134,8 +140,9 @@ async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Pr
   const r = await fetch(`/_targeting${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
   let data: unknown = null
   try { data = await r.json() } catch { /* empty or not JSON */ }
-  const d = (data || {}) as { error?: string }
-  if (!r.ok) throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
+  const d = (data || {}) as { error?: string; message_ar?: string }
+  // PRAYER_WINDOW: server.py holds campaign sends during prayer (owner rule 2026-10-16) and says until when
+  if (!r.ok) throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
   return data as T
 }
 

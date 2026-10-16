@@ -3,7 +3,7 @@ import { ProcurementProvider, useProcurement, type View } from './procurementCon
 import { useFarqSession } from './api/useFarqSession'
 import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
-import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MessageTemplatesIcon, MobileBottomNav, NavItem, NewRequestIcon, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
+import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MessageTemplatesIcon, MobileBottomNav, NavItem, NewRequestIcon, OccasionBanner, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
 import './b2b/b2b.css'
 
 /*
@@ -89,6 +89,8 @@ function Routes() {
         />
       )}
       <main id="farq-main" tabIndex={-1} className={mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
+        {/* Eid al-Fitr / Eid al-Adha / National Day / Founding Day: a quiet, dismissible line (not over the full-screen map) */}
+        {onCampaign ? null : <OccasionBanner />}
         <Suspense fallback={<Loading />}>
           {(view === 'explore' || view === 'goal-new') && <Explore />}
           {view === 'rfq-detail' && <Tracking navigate={navigate} />}

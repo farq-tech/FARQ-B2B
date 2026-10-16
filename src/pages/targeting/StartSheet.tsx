@@ -93,11 +93,11 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
         </div>
         {step === 'pick' ? (
           <>
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">من وين تبدأ؟ كلها توصلك لنفس البحث والخريطة.</p>
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">وش تبي تسعّر؟ اختر من وين تبدأ، وكلها توصلك لنفس البحث والخريطة.</p>
             <div className="flex flex-col gap-2">
               <Row icon={UploadBookletIcon} title="كراسة أو طلب شراء" hint="ارفع الملف ونطلع بنوده، وتبحث عن بائعين لكل بند" onClick={onBooklet} />
-              <Row icon={UploadCatalogIcon} title="أبي أبيع منتجاتي" hint="ارفع كتالوجك أو اكتب منتجاتك، ونلقى لك مشترين" onClick={() => setStep('sell')} />
-              <Row icon={SearchIcon} title="بحث حر" hint="اكتب وش تبي في خانة البحث" onClick={onFreeSearch} />
+              <Row icon={UploadCatalogIcon} title="أبي أبيع منتجاتي" hint="ارفع كتالوجك أو اكتب منتجاتك (جملة وقطاعي)، ونلقى لك مشترين" onClick={() => setStep('sell')} />
+              <Row icon={SearchIcon} title="بحث حر" hint="اكتب وش تبي، مثل: حدايد وبويات، بلاط، مليس" onClick={onFreeSearch} />
             </div>
             {onRfq ? (
               <button type="button" onClick={onRfq} className={`flex items-center gap-2 self-start text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] hover:underline ${FOCUS_RING}`}>
@@ -110,7 +110,7 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
           <>
             <label className="flex flex-col gap-1.5">
               <span className="flex items-center gap-1.5 text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><WriteProductsIcon size={16} />اكتب منتجاتك، سطر لكل منتج، أو ارفع الكتالوج</span>
-              <textarea value={text} onChange={(e) => { setText(e.target.value); setSuggestions(null) }} rows={5} maxLength={4000} placeholder={'مثال:\nمواسير PPR\nخلاطات مغاسل\nسخانات مياه'}
+              <textarea value={text} onChange={(e) => { setText(e.target.value); setSuggestions(null) }} rows={5} maxLength={4000} placeholder={'مثال:\nحدايد وبويات\nبلاط وسيراميك\nقطع غيار كوري وصيني\nمواسير PPR جملة وقطاعي'}
                 className={`w-full resize-none rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[16px] leading-[26px] placeholder:text-[var(--color-text-tertiary)] ${FOCUS_RING}`} />
             </label>
             <input ref={file} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden

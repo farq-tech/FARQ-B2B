@@ -102,7 +102,7 @@ for (const width of [390, 1440]) {
     await page.locator('footer').waitFor()
     await page.evaluate(() => document.fonts.ready)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
-    expect(await page.locator('header .farq-wordmark').textContent()).toBe('FARQB2B')
+    await expect(page.getByRole('img', { name: 'FARQ B2B', exact: true }).first()).toBeVisible() // lockup is an svg (owner option 5, f3462a2)
     expect(await page.locator('.landing-layers').evaluate(el => getComputedStyle(el).getPropertyValue('--brand-deep').trim())).toBe('#303030') // S5, owner-approved 2026-10-15
     await page.screenshot({ path: `docs/qa/b2b/landing-${width}.png` })
     await page.goto('/requests')
@@ -153,7 +153,7 @@ test('purchase sends only selected company after explicit consent and paid Whats
   expect(created.manual_send).toBe(true)
   expect((created.lines as Array<Record<string,unknown>>)[0]).toMatchObject({name_ar:'كرسي عيادة',quantity:20,uom:'حبة',farq_spec_id:null})
   await page.getByRole('button',{name:'نعم، أرسل عبر واتساب',exact:true}).click()
-  await expect(page.getByText('تم الإرسال لـ 1 من 1')).toBeVisible()
+  await expect(page.getByText('تم بحمد الله، أرسلنا لـ 1 من 1')).toBeVisible()
   expect(requests.filter(r=>r.path.endsWith('/dispatch'))).toHaveLength(1)
   expect(requests.find(r=>r.path.endsWith('/dispatch'))!.body.whatsapp_paid).toBe(true)
 })

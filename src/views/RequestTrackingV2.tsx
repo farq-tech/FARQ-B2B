@@ -14,7 +14,7 @@ import {
 } from '../api/constructionClient'
 import { leadTimeLabel, requestProgress, requestState, supplierState } from '../lib/requestFile'
 import { rfqProjectName } from '../lib/rfqIdentity'
-import { Badge, Button, ListRow, Toast, TopBar, useIsMobile, type BadgeTone } from '../ui'
+import { Badge, Button, DualDate, ListRow, Toast, TopBar, useIsMobile, type BadgeTone } from '../ui'
 
 /*
  * «متابعة الطلب» — Figma B2B M03 `18371:23094` / W03 `18430:2880`: status card with the four-step bar,
@@ -70,7 +70,7 @@ export function RequestTrackingV2({ navigate }: NavProps) {
     const fresh = offers.find((o) => !seenQuotes.has(String(o.offer.quoteVersionId || o.offer.offerId || '')))
     if (fresh) {
       const cov = summaryBySupplier.get(String(fresh.supplier.id || ''))?.coverage
-      setToast({ title: 'وصل عرض جديد', body: `${fresh.supplier.name_ar || fresh.supplier.name_en || 'مورد'} أرسل سعر${cov ? ` لـ ${cov.priced} بند` : ''}` })
+      setToast({ title: 'أبشر، وصلك عرض جديد', body: `${fresh.supplier.name_ar || fresh.supplier.name_en || 'مورد'} أرسل سعر${cov ? ` لـ ${cov.priced} بند` : ''}` })
       setSeenQuotes(ids)
     }
   }, [offers, rfq, seenQuotes, summaryBySupplier])
@@ -164,12 +164,13 @@ export function RequestTrackingV2({ navigate }: NavProps) {
 
         <div className="flex flex-col gap-1">
           <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">الطلب</p>
-          <p className="text-[18px] leading-[28px] font-semibold"><bdi dir="ltr">{progress.items}</bdi> بنداً{delivery?.city ? ` · التوصيل: ${delivery.city}` : ''}{delivery?.required_date ? <> قبل <bdi dir="ltr">{delivery.required_date}</bdi></> : null}</p>
+          <p className="text-[18px] leading-[28px] font-semibold"><bdi dir="ltr">{progress.items}</bdi> بنداً{delivery?.city ? ` · التوصيل: ${delivery.city}` : ''}{delivery?.required_date ? <> قبل <DualDate value={delivery.required_date} /></> : null}</p>
+          {rfq.created_at ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">أُنشئ الطلب <DualDate value={rfq.created_at} /></p> : null}
         </div>
 
         <section aria-labelledby="suppliers-h" className="flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-2">
           <h2 id="suppliers-h" className="sr-only">الموردين</h2>
-          {invites.length === 0 ? <p className="px-6 py-4 text-[14px] text-[var(--color-text-secondary)]">ما أُرسل الطلب لأي مورد بعد.</p> : null}
+          {invites.length === 0 ? <p className="px-6 py-4 text-[14px] text-[var(--color-text-secondary)]">ما أرسلنا الطلب لأي مورد للحين.</p> : null}
           <ul>
             {named.map((r) => <li key={r.inv.id}><ListRow initial={nameOf(r.inv).trim().charAt(0)} title={nameOf(r.inv)} caption={supplierCaption(r.inv, r.channel)} status={badgeFor(r)} /></li>)}
           </ul>

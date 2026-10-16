@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { sendCampaign, sendStatus, TargetingError, OUTREACH_TEMPLATE, type TargetRow } from '../../api/targetingClient'
 import { Badge, Button, RiyalSign, useIsMobile, WarningIcon } from '../../ui'
+import SendTiming from './SendTiming'
 
 /*
  * «المراجعة والتكلفة» — Figma B2B M11 `18375:23935` / M11c `18416:2498` (sending not enabled).
@@ -15,7 +16,9 @@ import { Badge, Button, RiyalSign, useIsMobile, WarningIcon } from '../../ui'
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft, template = OUTREACH_TEMPLATE }: {
+export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft, template = OUTREACH_TEMPLATE, city }: {
+  /** the search city (City.en): prayer times for the send note; server.py holds sends during prayer either way */
+  city?: string | null
   /** The approved template chosen on the page ({{1}} name, {{2}} campaign text); the invitation template by default. */
   template?: string
   holderRfqId: string
@@ -96,7 +99,7 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
         {result ? (
           <>
             <h2 id={titleId} ref={heading} tabIndex={-1} className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold outline-none">نتيجة الإرسال</h2>
-            <p id={descId} className="mt-2"><Badge tone={result.failed.size ? 'Warning' : 'Info'} showDot={false} label={`أُرسلت ${result.sent.size.toLocaleString('en-US')} من ${count}`} /></p>
+            <p id={descId} className="mt-2 flex flex-wrap items-center gap-2">{result.sent.size && !result.failed.size ? <span className="text-[16px] leading-[26px] font-medium">تم بحمد الله</span> : null}<Badge tone={result.failed.size ? 'Warning' : 'Info'} showDot={false} label={`أُرسلت ${result.sent.size.toLocaleString('en-US')} من ${count}`} /></p>
             <p className="mt-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">«أُرسلت» يعني إن رقم فرق سلّمها لواتساب. الردود توصلك في صندوق الوارد. ما نعيد الإرسال تلقائياً.</p>
             <h3 className="mt-4 text-[16px] leading-[26px] font-semibold">لكل مستلم</h3>
             <ul className="mt-2 flex flex-col divide-y divide-[var(--color-border-default)] rounded-[var(--radius-lg)] border border-[var(--color-border-default)]">
@@ -123,10 +126,11 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
         <dl className="mt-4 flex flex-col gap-3">
           {row('المستلمون', <><bdi dir="ltr">{count}</bdi> موردين · واتساب <bdi dir="ltr">{count}</bdi></>)}
           {row('القالب', <><bdi dir="ltr">{template}</bdi> · معتمد</>)}
-          {row('سعر الرسالة', price != null ? <><bdi dir="ltr">{money(price)} <RiyalSign /> × {count}</bdi> · تسويق</> : 'ما وصلنا السعر الحين')}
-          {row('التكلفة', cost != null ? <bdi dir="ltr">{cost} <RiyalSign /></bdi> : '—', true)}
+          {row('سعر الرسالة', price != null ? <><bdi dir="ltr" className="inline-flex items-baseline gap-1">{money(price)} <RiyalSign /> × {count}</bdi> · تسويق</> : 'ما وصلنا السعر الحين')}
+          {row('التكلفة', cost != null ? <bdi dir="ltr" className="inline-flex items-baseline gap-1.5">{cost} <RiyalSign /></bdi> : '—', true)}
         </dl>
-        <p className="mt-3 text-[14px] leading-[22px] font-medium">السعر قبل الضريبة. الضريبة تُضاف حسب الفاتورة.</p>
+        <p className="mt-3 text-[14px] leading-[22px] font-medium">السعر قبل الضريبة. ضريبة القيمة المضافة ١٥٪ تُضاف حسب الفاتورة.</p>
+        <SendTiming city={city} className="mt-2" />
         {open === false ? (
           <div className="mt-3 flex flex-col items-start gap-2">
             <p className="text-[14px] leading-[22px]">يفعّله فريق فرق لحسابك. احفظ الحملة وترسلها بضغطة لما يتفعّل.</p>
@@ -145,7 +149,7 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
         ) : null}
         <div className="mt-6 flex flex-col gap-3">
           <Button variant="Primary" size="L" fullWidth disabled={busy || !rows.length || open !== true} title={closedReason || undefined} loading={busy} loadingLabel="جارٍ الإرسال…" onClick={() => void send()}>
-            أرسل إلى {count} موردين{cost != null ? <> · التكلفة {cost} <RiyalSign /></> : null}
+            أرسل إلى {count} موردين{cost != null ? <> · التكلفة <bdi dir="ltr" className="inline-flex items-baseline gap-1">{cost} <RiyalSign /></bdi> قبل الضريبة</> : ''}
           </Button>
           {open === true ? <Button variant="Secondary" size="L" fullWidth disabled={busy} onClick={onClose}>رجوع</Button>
             : <Button variant="Secondary" size="L" fullWidth disabled={busy} onClick={onSaveDraft}>احفظ الحملة كمسودة</Button>}

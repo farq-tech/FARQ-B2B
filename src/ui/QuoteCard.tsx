@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { cx } from './cx'
 import { Badge } from './Badge'
 import { Icon, type IconName } from './Icon'
@@ -20,7 +21,8 @@ type QuoteCardProps = {
   state?: QuoteCardState
   supplier: string
   meta: string
-  amount: string
+  /** The price: pass <Money> for number + riyal sign (+ VAT basis when known). */
+  amount: ReactNode
   amountNote?: string
   /** Default-state badge text, e.g. «12 من 14 بند». New/Best use Figma's fixed labels. */
   coverageLabel?: string | null
@@ -39,7 +41,7 @@ export function QuoteCard({ state = 'Default', supplier, meta, amount, amountNot
         {state === 'Best' ? <Badge tone="Success" label="الأفضل" /> : state === 'New' ? <Badge tone="Info" label="جديد" /> : coverageLabel ? <Badge tone="Neutral" label={coverageLabel} /> : null}
       </div>
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <p className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums whitespace-nowrap text-[var(--color-text-primary)]">{amount}</p>
+        <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums whitespace-nowrap text-[var(--color-text-primary)]">{amount}</div>
         {amountNote ? <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{amountNote}</p> : null}
       </div>
       {facts.length ? (

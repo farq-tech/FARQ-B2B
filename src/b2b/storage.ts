@@ -1,11 +1,12 @@
 import { farqSession } from '../api/farqSession'
 import type { TargetRow } from '../api/targetingClient'
 import type { BookletLine } from '../lib/readBooklet'
+import type { NationalAddress } from '../lib/saudi/validators'
 
 export type GoalMode = 'purchase' | 'marketing'
 export type ExploreDraft = { q: string; city: string; mode: GoalMode; lines: BookletLine[]; selected: TargetRow[]; updatedAt: string }
 export type Opportunity = { id: string; company: TargetRow; product: string; city: string; stage: 'potential' | 'qualified' | 'quoted' | 'won' | 'closed'; need: string; quantity: string; unit: string; quote: string; updatedAt: string }
-export type BusinessProfile = { name: string; phone: string; city: string; email: string; legalName: string; crNumber: string; vatNumber: string; nationalAddress: string; defaultDeliveryCity: string; defaultDeadlineDays: number }
+export type BusinessProfile = { name: string; phone: string; city: string; email: string; legalName: string; crNumber: string; vatNumber: string; nationalAddress: string; defaultDeliveryCity: string; defaultDeadlineDays: number; /** «حسابي» structured national address (SPL); nationalAddress is its one-line form for the RFQ */ nationalAddressParts?: NationalAddress }
 
 const key = (name: string) => `farq.b2b.${farqSession.getUser()?.id || 'guest'}.${name}.v1`
 export function readLocal<T>(name: string, fallback: T): T {

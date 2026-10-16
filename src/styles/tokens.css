@@ -150,6 +150,7 @@ html[data-farq-app="b2b"] {
 
   /* ── Primitives ──────────────────────────────────────────────────── */
   --white: #ffffff;
+  --farq-b2b-pill: #008060; /* FARQ B2B lockup pill (src/b2b/Brand.tsx) outside the B2B app; inside it --b2b-olive-gold wins */
   --white-a6: rgba(255, 255, 255, 0.06);
   --white-a8: rgba(255, 255, 255, 0.08);
   --white-a16: rgba(255, 255, 255, 0.16);

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { listTemplates, templateStatus, templateBody, templateFits, OUTREACH_TEMPLATE, type MetaTemplate } from '../../api/targetingClient'
-import { Badge, Button, Icon, MobileAppBar, RiyalSign, type BadgeTone } from '../../ui'
+import { Badge, Button, Icon, MobileAppBar, Money, type BadgeTone } from '../../ui'
+import SendTiming from './SendTiming'
 import { FOCUS_RING } from '../../ui/cx'
 import { metaReasonAr } from './metaReason'
 
@@ -46,7 +47,9 @@ function choiceOf(t: MetaTemplate): Choice {
 /** Fills a template body for the preview: {{1}} = the place's name, {{2}} = the campaign text. */
 export const previewOf = (body: string, message: string) => body.replace(/\{\{\s*1\s*\}\}/g, '{اسم المنشأة}').replace(/\{\{\s*2\s*\}\}/g, message.trim() || '…')
 
-export default function MessageStep({ count, cost, message, onMessage, onBack, onNext, onNewTemplate, blocked, template, onTemplate }: {
+export default function MessageStep({ count, cost, message, onMessage, onBack, onNext, onNewTemplate, blocked, template, onTemplate, city }: {
+  /** the search city (City.en): prayer times for the send note */
+  city?: string | null
   /** The chosen template (page state, so the confirm sheet sends it). */
   template?: string
   onTemplate?: (name: string) => void
@@ -119,10 +122,11 @@ export default function MessageStep({ count, cost, message, onMessage, onBack, o
           </span>
         </label>
         {chosen?.body ? <p className="rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] px-4 py-3 text-[14px] leading-[22px] whitespace-pre-line text-[var(--color-text-secondary)]">{previewOf(chosen.body, message)}</p> : null}
+        <SendTiming city={city} className="rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] px-4 py-3" />
       </div>
       <SummaryBar
         title={chosen ? <>القالب: <bdi dir="ltr">{chosen.name}</bdi> · معتمد</> : 'اختر قالباً'}
-        detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : null}</>}
+        detail={<><bdi dir="ltr">{count}</bdi> موردين{cost != null ? <> · = <Money amount={cost} vat="excl" noteClassName="text-[length:inherit] leading-[inherit] text-[var(--color-text-on-inverse-secondary)]" /></> : null}</>}
         action={<Button variant="Secondary" size="M" disabled={Boolean(block)} title={block || undefined} onClick={onNext}>التالي</Button>}
         reason={block}
       />

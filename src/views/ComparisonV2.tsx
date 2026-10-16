@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { NavProps } from '../types'
 import { useProcurement } from '../procurementContext'
 import {
@@ -13,7 +13,7 @@ import { CELL_LABEL, cheapestPerLineTotal, leadTimeLabel, lowestPerLine, matrixT
 import { rfqProjectName } from '../lib/rfqIdentity'
 import { awardBlockReason, type AwardOffer } from '../lib/awardFlow'
 import AwardConfirmSheet from '../pages/award/AwardConfirmSheet'
-import { Badge, Button, Chip, Icon, PriceCell, TopBar, useIsMobile, type PriceCellState } from '../ui'
+import { Badge, Button, Chip, DualDate, Icon, Money, PriceCell, RiyalSign, TopBar, useIsMobile, type PriceCellState, type VatBasis } from '../ui'
 
 /*
  * «مقارنة العروض» — Figma B2B M04 `18371:23206` / W04 `18430:3016` opens on a summary: the request, its items,
@@ -38,12 +38,27 @@ const VAT = 0.15
 /** Wraps a left-to-right run (signed amount, percentage) so RTL text keeps it in order. */
 const ltr = (s: string) => `\u2066${s}\u2069`
 
-function money(n?: number | null, currency = 'SAR'): string {
-  if (n == null || !Number.isFinite(Number(n))) return '—'
-  return `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === 'SAR' ? 'ر.س' : currency}`
+/** The tax basis a price was given on: `prices_include_tax` true / false; null = the offer did not say. */
+type Basis = VatBasis | null
+const basisOf = (v: boolean | null | undefined): Basis => (v === true ? 'incl' : v === false ? 'excl' : null) // null: VAT basis unknown in the API for this offer — nothing is claimed
+/** One basis for a set of cells, or null when they differ or any is unstated. */
+function commonBasis(values: Array<boolean | null | undefined>): Basis {
+  const set = new Set(values.map((v) => v ?? null))
+  return set.size === 1 ? basisOf([...set][0]) : null
 }
 
-function cellState(cell: Cell | undefined, winner: string | null, best: number | null): { state: PriceCellState; delta: string } {
+/** A price: number + riyal sign (+ «شامل الضريبة ١٥٪» / «قبل الضريبة» when the basis is known). */
+function money(n?: number | null, currency = 'SAR', vat: Basis = null, noteClassName?: string): ReactNode {
+  if (n == null || !Number.isFinite(Number(n))) return '—'
+  if (currency && currency !== 'SAR') return `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+  return <Money amount={Number(n)} vat={vat} noteClassName={noteClassName} />
+}
+/** A signed difference «+1,234.00 ⃁ (2.2%)», kept left-to-right. */
+const plus = (v: number, pct: number | null, decimals = 2, currency = 'SAR') => (
+  <bdi dir="ltr" className="inline-flex items-baseline gap-1 whitespace-nowrap">+{v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{currency === 'SAR' || !currency ? <RiyalSign /> : ` ${currency}`}{pct != null ? ` (${(pct * 100).toFixed(1)}%)` : ''}</bdi>
+)
+
+function cellState(cell: Cell | undefined, winner: string | null, best: number | null): { state: PriceCellState; delta: ReactNode } {
   if (!cell || cell.status === 'NOT_QUOTED') return { state: 'Pending', delta: 'بانتظار الرد' }
   if (cell.status === 'UNAVAILABLE') return { state: 'Pending', delta: 'ما عنده البند' }
   if (cell.status === 'NOT_REQUESTED') return { state: 'Pending', delta: 'لم يُطلب منه' }
@@ -52,12 +67,12 @@ function cellState(cell: Cell | undefined, winner: string | null, best: number |
   if (cell.supplier_id === winner) return { state: 'Best', delta: 'الأقل سعرًا' }
   const diff = Number(cell.line_total) - best
   const pct = best > 0 ? diff / best : 0
-  return { state: pct >= BIG_DIFF ? 'Higher' : 'Normal', delta: `${ltr(`+${Number(diff).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)} ${cell.currency === 'SAR' || !cell.currency ? 'ر.س' : cell.currency} ${ltr(`(${(pct * 100).toFixed(1)}%)`)}` }
+  return { state: pct >= BIG_DIFF ? 'Higher' : 'Normal', delta: plus(Number(diff), pct, 2, cell.currency) }
 }
 
 function MatrixCell({ cell, winner, best, fluid }: { cell: Cell | undefined; winner: string | null; best: number | null; fluid?: boolean }) {
   const { state, delta } = cellState(cell, winner, best)
-  return <PriceCell fluid={fluid} state={state} delta={delta} price={cell && cell.line_total != null ? money(cell.line_total, cell.currency) : null} />
+  return <PriceCell fluid={fluid} state={state} delta={delta} price={cell && cell.line_total != null ? money(cell.line_total, cell.currency, basisOf(cell.prices_include_tax)) : null} />
 }
 
 export function ComparisonV2({ navigate }: NavProps) {
@@ -105,6 +120,10 @@ export function ComparisonV2({ navigate }: NavProps) {
     const pricedOf = (id: string) => totals.find((t) => t.supplier_id === id)?.priced || 0
     return ids.sort((a, b) => (a === lowest ? -1 : b === lowest ? 1 : pricedOf(b) - pricedOf(a)))
   }, [lines, totals, lowest])
+
+  // The basis each figure was stated on, from the cells it adds up (null when they differ or are unstated).
+  const supplierBasis = useCallback((id: string): Basis => commonBasis(lines.flatMap((l) => (l.offers || []).filter((c) => c && c.supplier_id === id && c.status === 'PRICED' && c.line_total != null).map((c) => c.prices_include_tax))), [lines])
+  const basketBasis = useMemo((): Basis => commonBasis(lines.flatMap((l) => { const w = winners.get(l.id); const c = w ? (l.offers || []).find((x) => x && x.supplier_id === w) : null; return c && c.line_total != null ? [c.prices_include_tax] : [] })), [lines, winners])
 
   const bestOfLine = useCallback((line: Line): number | null => {
     const w = winners.get(line.id)
@@ -166,18 +185,22 @@ export function ComparisonV2({ navigate }: NavProps) {
     : complete.length >= 2 ? 'العروض الكاملة لا تُقارن (ضريبة أو عملة مختلفة)'
     : 'لا يوجد مورد سعّر كل البنود بعد'
 
+  const onInverse = 'text-[var(--color-text-on-inverse-secondary)]'
+  // «الوفر» is a difference of two totals: it has a basis only when both totals share one.
+  const savingFrom: Basis = basket ? basketBasis : bestSingle ? supplierBasis(bestSingle.supplier_id) : null
+  const savingBasis: Basis = highest && savingFrom === supplierBasis(highest.supplier_id) ? savingFrom : null
   const chips: Array<[Filter, string]> = [['all', `كل البنود ${counts.all}`], ['big', `فيها فرق كبير ${counts.big}`], ['incomparable', `غير قابلة للمقارنة ${counts.incomparable}`], ['none', `ما وصلها عرض ${counts.none}`]]
-  const figures = [
-    { label: 'أوفر توزيعة', value: basket ? money(basket.total, basket.currency) : '—', basis: basket ? `${basket.suppliers} موردين · ${basket.covered} من ${basket.requested} بند` : 'لا يوجد بند له أوفر مورد مؤكد', mint: true },
+  const figures: Array<{ label: string; value: ReactNode; basis: string; mint: boolean }> = [
+    { label: 'أوفر توزيعة', value: basket ? money(basket.total, basket.currency, basketBasis, onInverse) : '—', basis: basket ? `${basket.suppliers} موردين · ${basket.covered} من ${basket.requested} بند` : 'لا يوجد بند له أوفر مورد مؤكد', mint: true },
     { label: 'أوفر مورد واحد', ...(bestSingle
-      ? { value: money(bestSingle.total, bestSingle.currency), basis: `${nameOf(bestSingle.supplier_id)} · ${bestSingle.priced} بند` }
+      ? { value: money(bestSingle.total, bestSingle.currency, supplierBasis(bestSingle.supplier_id), onInverse), basis: `${nameOf(bestSingle.supplier_id)} · ${bestSingle.priced} بند` }
       : complete.length === 1
         // matrixTotals needs two complete offers to name a cheapest one; say so instead of a blank figure.
         ? { value: 'عرض كامل واحد', basis: `نحتاج عرضين كاملين على الأقل للمقارنة — وصل عرض واحد (${nameOf(complete[0].supplier_id)})` }
         : complete.length >= 2
           ? { value: '—', basis: 'العروض الكاملة لا تُقارن (ضريبة أو عملة مختلفة)' }
           : { value: 'لا يوجد بعد', basis: 'نحتاج عرضين كاملين على الأقل للمقارنة — ما وصل أي عرض كامل' }), mint: false },
-    { label: 'أعلى عرض', value: highest ? money(highest.total, highest.currency) : '—', basis: highest ? `${nameOf(highest.supplier_id)} · على كل البنود` : 'لا يوجد عرض كامل بعد', mint: false },
+    { label: 'أعلى عرض', value: highest ? money(highest.total, highest.currency, supplierBasis(highest.supplier_id), onInverse) : '—', basis: highest ? `${nameOf(highest.supplier_id)} · على كل البنود` : 'لا يوجد عرض كامل بعد', mint: false },
   ]
 
   const recommendation = (
@@ -196,7 +219,7 @@ export function ComparisonV2({ navigate }: NavProps) {
             ))}
           </ul>
           <span className="h-px w-full bg-[var(--color-border-default)]" />
-          <p className="w-full text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{basket.bestSingle && basket.saving != null ? `البديل الأبسط: مورد واحد (${nameOf(basket.bestSingle.supplier_id)}) بزيادة ${money(basket.saving, basket.currency)}.` : 'لا يوجد مورد واحد سعّر كل البنود حتى الآن.'}</p>
+          <p className="w-full text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{basket.bestSingle && basket.saving != null ? <>البديل الأبسط: مورد واحد ({nameOf(basket.bestSingle.supplier_id)}) بزيادة {money(basket.saving, basket.currency, basketBasis === supplierBasis(basket.bestSingle.supplier_id) ? basketBasis : null)}.</> : 'لا يوجد مورد واحد سعّر كل البنود حتى الآن.'}</p>
         </>
       ) : bestSingle ? (
         <>
@@ -214,7 +237,7 @@ export function ComparisonV2({ navigate }: NavProps) {
   const awardLabel = bestSingle ? `رسِّ على ${nameOf(bestSingle.supplier_id)}` : 'ترسية'
   const awardDialog = awarding ? (
     <AwardConfirmSheet rfq={rfq} comparison={comparison} offer={awarding} coverage={quoteCoverage(summaryBySupplier.get(String(awarding.supplier.id)), lines.length)} onClose={() => setAwarding(null)}
-      onDone={async () => { setAwarding(null); setNotice(`تمت الترسية على ${awarding.supplier.name_ar || awarding.supplier.name_en}.`); await load(rfq.id).catch(() => {}) }} />
+      onDone={async () => { setAwarding(null); setNotice(`تم بحمد الله، سُجّلت الترسية على ${awarding.supplier.name_ar || awarding.supplier.name_en}.`); await load(rfq.id).catch(() => {}) }} />
   ) : null
 
   // ── Summary (Figma M04): one tax basis for every total. ──
@@ -243,7 +266,9 @@ export function ComparisonV2({ navigate }: NavProps) {
   const invited = rfq.invitations || []
   const waitingNames = invited.filter((i) => !responses.some((r) => String(r.supplier.id) === i.supplier_id)).map((i) => i.supplier?.name_ar || i.supplier?.name_en || 'مورد')
   const lead = (id: string) => { const o = offerForSupplier(id); return o ? leadTimeLabel(o.offer) : null }
-  const sar = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.س`
+  // Summary totals are made tax-inclusive above (15 % added to before-tax lines); a row with an unstated line has no basis.
+  const sar = (v: number, known: boolean) => <Money amount={Math.round(v)} decimals={0} vat={known ? 'incl' : null} className="justify-end" />
+  const submittedOf = (id: string) => offerForSupplier(id)?.offer.submittedAt || null
 
   if (mode === 'summary') {
     return (
@@ -279,30 +304,32 @@ export function ComparisonV2({ navigate }: NavProps) {
               </div>
               <p className="shrink-0 text-[14px] text-[var(--color-text-secondary)]"><bdi dir="ltr">{responses.length}</bdi> عروض من <bdi dir="ltr">{invited.length || supplierIds.length}</bdi></p>
             </div>
-            {ranked.length === 0 ? <p className="text-[14px] text-[var(--color-text-secondary)]">ما وصل أي سعر بعد.</p> : null}
+            {ranked.length === 0 ? <p className="text-[14px] text-[var(--color-text-secondary)]">ما وصل أي سعر للحين، وأول ما يوصل نعرضه هنا.</p> : null}
             <ul className="flex flex-col gap-2">
               {ranked.map((r) => {
                 const isBest = cheapest?.id === r.id
                 const diff = cheapest && r.complete && !isBest && !r.unknownTax ? r.total - cheapest.total : null
                 const pct = diff != null && cheapest!.total > 0 ? diff / cheapest!.total : null
-                const meta = [<><bdi dir="ltr">{r.priced}/{lines.length}</bdi></>, lead(r.id)].filter(Boolean)
+                const sent = submittedOf(r.id)
+                const meta = [<bdi key="n" dir="ltr">{r.priced}/{lines.length}</bdi>, lead(r.id)].filter(Boolean)
                 return (
                   <li key={r.id} className={`flex items-start justify-between gap-3 rounded-[var(--radius-lg)] p-4 ${isBest ? 'border-2 border-[var(--color-text-primary)] bg-[var(--color-bg-primary-subtle)]' : ''}`}>
                     <div className="flex min-w-0 flex-col gap-1">
                       <p className="text-[16px] leading-[26px] font-medium">{nameOf(r.id)}</p>
                       <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
-                        {r.complete ? meta.map((m, k) => <span key={k}>{k ? ' · ' : ''}{m}</span>) : <>ناقص <bdi dir="ltr">{r.missing}</bdi>{r.completed != null ? <> · ≈ <bdi dir="ltr">{Math.round(r.completed).toLocaleString('en-US')}</bdi> لو كمّلتها</> : null}</>}
+                        {r.complete ? meta.map((m, k) => <span key={k}>{k ? ' · ' : ''}{m}</span>) : <>ناقص <bdi dir="ltr">{r.missing}</bdi>{r.completed != null ? <> · ≈ <Money amount={Math.round(r.completed)} decimals={0} vat={r.unknownTax ? null : 'incl'} /> لو كمّلتها</> : null}</>}
                         {r.addedTax ? ' · + ضريبة' : ''}{r.unknownTax ? ' · الضريبة غير واضحة' : ''}
                       </p>
+                      {sent ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">وصل العرض <DualDate value={sent} /></p> : null}
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <p className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-semibold tabular-nums"><bdi dir="ltr">{sar(r.total)}</bdi></p>
+                      <div className="font-[family-name:var(--font-display)] text-[18px] leading-[28px] font-semibold tabular-nums">{sar(r.total, !r.unknownTax)}</div>
                       {isBest ? <Badge tone="Success" showDot={false} label={comparable.length > 1 ? 'الأرخص المكتمل ✓' : 'الوحيد المكتمل'} />
                         : !r.complete ? <Badge tone="Warning" showDot={false} label="عرض ناقص" />
                         : diff != null && pct != null ? (
                           <span className="flex items-center gap-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
                             <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--color-bg-surface-2)]"><span className="block h-full bg-[var(--color-bg-delta,var(--color-bg-warning))]" style={{ width: `${Math.min(100, pct * 400)}%` }} /></span>
-                            <bdi dir="ltr">+{Math.round(diff).toLocaleString('en-US')} ر.س ({(pct * 100).toFixed(1)}%)</bdi>
+                            {plus(Math.round(diff), pct, 0)}
                           </span>
                         ) : null}
                     </div>
@@ -341,11 +368,11 @@ export function ComparisonV2({ navigate }: NavProps) {
           <section aria-label="ملخص الأسعار" data-tone="deep" className="flex flex-col gap-3 rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-4">
             <div className="flex flex-col items-start gap-0.5">
               <p className="text-[14px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].label}</p>
-              <p className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-bg-brand)]">{figures[0].value}</p>
+              <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums text-[var(--color-bg-brand)]">{figures[0].value}</div>
               <p className="text-[12px] font-medium text-[var(--color-text-on-inverse-secondary)]">{figures[0].basis}</p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--color-bg-brand)] px-4 py-3 text-[var(--color-text-on-brand)]">
-              <p className="text-[14px] font-medium">الوفر <span className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency) : '—'}</span></p>
+              <div className="flex flex-wrap items-baseline gap-x-1.5 text-[14px] font-medium">الوفر <span className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency, savingBasis, 'text-[var(--color-text-on-brand)]') : '—'}</span></div>
               <p className="font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums">{savingPct != null ? ltr(`${savingPct.toFixed(1)}%`) : '—'}</p>
             </div>
             {/* Not in the Figma phone frame; kept so the phone shows the same figures as the desktop. */}
@@ -353,7 +380,7 @@ export function ComparisonV2({ navigate }: NavProps) {
               {figures.slice(1).map((f) => (
                 <div key={f.label} className="flex min-w-0 flex-col gap-0.5">
                   <dt className="text-[12px] font-medium text-[var(--color-text-on-inverse-secondary)]">{f.label}</dt>
-                  <dd className="truncate font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums text-[var(--color-text-on-inverse)]">{f.value}</dd>
+                  <dd className="min-w-0 font-[family-name:var(--font-display)] text-[16px] font-semibold tabular-nums text-[var(--color-text-on-inverse)]">{f.value}</dd>
                   <dd className="text-[11px] leading-[16px] text-[var(--color-text-on-inverse-secondary)]">{f.basis}</dd>
                 </div>
               ))}
@@ -429,13 +456,13 @@ export function ComparisonV2({ navigate }: NavProps) {
           {figures.map((f) => (
             <div key={f.label} className="flex min-w-0 flex-1 flex-col items-start gap-1">
               <p className="text-[14px] leading-[22px] font-medium text-[var(--color-text-on-inverse-secondary)]">{f.label}</p>
-              <p className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: f.mint ? 'var(--color-bg-brand)' : 'var(--color-text-on-inverse)' }}>{f.value}</p>
+              <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums" style={{ color: f.mint ? 'var(--color-bg-brand)' : 'var(--color-text-on-inverse)' }}>{f.value}</div>
               <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse-secondary)]">{f.basis}</p>
             </div>
           ))}
           <div className="flex flex-col items-start gap-1 rounded-[var(--radius-lg)] bg-[var(--color-bg-brand)] px-5 py-4 text-[var(--color-text-on-brand)]">
             <p className="text-[14px] leading-[22px] font-medium">الوفر</p>
-            <p className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency) : '—'}</p>
+            <div className="font-[family-name:var(--font-display)] text-[28px] leading-[40px] font-semibold tabular-nums">{savingVsHighest != null ? money(savingVsHighest, currency, savingBasis, 'text-[var(--color-text-on-brand)]') : '—'}</div>
             <p className="text-[12px] leading-[18px] font-medium">{savingPct != null ? `${ltr(`${savingPct.toFixed(1)}%`)} أقل من أعلى عرض` : 'يُحسب عند اكتمال عرضين على الأقل'}</p>
           </div>
         </section>
@@ -469,12 +496,12 @@ export function ComparisonV2({ navigate }: NavProps) {
               const best = bestOfLine(line)
               return (
                 <div role="row" key={line.id} className="flex w-full min-w-max items-center border-t border-[var(--color-border-default)]">
-                  <div role="rowheader" className="flex h-24 w-[200px] shrink-0 flex-col items-start justify-center gap-0.5 p-3">
+                  <div role="rowheader" className="flex min-h-24 w-[200px] shrink-0 flex-col items-start justify-center gap-0.5 p-3">
                     <p className="max-w-full truncate text-[16px] leading-[26px] font-medium" title={line.name_ar}>{line.name_ar}</p>
                     <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{line.quantity} {line.uom}</p>
                   </div>
                   {supplierIds.map((id) => (
-                    <div role="cell" key={id} className="flex h-24 w-[196px] shrink-0 items-center p-3">
+                    <div role="cell" key={id} className="flex min-h-24 w-[196px] shrink-0 items-center p-3">
                       <MatrixCell cell={(line.offers || []).find((c) => c && c.supplier_id === id)} winner={winner} best={best} />
                     </div>
                   ))}

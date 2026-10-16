@@ -7,6 +7,7 @@ still disabled unless TARGETING_SEND=1.
 """
 import os, json, hashlib, html, urllib.request, urllib.parse, mimetypes
 from trial import handle as handle_trial
+from saudi_rhythm import block_for_body
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__)); DIST = os.path.join(HERE, 'dist')
@@ -98,6 +99,10 @@ class H(BaseHTTPRequestHandler):
         if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
         if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
+        # Owner-approved send rule (2026-10-16): no campaign send from a prayer's start until 25 min after it, nor during
+        # Friday prayer (11:30–13:30 Saudi time), in any target city (saudi_rhythm.py). Nothing is scheduled: 409, not forwarded.
+        if key in T_SEND and (blk := block_for_body(body)):
+            return self._send(409, json.dumps(blk, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
         req = urllib.request.Request(TARGETING + path + (("?"+parsed.query) if parsed.query else ""), data=body, method=self.command, headers={'content-type': 'application/json'})
         if TARGETING_SERVICE: req.add_header('X-Farq-Service', TARGETING_SERVICE)
         try:

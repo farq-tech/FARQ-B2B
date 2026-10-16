@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cx } from '../../../ui/cx'
 import { Icon } from '../../../ui/Icon'
+import { RiyalSign } from '../../../ui/Riyal'
 import { T } from '../kit'
 import '../layers.css'
 import { bucket8, type Dir8 } from '../../../live-bg/ahmad3d'
@@ -19,14 +20,16 @@ import waMark from '../../../assets/live-bg/channel-whatsapp@2x.webp?no-inline'
  */
 
 type Channel = 'whatsapp' | 'sms' | 'call' | 'ahmad'
-type Offer = { name: string; meta: string; price: number; channel: Channel }
+type Offer = { name: string; meta: ReactNode; price: number; channel: Channel }
+// Illustrative item prices; each supplier states delivery and VAT in its own offer, so no VAT basis is claimed here.
+const fmt = (n: number) => <bdi dir="ltr" className="inline-flex items-baseline gap-[2px] whitespace-nowrap">{n.toLocaleString('en-US')}<RiyalSign /></bdi>
 const ALL: Offer[] = [
-  { name: 'مؤسسة النور للكهرباء', meta: 'توصيل 350 ر.س', price: 42500, channel: 'whatsapp' },
+  { name: 'مؤسسة النور للكهرباء', meta: <>توصيل {fmt(350)}</>, price: 42500, channel: 'whatsapp' },
   { name: 'مستودع الرياض للكهرباء', meta: 'متوفر · توصيل مجاني', price: 41200, channel: 'ahmad' },
   { name: 'مؤسسة الأفق للتجارة', meta: 'متوفر · 3 أيام', price: 43600, channel: 'sms' },
   { name: 'شركة الخليج للكابلات', meta: 'التوريد 7 أيام', price: 44800, channel: 'call' },
 ]
-const fmt = (n: number) => n.toLocaleString('en-US') + ' ر.س'
+
 const short = (n: number) => n.toLocaleString('en-US')
 
 // pace: everyone leaves together and arrives together (≈ 55 px/s on the longest path), waits, and comes back together
@@ -214,7 +217,7 @@ export default function HeroScene() {
     : phase === 'send' ? 'طلب واحد يصل إلى الموردين المختارين'
     : phase === 'wait' ? 'الموردين يسعّرون…'
     : phase === 'back' ? 'الأسعار راجعة لك…'
-    : `أقل سعر في المثال ${fmt(best)}`
+    : <>أقل سعر في المثال {fmt(best)}</>
 
   return (
     <div ref={box} data-hero-scene aria-label="مثال: طلب واحد يروح لكل الموردين بالواتساب والرسائل والاتصال وأحمد بنفسه، ويرجع لك بالأسعار" role="img"

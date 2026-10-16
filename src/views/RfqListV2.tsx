@@ -3,7 +3,8 @@ import type { NavProps } from '../types'
 import { useProcurement } from '../procurementContext'
 import { listBuyerRfqs, formatRfqTitle, type ConstructionRfqSummary } from '../api/constructionClient'
 import { rfqProjectName } from '../lib/rfqIdentity'
-import { Button, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
+import { farqSession } from '../api/farqSession'
+import { Button, DualDate, Greeting, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
 
 /*
  * Figma M02 `18371:22940` / W02 `18371:288`: requests grouped by what the owner has to do next
@@ -18,10 +19,10 @@ const GROUPS: { key: Group; title: string }[] = [
   { key: 'draft', title: 'مسودات' },
 ]
 
+/** Gregorian date with the Umm al-Qura Hijri date beside it, or null. */
 const day = (iso?: string | null) => {
   if (!iso) return null
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-GB', { timeZone: 'Asia/Riyadh', day: '2-digit', month: '2-digit' })
+  return Number.isNaN(new Date(iso).getTime()) ? null : <DualDate value={iso} />
 }
 const n = (v: number | null | undefined) => <bdi dir="ltr">{v ?? 0}</bdi>
 
@@ -42,10 +43,10 @@ function caption(r: ConstructionRfqSummary, group: Group) {
   const deadline = day(r.quote_deadline)
   const offers = <>{n(r.response_count)} عروض من {n(r.supplier_count)}</>
   if (r.status === 'PARTIALLY_SENT') return <>أُرسل لـ {n(r.sent_count)} من {n(r.supplier_count)} · كمّل الإرسال</>
-  if (group === 'draft') return <>{n(r.line_count)} بنود · لم يُرسل{date ? <> · <bdi dir="ltr">{date}</bdi></> : null}</>
-  if (group === 'waiting') return <>{offers}{deadline ? <> · آخر موعد <bdi dir="ltr">{deadline}</bdi></> : null}</>
-  if (group === 'done') return <>{r.award_status === 'APPROVED' ? 'تمت الترسية · ' : ''}{n(r.response_count)} عروض{date ? <> · <bdi dir="ltr">{date}</bdi></> : null}</>
-  return <>{offers} · {n(r.line_count)} بنداً{date ? <> · <bdi dir="ltr">{date}</bdi></> : null}</>
+  if (group === 'draft') return <>{n(r.line_count)} بنود · لم يُرسل{date ? <> · {date}</> : null}</>
+  if (group === 'waiting') return <>{offers}{deadline ? <> · آخر موعد {deadline}</> : null}</>
+  if (group === 'done') return <>{r.award_status === 'APPROVED' ? 'تمت الترسية · ' : ''}{n(r.response_count)} عروض{date ? <> · {date}</> : null}</>
+  return <>{offers} · {n(r.line_count)} بنداً{date ? <> · {date}</> : null}</>
 }
 
 const WAYS: { icon: IconName; title: string; detail: string }[] = [
@@ -111,10 +112,13 @@ export function RfqListV2({ navigate }: NavProps) {
   const decide = grouped.find((g) => g.key === 'decide')?.rows.length ?? 0
   const open = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
   const onNew = () => navigate('create-upload')
+  // «صباح الخير، سارة» — only a real display name, never the e-mail.
+  const firstName = (farqSession.getUser()?.displayName || '').trim().split(/\s+/)[0] || null
   return (
     <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
+          <Greeting name={firstName} className="text-[13px] leading-[20px]" />
           <h1 className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold sm:text-[28px] sm:leading-[44px]">طلبات التسعير</h1>
           {rows && rows.length ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{n(rows.length)} طلبات{decide ? <> · {n(decide)} تحتاج قرارك</> : null} · المرتبة حسب ما يحتاج قرارك</p> : null}
         </div>
@@ -131,7 +135,7 @@ export function RfqListV2({ navigate }: NavProps) {
           {g.rows.map(({ r, c }) => <ListRow key={r.id} title={titleOf(r)} caption={caption(r, c.group)} status={{ tone: c.tone, label: c.label }} onClick={() => open(r.id)} />)}
         </ListSection>
       ))}
-      {rows && rows.length > 0 && shown.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما فيه طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
+      {rows && rows.length > 0 && shown.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما لقينا طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
       {rows ? <p className="text-[14px] text-[var(--color-text-secondary)]">تدوّر على موردين أو مشترين بدون طلب؟ <button type="button" onClick={() => go('explore')} className="min-h-11 text-[var(--color-text-link)] underline">استكشف السوق</button></p> : null}
     </div>
   )

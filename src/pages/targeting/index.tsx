@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { listCities, listTemplates, searchTargets, templateBody, templateFits, templateStatus, tradeClusters, type MetaTemplate, type City, type SearchFilters, type TradeCluster, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE, type TargetRow, type TargetSearch, type TemplateStatus } from '../../api/targetingClient'
 import {
-  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, InfoIcon, MessageTemplatesIcon, NewRequestIcon,
-  RiyalSign, SearchIcon, Stat, StreetIcon, SuccessIcon, useIsMobile, WarningIcon, WholesaleIcon, Icon, type Channel,
+  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, InfoIcon, MessageTemplatesIcon, Money, NewRequestIcon,
+  SaudiEstablishmentBadge, SearchIcon, Stat, StreetIcon, SuccessIcon, useIsMobile, WarningIcon, WholesaleIcon, Icon, type Channel,
 } from '../../ui'
+import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
+import SendTiming from './SendTiming'
 import { FOCUS_RING } from '../../ui/cx'
 import TargetMap from './TargetMap'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
@@ -71,6 +73,8 @@ const WHOLESALE_RX = /جمل[ةه]/
 type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale'>
 /** «تجمعات هذا النشاط»: street / district clusters only, the first 8. */
 const clusterName = (c: TradeCluster) => [c.level === 'street' ? c.street_ar : null, c.district_ar].filter(Boolean).join('، ') || c.label_ar
+/** «سوق الزل للأقمشة — الديرة · 230 محل» when a curated popular name fits; otherwise «الشارع، الحي — 37 محل». */
+const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${clusterName(c)} · ${n(c.n)} محل` : `${clusterName(c)} — ${n(c.n)} محل`)
 
 function defaultMessage(cat: string | null, area: string | null) {
   return `معك أحمد من فرق. يوصلنا طلبات تسعير${cat ? ` ${cat}` : ''} من منشآت وشركات${area ? ` في ${area}` : ''} — تبي توصلك على واتساب؟\nللإيقاف أرسل: إيقاف`
@@ -235,17 +239,17 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     const v = ++clusterGen.current
     setClusters(null)
     tradeClusters({ city, q: text, objective: obj, ...(wholesale ? { wholesale: true } : {}) }).then(
-      (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)), basis: c?.basis }) },
+      (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)).map((x) => ({ ...x, popular_ar: marketNameFor(x, city, text) })), basis: c?.basis }) },
       () => { if (v === clusterGen.current) setClusters(null) },
     )
   }
   /** A new request (next = undefined) starts without area filters, wholesale on when it asks for «جملة»; otherwise the same request with these filters. */
-  async function runSearchIn(text: string, city: string, next?: AreaFilters, obj: typeof objective = objective): Promise<number | null> {
+  async function runSearchIn(text: string, city: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters): Promise<number | null> {
     if (!text || !city || busy) return null
     setBusy(true); setError(null); setNotice(null)
     const version = generation.current
     const fresh = next === undefined
-    let use: AreaFilters = fresh ? (WHOLESALE_RX.test(text) ? { wholesale: true } : {}) : next
+    let use: AreaFilters = fresh ? (initial ?? (WHOLESALE_RX.test(text) ? { wholesale: true } : {})) : next
     try {
       let r = await searchTargets(text, city, FETCH, obj, 0, use)
       // the service read «جملة» where the page did not: turn the filter on and ask again
@@ -371,6 +375,21 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       ) : null}
     </fieldset>
   ) : null
+  // before a search: the words people say («حدايد وبويات»، «مليس»…) and the city's known markets («سوق الزل للأقمشة»)
+  const examples = objective === 'marketing' ? SELL_EXAMPLES : BUY_EXAMPLES
+  const markets = useMemo(() => (objective === 'purchase' ? marketSuggestions(city) : []), [city, objective])
+  const tryExample = (term: string, district?: string) => {
+    setQ(term); setActiveLine(null)
+    if (!city) { setError('اختر المدينة، ثم اضغط المثال.'); requestAnimationFrame(() => input.current?.focus()); return }
+    void runSearchIn(term, city, undefined, objective, district ? { district } : undefined)
+  }
+  const suggestBar = (row: boolean) => !res && !busy ? (
+    <div aria-label="أمثلة للبحث" role="group" className={row ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>
+      <span className={`shrink-0 text-[14px] leading-[22px] font-medium ${row ? 'rounded-full bg-[var(--color-bg-surface)] px-3 py-1.5 text-[var(--color-text-secondary)]' : 'text-[var(--color-text-secondary)]'}`}>جرّب:</span>
+      {examples.map((t) => <Chip key={t} className="shrink-0" label={t} onClick={() => tryExample(t)} />)}
+      {markets.map((m) => <Chip key={m.label} className="shrink-0" label={m.label} onClick={() => tryExample(m.term, m.district)} />)}
+    </div>
+  ) : null
   const clusterTop = useMemo(() => (clusters?.list || []).filter((c) => c.level !== 'cell').slice(0, 8), [clusters])
   const clusterList = clusterTop.length ? (
     <details open className="group border-t border-[var(--color-border-default)] px-5 py-3">
@@ -387,7 +406,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
               <button type="button" disabled={busy} aria-pressed={on} onClick={() => pickCluster(c)}
                 className={`fi-host flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${on ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
                 {c.level === 'street' ? <StreetIcon size={16} /> : <DistrictIcon size={16} />}
-                <span className="min-w-0 flex-1 truncate">{clusterName(c)} — <bdi>{n(c.n)}</bdi> محل</span>
+                <span className="min-w-0 flex-1 truncate">{clusterText(c)}</span>
                 {c.wholesale_pct >= 30 ? <Badge tone="Neutral" icon={WholesaleIcon} label="جملة" className="px-2 py-0 text-[12px] leading-[18px]" /> : null}
               </button>
             </li>
@@ -413,12 +432,12 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const holder = tpl?.holder?.holder_rfq_id || null
   const sendBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : !res ? 'ابحث أولًا' : !chosen.length ? 'حدد جهة وحدة على الأقل' : !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : !holder ? 'ما فيه طلب حاضن للردود' : null
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
-  const costLine = cost != null ? <>≈ <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : 'سعر الرسالة يظهر في المراجعة'
+  const costLine = cost != null ? <>≈ <Money amount={cost} vat="excl" noteClassName="text-[length:inherit] leading-[inherit] font-[inherit]" /></> : 'سعر الرسالة يظهر في المراجعة'
   const saveDraft = () => {
     const d: Draft = { q: query, city, message: message.trim(), keys: chosen.map((r) => r.poi_key), at: Date.now() }
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch { /* storage blocked */ }
     setDraft(d); setConfirming(false); setComposeOpen(false)
-    setNotice(`حفظنا الحملة كمسودة على هذا الجهاز (${n(d.keys.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال.`)
+    setNotice(`أبشر، حفظنا الحملة كمسودة على هذا الجهاز (${n(d.keys.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال.`)
   }
   const resumeDraft = async () => {
     if (!draft) return
@@ -470,6 +489,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         <Button variant="Primary" size="M" icon="send" disabled={Boolean(sendBlock)} title={sendBlock || undefined} onClick={() => setConfirming(true)}>أرسل الحملة</Button>
       </div>
       {sendBlock && res ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{sendBlock}</p> : null}
+      {objective === 'purchase' ? <SendTiming city={city} /> : null}
       {notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null}
     </section>
   )
@@ -508,7 +528,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
                     <span className={`truncate text-[16px] leading-[26px] font-medium ${ch === 'Unreachable' ? 'text-[var(--color-text-tertiary)]' : ''}`}>{nameOf(r)}</span>
                     <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{rowSub(r)}</span>
                   </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{wholesaleBadge(r)}{statusBadge(r)}{fitBadge(r)}</span>
+                  <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{wholesaleBadge(r)}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
                 </label>
               </li>
             )
@@ -531,9 +551,9 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
 
   const basisOf = truncated ? `من أول ${n(rows.length)} نتيجة` : null
   const confirmSheet = confirming && holder ? (
-    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price}
+    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price} city={city}
       onClose={() => setConfirming(false)} onSaveDraft={saveDraft}
-      onDone={(sent, failed) => { setConfirming(false); setComposeOpen(false); try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage blocked */ } setNotice(`أُرسلت ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
+      onDone={(sent, failed) => { setConfirming(false); setComposeOpen(false); try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage blocked */ } setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
 
   // Phones: Figma M07 (59:439) — the map fills the screen under a floating search; counters, results and the
@@ -557,11 +577,12 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
             <SearchIcon size={18} className="text-[var(--color-icon-secondary)]" />
             <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "وش تخصصك أو وش تبيع؟" : "وش تبي تشتري؟ منتج أو خدمة"}
+            <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? SELL_PLACEHOLDER_SHORT : BUY_PLACEHOLDER_SHORT}
               className="min-w-0 flex-1 bg-transparent text-[16px] leading-[26px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
             {citySelect('max-w-[116px] text-[14px]')}
             <Button type="submit" variant="Primary" size="S" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="…">ابحث</Button>
           </form>
+          {suggestBar(true)}
           {chips.length ? (
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
               {chips.map((c) => <button key={c} type="button" onClick={() => input.current?.focus()} className={`shrink-0 whitespace-nowrap rounded-full bg-[var(--color-bg-surface)] px-4 py-1.5 text-[14px] leading-[22px] font-medium ${FOCUS_RING}`}>{c.replace(/^[^:]+:\s*/, '')}</button>)}
@@ -618,7 +639,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
                       <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{rowSub(r)}</span>
                       {r.phone_source && r.phone ? <span className="text-[12px]">هاتف عام: <bdi dir="ltr">{r.phone}</bdi> · واتساب غير مؤكد</span> : null}
                     </span>
-                    <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{wholesaleBadge(r)}{statusBadge(r)}{fitBadge(r)}</span>
+                    <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{wholesaleBadge(r)}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
                   </label>
                 </li>
               )
@@ -630,14 +651,14 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
           <div className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-3 text-[var(--color-text-on-inverse)]">
             <div className="flex min-w-0 flex-col">
               <p className="text-[16px] leading-[26px] font-medium">اخترت <bdi dir="ltr">{n(chosen.length)}</bdi> موردين</p>
-              <p className="text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">واتساب <bdi dir="ltr">{n(chosen.length)}</bdi>{cost != null ? <> · = <bdi dir="ltr">{cost}</bdi> <RiyalSign /> قبل الضريبة</> : null}</p>
+              <p className="text-[12px] leading-[18px] text-[var(--color-text-on-inverse-secondary)]">واتساب <bdi dir="ltr">{n(chosen.length)}</bdi>{cost != null ? <> · = <Money amount={cost} vat="excl" noteClassName="text-[length:inherit] leading-[inherit] text-[var(--color-text-on-inverse-secondary)]" /></> : null}</p>
             </div>
             <Button variant="Secondary" size="M" disabled={!chosen.length} title={chosen.length ? undefined : 'اختر مورد واحد على الأقل'} onClick={() => setComposeOpen(true)}>التالي</Button>
           </div>
         </section>
         {composeOpen ? (
           <div role="dialog" aria-modal="true" aria-label="رسالة الحملة" className="fixed inset-x-0 top-0 bottom-[72px] z-50 overflow-y-auto farq-dots">
-            <MessageStep template={template} onTemplate={setTemplate} count={chosen.length} cost={cost} message={message} onMessage={setMessage} onBack={() => setComposeOpen(false)}
+            <MessageStep city={city} template={template} onTemplate={setTemplate} count={chosen.length} cost={cost} message={message} onMessage={setMessage} onBack={() => setComposeOpen(false)}
               onNext={() => setConfirming(true)} onNewTemplate={onTemplates}
               blocked={objective === 'marketing' ? 'الإرسال غير متاح لمسار المشترين' : !holder && tpl ? 'ما فيه طلب حاضن للردود' : null} />
           </div>
@@ -666,7 +687,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         <form role="search" onSubmit={search} className="flex items-center gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-surface)] py-2 ps-4 pe-2">
           <SearchIcon size={22} className="text-[var(--color-icon-secondary)]" />
           <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
-          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === "marketing" ? "مثال: مواد سباكة أو أجهزة كمبيوتر" : "مثال: أشتري أجهزة كمبيوتر"}
+          <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? SELL_PLACEHOLDER : BUY_PLACEHOLDER}
             className="min-w-0 flex-1 bg-transparent text-[18px] leading-[30px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
           {citySelect('w-[170px] text-[16px]')}
           <Button type="submit" variant="Primary" size="M" disabled={!q.trim() || !city || busy} loading={busy} loadingLabel="جارٍ البحث…">ابحث</Button>
@@ -682,6 +703,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
             {res?.parsed?.ai === false ? <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">(فهم بالقاموس الداخلي)</span> : null}
           </div>
         ) : null}
+        {suggestBar(false)}
         {areaBar(false)}
         {error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} />{error}</p> : null}
         {linesPanel(false)}
