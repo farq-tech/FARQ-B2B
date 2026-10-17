@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  districtCounts, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  districtCounts, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -296,6 +296,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return counts
   }, [cohort])
   const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
+  const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
+  const statusNoticeKey = res ? `${res.map_query || ''}|${res.total}|${res.rows[0]?.poi_key || ''}|${unconfirmedStatusCount}` : ''
+  const lastStatusNoticeKey = useRef('')
+  useEffect(() => {
+    if (!unconfirmedStatusCount || !statusNoticeKey) { lastStatusNoticeKey.current = ''; return }
+    if (statusNoticeKey === lastStatusNoticeKey.current) return
+    lastStatusNoticeKey.current = statusNoticeKey
+    recordMapInteraction('map_results_status_notice')
+  }, [statusNoticeKey, unconfirmedStatusCount])
   const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
@@ -866,16 +875,21 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       {cohort.length && fitFilter !== 'all' ? <button type="button" className={`mt-2 block font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`} onClick={() => setFitFilter('all')}>عرض كل النتائج</button> : null}
     </div>
   ) : (
-    <ul>
-      {visibleCohort.slice(0, shown).map(resultCard)}
-      {shown < visibleCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleCohort.length - shown))} أكثر</Button></li> : null}
-      {truncated && shown >= visibleCohort.length ? (
-        <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
-          <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
-          <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
-        </li>
-      ) : null}
-    </ul>
+    <div>
+      {unconfirmedStatusCount ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">
+        حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة ضمن نتائج البحث الحالية. تأكد من أنها تعمل قبل التواصل.
+      </p> : null}
+      <ul>
+        {visibleCohort.slice(0, shown).map(resultCard)}
+        {shown < visibleCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleCohort.length - shown))} أكثر</Button></li> : null}
+        {truncated && shown >= visibleCohort.length ? (
+          <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
+            <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
+            <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
+          </li>
+        ) : null}
+      </ul>
+    </div>
   )
   const unlocatedPanel = site && res && (unlocatedRows.length || (res.located_total != null && res.total > res.located_total)) ? (
     <section className="border-t border-[var(--color-border-default)] px-4 py-3" aria-label="منشآت بلا دبوس خارج نطاق التوصيل" data-testid="site-unlocated-results">

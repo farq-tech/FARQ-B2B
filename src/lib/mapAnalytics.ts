@@ -6,6 +6,7 @@ const MAP_EVENTS = [
   'map_search_results_1_4',
   'map_search_results_5_plus',
   'map_search_failed',
+  'map_results_status_notice',
   'map_results_shortcut_seen',
   'map_results_jump',
   'map_district_select',

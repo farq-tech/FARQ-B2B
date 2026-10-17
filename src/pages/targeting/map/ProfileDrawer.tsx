@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
-import { statusLabel, waNumber, type TargetRow } from '../../../api/targetingClient'
+import { hasUnconfirmedStatus, statusLabel, waNumber, type TargetRow } from '../../../api/targetingClient'
 import { recordMapInteraction } from '../../../lib/mapAnalytics'
 import { Button, Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
@@ -40,7 +40,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
   const wa = Boolean(waNumber(row))
   const whatsappUnverified = wa && row.whatsapp_verification_state !== 'verified'
   const status = statusLabel(row)
-  const statusUnconfirmed = ['hidden', 'unknown_empty', 'unknown_invalid'].includes(row.status_class || '')
+  const statusUnconfirmed = hasUnconfirmedStatus(row)
   useEffect(() => {
     if (statusUnconfirmed) recordMapInteraction('map_profile_status_unconfirmed')
   }, [row.poi_key, statusUnconfirmed])
