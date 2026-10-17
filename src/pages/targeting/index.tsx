@@ -508,13 +508,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
       if (version !== generation.current) return
+      recordMapInteraction('map_browse_succeeded')
       setFailedResultRefresh(false)
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
       setSelected(new Set()); setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
       loadClusters('', inCity, false, 'purchase', true)
     } catch (err) {
-      if (version === generation.current) { setFailedResultRefresh(hadResults); setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.') }
+      if (version === generation.current) {
+        recordMapInteraction('map_browse_failed')
+        if (hadResults) recordMapInteraction('map_browse_refresh_failed')
+        setFailedResultRefresh(hadResults); setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.')
+      }
     } finally { if (version === generation.current) setBusy(false) }
   }
   useEffect(() => { void loadBrowse(city) }, [city]) // eslint-disable-line react-hooks/exhaustive-deps
