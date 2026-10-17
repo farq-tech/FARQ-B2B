@@ -161,6 +161,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
   const [marketDistrictCounts, setMarketDistrictCounts] = useState<DistrictCount[]>([])
   const [marketLoading, setMarketLoading] = useState(true)
+  const [marketError, setMarketError] = useState(false)
+  const [marketRetry, setMarketRetry] = useState(0)
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setConfirming(false); setProfile(null); setShowUnlocated(false) }
@@ -209,17 +211,25 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : {}
     const query = { city, ...filter, ...(chosenNames.length ? { districts: chosenNames } : {}) }
     setMarketLoading(true)
+    setMarketError(false)
     setMarketStats(null)
     setMarketDistrictCounts([])
     // These are independent map panels. If one endpoint rejects (for example, a
     // city has no district aggregation), keep the result from the other endpoint.
     Promise.allSettled([marketSummary(query), districtCounts(query)]).then(([summary, counts]) => {
       if (!active) return
-      setMarketStats(summary.status === 'fulfilled' ? summary.value?.summary || null : null)
-      setMarketDistrictCounts(counts.status === 'fulfilled' ? counts.value?.districts || [] : [])
+      const summaryValue = summary.status === 'fulfilled' ? summary.value?.summary || null : null
+      const districtValues = counts.status === 'fulfilled' && counts.value?.ok ? counts.value.districts || [] : null
+      setMarketStats(summaryValue)
+      setMarketDistrictCounts(districtValues || [])
+      setMarketError(!summaryValue || districtValues == null)
     }).finally(() => { if (active) setMarketLoading(false) })
     return () => { active = false }
-  }, [city, lens, streetPick, chosenNames])
+  }, [city, lens, streetPick, chosenNames, marketRetry])
+  const retryMarketStats = () => {
+    recordMapInteraction('market_summary_retry')
+    setMarketRetry((retry) => retry + 1)
+  }
   useEffect(() => {
     if (!buyerQueryKey) return
     let active = true
@@ -289,10 +299,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // district, keep this indicator scoped to the visible result set.
     const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
     if (lens === 'market') return [
-      { key: 'market-size', label: 'منشآت في السوق', value: marketStats?.total || 0, lead: true },
-      { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count || 0 },
-      { key: 'market-activities', label: 'أنشطة فرعية', value: catalog?.reduce((sum, main) => sum + main.subs.length, 0) || marketStats?.n_specialties || 0 },
-      { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats?.densest_street?.n || 0 },
+      { key: 'market-size', label: 'منشآت في السوق', value: marketStats?.total ?? null, lead: true },
+      { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
+      { key: 'market-activities', label: 'أنشطة فرعية', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : marketStats?.n_specialties ?? null },
+      { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats ? marketStats.densest_street?.n ?? 0 : null },
     ]
     if (query && res) return lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
@@ -309,10 +319,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     ]
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
-      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total || 0, lead: true },
-      { key: 'city-whatsapp', label: 'واتساب مسجل', value: marketStats?.n_whatsapp || 0 },
-      { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count || 0 },
-      { key: 'city-activities', label: 'أنشطة فرعية', value: catalog?.reduce((sum, main) => sum + main.subs.length, 0) || 0 },
+      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
+      { key: 'city-whatsapp', label: 'واتساب مسجل', value: marketStats?.n_whatsapp ?? null },
+      { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
+      { key: 'city-activities', label: 'أنشطة فرعية', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : marketStats?.n_specialties ?? null },
     ]
   }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
@@ -922,7 +932,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-4" aria-label="ملخص السوق">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[15px] font-semibold">ملخص سوق {cityName(city)}</h2>
-        <span className="text-[12px] text-[var(--color-text-tertiary)]">{marketLoading ? 'جارٍ التحديث…' : 'حسب التصنيفات والمواقع الدقيقة'}</span>
+        <span className="text-[12px] text-[var(--color-text-tertiary)]">{marketLoading ? 'جارٍ التحديث…' : marketError ? 'بعض بيانات السوق غير متاحة' : 'حسب التصنيفات والمواقع الدقيقة'}</span>
       </div>
       {marketStats ? (
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -935,7 +945,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <dd className="m-0 text-[16px] leading-[24px] font-semibold tabular-nums">{n(Number(value))}</dd>
           </div>)}
         </dl>
-      ) : <p role={marketLoading ? 'status' : undefined} className="text-[13px] text-[var(--color-text-secondary)]">{marketLoading ? 'نحمّل ملخص السوق…' : 'تعذّر تحميل ملخص السوق.'}</p>}
+      ) : marketLoading ? <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص السوق…</p> : (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
+          <span>تعذّر تحميل ملخص السوق.</span>
+          <button type="button" onClick={retryMarketStats} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button>
+        </div>
+      )}
+      {marketStats && marketError && !marketLoading ? (
+        <div role="status" className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
+          <span>تعذّر تحميل بعض بيانات الأحياء.</span>
+          <button type="button" onClick={retryMarketStats} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button>
+        </div>
+      ) : null}
       {densePanel || <p className="text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}
       {marketStats?.densest_street ? <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] leading-[20px]">أكثف شارع: <strong>{marketStats.densest_street.street_ar}</strong> · {marketStats.densest_street.district_ar || cityName(city)} · {n(marketStats.densest_street.n)} منشأة</p> : null}
     </section>
@@ -1103,7 +1124,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
-          {lens === 'market' ? `منشآت دقيقة · ${n(marketStats?.total || 0)}` : `نتائج · ${n(visibleCohort.length)}`}
+          {lens === 'market' ? `منشآت دقيقة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : `نتائج · ${n(visibleCohort.length)}`}
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
@@ -1121,7 +1142,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             }} className={`flex h-7 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
-                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{res ? `النتائج · ${n(visibleCohort.length)} منشأة` : `ملخص السوق · ${n(marketStats?.total || 0)} منشأة`}</p>
+                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{res ? `النتائج · ${n(visibleCohort.length)} منشأة` : `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة`}</p>
                 <button type="button" onClick={() => setSheetSnap('half')} className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold ${FOCUS_RING}`}>عرض التفاصيل</button>
               </div>
             ) : <>
