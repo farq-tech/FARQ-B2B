@@ -1,0 +1,61 @@
+--- a/directory_tiles.py
++++ b/directory_tiles.py
+@@ -83,6 +83,9 @@
+     p=math.pi/180;a=math.sin((lat2-lat1)*p/2)**2+math.cos(lat1*p)*math.cos(lat2*p)*math.sin((lon2-lon1)*p/2)**2
+     return 12742*math.asin(math.sqrt(a))
+ DEFAULT_RADIUS_KM=40   # rows without a taxonomy radius (old search path): a shop within the city
++def is_precise_point(row):
++    lat,lon=row.get('latitude'),row.get('longitude')
++    return row.get('location_precision')=='point' and isinstance(lat,(int,float)) and isinstance(lon,(int,float)) and -85.05112878<=lat<=85.05112878 and -180<=lon<=180
+ def filter_rows(rows,filters):
+     f=valid_filters(filters)
+     out=[]
+@@ -199,7 +202,7 @@
+             size=2**z;west=x/size*360-180;east=(x+1)/size*360-180
+             north=math.degrees(math.atan(math.sinh(math.pi*(1-2*y/size))));south=math.degrees(math.atan(math.sinh(math.pi*(1-2*(y+1)/size))))
+             if rows is not None:
+-                points=[(r['poi_key'],r.get('name_ar') or r.get('name_en') or '',r['longitude'],r['latitude']) for r in rows if r.get('location_precision','point')=='point' and r.get('longitude') is not None and r.get('latitude') is not None and west<=r['longitude']<east and south<=r['latitude']<north]
++                points=[(r['poi_key'],r.get('name_ar') or r.get('name_en') or '',r['longitude'],r['latitude']) for r in rows if is_precise_point(r) and west<=r['longitude']<east and south<=r['latitude']<north]
+             else:
+                 base,params=self.sql(city,f,[west,south,east,north])
+                 grid=1024 if z<12 else 512 if z<16 else 1
+--- a/server.py
++++ b/server.py
+@@ -10,7 +10,7 @@
+ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+ import duckdb, subprocess, base64
+ from trial_search import Directory
+-from directory_tiles import DirectoryTiles, valid_filters
++from directory_tiles import DirectoryTiles, is_precise_point, valid_filters
+ import status_policy
+ import contextvars
+ _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
+@@ -716,7 +716,7 @@
+                     self._json(TILES.browse(body.get('city'),body.get('filters'),min(200,max(1,int(body.get('limit',30)))),int(body.get('offset',0)))); return
+                 if body.get('objective') in ('purchase','marketing','name'):
+                     result=TRIAL_DIRECTORY.search(body.get('q'),body.get('city'),body['objective'],min(200,max(1,int(body.get('limit',30)))),int(body.get('offset',0)),valid_filters(body.get('filters')))
+-                    cohort=result.pop('_map_rows',result['rows']);result['located_total']=sum(r.get('latitude') is not None and r.get('longitude') is not None and -85.05112878<=r['latitude']<=85.05112878 and -180<=r['longitude']<=180 for r in cohort);result['map_query']=TILES.register(rows=cohort)
++                    cohort=result.pop('_map_rows',result['rows']);result['located_total']=sum(is_precise_point(r) for r in cohort);result['map_query']=TILES.register(rows=cohort)
+                     rows,contact_status=contact_lookup.enrich(result['rows']); understood=result['understood']
+                     result={**result,'rows':rows,'contact_enrichment':contact_status}
+                     self._json({**result,'parsed':{'keywords':[understood['family']],'seller_label':understood['target_label'],'seller_terms':understood['target_types'],'city':body['city'],'ai':understood['source']=='ai'},'with_whatsapp':sum(bool(r.get('has_whatsapp')) for r in rows),'with_email':sum(bool(r.get('email')) for r in rows),'by_region':[]})
+--- a/trial_search.py
++++ b/trial_search.py
+@@ -184,14 +184,15 @@
+                 concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category) evidence_category,
+                 coalesce(district_ar,district_en,'') district,
+                 coalesce(completeness_pct,0) completeness,
+-                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, legal_name, brand_name, secondary_category, category_l3, company_status, lifecycle_state
++                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, legal_name, brand_name, secondary_category, category_l3, company_status, lifecycle_state
+                 from read_parquet(?) where city_en=? and coalesce(name_ar,name_en) is not null
+                 and """ + self.search_sql + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
+             ranked=[]; seen=set()
+             for candidate in candidates:
+                 name,category,details,district,complete,contactable=candidate[:6]
+-                geo=dict(zip(['poi_key','latitude','longitude','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state'],candidate[6:]))
++                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state'],candidate[6:]))
+                 geo['status_class']=status_policy.normalize(geo.pop('company_status'),geo.pop('lifecycle_state'))['status_normalized']   # class only, never the raw value
++                if geo['location_precision'] != 'point': geo['latitude']=geo['longitude']=None
+                 row={'name':name,'category':category,'evidence_category':details,'district':district}
+                 if objective=='name' and not contains(norm(q),norm(name+' '+(geo.get('name_en') or ''))): continue
+                 match=evidence(row,intent)
