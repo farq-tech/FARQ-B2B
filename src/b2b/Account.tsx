@@ -5,6 +5,7 @@ import { useProcurement } from '../procurementContext'
 import { readLocal, type BusinessProfile } from './storage'
 import { cachedBusinessProfile, CompanyProfileError, fetchBusinessProfile, saveBusinessProfile } from '../api/companyProfileClient'
 import { crError, EMPTY_NATIONAL_ADDRESS, formatNationalAddress, nationalAddressErrors, normalizeCr, normalizeShortAddress, normalizeVat, toLatinDigits, vatError, type NationalAddress } from '../lib/saudi'
+import { openMapAnalyticsPreferences } from '../components/MapAnalyticsConsent'
 
 /*
  * «حسابي» — the company details printed on price requests (NewRequestV2 sends cr_number / vat_number / national_address
@@ -124,6 +125,6 @@ export default function Account() {
       {server === 'ready' ? <div><Action type="submit" disabled={saving}>{saving ? 'جاري الحفظ…' : 'حفظ بيانات المنشأة'}</Action></div> : null}
     </form>
     <p role="status">{notice}</p>
-    <div className="farq-secondary-actions">{readLocal('purchase-wizard', null) && <Action variant="secondary" onClick={() => navigate('create-upload')}>كمّل طلب الشراء المحفوظ</Action>}<Action variant="secondary" showIcon={false} onClick={() => navigate('templates')}>قوالب واتساب</Action><Action variant="ghost" showIcon={false} onClick={() => void farqSession.signOut()}>تسجيل الخروج</Action></div>
+    <div className="farq-secondary-actions">{readLocal('purchase-wizard', null) && <Action variant="secondary" onClick={() => navigate('create-upload')}>كمّل طلب الشراء المحفوظ</Action>}<Action variant="secondary" showIcon={false} onClick={() => navigate('templates')}>قوالب واتساب</Action><Action variant="secondary" showIcon={false} onClick={openMapAnalyticsPreferences}>تفضيلات قياس الخريطة</Action><Action variant="ghost" showIcon={false} onClick={() => void farqSession.signOut()}>تسجيل الخروج</Action></div>
   </section>
 }

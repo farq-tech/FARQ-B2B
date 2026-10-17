@@ -11,6 +11,7 @@ import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
+import { recordMapInteraction } from '../../lib/mapAnalytics'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
@@ -314,6 +315,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   const toggleDistrict = (id: string) => {
     const wasChosen = chosenD.has(id)
+    recordMapInteraction(wasChosen ? 'map_district_clear' : 'map_district_select')
     const next = wasChosen ? new Set<string>() : new Set([id])
     setChosenD(next)
     const district = districts.find((d) => d.id === id)
@@ -330,6 +332,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     }
   }
   const clearDistrict = () => {
+    recordMapInteraction('map_district_clear')
     setChosenD(new Set())
     if (query) {
       const nextFilters = { ...filters }
@@ -473,6 +476,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     try {
       const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
+      if (fresh) recordMapInteraction('map_search')
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
       if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null) }
@@ -491,7 +495,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
   async function openMapProfile(key: string) {
     const existing = byKey.get(key)
-    if (existing) { setProfile(key); return }
+    if (existing) { recordMapInteraction('map_profile_open'); setProfile(key); return }
     if (!res?.map_query) return
     const version = generation.current
     const mapQuery = res.map_query
@@ -499,6 +503,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const result = await mapProfile(mapQuery, key)
       if (version !== generation.current) return
       setRes((current) => current?.map_query === mapQuery ? { ...current, rows: [...current.rows.filter((row) => row.poi_key !== key), result.row] } : current)
+      recordMapInteraction('map_profile_open')
       setProfile(key)
     } catch {
       if (version === generation.current) setError('تعذّر فتح بيانات المنشأة. حدّث نقاط الخريطة وحاول مرة ثانية.')
@@ -518,6 +523,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const pickStreet = (id: string) => {
     const st = dense?.list.find((x) => x.id === id)
     if (!st) return
+    recordMapInteraction('map_street_select')
     const [w, so, e, no] = st.bbox, pad = 0.002
     fitTo([w - pad, so - pad, e + pad, no + pad])
     setActiveStreet(id)
@@ -663,13 +669,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <div className="flex flex-col gap-1.5" data-testid="street-picker">
       <div role="group" aria-label="نشاط الشوارع" className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
         <Chip className="shrink-0" label="الكل" selected={streetPick.kind === 'all'} onClick={() => setStreetPick({ kind: 'all' })} />
-        {catalog.map((m) => <Chip key={m.main_id} className="shrink-0" label={`${m.main_ar} · ${n(m.streets)}`} selected={pickedMain === m.main_id} onClick={() => { const clear = pickedMain === m.main_id; setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: m.main_id }); pickFocus(clear ? null : { level: 'main', id: m.main_id }) }} />)}
+        {catalog.map((m) => <Chip key={m.main_id} className="shrink-0" label={`${m.main_ar} · ${n(m.streets)}`} selected={pickedMain === m.main_id} onClick={() => { recordMapInteraction('map_activity_select'); const clear = pickedMain === m.main_id; setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: m.main_id }); pickFocus(clear ? null : { level: 'main', id: m.main_id }) }} />)}
       </div>
       {pickedMain ? (
         <div role="group" aria-label="الأنشطة الفرعية" className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
           {(catalog.find((m) => m.main_id === pickedMain)?.subs || []).map((x) => {
             const on = streetPick.kind === 'sub' && streetPick.ids.includes(x.sub_id)
-            return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)}`} selected={on} onClick={() => { setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
+            return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)}`} selected={on} onClick={() => { recordMapInteraction('map_activity_select'); setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
           })}
         </div>
       ) : null}
@@ -737,6 +743,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   const toggle = (r: TargetRow) => {
     if (!waNumber(r)) return
+    recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
   }
   const approved = tpl?.status === 'APPROVED'
@@ -761,7 +768,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
           <input type="checkbox" checked={on} disabled={!can} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
             className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
-          <button type="button" onClick={() => setProfile(r.poi_key)} className={`flex min-w-0 flex-1 flex-col gap-1 text-start ${FOCUS_RING}`}>
+          <button type="button" onClick={() => { recordMapInteraction('map_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />

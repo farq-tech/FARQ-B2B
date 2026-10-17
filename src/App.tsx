@@ -5,6 +5,7 @@ import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
 import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MessageTemplatesIcon, MobileBottomNav, NavItem, NewRequestIcon, OccasionBanner, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
 import { handoff, HANDOFF } from './lib/handoff'
+import MapAnalyticsConsent from './components/MapAnalyticsConsent'
 import './b2b/b2b.css'
 
 /*
@@ -126,6 +127,7 @@ function Routes() {
           { label: 'خريطة الفرص', icon: OpportunityMapIcon, active: onCampaign && view !== 'targeting-new', onClick: () => navigate('targeting') },
         ]} />
       ) : null}
+      <MapAnalyticsConsent active={view === 'targeting' || view === 'targeting-new'} />
     </div>
   )
 }
