@@ -68,7 +68,7 @@ const REQUESTS = [
   { id: U3, organizationId: 'org-1', createdBy: 'qa-user', kind: 'SEARCH', title: 'سخانات مياه', payload: { city: 'الرياض' }, status: 'CANCELLED', hidden: false, cancelledAt: '2026-10-11T08:00:00Z', cancelReason: 'لقينا مورد', createdAt: '2026-10-10T11:00:00Z' },
 ]
 
-async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean } = {}) {
+async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean; analyticsConsent?: 'accepted' | 'rejected' } = {}) {
   const writes: string[] = []
   const saved: Record<string, unknown>[] = []
   const searches: Record<string, unknown>[] = []
@@ -79,11 +79,11 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   const marketQueries: Record<string, unknown>[] = []
   const orgHeaders: (string | undefined)[] = []
   const listQueries: string[] = []
-  await page.addInitScript(() => {
+  await page.addInitScript((analyticsConsent: 'accepted' | 'rejected') => {
     (window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 7200, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' } }
-    // Keep map telemetry explicitly declined in this deterministic suite; the user's privacy choice is the only permitted local value.
-    localStorage.setItem('farq:pricing-map-analytics-consent-v1', 'rejected')
-  })
+    // Keep map telemetry declined by default; tests may opt in explicitly to verify the consent-gated stream.
+    localStorage.setItem('farq:pricing-map-analytics-consent-v1', analyticsConsent)
+  }, opts.analyticsConsent || 'rejected')
   await page.route('**/_targeting/**', async (route) => {
     const url = new URL(route.request().url()); const path = url.pathname
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
@@ -213,6 +213,32 @@ test.describe('desktop 1440', () => {
     await expect(page.getByText('1 من 1 مورد')).toBeVisible()
     await page.getByRole('button', { name: '1 من 1 مورد' }).click()
     await expect(page.getByText('مستودع السباكة الكبير', { exact: true })).toBeVisible()
+  })
+
+  test('main map lenses record only generic events after analytics consent', async ({ page }) => {
+    const batches: { events: { event_type: string; session_id: string; path: string; element_label: string }[] }[] = []
+    await setup(page)
+    await page.route('**/_api/events/track', async (route) => {
+      const body = route.request().postDataJSON()
+      batches.push(body)
+      await route.fulfill({ json: { ok: true, accepted: body.events.length } })
+    })
+    await page.goto('/opportunity-map')
+    const lenses = page.getByRole('tablist', { name: 'عدسات خريطة السوق' })
+    await lenses.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    expect(batches).toEqual([])
+    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v1', 'accepted'))
+    await lenses.getByRole('tab', { name: 'ابحث عن مشترين' }).click()
+    await lenses.getByRole('tab', { name: 'افهم السوق' }).click()
+
+    await expect.poll(() => batches.flatMap((batch) => batch.events.map((event) => event.element_label)), { timeout: 15_000 }).toEqual([
+      'pricing_map_map_lens_buyers',
+      'pricing_map_map_lens_market',
+    ])
+    const events = batches.flatMap((batch) => batch.events)
+    expect(events.every((event) => event.event_type === 'click' && event.path === '/opportunity-map')).toBe(true)
+    expect(events.every((event) => /^pricing-map-[0-9a-f-]{36}$/.test(event.session_id))).toBe(true)
+    expect(events.every((event) => Object.keys(event).sort().join(',') === 'element_label,event_type,path,session_id')).toBe(true)
   })
 
   test('market first open, three lenses, and core buyers by default', async ({ page }) => {
