@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent, type WheelEvent } from 'react'
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
-import { chipWidth, clip, MAP_ICON_BODY, palette, TEARDROP } from './glyphs'
-import { densityStep, streetLine } from './model'
+import { chipWidth, clip, fitBadgeSvg, MAP_ICON_BODY, palette, TEARDROP } from './glyphs'
+import { densityStep, FIT_LABEL, streetLine } from './model'
 
 /** District fill strength by density step (0 none … 4 densest): a light-to-darker green choropleth. */
 const CHORO = [0.015, 0.04, 0.07, 0.1, 0.14]
@@ -199,29 +199,33 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
           {ordered.map((p) => {
             const x = sx(p.lon), y = sy(p.lat)
             const name = nameOf(p.key)
-            const common = { role: 'button', tabIndex: 0, 'aria-label': name, className: `cursor-pointer ${FOCUS_RING}`, 'data-pin': p.layer,
+            const pinLabel = `${name} — ${FIT_LABEL[p.fit]}`
+            const common = { role: 'button', tabIndex: 0, 'aria-label': pinLabel, className: `cursor-pointer ${FOCUS_RING}`, 'data-pin': p.layer,
               onClick: (e: React.MouseEvent) => { e.stopPropagation(); if (!wasDrag()) onPin(p.key) }, onKeyDown: enter(() => onPin(p.key)) } as const
             if (p.layer === 'main') return (
               <g key={p.key} {...common} transform={`translate(${x - 14} ${y - 33}) scale(.7)`}>
-                <title>{name}</title>
+                <title>{pinLabel}</title>
                 <path d={TEARDROP} fill={P.ink} stroke={p.chosen ? P.green : P.white} strokeWidth={p.chosen ? 4 : 2} />
                 <g transform="translate(9 7) scale(.92)" fill="none" stroke={P.white} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: MAP_ICON_BODY(p.icon) }} />
+                <g dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
               </g>
             )
             if (p.layer === 'sub') return (
               <g key={p.key} {...common} transform={`translate(${x - 13} ${y - 13}) scale(.7)`}>
-                <title>{name}</title>
+                <title>{pinLabel}</title>
                 <circle cx={19} cy={19} r={17} fill={P.green} stroke={p.chosen ? P.ink : P.white} strokeWidth={p.chosen ? 4 : 2.5} />
                 <g transform="translate(8.2 8.2) scale(.9)" fill="none" stroke={P.white} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: MAP_ICON_BODY(p.icon) }} />
+                <g dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
               </g>
             )
             const w = chipWidth(p.text)
             return (
               <g key={p.key} {...common} transform={`translate(${x - w / 2} ${y - 32})`}>
-                <title>{name}</title>
+                <title>{pinLabel}</title>
                 <rect width={w} height={26} rx={8} fill={P.navy} stroke={p.chosen ? P.green : 'none'} strokeWidth={3} />
                 <path d={`M${w / 2 - 5} 26l5 6 5-6z`} fill={P.navy} />
                 <text x={w / 2} y={14} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.white}>{clip(p.text)}</text>
+                <g transform={`translate(${w - 38} 0)`} dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
               </g>
             )
           })}
