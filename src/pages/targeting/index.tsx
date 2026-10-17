@@ -315,7 +315,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   // Scope the district first. A delivery radius only applies to precise points; keep rows
   // without coordinates in a separate review list instead of silently dropping them.
   const districtRows = useMemo(() => chosenList.length ? rows.filter((r) => inDistricts(r, chosenList)) : rows, [rows, chosenList])
-  const unlocatedRows = useMemo(() => site ? districtRows.filter((r) => !hasPoint(r) && matchesFocus(r, focus)) : [], [site, districtRows, focus])
+  const unlocatedRows = useMemo(() => districtRows.filter((r) => !hasPoint(r) && matchesFocus(r, focus)), [districtRows, focus])
   const areaRows = useMemo(() => site
     ? districtRows.filter((r) => hasPoint(r) && km(site, { lat: r.latitude!, lon: r.longitude! }) <= site.km)
     : districtRows, [districtRows, site])
@@ -943,11 +943,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       </ul>
     </div>
   )
-  const unlocatedPanel = site && res && (unlocatedRows.length || (res.located_total != null && res.total > res.located_total)) ? (
-    <section className="border-t border-[var(--color-border-default)] px-4 py-3" aria-label="منشآت بلا دبوس خارج نطاق التوصيل" data-testid="site-unlocated-results">
+  const unlocatedPanel = res && (unlocatedRows.length || (res.located_total != null && res.total > res.located_total)) ? (
+    <section className="border-t border-[var(--color-border-default)] px-4 py-3" aria-label="منشآت بلا دبوس" data-testid="site-unlocated-results">
       <div className="flex flex-wrap items-center gap-2 text-[13px] leading-[21px]">
         <p className="m-0 flex-1 text-[var(--color-text-secondary)]">
-          النطاق يحسب المنشآت ذات الإحداثيات الدقيقة فقط. {unlocatedRows.length
+          {site ? 'نطاق التوصيل يحسب المنشآت ذات الإحداثيات الدقيقة فقط. ' : 'هذه المنشآت بلا إحداثيات دقيقة، لذلك لا يظهر لها دبوس على الخريطة. '}{unlocatedRows.length
             ? `يوجد ${n(unlocatedRows.length)} من النتائج المحمّلة بلا دبوس؛ لا يمكن تحديد قربها من موقع المشروع.`
             : 'توجد نتائج بلا دبوس في البحث، لكن لا توجد منها في الدفعة المحمّلة حالياً.'}
         </p>
@@ -979,7 +979,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : null}
     </section>
   ) : null
-  const resultsBody = <div>{resultsContent}{unlocatedPanel}</div>
+  const resultsBody = <div>{unlocatedPanel}{resultsContent}</div>
   const panelHead = (
     <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
       {lens === 'buyers' ? (
@@ -1078,11 +1078,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : <p className="text-[13px] text-[var(--color-text-secondary)]">ما فيه علاقات شراء مصنّفة لهذا النشاط في المدينة.</p>}
     </section>
   ) : null
-  const panelBody = lens === 'market' ? marketPanel : <>
+  const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
+  const panelBody = lens === 'market'
+    ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
+    : <>
     {buyerPanel}
     {mobile && tab === 'streets' ? densePanel || <p className="px-5 py-6 text-[14px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p> : tab !== 'guide' ? (
       <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{resultsBody}</>
-    ) : <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />}
+    ) : marketGuide}
   </>
 
   // ---------- the map with its floating controls
