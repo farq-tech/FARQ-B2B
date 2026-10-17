@@ -22,7 +22,7 @@ const ALL = [
   row(2, 'مستودع السباكة الكبير', 'الملك فيصل', 'شارع خالد بن الوليد', 24.640, 46.722, { is_wholesale: true, role_badges: ['جملة', 'مصنع'], specialties: ['مواسير وتمديدات'] }),
   row(3, 'سباكة الخليج', 'الفيصلية', 'شارع الأمير مشعل', 24.635, 46.745, { taxonomy_sub: 'contract.plumbing', role_badges: ['خدمات وتنفيذ'], specialties: ['صيانة سباكة'] }),
   row(4, 'أدوات صحية النخبة', 'العليا', 'شارع الحسن بن علي', 24.660, 46.720, { is_wholesale: false, role_badges: ['يبيع', 'جملة', 'تجزئة'] }),
-  row(5, 'معرض الماء الصافي', 'العليا', 'طريق العليا العام', null, null),
+  row(5, 'معرض الماء الصافي', 'العليا', 'طريق العليا العام', null, null, { rating: 17772 }),
   row(6, 'مركز الخلاطات', 'العليا', 'طريق العليا العام', 24.670, 46.750, { specialties: ['خلاطات'], phone: null, has_whatsapp: false, email: null }),
 ]
 const rect = (id: number, ar: string, w: number, s: number, e: number, n: number) => ({ type: 'Feature', properties: { id, ar, en: ar, city_en: 'Riyadh' }, geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] } })
@@ -193,6 +193,22 @@ async function nothingStored(page: Page) {
 
 test.describe('desktop 1440', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
+
+  test('profile only presents ratings on the five-star scale', async ({ page }) => {
+    await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await searchFor(page, 'مواسير')
+
+    const validProfile = page.locator('li[data-key="1"]').getByRole('button').first()
+    await validProfile.click()
+    const drawer = page.getByTestId('profile-drawer')
+    await expect(drawer).toContainText('4.4 من 5')
+    await drawer.getByRole('button', { name: 'إغلاق ملف المنشأة' }).click()
+
+    await page.locator('li[data-key="5"]').getByRole('button').first().click()
+    await expect(page.getByTestId('profile-drawer')).not.toContainText(/من 5|17,772/)
+  })
 
   test('a supplier profile seeds the purchase request with that supplier and an editable search line', async ({ page }) => {
     await setup(page)

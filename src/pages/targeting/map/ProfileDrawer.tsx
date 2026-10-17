@@ -39,7 +39,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
   const wa = Boolean(waNumber(row))
   const status = statusLabel(row)
   const saudi = Boolean(row.saudi_registered)
-  const rating = typeof row.rating === 'number' && Number.isFinite(row.rating) ? row.rating : null
+  const rating = typeof row.rating === 'number' && Number.isFinite(row.rating) && row.rating >= 1 && row.rating <= 5 ? row.rating : null
   const matchReason = row.match === 'product' ? 'اسم المنشأة يذكر المنتج'
     : row.match === 'seller' ? 'نشاط المنشأة يبيع هذا المنتج غالباً'
     : 'ظهرت ضمن نتائج النشاط المختار'
