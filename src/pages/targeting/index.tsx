@@ -553,6 +553,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   function prepareQuoteForProfile(key: string) {
     const row = byKey.get(key)
     if (!row || !onRfq) return
+    recordMapInteraction('map_profile_quote_start')
     const product = query.trim()
     writeLocal('purchase-seed', {
       lines: product ? [{ name: product, qty: '', unit: '' }] : [],
