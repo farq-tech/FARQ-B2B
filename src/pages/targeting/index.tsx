@@ -1124,7 +1124,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {fallbackChips}
       </div> : null}
       {!anyChosen ? (
-        <p role="status" data-testid="map-hint" className={`pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] backdrop-blur-md ${mobile ? 'top-[100px] w-[88%] text-[13px] leading-[20px]' : 'bottom-4 max-w-[56%]'}`}>
+        <p role="status" data-testid="map-hint" className={mobile ? 'sr-only' : 'pointer-events-none absolute left-1/2 bottom-4 max-w-[56%] -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] backdrop-blur-md'}>
           {polys === null ? 'نحمّل أحياء المدينة…'
             : !res && denseList.length ? (mobile ? 'الخطوط الخضراء أكثف الشوارع. اضغط شارعاً لتظهر منشآته.' : 'الخطوط الخضراء أكثف الشوارع. اختر نشاطاً من القائمة أو اكتب وش تبي، أو اضغط شارعاً لتظهر منشآته.')
             : !res ? 'اكتب وش تبي فوق واضغط «ابحث»، ونوريك وين يتركز في المدينة.'
