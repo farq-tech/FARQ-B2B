@@ -21,6 +21,9 @@ WITH map_events AS (
       'pricing_map_map_search_results_1_4',
       'pricing_map_map_search_results_5_plus',
       'pricing_map_map_search_failed',
+      'pricing_map_map_browse_succeeded',
+      'pricing_map_map_browse_failed',
+      'pricing_map_map_browse_refresh_failed',
       'pricing_map_map_results_shortcut_seen',
       'pricing_map_map_results_jump',
       'pricing_map_map_profile_open',
@@ -199,6 +202,14 @@ SELECT
   count(*) FILTER (WHERE element_label = 'pricing_map_map_search_results_1_4') AS searches_with_1_to_4_results,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_search_results_5_plus') AS searches_with_5_plus_results,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_search_failed') AS failed_searches,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_succeeded') AS browse_loads_succeeded,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_failed') AS browse_loads_failed,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_refresh_failed') AS browse_refreshes_failed_with_previous_results,
+  round(100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_failed')
+    / nullif(count(*) FILTER (WHERE element_label IN ('pricing_map_map_browse_succeeded', 'pricing_map_map_browse_failed')), 0), 1)
+    AS browse_load_failure_pct,
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_browse_failed') AS sessions_with_browse_failures,
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_browse_refresh_failed') AS sessions_with_browse_refresh_failures,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_search') AS legacy_searches_without_result_bucket,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_results_status_notice') AS status_notice_impressions,
   count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_results_status_notice') AS sessions_shown_status_notice
@@ -212,7 +223,10 @@ WHERE occurred_at >= now() - interval '56 days'
     'pricing_map_map_search_results_5_plus',
     'pricing_map_map_search_failed',
     'pricing_map_map_search',
-    'pricing_map_map_results_status_notice'
+    'pricing_map_map_results_status_notice',
+    'pricing_map_map_browse_succeeded',
+    'pricing_map_map_browse_failed',
+    'pricing_map_map_browse_refresh_failed'
   )
 GROUP BY 1
 ORDER BY 1 DESC;
@@ -226,6 +240,7 @@ ORDER BY 1 DESC;
 - `map_profile_whatsapp_unverified` counts a consenting session that opened a profile whose WhatsApp flag is not explicitly marked verified. `quote_after_unverified_whatsapp_sessions` counts a later quote start in that same session only; it does not identify the establishment or prove that the notice caused the action.
 - `quote_after_unconfirmed_status_sessions` means a quote flow began later in a session that had shown the notice. This is a session-level sequence only: it cannot prove the quote came from the same profile or that the notice caused the action.
 - New search clicks are labeled by result bucket (`0`, `1–4`, `5+`) or failure. Older `map_search` rows remain in the funnel but have no outcome bucket.
+- `map_browse_succeeded`, `map_browse_failed`, and `map_browse_refresh_failed` count completed browse-load attempts from consenting sessions. Refresh failures are also included in `map_browse_failed`; calculate the failure rate as failed browse loads divided by succeeded plus failed browse loads. Superseded requests without a terminal response are not counted. These events contain no query, city, filter, or establishment identifiers.
 - `map_results_status_notice` is emitted when the visible results include rows whose operating status is missing or unrecognized. It records only a consented session-level impression, never a business identifier; compare it with profile opens and quote starts as a directional funnel, not as causal evidence.
 - Each session's funnel row is grouped by the most recent search-result bucket recorded before the shortcut was shown (or, if it was not shown, before the first search timestamp). This helps compare shortcut use when the map returned no results, a few results, or many results; it is a session-level view, not a per-search conversion rate.
 - Shortcut use is divided by sessions in which the shortcut was actually shown, avoiding a desktop-inclusive denominator. The list-discovery step counts only `map_result_profile_open` events after a shortcut jump, not pin opens elsewhere on the map; quote-start counts must follow a profile open after search. Each session is assigned to the UTC week of its first search.
