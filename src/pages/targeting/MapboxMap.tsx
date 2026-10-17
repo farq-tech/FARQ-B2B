@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { waNumber, type TargetRow, type TradeCluster } from '../../api/targetingClient'
+import { hasPoint } from './map/model'
 
 /*
  * Mapbox map for 07 (dark style, Arabic labels). Shown before any search, framed on Saudi Arabia;
@@ -53,7 +54,7 @@ function hull(ps: [number, number][]) {
 
 const placesOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => ({
   type: 'FeatureCollection',
-  features: rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).map((r) => ({
+  features: rows.filter(hasPoint).map((r) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [r.longitude!, r.latitude!] },
     properties: { key: r.poi_key, name: r.name_ar || r.name_en || '', ch: waNumber(r) ? 'wa' : r.email ? 'email' : 'none', on: selected.has(r.poi_key) ? 1 : 0 },
   })),
@@ -67,7 +68,7 @@ const tradeOf = (cs: TradeCluster[]): GeoJSON.FeatureCollection => ({
   })),
 })
 const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => {
-  const ring = hull(rows.filter((r) => selected.has(r.poi_key) && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).map((r) => [r.longitude!, r.latitude!] as [number, number]))
+  const ring = hull(rows.filter((r) => selected.has(r.poi_key) && hasPoint(r)).map((r) => [r.longitude!, r.latitude!] as [number, number]))
   return { type: 'FeatureCollection', features: ring.length ? [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }] : [] }
 }
 
@@ -178,7 +179,7 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     ;(m.getSource('places') as mapboxgl.GeoJSONSource | undefined)?.setData(placesOf(r, highlight))
     ;(m.getSource('segment') as mapboxgl.GeoJSONSource | undefined)?.setData(segmentOf(r, s))
     if (!fit) return
-    const pts = r.filter((x) => Number.isFinite(x.latitude) && Number.isFinite(x.longitude))
+    const pts = r.filter(hasPoint)
     if (!pts.length) return
     const q = (a: number[], f: number) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))]
     const cut = pts.length > 20 ? 0.02 : 0
@@ -196,7 +197,7 @@ export default function MapboxMap({ rows, selected, focusedKey, onToggle, onView
     sync(false)
     const target = rows.find(row => row.poi_key === focusedKey)
     const instance = map.current
-    if (target && instance && Number.isFinite(target.latitude) && Number.isFinite(target.longitude) && !instance.getBounds()?.contains([target.longitude!, target.latitude!])) instance.easeTo({ center: [target.longitude!, target.latitude!], duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300 })
+    if (target && instance && hasPoint(target) && !instance.getBounds()?.contains([target.longitude!, target.latitude!])) instance.easeTo({ center: [target.longitude!, target.latitude!], duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300 })
   }, [selected, focusedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // mapbox-gl.css sets .mapboxgl-map { position: relative }, so the map sits inside a positioned wrapper

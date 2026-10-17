@@ -97,7 +97,8 @@ export function rolesOf(r: TargetRow): string[] {
   return [...set].sort((a, b) => rank(a) - rank(b))
 }
 export const specsOf = (r: TargetRow) => (r.specialties || []).filter(Boolean)
-export const hasPoint = (r: TargetRow) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude) && r.latitude != null && r.longitude != null
+/** Only an explicit point location belongs on the map; approximate coordinates stay list-only. */
+export const hasPoint = (r: TargetRow) => r.location_precision === 'point' && Number.isFinite(r.latitude) && Number.isFinite(r.longitude) && r.latitude != null && r.longitude != null
 export const completenessOf = (r: TargetRow): number | null => {
   const v = r.completeness ?? r.completeness_pct
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : null
