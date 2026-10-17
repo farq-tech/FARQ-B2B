@@ -255,8 +255,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const counters = useMemo(() => countersOf(cohort, chosenD.size), [cohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
-    const precise = typeof res?.located_total === 'number' && Number.isFinite(res.located_total)
-      ? res.located_total : shownRows.filter(hasPoint).length
+    const globalLocationCount = typeof res?.located_total === 'number' && Number.isFinite(res.located_total)
+      ? res.located_total : null
+    const hasGlobalLocationCount = globalLocationCount != null
+    const precise = globalLocationCount ?? shownRows.filter(hasPoint).length
+    const withoutPin = res
+      ? hasGlobalLocationCount ? Math.max(0, res.total - precise) : shownRows.filter((row) => !hasPoint(row)).length
+      : 0
+    const locationLabel = hasGlobalLocationCount ? 'لها موقع على الخريطة' : 'لها موقع · محمّلة'
+    const missingLocationLabel = hasGlobalLocationCount ? 'بلا دبوس' : 'بلا دبوس · محمّلة'
     const whatsapp = typeof res?.with_whatsapp === 'number' && Number.isFinite(res.with_whatsapp)
       ? res.with_whatsapp : shownRows.filter((row) => Boolean(waNumber(row))).length
     // Search responses describe all matching districts. Once the user narrows to a
@@ -271,12 +278,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (query && res) return lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
       { key: 'supplier-whatsapp', label: 'واتساب بالنتائج المحمّلة', value: whatsapp },
-      { key: 'supplier-located', label: 'مواقع دقيقة', value: precise },
+      { key: 'supplier-located', label: locationLabel, value: precise },
+      { key: 'supplier-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'supplier-districts', label: 'أحياء بها نتائج', value: areas },
     ] : [
       { key: 'buyer-matches', label: 'جهات قد تشتري', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
       { key: 'buyer-whatsapp', label: 'واتساب بالنتائج المحمّلة', value: whatsapp },
-      { key: 'buyer-located', label: 'مواقع دقيقة', value: precise },
+      { key: 'buyer-located', label: locationLabel, value: precise },
+      { key: 'buyer-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'buyer-activities', label: 'أنشطة مشترية مرصودة', value: currentBuyerData?.buyers.length || 0 },
     ]
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
