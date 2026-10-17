@@ -255,6 +255,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return out
   }, [rows, chosenList, site])
   const cohort = useMemo(() => areaRows.filter((r) => matchesFocus(r, focus)), [areaRows, focus])
+  const fitCounts = useMemo(() => {
+    const counts: Record<PinFit | 'all', number> = { all: cohort.length, likely: 0, maybe: 0, low: 0, unknown: 0 }
+    for (const row of cohort) counts[fitOf(row)] += 1
+    return counts
+  }, [cohort])
   const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
   const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
@@ -944,7 +949,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </dl>
         </div>
       ) : null}
-      <MapLegend mobile={mobile} fitFilter={fitFilter} onFitFilterChange={(next) => {
+      <MapLegend mobile={mobile} fitFilter={fitFilter} counts={fitCounts} onFitFilterChange={(next) => {
         if (next === fitFilter) return
         setFitFilter(next)
         setShown(PAGE)
