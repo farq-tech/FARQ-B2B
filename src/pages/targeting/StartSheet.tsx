@@ -52,12 +52,35 @@ export default function StartSheet({ mobile, initialDirection = 'buy', onClose, 
   const [read, setRead] = useState<string[]>([])
   const file = useRef<HTMLInputElement>(null)
   const panel = useRef<HTMLDivElement>(null)
-  useEffect(() => { panel.current?.querySelector<HTMLElement>('button, textarea')?.focus() }, [step])
+  const heading = useRef<HTMLHeadingElement>(null)
+  const closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose }, [onClose])
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    const dialog = panel.current
+    if (!dialog) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const focusable = () => [...dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => element.getAttribute('aria-hidden') !== 'true' && !element.closest('[aria-hidden="true"]') && element.getClientRects().length > 0)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) { event.preventDefault(); return }
+      const first = items[0], last = items[items.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || active === heading.current || !dialog.contains(active))) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault(); first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [])
+  useEffect(() => { heading.current?.focus() }, [step])
 
   const keyOf = (s: SpecialtySuggestion) => String(s.specialty_id)
   async function suggest() {
@@ -92,7 +115,7 @@ export default function StartSheet({ mobile, initialDirection = 'buy', onClose, 
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="start-title"
         className={`flex max-h-[90dvh] flex-col gap-4 overflow-y-auto bg-[var(--color-bg-surface)] p-5 shadow-[var(--elevation-lg)] ${mobile ? 'w-full rounded-t-[var(--radius-xl)] pb-8' : 'w-[560px] rounded-[var(--radius-xl)]'}`}>
         <div className="sticky top-0 z-10 -mx-5 -mt-5 flex items-center justify-between gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-5 pb-1 pt-5 backdrop-blur-xl">
-          <h2 id="start-title" className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">{step === 'pick' ? 'وش هدفك؟' : 'وش تبيع؟'}</h2>
+          <h2 id="start-title" ref={heading} tabIndex={-1} className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">{step === 'pick' ? 'وش هدفك؟' : 'وش تبيع؟'}</h2>
           <button type="button" aria-label="إغلاق" onClick={onClose} className={`flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={20} /></button>
         </div>
         {step === 'pick' ? (
