@@ -6,7 +6,7 @@ import {
 } from '../../api/targetingClient'
 import {
   Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon, MessageTemplatesIcon, NewRequestIcon,
-  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, UploadCatalogIcon, useIsMobile, WarningIcon, WholesaleIcon, type Channel,
+  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, UploadCatalogIcon, useIsMapCompact, WarningIcon, WholesaleIcon, type Channel,
 } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
@@ -92,7 +92,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   /** the buyer price-request wizard (/new), linked from the start sheet */
   onRfq?: () => void
 }) {
-  const mobile = useIsMobile()
+  const mobile = useIsMapCompact()
   const [focusMode, setFocusMode] = useState(false)
   const [focusPanelOpen, setFocusPanelOpen] = useState(false)
   const [focusPanelSnap, setFocusPanelSnap] = useState<'peek' | 'half' | 'full'>('peek')
