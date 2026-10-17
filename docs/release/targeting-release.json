@@ -1,7 +1,7 @@
 {
   "path": "/Users/m4pro/farq-targeting-b2b-release",
-  "deployment": "7efdedc3-5b5e-45c4-8da4-5a3760e14dd9",
-  "previous": "e5b94a6d-29a6-492c-821f-2c62b33a557b",
+  "deployment": "025571da-7b97-40c0-a5d1-d41ebef9cb37",
+  "previous": "025571da-7b97-40c0-a5d1-d41ebef9cb37",
   "changes": [
     "All ranked matches paginated without ten-result cap",
     "Heuristic name/activity match confidence explicitly distinguished from stock/demand",
