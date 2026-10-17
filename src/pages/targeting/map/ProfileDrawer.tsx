@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import { statusLabel, waNumber, type TargetRow } from '../../../api/targetingClient'
+import { recordMapInteraction } from '../../../lib/mapAnalytics'
 import { Button, Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { RoleChip, SpecChip } from './Badges'
@@ -38,6 +39,10 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
   const sources = row.source_count ?? row.sources?.length ?? null
   const wa = Boolean(waNumber(row))
   const status = statusLabel(row)
+  const statusUnconfirmed = ['hidden', 'unknown_empty', 'unknown_invalid'].includes(row.status_class || '')
+  useEffect(() => {
+    if (statusUnconfirmed) recordMapInteraction('map_profile_status_unconfirmed')
+  }, [row.poi_key, statusUnconfirmed])
   const saudi = Boolean(row.saudi_registered)
   const rating = typeof row.rating === 'number' && Number.isFinite(row.rating) && row.rating >= 1 && row.rating <= 5 ? row.rating : null
   const matchReason = row.match === 'product' ? 'اسم المنشأة يذكر المنتج'
@@ -79,11 +84,13 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
         ) : <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">لم يُحدَّد تخصص لهذه المنشأة بعد؛ تظهر ضمن نشاطها الفرعي{subAr(s) ? ` «${subAr(s)}»` : ''}.</p>}
         <div className="flex flex-wrap gap-1.5">
           {status ? <span className="inline-flex items-center rounded-full border border-[var(--map-sand)] bg-[color-mix(in_srgb,var(--map-sand)_25%,white)] px-2.5 py-1 text-[12px] leading-[18px] font-medium">حالة السجل: {status}</span> : null}
+          {statusUnconfirmed ? <span className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">حالة التشغيل غير مؤكدة</span> : null}
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] leading-[18px] font-medium ${wa ? 'border-[color-mix(in_srgb,var(--map-green)_40%,white)] bg-[color-mix(in_srgb,var(--map-green)_8%,white)] text-[var(--color-text-success)]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)]'}`}>
             {wa ? 'قناة واتساب متاحة للإرسال عبر فرق' : 'لا توجد قناة واتساب بعد'}
           </span>
           {saudi ? <span className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] leading-[18px] font-medium">منشأة سعودية</span> : null}
         </div>
+        {statusUnconfirmed ? <p className="-mt-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">لا تتوفر حالة تشغيل موثقة لهذه المنشأة في البيانات الحالية؛ تواصل معها للتأكد من استمرار نشاطها.</p> : null}
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
           {dd('الحي', district ? `${district}${row.district_reliable === false ? ' · غير مؤكد' : ''}` : null)}
           {dd('الشارع', row.street_ar || null)}

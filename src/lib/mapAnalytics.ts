@@ -14,6 +14,7 @@ const MAP_EVENTS = [
   'map_activity_select',
   'map_profile_open',
   'map_result_profile_open',
+  'map_profile_status_unconfirmed',
   'map_profile_quote_start',
   'map_legend_hide',
   'map_legend_show',
