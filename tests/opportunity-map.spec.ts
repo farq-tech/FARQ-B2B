@@ -68,7 +68,7 @@ const REQUESTS = [
   { id: U3, organizationId: 'org-1', createdBy: 'qa-user', kind: 'SEARCH', title: 'سخانات مياه', payload: { city: 'الرياض' }, status: 'CANCELLED', hidden: false, cancelledAt: '2026-10-11T08:00:00Z', cancelReason: 'لقينا مورد', createdAt: '2026-10-10T11:00:00Z' },
 ]
 
-async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean; analyticsConsent?: 'accepted' | 'rejected' } = {}) {
+async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; catalogOff?: boolean; specialtiesCount?: number; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean; analyticsConsent?: 'accepted' | 'rejected' } = {}) {
   const writes: string[] = []
   const saved: Record<string, unknown>[] = []
   const searches: Record<string, unknown>[] = []
@@ -90,7 +90,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }, { en: 'Jeddah', ar: 'جدة', n: 80 }] })
     if (path.endsWith('/market-summary')) {
       const body = route.request().postDataJSON(); marketQueries.push(body)
-      return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, n_wholesale: 2, n_whatsapp: 5, n_specialties: 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
+      return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, n_wholesale: 2, n_whatsapp: 5, n_specialties: opts.specialtiesCount ?? 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
     }
     if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', total: 6, basis: 'نقاط دقيقة فقط', districts: [{ district_ar: 'الملك فيصل', n: 2, n_wholesale: 2, n_whatsapp: 2 }, { district_ar: 'العليا', n: 3, n_wholesale: 0, n_whatsapp: 2 }, { district_ar: 'الفيصلية', n: 1, n_wholesale: 0, n_whatsapp: 1 }] } })
     if (path.endsWith('/who-buys')) {
@@ -102,6 +102,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     }
     if (path.endsWith('/street-density/catalog')) {
       const body = route.request().postDataJSON(); catalogs.push(body)
+      if (opts.catalogOff) return route.fulfill({ status: 503, json: { error: 'QA_CATALOG_UNAVAILABLE' } })
       return route.fulfill({ json: { mains: opts.streets === 'none' ? [] : catalogFor(body) } })
     }
     if (path.endsWith('/street-density')) {
@@ -264,6 +265,8 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('tab', { name: 'افهم السوق' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('heading', { name: 'ملخص سوق الرياض' })).toBeVisible()
     await expect(page.locator('[data-counter="market-size"]')).toContainText('منشآت مرصودة')
+    await expect(page.locator('[data-counter="market-activities"]')).toContainText('تصنيفات فرعية متاحة')
+    await expect(page.getByText('منشآت لديها تخصصات مسجلة')).toBeVisible()
     await page.getByRole('button', { name: 'توسيع الخريطة' }).click()
     await expect(page.getByText(/منشآت مرصودة ·/)).toBeVisible()
     await page.getByRole('button', { name: 'العودة لتخطيط الصفحة' }).click()
@@ -284,6 +287,17 @@ test.describe('desktop 1440', () => {
 
     await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     await expect(page.getByRole('tab', { name: 'ابحث عن موردين' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('does not present business specialty records as available activity filters', async ({ page }) => {
+    await setup(page, { catalogOff: true, specialtiesCount: 99 })
+    await page.goto('/opportunity-map')
+    const optionsCounter = page.locator('[data-counter="market-activities"]')
+    await expect(optionsCounter).toContainText('—')
+    await expect(optionsCounter).toContainText('تصنيفات فرعية متاحة')
+    const summary = page.locator('dl').filter({ hasText: 'منشآت لديها تخصصات مسجلة' })
+    await expect(summary).toContainText('٩٩')
+    await expect(optionsCounter).not.toContainText('٩٩')
   })
 
   test('changing city repeats the active search instead of showing city-wide results under the old phrase', async ({ page }) => {
