@@ -44,7 +44,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
   const fitLabel = row.ai === 'L' ? 'ملاءمة مرجّحة'
     : row.ai === 'M' ? 'ملاءمة محتملة'
     : row.ai === 'N' ? 'ملاءمة منخفضة'
-    : 'لم تُفحص آلياً'
+    : 'لا يوجد تقدير نموذجي'
   const fitBasis = row.match_confidence?.basis?.trim()
   const district = safeLocationName(row.district_ar)
   const dd = (k: string, v: string | null | undefined) => (v ? <><dt className="text-[var(--color-text-secondary)]">{k}</dt><dd className="m-0 font-medium">{v}</dd></> : null)

@@ -794,12 +794,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
       {cohort.length && fitFilter !== 'all' && fitCounts.unknown > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span>فيه {n(fitCounts.unknown)} منشأة غير مفحوصة؛ غياب التقدير لا يعني أنها غير مناسبة.</span>
+          <span>فيه {n(fitCounts.unknown)} منشأة بدون تقدير نموذجي؛ قد تظل مطابقة لنشاطها.</span>
           <Button variant="Ghost" size="S" onClick={() => {
             setFitFilter('unknown')
             setShown(PAGE)
             recordMapInteraction('fit_filter_unknown')
-          }}>اعرض غير المفحوصة</Button>
+          }}>اعرض بدون تقدير نموذجي</Button>
         </div>
       ) : null}
       {cohort.length && fitFilter !== 'all' ? <button type="button" className={`mt-2 block font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`} onClick={() => setFitFilter('all')}>عرض كل النتائج</button> : null}
