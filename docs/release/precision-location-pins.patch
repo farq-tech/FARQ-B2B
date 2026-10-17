@@ -1,0 +1,29 @@
+--- a/directory_tiles.py
++++ b/directory_tiles.py
+@@ -172,8 +172,8 @@
+         if type(limit) is not int or not 1<=limit<=200 or type(offset) is not int or offset<0:raise ValueError('invalid pagination')
+         f=valid_filters(filters);base,params=self.sql(city,f)
+         with self.lock:
+-            total,located=self.db.execute('select count(*),count(*) filter(where longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) '+base,params).fetchone()
+-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,phone_norm as phone,phone_kind,has_whatsapp,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
++            total,located=self.db.execute("select count(*),count(*) filter(where coalesce(location_precision,'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) "+base,params).fetchone()
++            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
+         for row in rows:
+             row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
+@@ -199,13 +199,13 @@
+             size=2**z;west=x/size*360-180;east=(x+1)/size*360-180
+             north=math.degrees(math.atan(math.sinh(math.pi*(1-2*y/size))));south=math.degrees(math.atan(math.sinh(math.pi*(1-2*(y+1)/size))))
+             if rows is not None:
+-                points=[(r['poi_key'],r.get('name_ar') or r.get('name_en') or '',r['longitude'],r['latitude']) for r in rows if r.get('longitude') is not None and r.get('latitude') is not None and west<=r['longitude']<east and south<=r['latitude']<north]
++                points=[(r['poi_key'],r.get('name_ar') or r.get('name_en') or '',r['longitude'],r['latitude']) for r in rows if r.get('location_precision','point')=='point' and r.get('longitude') is not None and r.get('latitude') is not None and west<=r['longitude']<east and south<=r['latitude']<north]
+             else:
+                 base,params=self.sql(city,f,[west,south,east,north])
+                 grid=1024 if z<12 else 512 if z<16 else 1
+                 px=f'((longitude+180)/360*{size}-{x})*4096'
+                 py=f'((1-asinh(tan(radians(latitude)))/pi())/2*{size}-{y})*4096'
+-                grouped=self.db.execute(f"select floor(({px})/{grid}),floor(({py})/{grid}),avg({px}),avg({py}),count(*),first(poi_key),first(coalesce(name_ar,name_en)) "+base+" and latitude between -85.05112878 and 85.05112878 group by 1,2",params).fetchall()
++                grouped=self.db.execute(f"select floor(({px})/{grid}),floor(({py})/{grid}),avg({px}),avg({py}),count(*),first(poi_key),first(coalesce(name_ar,name_en)) "+base+" and coalesce(location_precision,'point')='point' and latitude between -85.05112878 and 85.05112878 group by 1,2",params).fetchall()
+                 points=[]
+             cells={};grid=1024 if z<12 else 512 if z<16 else 1
+             for poi,name,lon,lat in points:

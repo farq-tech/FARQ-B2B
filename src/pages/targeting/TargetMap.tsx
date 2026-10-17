@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { waNumber, type TargetRow, type TradeCluster } from '../../api/targetingClient'
 import { FOCUS_RING } from '../../ui/cx'
+import { hasPoint } from './map/model'
 
 /*
  * Map of the search results — Figma 07 «Map» (51:252) on the dark tone. Positions are the places'
@@ -42,7 +43,7 @@ export default function TargetMap({ rows, selected, focusedKey, onToggle, topIns
     return () => ro.disconnect()
   }, [])
 
-  const geo = useMemo(() => rows.filter((r) => r.latitude != null && r.longitude != null && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)), [rows])
+  const geo = useMemo(() => rows.filter(hasPoint), [rows])
   const { pts, clusters: groupsOf, outside, proj } = useMemo(() => {
     let outside = 0
     const view = zoom ? geo.filter((r) => zoom.includes(r.poi_key)) : geo
