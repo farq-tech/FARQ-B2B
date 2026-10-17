@@ -83,6 +83,159 @@ class Understand(unittest.TestCase):
         self.assertEqual(ts.service_radius('ind.plastic', ''), 1000)
         self.assertGreater(ts.service_radius('build.insulation', 'wholesale|retail'), ts.service_radius('food.cafe', 'retail'))
 
+    def test_boq_fasteners_do_not_match_food_nuts(self):
+        u = self.fam('SS 316 Bolt & Nut M24 X 150')
+        self.assertEqual(u['families'], ['tool_fasteners'])
+        self.assertEqual(u['targets'], {'build.fasteners': 3.0})
+
+    def test_boq_valves_do_not_match_bottled_water(self):
+        u = self.fam('صمام مياه 300 مم air release valve flow sensor')
+        self.assertEqual(u['families'], ['mep_pipes_fittings'])
+        self.assertEqual(u['targets'], {'build.pipes_fittings': 3.0})
+
+    def test_boq_exhaust_fan_is_ventilation_supply(self):
+        u = self.fam('مروحة شفط 25x25 exhaust fan')
+        self.assertEqual(u['families'], ['mep_ducts_ventilation'])
+        self.assertEqual(u['targets'], {'build.hvac_supply': 3.0})
+
+    def test_boq_lighting_does_not_match_ceiling_or_auto_lighting(self):
+        u = self.fam('لوحة LED فيليبس 60x60 34W')
+        self.assertEqual(u['families'], ['mep_lighting'])
+        self.assertEqual(u['targets'], {'build.lighting_supply': 3.0})
+
+    def test_boq_electrical_sockets_and_conduits_stay_electrical(self):
+        socket = self.fam('مقبس كهربائي 16A')
+        conduit = self.fam('مواسير PVC duct bank كهرباء')
+        self.assertEqual(socket['targets'], {'build.electrical_supply': 3.0})
+        self.assertEqual(conduit['targets'], {'build.electrical_supply': 3.0})
+
+    def test_boq_tanks_keep_the_existing_product_family_match(self):
+        u = self.fam('خزان GRP 30 متر مكعب')
+        self.assertEqual(u['families'], ['mep_water_tanks'])
+        self.assertEqual(list(u['targets']), ['build.pumps_tanks'])
+
+    def test_attached_boq_pr_fasteners_never_cross_into_food_or_auto(self):
+        for line in (
+            'SS 316 Bolt & Nut, M24 x 150', 'SS 316 Bolts & Nuts, M24 x 120',
+            'SS 316 washer, M24', 'SS 316 Bolt, M18 x 100', 'SS 316 Nut, M18',
+            'SS 316 washer, M18', 'SS 316 Bolt, M16 x 120', 'SS 316 Nut, M16',
+            'SS 316 washer, M16', 'SS 316 Bolt, M16 x 100',
+        ):
+            u = self.fam(line)
+            self.assertEqual(u['families'], ['tool_fasteners'], line)
+            self.assertEqual(u['targets'], {'build.fasteners': 3.0}, line)
+
+    def test_attached_electrical_pr_items_stay_in_electrical_supply(self):
+        for line in ('3 pin duplex socket', '3 pin socket', '16A male socket'):
+            u = self.fam(line)
+            self.assertEqual(u['targets'], {'build.electrical_supply': 3.0}, line)
+        u = self.fam('25x25 exhaust fan')
+        self.assertEqual(u['targets'], {'build.hvac_supply': 3.0})
+
+    def test_attached_philips_luminaires_and_accessories_never_become_auto_batteries(self):
+        lines = (
+            'Philips WT065C G3 LED48S/840 PSU L1200 BN',
+            'VIVA emergency battery for 120cm', 'Philips panel 60x60 34W 6.5K',
+            'VIVA emergency battery for 60x60', 'Philips D/L2000L18W6.5K D200',
+            'Philips frame surface D200', 'Philips exit up/down/L&R 2.2W 7K',
+            'Philips exit down 2.2W 7K', 'Philips emergency bulkhead 3.5W 6.5K',
+            'Philips DNO69B LED21/865 PSU GM1',
+        )
+        for line in lines:
+            u = self.fam(line)
+            self.assertEqual(u['families'], ['mep_lighting'], line)
+            self.assertEqual(u['targets'], {'build.lighting_supply': 3.0}, line)
+
+    def test_attached_water_and_irrigation_items_are_scoped_to_relevant_suppliers(self):
+        expected = {
+            'UPS for access control gates': {'elec.it_networking_supply': 3.0, 'build.electrical_supply': 2.0},
+            '300 mm gate valve with surface box': {'build.pipes_fittings': 3.0},
+            'potable water connection': {'contract.plumbing': 3.0},
+            'water meter shade': {'build.metal_fabrication': 3.0},
+            'air release valve ARV': {'build.pipes_fittings': 3.0},
+            'GRP holding tank 30 m3': {'build.pumps_tanks': 3.0},
+            'GRP holding tank 90 m3': {'build.pumps_tanks': 3.0},
+            'flow sensor valve 50mm': {'build.pipes_fittings': 3.0},
+            'master valve 50mm': {'build.pipes_fittings': 3.0},
+            'backflow preventer 50mm': {'build.pipes_fittings': 3.0},
+            'irrigation washout with chamber': {'build.pipes_fittings': 3.0, 'build.landscaping_supply': 2.0},
+            'irrigation air release valve ARV': {'build.pipes_fittings': 3.0, 'build.landscaping_supply': 2.0},
+            'irrigation flow sensor valve with box 50mm': {'build.pipes_fittings': 3.0, 'build.landscaping_supply': 2.0},
+            'irrigation master valve with box 50mm': {'build.pipes_fittings': 3.0, 'build.landscaping_supply': 2.0},
+            'irrigation backflow preventer with box 50mm': {'build.pipes_fittings': 3.0, 'build.landscaping_supply': 2.0},
+        }
+        for line, targets in expected.items():
+            self.assertEqual(self.fam(line)['targets'], targets, line)
+
+    def test_attached_civil_and_hvac_boq_items_do_not_cross_families(self):
+        expected = {
+            'low voltage concrete encased PVC duct bank 2x3x110mm': {'build.electrical_supply': 3.0},
+            'handhole type A': {'build.electrical_supply': 3.0},
+            'communication duct bank 10x50mm': {'elec.it_networking_supply': 3.0, 'build.electrical_supply': 2.0},
+            'interlock block paver 200x100x80mm': {'build.interlock_pavers': 3.0, 'ind.concrete_products': 2.0},
+            'concrete access ramp': {'build.ready_mix': 3.0, 'contract.civil_infra': 2.0},
+            'chainlink swing security gate double leaf': {'build.metal_fabrication': 3.0},
+            'sand trap louver 2280x2280mm': {'build.hvac_supply': 3.0},
+            'cast iron soil waste vent drain pipes 32mm': {'build.pipes_fittings': 3.0, 'build.plumbing_supply': 2.0},
+            'roof mounted upblast exhaust fan': {'build.hvac_supply': 3.0},
+            'concrete screed 50mm slab on grade': {'build.ready_mix': 3.0, 'contract.civil_infra': 2.0},
+            '300mm thick rigid concrete slab': {'build.ready_mix': 3.0, 'contract.civil_infra': 2.0},
+            'surface preparation with power floating on slab on grade': {'contract.civil_infra': 3.0, 'contract.general': 2.0},
+        }
+        for line, targets in expected.items():
+            self.assertEqual(self.fam(line)['targets'], targets, line)
+
+    def test_every_canonical_product_family_label_resolves_to_only_its_sellers(self):
+        checked = 0
+        for family_id, family in self.tx.families.items():
+            expected = {sub: (3.0 if strength >= 2 else 2.0)
+                        for sub, strength in self.tx.rel['sells'].get(family_id, []) if self.tx._sub_ok(sub)}
+            for field in ('family_ar', 'family_en'):
+                label = (family.get(field) or '').strip()
+                if not label:
+                    continue
+                result = self.fam(label)
+                self.assertEqual(result['families'], [family_id], f'{family_id}: {field}={label!r}')
+                self.assertEqual(result['targets'], expected, f'{family_id}: {field}={label!r}')
+                self.assertEqual(result['source'], 'exact_family', f'{family_id}: {field}={label!r}')
+                wrapped = self.fam(f'ابي موردين {label}')
+                self.assertEqual(wrapped['families'], [family_id], f'{family_id}: wrapped {field}={label!r}')
+                self.assertEqual(wrapped['targets'], expected, f'{family_id}: wrapped {field}={label!r}')
+                checked += 1
+        self.assertEqual(checked, 700)
+
+    def test_every_product_example_is_exactly_resolved_or_explicitly_ambiguous(self):
+        checked = 0
+        for family_id, family in self.tx.families.items():
+            expected = {sub: (3.0 if strength >= 2 else 2.0)
+                        for sub, strength in self.tx.rel['sells'].get(family_id, []) if self.tx._sub_ok(sub)}
+            for field in ('examples_ar', 'examples_en'):
+                for example in (family.get(field) or '').split('|'):
+                    example = example.strip()
+                    if len(ts.norm(example)) < 3:
+                        continue
+                    query = f'ابي موردين {example}'
+                    result = self.fam(query)
+                    phrase = ts.norm(example)
+                    canonical_ids = set(self.tx.family_labels.get(phrase, ()))
+                    example_ids = set(self.tx.example_labels.get(phrase, ()))
+                    ids = canonical_ids or example_ids
+                    expected_family = next(iter(canonical_ids)) if len(canonical_ids) == 1 else family_id
+                    expected = {sub: (3.0 if strength >= 2 else 2.0)
+                                for sub, strength in self.tx.rel['sells'].get(expected_family, []) if self.tx._sub_ok(sub)}
+                    named, _ = self.tx.subs_in(phrase)
+                    one_word_conflict = (not canonical_ids and len(phrase.split()) == 1 and bool(set(named) - expected.keys()))
+                    if not canonical_ids and (len(example_ids) > 1 or one_word_conflict):
+                        self.assertEqual(result['targets'], {}, f'ambiguous alias should not recommend: {example!r}')
+                        self.assertEqual(result['source'], 'ambiguous_exact_example', example)
+                    else:
+                        self.assertEqual(result['families'], [expected_family], f'{family_id}: {field}={example!r}')
+                        self.assertTrue(result['targets'], f'{family_id}: {field}={example!r}')
+                        self.assertTrue(set(result['targets']).issubset(expected), f'{family_id}: {field}={example!r}')
+                        self.assertIn(result['source'], ('exact_family', 'exact_example'), f'{family_id}: {field}={example!r}')
+                    checked += 1
+        self.assertEqual(checked, 3308)
+
 
 class Search(unittest.TestCase):
     def test_rows_and_reason(self):

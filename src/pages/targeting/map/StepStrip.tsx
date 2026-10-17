@@ -6,19 +6,29 @@ import { Icon } from '../../../ui'
  */
 export const STEPS = ['اكتب وش تبي', 'شوف الشوارع والأحياء الأكثف', 'اختر حي أو شارع', 'اختر المحلات وأرسل'] as const
 const AR = ['١', '٢', '٣', '٤']
+const HINTS = [
+  'ابحث باسم النشاط أو المنتج لعرض المنشآت المناسبة.',
+  'الخطوط تبيّن كثافة النشاط؛ اضغط حيّاً أو شارعاً لاستكشافه.',
+  'اختيار حي أو شارع يضيّق النتائج إلى هذا الموقع.',
+  'راجع المنشآت المحددة، ثم أرسلها عبر واتساب.',
+] as const
 
 export default function StepStrip({ current, mobile }: { current: 1 | 2 | 3 | 4; mobile: boolean }) {
   if (mobile) {
     return (
-      <p data-testid="map-steps" aria-label="خطوات الخريطة" className="flex items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] leading-[20px]">
-        <span className="rounded-full bg-[var(--map-ink)] px-2 text-[12px] font-semibold text-white">الخطوة {AR[current - 1]} من ٤</span>
-        <span className="truncate font-medium">{STEPS[current - 1]}</span>
-      </p>
+      <div data-testid="map-steps" aria-label="خطوات الخريطة" className="rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2">
+        <div className="flex items-center gap-2 text-[13px] leading-[20px]">
+          <span className="shrink-0 rounded-full bg-[var(--map-ink)] px-2 text-[12px] font-semibold text-white">الخطوة {AR[current - 1]} من ٤</span>
+          <span className="truncate font-medium">{STEPS[current - 1]}</span>
+        </div>
+        <p className="m-0 mt-1 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{HINTS[current - 1]}</p>
+      </div>
     )
   }
   return (
-    <ol data-testid="map-steps" aria-label="خطوات الخريطة" className="flex flex-wrap items-center gap-1.5 text-[13px] leading-[20px]">
-      {STEPS.map((s, i) => {
+    <div data-testid="map-steps" aria-label="خطوات الخريطة" className="flex flex-col gap-1.5">
+      <ol className="flex flex-wrap items-center gap-1.5 text-[13px] leading-[20px]">
+        {STEPS.map((s, i) => {
         const k = i + 1, done = k < current, now = k === current
         return (
           <li key={s} aria-current={now ? 'step' : undefined} className="flex items-center gap-1.5">
@@ -28,7 +38,9 @@ export default function StepStrip({ current, mobile }: { current: 1 | 2 | 3 | 4;
             </span>
           </li>
         )
-      })}
-    </ol>
+        })}
+      </ol>
+      <p className="m-0 px-1 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{HINTS[current - 1]}</p>
+    </div>
   )
 }

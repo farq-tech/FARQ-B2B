@@ -54,6 +54,7 @@ function Routes() {
   const session = useFarqSession()
   const mobile = useIsMobile()
   const [checked, setChecked] = useState<'pending' | 'ok' | 'denied'>('pending')
+  const [mapFocus, setMapFocus] = useState(false)
   const email = String(session.user?.email || '')
   useEffect(() => {
     if (!session.isAuthenticated) { setChecked('pending'); return }
@@ -83,8 +84,8 @@ function Routes() {
   const onCampaign = CAMPAIGN.includes(view)
   const openRequest = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
   return (
-    <div className="flex min-h-screen">
-      {mobile ? null : (
+    <div className={mapFocus ? 'fixed inset-0 z-[100] flex h-dvh overflow-hidden bg-[var(--color-bg-canvas)]' : 'flex min-h-screen'}>
+      {mobile || mapFocus ? null : (
         <Sidebar
           className="sticky top-0"
           nav={<>
@@ -100,7 +101,7 @@ function Routes() {
           account={{ name: email || 'المالك', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
         />
       )}
-      <main id="farq-main" tabIndex={-1} className={mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
+      <main id="farq-main" tabIndex={-1} className={mapFocus ? 'h-dvh min-w-0 flex-1 overflow-hidden' : mobile ? 'min-w-0 flex-1 pb-[72px]' : 'min-w-0 flex-1'}>
         {/* Eid al-Fitr / Eid al-Adha / National Day / Founding Day: a quiet, dismissible line (not over the full-screen map) */}
         {onCampaign ? null : <OccasionBanner />}
         <Suspense fallback={<Loading />}>
@@ -109,7 +110,7 @@ function Routes() {
           {view === 'comparison' && <Comparison navigate={navigate} />}
           {view === 'award' && selectedRfqId && <Award rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')} onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />}
           {view === 'inbox' && <Inbox onOpenRequest={openRequest} />}
-          {(view === 'targeting' || view === 'targeting-new') && <Targeting onTemplates={() => navigate('templates')} startNew={view === 'targeting-new'} onStartClosed={() => navigate('targeting')} onRfq={() => navigate('create-upload')} />}
+          {(view === 'targeting' || view === 'targeting-new') && <Targeting onTemplates={() => navigate('templates')} startNew={view === 'targeting-new'} onStartClosed={() => navigate('targeting')} onRfq={() => navigate('create-upload')} onMapFocusChange={setMapFocus} />}
           {view === 'templates' && <Templates onBack={() => navigate('targeting')} onNew={() => navigate('template-new')} />}
           {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
           {view === 'account' && <Account />}
@@ -117,7 +118,7 @@ function Routes() {
           {(view === 'rfq-list' || view === 'login' || (view === 'award' && !selectedRfqId)) && <RfqList navigate={navigate} />}
         </Suspense>
       </main>
-      {mobile ? (
+      {mobile && !mapFocus ? (
         <MobileBottomNav tabs={[
           { label: 'الطلبات', icon: PricingRequestsIcon, active: onRequests, onClick: () => navigate('rfq-list') },
           { label: 'طلب جديد', icon: NewRequestIcon, active: view === 'targeting-new', onClick: () => navigate('targeting-new') },

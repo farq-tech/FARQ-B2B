@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
-  listCities, listDistricts, listTemplates, searchTargets, streetDensity, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  districtCounts, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -16,7 +16,7 @@ import { createOpportunityRequest, type OpportunityRequestKind } from '../../api
 import CampaignConfirmSheet from './CampaignConfirmSheet'
 import StartSheet from './StartSheet'
 import MyRequests from './MyRequests'
-import Counters from './map/Counters'
+import Counters, { type CounterItem } from './map/Counters'
 import DrawnLayerMap from './map/DrawnLayerMap'
 import GuideTree from './map/GuideTree'
 import ProfileDrawer from './map/ProfileDrawer'
@@ -24,9 +24,8 @@ import CampaignTray from './map/CampaignTray'
 import StepStrip from './map/StepStrip'
 import MapLegend from './map/MapLegend'
 import { RowBadges } from './map/Badges'
-import { LayerSwatch } from './map/glyphs'
 import {
-  countersOf, densityOf, districtAt, districtsFrom, fmtMeters, streetsFrom, topStreets, districtsFromNames, guideOf, hasPoint, inDistricts, km, LAYERS, mainAr, mainIdOf, matchesFocus, pinsOf, safeName, subAr, subIdOf,
+  countersOf, densityOf, districtAt, districtsFrom, fmtMeters, streetLine, streetsFrom, topStreets, districtsFromNames, guideOf, hasPoint, inDistricts, km, mainAr, mainIdOf, matchesFocus, pinsOf, safeLocationName, safeName, subAr, subIdOf,
   type District, type Focus, type Layer, type Street,
 } from './map/model'
 import type { LayerMapProps, Site } from './map/types'
@@ -57,13 +56,13 @@ const FETCH = 200   // rows per server page (the API maximum); «حمّل أكث
 const RADII = [5, 10, 25, 50, 100] as const
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
-const n = (v: number) => v.toLocaleString('en-US')
+const n = (v: number) => v.toLocaleString('ar-SA')
 /** «حدد المناسبين»: AI-likely places with WhatsApp; without an AI check, everyone with WhatsApp. */
 const pickBest = (rows: TargetRow[]) => {
   const ai = rows.some((r) => r.ai)
   return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
 }
-const placeOf = (r: TargetRow) => [r.street_ar, r.district_ar || r.district_en, r.region_ar || r.city_en].filter(Boolean).join(' · ')
+const placeOf = (r: TargetRow) => [safeLocationName(r.street_ar), safeLocationName(r.district_ar) || safeLocationName(r.district_en), safeLocationName(r.region_ar) || safeLocationName(r.city_en)].filter(Boolean).join(' · ')
 const pathOf = (r: TargetRow) => { const m = mainIdOf(r), s = subAr(subIdOf(r)); return s ? `${mainAr(m)} ▸ ${s}` : r.taxonomy_sub ? mainAr(m) : r.category_ar || '' }
 const FIT = { L: { tone: 'Success', label: 'مناسب', icon: SuccessIcon }, M: { tone: 'Warning', label: 'محتمل', icon: WarningIcon }, N: { tone: 'Neutral', label: 'غير مناسب', icon: ErrorIcon } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} icon={FIT[r.ai].icon} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
@@ -71,7 +70,7 @@ const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Ba
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
 /** The narrowing filters under the search bar: district, street, wholesale (manual only), role and specialty. */
 type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty'>
-const clusterName = (c: TradeCluster) => [c.level === 'street' ? c.street_ar : null, c.district_ar].filter(Boolean).join('، ') || c.label_ar
+const clusterName = (c: TradeCluster) => [c.level === 'street' ? safeLocationName(c.street_ar) : null, safeLocationName(c.district_ar)].filter(Boolean).join('، ') || c.label_ar
 /** «سوق الزل للأقمشة — الديرة · 230 محل» when a curated popular name fits; otherwise «الشارع، الحي — 37 محل». */
 const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${clusterName(c)} · ${n(c.n)} محل` : `${clusterName(c)} — ${n(c.n)} محل`)
 
@@ -80,8 +79,9 @@ function defaultMessage(cat: string | null, area: string | null) {
 }
 const boxAround = (lat: number, lon: number, d = 0.012): [number, number, number, number] => [lon - d, lat - d, lon + d, lat + d]
 
-export default function TargetingPage({ onTemplates, startNew = false, onStartClosed, onRfq }: {
+export default function TargetingPage({ onTemplates, onMapFocusChange, startNew = false, onStartClosed, onRfq }: {
   onTemplates: () => void
+  onMapFocusChange?: (focused: boolean) => void
   /** «طلب جديد» (sidebar / tab bar): open the start sheet */
   startNew?: boolean
   onStartClosed?: () => void
@@ -89,8 +89,16 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   onRfq?: () => void
 }) {
   const mobile = useIsMobile()
+  const [focusMode, setFocusMode] = useState(false)
+  const [focusPanelOpen, setFocusPanelOpen] = useState(false)
+  const changeFocusMode = (focused: boolean) => {
+    setFocusMode(focused)
+    onMapFocusChange?.(focused)
+    if (focused) setFocusPanelOpen(false)
+  }
   // hand-offs from «هدف جديد» pages (memory only); the default is «بائعون»
   const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => (handoff.take(HANDOFF.targetDirection) === 'marketing' ? 'marketing' : 'purchase'))
+  const [lens, setLens] = useState<'market' | 'sellers' | 'buyers'>(() => (objective === 'marketing' ? 'buyers' : 'market'))
   const [q, setQ] = useState(() => handoff.take(HANDOFF.targetQuery) || '')
   const generation = useRef(0)
   const [query, setQuery] = useState('')
@@ -110,6 +118,11 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   // the densest streets of this request, drawn along the street (POST /street-density); the one picked
   const [dense, setDense] = useState<{ list: Street[]; basis?: string } | null>(null)
   const [activeStreet, setActiveStreet] = useState<string | null>(null)
+  // which streets: all activities (on open), one main, some subs, or the typed request; districts narrow them
+  type StreetPick = { kind: 'all' } | { kind: 'main'; id: string } | { kind: 'sub'; ids: (string | number)[]; main: string } | { kind: 'q'; q: string; objective: string }
+  const [streetPick, setStreetPick] = useState<StreetPick>({ kind: 'all' })
+  const [catalog, setCatalog] = useState<StreetCatalog['mains'] | null>(null)
+  const streetGen = useRef(0)
   const clusterGen = useRef(0)
   // map state: districts, layer, guide pick, profile, site
   const [polys, setPolys] = useState<District[] | null>(null)
@@ -117,12 +130,12 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const [layer, setLayer] = useState<Layer>('main')
   const [focus, setFocus] = useState<Focus>(null)
   const [profile, setProfile] = useState<string | null>(null)
-  const [tab, setTab] = useState<'results' | 'guide'>('results')
+  const [tab, setTab] = useState<'streets' | 'results' | 'guide'>(() => (mobile ? 'streets' : 'results'))
   const [site, setSite] = useState<Site | null>(null)
   const [placingSite, setPlacingSite] = useState(false)
   const [fit, setFit] = useState<LayerMapProps['fit']>(null)
   const fitTo = (bounds: [number, number, number, number]) => setFit((f) => ({ bounds, at: (f?.at || 0) + 1 }))
-  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setDense(null); setActiveStreet(null); setFocus(null) }
+  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null) }
   // a booklet turned into lines: tap a line to search for it in the chosen city
   const fileInput = useRef<HTMLInputElement>(null)
   const [lines, setLines] = useState<(BookletLine & { found?: number })[]>([])
@@ -133,8 +146,13 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   // the city: Riyadh by default (nothing is remembered on the device)
   const [cities, setCities] = useState<City[]>([])
   const [city, setCity] = useState('Riyadh')
+  const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
+  const [marketDistrictCounts, setMarketDistrictCounts] = useState<DistrictCount[]>([])
+  const [marketLoading, setMarketLoading] = useState(true)
+  const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
+  const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setConfirming(false); setProfile(null) }
-  const pickCity = (v: string) => { resetAll(); setCity(v); setChosenD(new Set()); setSite(null) }
+  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
@@ -164,6 +182,61 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     return () => { on = false }
   }, [city])
   const cityName = (en: string) => cities.find((c) => c.en === en)?.ar || en
+  // chosen district names narrow the dense streets and the activity catalog
+  const chosenNames = useMemo(() => (polys && polys.length ? polys : []).filter((d) => chosenD.has(d.id)).map((d) => d.ar).concat([...chosenD].filter((id) => id.startsWith('name:')).map((id) => id.slice(5))).sort(), [polys, chosenD])
+  const chosenKey = chosenNames.join('|')
+  const buyerSubIds = streetPick.kind === 'sub' ? streetPick.ids
+    : focus?.level === 'sub' ? [focus.id]
+    : streetPick.kind === 'main' ? (catalog?.find((m) => m.main_id === streetPick.id)?.subs || []).map((s) => s.sub_id)
+    : (res?.understood?.sub_ids || [])
+  const buyerQueryKey = lens === 'buyers' && buyerSubIds.length && buyerSubIds.length <= 50 ? `${city}|${buyerSubIds.join('|')}` : ''
+  useEffect(() => {
+    if (!city || lens !== 'market') return
+    let active = true
+    const filter = streetPick.kind === 'main' ? { main_id: streetPick.id }
+      : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : {}
+    const query = { city, ...filter, ...(chosenNames.length ? { districts: chosenNames } : {}) }
+    Promise.all([marketSummary(query), districtCounts(query)]).then(([summary, counts]) => {
+      if (!active) return
+      setMarketStats(summary?.summary || null)
+      setMarketDistrictCounts(counts?.districts || [])
+    }, () => {
+      if (!active) return
+      setMarketStats(null); setMarketDistrictCounts([])
+    }).finally(() => { if (active) setMarketLoading(false) })
+    return () => { active = false }
+  }, [city, lens, streetPick, chosenNames])
+  useEffect(() => {
+    if (!buyerQueryKey) return
+    let active = true
+    whoBuys({ city, sub_ids: buyerSubIds }).then((r) => { if (active) setBuyerData({ key: buyerQueryKey, data: r }) }, () => { if (active) setBuyerData(null) })
+    return () => { active = false }
+  }, [buyerQueryKey])
+  const currentBuyerData = buyerData?.key === buyerQueryKey ? buyerData.data : null
+  const pickKey = JSON.stringify(streetPick)
+  const framedPick = useRef('')
+  useEffect(() => {
+    if (!city) return
+    const v = ++streetGen.current
+    const body: StreetDensityQuery = { city, ...(streetPick.kind === 'main' ? { main_id: streetPick.id } : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : streetPick.kind === 'q' ? { q: streetPick.q, objective: streetPick.objective } : {}), ...(chosenNames.length ? { districts: chosenNames } : {}) }
+    streetDensity(body).then((d) => {
+      if (v !== streetGen.current) return
+      const list = streetsFrom(d)
+      setDense({ list, basis: d?.basis })
+      // a new activity (or request): frame its densest streets so the map shows WHERE at once
+      const top = topStreets(list)
+      if (top.length && framedPick.current !== `${city}|${pickKey}` && !chosenNames.length) {
+        framedPick.current = `${city}|${pickKey}`
+        fitTo([Math.min(...top.map((x) => x.bbox[0])), Math.min(...top.map((x) => x.bbox[1])), Math.max(...top.map((x) => x.bbox[2])), Math.max(...top.map((x) => x.bbox[3]))])
+      }
+    }, () => { if (v === streetGen.current) setDense({ list: [] }) })
+  }, [city, pickKey, chosenKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!city) return
+    let on = true
+    streetCatalog({ city, ...(chosenNames.length ? { districts: chosenNames } : {}) }).then((c) => { if (on) setCatalog(c?.mains || []) }, () => { if (on) setCatalog(null) })
+    return () => { on = false }
+  }, [city, chosenKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => res?.rows || [], [res])
   const byKey = useMemo(() => new Map(rows.map((r) => [r.poi_key, r])), [rows])
@@ -178,8 +251,44 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   }, [rows, chosenList, site])
   const cohort = useMemo(() => areaRows.filter((r) => matchesFocus(r, focus)), [areaRows, focus])
   const counters = useMemo(() => countersOf(cohort, chosenD.size), [cohort, chosenD])
+  const displayCounters = useMemo<CounterItem[]>(() => {
+    const shownRows = res?.rows || []
+    const precise = typeof res?.located_total === 'number' && Number.isFinite(res.located_total)
+      ? res.located_total : shownRows.filter(hasPoint).length
+    const whatsapp = typeof res?.with_whatsapp === 'number' && Number.isFinite(res.with_whatsapp)
+      ? res.with_whatsapp : shownRows.filter((row) => Boolean(waNumber(row))).length
+    // Search responses describe all matching districts. Once the user narrows to a
+    // district, keep this indicator scoped to the visible result set.
+    const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
+    if (lens === 'market') return [
+      { key: 'market-size', label: 'منشآت في السوق', value: marketStats?.total || 0, lead: true },
+      { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count || 0 },
+      { key: 'market-activities', label: 'أنشطة فرعية', value: catalog?.reduce((sum, main) => sum + main.subs.length, 0) || marketStats?.n_specialties || 0 },
+      { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats?.densest_street?.n || 0 },
+    ]
+    if (query && res) return lens === 'sellers' ? [
+      { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
+      { key: 'supplier-whatsapp', label: 'واتساب بالنتائج المحمّلة', value: whatsapp },
+      { key: 'supplier-located', label: 'مواقع دقيقة', value: precise },
+      { key: 'supplier-districts', label: 'أحياء بها نتائج', value: areas },
+    ] : [
+      { key: 'buyer-matches', label: 'جهات قد تشتري', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
+      { key: 'buyer-whatsapp', label: 'واتساب بالنتائج المحمّلة', value: whatsapp },
+      { key: 'buyer-located', label: 'مواقع دقيقة', value: precise },
+      { key: 'buyer-activities', label: 'أنشطة مشترية مرصودة', value: currentBuyerData?.buyers.length || 0 },
+    ]
+    // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
+    return [
+      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total || 0, lead: true },
+      { key: 'city-whatsapp', label: 'واتساب مسجل', value: marketStats?.n_whatsapp || 0 },
+      { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count || 0 },
+      { key: 'city-activities', label: 'أنشطة فرعية', value: catalog?.reduce((sum, main) => sum + main.subs.length, 0) || 0 },
+    ]
+  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
-  const pins = useMemo(() => (chosenList.length ? pinsOf(cohort, layer, selected, focus) : []), [chosenList, cohort, layer, selected, focus])
+  // Keep the city uncluttered until the user chooses an area or an activity; either choice
+  // gives the map a useful, bounded cohort to pin even before they pick a district.
+  const pins = useMemo(() => (query && (chosenList.length || focus) ? pinsOf(cohort, layer, selected, focus) : []), [query, chosenList, cohort, layer, selected, focus])
   const approxCount = useMemo(() => cohort.filter((r) => !hasPoint(r)).length, [cohort])
   const extent = useMemo<[number, number, number, number] | null>(() => {
     const pts = rows.filter(hasPoint)
@@ -193,18 +302,32 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
   const waInCohort = counters.whatsapp
 
   const toggleDistrict = (id: string) => {
-    setChosenD((s) => {
-      const x = new Set(s)
-      if (x.has(id)) x.delete(id)
-      else {
-        x.add(id)
-        const d = districts.find((y) => y.id === id)
-        if (x.size === 1 && d?.bbox) fitTo(d.bbox)
-      }
-      return x
-    })
+    const wasChosen = chosenD.has(id)
+    const next = wasChosen ? new Set<string>() : new Set([id])
+    setChosenD(next)
+    const district = districts.find((d) => d.id === id)
+    if (!wasChosen && district?.bbox) fitTo(district.bbox)
+    const name = wasChosen ? undefined : district?.ar || id.replace(/^name:/, '')
+    if (query) {
+      const nextFilters = { ...filters }
+      delete nextFilters.district
+      delete nextFilters.street
+      if (name) nextFilters.district = name
+      void runSearchIn(query, city, nextFilters)
+    } else {
+      void loadBrowse(city, name ? { district: name } : {})
+    }
   }
-  const pickFocus = (f: Focus) => { setFocus(f); if (f) setLayer(f.level) }
+  const clearDistrict = () => {
+    setChosenD(new Set())
+    if (query) {
+      const nextFilters = { ...filters }
+      delete nextFilters.district
+      delete nextFilters.street
+      void runSearchIn(query, city, nextFilters)
+    } else void loadBrowse(city)
+  }
+  const pickFocus = (f: Focus) => { setFocus(f); setLayer(f?.level || 'main') }
 
   const citySelect = (cls: string) => (
     <>
@@ -219,15 +342,32 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       </span>
     </>
   )
+  const chooseLens = (value: 'market' | 'sellers' | 'buyers') => {
+    if (value === lens) return
+    if (value === 'market') {
+      resetAll(); setQuery(''); setQ(''); setLens('market'); setTab('guide')
+      void loadBrowse(city)
+      return
+    }
+    const nextObjective = value === 'buyers' ? 'marketing' : 'purchase'
+    setObjective(nextObjective)
+    if (q.trim() && city) {
+      // Keep the user's current phrase in sync with the direction they just chose.
+      void runSearchIn(q.trim(), city, undefined, nextObjective)
+    } else {
+      resetAll(); setQuery(''); setQ(''); setLens(value)
+      void loadBrowse(city)
+    }
+  }
   const direction = (
-    <fieldset className="flex gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-1" aria-label="من تبحث عنه؟">
-      {([{ value: 'purchase', label: 'بائعون — أبي أشتري' }, { value: 'marketing', label: 'مشترون — أبي أبيع' }] as const).map((option) => (
-        <label key={option.value} className={`flex cursor-pointer flex-row items-center gap-2 rounded-full px-3 py-1 text-[14px] leading-[22px] font-medium whitespace-nowrap ${objective === option.value ? 'bg-[var(--map-ink)] text-white' : 'text-[var(--color-text-secondary)]'}`}>
-          <input type="radio" name="target-direction" aria-label={option.label} className="sr-only" checked={objective === option.value} onChange={() => { resetAll(); setObjective(option.value) }} />
-          <span aria-hidden>{mobile ? option.label.split(' — ')[0] : option.label}</span>
-        </label>
+    <div role="tablist" aria-label="عدسات خريطة السوق" className="grid grid-cols-3 gap-1 rounded-xl bg-[var(--color-bg-surface-2)] p-1">
+      {([{ value: 'market', label: 'افهم السوق' }, { value: 'sellers', label: 'ابحث عن موردين' }, { value: 'buyers', label: 'ابحث عن مشترين' }] as const).map((option) => (
+        <button key={option.value} type="button" role="tab" aria-selected={lens === option.value} onClick={() => chooseLens(option.value)}
+          className={`rounded-lg px-2 py-2 text-[12px] font-semibold whitespace-nowrap sm:px-3 sm:text-[13px] ${lens === option.value ? 'bg-white text-[var(--color-text-primary)] shadow' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
+          {option.label}
+        </button>
       ))}
-    </fieldset>
+    </div>
   )
 
   const chips = useMemo(() => {
@@ -279,46 +419,54 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       setShown((s) => s + r.rows.length)
     } catch (err) {
       if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
-    } finally { setBusy(false) }
+    } finally { if (version === generation.current) setBusy(false) }
   }
+  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
+    if (!inCity) return
+    const version = ++generation.current
+    setBusy(true); setError(null)
+    try {
+      const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
+      if (version !== generation.current) return
+      setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
+      setSelected(new Set()); setProfile(null)
+      // Show a few high-signal city trading points on the first map view, before the user searches.
+      loadClusters('', inCity, false, 'purchase', true)
+    } catch (err) {
+      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.')
+    } finally { if (version === generation.current) setBusy(false) }
+  }
+  useEffect(() => { void loadBrowse(city) }, [city]) // eslint-disable-line react-hooks/exhaustive-deps
   /** Where this trade concentrates in the city (POST /clusters); quiet when the service has none or is older. */
-  function loadClusters(text: string, inCity: string, wholesale: boolean, obj: typeof objective = objective) {
+  function loadClusters(text: string, inCity: string, wholesale: boolean, obj: typeof objective = objective, keepStreets = false) {
     const v = ++clusterGen.current
     setClusters(null)
     tradeClusters({ city: inCity, q: text, objective: obj, ...(wholesale ? { wholesale: true } : {}) }).then(
       (c) => { if (v === clusterGen.current) setClusters({ list: (c?.clusters || []).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)).map((x) => ({ ...x, popular_ar: marketNameFor(x, inCity, text) })), basis: c?.basis }) },
       () => { if (v === clusterGen.current) setClusters(null) },
     )
-    setDense(null); setActiveStreet(null)
-    streetDensity({ city: inCity, q: text, objective: obj }).then(
-      (d) => {
-        if (v !== clusterGen.current) return
-        const list = streetsFrom(d)
-        setDense({ list, basis: d?.basis })
-        // right after a search: frame the densest streets so the map shows WHERE at once
-        const top = topStreets(list)
-        if (top.length) fitTo([Math.min(...top.map((x) => x.bbox[0])), Math.min(...top.map((x) => x.bbox[1])), Math.max(...top.map((x) => x.bbox[2])), Math.max(...top.map((x) => x.bbox[3]))])
-      },
-      () => { if (v === clusterGen.current) setDense({ list: [] }) },
-    )
+    // the request's own dense streets (a street picked before any search keeps the streets on screen)
+    if (!keepStreets) { setActiveStreet(null); setStreetPick({ kind: 'q', q: text, objective: obj }) }
   }
   /**
    * A new request (next = undefined) starts without narrowing filters: «جملة» in the request only RANKS wholesalers first
    * (the service does that); it never switches «جملة فقط» on (owner 2026-10-16). Otherwise: the same request with these filters.
    */
-  async function runSearchIn(text: string, inCity: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters): Promise<number | null> {
-    if (!text || !inCity || busy) return null
+  async function runSearchIn(text: string, inCity: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters, keepStreets = false): Promise<number | null> {
+    if (!text || !inCity) return null
+    setLens(obj === 'marketing' ? 'buyers' : 'sellers')
     setBusy(true); setError(null); setNotice(null)
-    const version = generation.current
+    const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
     try {
       const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
+      setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
       if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
-      if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj)
+      if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj, keepStreets)
       const p = r.parsed || {}
       const cat = (p.keywords || []).filter(arabic)[0] || null
       if (fresh) setMessage(defaultMessage(cat, cityName(inCity)))
@@ -327,9 +475,24 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       if (version !== generation.current) return null
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
       return null
-    } finally { setBusy(false) }
+    } finally { if (version === generation.current) setBusy(false) }
   }
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
+  async function openMapProfile(key: string) {
+    const existing = byKey.get(key)
+    if (existing) { setProfile(key); return }
+    if (!res?.map_query) return
+    const version = generation.current
+    const mapQuery = res.map_query
+    try {
+      const result = await mapProfile(mapQuery, key)
+      if (version !== generation.current) return
+      setRes((current) => current?.map_query === mapQuery ? { ...current, rows: [...current.rows.filter((row) => row.poi_key !== key), result.row] } : current)
+      setProfile(key)
+    } catch {
+      if (version === generation.current) setError('تعذّر فتح بيانات المنشأة. حدّث نقاط الخريطة وحاول مرة ثانية.')
+    }
+  }
   const keep = (f: AreaFilters, drop: (keyof AreaFilters)[]) => { const x = { ...f }; for (const k of drop) delete x[k]; return x }
   const pickCluster = (c: TradeCluster) => {
     fitTo(boxAround(c.lat, c.lon))
@@ -349,7 +512,9 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     setActiveStreet(id)
     const d = hasPolys ? districtAt(st.mid[0], st.mid[1], districts) : null
     if (d) setChosenD((x) => new Set(x).add(d.id))
-    applyFilters({ ...keep(filters, ['street']), street: st.props.street_ar })
+    // results for this street: the current request narrowed to it, or (before any search) the street's own trade
+    if (query) applyFilters({ ...keep(filters, ['street']), street: st.props.street_ar })
+    else { const term = st.props.sub_ar || st.props.main_ar; if (term) { setQ(term); void runSearchIn(term, city, undefined, objective, { street: st.props.street_ar }, true) } }
   }
 
   /** «أبي أبيع منتجاتي»: confirmed specialties become search lines on the buyers' side; the first one runs now. */
@@ -418,7 +583,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     </>
   ) : null
   const areaBar = res && areas ? (
-    <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex items-center gap-2 overflow-x-auto px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
+    <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
@@ -426,7 +591,10 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       ) : null}
       {filters.district
         ? <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['district', 'street']))} />
-        : picker('targeting-district', 'الحي', DistrictIcon, areas.districts.map((d) => ({ value: d.name, text: `${d.name} (${n(d.n)})` })), (v) => applyFilters({ ...keep(filters, ['street']), district: v }))}
+        : picker('targeting-district', 'الحي', DistrictIcon, areas.districts.flatMap((d) => {
+          const name = safeLocationName(d.name)
+          return name ? [{ value: name, text: `${name} (${n(d.n)})` }] : []
+        }), (v) => applyFilters({ ...keep(filters, ['street']), district: v }))}
       {filters.street
         ? <Chip className="shrink-0" icon={StreetIcon} label={`الشارع: ${filters.street}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['street']))} />
         : picker('targeting-street', 'الشارع', StreetIcon, streets.map((st, i) => ({ value: String(i), text: `${st.name}${filters.district || !st.district ? '' : ` — ${st.district}`} (${n(st.n)})` })), (v) => { const st = streets[Number(v)]; if (st) applyFilters({ ...filters, district: filters.district || st.district || undefined, street: st.name }) })}
@@ -452,38 +620,72 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       {markets.map((m) => <Chip key={m.label} className="shrink-0" label={m.label} onClick={() => tryExample(m.term, m.district)} />)}
     </div>
   ) : null
-  // dense streets are the primary «تجمعات»: a circle stays only where no street line covers it
+  // Keep a short list of high-signal trade points alongside the street-density lines.
   const denseList = useMemo(() => dense?.list || [], [dense])
   const streetNames = useMemo(() => new Set(denseList.map((x) => x.props.street_ar)), [denseList])
-  const streetDistricts = useMemo(() => new Set(hasPolys ? denseList.map((x) => districtAt(x.mid[0], x.mid[1], districts)?.ar).filter(Boolean) as string[] : []), [denseList, hasPolys, districts])
-  const circles = useMemo(() => (clusters?.list || []).filter((c) => !(c.level === 'street' && c.street_ar && streetNames.has(c.street_ar)) && !(c.level !== 'street' && c.district_ar && streetDistricts.has(c.district_ar))), [clusters, streetNames, streetDistricts])
-  const clusterTop = useMemo(() => circles.filter((c) => c.level !== 'cell').slice(0, 8), [circles])
+  const clusterTop = useMemo(() => (clusters?.list || [])
+    .filter((c) => c.level !== 'cell' && !(c.level === 'street' && c.street_ar && streetNames.has(c.street_ar)))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 5), [clusters, streetNames])
   const activeStreetId = activeStreet && dense?.list.find((x) => x.id === activeStreet)?.props.street_ar === filters.street ? activeStreet : null
   const pickedStreet = activeStreetId ? dense!.list.find((x) => x.id === activeStreetId)! : null
   // choropleth: places of this request per district (service counts by name, else rows inside)
-  const density = useMemo(() => (hasPolys && res ? densityOf(districts, res.areas?.districts || [], rows) : new Map<string, number>()), [hasPolys, res, districts, rows])
+  const density = useMemo(() => {
+    if (hasPolys && res) return densityOf(districts, res.areas?.districts || [], rows)
+    const values = new Map<string, number>()
+    if (hasPolys) for (const item of marketDistrictCounts) {
+      const d = districts.find((x) => x.ar === item.district_ar)
+      if (d) values.set(d.id, item.n)
+    }
+    return values
+  }, [hasPolys, res, districts, rows, marketDistrictCounts])
   const densityMax = useMemo(() => Math.max(0, ...density.values()), [density])
   const anyChosen = chosenD.size > 0 || Boolean(filters.street)
   const step: 1 | 2 | 3 | 4 = !res ? 1 : !anyChosen ? 2 : !selected.size ? 3 : 4
-  const topDistricts = useMemo(() => [...(res?.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 6), [res])
-  const densePanel = res && (denseList.length || topDistricts.length) ? (
+  const topDistricts = useMemo(() => res
+    ? [...(res.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 8)
+    : marketDistrictCounts.slice(0, 8).map((d) => ({ name: d.district_ar, n: d.n })), [res, marketDistrictCounts])
+  const AR_DIGITS = (v: number) => String(v).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)])
+  const where = chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${AR_DIGITS(chosenNames.length)} أحياء` : cityName(city)
+  const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : null
+  const activityPicker = catalog && catalog.length ? (
+    <div className="flex flex-col gap-1.5" data-testid="street-picker">
+      <div role="group" aria-label="نشاط الشوارع" className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
+        <Chip className="shrink-0" label="الكل" selected={streetPick.kind === 'all'} onClick={() => setStreetPick({ kind: 'all' })} />
+        {catalog.map((m) => <Chip key={m.main_id} className="shrink-0" label={`${m.main_ar} · ${n(m.streets)}`} selected={pickedMain === m.main_id} onClick={() => { const clear = pickedMain === m.main_id; setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: m.main_id }); pickFocus(clear ? null : { level: 'main', id: m.main_id }) }} />)}
+      </div>
+      {pickedMain ? (
+        <div role="group" aria-label="الأنشطة الفرعية" className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
+          {(catalog.find((m) => m.main_id === pickedMain)?.subs || []).map((x) => {
+            const on = streetPick.kind === 'sub' && streetPick.ids.includes(x.sub_id)
+            return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)}`} selected={on} onClick={() => { setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
+          })}
+        </div>
+      ) : null}
+      {streetPick.kind === 'q' ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الشوارع حسب طلبك: «{streetPick.q}»</p> : null}
+    </div>
+  ) : null
+  const densePanel = denseList.length || activityPicker || topDistricts.length ? (
     <section aria-labelledby="dense-title" className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-5 py-3">
-      {denseList.length ? <>
-        <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة</h2>
-        {dense?.basis ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{dense.basis}</p> : null}
+      <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة في {where}</h2>
+      {activityPicker}
+      {dense?.basis ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{dense.basis}</p> : null}
+      {denseList.length ? (
         <ol className="flex flex-col" data-testid="dense-streets">
           {topStreets(denseList).map((st, i) => (
             <li key={st.id}>
               <button type="button" disabled={busy} aria-pressed={activeStreetId === st.id} onClick={() => pickStreet(st.id)}
-                className={`fi-host flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${activeStreetId === st.id ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
-                <span aria-hidden className="w-4 text-center text-[12px] tabular-nums text-[var(--color-text-tertiary)]">{i + 1}</span>
-                <span className="min-w-0 flex-1 truncate">{st.props.street_ar}</span>
-                <span className="shrink-0 text-[12px] tabular-nums text-[var(--color-text-secondary)]">{n(st.props.n)} محل · {st.props.per_100m.toLocaleString('en-US', { maximumFractionDigits: 1 })} لكل ١٠٠ م</span>
+                className={`fi-host flex w-full items-start gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${activeStreetId === st.id ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
+                <span aria-hidden className="w-4 pt-0.5 text-center text-[12px] tabular-nums text-[var(--color-text-tertiary)]">{i + 1}</span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="line-clamp-2">{streetLine(st)} — {n(st.props.n)} محل</span>
+                  <span className="text-[12px] leading-[18px] tabular-nums text-[var(--color-text-secondary)]">{fmtMeters(st.props.length_m)} · {st.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} محل لكل ١٠٠ م</span>
+                </span>
               </button>
             </li>
           ))}
         </ol>
-      </> : <h2 id="dense-title" className="sr-only">أكثر الأحياء</h2>}
+      ) : dense ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما فيه شوارع كثيفة بهذا الاختيار. جرّب نشاطاً آخر أو أحياء أوسع.</p> : <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p>}
       {topDistricts.length ? (
         <div className="flex flex-col gap-1.5">
           <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">أكثر الأحياء بهذا النشاط</p>
@@ -578,8 +780,8 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="اللوحة" className="flex gap-1 rounded-full bg-[var(--color-bg-surface-2)] p-1">
-          {([['results', `النتائج${res ? ` · ${n(cohort.length)}` : ''}`], ['guide', 'الدليل']] as const).map(([k, l]) => (
-            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+          {((mobile ? [['streets', 'الشوارع'], ['results', `النتائج${res ? ` · ${n(cohort.length)}` : ''}`], ['guide', 'الدليل']] : [['results', `النتائج${res ? ` · ${n(cohort.length)}` : ''}`], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k || (!mobile && tab === 'streets' && k === 'results')} onClick={() => setTab(k)}
               className={`rounded-full px-4 py-1.5 text-[14px] leading-[22px] font-medium ${tab === k ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[var(--farq-button-shadow)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>{l}</button>
           ))}
         </div>
@@ -592,7 +794,8 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       </div>
       {res ? (
         <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-          {chosenD.size ? `داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : 'كل نتائج البحث — اختر حياً على الخريطة لتضييقها وعرض الدبابيس'}
+          {`يعرض ${n(Math.min(shown, cohort.length))} من ${n(cohort.length)} محمّل · ${n(res.total)} نتيجة مطابقة إجمالاً`}
+          {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
           {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
@@ -600,11 +803,53 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       ) : null}
     </div>
   )
-  const panelBody = tab === 'results' ? (
-    <>{densePanel}{clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{resultsBody}</>
-  ) : (
-    <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه محلات.' : 'ابحث أولاً، ثم اختر حياً لعرض أنشطته وتخصصاته هنا.'} />
+  const marketPanel = (
+    <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-4" aria-label="ملخص السوق">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[15px] font-semibold">ملخص سوق {cityName(city)}</h2>
+        <span className="text-[12px] text-[var(--color-text-tertiary)]">{marketLoading ? 'جارٍ التحديث…' : 'حسب التصنيفات والمواقع الدقيقة'}</span>
+      </div>
+      {marketStats ? (
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {[
+            ['منشآت بمواقع دقيقة', marketStats.total], ['أحياء', marketStats.districts_count],
+            ['قناة واتساب', marketStats.n_whatsapp], ['جملة', marketStats.n_wholesale],
+            ['تخصصات', marketStats.n_specialties], ['موقع تقريبي', marketStats.n_approx],
+          ].map(([label, value]) => <div key={label} className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
+            <dt className="text-[11px] leading-[16px] text-[var(--color-text-secondary)]">{label}</dt>
+            <dd className="m-0 text-[16px] leading-[24px] font-semibold tabular-nums">{n(Number(value))}</dd>
+          </div>)}
+        </dl>
+      ) : <p role={marketLoading ? 'status' : undefined} className="text-[13px] text-[var(--color-text-secondary)]">{marketLoading ? 'نحمّل ملخص السوق…' : 'تعذّر تحميل ملخص السوق.'}</p>}
+      {densePanel || <p className="text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}
+      {marketStats?.densest_street ? <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] leading-[20px]">أكثف شارع: <strong>{marketStats.densest_street.street_ar}</strong> · {marketStats.densest_street.district_ar || cityName(city)} · {n(marketStats.densest_street.n)} منشأة</p> : null}
+    </section>
   )
+  const buyerPanel = lens === 'buyers' && currentBuyerData ? (
+    <section className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="المنشآت التي تشتري هذا النشاط">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[14px] font-semibold">من يشتري عادةً؟</h2>
+        <button type="button" aria-pressed={includeCommonBuyers} onClick={() => setIncludeCommonBuyers((v) => !v)} className={`text-[12px] font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>
+          {includeCommonBuyers ? 'عرض الأساسي فقط' : 'عرض المحتمل أيضاً'}
+        </button>
+      </div>
+      <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{currentBuyerData.subject.label_ar} · علاقة احتياج متوقعة وليست إثباتاً لنية شراء</p>
+      {currentBuyerData.buyers.filter((b) => includeCommonBuyers || b.strength === 'core').length ? (
+        <ul className="flex flex-col">
+          {currentBuyerData.buyers.filter((b) => includeCommonBuyers || b.strength === 'core').map((b) => <li key={b.sub_id} className="flex items-center gap-2 border-t border-[var(--color-border-default)] py-2 text-[13px]">
+            <span className="min-w-0 flex-1 truncate">{b.sub_ar} <span className="text-[11px] text-[var(--color-text-tertiary)]">{b.strength === 'core' ? 'أساسي' : 'محتمل'}</span></span>
+            <span className="tabular-nums text-[var(--color-text-secondary)]">{n(b.n)} · واتساب {n(b.n_whatsapp)}</span>
+          </li>)}
+        </ul>
+      ) : <p className="text-[13px] text-[var(--color-text-secondary)]">ما فيه علاقات شراء مصنّفة لهذا النشاط في المدينة.</p>}
+    </section>
+  ) : null
+  const panelBody = lens === 'market' ? marketPanel : <>
+    {buyerPanel}
+    {mobile && tab === 'streets' ? densePanel || <p className="px-5 py-6 text-[14px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p> : tab !== 'guide' ? (
+      <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{resultsBody}</>
+    ) : <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />}
+  </>
 
   // ---------- the map with its floating controls
   const fallbackChips = !hasPolys && polys !== null && districts.length ? (
@@ -616,27 +861,19 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     </div>
   ) : null
   const mapBlock = (
-    <div className={`relative min-h-0 overflow-hidden rounded-[18px] border border-[var(--color-border-default)] bg-[var(--map-land)] ${mobile ? 'h-[52dvh] shrink-0' : 'flex-1'}`}>
-      <LayerMap districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} layer={layer} onPin={(k) => setProfile(k)}
-        nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={circles} onCluster={pickCluster}
+    <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'h-[58dvh] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
+      <LayerMap focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
+        nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false) }} fit={fit} extent={extent} />
-      <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
+      {!focusMode ? <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div role="radiogroup" aria-label="طبقة الخريطة" className="pointer-events-auto flex items-center gap-1 rounded-[14px] border-2 border-[var(--map-ink)] bg-[var(--color-bg-surface)] p-1 shadow-[var(--farq-soft-shadow)]">
-            {mobile ? null : <span aria-hidden className="px-2 text-[13px] font-semibold text-[var(--color-text-secondary)]">اعرض المحلات حسب:</span>}
-            {LAYERS.map((l) => (
-              <button key={l.key} type="button" role="radio" aria-checked={layer === l.key} onClick={() => { setLayer(l.key); if (focus && focus.level !== l.key) setFocus(null) }}
-                className={`flex items-center gap-1.5 rounded-[10px] ${mobile ? 'px-2.5 py-1.5 text-[13px]' : 'px-3.5 py-2 text-[14px]'} leading-[20px] font-semibold ${layer === l.key ? 'bg-[var(--map-ink)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
-                <LayerSwatch layer={l.key} />{mobile ? l.label.replace('الأنشطة ', '') : l.label}
-              </button>
-            ))}
+          <div className="pointer-events-auto flex items-center gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-semibold shadow-[var(--farq-soft-shadow)]">
+            <span>{focus?.level === 'main' ? `النشاط الرئيسي: ${mainAr(focus.id)}` : focus?.level === 'sub' ? `النشاط الفرعي: ${subAr(focus.id) || ''}` : focus?.level === 'spec' ? `التخصص: ${focus.id}` : lens === 'market' ? 'نظرة عامة على السوق' : 'النشاط الرئيسي'}</span>
+            {focus ? <button type="button" onClick={() => pickFocus(null)} className={`text-[var(--color-text-info)] underline ${FOCUS_RING}`}>العودة للمستوى الأعلى</button> : null}
           </div>
           <div className="pointer-events-auto flex flex-wrap gap-1.5">
-            {districts.length ? <>
-              <button type="button" onClick={() => setChosenD(new Set(districts.map((d) => d.id)))} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>كل الأحياء</button>
-              <button type="button" disabled={!chosenD.size} onClick={() => { setChosenD(new Set()); setFocus(null) }} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] disabled:opacity-50 ${FOCUS_RING}`}>إزالة الكل</button>
-            </> : null}
+            {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
             {site ? (
               <span className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
                 <label htmlFor="site-radius">موقع المشروع · نطاق التوصيل</label>
@@ -650,16 +887,18 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
                 <Icon name="map-pin" size={14} />{placingSite ? 'اضغط على الخريطة' : 'موقع المشروع'}
               </button>
             )}
+            <button type="button" onClick={() => changeFocusMode(true)} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>توسيع الخريطة</button>
           </div>
         </div>
         {fallbackChips}
-      </div>
+      </div> : null}
       {!anyChosen ? (
-        <p role="status" data-testid="map-hint" className={`pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] ${mobile ? 'top-[96px] w-[88%]' : 'bottom-4 max-w-[56%]'}`}>
+        <p role="status" data-testid="map-hint" className={`pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] ${mobile ? 'top-[100px] w-[88%] text-[13px] leading-[20px]' : 'bottom-4 max-w-[56%]'}`}>
           {polys === null ? 'نحمّل أحياء المدينة…'
+            : !res && denseList.length ? (mobile ? 'الخطوط الخضراء أكثف الشوارع. اضغط شارعاً لتظهر محلاته.' : 'الخطوط الخضراء أكثف الشوارع. اختر نشاطاً من القائمة أو اكتب وش تبي، أو اضغط شارعاً لتظهر محلاته.')
             : !res ? 'اكتب وش تبي فوق واضغط «ابحث»، ونوريك وين يتركز في المدينة.'
             : busy ? 'نحسب أكثف الشوارع والأحياء…'
-            : denseList.length ? 'الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها محلات أكثر. اضغط شارعاً أو حياً لتظهر محلاته.'
+            : denseList.length ? (mobile ? 'اضغط شارعاً أخضر أو حياً لتظهر محلاته.' : 'الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها محلات أكثر. اضغط شارعاً أو حياً لتظهر محلاته.')
             : hasPolys ? 'الأحياء الأغمق فيها محلات أكثر. اضغط حياً لتظهر محلاته.'
             : 'اختر حياً من القائمة فوق لتظهر محلاته.'}
         </p>
@@ -670,11 +909,11 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
             <p className="font-semibold"><StreetIcon size={15} className="me-1 inline text-[var(--map-green)]" />{pickedStreet.props.street_ar}</p>
             <button type="button" aria-label="إغلاق بطاقة الشارع" onClick={() => { setActiveStreet(null); applyFilters(keep(filters, ['street'])) }} className={`flex size-7 shrink-0 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
           </div>
-          {pickedStreet.props.sub_ar ? <p className="text-[var(--color-text-secondary)]">{pickedStreet.props.sub_ar}</p> : null}
+          <p className="text-[var(--color-text-secondary)]">{[pickedStreet.props.district_ar, [pickedStreet.props.main_ar, pickedStreet.props.sub_ar].filter(Boolean).join(' ▸ ')].filter(Boolean).join(' · ')}</p>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">المحلات</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n)} محل</dd></div>
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">طول المقطع</dt><dd className="m-0 font-semibold tabular-nums">{fmtMeters(pickedStreet.props.length_m)}</dd></div>
-            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{pickedStreet.props.per_100m.toLocaleString('en-US', { maximumFractionDigits: 1 })} محل لكل ١٠٠ م</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{pickedStreet.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} محل لكل ١٠٠ م</dd></div>
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">جملة</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n_wholesale)} محل</dd></div>
           </dl>
         </div>
@@ -719,6 +958,47 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
     </form>
   )
 
+  if (focusMode) {
+    return (
+      <div data-testid="map-focus-shell" className="fixed inset-0 z-[110] flex h-dvh flex-col overflow-hidden bg-[var(--map-land)]">
+        <div className="relative min-h-0 flex-1">{mapBlock}</div>
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex justify-center">
+          <div className="pointer-events-auto flex w-full max-w-[760px] flex-col gap-2 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-lg backdrop-blur">
+            {searchForm}
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">{direction}</div>
+              <button type="button" aria-expanded={focusPanelOpen} aria-controls="map-focus-panel"
+                onClick={() => setFocusPanelOpen((open) => !open)}
+                className={`shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm ${FOCUS_RING}`}>
+                {focusPanelOpen ? 'إخفاء اللوحة' : `النتائج · ${n(cohort.length)}`}
+              </button>
+              <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
+                className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium ${FOCUS_RING}`}>
+                رجوع للتخطيط
+              </button>
+            </div>
+            {errorLine}
+          </div>
+        </div>
+        <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
+          {lens === 'market' ? `منشآت دقيقة · ${n(marketStats?.total || 0)}` : `نتائج · ${n(cohort.length)}`}
+          {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
+        </div>
+        {focusPanelOpen ? (
+          <aside id="map-focus-panel" aria-label="النتائج والدليل" className={`absolute z-30 flex flex-col overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] shadow-2xl ${mobile ? 'inset-x-0 bottom-0 max-h-[58dvh] rounded-t-2xl' : 'inset-y-3 end-3 top-[116px] w-[min(400px,calc(100vw-24px))] rounded-2xl'}`}>
+            {panelHead}
+            <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
+          </aside>
+        ) : null}
+        {tray ? <div className="absolute inset-x-3 bottom-3 z-30 flex justify-center"><div className="w-full max-w-[700px]">{tray}</div></div> : null}
+        {noticeLine ? <div className="absolute inset-x-3 bottom-3 z-40 flex justify-center"><div className="w-full max-w-[700px]">{noticeLine}</div></div> : null}
+        {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile={mobile} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} /> : null}
+        {confirmSheet}
+        {startSheet}
+      </div>
+    )
+  }
+
   if (mobile) {
     return (
       <div className="flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6">
@@ -738,7 +1018,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         {linesPanel}
         {fileField}
         <StepStrip current={step} mobile />
-        <Counters values={counters} compact />
+        <Counters items={displayCounters} compact />
         {mapBlock}
         {tray}
         {noticeLine}
@@ -758,7 +1038,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
       <header className="flex flex-col gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
-            <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">خريطة الفرص</h1>
+          <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">خريطة السوق — FARQ B2B</h1>
             {direction}
           </div>
           <div className="flex items-center gap-2">
@@ -781,7 +1061,7 @@ export default function TargetingPage({ onTemplates, startNew = false, onStartCl
         </aside>
         <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
           <StepStrip current={step} mobile={false} />
-          <Counters values={counters} />
+          <Counters items={displayCounters} />
           {mapBlock}
           {noticeLine}
           {tray}

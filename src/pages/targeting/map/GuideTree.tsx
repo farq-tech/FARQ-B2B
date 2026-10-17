@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
-import { LayerSwatch, MapIcon } from './glyphs'
-import { mainIcon, subIcon, type Focus, type GuideMain } from './model'
+import { MapIcon } from './glyphs'
+import { mainIcon, specialtyIcon, subIcon, type Focus, type GuideMain } from './model'
 
 /*
  * «الدليل»: main ▸ sub ▸ specialty with counts from the chosen-district cohort (owner 2026-10-16).
  * A tap filters the map to that level and switches the map to its layer; a second tap clears it.
  */
-const fmt = (n: number) => n.toLocaleString('en-US')
+const fmt = (n: number) => n.toLocaleString('ar-SA')
 
 export default function GuideTree({ guide, focus, onFocus, empty }: { guide: GuideMain[]; focus: Focus; onFocus: (f: Focus) => void; empty: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
@@ -18,15 +18,30 @@ export default function GuideTree({ guide, focus, onFocus, empty }: { guide: Gui
   const hit = (t: string) => !q.trim() || t.includes(q.trim())
   const pick = (f: NonNullable<Focus>) => onFocus(focus && focus.level === f.level && focus.id === f.id ? null : f)
   const on = (level: NonNullable<Focus>['level'], id: string) => Boolean(focus && focus.level === level && focus.id === id)
+  const focusLabel = focus?.level === 'main'
+    ? guide.find((m) => m.id === focus.id)?.ar
+    : focus?.level === 'sub'
+      ? guide.flatMap((m) => m.subs).find((s) => s.id === focus.id)?.ar
+      : focus?.level === 'spec' ? focus.id : null
   const rowCls = (active: boolean) => `fi-host flex min-h-10 w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] ${active ? 'bg-[var(--color-bg-surface-2)] ring-1 ring-[var(--map-ink)]' : ''} ${FOCUS_RING}`
 
   return (
     <div className="flex flex-col gap-2 px-3 py-3">
+      <div className="px-2">
+        <h2 className="m-0 text-[14px] font-semibold leading-[22px]">تصفّح الأنشطة</h2>
+        <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">السهم يفتح الفروع. اضغط اسم النشاط لتصفية الخريطة والقائمة، والعدد يوضح المنشآت المطابقة.</p>
+      </div>
       <label className="px-2">
         <span className="sr-only">ابحث في الدليل</span>
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث: سباكة، كهرباء، عوازل…"
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث عن نشاط أو تخصص"
           className={`w-full rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[14px] ${FOCUS_RING}`} />
       </label>
+      {focus && focusLabel ? (
+        <div className="mx-2 flex items-center gap-2 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[18px]">
+          <span className="min-w-0 flex-1 truncate">التصفية الحالية: <strong>{focusLabel}</strong></span>
+          <button type="button" onClick={() => onFocus(null)} className={`shrink-0 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>مسحها</button>
+        </div>
+      ) : null}
       <ul aria-label="الدليل" className="flex flex-col">
         {guide.map((m) => {
           const subs = m.subs.filter((s) => hit(m.ar) || hit(s.ar) || s.specs.some((x) => hit(x.name)))
@@ -68,7 +83,9 @@ export default function GuideTree({ guide, focus, onFocus, empty }: { guide: Gui
                             {specs.map((x) => (
                               <li key={x.name}>
                                 <button type="button" aria-pressed={on('spec', x.name)} onClick={() => pick({ level: 'spec', id: x.name })} className={rowCls(on('spec', x.name))}>
-                                  <LayerSwatch layer="spec" />
+                                  <span aria-hidden data-specialty-icon={specialtyIcon(x.name, s.id)} className="flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--map-navy)] text-white">
+                                    <MapIcon name={specialtyIcon(x.name, s.id)} size={12} />
+                                  </span>
                                   <span className="min-w-0 flex-1 truncate text-[13px]">{x.name}</span>
                                   <span className="text-[12px] tabular-nums text-[var(--color-text-secondary)]">{fmt(x.n)}</span>
                                 </button>

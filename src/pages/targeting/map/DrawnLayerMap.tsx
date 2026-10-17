@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { chipWidth, clip, MAP_ICON_BODY, palette, TEARDROP } from './glyphs'
-import { densityStep } from './model'
+import { densityStep, streetLine } from './model'
 
 /** District fill strength by density step (0 none … 4 densest): a light-to-darker green choropleth. */
-const CHORO = [0.02, 0.08, 0.15, 0.24, 0.34]
+const CHORO = [0.015, 0.04, 0.07, 0.1, 0.14]
 import type { LayerMapProps } from './types'
 
 /*
@@ -109,6 +109,16 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
     onPlaceSite(p.lat, p.lon)
   }
   const maxPer = Math.max(1, ...streets.map((st) => st.props.per_100m))
+  // label pills: the 12 busiest lines (and the picked one), each only where it does not overlap one already placed
+  const labels: { st: (typeof streets)[number]; x: number; y: number; w: number; text: string }[] = []
+  for (const st of [...streets].sort((a, b) => Number(b.id === activeStreet) - Number(a.id === activeStreet) || b.props.n - a.props.n).slice(0, 12)) {
+    const x = sx(st.mid[0]), y = sy(st.mid[1])
+    const label = streetLine(st)
+    const text = `${label.length > 24 ? `${label.slice(0, 23)}…` : label} · ${st.props.n.toLocaleString('ar-SA')}`
+    const w = Math.min(220, 20 + text.length * 6.1)
+    if (labels.some((l) => Math.abs(l.x - x) < (l.w + w) / 2 + 4 && Math.abs(l.y - y) < 26)) continue
+    labels.push({ st, x, y, w, text })
+  }
   const ordered = [...pins].sort((a, b) => Number(a.chosen) - Number(b.chosen) || b.lat - a.lat)
   const siteR = site ? (site.km / 111.32) * v.k : 0
 
@@ -163,10 +173,8 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
               </g>
             )
           })}
-          {streets.map((st) => {
-            const x = sx(st.mid[0]), y = sy(st.mid[1]), on = activeStreet === st.id
-            const text = `${st.props.street_ar.length > 24 ? `${st.props.street_ar.slice(0, 23)}…` : st.props.street_ar} · ${st.props.n.toLocaleString('en-US')}`
-            const w = Math.min(220, 20 + text.length * 6.1)
+          {labels.map(({ st, x, y, w, text }) => {
+            const on = activeStreet === st.id
             return (
               <g key={`p${st.id}`} transform={`translate(${x - w / 2} ${y - 13})`} className="cursor-pointer" aria-hidden onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onStreet(st.id) }}>
                 <rect width={w} height={22} rx={11} fill={on ? P.ink : P.white} stroke={P.green} strokeWidth={1.5} />
@@ -176,14 +184,14 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
           })}
           {clusters.map((c, i) => {
             const x = sx(c.lon), y = sy(c.lat)
-            const r = Math.max(16, Math.min(44, 8 + Math.sqrt(c.n) * 4))
+            const r = Math.max(12, Math.min(22, 6 + Math.sqrt(c.n) * 2))
             const label = c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar
             return (
-              <g key={`c${i}`} role="button" tabIndex={0} className={`cursor-pointer ${FOCUS_RING}`}
+              <g key={`c${i}`} data-interest={c.level} role="button" tabIndex={0} className={`cursor-pointer ${FOCUS_RING}`}
                 aria-label={`${c.popular_ar ? `${c.popular_ar} — ` : ''}${c.label_ar} — ${c.n} محل${c.wholesale_pct >= 30 ? ' · جملة' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onCluster(c) }} onKeyDown={enter(() => onCluster(c))}>
                 <circle cx={x} cy={y} r={r} fill={P.green} fillOpacity={0.14} stroke={P.green} strokeOpacity={0.55} strokeWidth={1.5} />
-                <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.green}>{c.n.toLocaleString('en-US')}</text>
+                <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.green}>{c.n.toLocaleString('ar-SA')}</text>
                 <text x={x} y={y + r + 12} textAnchor="middle" className="text-[11px] font-medium" fill={P.ink} stroke={P.white} strokeWidth={3} paintOrder="stroke">{label}</text>
               </g>
             )

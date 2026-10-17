@@ -133,10 +133,32 @@ export type TradeCluster = {
 }
 export type TradeClusters = { clusters: TradeCluster[]; wholesale?: number; basis?: string }
 /** One street where a trade concentrates, drawn along the real street (POST /street-density). */
-export type StreetDensityProps = { sub_id: string | number | null; sub_ar: string | null; street_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number; label_ar: string }
+export type StreetDensityProps = { sub_id: string | number | null; sub_ar: string | null; street_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number; label_ar: string; district_ar?: string | null; main_ar?: string | null }
 export type StreetLine = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.MultiLineString, StreetDensityProps>
 export type StreetDensity = { type?: 'FeatureCollection'; features: StreetLine[]; basis?: string }
-export const streetDensity = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[] }) => call<StreetDensity>('POST', '/street-density', body)
+/** No activity = the densest streets of ALL activities in the city (up to 80, by n). districts narrows to those districts. */
+export type StreetDensityQuery = { city: string; q?: string; objective?: string; main_id?: string; sub_ids?: (string | number)[]; districts?: string[] }
+export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('POST', '/street-density', body)
+/** Which activities have dense streets in this city (optionally inside these districts): mains with their subs, counts. */
+export type StreetCatalog = { mains: { main_id: string; main_ar: string; streets: number; shops: number; subs: { sub_id: string | number; sub_ar: string; streets: number; shops: number }[] }[] }
+export const streetCatalog = (body: { city: string; districts?: string[] }) => call<StreetCatalog>('POST', '/street-density/catalog', body)
+
+export type DistrictCount = { district_ar: string; n: number; n_wholesale: number; n_whatsapp: number }
+export type DistrictCounts = { ok: boolean; city: string; districts: DistrictCount[]; total: number; basis: string }
+export type BuyerTrade = { sub_id: string; sub_ar: string; main_id: string; main_ar: string; strength: 'core' | 'common'; n: number; n_whatsapp: number }
+export type WhoBuys = { ok: boolean; buyers: BuyerTrade[]; subject: { sub_ids: string[]; label_ar: string }; basis: string }
+export type MarketSummary = {
+  ok: boolean
+  summary: {
+    total: number; districts_count: number; top_districts: { district_ar: string; n: number }[]
+    densest_street: { street_ar: string; district_ar: string | null; n: number; length_m: number; per_100m: number; sub_ar: string | null } | null
+    n_wholesale: number; n_whatsapp: number; n_specialties: number; n_approx: number; n_cr?: number; basis: string
+  }
+}
+export type MarketAnalyticsQuery = { city: string; sub_ids?: (string | number)[]; main_id?: string; q?: string; districts?: string[] }
+export const districtCounts = (body: MarketAnalyticsQuery) => call<DistrictCounts>('POST', '/district-counts', body)
+export const whoBuys = (body: { city: string; q?: string; sub_ids?: (string | number)[] }) => call<WhoBuys>('POST', '/who-buys', body)
+export const marketSummary = (body: MarketAnalyticsQuery) => call<MarketSummary>('POST', '/market-summary', body)
 
 export type TemplateStatus = {
   name: string

@@ -6,10 +6,15 @@ export type Site = { lat: number; lon: number; km: number }
 
 /** What both maps (Mapbox and the drawn fallback) draw. */
 export type LayerMapProps = {
+  /** Tell Mapbox when the containing page switches between normal and full-screen layout. */
+  focusMode?: boolean
   districts: District[]
   chosen: Set<string>
   onDistrict: (id: string) => void
   pins: Pin[]
+  /** Authenticated, aggregated business vector tiles for the current city/activity/district cohort. */
+  tileQuery?: string
+  onTileRefresh?: () => void
   layer: Layer
   onPin: (key: string) => void
   /** names for the pins (tooltip / accessible name) */

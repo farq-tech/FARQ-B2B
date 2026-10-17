@@ -15,7 +15,10 @@ async function setup(page: Page) {
   await page.route('**/_targeting/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
-    if (path.endsWith('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [] } })
+    if (path.endsWith('/market-summary')) return route.fulfill({ json: { ok: true, summary: { total: 3, districts_count: 1, top_districts: [], densest_street: null, n_wholesale: 0, n_whatsapp: 3, n_specialties: 0, n_approx: 0, n_cr: 0, basis: 'اختبار' } } })
+    if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', districts: [], total: 0, basis: 'اختبار' } })
+    if (path.endsWith('/who-buys')) return route.fulfill({ json: { ok: true, buyers: [], subject: { sub_ids: [], label_ar: '' }, basis: 'اختبار' } })
+    if (path.includes('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], mains: [] } })
     if (path.endsWith('/districts')) return route.fulfill({ status: 404, json: { error: 'not_found' } })
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates') && route.request().method() === 'GET') return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar' }, { name: 'monthly_prices', status: 'REJECTED', category: 'UTILITY', language: 'ar', rejected_reason: 'INCORRECT_CATEGORY', components: [{ type: 'BODY', text: 'تحديث الأسعار الشهري' }] }] } })
@@ -92,7 +95,7 @@ test('campaign results (mocked in the browser, no network): each recipient shows
   await expect(result.getByRole('button', { name: /أعد|إعادة/ })).toHaveCount(0)
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m12.png' })
   await result.getByRole('button', { name: 'تم' }).click()
-  await expect(page.getByText(/تم بحمد الله، أرسلنا 2 رسالة · ما وصلت 1/)).toBeVisible()
+  await expect(page.getByText(/تم بحمد الله، أرسلنا [٢2] رسالة · ما وصلت [١1]/)).toBeVisible()
   expect(sends).toEqual(['register', 'template']) // one register + one send, never a retry
   expect(writes).toEqual([])
 })

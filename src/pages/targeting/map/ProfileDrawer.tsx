@@ -4,7 +4,7 @@ import { Button, Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { RoleChip, SpecChip } from './Badges'
 import { MapIcon } from './glyphs'
-import { completenessOf, hasPoint, mainAr, mainIcon, mainIdOf, rolesOf, safeName, specsOf, subAr, subIdOf } from './model'
+import { completenessOf, hasPoint, mainAr, mainIcon, mainIdOf, rolesOf, safeLocationName, safeName, specsOf, subAr, subIdOf } from './model'
 
 /*
  * «ملف المنشأة» — opens from a result row or a map pin (owner 2026-10-16). What the business is (main ▸ sub, roles,
@@ -66,7 +66,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
           {saudi ? <span className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] leading-[18px] font-medium">منشأة سعودية</span> : null}
         </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-          {dd('الحي', row.district_ar || null)}
+          {dd('الحي', safeLocationName(row.district_ar))}
           {dd('الشارع', row.street_ar || null)}
           {dd('الموقع', hasPoint(row) ? null : 'موقع تقريبي — لا يظهر على الخريطة')}
           {dd('التقييم', rating != null ? `${rating.toLocaleString('en-US', { maximumFractionDigits: 1 })} من 5` : null)}

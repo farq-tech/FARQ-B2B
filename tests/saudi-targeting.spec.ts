@@ -27,7 +27,10 @@ async function setup(page: Page, opts: { send?: boolean; at: Date; prayerBlock?:
   await page.route('**/_targeting/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
-    if (path.endsWith('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [] } })
+    if (path.endsWith('/market-summary')) return route.fulfill({ json: { ok: true, summary: { total: 3, districts_count: 1, top_districts: [], densest_street: null, n_wholesale: 0, n_whatsapp: 3, n_specialties: 0, n_approx: 0, n_cr: 0, basis: 'اختبار' } } })
+    if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', districts: [], total: 0, basis: 'اختبار' } })
+    if (path.endsWith('/who-buys')) return route.fulfill({ json: { ok: true, buyers: [], subject: { sub_ids: [], label_ar: '' }, basis: 'اختبار' } })
+    if (path.includes('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], mains: [] } })
     if (path.endsWith('/districts')) return route.fulfill({ status: 404, json: { error: 'not_found' } }) // no polygons: district chips
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] }] } })
@@ -81,19 +84,23 @@ test.describe('desktop 1440', () => {
     const { searches, writes } = await setup(page, { at: ksa(2026, 10, 15, 15, 5) })
     await page.goto('/opportunity-map')
     await expect(page.getByLabel('وش تبي توصل له؟')).toHaveAttribute('placeholder', 'وش تبي تسعّر؟ مثل: حدايد وبويات، بلاط، مليس')
-    const examples = page.getByRole('group', { name: 'أمثلة للبحث' })
-    for (const t of ['حدايد وبويات', 'بلاط', 'مليس', 'قطع غيار كوري وصيني', 'أدوات صحية جملة وقطاعي']) await expect(examples.getByRole('button', { name: t, exact: true })).toBeVisible()
-    await expect(examples.getByRole('button', { name: 'سوق الزل للأقمشة', exact: true })).toBeVisible()
+    await expect(page.getByText('نظرة عامة على السوق')).toBeVisible()
+    await expect(page.getByText('منشآت في السوق')).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/desktop-1-start.png` })
-    // the market chip searches its trade inside its district
-    await examples.getByRole('button', { name: 'سوق الزل للأقمشة', exact: true }).click()
-    await expect.poll(() => searches.length).toBe(1)
-    expect(searches[0]).toMatchObject({ q: 'أقمشة', city: 'Riyadh', filters: { district: 'الديرة' } })
-    // the cluster list: popular name first, then where and how many
-    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · 230 محل/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /^شارع الثميري، المرقب — 48 محل/ })).toBeVisible()
+    // Search from the map-first overview; no example click is required to populate the market.
+    await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect.poll(() => searches.at(-1)?.q).toBe('أقمشة')
+    expect(searches.at(-1)).toMatchObject({ q: 'أقمشة', city: 'Riyadh' })
+    // Narrow to the district, then inspect its confirmed popular market name and cluster.
+    const district = page.getByLabel('الحي')
+    const districtValue = await district.locator('option').filter({ hasText: 'الديرة' }).getAttribute('value')
+    await district.selectOption(districtValue!)
+    await expect.poll(() => (searches.at(-1)?.filters as Record<string, unknown> | undefined)?.district).toBe('الديرة')
+    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · (?:٢٣٠|230) محل/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^شارع الثميري، المرقب — (?:٤٨|48) محل/ })).toBeVisible()
     // map label (drawn map) carries the popular name too
-    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — أقمشة — الديرة — 230 محل/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — أقمشة — الديرة — (?:٢٣٠|230) محل/ })).toBeVisible()
     // «منشأة سعودية»: CR on row 1, trade-licence registry on row 2, nothing on row 3
     await expect(page.getByText('منشأة سعودية')).toHaveCount(2)
     // the send step: riyal sign, before tax, prayer note, usual window
@@ -204,12 +211,18 @@ test.describe('mobile 390', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
   test('vocabulary chips, popular name in the list, prayer note in the campaign tray', async ({ page }) => {
-    await setup(page, { at: ksa(2026, 10, 16, 12, 0) }) // Friday prayer
+    const { searches } = await setup(page, { at: ksa(2026, 10, 16, 12, 0) }) // Friday prayer
     await page.goto('/opportunity-map')
-    await expect(page.getByRole('group', { name: 'أمثلة للبحث' }).getByRole('button', { name: 'حدايد وبويات', exact: true })).toBeVisible()
+    await expect(page.getByText('نظرة عامة على السوق')).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-1-start.png` })
-    await page.getByRole('group', { name: 'أمثلة للبحث' }).getByRole('button', { name: 'سوق الزل للأقمشة', exact: true }).click()
-    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · 230 محل/ })).toBeVisible()
+    await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect.poll(() => searches.at(-1)?.q).toBe('أقمشة')
+    const district = page.getByLabel('الحي')
+    const districtValue = await district.locator('option').filter({ hasText: 'الديرة' }).getAttribute('value')
+    await district.selectOption(districtValue!)
+    await expect.poll(() => (searches.at(-1)?.filters as Record<string, unknown> | undefined)?.district).toBe('الديرة')
+    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · (?:٢٣٠|230) محل/ })).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-2-sheet.png` })
     await page.getByRole('button', { name: 'حدد واتساب' }).click()
     const step = page.getByTestId('campaign-tray')

@@ -9,6 +9,7 @@ import { expect, test, type Page } from '@playwright/test'
  */
 const SHOTS = 'docs/qa/opportunity-map-v2'
 const SHOTS3 = 'docs/qa/opportunity-map-v3'
+const SHOTS4 = 'docs/qa/opportunity-map-v4'
 type Extra = Record<string, unknown>
 const row = (id: number, name: string, district: string, street: string, lat: number | null, lon: number | null, extra: Extra = {}) => ({
   poi_key: String(id), name_ar: name, name_en: null, category_ar: 'أدوات صحية', category: null, city_en: 'Riyadh', region_ar: 'الرياض',
@@ -20,19 +21,35 @@ const ALL = [
   row(1, 'مؤسسة الأنابيب الحديثة 0551234567', 'الملك فيصل', 'شارع خالد بن الوليد', 24.630, 46.712, { is_wholesale: true, role_badges: ['يبيع', 'جملة'], specialties: ['مواسير وتمديدات', 'خلاطات'], saudi_registered: true, completeness: 82, rating: 4.4, source_count: 3 }),
   row(2, 'مستودع السباكة الكبير', 'الملك فيصل', 'شارع خالد بن الوليد', 24.640, 46.722, { is_wholesale: true, role_badges: ['جملة', 'مصنع'], specialties: ['مواسير وتمديدات'] }),
   row(3, 'سباكة الخليج', 'الفيصلية', 'شارع الأمير مشعل', 24.635, 46.745, { taxonomy_sub: 'contract.plumbing', role_badges: ['خدمات وتنفيذ'], specialties: ['صيانة سباكة'] }),
-  row(4, 'أدوات صحية النخبة', 'العليا', 'شارع الحسن بن علي', 24.660, 46.720, { role_badges: ['يبيع', 'تجزئة'] }),
+  row(4, 'أدوات صحية النخبة', 'العليا', 'شارع الحسن بن علي', 24.660, 46.720, { is_wholesale: false, role_badges: ['يبيع', 'جملة', 'تجزئة'] }),
   row(5, 'معرض الماء الصافي', 'العليا', 'طريق العليا العام', null, null),
   row(6, 'مركز الخلاطات', 'العليا', 'طريق العليا العام', 24.670, 46.750, { specialties: ['خلاطات'], phone: null, has_whatsapp: false, email: null }),
 ]
 const rect = (id: number, ar: string, w: number, s: number, e: number, n: number) => ({ type: 'Feature', properties: { id, ar, en: ar, city_en: 'Riyadh' }, geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] } })
 const DISTRICTS = { type: 'FeatureCollection', features: [rect(11, 'الملك فيصل', 46.70, 24.62, 46.73, 24.65), rect(12, 'الفيصلية', 46.73, 24.62, 46.76, 24.65), rect(13, 'العليا', 46.70, 24.65, 46.76, 24.68)] }
-const line = (street: string, coords: number[][], n: number, per: number, wholesale = 0, sub = 'أدوات صحية وسباكة') => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords },
-  properties: { sub_id: 'build.plumbing_supply', sub_ar: sub, street_ar: street, n, n_wholesale: wholesale, length_m: Math.round(n / per * 100), per_100m: per, lift: 2.1, label_ar: `${street} — ${n} محل ${sub} على ${Math.round(n / per * 100)} م` } })
-const STREETS = { type: 'FeatureCollection', basis: 'محلات النشاط على امتداد الشارع مقارنة بطوله · من بيانات المحلات المسجلة', features: [
-  line('شارع خالد بن الوليد', [[46.703, 24.636], [46.712, 24.637], [46.726, 24.638]], 37, 4.1, 14),
-  line('شارع الأمير مشعل', [[46.734, 24.641], [46.745, 24.642], [46.757, 24.642]], 22, 9.5, 3),
-  line('طريق العليا العام', [[46.708, 24.664], [46.73, 24.666], [46.752, 24.667]], 31, 2.4, 1),
-] }
+const MAIN_BUILD = 'مواد بناء وتشطيب (بيع)', MAIN_ELEC = 'إلكترونيات وأجهزة'
+const line = (street: string, district: string, coords: number[][], n: number, per: number, wholesale = 0, sub = 'أدوات صحية وسباكة', sub_id = 'build.plumbing_supply', main = MAIN_BUILD, main_id = 'build') => ({ type: 'Feature', main_id, geometry: { type: 'LineString', coordinates: coords },
+  properties: { sub_id, sub_ar: sub, main_ar: main, district_ar: district, street_ar: street, n, n_wholesale: wholesale, length_m: Math.round(n / per * 100), per_100m: per, lift: 2.1, label_ar: `${street} — ${n} محل ${sub} على ${Math.round(n / per * 100)} م` } })
+const LINES = [
+  line('شارع خالد بن الوليد', 'الملك فيصل', [[46.703, 24.636], [46.712, 24.637], [46.726, 24.638]], 37, 4.1, 14),
+  line('شارع الأمير مشعل', 'الفيصلية', [[46.734, 24.641], [46.745, 24.642], [46.757, 24.642]], 22, 9.5, 3),
+  line('طريق العليا العام', 'العليا', [[46.708, 24.664], [46.73, 24.666], [46.752, 24.667]], 31, 2.4, 1),
+  line('يوسف بن عبدالعزيز', 'العليا', [[46.712, 24.672], [46.735, 24.674]], 26, 5.0, 2, 'إنارة', 'elec.lighting', MAIN_ELEC, 'elec'),
+]
+const BASIS = 'محلات النشاط على امتداد الشارع مقارنة بطوله · من بيانات المحلات المسجلة'
+/** What the fake service answers for a body: a request = its trade only; main / subs; districts narrow. */
+function streetsFor(body: { q?: string; main_id?: string; sub_ids?: string[]; districts?: string[] }) {
+  return LINES.filter((l) => (!body.q || l.main_id === 'build') && (!body.main_id || l.main_id === body.main_id) && (!body.sub_ids || body.sub_ids.includes(l.properties.sub_id)) && (!body.districts || body.districts.includes(l.properties.district_ar)))
+    .sort((a, b) => b.properties.n - a.properties.n)
+}
+function catalogFor(body: { districts?: string[] }) {
+  const ls = streetsFor({ districts: body.districts })
+  return ['build', 'elec'].map((id) => {
+    const mine = ls.filter((l) => l.main_id === id)
+    const subs = [...new Set(mine.map((l) => l.properties.sub_id))].map((sid) => { const s = mine.filter((l) => l.properties.sub_id === sid); return { sub_id: sid, sub_ar: s[0].properties.sub_ar, streets: s.length, shops: s.reduce((t, l) => t + l.properties.n, 0) } })
+    return { main_id: id, main_ar: id === 'build' ? MAIN_BUILD : MAIN_ELEC, streets: mine.length, shops: mine.reduce((t, l) => t + l.properties.n, 0), subs }
+  }).filter((m) => m.streets)
+}
 const AREAS = {
   districts: [{ name: 'الملك فيصل', n: 2 }, { name: 'العليا', n: 3 }, { name: 'الفيصلية', n: 1 }],
   streets: [{ name: 'شارع خالد بن الوليد', district: 'الملك فيصل', n: 2 }, { name: 'شارع الحسن بن علي', district: 'العليا', n: 1 }, { name: 'شارع الأمير مشعل', district: 'الفيصلية', n: 1 }, { name: 'طريق العليا العام', district: 'العليا', n: 2 }],
@@ -51,11 +68,15 @@ const REQUESTS = [
   { id: U3, organizationId: 'org-1', createdBy: 'qa-user', kind: 'SEARCH', title: 'سخانات مياه', payload: { city: 'الرياض' }, status: 'CANCELLED', hidden: false, cancelledAt: '2026-10-11T08:00:00Z', cancelReason: 'لقينا مورد', createdAt: '2026-10-10T11:00:00Z' },
 ]
 
-async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; schedule?: 404 | 200; send?: boolean } = {}) {
+async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean } = {}) {
   const writes: string[] = []
   const saved: Record<string, unknown>[] = []
   const searches: Record<string, unknown>[] = []
   const schedules: Record<string, unknown>[] = []
+  const densities: Record<string, unknown>[] = []
+  const catalogs: Record<string, unknown>[] = []
+  const buyerQueries: Record<string, unknown>[] = []
+  const marketQueries: Record<string, unknown>[] = []
   const orgHeaders: (string | undefined)[] = []
   const listQueries: string[] = []
   await page.addInitScript(() => {
@@ -64,9 +85,26 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   await page.route('**/_targeting/**', async (route) => {
     const url = new URL(route.request().url()); const path = url.pathname
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
+    if (path.endsWith('/market-summary')) {
+      const body = route.request().postDataJSON(); marketQueries.push(body)
+      return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, n_wholesale: 2, n_whatsapp: 5, n_specialties: 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
+    }
+    if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', total: 6, basis: 'نقاط دقيقة فقط', districts: [{ district_ar: 'الملك فيصل', n: 2, n_wholesale: 2, n_whatsapp: 2 }, { district_ar: 'العليا', n: 3, n_wholesale: 0, n_whatsapp: 2 }, { district_ar: 'الفيصلية', n: 1, n_wholesale: 0, n_whatsapp: 1 }] } })
+    if (path.endsWith('/who-buys')) {
+      const body = route.request().postDataJSON(); buyerQueries.push(body)
+      return route.fulfill({ json: { ok: true, subject: { sub_ids: ['build.plumbing_supply'], label_ar: 'أدوات صحية وسباكة' }, basis: 'اختبار', buyers: [
+        { sub_id: 'contract.plumbing', sub_ar: 'سباكة وتنفيذ', main_id: 'contract', main_ar: 'مقاولات', strength: 'core', n: 7, n_whatsapp: 3 },
+        { sub_id: 'hotel', sub_ar: 'فنادق', main_id: 'tourism', main_ar: 'سياحة', strength: 'common', n: 4, n_whatsapp: 1 },
+      ] } })
+    }
+    if (path.endsWith('/street-density/catalog')) {
+      const body = route.request().postDataJSON(); catalogs.push(body)
+      return route.fulfill({ json: { mains: opts.streets === 'none' ? [] : catalogFor(body) } })
+    }
     if (path.endsWith('/street-density')) {
-      expect(route.request().postDataJSON()).toMatchObject({ city: 'Riyadh' })
-      return route.fulfill({ json: opts.streets === 'none' ? { type: 'FeatureCollection', features: [] } : STREETS })
+      const body = route.request().postDataJSON(); densities.push(body)
+      expect(body).toMatchObject({ city: 'Riyadh' })
+      return route.fulfill({ json: { type: 'FeatureCollection', basis: BASIS, features: opts.streets === 'none' ? [] : streetsFor(body) } })
     }
     if (path.endsWith('/districts')) {
       expect(url.searchParams.get('city')).toBe('Riyadh')
@@ -81,10 +119,12 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     ] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: Boolean(opts.send) } })
     if (path.endsWith('/search')) {
-      const body = route.request().postDataJSON(); searches.push(body)
+      const body = route.request().postDataJSON(); if (body.q) searches.push(body)
       const f = body.filters || {}
-      const rows = ALL.filter((r) => (!f.wholesale || r.is_wholesale) && (!f.district || r.district_ar === f.district) && (!f.street || r.street_ar.includes(f.street)) && (!f.role || (r.role_badges as string[]).includes(f.role)) && (!f.specialty || (r.specialties as string[]).includes(f.specialty)))
-      return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['أدوات صحية'] }, areas: AREAS, understood: { wholesale: /جمل/.test(body.q), sub_ids: ['build.plumbing_supply'] } } })
+      const source = opts.malformedDistrict ? [...ALL, row(7, 'مؤسسة بلا حي', '{"id": null, "name_ar": null, "name_en": null}', '', 24.65, 46.72)] : ALL
+      const rows = source.filter((r) => (!f.wholesale || r.is_wholesale) && (!f.district || r.district_ar === f.district) && (!f.street || r.street_ar.includes(f.street)) && (!f.role || (r.role_badges as string[]).includes(f.role)) && (!f.specialty || (r.specialties as string[]).includes(f.specialty)))
+      const areas = opts.malformedDistrict ? { ...AREAS, districts: [...AREAS.districts, { name: '{"id": null, "name_ar": null, "name_en": null}', n: 1 }] } : AREAS
+      return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['أدوات صحية'] }, areas, understood: { wholesale: /جمل/.test(body.q), sub_ids: ['build.plumbing_supply'] } } })
     }
     if (path.endsWith('/clusters')) return route.fulfill({ json: { clusters: CLUSTERS, wholesale: 2, basis: 'تجمّع النشاط مقارنة بباقي المدينة · من بيانات المحلات المسجلة' } })
     if (path.endsWith('/suggest-specialties')) return route.fulfill({ json: { suggestions: [
@@ -121,13 +161,18 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     if (route.request().method() !== 'GET') writes.push(`${route.request().method()} ${path}`)
     return route.fulfill({ status: 503, json: { ok: false, error: { message: 'QA: blocked' } } })
   })
-  return { writes, searches, saved, schedules, orgHeaders, listQueries }
+  return { writes, searches, saved, schedules, orgHeaders, listQueries, densities, catalogs, buyerQueries, marketQueries }
 }
 
-const counter = (page: Page, key: string) => page.locator(`[data-counter="${key}"] > span[aria-hidden]`)
+const counter = (page: Page, key: string) => page.locator(`[data-counter="${key === 'n' ? 'supplier-matches' : key === 'districts' ? 'supplier-districts' : key}"] > span[aria-hidden]`)
 async function searchFor(page: Page, text: string) {
   await page.getByLabel('وش تبي توصل له؟').fill(text)
   await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+}
+/** The saved-request panel belongs to the supplier-results workspace, not the market overview. */
+async function openMyRequests(page: Page) {
+  await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+  await page.getByText('طلباتي').click()
 }
 /** A district on the drawn map, by keyboard (a cluster circle or a pin may sit on its centre). */
 async function pickDistrict(page: Page, name: string) {
@@ -143,26 +188,162 @@ async function nothingStored(page: Page) {
 test.describe('desktop 1440', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
 
+  test('market first open, three lenses, and core buyers by default', async ({ page }) => {
+    const { buyerQueries, marketQueries } = await setup(page)
+    await page.goto('/opportunity-map')
+    await expect(page.getByRole('tab', { name: 'افهم السوق' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('heading', { name: 'ملخص سوق الرياض' })).toBeVisible()
+    await expect(page.getByText('منشآت بمواقع دقيقة')).toBeVisible()
+    await expect(page.getByRole('group', { name: 'نشاط الشوارع' })).toBeVisible()
+    expect(marketQueries[0]).toEqual({ city: 'Riyadh' })
+
+    await page.getByRole('tab', { name: 'ابحث عن مشترين' }).click()
+    const picker = page.getByRole('group', { name: 'نشاط الشوارع' })
+    await picker.getByRole('button', { name: /مواد بناء وتشطيب/ }).click()
+    await page.getByRole('group', { name: 'الأنشطة الفرعية' }).getByRole('button', { name: /أدوات صحية وسباكة/ }).click()
+    await expect.poll(() => buyerQueries.length).toBeGreaterThan(0)
+    await expect(page.getByRole('heading', { name: 'من يشتري عادةً؟' })).toBeVisible()
+    await expect(page.getByText('سباكة وتنفيذ')).toBeVisible()
+    await expect(page.getByText('فنادق')).toHaveCount(0)
+    await page.getByRole('button', { name: 'عرض المحتمل أيضاً' }).click()
+    await expect(page.getByText('فنادق')).toBeVisible()
+
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await expect(page.getByRole('tab', { name: 'ابحث عن موردين' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('focus map fills the viewport and its results panel can be shown or hidden', async ({ page }) => {
+    await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: 'توسيع الخريطة' }).click()
+
+    const focus = page.getByTestId('map-focus-shell')
+    await expect(focus).toBeVisible()
+    const mapBounds = await focus.getByRole('region', { name: 'خريطة الفرص' }).boundingBox()
+    expect(mapBounds?.height).toBeGreaterThanOrEqual(950)
+    expect(mapBounds?.width).toBeGreaterThanOrEqual(1400)
+    await expect(focus.getByRole('search')).toBeVisible()
+    await expect(focus.getByRole('tab', { name: 'افهم السوق' })).toBeVisible()
+    await expect(focus.getByRole('button', { name: 'العودة لتخطيط الصفحة' })).toBeVisible()
+    await expect(page.getByLabel('التنقل الرئيسي')).toHaveCount(0)
+
+    const panelToggle = focus.locator('button[aria-controls="map-focus-panel"]')
+    await panelToggle.click()
+    await expect(panelToggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(focus.locator('#map-focus-panel')).toBeVisible()
+    await panelToggle.click()
+    await expect(focus.locator('#map-focus-panel')).toHaveCount(0)
+
+    await focus.getByRole('button', { name: 'العودة لتخطيط الصفحة' }).click()
+    await expect(page.getByTestId('map-focus-shell')).toHaveCount(0)
+    await expect(page.getByLabel('التنقل الرئيسي')).toBeVisible()
+  })
+
+  test('supplier neighborhood counter follows the selected district', async ({ page }) => {
+    await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await searchFor(page, 'أدوات صحية')
+    await page.getByLabel('الحي', { exact: true }).selectOption({ label: 'الملك فيصل (٢)' })
+
+    await expect(page.getByRole('tab', { name: /النتائج · ٢/ })).toBeVisible()
+    await expect(counter(page, 'supplier-districts')).toHaveText('١')
+    await page.getByRole('button', { name: 'إزالة الحي: الملك فيصل' }).click()
+    await expect(counter(page, 'supplier-districts')).toHaveText('٣')
+  })
+
+  test('switching buyer and seller lenses keeps the phrase and updates the search direction', async ({ page }) => {
+    const { searches } = await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await searchFor(page, 'أدوات صحية')
+    await expect.poll(() => searches.some((s) => s.q === 'أدوات صحية' && s.objective === 'purchase')).toBe(true)
+
+    await page.getByRole('tab', { name: 'ابحث عن مشترين' }).click()
+    await expect.poll(() => searches.some((s) => s.q === 'أدوات صحية' && s.objective === 'marketing')).toBe(true)
+    await expect(page.getByLabel('وش تبي توصل له؟')).toHaveValue('أدوات صحية')
+
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await expect.poll(() => searches.filter((s) => s.q === 'أدوات صحية' && s.objective === 'purchase').length).toBeGreaterThan(1)
+  })
+
+  test('a stale load-more response cannot clear the newer search loading state or replace its results', async ({ page }) => {
+    await setup(page)
+
+    let releaseOldPage!: () => void
+    let releaseNewSearch!: () => void
+    let oldPageStarted!: () => void
+    let newSearchStarted!: () => void
+    const oldPageGate = new Promise<void>((resolve) => { releaseOldPage = resolve })
+    const newSearchGate = new Promise<void>((resolve) => { releaseNewSearch = resolve })
+    const oldStarted = new Promise<void>((resolve) => { oldPageStarted = resolve })
+    const newStarted = new Promise<void>((resolve) => { newSearchStarted = resolve })
+    const firstPage = Array.from({ length: 150 }, (_, i) => row(1000 + i, `نتيجة قديمة ${i + 1}`, 'الملك فيصل', `شارع ${i + 1}`, 24.63, 46.71))
+    const oldTail = row(1999, 'نتيجة قديمة متأخرة', 'الملك فيصل', 'شارع متأخر', 24.63, 46.71)
+    const currentRow = row(2999, 'نتيجة البحث الجديد', 'العليا', 'شارع العليا', 24.66, 46.72)
+
+    // Registered after setup, so this route deterministically controls only the three search calls.
+    await page.route('**/_targeting/search', async (route) => {
+      const body = route.request().postDataJSON() as { q: string; offset?: number; objective?: string }
+      if (body.q === 'بحث قديم' && (body.offset || 0) === 0 && body.objective !== 'marketing') {
+        return route.fulfill({ json: { total: 151, rows: firstPage, next_offset: 150, has_more: true, parsed: { keywords: ['بحث قديم'] }, areas: AREAS, understood: {} } })
+      }
+      if (body.q === 'بحث قديم' && (body.offset || 0) > 0) {
+        oldPageStarted()
+        await oldPageGate
+        return route.fulfill({ json: { total: 151, rows: [oldTail], next_offset: null, has_more: false, parsed: { keywords: ['بحث قديم'] }, areas: AREAS, understood: {} } })
+      }
+      if (body.q === 'بحث قديم' && body.objective === 'marketing') {
+        newSearchStarted()
+        await newSearchGate
+        return route.fulfill({ json: { total: 1, rows: [currentRow], next_offset: null, has_more: false, parsed: { keywords: ['بحث جديد'] }, areas: AREAS, understood: {} } })
+      }
+      return route.fallback()
+    })
+
+    await page.goto('/opportunity-map')
+    await searchFor(page, 'بحث قديم')
+    await expect(page.locator('li[data-key]')).toHaveCount(150)
+    await page.getByRole('button', { name: /حمّل .* أكثر/ }).click()
+    await oldStarted
+
+    // Changing direction starts a new search while the pagination request is still pending.
+    await page.getByRole('tab', { name: 'ابحث عن مشترين' }).click()
+    await newStarted
+
+    // Completing the old request while the new one is pending must not unlock its submit button.
+    releaseOldPage()
+    await expect(page.locator('button[type="submit"]')).toBeDisabled()
+    releaseNewSearch()
+
+    await expect(page.locator('li[data-key]')).toHaveCount(1)
+    await expect(page.getByText('نتيجة البحث الجديد')).toBeVisible()
+    await expect(page.getByText('نتيجة قديمة متأخرة')).toHaveCount(0)
+    await expect(page.locator('button[type="submit"]')).toBeEnabled()
+  })
+
   test('«جملة» ranks only, districts, counters, layers, guide, filters, drawer without contacts', async ({ page }) => {
     const { writes, searches } = await setup(page)
     await page.goto('/targeting') // old link → /opportunity-map
     await expect(page).toHaveURL(/\/opportunity-map$/)
     await expect(page.getByLabel('المدينة', { exact: true })).toHaveValue('Riyadh') // Riyadh by default, nothing remembered
-    await expect(page.getByRole('radio', { name: 'بائعون — أبي أشتري' })).toBeChecked()
+    await expect(page.getByRole('tab', { name: 'افهم السوق' })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     await searchFor(page, 'جملة مواد نظافة')
     // «جملة» in the request: no auto filter, every result kept, the chip stays available with its count
     expect(searches[0].filters).toEqual({})
-    await expect(page.getByRole('button', { name: 'جملة فقط · 2', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.getByRole('button', { name: 'جملة فقط · ٢', exact: true })).toHaveAttribute('aria-pressed', 'false')
     expect(searches.length).toBe(1) // no «retry with wholesale»
     // before a district: no pins, the hint, every result listed; counters over all results
     await expect(page.getByTestId('map-hint')).toHaveText(/الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها محلات أكثر/)
     await expect(page.locator('[data-pin]')).toHaveCount(0)
-    await expect(counter(page, 'n')).toHaveText('6')
+    await expect(counter(page, 'n')).toHaveText('٦')
     await expect(page.locator('li[data-key]')).toHaveCount(6)
     await expect(page.locator('li[data-key="5"]')).toContainText('موقع تقريبي')
     // badges on the rows: roles and specialties
     await expect(page.locator('li[data-key="1"] [data-testid="row-badges"]')).toContainText('جملة')
     await expect(page.locator('li[data-key="1"] [data-testid="row-badges"]')).toContainText('مواسير وتمديدات')
+    await expect(page.locator('li[data-key="4"] [data-testid="row-badges"]')).not.toContainText('جملة') // explicit place flag overrides the family role hint
     // the digits in a business name are never shown
     await expect(page.locator('li[data-key="1"]')).not.toContainText('0551234567')
     // choose a district on the map → its pins and the counters
@@ -170,71 +351,57 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('button', { name: 'حي الملك فيصل' })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('map-hint')).toHaveCount(0)
     await expect(page.locator('[data-pin="main"]')).toHaveCount(2)
-    await expect(counter(page, 'n')).toHaveText('2')
-    await expect(counter(page, 'districts')).toHaveText('1')
-    await expect(counter(page, 'subs')).toHaveText('1')
-    await expect(counter(page, 'specs')).toHaveText('2')
-    await expect(counter(page, 'wholesale')).toHaveText('2')
-    await expect(counter(page, 'factory')).toHaveText('1')
-    await expect(counter(page, 'whatsapp')).toHaveText('2')
-    await expect(counter(page, 'cr')).toHaveText('1')
-    // multi-select: العليا adds 2 pins (row 5 has no point) and 3 rows
+    await expect(counter(page, 'n')).toHaveText('٢')
+    await expect(counter(page, 'districts')).toHaveText('١')
+    await expect(counter(page, 'supplier-whatsapp')).toHaveText('٢')
+    await expect(counter(page, 'supplier-located')).toHaveText('٢')
+    // Choosing another district replaces the first and keeps results scoped to one area.
     await pickDistrict(page, 'العليا')
-    await expect(page.locator('[data-pin="main"]')).toHaveCount(4)
-    await expect(counter(page, 'n')).toHaveText('5')
-    await expect(counter(page, 'districts')).toHaveText('2')
+    await expect(page.getByRole('button', { name: 'حي العليا' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('[data-pin="main"]')).toHaveCount(2)
+    await expect(counter(page, 'n')).toHaveText('٣')
     await page.screenshot({ path: `${SHOTS}/desktop-1-districts.png` })
-    // layers, one at a time
-    await page.getByRole('radio', { name: /الأنشطة الفرعية/ }).click()
-    await expect(page.locator('[data-pin="sub"]')).toHaveCount(4)
-    await expect(page.locator('[data-pin="main"]')).toHaveCount(0)
-    await page.getByRole('radio', { name: /التخصصات/ }).click()
-    await expect(page.locator('[data-pin="spec"]')).toHaveCount(3) // rows 1, 2, 6 have a specialty
-    await expect(page.locator('[data-pin="spec"]').first()).toBeVisible()
-    await page.screenshot({ path: `${SHOTS}/desktop-2-specialties-layer.png` })
-    // «كل الأحياء» / «إزالة الكل»
-    await page.getByRole('button', { name: 'كل الأحياء' }).click()
-    await expect(counter(page, 'districts')).toHaveText('3')
-    await expect(counter(page, 'n')).toHaveText('6')
+    // map depth follows the selected category; users do not switch layers manually
+    await expect(page.getByRole('radiogroup', { name: 'طبقة الخريطة' })).toHaveCount(0)
+    // Clear the district and restore the full city result set.
+    await page.getByRole('button', { name: 'عرض كل الأحياء' }).click()
+    await expect(counter(page, 'districts')).toHaveText('٣')
+    await expect(counter(page, 'n')).toHaveText('٦')
     // guide tree: main ▸ sub ▸ specialty; a pick filters and switches the layer
     await page.getByRole('tab', { name: 'الدليل' }).click()
     await page.getByRole('button', { name: /^مقاولات وخدمات إنشائية/ }).click()
-    await expect(page.getByRole('radio', { name: /الأنشطة الرئيسية/ })).toHaveAttribute('aria-checked', 'true')
-    await expect(counter(page, 'n')).toHaveText('1')
+    await expect(page.getByText(/^النشاط الرئيسي:/)).toBeVisible()
     await expect(page.locator('[data-pin="main"]')).toHaveCount(1)
     await page.getByRole('button', { name: /^مواد بناء وتشطيب \(بيع\)/ }).click()
-    await page.getByRole('button', { name: 'أدوات صحية وسباكة 5', exact: true }).click()
-    await expect(page.getByRole('radio', { name: /الأنشطة الفرعية/ })).toHaveAttribute('aria-checked', 'true')
-    await expect(counter(page, 'n')).toHaveText('5')
-    await page.getByRole('button', { name: 'خلاطات 2', exact: true }).click()
-    await expect(page.getByRole('radio', { name: /التخصصات/ })).toHaveAttribute('aria-checked', 'true')
-    await expect(counter(page, 'n')).toHaveText('2')
+    await page.getByRole('button', { name: 'أدوات صحية وسباكة ٥', exact: true }).click()
+    await expect(page.getByText(/^النشاط الفرعي:/)).toBeVisible()
+    await expect(page.locator('[data-specialty-icon="droplet"]')).toHaveCount(2)
+    await page.getByRole('button', { name: 'خلاطات ٢', exact: true }).click()
+    await expect(page.getByText(/^التخصص:/)).toBeVisible()
     await expect(page.locator('[data-pin="spec"]')).toHaveCount(2)
     await page.screenshot({ path: `${SHOTS}/desktop-3-guide.png` })
-    await page.getByRole('button', { name: 'خلاطات 2', exact: true }).click() // second tap clears
-    await expect(counter(page, 'n')).toHaveText('6')
+    await page.getByRole('button', { name: 'خلاطات ٢', exact: true }).click() // second tap clears
     await page.getByRole('tab', { name: /النتائج/ }).click()
-    await page.getByRole('button', { name: 'إزالة الكل' }).click()
     await expect(page.locator('[data-pin]')).toHaveCount(0)
     // role and specialty filters re-run the search
     await page.getByLabel('الدور', { exact: true }).selectOption('مصنع')
-    await expect.poll(() => searches.length).toBe(2)
-    expect(searches[1].filters).toEqual({ role: 'مصنع' })
+    await expect.poll(() => searches.length).toBe(5)
+    expect(searches[4].filters).toEqual({ role: 'مصنع' })
     await expect(page.getByRole('button', { name: 'الدور: مصنع', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'إزالة الدور: مصنع' }).click()
-    await expect.poll(() => searches.length).toBe(3)
-    expect(searches[2].filters).toEqual({})
-    await page.getByLabel('التخصص', { exact: true }).selectOption('خلاطات')
-    await expect.poll(() => searches.length).toBe(4)
-    expect(searches[3].filters).toEqual({ specialty: 'خلاطات' })
-    await page.getByRole('button', { name: 'إزالة التخصص: خلاطات' }).click()
-    await expect.poll(() => searches.length).toBe(5)
-    // «جملة فقط» only when pressed
-    await page.getByRole('button', { name: 'جملة فقط · 2', exact: true }).click()
     await expect.poll(() => searches.length).toBe(6)
-    expect(searches[5].filters).toEqual({ wholesale: true })
-    await page.getByRole('button', { name: 'جملة فقط · 2', exact: true }).click()
+    expect(searches[5].filters).toEqual({})
+    await page.getByLabel('التخصص', { exact: true }).selectOption('خلاطات')
     await expect.poll(() => searches.length).toBe(7)
+    expect(searches[6].filters).toEqual({ specialty: 'خلاطات' })
+    await page.getByRole('button', { name: 'إزالة التخصص: خلاطات' }).click()
+    await expect.poll(() => searches.length).toBe(8)
+    // «جملة فقط» only when pressed
+    await page.getByRole('button', { name: 'جملة فقط · ٢', exact: true }).click()
+    await expect.poll(() => searches.length).toBe(9)
+    expect(searches[8].filters).toEqual({ wholesale: true })
+    await page.getByRole('button', { name: 'جملة فقط · ٢', exact: true }).click()
+    await expect.poll(() => searches.length).toBe(10)
     // profile drawer from a row: path, roles, specialties, place, rating, completeness, sources, channel; no contact at all
     await page.locator('li[data-key="1"]').getByRole('button').first().click()
     const drawer = page.getByTestId('profile-drawer')
@@ -263,56 +430,91 @@ test.describe('desktop 1440', () => {
     await nothingStored(page)
   })
 
-  test('dense streets along the street: lines, list, choropleth, click → zoom, district, street filter, card', async ({ page }) => {
-    const { searches, writes } = await setup(page)
+  test('dense streets on open, activity picker, districts narrow them, then the request', async ({ page }) => {
+    const { searches, writes, densities, catalogs } = await setup(page)
     await page.goto('/opportunity-map')
-    // step 1 before anything; a clear hint, never an empty map without words
-    await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اكتب وش تبي')
-    await expect(page.getByTestId('map-hint')).toHaveText('اكتب وش تبي فوق واضغط «ابحث»، ونوريك وين يتركز في المدينة.')
-    await expect(page.getByTestId('map-legend')).toContainText('شارع كثيف بهذا النشاط')
-    await page.screenshot({ path: `${SHOTS3}/desktop-1-start.png` })
-    await searchFor(page, 'أدوات صحية')
-    // step 2: the densest streets drawn along the street, the districts tinted by density, no pins yet
+    // on open: the densest streets of ALL activities in the city, no search needed
+    await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في الرياض' })).toBeVisible()
+    await expect(page.locator('[data-street]')).toHaveCount(4)
+    expect(densities[0]).toEqual({ city: 'Riyadh' })
+    expect(catalogs[0]).toEqual({ city: 'Riyadh' })
+    await expect(page.getByTestId('map-hint')).toContainText('الخطوط الخضراء أكثف الشوارع')
     await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('شوف الشوارع والأحياء الأكثف')
+    await expect(page.getByTestId('map-legend')).toContainText('تجمع تجاري · عدد المنشآت')
+    // Show a compact district point on open; the street cluster covered by a density line is deduplicated.
+    await expect(page.locator('[data-interest="district"]')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: /^أدوات صحية وسباكة — الفيصلية/ })).toBeVisible()
+    await expect(page.getByTestId('map-legend')).toContainText('شارع كثيف بهذا النشاط')
+    const list = page.getByTestId('dense-streets')
+    await expect(list.getByRole('button').first()).toContainText('شارع خالد بن الوليد · الملك فيصل · أدوات صحية وسباكة — ٣٧ محل')
+    await page.screenshot({ path: `${SHOTS4}/desktop-1-open.png` })
+    // the activity picker: a main, then its sub, then «الكل»
+    const picker = page.getByRole('group', { name: 'نشاط الشوارع' })
+    await picker.getByRole('button', { name: `${MAIN_ELEC} · ١` }).click()
+    await expect.poll(() => densities.at(-1)).toEqual({ city: 'Riyadh', main_id: 'elec' })
+    await expect(page.locator('[data-street]')).toHaveCount(1)
+    await page.getByRole('group', { name: 'الأنشطة الفرعية' }).getByRole('button', { name: 'إنارة · ١' }).click()
+    await expect.poll(() => densities.at(-1)).toEqual({ city: 'Riyadh', sub_ids: ['elec.lighting'] })
+    await expect(list.getByRole('button').first()).toContainText('يوسف بن عبدالعزيز · العليا · إنارة — ٢٦ محل')
+    await picker.getByRole('button', { name: 'الكل', exact: true }).click()
+    await expect(page.locator('[data-street]')).toHaveCount(4)
+    // districts narrow the streets and the catalog
+    await pickDistrict(page, 'العليا')
+    await expect.poll(() => densities.at(-1)).toEqual({ city: 'Riyadh', districts: ['العليا'] })
+    await expect.poll(() => catalogs.at(-1)).toEqual({ city: 'Riyadh', districts: ['العليا'] })
+    await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في العليا' })).toBeVisible()
+    await expect(page.locator('[data-street]')).toHaveCount(2)
+    await pickDistrict(page, 'الملك فيصل')
+    await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في الملك فيصل' })).toBeVisible()
+    await expect(page.locator('[data-street]')).toHaveCount(1)
+    await page.screenshot({ path: `${SHOTS4}/desktop-2-districts.png` })
+    await page.getByRole('button', { name: 'عرض كل الأحياء' }).click()
+    await expect(page.locator('[data-street]')).toHaveCount(4)
+    // the request: its own dense streets, the districts tinted by density, no pins yet
+    await searchFor(page, 'أدوات صحية')
+    await expect.poll(() => densities.at(-1)).toEqual({ city: 'Riyadh', q: 'أدوات صحية', objective: 'purchase' })
     await expect(page.locator('[data-street]')).toHaveCount(3)
+    await expect(page.getByText('الشوارع حسب طلبك: «أدوات صحية»')).toBeVisible()
+    await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('شوف الشوارع والأحياء الأكثف')
     await expect(page.locator('[data-pin]')).toHaveCount(0)
     await expect(page.locator('path[data-district="العليا"]')).toHaveAttribute('data-density', '4')
-    await expect(page.locator('path[data-district="الفيصلية"]')).toHaveAttribute('data-density', /[1-3]/)
-    const list = page.getByTestId('dense-streets')
-    await expect(list.getByRole('button')).toHaveCount(3)
-    await expect(list.getByRole('button').first()).toContainText('شارع الأمير مشعل') // 9.5 per 100 m leads
-    await expect(page.getByRole('group', { name: 'أكثر الأحياء' }).getByRole('button', { name: /العليا · 3/ })).toBeVisible()
-    // the street circles are replaced by the lines (a circle stays only where no line exists)
-    await expect(page.getByRole('button', { name: /^أدوات صحية وسباكة — شارع خالد بن الوليد/ })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /^أدوات صحية وسباكة — الفيصلية — 22 محل/ })).toHaveCount(0)
-    await page.screenshot({ path: `${SHOTS3}/desktop-2-dense-streets.png` })
-    // a street from the list: its district chosen, results narrowed to it, its card
-    await list.getByRole('button', { name: /شارع الأمير مشعل/ }).click()
-    await expect.poll(() => searches.length).toBe(2)
-    expect(searches[1].filters).toEqual({ street: 'شارع الأمير مشعل' })
-    await expect(page.getByRole('button', { name: 'حي الفيصلية — 1 منشأة' })).toHaveAttribute('aria-pressed', 'true')
-    const card = page.getByTestId('street-card')
-    for (const t of ['شارع الأمير مشعل', 'أدوات صحية وسباكة', '22 محل', '232 م', '9.5 محل لكل ١٠٠ م', '3 محل']) await expect(card).toContainText(t)
-    await expect(page.locator('[data-pin]')).toHaveCount(1)
-    await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اختر حي أو شارع')
-    await page.screenshot({ path: `${SHOTS3}/desktop-3-street-picked.png` })
-    // a line on the map does the same
+    await expect(page.getByRole('group', { name: 'أكثر الأحياء' }).getByRole('button', { name: /العليا · ٣/ })).toBeVisible()
+    // a line on the map: zoom, its district chosen, results narrowed, its card
     const l = page.locator('[data-street="طريق العليا العام"]')
     await l.focus(); await page.keyboard.press('Enter')
-    await expect.poll(() => searches.length).toBe(3)
-    expect(searches[2].filters).toEqual({ street: 'طريق العليا العام' })
-    await expect(page.getByTestId('street-card')).toContainText('31 محل')
-    await expect(page.getByTestId('street-card')).toContainText('1.3 كم')
-    // closing the card removes the street filter
+    await expect.poll(() => searches.length).toBe(2)
+    expect(searches[1].filters).toEqual({ street: 'طريق العليا العام' })
+    await expect(page.getByRole('button', { name: /^حي العليا/ })).toHaveAttribute('aria-pressed', 'true')
+    const card = page.getByTestId('street-card')
+    for (const t of ['طريق العليا العام', `العليا · ${MAIN_BUILD} ▸ أدوات صحية وسباكة`, '٣١ محل', '١٫٣ كم', '٢٫٤ محل لكل ١٠٠ م', '١ محل']) await expect(card).toContainText(t)
+    await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اختر حي أو شارع')
+    await page.screenshot({ path: `${SHOTS4}/desktop-3-street-picked.png` })
     await page.getByRole('button', { name: 'إغلاق بطاقة الشارع' }).click()
-    await expect.poll(() => searches.length).toBe(4)
-    expect(searches[3].filters).toEqual({})
+    await expect.poll(() => searches.length).toBe(3)
+    expect(searches[2].filters).toEqual({})
     await expect(page.getByTestId('street-card')).toHaveCount(0)
-    // step 4 once a shop is chosen
+    // from the list, after clearing the districts
+    await page.getByRole('button', { name: 'عرض كل الأحياء' }).click()
+    await list.getByRole('button', { name: /شارع الأمير مشعل/ }).click()
+    await expect.poll(() => searches.length).toBe(5)
+    expect(searches[4].filters).toEqual({ street: 'شارع الأمير مشعل' })
+    await expect(page.getByTestId('street-card')).toContainText('٩٫٥ محل لكل ١٠٠ م')
+    await expect(page.locator('[data-pin]')).toHaveCount(1)
     await page.getByRole('checkbox', { name: /اختر سباكة الخليج/ }).check()
     await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اختر المحلات وأرسل')
     expect(writes).toEqual([])
     await nothingStored(page)
+  })
+
+  test('a street picked before any search runs its trade narrowed to that street', async ({ page }) => {
+    const { searches } = await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByTestId('dense-streets').getByRole('button', { name: /يوسف بن عبدالعزيز/ }).click()
+    await expect.poll(() => searches.length).toBe(1)
+    expect(searches[0]).toMatchObject({ q: 'إنارة', filters: { street: 'يوسف بن عبدالعزيز' } })
+    await expect(page.getByTestId('street-card')).toContainText('٢٦ محل')
+    await expect(page.locator('[data-street]')).toHaveCount(2) // the streets stay, narrowed to the street's district (العليا)
+    await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في العليا' })).toBeVisible()
   })
 
   test('counters animate to the new value', async ({ page }) => {
@@ -320,11 +522,11 @@ test.describe('desktop 1440', () => {
     await setup(page)
     await page.goto('/opportunity-map')
     await searchFor(page, 'أدوات صحية')
-    await expect(counter(page, 'n')).toHaveText('6')
+    await expect(counter(page, 'n')).toHaveText('٦')
     await pickDistrict(page, 'الملك فيصل')
     // mid-way the number is between 6 and 2, then it settles (≤ 700 ms)
-    await expect(counter(page, 'n')).toHaveText('2', { timeout: 2000 })
-    await expect(page.locator('[data-counter="n"]')).toContainText('المنشآت')
+    await expect(counter(page, 'n')).toHaveText('٢', { timeout: 2000 })
+    await expect(page.locator('[data-counter="supplier-matches"]')).toContainText('موردون محتملون')
   })
 
   test('campaign tray: hidden until a choice, under the map, send now unchanged, schedule says قريباً on 404', async ({ page }) => {
@@ -404,7 +606,7 @@ test.describe('desktop 1440', () => {
     await searchFor(page, 'أدوات صحية')
     await expect(page.getByText('تجمعات هذا النشاط')).toBeVisible()
     // a street cluster: district + street filter, and its district chosen on the map
-    await page.getByRole('button', { name: /^شارع خالد بن الوليد، الملك فيصل — 37 محل/ }).click()
+    await page.getByRole('button', { name: /^شارع خالد بن الوليد، الملك فيصل — ٣٧ محل/ }).click()
     await expect.poll(() => searches.length).toBe(2)
     expect(searches[1].filters).toEqual({ district: 'الملك فيصل', street: 'شارع خالد بن الوليد' })
     await expect(page.getByRole('button', { name: 'حي الملك فيصل' })).toHaveAttribute('aria-pressed', 'true')
@@ -413,14 +615,14 @@ test.describe('desktop 1440', () => {
     expect(searches[2].filters).toEqual({})
     // the site: a tap on the map places it, the radius narrows the cohort
     await pickDistrict(page, 'الفيصلية')
-    await expect(counter(page, 'n')).toHaveText('3')
+    await expect(counter(page, 'n')).toHaveText('١')
     await page.getByRole('button', { name: 'موقع المشروع' }).click()
     const map = page.getByRole('application')
     const b = (await map.boundingBox())!
     await map.click({ position: { x: b.width - 40, y: b.height / 2 } })
     await expect(page.getByLabel('موقع المشروع · نطاق التوصيل')).toHaveValue('10')
     await page.getByLabel('موقع المشروع · نطاق التوصيل').selectOption('100')
-    await expect(counter(page, 'n')).toHaveText('3')
+    await expect(counter(page, 'n')).toHaveText('١')
     await page.getByRole('button', { name: 'إزالة موقع المشروع' }).click()
     await expect(page.getByRole('button', { name: 'موقع المشروع' })).toBeVisible()
   })
@@ -430,16 +632,16 @@ test.describe('desktop 1440', () => {
     await page.goto('/opportunity-map')
     await searchFor(page, 'أدوات صحية')
     const chips = page.getByRole('group', { name: 'الأحياء', exact: true })
-    await expect(chips.getByRole('button', { name: /العليا · 3/ })).toBeVisible()
-    await chips.getByRole('button', { name: /الملك فيصل · 2/ }).click()
-    await expect(counter(page, 'n')).toHaveText('2')
+    await expect(chips.getByRole('button', { name: /العليا · ٣/ })).toBeVisible()
+    await chips.getByRole('button', { name: /الملك فيصل · ٢/ }).click()
+    await expect(counter(page, 'n')).toHaveText('٢')
     await expect(page.locator('[data-pin="main"]')).toHaveCount(2) // pins by district name, framed on the rows
   })
 
   test('«طلب جديد», «طلباتي» with audit, selling flow', async ({ page }) => {
     const { writes, searches, saved, orgHeaders, listQueries } = await setup(page)
     await page.goto('/opportunity-map')
-    await page.getByText('طلباتي').click()
+    await openMyRequests(page)
     await expect(page.getByRole('listitem').filter({ hasText: 'مواسير PPR — الرياض' }).getByText(/2026.* · 3 جمادى الأولى 1448 هـ/)).toBeVisible()
     await page.getByRole('button', { name: 'إلغاء الطلب', exact: true }).first().click()
     await page.getByLabel('السبب (اختياري)').fill('تغيّرت الكمية')
@@ -462,7 +664,7 @@ test.describe('desktop 1440', () => {
     await page.getByRole('button', { name: 'ابحث عن مشترين (2)' }).click()
     await expect.poll(() => searches.length).toBe(1)
     expect(searches[0]).toMatchObject({ q: 'مواسير وتمديدات', objective: 'marketing' })
-    await expect(page.getByRole('radio', { name: 'مشترون — أبي أبيع' })).toBeChecked()
+    await expect(page.getByRole('tab', { name: 'ابحث عن مشترين' })).toHaveAttribute('aria-selected', 'true')
     await expect.poll(() => saved.length).toBe(1)
     expect(saved[0]).toMatchObject({ kind: 'SELLER_PRODUCTS', payload: { city: 'الرياض', products: ['مواسير وتمديدات', 'خلاطات وأدوات صحية'] } })
     expect(writes).toEqual([])
@@ -476,7 +678,7 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('dialog', { name: 'طلب جديد', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'إغلاق' }).click()
     await expect(page).toHaveURL(/\/opportunity-map$/)
-    await page.getByText('طلباتي').click()
+    await openMyRequests(page)
     await expect(page.getByText(/قريباً: تتابع هنا طلباتك/)).toBeVisible()
   })
 })
@@ -486,7 +688,7 @@ test.describe('desktop 1440 viewer', () => {
   test('VIEWER reads «طلباتي» and its audit but has no actions', async ({ page }) => {
     await setup(page, { role: 'VIEWER' })
     await page.goto('/opportunity-map')
-    await page.getByText('طلباتي').click()
+    await openMyRequests(page)
     await expect(page.getByText('صلاحيتك مشاهدة فقط.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'السجل', exact: true }).first()).toBeVisible()
     for (const name of ['إلغاء الطلب', 'إخفاء', 'إظهار', 'أرشفة', 'استرجاع']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
@@ -499,20 +701,37 @@ test.describe('mobile 390', () => {
   test('counters, map, district, drawer sheet, tray', async ({ page }) => {
     const { writes } = await setup(page)
     await page.goto('/opportunity-map')
-    await expect(page.getByTestId('map-steps')).toHaveText(/الخطوة ١ من ٤\s*اكتب وش تبي/)
+    await expect(page.getByTestId('map-steps')).toContainText(/الخطوة ٢ من ٤\s*شوف الشوارع والأحياء الأكثف/)
+    // the map gets most of the screen; the sheet opens on the dense streets, not on the results
+    const mapBox = (await page.getByRole('region', { name: 'خريطة الفرص' }).boundingBox())!
+    expect(mapBox.height).toBeGreaterThanOrEqual(844 * 0.55 - 2)
+    await expect(page.getByRole('tab', { name: 'الشوارع' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId('dense-streets').getByRole('button')).toHaveCount(4)
+    await expect(page.locator('[data-street]')).toHaveCount(4)
+    await page.screenshot({ path: `${SHOTS4}/mobile-1-open.png` })
+    await page.getByTestId('dense-streets').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `${SHOTS4}/mobile-2-streets-list.png` })
+    await page.getByRole('group', { name: 'نشاط الشوارع' }).getByRole('button', { name: `${MAIN_ELEC} · ١` }).click()
+    await expect(page.locator('[data-street]')).toHaveCount(1)
+    await page.getByRole('group', { name: 'نشاط الشوارع' }).scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `${SHOTS4}/mobile-3-activity.png` })
+    await page.getByRole('group', { name: 'نشاط الشوارع' }).getByRole('button', { name: 'الكل', exact: true }).click()
+    await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: `${SHOTS}/mobile-1-start.png` })
     await page.screenshot({ path: `${SHOTS3}/mobile-1-start.png` })
     await searchFor(page, 'جملة أدوات صحية')
-    await expect(page.getByRole('button', { name: 'جملة فقط · 2', exact: true })).toHaveAttribute('aria-pressed', 'false')
-    await expect(counter(page, 'n')).toHaveText('6')
+    await expect(page.getByRole('button', { name: 'جملة فقط · ٢', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await expect(counter(page, 'n')).toHaveText('٦')
     await expect(page.getByTestId('map-steps')).toHaveText(/الخطوة ٢ من ٤/)
     await expect(page.locator('[data-street]')).toHaveCount(3)
     await page.screenshot({ path: `${SHOTS3}/mobile-2-dense-streets.png` })
     await pickDistrict(page, 'الملك فيصل')
     await expect(page.locator('[data-pin="main"]')).toHaveCount(2)
     await page.screenshot({ path: `${SHOTS3}/mobile-3-district.png` })
-    await expect(counter(page, 'n')).toHaveText('2')
+    await expect(counter(page, 'n')).toHaveText('٢')
     await page.screenshot({ path: `${SHOTS}/mobile-2-district.png` })
+    await page.screenshot({ path: `${SHOTS4}/mobile-4-district.png` })
+    await page.getByRole('tab', { name: /النتائج/ }).click()
     await page.locator('li[data-key="1"]').getByRole('button').first().click()
     const drawer = page.getByTestId('profile-drawer')
     await expect(drawer).toContainText('قناة واتساب متاحة للإرسال عبر فرق')
@@ -533,5 +752,57 @@ test.describe('mobile 390', () => {
     await page.screenshot({ path: `${SHOTS}/mobile-5-tray-open.png` })
     expect(writes).toEqual([])
     await nothingStored(page)
+  })
+
+  test('search filters wrap into the viewport and remain reachable without horizontal page overflow', async ({ page }) => {
+    await setup(page)
+    await page.goto('/opportunity-map')
+    await searchFor(page, 'أدوات صحية')
+
+    const filters = page.getByRole('group', { name: 'تضييق النتائج' })
+    await filters.scrollIntoViewIfNeeded()
+    await expect(filters).toBeVisible()
+    const geometry = await filters.evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }))
+    expect(geometry.scroll).toBeLessThanOrEqual(geometry.client + 1)
+    await expect(filters.locator('select')).toHaveCount(4)
+    for (const control of await filters.locator('select').all()) {
+      await expect(control).toBeVisible()
+      const box = (await control.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(-1)
+      expect(box.x + box.width).toBeLessThanOrEqual(391)
+    }
+    const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth)
+    expect(pageWidth).toBeLessThanOrEqual(391)
+  })
+})
+
+test.describe('map responsive edge cases', () => {
+  test('filter controls fit the narrow desktop browser pane without horizontal page scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 682, height: 965 })
+    await setup(page)
+    await page.goto('/opportunity-map')
+    await searchFor(page, 'أدوات صحية')
+
+    const geometry = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }))
+    expect(geometry.document).toBeLessThanOrEqual(geometry.viewport + 1)
+    expect(geometry.body).toBeLessThanOrEqual(geometry.viewport + 1)
+  })
+
+  test('malformed district objects never leak into filters, result cards, or the profile', async ({ page }) => {
+    await setup(page, { malformedDistrict: true })
+    await page.goto('/opportunity-map')
+    await searchFor(page, 'أدوات صحية')
+
+    const rawDistrict = '{"id": null, "name_ar": null, "name_en": null}'
+    await expect(page.getByRole('group', { name: 'تضييق النتائج' })).not.toContainText(rawDistrict)
+    const malformedRow = page.locator('li[data-key="7"]')
+    await expect(malformedRow).toBeVisible()
+    await expect(malformedRow).not.toContainText(rawDistrict)
+    await malformedRow.getByRole('button').click()
+    await expect(page.getByTestId('profile-drawer')).not.toContainText(rawDistrict)
   })
 })

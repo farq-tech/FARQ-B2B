@@ -10,6 +10,7 @@ relations, and the row-level classification `poi_taxonomy.parquet` (poi_key -> s
 Nothing here contacts anyone or reads contact details beyond what the existing search already returns.
 """
 import csv, json, os, re, threading, urllib.request
+from functools import lru_cache
 
 TR = str.maketrans('أإآةىؤئ', 'اااهيوي')
 PFX = ('وال', 'بال', 'لل', 'ال')          # multi-letter only: «بورد» must not become «ورد»
@@ -84,6 +85,22 @@ class Taxonomy:
         tax = json.load(open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8'))
         self.subs = {s['sub_id']: s for s in tax['subs']}
         self.families = {r['family_id']: r for r in csv.DictReader(open(os.path.join(tax_dir, 'product_families.csv'), encoding='utf-8-sig'))}
+        # Canonical family labels are exact anchors. The token scorer below is
+        # useful for fuzzy natural-language queries, but can let an overlapping
+        # word («water», «panel», «nuts») replace the product the buyer named.
+        self.family_labels = {}
+        for fid, family in self.families.items():
+            for field in ('family_ar', 'family_en'):
+                label = norm(family.get(field, ''))
+                if label:
+                    self.family_labels.setdefault(label, set()).add(fid)
+        self.example_labels = {}
+        for fid, family in self.families.items():
+            for field in ('examples_ar', 'examples_en'):
+                for example in (family.get(field) or '').split('|'):
+                    label = norm(example)
+                    if len(label) >= 3:
+                        self.example_labels.setdefault(label, set()).add(fid)
         self.rel = {'sells': {}, 'buys': {}}
         for r in csv.DictReader(open(os.path.join(tax_dir, 'sub_family_relations.csv'), encoding='utf-8-sig')):
             self.rel[r['relation']].setdefault(r['family_id'], []).append((r['sub_id'], STRENGTH[r['strength']]))
@@ -155,6 +172,80 @@ class Taxonomy:
                     self.sub_terms.setdefault(v, set()).add(sid)
                     if not mined: self.market_terms.add(v)
         self.max_n = max(len(t.split()) for t in list(self.terms) + list(self.sub_terms) + list(self.spec_terms))
+
+    def _analytics_rows(self, city, sub_ids=(), districts=(), precise=True):
+        """Return per-subcategory city counts from the golden targets, joined to trusted taxonomy rows."""
+        return _cached_analytics_rows(self.poi_taxonomy, city, tuple(sorted(set(sub_ids))),
+                                      tuple(sorted(set(districts))), bool(precise))
+
+    def get_district_counts(self, city='Riyadh', sub_ids=None):
+        rows = _cached_district_counts(self.poi_taxonomy, city, tuple(sorted(set(sub_ids or ()))))
+        return sorted([{'district_ar': district, 'n': n, 'n_wholesale': wholesale, 'n_whatsapp': whatsapp}
+                       for district, n, wholesale, whatsapp in rows if district],
+                      key=lambda x: (-x['n'], x['district_ar']))
+
+    def get_who_buys(self, city='Riyadh', sub_ids=None, q=None):
+        """Buyer-trade estimates; relation strengths map directly to core (2) and common (1)."""
+        subject_ids = set(sub_ids or ())
+        label = (q or '').strip()
+        weights = {}
+        families = set()
+        if q:
+            understood = self.understand(q, 'marketing')
+            weights = dict(understood.get('targets') or {})
+            subject_ids = set(understood.get('named_subs') or []) or set(weights)
+            families = set(understood.get('families') or [])
+            labels = [self.families[f]['family_ar'] for f in families if f in self.families]
+            if labels:
+                label = '، '.join(labels)
+        elif subject_ids:
+            families = {fid for fid, sellers in self.rel['sells'].items()
+                        if any(sid in subject_ids for sid, _ in sellers)}
+            for fid in families:
+                for sid, strength in self.rel['buys'].get(fid, []):
+                    if sid in self.subs and sid not in subject_ids:
+                        weights[sid] = max(weights.get(sid, 0), strength)
+            label = '، '.join(self.subs[s]['sub_ar'] for s in sorted(subject_ids) if s in self.subs)
+        counts = {}
+        for _, sid, n, _wholesale, whatsapp, *_ in self._analytics_rows(city):
+            counts[sid] = (counts.get(sid, (0, 0))[0] + n, counts.get(sid, (0, 0))[1] + whatsapp)
+        buyers = []
+        for sid, strength in weights.items():
+            if sid not in self.subs or not counts.get(sid, (0, 0))[0]:
+                continue
+            sub = self.subs[sid]
+            buyers.append({'sub_id': sid, 'sub_ar': sub['sub_ar'], 'main_id': sub['main_id'],
+                           'main_ar': sub['main_ar'], 'strength': 'core' if strength >= 2 else 'common',
+                           'n': counts[sid][0], 'n_whatsapp': counts[sid][1]})
+        buyers.sort(key=lambda x: (x['strength'] != 'core', -x['n'], x['sub_ar']))
+        subject_ids = sorted(s for s in subject_ids if s in self.subs)
+        if not label and subject_ids:
+            label = '، '.join(self.subs[s]['sub_ar'] for s in subject_ids)
+        return {'buyers': buyers[:30], 'subject': {'sub_ids': subject_ids, 'label_ar': label},
+                'basis': 'أعداد المنشآت المصنفة ذات الموقع الدقيق والحي الموثوق في المدينة؛ العلاقة لا تثبت نية شراء فعلية'}
+
+    def get_market_summary(self, city='Riyadh', sub_ids=None, districts=None):
+        precise_rows = _cached_summary_rows(self.poi_taxonomy, city, tuple(sorted(set(sub_ids or ()))),
+                                            tuple(sorted(set(districts or ()))), True)
+        approx_rows = _cached_summary_rows(self.poi_taxonomy, city, tuple(sorted(set(sub_ids or ()))),
+                                           tuple(sorted(set(districts or ()))), False)
+        grouped = {r[0]: r[1] for r in precise_rows if r[0]}
+        total = sum(r[1] for r in precise_rows)
+        wholesale = sum(r[2] for r in precise_rows)
+        whatsapp = sum(r[3] for r in precise_rows)
+        specialties = sum(r[4] for r in precise_rows)
+        cr = sum(r[5] for r in precise_rows)
+        approx = sum(r[1] for r in approx_rows)
+        top = sorted(({'district_ar': d, 'n': n} for d, n in grouped.items()), key=lambda x: (-x['n'], x['district_ar']))[:5]
+        street = _densest_street(self.poi_taxonomy, city, sub_ids or (), districts or ())
+        summary = {'total': total, 'districts_count': len(grouped), 'top_districts': top,
+                   'densest_street': street, 'n_wholesale': wholesale, 'n_whatsapp': whatsapp,
+                   'n_specialties': specialties, 'n_approx': approx,
+                   'basis': 'إحصاءات التصنيف الموثوق والموقع الدقيق؛ المنشآت التقريبية معروضة في n_approx'}
+        if _has_column(os.path.join(os.path.dirname(self.poi_taxonomy), 'targets.parquet'), 'commercial_license'):
+            summary['n_cr'] = cr
+        return summary
+
 
     def _grams(self, q):
         raw = norm(q).split()
@@ -247,6 +338,148 @@ class Taxonomy:
                             found |= self.sub_terms.get(v, set())
         return sorted(found)
 
+    def _precise_purchase_context(self, q):
+        """Resolve high-signal procurement phrases before broad token matches can cross industries.
+
+        Short aliases such as «مياه», «شفط», «LED» and English «nuts» occur in unrelated trades.
+        For explicit technical item language, prefer its narrow commercial activity and do not
+        pad the result with loosely related categories. This is a small deterministic guard;
+        ambiguous one-word requests continue through the normal resolver.
+        """
+        t = ' ' + norm(q) + ' '
+        def has(*terms):
+            return any(f' {norm(term)} ' in t for term in terms)
+
+        # Equipment attached to an access-control gate is backup power, not an
+        # access-control system request. Keep both electrical and UPS sellers.
+        if has('ups', 'uninterruptible power supply') and has('access control', 'gate', 'server', 'network'):
+            return 'it_servers_storage', {'elec.it_networking_supply': 3.0, 'build.electrical_supply': 2.0}
+
+        # Emergency batteries specified for luminaires are lighting accessories,
+        # not automotive batteries or towing businesses.
+        if has('emergency battery', 'emergency batteries', 'battery for light', 'battery for 120cm', 'battery for 60x60'):
+            return 'mep_lighting', 'build.lighting_supply'
+
+        # Named Philips luminaire models and their mounting/emergency accessories.
+        if has('philips') and has('wt065c', 'wto65c', 'dno69b', 'd l 2000l', 'd l2000l', 'dl2000l', 'd200', 'exit up', 'exit down',
+                                 'emergency bulkhead', 'frame surface', 'panel 60x60'):
+            return 'mep_lighting', 'build.lighting_supply'
+        if has('exit up', 'exit down', 'exit sign', 'emergency bulkhead', 'downlight', 'panel light'):
+            return 'mep_lighting', 'build.lighting_supply'
+
+        # Storage tanks are separate from tanker water, cleaning and waterproofing.
+        if has('holding tank', 'water tank', 'grp tank', 'grp holding tank', 'خزان مياه', 'خزانات مياه'):
+            return 'mep_water_tanks', 'build.pumps_tanks'
+
+        # Bolt/washer words or a nut with a steel grade/metric size identify mechanical fasteners,
+        # not edible nuts. A bare «nuts» remains ambiguous and is handled by the regular resolver.
+        metric_size = bool(re.search(r'\bm\s?\d{2,3}\b', t))
+        if (has('bolt', 'bolts', 'washer', 'washers', 'screw', 'screws', 'fastener', 'fasteners',
+                'برغي', 'براغي', 'مسامير', 'صامولة', 'صواميل', 'ورد', 'رنديلة')
+                or (metric_size and has('nut', 'nuts', 'صامولة', 'صواميل'))):
+            return 'tool_fasteners', 'build.fasteners'
+
+        # Keep valves under irrigation when the BOQ section supplies that context.
+        if has('irrigation') and has('washout', 'wash-out', 'air release valve', 'flow sensor valve',
+                                     'master valve', 'backflow preventer'):
+            return 'mep_irrigation', {'build.pipes_fittings': 3.0, 'build.landscaping_supply': 2.0}
+
+        # «valve» and a water/diameter mention should resolve to pipe/valve suppliers, not bottled water.
+        if has('valve', 'valves', 'صمام', 'صمامات', 'air release valve', 'backflow valve',
+               'backflow preventer', 'gate valve', 'flow sensor valve', 'master valve',
+               'wash-out with chamber', 'صمام هواء'):
+            return 'mep_pipes_fittings', 'build.pipes_fittings'
+
+        # A potable-water connection is plumbing work, not a beverage product.
+        if has('potable water connection', 'water connection to', 'وصلة مياه شرب', 'توصيل مياه شرب'):
+            return 'mep_pipes_fittings', 'contract.plumbing'
+
+        # Meter shades and security gates are made-to-order metalwork.
+        if has('shade for water meter', 'water meter shade'):
+            return 'tsv_steel_fabrication', 'build.metal_fabrication'
+        if (has('security fence and gates')
+                or (has('chainlink', 'chain link') and has('gate', 'gates'))):
+            return 'tsv_steel_fabrication', 'build.metal_fabrication'
+
+        # Keep measured concrete and paver work out of generic cement/chemical
+        # matches. The civil contractor may execute it; ready-mix supplies material.
+        if has('interlock block pavers', 'interlock block paver', 'interlock paver', 'interlocking pavers'):
+            return 'bld_interlock', {'build.interlock_pavers': 3.0, 'ind.concrete_products': 2.0}
+        if has('surface preparation with power floating', 'power floating on slab'):
+            return 'bld_ready_mix', {'contract.civil_infra': 3.0, 'contract.general': 2.0}
+        if has('concrete screed', 'concrete pss ramp', 'concrete access ramp', 'rigid concrete slab'):
+            return 'bld_ready_mix', {'build.ready_mix': 3.0, 'contract.civil_infra': 2.0}
+
+        # Filters and sand-trap louvers are HVAC equipment despite “panel” and “sand”.
+        if has('sand trap louver', 'sand-trap louver', 'panel air filter', 'panel air filters'):
+            return 'mep_ducts_ventilation', 'build.hvac_supply'
+
+        # Cast-iron drainage pipes are plumbing products, not landscape stock.
+        if (has('soil waste vent piping', 'soil waste vent drain pipe', 'soil waste vent drain pipes')
+                or (has('cast iron', 'cast-iron') and has('pipe', 'pipes', 'piping'))):
+            return 'mep_pipes_fittings', {'build.pipes_fittings': 3.0, 'build.plumbing_supply': 2.0}
+
+        if has('communication', 'communications', 'network') and has('duct bank', 'handhole', 'manhole', 'pathway'):
+            return 'mep_wiring_accessories', {'elec.it_networking_supply': 3.0, 'build.electrical_supply': 2.0}
+
+        if has('مروحة', 'مراوح', 'شفاط', 'شفاطات', 'exhaust fan', 'exhaust fans', 'ventilation', 'industrial fan'):
+            return 'mep_ducts_ventilation', 'build.hvac_supply'
+
+        if has('مواسير كهرباء', 'مواسير pvc كهرباء', 'pvc conduit', 'electrical conduit', 'duct bank', 'handhole'):
+            return 'mep_wiring_accessories', 'build.electrical_supply'
+
+        if has('مقبس', 'مقابس', 'socket', 'sockets', 'فيش', 'افياش', 'duplex socket'):
+            return 'mep_wiring_accessories', 'build.electrical_supply'
+
+        if (has('إنارة', 'اضاءة', 'led', 'بانل', 'panel', 'emergency light', 'emergency lighting', 'downlight')
+                and (has('فيليبس', 'philips', '60x60', '50w', '34w', '18w', 'طوارئ', 'light', 'lighting', 'بانل', 'panel'))):
+            return 'mep_lighting', 'build.lighting_supply'
+        return None
+
+    def _exact_family(self, q):
+        """Return a uniquely named canonical family after removing intent words."""
+        text = norm(q)
+        filler = (set(BUY_CUES) - {'محلات'}) | {
+            'i', 'im', 'ive', 'please', 'find', 'get', 'want', 'looking', 'where', 'can', 'you', 'me', 'us',
+            'for', 'of', 'the', 'a', 'an', 'to', 'from', 'with', 'need', 'needed', 'buy', 'purchase',
+            'ابي', 'ابغى', 'ابغي', 'ادور', 'احتاج', 'نحتاج', 'مورد', 'موردين',
+        }
+        if text in self.family_labels and len(self.family_labels[text]) == 1:
+            return next(iter(self.family_labels[text]))
+        tokens = text.split()
+        while tokens and tokens[0] in filler: tokens.pop(0)
+        while tokens and tokens[-1] in filler: tokens.pop()
+        core = ' '.join(tokens)
+        if core in self.family_labels and len(self.family_labels[core]) == 1:
+            return next(iter(self.family_labels[core]))
+        return None
+
+    def _exact_example(self, q):
+        """Resolve a complete named example; ambiguous aliases fail closed."""
+        filler = (set(BUY_CUES) - {'محلات'}) | {
+            'i', 'im', 'ive', 'please', 'find', 'get', 'want', 'looking', 'where', 'can', 'you', 'me', 'us',
+            'for', 'of', 'the', 'a', 'an', 'to', 'from', 'with', 'need', 'needed', 'buy', 'purchase',
+            'ابي', 'ابغى', 'ابغي', 'ادور', 'احتاج', 'نحتاج', 'مورد', 'موردين',
+        }
+        tokens = norm(q).split()
+        while tokens and tokens[0] in filler: tokens.pop(0)
+        while tokens and tokens[-1] in filler: tokens.pop()
+        core = ' '.join(tokens)
+        ids = set(self.example_labels.get(core, ()))
+        if not ids:
+            return None
+        if len(ids) > 1:
+            return {'ambiguous': sorted(ids)}
+        family_id = next(iter(ids))
+        if len(core.split()) == 1:
+            expected = {sub for sub, _ in self.rel['sells'].get(family_id, []) if self._sub_ok(sub)}
+            named, _ = self.subs_in(core)
+            if set(named) - expected:
+                # A bare word also names businesses in other trades («معارض» can
+                # be a property showroom or an events venue). Ask for context.
+                return {'ambiguous': [family_id]}
+        return {'family_id': family_id}
+
     def _sub_ok(self, sub):
         return self.subs[sub]['commercial'] in (True, 'yes')
 
@@ -254,6 +487,51 @@ class Taxonomy:
         """One resolver over the three levels (specialty → subcategory → product family). The most specific level the request
         names anchors the targets; broader levels only describe it. Root cause fixed 2026-10-16: the family list used to decide
         first and the specialty was a late override, so «شريط …» became «لواصق وأشرطة» sold by hardware and rubber shops."""
+        if objective != 'marketing':
+            # A complete canonical phrase beats incidental matches in its words.
+            exact_family = self._exact_family(q)
+            if exact_family:
+                targets = {sub: (3.0 if strength >= 2 else 2.0)
+                           for sub, strength in self.rel['sells'].get(exact_family, []) if self._sub_ok(sub)}
+                if targets:
+                    return {'families': [exact_family], 'named_subs': [], 'relation': 'sells',
+                            'targets': targets, 'source': 'exact_family', 'specialties': [],
+                            'anchor': 'family', 'fallback_targets': {}}
+
+            exact_example = self._exact_example(q)
+            if exact_example and exact_example.get('ambiguous'):
+                return {'families': [], 'named_subs': [], 'relation': 'sells', 'targets': {},
+                        'source': 'ambiguous_exact_example', 'specialties': [], 'anchor': 'none',
+                        'fallback_targets': {}, 'candidate_families': exact_example['ambiguous']}
+            if exact_example and exact_example.get('family_id'):
+                family_id = exact_example['family_id']
+                expected = {sub: (3.0 if strength >= 2 else 2.0)
+                            for sub, strength in self.rel['sells'].get(family_id, []) if self._sub_ok(sub)}
+                # A matching specialty narrows the result only when its supplier
+                # subcategory is already an approved seller of this exact family.
+                specs, _ = self.spec_hits(q)
+                specs = [spec for spec in specs if self._sub_ok(self.specs[spec]['sub_id'])
+                         and self.specs[spec]['sub_id'] in expected]
+                if specs:
+                    refined = self._from_specialties(q, specs, 'purchase', 'sells')
+                    targets = {sub: score for sub, score in refined['targets'].items() if sub in expected}
+                else:
+                    targets = expected
+                if targets:
+                    return {'families': [family_id], 'named_subs': list(targets), 'relation': 'sells',
+                            'targets': targets, 'source': 'exact_example', 'specialties': specs,
+                            'anchor': 'specialty' if specs else 'family', 'fallback_targets': {}}
+
+            precise = self._precise_purchase_context(q)
+            if precise:
+                family, scope = precise
+                targets = scope if isinstance(scope, dict) else {scope: 3.0}
+                # A confident technical phrase is a hard scope boundary. Returning no
+                # candidates from another trade is safer than inventing cross-category leads.
+                return {'families': [family], 'named_subs': list(targets), 'relation': 'sells',
+                        'targets': targets, 'source': 'taxonomy_context', 'specialties': [],
+                        'anchor': 'context', 'fallback_targets': {}}
+
         specs, pscore = self.spec_hits(q)
         specs = [x for x in specs if self._sub_ok(self.specs[x]['sub_id'])]
         fams, fscore = self.families_in(q)
@@ -355,6 +633,12 @@ class Taxonomy:
         if not hasattr(self, '_dir_cols'):
             self._dir_cols = {c[0] for c in db.execute('describe select * from read_parquet(?)', [directory_path]).fetchall()}
         spec_col += (", t.street_ar" if 'street_ar' in self._dir_cols else ", null") + (", coalesce(t.is_wholesale,false)" if 'is_wholesale' in self._dir_cols else ", false")
+        # owner 2026-10-16: a business sitting on a city/district centre is not drawn on the map and not counted in a district filter
+        spec_col += (", coalesce(t.location_precision,'point'), coalesce(t.district_reliable,true)" if 'location_precision' in self._dir_cols else ", 'point', true")
+        spec_col += (", coalesce(t.role_badges,''), coalesce(t.specialty_concepts_ar,'')" if 'role_badges' in self._dir_cols else ", '', ''")
+        # «منشأة سعودية» (owner 2026-10-16): a commercial registration / municipal licence on file — presence only, never the number
+        spec_col += ", t.commercial_license is not null" if 'commercial_license' in self._dir_cols else ", false"
+        spec_col += (", try_cast(t.rating as double)" if 'rating' in self._dir_cols else ", null") + (", t.source_count" if 'source_count' in self._dir_cols else ", null")
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
@@ -379,7 +663,7 @@ class Taxonomy:
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
              source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
-             street, is_ws) = r
+             street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -419,9 +703,13 @@ class Taxonomy:
                 extra = {**extra, 'hudhud_deleted': True, 'sendable': False,
                          'warning': 'حذفها مسّاحو هدهد بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
             out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000 - (100 if hh_deleted else 0), {
-                'poi_key': key, 'name_ar': name, 'category_ar': cat_ar, 'district_ar': district, 'latitude': lat, 'longitude': lon,
+                'poi_key': key, 'name_ar': display_name(name), 'category_ar': cat_ar, 'district_ar': district if district_ok else '',
+                'latitude': lat if loc_precision == 'point' else None, 'longitude': lon if loc_precision == 'point' else None,
                 'city_en': city_en, 'region_ar': region_ar, 'region_en': region_en, 'name_en': name_en, 'phone': phone, 'phone_kind': phone_kind,
-                'has_whatsapp': bool(wa), 'email': email, 'street_ar': street, 'is_wholesale': bool(is_ws), 'source_count': source_count, 'category': category, 'legal_name': legal,
+                'has_whatsapp': bool(wa), 'email': email, 'street_ar': street, 'is_wholesale': bool(is_ws),
+                'location_precision': loc_precision, 'district_reliable': bool(district_ok), 'saudi_registered': bool(has_licence),
+                'completeness_pct': float(complete or 0), 'rating': rating, 'sources_count': n_sources,
+                'role_badges': [x for x in (role_badges or '').split('|') if x], 'specialties': [x for x in (concepts or '').split('، ') if x], 'source_count': source_count, 'category': category, 'legal_name': legal,
                 'brand_name': brand, 'secondary_category': secondary, 'category_l3': l3, '_status': (company_status, lifecycle),
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
@@ -454,6 +742,159 @@ class Taxonomy:
 # Default delivery/service radius by business type until the supplier sets its own (owner rule 2026-10-16: delivery radius is a
 # primary filter beside specialty and confidence). Factories deliver nationwide, wholesalers across the region, shops and
 # technicians within the city.
+_PHONE_IN_NAME = re.compile(r'(?:\+?966|00966)?[\s\-]*0?5[\d\s\-]{8,}|[\d٠-٩][\d٠-٩\s\-]{6,}[\d٠-٩]')
+@lru_cache(maxsize=256)
+def _cached_analytics_rows(poi_taxonomy, city, sub_ids, districts, precise):
+    """Bounded cache for exact or approximate city aggregates; no contact data is selected."""
+    import duckdb
+    targets = os.path.join(os.path.dirname(poi_taxonomy), 'targets.parquet')
+    if not os.path.isfile(targets):
+        return ()
+    schema_db = duckdb.connect()
+    try:
+        columns = {r[0] for r in schema_db.execute('describe select * from read_parquet(?)', [targets]).fetchall()}
+    finally:
+        schema_db.close()
+    has = lambda name: name in columns
+    where = ["t.city_en = ?", "p.confidence in ('high','medium')", "p.sub_id is not null"]
+    params = [targets, poi_taxonomy, city]
+    if precise:
+        where += ["coalesce(t.location_precision,'point') = 'point'", "coalesce(t.district_reliable,true)",
+                  "t.latitude is not null", "t.longitude is not null"]
+    else:
+        where.append("coalesce(t.location_precision,'approximate') <> 'point'")
+    if sub_ids:
+        where.append("p.sub_id in (select unnest(?::varchar[]))"); params.append(list(sub_ids))
+    if districts:
+        where.append("t.district_ar in (select unnest(?::varchar[]))"); params.append(list(districts))
+    wholesale = "coalesce(t.is_wholesale,false)" if has('is_wholesale') else 'false'
+    whatsapp = "coalesce(t.has_whatsapp,false)" if has('has_whatsapp') else 'false'
+    specialty = "coalesce(nullif(t.specialty_ids,''), nullif(t.specialty_concept_ids,'')) is not null" if has('specialty_ids') and has('specialty_concept_ids') else ("coalesce(t.specialty_ids,'') <> ''" if has('specialty_ids') else 'false')
+    cr = "t.commercial_license is not null" if has('commercial_license') else 'false'
+    db = duckdb.connect()
+    try:
+        query = f"""select coalesce(t.district_ar,''), p.sub_id,
+            count(distinct t.poi_key), count(distinct t.poi_key) filter (where {wholesale}),
+            count(distinct t.poi_key) filter (where {whatsapp}),
+            count(distinct t.poi_key) filter (where {specialty}),
+            count(distinct t.poi_key) filter (where {cr})
+            from read_parquet(?) t join read_parquet(?) p using (poi_key)
+            where {' and '.join(where)} group by 1,2"""
+        return tuple(tuple(row) for row in db.execute(query, params).fetchall())
+    finally:
+        db.close()
+
+
+@lru_cache(maxsize=256)
+def _cached_district_counts(poi_taxonomy, city, sub_ids):
+    import duckdb
+    targets = os.path.join(os.path.dirname(poi_taxonomy), 'targets.parquet')
+    columns = _parquet_columns(targets)
+    where = ["t.city_en = ?", "p.confidence in ('high','medium')", "p.sub_id is not null",
+             "coalesce(t.location_precision,'point') = 'point'", "coalesce(t.district_reliable,true)",
+             "t.latitude is not null", "t.longitude is not null"]
+    params = [targets, poi_taxonomy, city]
+    if sub_ids:
+        where.append("p.sub_id in (select unnest(?::varchar[]))"); params.append(list(sub_ids))
+    wholesale = 'coalesce(t.is_wholesale,false)' if 'is_wholesale' in columns else 'false'
+    whatsapp = 'coalesce(t.has_whatsapp,false)' if 'has_whatsapp' in columns else 'false'
+    db = duckdb.connect()
+    try:
+        return tuple(tuple(r) for r in db.execute(f"""select coalesce(t.district_ar,''), count(distinct t.poi_key),
+            count(distinct t.poi_key) filter (where {wholesale}),
+            count(distinct t.poi_key) filter (where {whatsapp})
+            from read_parquet(?) t join read_parquet(?) p using (poi_key)
+            where {' and '.join(where)} group by 1""", params).fetchall())
+    finally:
+        db.close()
+
+
+@lru_cache(maxsize=256)
+def _cached_summary_rows(poi_taxonomy, city, sub_ids, districts, precise):
+    import duckdb
+    targets = os.path.join(os.path.dirname(poi_taxonomy), 'targets.parquet')
+    columns = _parquet_columns(targets)
+    where = ["t.city_en = ?", "p.confidence in ('high','medium')", "p.sub_id is not null"]
+    params = [targets, poi_taxonomy, city]
+    where.extend(["coalesce(t.location_precision,'point') = 'point'", "coalesce(t.district_reliable,true)",
+                  "t.latitude is not null", "t.longitude is not null"] if precise else
+                 ["coalesce(t.location_precision,'approximate') <> 'point'"])
+    if sub_ids:
+        where.append("p.sub_id in (select unnest(?::varchar[]))"); params.append(list(sub_ids))
+    if districts:
+        where.append("t.district_ar in (select unnest(?::varchar[]))"); params.append(list(districts))
+    wholesale = 'coalesce(t.is_wholesale,false)' if 'is_wholesale' in columns else 'false'
+    whatsapp = 'coalesce(t.has_whatsapp,false)' if 'has_whatsapp' in columns else 'false'
+    if 'specialty_ids' in columns and 'specialty_concept_ids' in columns:
+        specialty = "coalesce(nullif(t.specialty_ids,''),nullif(t.specialty_concept_ids,'')) is not null"
+    elif 'specialty_ids' in columns:
+        specialty = "coalesce(t.specialty_ids,'') <> ''"
+    elif 'specialty_concept_ids' in columns:
+        specialty = "coalesce(t.specialty_concept_ids,'') <> ''"
+    else:
+        specialty = 'false'
+    cr = 't.commercial_license is not null' if 'commercial_license' in columns else 'false'
+    db = duckdb.connect()
+    try:
+        return tuple(tuple(r) for r in db.execute(f"""select coalesce(t.district_ar,''), count(distinct t.poi_key),
+            count(distinct t.poi_key) filter (where {wholesale}),
+            count(distinct t.poi_key) filter (where {whatsapp}),
+            count(distinct t.poi_key) filter (where {specialty}),
+            count(distinct t.poi_key) filter (where {cr})
+            from read_parquet(?) t join read_parquet(?) p using (poi_key)
+            where {' and '.join(where)} group by 1""", params).fetchall())
+    finally:
+        db.close()
+
+
+@lru_cache(maxsize=16)
+def _has_column(path, column):
+    return column in _parquet_columns(path)
+
+
+@lru_cache(maxsize=16)
+def _parquet_columns(path):
+    if not os.path.isfile(path):
+        return frozenset()
+    import duckdb
+    db = duckdb.connect()
+    try:
+        return frozenset(r[0] for r in db.execute('describe select * from read_parquet(?)', [path]).fetchall())
+    finally:
+        db.close()
+
+
+def _densest_street(poi_taxonomy, city, sub_ids=(), districts=()):
+    """Read the precomputed dense-street index and return its strongest matching street."""
+    import duckdb
+    path = os.path.join(os.path.dirname(poi_taxonomy), 'street_density.parquet')
+    if not os.path.isfile(path):
+        return None
+    where = ['city_en = ?']
+    params = [path, city]
+    if sub_ids:
+        where.append('sub_id in (select unnest(?::varchar[]))'); params.append(list(sub_ids))
+    if districts:
+        where.append('district_ar in (select unnest(?::varchar[]))'); params.append(list(districts))
+    db = duckdb.connect()
+    try:
+        row = db.execute(f"""select street_ar, district_ar, sum(n), max(length_m), max(per_100m), any_value(sub_ar)
+            from read_parquet(?) where {' and '.join(where)} group by street_ar, district_ar
+            order by sum(n) desc limit 1""", params).fetchone()
+        if not row:
+            return None
+        return {'street_ar': row[0], 'district_ar': row[1], 'n': int(row[2]),
+                'length_m': float(row[3] or 0), 'per_100m': float(row[4] or 0), 'sub_ar': row[5]}
+    finally:
+        db.close()
+
+
+def display_name(n):
+    """Owner 2026-10-16: no contact number is ever shown — some businesses put their phone inside their name."""
+    out = re.sub(r'\s{2,}', ' ', _PHONE_IN_NAME.sub(' ', n or '')).strip(' -|،,:')
+    return out or (n or '')
+
+
 def service_radius(sub, roles):
     if sub.startswith('ind.') or sub.endswith(('_mfg', '_factory')) or 'factory' in sub: return 1000
     if 'wholesale' in (roles or '') and 'retail' not in (roles or ''): return 300

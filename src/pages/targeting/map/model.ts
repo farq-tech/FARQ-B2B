@@ -23,6 +23,25 @@ export function safeName(r: Pick<TargetRow, 'name_ar' | 'name_en'>): string {
   return out || 'منشأة بدون اسم'
 }
 
+/** Location fields occasionally arrive as serialized empty objects; never print transport debris as a place name. */
+export function safeLocationName(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (!text) return null
+    if (text.startsWith('{') || text.startsWith('[')) {
+      try { return safeLocationName(JSON.parse(text)) } catch { return null }
+    }
+    return text
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  for (const key of ['name_ar', 'district_ar', 'name', 'ar', 'name_en', 'district_en', 'en']) {
+    const name = safeLocationName(record[key])
+    if (name) return name
+  }
+  return null
+}
+
 export const subIdOf = (r: TargetRow) => (r.taxonomy_sub && SUBS[r.taxonomy_sub] ? r.taxonomy_sub : null)
 export const mainIdOf = (r: TargetRow) => { const s = subIdOf(r); const m = s ? s.split('.')[0] : null; return m && MAINS[m] ? m : 'unc' }
 export const mainAr = (id: string) => MAINS[id]?.[0] || 'غير مصنّف'
@@ -30,11 +49,50 @@ export const subAr = (id: string | null) => (id ? SUBS[id]?.[0] : null) || null
 export const mainIcon = (id: string) => MAINS[id]?.[1] || 'help-circle'
 export const subIcon = (id: string | null) => (id ? SUBS[id]?.[1] : null) || 'map-pin'
 
+/** Pick a small semantic glyph for a specialty; fall back to its parent activity icon. */
+export function specialtyIcon(name: string, parentSubId: string): string {
+  const text = name.toLowerCase().replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا')
+  const rules: [RegExp, string][] = [
+    [/مواسير|انابيب|سباك|خلاط|حنفيه|صحي|مياه|water|pipe|plumb|mixer|tap/, 'droplet'],
+    [/دهان|طلاء|بويات|paint|coating/, 'paint'],
+    [/كهرب|اسلاك|قواطع|افياش|مقابس|elect|circuit|socket|wire/, 'bolt'],
+    [/اناره|اضاءه|مصابيح|كشاف|lighting|lamp/, 'lamp'],
+    [/خشب|نجاره|wood|timber/, 'wood'],
+    [/زجاج|glass/, 'glass'],
+    [/ابواب|باب|door/, 'door'],
+    [/تكييف|مكيف|تبريد|تدفئه|air.condition|hvac|cooling/, 'air-conditioning'],
+    [/ادوات|عدد|معدات|مفكات|مسامير|tools|hardware/, 'tools'],
+    [/قهوه|بن|coffee|espresso/, 'coffee'],
+    [/خبز|مخبوز|مخبز|معجنات|bread|bakery/, 'bread'],
+    [/اسماك|سمك|بحري|fish|seafood/, 'fish'],
+    [/لحوم|لحوم|ذبائح|دجاج|لحوم|meat|butcher|poultry/, 'meat'],
+    [/خضار|جزر|carrot/, 'carrot'],
+    [/فواكه|تفاح|apple|fruit/, 'apple'],
+    [/البان|حليب|اجبان|milk|dairy|cheese/, 'milk'],
+    [/جوال|هاتف|محمول|mobile|phone/, 'device-mobile'],
+    [/حاسب|كمبيوتر|لابتوب|computer|laptop/, 'device-laptop'],
+    [/ملابس|ازياء|ثياب|shirt|fashion/, 'shirt'],
+    [/خياطه|تفصيل|تطريز|needle|tailor/, 'needle-thread'],
+    [/دواء|ادويه|صيدليه|علاج|medicine|pharmacy|pill/, 'pill'],
+    [/زهور|ورد|نبات|flower|plant/, 'flower'],
+    [/مصنع|تصنيع|factory|manufactur/, 'building-factory'],
+    [/نقل|شحن|توصيل|لوجست|truck|shipping|delivery/, 'truck-delivery'],
+    [/اثاث|كنب|ارائك|sofa|furniture/, 'sofa'],
+    [/تصوير|كاميرا|camera|photography/, 'camera'],
+    [/مستودع|تخزين|warehouse|storage/, 'building-warehouse'],
+    [/فيش|قابس|plug/, 'plug'],
+    [/قص|مقص|scissor/, 'scissors'],
+  ]
+  return rules.find(([pattern]) => pattern.test(text))?.[1] || subIcon(parentSubId)
+}
+
 /** Role badges in a fixed order; «جملة» also when the business says it sells wholesale. */
 export const ROLE_ORDER = ['يبيع', 'يشتري', 'جملة', 'تجزئة', 'مصنع', 'خدمات وتنفيذ'] as const
 export function rolesOf(r: TargetRow): string[] {
-  const set = new Set(r.role_badges || [])
-  if (r.is_wholesale) set.add('جملة')
+  // The service may include a family's possible roles on every place in that family.
+  // When present, the place-level wholesale flag is the factual value.
+  const set = new Set((r.role_badges || []).filter((role) => role !== 'جملة' || r.is_wholesale == null || r.is_wholesale))
+  if (r.is_wholesale === true) set.add('جملة')
   const rank = (x: string) => { const i = (ROLE_ORDER as readonly string[]).indexOf(x); return i < 0 ? 99 : i }
   return [...set].sort((a, b) => rank(a) - rank(b))
 }
@@ -77,7 +135,10 @@ export function districtsFrom(fc: GeoJSON.FeatureCollection | null | undefined):
     .map((f) => ({ id: String(f.properties.id ?? f.properties.ar), ar: f.properties.ar, feature: f, bbox: bboxOf(f) }))
 }
 /** Cities without polygons: the districts of the search answer, matched by name. */
-export const districtsFromNames = (names: { name: string }[]): District[] => names.map((d) => ({ id: `name:${d.name}`, ar: d.name, feature: null, bbox: null }))
+export const districtsFromNames = (names: { name: string }[]): District[] => names.flatMap((d) => {
+  const ar = safeLocationName(d?.name)
+  return ar ? [{ id: `name:${ar}`, ar, feature: null, bbox: null }] : []
+})
 
 const norm = (s: string | null | undefined) => (s || '').replace(/^(حي|حى)\s+/, '').replace(/[ةه]$/, 'ه').replace(/[أإآ]/g, 'ا').trim()
 /** Is the row inside one of the chosen districts? A point uses its polygon; a row without a point (or a polygon) its district name. */
@@ -87,7 +148,7 @@ export function inDistricts(r: TargetRow, chosen: District[]): boolean {
     const poly = chosen.filter((d) => d.feature)
     if (poly.length && poly.some((d) => inFeature(r.longitude!, r.latitude!, d))) return true
   }
-  const name = norm(r.district_ar)
+  const name = norm(safeLocationName(r.district_ar))
   return Boolean(name) && chosen.some((d) => norm(d.ar) === name)
 }
 
@@ -189,15 +250,24 @@ function halfway(line: number[][]): [number, number] {
   return [line[0][0], line[0][1]]
 }
 export function streetsFrom(fc: { features?: StreetLine[] } | null | undefined): Street[] {
-  return (fc?.features || []).filter((f) => f?.geometry && f.properties?.street_ar).map((f, i) => {
+  const seen = new Set<string>()
+  return (fc?.features || []).filter((f) => f?.geometry && f.properties?.street_ar).map((f) => {
     const lines = f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.coordinates
     const longest = [...lines].sort((a, b) => b.reduce((s, p, k) => s + (k ? segLen(b[k - 1], p) : 0), 0) - a.reduce((s, p, k) => s + (k ? segLen(a[k - 1], p) : 0), 0))[0]
     const xs = lines.flat().map((p) => p[0]), ys = lines.flat().map((p) => p[1])
-    return { id: `${f.properties.street_ar}|${f.properties.sub_id ?? ''}|${i}`, props: f.properties, lines, mid: halfway(longest), bbox: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as [number, number, number, number] }
+    let id = `${f.properties.street_ar}|${f.properties.sub_id ?? ''}|${f.properties.district_ar ?? ''}`
+    while (seen.has(id)) id += '+'
+    seen.add(id)
+    return { id, props: f.properties, lines, mid: halfway(longest), bbox: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as [number, number, number, number] }
   })
 }
-/** Dense first: shops per 100 m, then the number of shops. */
-export const topStreets = (streets: Street[], max = 8) => [...streets].sort((a, b) => b.props.per_100m - a.props.per_100m || b.props.n - a.props.n).slice(0, max)
+/** Most shops first (the service's own order), then shops per 100 m. */
+export const topStreets = (streets: Street[], max = 10) => [...streets].sort((a, b) => b.props.n - a.props.n || b.props.per_100m - a.props.per_100m).slice(0, max)
+/** «يوسف بن عبدالعزيز · الملز · إنارة» */
+export const streetLine = (st: Street) => {
+  const name = /^\d{3,}$/.test(st.props.street_ar.trim()) ? 'شارع غير مسمّى' : st.props.street_ar
+  return [name, st.props.district_ar, st.props.sub_ar || st.props.main_ar].filter(Boolean).join(' · ')
+}
 /** The district (polygon) a point falls in. */
 export const districtAt = (lon: number, lat: number, districts: District[]) => districts.find((d) => inFeature(lon, lat, d)) || null
 /** How many places of this request each district holds: the service's own district counts by name, else the rows inside. */
@@ -216,4 +286,4 @@ export function densityOf(districts: District[], counts: { name: string; n: numb
 }
 /** 0 (none) … 4 (densest) on a square-root scale, so one huge district does not wash out the rest. */
 export const densityStep = (n: number, max: number) => (!n || !max ? 0 : Math.max(1, Math.min(4, Math.ceil((Math.sqrt(n) / Math.sqrt(max)) * 4))))
-export const fmtMeters = (m: number) => (m >= 1000 ? `${(m / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} كم` : `${Math.round(m).toLocaleString('en-US')} م`)
+export const fmtMeters = (m: number) => (m >= 1000 ? `${(m / 1000).toLocaleString('ar-SA', { maximumFractionDigits: 1 })} كم` : `${Math.round(m).toLocaleString('ar-SA')} م`)
