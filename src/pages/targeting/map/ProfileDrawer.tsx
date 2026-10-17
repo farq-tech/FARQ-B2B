@@ -37,6 +37,14 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
   const wa = Boolean(waNumber(row))
   const saudi = Boolean(row.saudi_registered)
   const rating = typeof row.rating === 'number' && Number.isFinite(row.rating) ? row.rating : null
+  const matchReason = row.match === 'product' ? 'اسم المنشأة يذكر المنتج'
+    : row.match === 'seller' ? 'نشاط المنشأة يبيع هذا المنتج غالباً'
+    : 'ظهرت ضمن نتائج النشاط المختار'
+  const fitLabel = row.ai === 'L' ? 'ملاءمة مرجّحة'
+    : row.ai === 'M' ? 'ملاءمة محتملة'
+    : row.ai === 'N' ? 'ملاءمة منخفضة'
+    : 'لم تُفحص آلياً'
+  const fitBasis = row.match_confidence?.basis?.trim()
   const dd = (k: string, v: string | null | undefined) => (v ? <><dt className="text-[var(--color-text-secondary)]">{k}</dt><dd className="m-0 font-medium">{v}</dd></> : null)
 
   return (
@@ -53,6 +61,11 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
         <button type="button" aria-label="إغلاق ملف المنشأة" onClick={onClose} className={`flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-default)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={16} /></button>
       </div>
       <div className="flex flex-col gap-4 px-5 py-4 text-[14px] leading-[22px]">
+        <section aria-label="سبب ظهور المنشأة" className="flex flex-col gap-1 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2.5">
+          <h4 className="m-0 text-[12px] leading-[18px] font-semibold">سبب ظهورها</h4>
+          <p className="m-0 font-medium">{matchReason}</p>
+          <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تقدير الملاءمة: {fitLabel}. {fitBasis || 'المطابقة إشارة من النشاط والبيانات، وليست تأكيداً لتوفر المنتج أو قبول المورد للطلب.'}</p>
+        </section>
         {roles.length ? (
           <div className="flex flex-col gap-1.5"><p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الدور</p><div className="flex flex-wrap gap-1.5">{roles.map((x) => <RoleChip key={x} role={x} />)}</div></div>
         ) : null}
