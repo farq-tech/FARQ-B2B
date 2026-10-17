@@ -1,15 +1,25 @@
-import { LayerSwatch } from './glyphs'
+import { FitSwatch, LayerSwatch } from './glyphs'
+import type { PinFit } from './model'
 
 /*
- * One small legend on the map (owner 2026-10-16): pin = منشأة (by layer colour), glowing line = شارع كثيف,
- * tinted area = حي (darker = more places). Open on a desktop, folded on a phone.
+ * Map shape = taxonomy layer; the small marker = the model's estimated supplier fit. The estimate is not verified.
+ * Open on a desktop, folded on a phone.
  */
 const row = 'flex items-center gap-2'
+const FITS: { fit: PinFit; label: string }[] = [
+  { fit: 'likely', label: 'مرجّحة' },
+  { fit: 'maybe', label: 'محتملة' },
+  { fit: 'low', label: 'منخفضة' },
+  { fit: 'unknown', label: 'غير مفحوصة' },
+]
 export default function MapLegend({ mobile }: { mobile: boolean }) {
   return (
-    <details open={!mobile} data-testid="map-legend" className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[200px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)]">
+    <details open={!mobile} data-testid="map-legend" className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)]">
       <summary className="cursor-pointer list-none font-semibold">دليل الخريطة</summary>
       <ul className="mt-1.5 flex flex-col gap-1.5">
+        <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
+        <li className="grid grid-cols-2 gap-x-3 gap-y-1">{FITS.map(({ fit, label }) => <span key={fit} className="flex items-center gap-1.5"><FitSwatch fit={fit} />{label}</span>)}</li>
+        <li className="text-[var(--color-text-secondary)]">قناة التواصل تظهر في ملف المنشأة.</li>
         <li className={row}><span className="flex w-6 justify-center"><LayerSwatch layer="main" /></span>منشأة — نشاط رئيسي</li>
         <li className={row}><span className="flex w-6 justify-center"><LayerSwatch layer="sub" /></span>منشأة — نشاط فرعي</li>
         <li className={row}><span className="flex w-6 justify-center"><LayerSwatch layer="spec" /></span>منشأة — تخصصها</li>

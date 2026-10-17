@@ -208,7 +208,15 @@ export function guideOf(rows: TargetRow[]): GuideMain[] {
 }
 
 // ---------- pins
-export type Pin = { key: string; lon: number; lat: number; layer: Layer; icon: string; text: string; chosen: boolean }
+export type PinFit = 'likely' | 'maybe' | 'low' | 'unknown'
+export const FIT_LABEL: Record<PinFit, string> = {
+  likely: 'ملاءمة مرجّحة آلياً',
+  maybe: 'ملاءمة محتملة آلياً',
+  low: 'ملاءمة منخفضة آلياً',
+  unknown: 'لم تُفحص الملاءمة آلياً',
+}
+export const fitOf = (r: TargetRow): PinFit => r.ai === 'L' ? 'likely' : r.ai === 'M' ? 'maybe' : r.ai === 'N' ? 'low' : 'unknown'
+export type Pin = { key: string; lon: number; lat: number; layer: Layer; icon: string; text: string; chosen: boolean; fit: PinFit }
 export function pinsOf(rows: TargetRow[], layer: Layer, chosen: Set<string>, focus: Focus): Pin[] {
   const out: Pin[] = []
   for (const r of rows) {
@@ -216,7 +224,7 @@ export function pinsOf(rows: TargetRow[], layer: Layer, chosen: Set<string>, foc
     const spec = focus?.level === 'spec' ? focus.id : specsOf(r)[0]
     if (layer === 'spec' && !spec) continue
     const m = mainIdOf(r), s = subIdOf(r)
-    out.push({ key: r.poi_key, lon: r.longitude!, lat: r.latitude!, layer, icon: layer === 'main' ? mainIcon(m) : subIcon(s), text: layer === 'spec' ? spec! : '', chosen: chosen.has(r.poi_key) })
+    out.push({ key: r.poi_key, lon: r.longitude!, lat: r.latitude!, layer, icon: layer === 'main' ? mainIcon(m) : subIcon(s), text: layer === 'spec' ? spec! : '', chosen: chosen.has(r.poi_key), fit: fitOf(r) })
   }
   return out
 }
