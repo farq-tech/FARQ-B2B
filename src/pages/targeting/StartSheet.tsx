@@ -18,7 +18,8 @@ type Props = {
   mobile: boolean
   onClose: () => void
   onBooklet: () => void
-  onFreeSearch: () => void
+  onBuySearch: () => void
+  onExplore: () => void
   /** confirmed specialties; files = names of the catalog files read (none when typed) */
   onSellLines: (names: string[], files: string[]) => void
   onRfq?: () => void
@@ -38,7 +39,7 @@ function Row({ icon, title, hint, onClick }: { icon: IconSource; title: string; 
   )
 }
 
-export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, onSellLines, onRfq }: Props) {
+export default function StartSheet({ mobile, onClose, onBooklet, onBuySearch, onExplore, onSellLines, onRfq }: Props) {
   const [step, setStep] = useState<'pick' | 'sell'>('pick')
   const [direction, setDirection] = useState<'buy' | 'sell'>('buy')
   const [text, setText] = useState('')
@@ -90,7 +91,7 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="start-title"
         className={`flex max-h-[90dvh] flex-col gap-4 overflow-y-auto bg-[var(--color-bg-surface)] p-5 shadow-[var(--elevation-lg)] ${mobile ? 'w-full rounded-t-[var(--radius-xl)] pb-8' : 'w-[560px] rounded-[var(--radius-xl)]'}`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 id="start-title" className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">{step === 'pick' ? 'طلب جديد' : 'وش تبيع؟'}</h2>
+          <h2 id="start-title" className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">{step === 'pick' ? 'وش هدفك؟' : 'وش تبيع؟'}</h2>
           <button type="button" aria-label="إغلاق" onClick={onClose} className={`rounded-full p-1 ${FOCUS_RING}`}><Icon name="x" size={20} /></button>
         </div>
         {step === 'pick' ? (
@@ -110,15 +111,16 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
             <div className="flex flex-col gap-2">
               {direction === 'buy' ? <>
                 <Row icon={UploadBookletIcon} title="كراسة أو طلب شراء" hint="ارفع الملف ونطلع بنوده، وتبحث عن بائعين لكل بند" onClick={onBooklet} />
-                <Row icon={SearchIcon} title="بحث حر عن مورد" hint="اكتب المنتج أو المادة التي تبحث عنها" onClick={onFreeSearch} />
+                <Row icon={SearchIcon} title="بحث حر عن مورد" hint="اكتب المنتج أو المادة التي تبحث عنها" onClick={onBuySearch} />
               </> : (
                 <Row icon={UploadCatalogIcon} title="أضف منتجاتك" hint="ارفع كتالوجك أو اكتب منتجاتك لنقترح تخصصات المشترين" onClick={() => setStep('sell')} />
               )}
             </div>
+            <Row icon={SearchIcon} title="استكشف السوق" hint="تصفح الأحياء والشوارع والمؤشرات بدون كتابة بحث" onClick={onExplore} />
             {direction === 'buy' && onRfq ? (
               <button type="button" onClick={onRfq} className={`flex items-center gap-2 self-start text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] hover:underline ${FOCUS_RING}`}>
-                <PricingRequestsIcon size={16} />طلب تسعير من الموردين
-                <span className="font-normal text-[var(--color-text-tertiary)]">· بنود وتوصيل وإرسال للموردين</span>
+                <PricingRequestsIcon size={16} />أنشئ طلب تسعير رسمي
+                <span className="font-normal text-[var(--color-text-tertiary)]">· بنود وكميات وتوصيل وعروض موردين</span>
               </button>
             ) : null}
           </>

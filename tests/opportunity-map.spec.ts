@@ -81,6 +81,8 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   const listQueries: string[] = []
   await page.addInitScript(() => {
     (window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 7200, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' } }
+    // Keep map telemetry explicitly declined in this deterministic suite; the user's privacy choice is the only permitted local value.
+    localStorage.setItem('farq:pricing-map-analytics-consent-v1', 'rejected')
   })
   await page.route('**/_targeting/**', async (route) => {
     const url = new URL(route.request().url()); const path = url.pathname
@@ -169,6 +171,10 @@ async function searchFor(page: Page, text: string) {
   await page.getByLabel('وش تبي توصل له؟').fill(text)
   await page.getByRole('button', { name: 'ابحث', exact: true }).click()
 }
+async function chooseFilter(page: Page, label: string, option: string) {
+  await page.getByRole('button', { name: label, exact: true }).click()
+  await page.getByRole('button', { name: option, exact: true }).click()
+}
 /** The saved-request panel belongs to the supplier-results workspace, not the market overview. */
 async function openMyRequests(page: Page) {
   await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
@@ -181,12 +187,33 @@ async function pickDistrict(page: Page, name: string) {
   await d.press('Enter')
 }
 async function nothingStored(page: Page) {
-  const stored = await page.evaluate(async () => ({ local: localStorage.length, session: sessionStorage.length, idb: (await indexedDB.databases?.() || []).length }))
+  const stored = await page.evaluate(async () => ({ local: localStorage.length - Number(localStorage.getItem('farq:pricing-map-analytics-consent-v1') !== null), session: sessionStorage.length, idb: (await indexedDB.databases?.() || []).length }))
   expect(stored).toEqual({ local: 0, session: 0, idb: 0 })
 }
 
 test.describe('desktop 1440', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
+
+  test('a supplier profile seeds the purchase request with that supplier and an editable search line', async ({ page }) => {
+    await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await searchFor(page, 'مواسير PPR')
+    await page.locator('li[data-key="2"]').getByRole('button').first().click()
+    const profile = page.getByTestId('profile-drawer')
+    await expect(profile.getByRole('button', { name: 'جهّز طلب تسعير لهذا المورد' })).toBeVisible()
+    await profile.getByRole('button', { name: 'جهّز طلب تسعير لهذا المورد' }).click()
+    await expect(page).toHaveURL(/\/new$/)
+    await expect(page.getByRole('heading', { name: 'وش تبي تسعّر؟' })).toBeVisible()
+    await expect(page.getByText('مواسير PPR', { exact: true })).toBeVisible()
+    await page.getByLabel('الكمية لـ مواسير PPR').fill('25')
+    await page.getByLabel('وحدة مواسير PPR').selectOption('حبة')
+    await page.getByRole('button', { name: 'التالي', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '1 بند في الطلب' })).toBeVisible()
+    await expect(page.getByText('1 من 1 مورد')).toBeVisible()
+    await page.getByRole('button', { name: '1 من 1 مورد' }).click()
+    await expect(page.getByText('مستودع السباكة الكبير', { exact: true })).toBeVisible()
+  })
 
   test('market first open, three lenses, and core buyers by default', async ({ page }) => {
     const { buyerQueries, marketQueries } = await setup(page)
@@ -244,7 +271,7 @@ test.describe('desktop 1440', () => {
     await page.goto('/opportunity-map')
     await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     await searchFor(page, 'أدوات صحية')
-    await page.getByLabel('الحي', { exact: true }).selectOption({ label: 'الملك فيصل (٢)' })
+    await chooseFilter(page, 'الحي', 'الملك فيصل (٢)')
 
     await expect(page.getByRole('tab', { name: /النتائج · ٢/ })).toBeVisible()
     await expect(counter(page, 'supplier-districts')).toHaveText('١')
@@ -335,7 +362,7 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('button', { name: 'جملة فقط · ٢', exact: true })).toHaveAttribute('aria-pressed', 'false')
     expect(searches.length).toBe(1) // no «retry with wholesale»
     // before a district: no pins, the hint, every result listed; counters over all results
-    await expect(page.getByTestId('map-hint')).toHaveText(/الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها محلات أكثر/)
+    await expect(page.getByTestId('map-hint')).toHaveText(/الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها منشآت أكثر/)
     await expect(page.locator('[data-pin]')).toHaveCount(0)
     await expect(counter(page, 'n')).toHaveText('٦')
     await expect(page.locator('li[data-key]')).toHaveCount(6)
@@ -384,14 +411,14 @@ test.describe('desktop 1440', () => {
     await page.getByRole('tab', { name: /النتائج/ }).click()
     await expect(page.locator('[data-pin]')).toHaveCount(0)
     // role and specialty filters re-run the search
-    await page.getByLabel('الدور', { exact: true }).selectOption('مصنع')
+    await chooseFilter(page, 'الدور', 'مصنع (١)')
     await expect.poll(() => searches.length).toBe(5)
     expect(searches[4].filters).toEqual({ role: 'مصنع' })
     await expect(page.getByRole('button', { name: 'الدور: مصنع', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'إزالة الدور: مصنع' }).click()
     await expect.poll(() => searches.length).toBe(6)
     expect(searches[5].filters).toEqual({})
-    await page.getByLabel('التخصص', { exact: true }).selectOption('خلاطات')
+    await chooseFilter(page, 'التخصص', 'خلاطات (٢)')
     await expect.poll(() => searches.length).toBe(7)
     expect(searches[6].filters).toEqual({ specialty: 'خلاطات' })
     await page.getByRole('button', { name: 'إزالة التخصص: خلاطات' }).click()
@@ -446,7 +473,7 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('button', { name: /^أدوات صحية وسباكة — الفيصلية/ })).toBeVisible()
     await expect(page.getByTestId('map-legend')).toContainText('شارع كثيف بهذا النشاط')
     const list = page.getByTestId('dense-streets')
-    await expect(list.getByRole('button').first()).toContainText('شارع خالد بن الوليد · الملك فيصل · أدوات صحية وسباكة — ٣٧ محل')
+    await expect(list.getByRole('button').first()).toContainText('شارع خالد بن الوليد · الملك فيصل · أدوات صحية وسباكة — ٣٧ منشأة')
     await page.screenshot({ path: `${SHOTS4}/desktop-1-open.png` })
     // the activity picker: a main, then its sub, then «الكل»
     const picker = page.getByRole('group', { name: 'نشاط الشوارع' })
@@ -455,7 +482,7 @@ test.describe('desktop 1440', () => {
     await expect(page.locator('[data-street]')).toHaveCount(1)
     await page.getByRole('group', { name: 'الأنشطة الفرعية' }).getByRole('button', { name: 'إنارة · ١' }).click()
     await expect.poll(() => densities.at(-1)).toEqual({ city: 'Riyadh', sub_ids: ['elec.lighting'] })
-    await expect(list.getByRole('button').first()).toContainText('يوسف بن عبدالعزيز · العليا · إنارة — ٢٦ محل')
+    await expect(list.getByRole('button').first()).toContainText('يوسف بن عبدالعزيز · العليا · إنارة — ٢٦ منشأة')
     await picker.getByRole('button', { name: 'الكل', exact: true }).click()
     await expect(page.locator('[data-street]')).toHaveCount(4)
     // districts narrow the streets and the catalog
@@ -486,7 +513,7 @@ test.describe('desktop 1440', () => {
     expect(searches[1].filters).toEqual({ street: 'طريق العليا العام' })
     await expect(page.getByRole('button', { name: /^حي العليا/ })).toHaveAttribute('aria-pressed', 'true')
     const card = page.getByTestId('street-card')
-    for (const t of ['طريق العليا العام', `العليا · ${MAIN_BUILD} ▸ أدوات صحية وسباكة`, '٣١ محل', '١٫٣ كم', '٢٫٤ محل لكل ١٠٠ م', '١ محل']) await expect(card).toContainText(t)
+    for (const t of ['طريق العليا العام', `العليا · ${MAIN_BUILD} ▸ أدوات صحية وسباكة`, '٣١ منشأة', '١٫٣ كم', '٢٫٤ منشأة لكل ١٠٠ م', '١ منشأة']) await expect(card).toContainText(t)
     await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اختر حي أو شارع')
     await page.screenshot({ path: `${SHOTS4}/desktop-3-street-picked.png` })
     await page.getByRole('button', { name: 'إغلاق بطاقة الشارع' }).click()
@@ -498,10 +525,10 @@ test.describe('desktop 1440', () => {
     await list.getByRole('button', { name: /شارع الأمير مشعل/ }).click()
     await expect.poll(() => searches.length).toBe(5)
     expect(searches[4].filters).toEqual({ street: 'شارع الأمير مشعل' })
-    await expect(page.getByTestId('street-card')).toContainText('٩٫٥ محل لكل ١٠٠ م')
+    await expect(page.getByTestId('street-card')).toContainText('٩٫٥ منشأة لكل ١٠٠ م')
     await expect(page.locator('[data-pin]')).toHaveCount(1)
     await page.getByRole('checkbox', { name: /اختر سباكة الخليج/ }).check()
-    await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اختر المحلات وأرسل')
+    await expect(page.getByTestId('map-steps').locator('[aria-current="step"]')).toContainText('اختر المنشآت وأرسل')
     expect(writes).toEqual([])
     await nothingStored(page)
   })
@@ -512,7 +539,7 @@ test.describe('desktop 1440', () => {
     await page.getByTestId('dense-streets').getByRole('button', { name: /يوسف بن عبدالعزيز/ }).click()
     await expect.poll(() => searches.length).toBe(1)
     expect(searches[0]).toMatchObject({ q: 'إنارة', filters: { street: 'يوسف بن عبدالعزيز' } })
-    await expect(page.getByTestId('street-card')).toContainText('٢٦ محل')
+    await expect(page.getByTestId('street-card')).toContainText('٢٦ منشأة')
     await expect(page.locator('[data-street]')).toHaveCount(2) // the streets stay, narrowed to the street's district (العليا)
     await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في العليا' })).toBeVisible()
   })
@@ -606,7 +633,7 @@ test.describe('desktop 1440', () => {
     await searchFor(page, 'أدوات صحية')
     await expect(page.getByText('تجمعات هذا النشاط')).toBeVisible()
     // a street cluster: district + street filter, and its district chosen on the map
-    await page.getByRole('button', { name: /^شارع خالد بن الوليد، الملك فيصل — ٣٧ محل/ }).click()
+    await page.getByRole('button', { name: /^شارع خالد بن الوليد، الملك فيصل — ٣٧ منشأة/ }).click()
     await expect.poll(() => searches.length).toBe(2)
     expect(searches[1].filters).toEqual({ district: 'الملك فيصل', street: 'شارع خالد بن الوليد' })
     await expect(page.getByRole('button', { name: 'حي الملك فيصل' })).toHaveAttribute('aria-pressed', 'true')
@@ -620,8 +647,10 @@ test.describe('desktop 1440', () => {
     const map = page.getByRole('application')
     const b = (await map.boundingBox())!
     await map.click({ position: { x: b.width - 40, y: b.height / 2 } })
-    await expect(page.getByLabel('موقع المشروع · نطاق التوصيل')).toHaveValue('10')
-    await page.getByLabel('موقع المشروع · نطاق التوصيل').selectOption('100')
+    const radius = page.getByRole('button', { name: 'نطاق التوصيل · 10 كم', exact: true })
+    await expect(radius).toBeVisible()
+    await radius.click()
+    await page.getByRole('button', { name: '100 كم', exact: true }).click()
     await expect(counter(page, 'n')).toHaveText('١')
     await page.getByRole('button', { name: 'إزالة موقع المشروع' }).click()
     await expect(page.getByRole('button', { name: 'موقع المشروع' })).toBeVisible()
@@ -655,9 +684,15 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('dialog', { name: /السجل/ })).toContainText('السبب: تغيّرت الكمية')
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'طلب جديد', exact: true }).first().click()
-    const sheet = page.getByRole('dialog', { name: 'طلب جديد', exact: true })
-    await expect(sheet.getByRole('button', { name: /طلب تسعير من الموردين/ })).toBeVisible()
-    await sheet.getByRole('button', { name: /أبي أبيع منتجاتي/ }).click()
+    let sheet = page.getByRole('dialog', { name: 'وش هدفك؟', exact: true })
+    await sheet.getByRole('button', { name: /بحث حر عن مورد/ }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'ابحث عن موردين' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByLabel('وش تبي توصل له؟')).toBeFocused()
+    await page.getByRole('button', { name: 'طلب جديد', exact: true }).first().click()
+    sheet = page.getByRole('dialog', { name: 'وش هدفك؟', exact: true })
+    await sheet.getByRole('button', { name: 'أبحث عن مشتري', exact: true }).click()
+    await sheet.getByRole('button', { name: /أضف منتجاتك/ }).click()
     await page.getByPlaceholder(/مواسير PPR/).fill('مواسير PPR\nخلاطات مغاسل\nسخانات')
     await page.getByRole('button', { name: 'اقترح التخصصات' }).click()
     await page.getByRole('button', { name: 'سخانات مياه', exact: true }).click()
@@ -675,7 +710,7 @@ test.describe('desktop 1440', () => {
     await page.goto('/opportunity-map')
     await page.getByRole('button', { name: 'طلب جديد', exact: true }).first().click()
     await expect(page).toHaveURL(/\/opportunity-map\/new$/)
-    await expect(page.getByRole('dialog', { name: 'طلب جديد', exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'وش هدفك؟', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'إغلاق' }).click()
     await expect(page).toHaveURL(/\/opportunity-map$/)
     await openMyRequests(page)
@@ -764,8 +799,8 @@ test.describe('mobile 390', () => {
     await expect(filters).toBeVisible()
     const geometry = await filters.evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }))
     expect(geometry.scroll).toBeLessThanOrEqual(geometry.client + 1)
-    await expect(filters.locator('select')).toHaveCount(4)
-    for (const control of await filters.locator('select').all()) {
+    await expect(filters.locator('button[aria-haspopup="true"]')).toHaveCount(4)
+    for (const control of await filters.locator('button[aria-haspopup="true"]').all()) {
       await expect(control).toBeVisible()
       const box = (await control.boundingBox())!
       expect(box.x).toBeGreaterThanOrEqual(-1)

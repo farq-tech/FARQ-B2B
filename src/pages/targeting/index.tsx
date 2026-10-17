@@ -12,6 +12,7 @@ import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marke
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
 import { recordMapInteraction } from '../../lib/mapAnalytics'
+import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
@@ -526,6 +527,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (version === generation.current) setError('تعذّر فتح بيانات المنشأة. حدّث نقاط الخريطة وحاول مرة ثانية.')
     }
   }
+  function prepareQuoteForProfile(key: string) {
+    const row = byKey.get(key)
+    if (!row || !onRfq) return
+    const product = query.trim()
+    writeLocal('purchase-seed', {
+      lines: product ? [{ name: product, qty: '', unit: '' }] : [],
+      city: cityName(city),
+      targets: [row],
+    })
+    setProfile(null)
+    onRfq()
+  }
   const keep = (f: AreaFilters, drop: (keyof AreaFilters)[]) => { const x = { ...f }; for (const k of drop) delete x[k]; return x }
   const pickCluster = (c: TradeCluster) => {
     fitTo(boxAround(c.lat, c.lon))
@@ -567,10 +580,16 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setActiveLine(0); setQ(names[0])
     void runSearchIn(names[0], city, undefined, 'marketing').then((found) => { if (found != null) setLines((ls) => ls.map((l, k) => (k === 0 ? { ...l, found } : l))) })
   }
+  const beginBuyerFlow = (browse: boolean) => {
+    if (lens === 'sellers' && objective === 'purchase') return
+    resetAll(); setQ(''); setQuery(''); setObjective('purchase'); setLens('sellers'); setTab('results')
+    if (browse) void loadBrowse(city)
+  }
   const startSheet = startOpen ? (
     <StartSheet mobile={mobile} onClose={closeStart} onRfq={onRfq}
-      onBooklet={() => { if (objective === 'marketing') { resetAll(); setObjective('purchase') } fileInput.current?.click(); closeStart() }}
-      onFreeSearch={() => { closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
+      onBooklet={() => { beginBuyerFlow(false); fileInput.current?.click(); closeStart() }}
+      onBuySearch={() => { beginBuyerFlow(true); closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
+      onExplore={() => { closeStart(); if (lens !== 'market') chooseLens('market') }}
       onSellLines={startSelling} />
   ) : null
   const fileField = (
@@ -1007,7 +1026,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         recordMapInteraction(`fit_filter_${next}`)
       }} />
       {profile && byKey.get(profile) && !mobile ? (
-        <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} />
+        <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} />
       ) : null}
     </div>
   )
@@ -1102,7 +1121,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         ) : null}
         {tray ? <div className="absolute inset-x-3 bottom-3 z-30 flex justify-center"><div className="w-full max-w-[700px]">{tray}</div></div> : null}
         {noticeLine ? <div className="absolute inset-x-3 bottom-3 z-40 flex justify-center"><div className="w-full max-w-[700px]">{noticeLine}</div></div> : null}
-        {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile={mobile} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} /> : null}
+        {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile={mobile} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} /> : null}
         {confirmSheet}
         {startSheet}
       </div>
@@ -1136,7 +1155,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           {panelHead}
           {panelBody}
         </section>
-        {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} /> : null}
+        {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} /> : null}
         {confirmSheet}
         {startSheet}
       </div>

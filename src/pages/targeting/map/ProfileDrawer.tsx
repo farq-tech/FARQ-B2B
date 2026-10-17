@@ -11,7 +11,7 @@ import { completenessOf, hasPoint, mainAr, mainIcon, mainIdOf, rolesOf, safeLoca
  * specialties), where (district, street), how complete and how many sources, and whether Farq can message it.
  * NEVER a phone, an email or any other contact field: the campaign goes through Farq with an approved template.
  */
-export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }: {
+export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, onRequestQuote }: {
   row: TargetRow
   onClose: () => void
   /** in the campaign list */
@@ -19,6 +19,8 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
   /** add / remove from the campaign (only with a WhatsApp channel) */
   onChoose: () => void
   mobile: boolean
+  /** Continue from a matched supplier to the RFQ wizard with this supplier preselected. */
+  onRequestQuote?: () => void
 }) {
   const titleId = useId()
   const heading = useRef<HTMLHeadingElement>(null)
@@ -99,6 +101,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
         ) : null}
         <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">بيانات التواصل لا تظهر. التواصل يتم عبر فرق بالقوالب المعتمدة من ميتا.</p>
         {wa ? <Button variant={chosen ? 'Secondary' : 'Primary'} size="M" fullWidth onClick={onChoose}>{chosen ? 'إزالة من الحملة' : 'أضف للحملة'}</Button> : null}
+        {onRequestQuote && (wa || row.email) ? <Button variant="Secondary" size="M" fullWidth onClick={onRequestQuote}>جهّز طلب تسعير لهذا المورد</Button> : null}
       </div>
     </aside>
   )

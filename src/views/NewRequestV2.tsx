@@ -499,8 +499,22 @@ export function NewRequestV2({ navigate }: NavProps) {
                   {lines.map((l) => (
                     <li key={l.id} className="flex items-center gap-3 border-b border-[var(--color-border-default)] px-5 py-2 text-[14px] last:border-b-0">
                       <span className="min-w-0 flex-1 truncate">{l.name}</span>
-                      <span className="font-[family-name:var(--font-display)] tabular-nums" style={{ color: readQty(l.qty) ? undefined : 'var(--color-text-danger)' }}>{l.qty || '—'}</span>
-                      <span className="w-14 text-[var(--color-text-secondary)]">{l.unit}</span>
+                      {seed?.targets?.length ? (
+                        <>
+                          <label className="sr-only" htmlFor={`seed-qty-${l.id}`}>الكمية لـ {l.name}</label>
+                          <input id={`seed-qty-${l.id}`} type="number" min="0.001" step="any" inputMode="decimal" value={l.qty}
+                            onChange={(e) => setLines((current) => current.map((line) => line.id === l.id ? { ...line, qty: e.target.value } : line))}
+                            className="h-10 w-20 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] px-2 text-end tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]" />
+                          <label className="sr-only" htmlFor={`seed-unit-${l.id}`}>وحدة {l.name}</label>
+                          <select id={`seed-unit-${l.id}`} value={l.unit} onChange={(e) => setLines((current) => current.map((line) => line.id === l.id ? { ...line, unit: e.target.value } : line))}
+                            className="h-10 w-24 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]">
+                            <option value="">الوحدة</option>{UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                          </select>
+                        </>
+                      ) : <>
+                        <span className="font-[family-name:var(--font-display)] tabular-nums" style={{ color: readQty(l.qty) ? undefined : 'var(--color-text-danger)' }}>{l.qty || '—'}</span>
+                        <span className="w-14 text-[var(--color-text-secondary)]">{l.unit}</span>
+                      </>}
                       <button type="button" aria-label={`حذف ${l.name}`} onClick={() => setLines((p) => p.filter((x) => x.id !== l.id))} className="rounded-[var(--radius-sm)] text-[var(--color-icon-secondary)] outline-none hover:text-[var(--color-text-danger)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]"><Icon name="x" size={16} /></button>
                     </li>
                   ))}
