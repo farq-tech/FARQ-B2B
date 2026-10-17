@@ -26,6 +26,8 @@ WITH map_events AS (
       'pricing_map_map_browse_refresh_failed',
       'pricing_map_map_results_shortcut_seen',
       'pricing_map_map_results_jump',
+      'pricing_map_map_district_select',
+      'pricing_map_map_street_select',
       'pricing_map_map_profile_open',
       'pricing_map_map_result_profile_open',
       'pricing_map_map_profile_status_unconfirmed',
@@ -69,6 +71,14 @@ search_actions AS (
       WHERE e.element_label = 'pricing_map_map_results_jump'
         AND e.occurred_at > s.searched_at
     ) AS results_jumped_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_district_select'
+        AND e.occurred_at > s.searched_at
+    ) AS district_selected_after_search_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_street_select'
+        AND e.occurred_at > s.searched_at
+    ) AS street_selected_after_search_at,
     min(e.occurred_at) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_open'
         AND e.occurred_at > s.searched_at
@@ -119,9 +129,21 @@ session_steps AS (
     s.result_bucket,
     s.results_shortcut_seen_at,
     s.results_jumped_at,
+    s.district_selected_after_search_at,
+    s.street_selected_after_search_at,
     s.profile_after_search_at,
     s.unconfirmed_status_profile_at,
     s.unverified_whatsapp_profile_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_district_select'
+        AND s.results_shortcut_seen_at IS NOT NULL
+        AND e.occurred_at > s.results_shortcut_seen_at
+    ) AS district_selected_after_shortcut_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_street_select'
+        AND s.results_shortcut_seen_at IS NOT NULL
+        AND e.occurred_at > s.results_shortcut_seen_at
+    ) AS street_selected_after_shortcut_at,
     min(e.occurred_at) FILTER (
       WHERE e.element_label = 'pricing_map_map_result_profile_open'
         AND s.results_shortcut_seen_at IS NOT NULL
@@ -145,18 +167,25 @@ session_steps AS (
     ) AS quote_after_unverified_whatsapp_at
   FROM session_context s
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY s.session_id, s.searched_at, s.result_bucket, s.results_shortcut_seen_at, s.results_jumped_at, s.profile_after_search_at, s.unconfirmed_status_profile_at, s.unverified_whatsapp_profile_at
+  GROUP BY s.session_id, s.searched_at, s.result_bucket, s.results_shortcut_seen_at, s.results_jumped_at,
+    s.district_selected_after_search_at, s.street_selected_after_search_at, s.profile_after_search_at,
+    s.unconfirmed_status_profile_at, s.unverified_whatsapp_profile_at
 ),
 weekly AS (
   SELECT
     date_trunc('week', searched_at AT TIME ZONE 'UTC') AS week_utc,
     result_bucket,
     count(*) AS search_sessions,
+    count(*) FILTER (WHERE district_selected_after_search_at IS NOT NULL OR street_selected_after_search_at IS NOT NULL) AS area_select_sessions,
+    count(*) FILTER (WHERE district_selected_after_search_at IS NOT NULL) AS district_select_sessions,
+    count(*) FILTER (WHERE street_selected_after_search_at IS NOT NULL) AS street_select_sessions,
     count(*) FILTER (WHERE profile_after_search_at IS NOT NULL) AS profile_after_search_sessions,
     count(*) FILTER (WHERE unconfirmed_status_profile_at IS NOT NULL) AS unconfirmed_status_profile_sessions,
     count(*) FILTER (WHERE unverified_whatsapp_profile_at IS NOT NULL) AS unverified_whatsapp_profile_sessions,
     count(*) FILTER (WHERE results_shortcut_seen_at IS NOT NULL) AS results_shortcut_seen_sessions,
     count(*) FILTER (WHERE results_jumped_at > results_shortcut_seen_at) AS results_jump_sessions,
+    count(*) FILTER (WHERE district_selected_after_shortcut_at IS NOT NULL) AS district_select_after_shortcut_sessions,
+    count(*) FILTER (WHERE street_selected_after_shortcut_at IS NOT NULL) AS street_select_after_shortcut_sessions,
     count(*) FILTER (WHERE profile_after_results_jump_at IS NOT NULL) AS profile_after_results_jump_sessions,
     count(*) FILTER (WHERE quote_after_profile_at IS NOT NULL) AS quote_after_profile_sessions,
     count(*) FILTER (WHERE quote_after_unconfirmed_status_at IS NOT NULL) AS quote_after_unconfirmed_status_sessions,
@@ -168,12 +197,22 @@ SELECT
   week_utc,
   result_bucket,
   search_sessions,
+  area_select_sessions,
+  round(100.0 * area_select_sessions / nullif(search_sessions, 0), 1) AS search_to_area_select_pct,
+  district_select_sessions,
+  street_select_sessions,
   profile_after_search_sessions,
   unconfirmed_status_profile_sessions,
   unverified_whatsapp_profile_sessions,
   round(100.0 * profile_after_search_sessions / nullif(search_sessions, 0), 1)
     AS search_to_profile_pct,
   results_shortcut_seen_sessions,
+  district_select_after_shortcut_sessions,
+  round(100.0 * district_select_after_shortcut_sessions
+    / nullif(results_shortcut_seen_sessions, 0), 1) AS shortcut_to_district_select_pct,
+  street_select_after_shortcut_sessions,
+  round(100.0 * street_select_after_shortcut_sessions
+    / nullif(results_shortcut_seen_sessions, 0), 1) AS shortcut_to_street_select_pct,
   results_jump_sessions,
   round(100.0 * results_jump_sessions / nullif(results_shortcut_seen_sessions, 0), 1)
     AS shortcut_seen_to_jump_pct,
@@ -236,6 +275,7 @@ ORDER BY 1 DESC;
 
 - `map_profile_quote_start` means the user opened the quote-request flow from a supplier profile. It does not mean a request was submitted or a supplier replied.
 - `map_results_shortcut_seen` means the shortcut was rendered after a search in the regular mobile layout. `map_results_jump` means the user tapped it to reach the results list. `map_result_profile_open` identifies an establishment opened specifically from that list, while `map_profile_open` includes opens from any map surface. These events are logged only with map analytics consent.
+- `district_select_sessions` and `street_select_sessions` count search sessions with an area selection later in the same session. `results_shortcut_seen_sessions` is only a proxy for a regular mobile-layout search session; the district/street-after-shortcut counts require the map-area selection to follow that mobile-only shortcut impression. This does not identify every mobile user or prove the map-first change caused an interaction.
 - `map_profile_status_unconfirmed` counts a consenting session that opened at least one profile whose source status is missing or unrecognized. It contains no establishment identifier. Do not attribute a later quote start to that same establishment; the event stream intentionally does not identify profiles.
 - `map_profile_whatsapp_unverified` counts a consenting session that opened a profile whose WhatsApp flag is not explicitly marked verified. `quote_after_unverified_whatsapp_sessions` counts a later quote start in that same session only; it does not identify the establishment or prove that the notice caused the action.
 - `quote_after_unconfirmed_status_sessions` means a quote flow began later in a session that had shown the notice. This is a session-level sequence only: it cannot prove the quote came from the same profile or that the notice caused the action.
