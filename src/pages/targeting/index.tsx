@@ -1221,7 +1221,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
-          {lens === 'market' ? `منشآت دقيقة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : `نتائج · ${n(visibleCohort.length)}`}
+          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : `نتائج · ${n(visibleCohort.length)}`}
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (

@@ -264,6 +264,9 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('tab', { name: 'افهم السوق' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('heading', { name: 'ملخص سوق الرياض' })).toBeVisible()
     await expect(page.locator('[data-counter="market-size"]')).toContainText('منشآت مرصودة')
+    await page.getByRole('button', { name: 'توسيع الخريطة' }).click()
+    await expect(page.getByText(/منشآت مرصودة ·/)).toBeVisible()
+    await page.getByRole('button', { name: 'العودة لتخطيط الصفحة' }).click()
     await expect(page.getByRole('group', { name: 'نشاط الشوارع' })).toBeVisible()
     expect(marketQueries[0]).toEqual({ city: 'Riyadh' })
 
