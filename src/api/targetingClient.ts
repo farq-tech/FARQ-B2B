@@ -52,6 +52,8 @@ export type TargetRow = {
   phone: string | null
   phone_kind: string | null
   has_whatsapp: boolean
+  /** Explicit contact verification state when the targeting API returns one. A source flag alone is not verification. */
+  whatsapp_verification_state?: 'verified' | 'unverified' | 'unknown' | null
   email: string | null
   source_count: number | null
   sources?: string[] | null

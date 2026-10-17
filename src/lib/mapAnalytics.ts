@@ -15,6 +15,7 @@ const MAP_EVENTS = [
   'map_profile_open',
   'map_result_profile_open',
   'map_profile_status_unconfirmed',
+  'map_profile_whatsapp_unverified',
   'map_profile_quote_start',
   'map_legend_hide',
   'map_legend_show',
