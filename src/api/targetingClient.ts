@@ -240,6 +240,7 @@ export const templateFits = (t: MetaTemplate) => {
 /** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
 /** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaigns: open or temporarily closed with a verified WhatsApp (owner 2026-10-15). */
 export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في هدهد' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
+export const hasUnconfirmedStatus = (r: Pick<TargetRow, 'status_class'>): boolean => ['hidden', 'unknown_empty', 'unknown_invalid'].includes(r.status_class || '')
 export const waNumber = (r: TargetRow) => {
   if (r.sendable === false) return null
   const n = String(r.phone || '').replace(/[^0-9]/g, '')
