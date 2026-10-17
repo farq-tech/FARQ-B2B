@@ -34,7 +34,7 @@ export type CounterItem = { key: string; label: string; value: number; lead?: bo
 
 export default function Counters({ items, compact = false }: { items: CounterItem[]; compact?: boolean }) {
   return (
-    <section aria-label="مؤشرات الخريطة" className={compact ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'grid grid-cols-4 gap-2'}>
+    <section aria-label="مؤشرات الخريطة" className={compact ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : `grid ${items.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`}>
       {items.map((c) => (
         <div key={c.key} data-counter={c.key}
           className={`relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'}`}>
