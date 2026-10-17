@@ -15,6 +15,8 @@ const ALLOWED_EVENTS = new Set([
   'fit_filter_low',
   'fit_filter_unknown',
   'fit_supplier_selection',
+  'site_unlocated_show',
+  'site_unlocated_hide',
 ])
 
 type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }

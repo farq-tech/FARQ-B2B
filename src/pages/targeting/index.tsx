@@ -136,6 +136,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [tab, setTab] = useState<'streets' | 'results' | 'guide'>(() => (mobile ? 'streets' : 'results'))
   const [site, setSite] = useState<Site | null>(null)
   const [placingSite, setPlacingSite] = useState(false)
+  const [showUnlocated, setShowUnlocated] = useState(false)
   const [fit, setFit] = useState<LayerMapProps['fit']>(null)
   const fitTo = (bounds: [number, number, number, number]) => setFit((f) => ({ bounds, at: (f?.at || 0) + 1 }))
   const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null) }
@@ -154,7 +155,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [marketLoading, setMarketLoading] = useState(true)
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
-  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setConfirming(false); setProfile(null) }
+  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setConfirming(false); setProfile(null); setShowUnlocated(false) }
   const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
@@ -248,12 +249,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const hasPolys = Boolean(polys && polys.length)
   const districts = useMemo<District[]>(() => (hasPolys ? polys! : districtsFromNames(res?.areas?.districts || [])), [hasPolys, polys, res])
   const chosenList = useMemo(() => districts.filter((d) => chosenD.has(d.id)), [districts, chosenD])
-  // the cohort: chosen districts (all rows before any is chosen), then the project site radius, then the guide pick
-  const areaRows = useMemo(() => {
-    let out = chosenList.length ? rows.filter((r) => inDistricts(r, chosenList)) : rows
-    if (site) out = out.filter((r) => hasPoint(r) && km(site, { lat: r.latitude!, lon: r.longitude! }) <= site.km)
-    return out
-  }, [rows, chosenList, site])
+  // Scope the district first. A delivery radius only applies to precise points; keep rows
+  // without coordinates in a separate review list instead of silently dropping them.
+  const districtRows = useMemo(() => chosenList.length ? rows.filter((r) => inDistricts(r, chosenList)) : rows, [rows, chosenList])
+  const unlocatedRows = useMemo(() => site ? districtRows.filter((r) => !hasPoint(r) && matchesFocus(r, focus)) : [], [site, districtRows, focus])
+  const areaRows = useMemo(() => site
+    ? districtRows.filter((r) => hasPoint(r) && km(site, { lat: r.latitude!, lon: r.longitude! }) <= site.km)
+    : districtRows, [districtRows, site])
   const cohort = useMemo(() => areaRows.filter((r) => matchesFocus(r, focus)), [areaRows, focus])
   const fitCounts = useMemo(() => {
     const counts: Record<PinFit | 'all', number> = { all: cohort.length, likely: 0, maybe: 0, low: 0, unknown: 0 }
@@ -487,7 +489,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (fresh) recordMapInteraction('map_search')
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
-      if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null) }
+      if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
       if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj, keepStreets)
       const p = r.parsed || {}
@@ -770,7 +772,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   const resultCard = (r: TargetRow) => {
     const ch = channelOf(r), can = ch === 'WhatsApp', on = selected.has(r.poi_key), name = safeName(r)
-    const locationNotes = [!hasPoint(r) ? 'موقع تقريبي' : null, r.district_reliable === false ? 'الحي غير مؤكد' : null].filter(Boolean)
+    const locationNotes = [!hasPoint(r) ? (site ? 'موقع تقريبي · المسافة غير معروفة' : 'موقع تقريبي') : null, r.district_reliable === false ? 'الحي غير مؤكد' : null].filter(Boolean)
     return (
       <li key={r.poi_key} data-key={r.poi_key} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
@@ -787,7 +789,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       </li>
     )
   }
-  const resultsBody = !res ? (
+  const resultsContent = !res ? (
     <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
   ) : !visibleCohort.length ? (
     <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
@@ -816,6 +818,43 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : null}
     </ul>
   )
+  const unlocatedPanel = site && res && (unlocatedRows.length || (res.located_total != null && res.total > res.located_total)) ? (
+    <section className="border-t border-[var(--color-border-default)] px-4 py-3" aria-label="منشآت بلا دبوس خارج نطاق التوصيل" data-testid="site-unlocated-results">
+      <div className="flex flex-wrap items-center gap-2 text-[13px] leading-[21px]">
+        <p className="m-0 flex-1 text-[var(--color-text-secondary)]">
+          النطاق يحسب المنشآت ذات الإحداثيات الدقيقة فقط. {unlocatedRows.length
+            ? `يوجد ${n(unlocatedRows.length)} من النتائج المحمّلة بلا دبوس؛ لا يمكن تحديد قربها من موقع المشروع.`
+            : 'توجد نتائج بلا دبوس في البحث، لكن لا توجد منها في الدفعة المحمّلة حالياً.'}
+        </p>
+        {unlocatedRows.length ? (
+          <Button variant="Ghost" size="S" onClick={() => {
+            setFitFilter('all')
+            setShowUnlocated((value) => {
+              const next = !value
+              recordMapInteraction(next ? 'site_unlocated_show' : 'site_unlocated_hide')
+              return next
+            })
+          }} aria-expanded={showUnlocated} aria-controls="site-unlocated-list">{showUnlocated ? 'إخفاء النتائج بلا دبوس' : `اعرض ${n(unlocatedRows.length)} بلا دبوس`}</Button>
+        ) : null}
+      </div>
+      {showUnlocated && unlocatedRows.length ? (
+        <ul id="site-unlocated-list" className="mt-2 rounded-[12px] border border-[var(--color-border-default)]" aria-label="نتائج مواقعها غير دقيقة">
+          {unlocatedRows.slice(0, shown).map(resultCard)}
+        </ul>
+      ) : null}
+      {showUnlocated && shown < unlocatedRows.length ? (
+        <Button variant="Ghost" size="S" onClick={() => setShown((value) => value + PAGE)}>
+          اعرض {n(Math.min(PAGE, unlocatedRows.length - shown))} أخرى بلا دبوس
+        </Button>
+      ) : null}
+      {truncated && !visibleCohort.length ? (
+        <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>
+          {unlocatedRows.length ? 'حمّل دفعة أخرى لمراجعة المواقع التقريبية' : 'حمّل دفعة أخرى للعثور على منشآت بلا دبوس'}
+        </Button>
+      ) : null}
+    </section>
+  ) : null
+  const resultsBody = <div>{resultsContent}{unlocatedPanel}</div>
   const panelHead = (
     <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
       <div className="flex items-center justify-between gap-2">
@@ -909,7 +948,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <LayerMap focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
-        site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false) }} fit={fit} extent={extent} />
+        site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
       {!focusMode ? <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="pointer-events-auto flex items-center gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-semibold shadow-[var(--farq-soft-shadow)]">
@@ -924,7 +963,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                 <select id="site-radius" value={site.km} onChange={(e) => setSite({ ...site, km: Number(e.target.value) })} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2 py-0.5 ${FOCUS_RING}`}>
                   {RADII.map((r) => <option key={r} value={r}>{r} كم</option>)}
                 </select>
-                <button type="button" aria-label="إزالة موقع المشروع" onClick={() => setSite(null)} className={`flex size-7 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
+                <button type="button" aria-label="إزالة موقع المشروع" onClick={() => { setSite(null); setShowUnlocated(false) }} className={`flex size-7 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
               </span>
             ) : (
               <button type="button" aria-pressed={placingSite} onClick={() => setPlacingSite((p) => !p)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${placingSite ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'} ${FOCUS_RING}`}>
