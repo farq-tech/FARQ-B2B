@@ -1,0 +1,9 @@
+.git
+.env*
+__pycache__/
+*.py[cod]
+*.log
+data/farq_send_log.jsonl
+data/fit_eval*
+data/outcomes.json
+data/wathq_test.json

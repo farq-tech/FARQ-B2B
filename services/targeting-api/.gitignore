@@ -1,0 +1,7 @@
+# Production business-directory data is staged for a deployment, never committed.
+data/*
+!data/.gitkeep
+.env*
+*.log
+__pycache__/
+*.py[cod]

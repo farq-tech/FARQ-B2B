@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>فرق — استهداف الشرائح</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<style>
+ :root{--bg:#0f1115;--panel:#171a21;--line:#2a2f3a;--txt:#e8eaf0;--mut:#9aa3b2;--ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;--acc:#3b82f6}
+ *{box-sizing:border-box} body{margin:0;font-family:-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column}
+ header{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ header h1{font-size:16px;margin:0 8px 0 0} header .st{color:var(--mut);font-size:12px}
+ #q{flex:1;min-width:260px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--txt);font-size:15px}
+ button{padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--txt);cursor:pointer;font-size:14px}
+ button.primary{background:var(--acc);border-color:var(--acc);color:#fff} button:disabled{opacity:.45;cursor:not-allowed}
+ main{flex:1;display:grid;grid-template-columns:420px 1fr;min-height:0}
+ aside{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+ #summary{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--mut);line-height:1.7}
+ #summary b{color:var(--txt)}
+ #list{flex:1;overflow:auto}
+ .row{padding:8px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:start;cursor:pointer}
+ .row:hover{background:#1c2029} .row.sel{background:#1a2438}
+ .row .n{font-weight:600;font-size:14px} .row .m{color:var(--mut);font-size:12px}
+ .b{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;margin-inline-start:4px;border:1px solid var(--line)}
+ .b.ok{border-color:var(--ok);color:var(--ok)} .b.em{border-color:var(--acc);color:var(--acc)} .b.no{border-color:var(--bad);color:var(--bad)} .b.ln{border-color:var(--warn);color:var(--warn)}
+ #map{height:100%}
+ #compose{border-top:1px solid var(--line);padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+ textarea{width:100%;min-height:92px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--txt);font-size:14px;resize:vertical}
+ .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--mut)}
+ .leaflet-popup-content{direction:rtl;font-family:inherit;font-size:13px}
+ #toast{position:fixed;bottom:14px;left:14px;background:#111827;border:1px solid var(--line);padding:10px 14px;border-radius:8px;display:none;max-width:420px;font-size:13px;z-index:9999}
+ .mk-ok{background:var(--ok)} .mk-em{background:var(--acc)} .mk-no{background:#6b7280}
+ .dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0008}
+</style>
+</head>
+<body>
+<header>
+  <h1>استهداف الشرائح</h1>
+  <input id="q" placeholder="اكتب طلبك… مثال: ابي شركات مقاولات في الرياض عندهم واتساب" autofocus>
+  <button class="primary" id="go">ابحث</button>
+  <label class="st"><input type="checkbox" id="onlySend"> فقط من يمكن مراسلته</label>
+  <span class="st" id="status">…</span>
+</header>
+<main>
+  <aside>
+    <div id="summary">اكتب طلبك بالأعلى. الذكاء يفهم الطلب ويحوّله لبحث، وتظهر النتائج هنا وعلى الخريطة.</div>
+    <div id="list"></div>
+    <div id="compose">
+      <div class="tools">
+        <button id="selAll">تحديد كل من يمكن مراسلته</button>
+        <button id="selNone">إلغاء التحديد</button>
+        <span id="selCount">0 محدد</span>
+      </div>
+      <textarea id="msg" placeholder="اكتب الصياغة هنا. يمكنك استخدام {name} لاسم الجهة و{city} للمدينة."></textarea>
+      <div class="tools">
+        <button class="primary" id="send">إرسال للمحددين (تأكيد لكل جهة)</button>
+        <label><input type="radio" name="ch" value="tpl" checked> واتساب من رقم فرق — رسالتك كما كتبتها <span id="tplst" class="b ln">…</span></label>
+        <label><input type="radio" name="ch" value="wa"> واتساب يدوي من جوالك (مجاني)</label>
+        <label><input type="radio" name="ch" value="email"> إيميل</label>
+        <label><input type="radio" name="ch" value="farq"> دعوة طلب عرض سعر (قالب RFQ الرسمي)</label>
+        <input id="rfq" placeholder="رقم طلب عرض السعر (RFQ id)" style="width:300px;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--txt);display:none">
+        <div id="chhelp" style="flex-basis:100%;line-height:1.6"></div>
+      </div>
+    </div>
+  </aside>
+  <div id="map"></div>
+</main>
+<div id="toast"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const map=L.map('map',{preferCanvas:true}).setView([24.2,45.0],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+let cluster=L.markerClusterGroup({chunkedLoading:true,disableClusteringAtZoom:16}); map.addLayer(cluster);
+let rows=[], sel=new Set(), markers={}, lastQuery='';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',4000)}
+fetch('/status').then(r=>r.json()).then(s=>{$('#status').textContent=`${s.pois.toLocaleString('en')} نقطة · واتساب ${s.whatsapp.toLocaleString('en')} · إيميل ${s.email.toLocaleString('en')} · الذكاء: ${s.ai?'مفعّل':'قاموس داخلي'}`});
+function badge(r){ if(r.has_whatsapp) return '<span class="b ok">واتساب</span>'; if(r.phone_kind==='landline') return '<span class="b ln">هاتف ثابت — لا واتساب</span>'; return '<span class="b no">لا يمكن الإرسال</span>'; }
+function sendable(r,ch){ return ch==='email' ? !!r.email : ch==='farq' ? (!!r.has_whatsapp || !!r.email) : !!r.has_whatsapp; }
+fetch('/template-status').then(r=>r.json()).then(t=>{const e=$('#tplst'); e.textContent=t.status==='APPROVED'?'معتمد':('حالة القالب: '+t.status); e.className='b '+(t.status==='APPROVED'?'ok':'ln')});
+function channel(){ return document.querySelector('input[name=ch]:checked').value; }
+function render(){
+  const ch=channel();
+  $('#list').innerHTML=rows.map((r,i)=>`<div class="row ${sel.has(i)?'sel':''}" data-i="${i}">
+    <input type="checkbox" ${sel.has(i)?'checked':''} ${sendable(r,ch)?'':'disabled'}>
+    <div><div class="n">${esc(r.name_ar||r.name_en||'—')} <span class="m">${esc(r.name_en&&r.name_ar?r.name_en:'')}</span></div>
+      <div class="m">${esc(r.category||r.category_ar||'')} · ${esc(r.city_en||'')} ${r.district_ar||r.district_en?'· '+esc(r.district_ar||r.district_en):''}</div>
+      <div class="m">${r.phone?esc(r.phone):'بدون رقم'} ${r.email?'· '+esc(r.email):''} · مصادر: ${r.source_count}</div></div>
+    <div>${badge(r)}${r.email?'<span class="b em">إيميل</span>':''}</div></div>`).join('');
+  $('#selCount').textContent=`${sel.size} محدد`;
+}
+$('#list').addEventListener('click',e=>{
+  const row=e.target.closest('.row'); if(!row) return; const i=+row.dataset.i; const r=rows[i];
+  if(e.target.type==='checkbox'){ if(e.target.checked) sel.add(i); else sel.delete(i); render(); return; }
+  if(markers[i]){ map.setView(markers[i].getLatLng(), Math.max(map.getZoom(),15)); markers[i].openPopup(); }
+});
+function popup(r){
+  const wa=r.has_whatsapp?`<a href="https://wa.me/${r.phone.replace('+','')}" target="_blank">فتح واتساب</a>`:'<span style="color:#ef4444">لا يوجد واتساب — لا يمكن الإرسال</span>';
+  return `<b>${esc(r.name_ar||r.name_en)}</b><br>${esc(r.category||'')}<br>${esc(r.city_en||'')} ${esc(r.district_ar||r.district_en||'')}<br>${r.phone?esc(r.phone)+'<br>':''}${r.email?esc(r.email)+'<br>':''}${wa}<br><a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank">Google Maps</a><br><small>المصادر: ${esc((r.sources||[]).join(', '))}</small>`;
+}
+async function go(){
+  const q=$('#q').value.trim(); if(!q) return; lastQuery=q;
+  $('#go').disabled=true; $('#summary').textContent='جارٍ البحث…';
+  try{
+    const res=await fetch('/search',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({q,only_sendable:$('#onlySend').checked})}).then(r=>r.json());
+    if(res.error){ $('#summary').textContent='خطأ: '+res.error; return; }
+    rows=res.rows; sel=new Set(); cluster.clearLayers(); markers={};
+    const p=res.parsed;
+    $('#summary').innerHTML=`<b>فهمت:</b> ${esc(p.explain||'')}${p.ai?'':' <span class="b ln">بدون ذكاء</span>'}<br>
+      <b>كلمات البحث:</b> ${esc((p.keywords||[]).slice(0,12).join('، '))}${p.city?' · <b>المدينة:</b> '+esc(p.city):''}${p.region?' · <b>المنطقة:</b> '+esc(p.region):''}<br>
+      <b>النتائج:</b> ${res.total.toLocaleString('en')} جهة · <span style="color:var(--ok)">واتساب ${res.with_whatsapp.toLocaleString('en')}</span> · <span style="color:var(--acc)">إيميل ${res.with_email.toLocaleString('en')}</span> · لا يمكن مراسلتهم ${(res.total-res.with_whatsapp-res.with_email+0).toLocaleString('en')}${rows.length<res.total?` (معروض أول ${rows.length})`:''}<br>
+      <b>حسب المنطقة:</b> ${res.by_region.map(x=>esc(x[0]||'?')+' '+x[1]).join(' · ')}`;
+    const pts=[];
+    rows.forEach((r,i)=>{ if(r.latitude==null) return;
+      const cls=r.has_whatsapp?'mk-ok':(r.email?'mk-em':'mk-no');
+      const m=L.marker([r.latitude,r.longitude],{icon:L.divIcon({className:'',html:`<div class="dot ${cls}"></div>`,iconSize:[12,12]})}).bindPopup(popup(r));
+      markers[i]=m; cluster.addLayer(m); pts.push([r.latitude,r.longitude]); });
+    if(pts.length) map.fitBounds(pts,{padding:[30,30],maxZoom:13});
+    render();
+  }catch(e){ $('#summary').textContent='خطأ: '+e; } finally{ $('#go').disabled=false; }
+}
+$('#go').onclick=go; $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+const HELP={tpl:'يرسل رسالتك (الصندوق أعلاه) من رقم فرق الرسمي عبر القالب المعتمد farq_outreach_ar: «السلام عليكم {اسم الجهة}، … رسالتك …» + زر «كيف تعمل فرق» وزر «مهتم». كل رسالة مدفوعة ≈ 0.17 ر.س، وتسألك نعم/لا لكل جهة. ردودهم وضغطات «مهتم» تصلك في صندوق المحادثات في فرق.',
+ wa:'يفتح واتساب على جوالك/جهازك برسالتك جاهزة لكل جهة، وأنت تضغط إرسال بنفسك. مجاني، لكن يدوي.',
+ email:'يفتح برنامج البريد برسالتك جاهزة لكل جهة عندها إيميل.',
+ farq:'يضيف الجهات كموردين لطلب عرض سعر موجود في فرق ويرسل لهم دعوة الطلب الرسمية (المواد/الكمية/التوريد/رقم الطلب + زر البوابة). لا يستخدم نص الصندوق. واتساب مدفوع لمن عنده واتساب، وإيميل للبقية.'};
+function showHelp(){const ch=channel(); $('#chhelp').textContent=HELP[ch]; $('#rfq').style.display=ch==='farq'?'inline-block':'none';}
+document.querySelectorAll('input[name=ch]').forEach(x=>x.onchange=()=>{sel=new Set();render();showHelp()}); showHelp();
+$('#selAll').onclick=()=>{const ch=channel();rows.forEach((r,i)=>{if(sendable(r,ch))sel.add(i)});render()};
+$('#selNone').onclick=()=>{sel=new Set();render()};
+function fill(t,r){return t.replace(/\{name\}/g,r.name_ar||r.name_en||'').replace(/\{city\}/g,r.city_en||'')}
+async function sendFarq(){
+  const rfq=$('#rfq').value.trim(); if(!/^[0-9a-f-]{36}$/i.test(rfq)){toast('اكتب رقم طلب عرض السعر (RFQ id) أولاً');return}
+  const targets=[...sel].map(i=>rows[i]).filter(r=>sendable(r,'farq'));
+  if(!targets.length){toast('لا يوجد محدد عنده واتساب أو إيميل');return}
+  const ok=[];
+  for(const r of targets){
+    const ch=r.has_whatsapp?'واتساب (مدفوع) '+r.phone:'إيميل '+r.email;
+    if(!confirm(`إضافة وإرسال دعوة طلب عرض السعر عبر فرق إلى:\n${r.name_ar||r.name_en}\n${ch}\n\nالرسالة = قالب فرق المعتمد (المواد/الكمية/التوريد/رقم الطلب + زر البوابة). موافق؟`)){ if(!confirm('تخطي هذه الجهة والمتابعة؟')) return; continue; }
+    ok.push({poi_key:r.poi_key,name_ar:r.name_ar,name_en:r.name_en,city:r.city_en,category:r.category,whatsapp:r.has_whatsapp?r.phone:null,email:r.email||null});
+  }
+  if(!ok.length) return;
+  if(!confirm(`سيُضاف ${ok.length} جهة إلى الطلب ${rfq.slice(0,8)} ويبدأ الإرسال (واتساب مدفوع لمن عنده واتساب، وإيميل للبقية). تأكيد نهائي؟`)) return;
+  $('#send').disabled=true; toast('جارٍ الإرسال عبر فرق… (قد يستغرق دقيقة)');
+  try{
+    const res=await fetch('/send-farq',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rfq_id:rfq,targets:ok,query:lastQuery})}).then(r=>r.json());
+    if(res.ok){ toast(`تمت الإضافة: ${res.added} · واتساب ${res.contacts_whatsapp} · إيميل ${res.contacts_email} · مهمة الإرسال: ${res.dispatch_job?.state||'—'}`); alert('نتيجة الإرسال عبر فرق:\n'+JSON.stringify(res,null,1)); }
+    else { alert('فشل: '+(res.error||res.fatal||JSON.stringify(res))); }
+  }catch(e){ alert('خطأ: '+e); } finally{ $('#send').disabled=false; }
+}
+async function sendTemplate(){
+  const t=$('#msg').value.trim(); if(!t){toast('اكتب الصياغة أولاً');return}
+  const targets=[...sel].map(i=>rows[i]).filter(r=>r.has_whatsapp);
+  if(!targets.length){toast('لا يوجد محدد عنده واتساب');return}
+  const go=[];
+  for(const r of targets){
+    const m=fill(t,r);
+    if(!confirm(`إرسال عبر رقم فرق (قالب حر، مدفوعة ≈0.17 ر.س) إلى:\n${r.name_ar||r.name_en}\n${r.phone}\n\nالسلام عليكم ${r.name_ar||r.name_en}،\n${m}\n\nموافق؟`)){ if(!confirm('تخطي هذه الجهة والمتابعة؟')) break; continue; }
+    go.push(r);
+  }
+  if(!go.length) return;
+  $('#send').disabled=true;
+  toast('تسجيل الجهات في الطلب الحاضن ثم الإرسال من رقم فرق…');
+  const st=await fetch('/template-status').then(x=>x.json());
+  if(st.status!=='APPROVED'){ $('#send').disabled=false; alert('القالب غير معتمد بعد: '+st.status); return; }
+  const mk=r=>({poi_key:r.poi_key,name_ar:r.name_ar,name_en:r.name_en,city:r.city_en,category:r.category,whatsapp:r.phone,email:r.email||null,message:fill(t,r)});
+  const reg=await fetch('/send-farq',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rfq_id:st.holder.holder_rfq_id,dispatch:false,query:lastQuery,targets:go.map(mk)})}).then(x=>x.json());
+  if(!reg.ok){ $('#send').disabled=false; alert('تعذّر تسجيل الجهات في الطلب الحاضن: '+(reg.error||reg.fatal||JSON.stringify(reg))); return; }
+  const res=await fetch('/send-farq',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rfq_id:st.holder.holder_rfq_id,mode:'template',query:lastQuery,targets:go.map(mk)})}).then(x=>x.json());
+  $('#send').disabled=false;
+  if(!res.ok){ alert('فشل الإرسال: '+(res.error||res.fatal||JSON.stringify(res))); return; }
+  for(const r of go){ await fetch('/log',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({poi_key:r.poi_key,name:r.name_ar||r.name_en,channel:'farq_template',to:r.phone,message:fill(t,r),query:lastQuery})}); }
+  toast(`أُرسل ${res.sent.length} · فشل ${res.failed.length}`);
+  if(res.failed.length) alert('لم تُرسل:\n'+res.failed.map(f=>f.poi_key+': '+f.error).join('\n'));
+}
+$('#send').onclick=async()=>{
+  const ch=channel(); if(ch==='farq'){ return sendFarq(); } if(ch==='tpl'){ return sendTemplate(); }
+  const t=$('#msg').value.trim(); if(!t){toast('اكتب الصياغة أولاً');return}
+  const targets=[...sel].map(i=>rows[i]).filter(r=>sendable(r,ch));
+  if(!targets.length){toast('لا يوجد محدد يمكن مراسلته عبر '+(ch==='email'?'الإيميل':'واتساب'));return}
+  let sent=0;
+  for(const r of targets){
+    const m=fill(t,r); const to=ch==='email'?r.email:r.phone;
+    if(!confirm(`إرسال إلى: ${r.name_ar||r.name_en}\n${to}\n\n${m}\n\nموافق؟`)){ if(!confirm('تخطي هذه الجهة والمتابعة؟')) break; continue; }
+    const url=ch==='email'?`mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent('فرق — '+(r.name_ar||r.name_en||''))}&body=${encodeURIComponent(m)}`
+                          :`https://wa.me/${r.phone.replace('+','')}?text=${encodeURIComponent(m)}`;
+    window.open(url,'_blank');
+    await fetch('/log',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({poi_key:r.poi_key,name:r.name_ar||r.name_en,channel:ch,to,message:m,query:lastQuery})});
+    sent++;
+  }
+  toast(`فُتحت ${sent} رسالة جاهزة للإرسال (اضغط إرسال داخل ${ch==='email'?'البريد':'واتساب'}). سُجّلت في data/send_log.csv`);
+};
+</script>
+</body>
+</html>

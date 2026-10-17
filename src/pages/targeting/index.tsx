@@ -988,19 +988,24 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-4" aria-label="ملخص السوق">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[15px] font-semibold">ملخص سوق {cityName(city)}</h2>
-        <span className="text-[12px] text-[var(--color-text-tertiary)]">{marketLoading ? 'جارٍ التحديث…' : marketError ? 'بعض بيانات السوق غير متاحة' : 'حسب التصنيفات والمواقع الدقيقة'}</span>
+        <span className="text-[12px] text-[var(--color-text-tertiary)]">{marketLoading ? 'جارٍ التحديث…' : marketError ? 'بعض بيانات السوق غير متاحة' : 'حسب سجل الدليل الحالي'}</span>
       </div>
       {marketStats ? (
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {[
-            ['منشآت بمواقع دقيقة', marketStats.total], ['أحياء', marketStats.districts_count],
-            ['قناة واتساب', marketStats.n_whatsapp], ['جملة', marketStats.n_wholesale],
-            ['تخصصات', marketStats.n_specialties], ['موقع تقريبي', marketStats.n_approx],
-          ].map(([label, value]) => <div key={label} className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
-            <dt className="text-[11px] leading-[16px] text-[var(--color-text-secondary)]">{label}</dt>
-            <dd className="m-0 text-[16px] leading-[24px] font-semibold tabular-nums">{n(Number(value))}</dd>
-          </div>)}
-        </dl>
+        <>
+          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {[
+              ['منشآت مرصودة', marketStats.total], ['أحياء بإسناد موثوق', marketStats.districts_count],
+              ['واتساب حسب المصدر', marketStats.n_whatsapp], ['منشآت موسومة جملة', marketStats.n_wholesale],
+              ['أنشطة فرعية مصنفة', marketStats.n_specialties], ['بلا موقع دقيق', marketStats.n_approx],
+            ].map(([label, value]) => <div key={label} className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
+              <dt className="text-[11px] leading-[16px] text-[var(--color-text-secondary)]">{label}</dt>
+              <dd className="m-0 text-[16px] leading-[24px] font-semibold tabular-nums">{n(Number(value))}</dd>
+            </div>)}
+          </dl>
+          <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">
+            الملخص يحصي سجل المنشآت في المدينة؛ نتائج الخريطة تقتصر على المنشآت الموسومة بواتساب من المصدر، والوسم لا يعني تحقق الرقم.
+          </p>
+        </>
       ) : marketLoading ? <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص السوق…</p> : (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
           <span>تعذّر تحميل ملخص السوق.</span>
