@@ -183,7 +183,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
-  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null) }
+  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null); setFit(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
@@ -284,6 +284,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const hasPolys = Boolean(polys && polys.length)
   const districts = useMemo<District[]>(() => (hasPolys ? polys! : districtsFromNames(res?.areas?.districts || [])), [hasPolys, polys, res])
   const chosenList = useMemo(() => districts.filter((d) => chosenD.has(d.id)), [districts, chosenD])
+  const fitCity = () => {
+    const bounds = districts.map((d) => d.bbox).filter(Boolean) as [number, number, number, number][]
+    if (bounds.length) {
+      fitTo([Math.min(...bounds.map((b) => b[0])), Math.min(...bounds.map((b) => b[1])), Math.max(...bounds.map((b) => b[2])), Math.max(...bounds.map((b) => b[3]))])
+      return
+    }
+    const center = cityCoords(city)
+    if (center) fitTo([center.lon - 0.15, center.lat - 0.12, center.lon + 0.15, center.lat + 0.12])
+  }
   // Scope the district first. A delivery radius only applies to precise points; keep rows
   // without coordinates in a separate review list instead of silently dropping them.
   const districtRows = useMemo(() => chosenList.length ? rows.filter((r) => inDistricts(r, chosenList)) : rows, [rows, chosenList])
@@ -325,7 +334,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // district, keep this indicator scoped to the visible result set.
     const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
     if (lens === 'market') return [
-      { key: 'market-size', label: 'منشآت في السوق', value: marketStats?.total ?? null, lead: true },
+      { key: 'market-size', label: 'منشآت بمواقع دقيقة', value: marketStats?.total ?? null, lead: true },
       { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
       { key: 'market-activities', label: 'أنشطة فرعية', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : marketStats?.n_specialties ?? null },
       { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats ? marketStats.densest_street?.n ?? 0 : null },
@@ -374,6 +383,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setChosenD(next)
     const district = districts.find((d) => d.id === id)
     if (!wasChosen && district?.bbox) fitTo(district.bbox)
+    else if (wasChosen) fitCity()
     const name = wasChosen ? undefined : district?.ar || id.replace(/^name:/, '')
     if (query) {
       const nextFilters = { ...filters }
@@ -388,6 +398,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const clearDistrict = () => {
     recordMapInteraction('map_district_clear')
     setChosenD(new Set())
+    fitCity()
     if (query) {
       const nextFilters = { ...filters }
       delete nextFilters.district
@@ -522,7 +533,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
     } finally { if (version === generation.current) setBusy(false) }
   }
-  useEffect(() => { void loadBrowse(city) }, [city]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Preserve the active search when the user changes cities. A city-wide browse
+  // under the old phrase made the input and map disagree about what was searched.
+  useEffect(() => {
+    const text = query.trim()
+    if (text) void runSearchIn(text, city)
+    else void loadBrowse(city)
+  }, [city]) // eslint-disable-line react-hooks/exhaustive-deps
   /** Where this trade concentrates in the city (POST /clusters); quiet when the service has none or is older. */
   function loadClusters(text: string, inCity: string, wholesale: boolean, obj: typeof objective = objective, keepStreets = false) {
     const v = ++clusterGen.current
@@ -1027,10 +1044,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[14px] font-semibold">من يشتري عادةً؟</h2>
         <button type="button" aria-pressed={includeCommonBuyers} onClick={() => setIncludeCommonBuyers((v) => !v)} className={`text-[12px] font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>
-          {includeCommonBuyers ? 'عرض الأساسي فقط' : 'عرض المحتمل أيضاً'}
+          {includeCommonBuyers ? 'عرض الأساسي فقط' : 'عرض احتمالات أقل تأكيداً'}
         </button>
       </div>
       <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{currentBuyerData.subject.label_ar} · علاقة احتياج متوقعة وليست إثباتاً لنية شراء</p>
+      {includeCommonBuyers ? <p role="note" className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الاحتمالات الأقل تأكيداً قد لا تطابق احتياجك؛ راجع نشاط المنشأة قبل التواصل.</p> : null}
       {currentBuyerData.buyers.filter((b) => includeCommonBuyers || b.strength === 'core').length ? (
         <ul className="flex flex-col">
           {currentBuyerData.buyers.filter((b) => includeCommonBuyers || b.strength === 'core').map((b) => <li key={b.sub_id} className="flex items-center gap-2 border-t border-[var(--color-border-default)] py-2 text-[13px]">
@@ -1059,7 +1077,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'h-[58dvh] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
+      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />

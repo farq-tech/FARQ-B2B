@@ -72,6 +72,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   const writes: string[] = []
   const saved: Record<string, unknown>[] = []
   const searches: Record<string, unknown>[] = []
+  const searchRequests: Record<string, unknown>[] = []
   const schedules: Record<string, unknown>[] = []
   const densities: Record<string, unknown>[] = []
   const catalogs: Record<string, unknown>[] = []
@@ -86,7 +87,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   }, opts.analyticsConsent || 'rejected')
   await page.route('**/_targeting/**', async (route) => {
     const url = new URL(route.request().url()); const path = url.pathname
-    if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }] })
+    if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }, { en: 'Jeddah', ar: 'جدة', n: 80 }] })
     if (path.endsWith('/market-summary')) {
       const body = route.request().postDataJSON(); marketQueries.push(body)
       return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, n_wholesale: 2, n_whatsapp: 5, n_specialties: 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
@@ -105,11 +106,11 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     }
     if (path.endsWith('/street-density')) {
       const body = route.request().postDataJSON(); densities.push(body)
-      expect(body).toMatchObject({ city: 'Riyadh' })
+      expect(body).toMatchObject({ city: expect.stringMatching(/^(Riyadh|Jeddah)$/) })
       return route.fulfill({ json: { type: 'FeatureCollection', basis: BASIS, features: opts.streets === 'none' ? [] : streetsFor(body) } })
     }
     if (path.endsWith('/districts')) {
-      expect(url.searchParams.get('city')).toBe('Riyadh')
+      expect(url.searchParams.get('city')).toMatch(/^(Riyadh|Jeddah)$/)
       return opts.districts === 'none' ? route.fulfill({ status: 404, json: { error: 'not_found' } }) : route.fulfill({ json: DISTRICTS })
     }
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
@@ -121,7 +122,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     ] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: Boolean(opts.send) } })
     if (path.endsWith('/search')) {
-      const body = route.request().postDataJSON(); if (body.q) searches.push(body)
+      const body = route.request().postDataJSON(); searchRequests.push(body); if (body.q) searches.push(body)
       const f = body.filters || {}
       const source = opts.malformedDistrict ? [...ALL, row(7, 'مؤسسة بلا حي', '{"id": null, "name_ar": null, "name_en": null}', '', 24.65, 46.72)] : ALL
       const rows = source.filter((r) => (!f.wholesale || r.is_wholesale) && (!f.district || r.district_ar === f.district) && (!f.street || r.street_ar.includes(f.street)) && (!f.role || (r.role_badges as string[]).includes(f.role)) && (!f.specialty || (r.specialties as string[]).includes(f.specialty)))
@@ -163,7 +164,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     if (route.request().method() !== 'GET') writes.push(`${route.request().method()} ${path}`)
     return route.fulfill({ status: 503, json: { ok: false, error: { message: 'QA: blocked' } } })
   })
-  return { writes, searches, saved, schedules, orgHeaders, listQueries, densities, catalogs, buyerQueries, marketQueries }
+  return { writes, searches, searchRequests, saved, schedules, orgHeaders, listQueries, densities, catalogs, buyerQueries, marketQueries }
 }
 
 const counter = (page: Page, key: string) => page.locator(`[data-counter="${key === 'n' ? 'supplier-matches' : key === 'districts' ? 'supplier-districts' : key}"] span[aria-hidden]`)
@@ -274,11 +275,50 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('heading', { name: 'من يشتري عادةً؟' })).toBeVisible()
     await expect(page.getByText('سباكة وتنفيذ')).toBeVisible()
     await expect(page.getByText('فنادق')).toHaveCount(0)
-    await page.getByRole('button', { name: 'عرض المحتمل أيضاً' }).click()
+    await page.getByRole('button', { name: 'عرض احتمالات أقل تأكيداً' }).click()
     await expect(page.getByText('فنادق')).toBeVisible()
+    await expect(page.getByRole('note')).toContainText('راجع نشاط المنشأة قبل التواصل')
 
     await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     await expect(page.getByRole('tab', { name: 'ابحث عن موردين' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('changing city repeats the active search instead of showing city-wide results under the old phrase', async ({ page }) => {
+    const { searchRequests } = await setup(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
+    await searchFor(page, 'مواسير سباكة')
+    await expect.poll(() => searchRequests.some((request) => request.q === 'مواسير سباكة' && request.city === 'Riyadh')).toBe(true)
+
+    await page.getByLabel('المدينة', { exact: true }).selectOption('Jeddah')
+    await expect(page.getByLabel('وش تبي توصل له؟')).toHaveValue('مواسير سباكة')
+    await expect.poll(() => searchRequests.some((request) => request.q === 'مواسير سباكة' && request.city === 'Jeddah' && request.objective === 'purchase')).toBe(true)
+    await expect.poll(() => searchRequests.filter((request) => request.city === 'Jeddah').length).toBe(1)
+    await expect(page.getByRole('heading', { name: 'ملخص سوق جدة' })).toHaveCount(0)
+  })
+
+  test('choosing a district zooms into it and a result refresh does not zoom back out', async ({ page }) => {
+    await setup(page)
+    await page.goto('/opportunity-map')
+    const district = page.locator('path[data-district="الملك فيصل"]')
+    const before = await district.boundingBox()
+    expect(before).not.toBeNull()
+
+    await pickDistrict(page, 'الملك فيصل')
+    await expect(page.getByRole('button', { name: 'عرض كل الأحياء' })).toBeVisible()
+    const zoomed = await district.boundingBox()
+    expect(zoomed).not.toBeNull()
+    expect(zoomed!.width).toBeGreaterThan(before!.width * 1.15)
+
+    await page.waitForTimeout(700)
+    const afterRefresh = await district.boundingBox()
+    expect(afterRefresh).not.toBeNull()
+    expect(afterRefresh!.width).toBeGreaterThan(zoomed!.width * 0.9)
+
+    await page.getByRole('button', { name: 'عرض كل الأحياء' }).click()
+    const cityView = await district.boundingBox()
+    expect(cityView).not.toBeNull()
+    expect(cityView!.width).toBeLessThan(afterRefresh!.width * 0.9)
   })
 
   test('focus map fills the viewport and its results panel can be shown or hidden', async ({ page }) => {

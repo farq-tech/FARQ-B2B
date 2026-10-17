@@ -6,6 +6,7 @@ export type Site = { lat: number; lon: number; km: number }
 
 /** What both maps (Mapbox and the drawn fallback) draw. */
 export type LayerMapProps = {
+  city: string
   /** Tell Mapbox when the containing page switches between normal and full-screen layout. */
   focusMode?: boolean
   districts: District[]
