@@ -1248,28 +1248,46 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
 }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
+    const priorFocus = mobile ? trigger.current : null
+    const dialog = mobile ? document.getElementById(`${id}-options`) : null
+    if (mobile) dialog?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
     const onPointerDown = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
-    if (mobile) {
-      document.addEventListener('keydown', onKeyDown)
-      return () => document.removeEventListener('keydown', onKeyDown)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setOpen(false); return }
+      if (!mobile || event.key !== 'Tab' || !dialog) return
+      const focusable = [...dialog.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
+      if (!focusable.length) { event.preventDefault(); return }
+      const first = focusable[0], last = focusable[focusable.length - 1]
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    if (mobile) return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      if (priorFocus?.isConnected) priorFocus.focus()
     }
     document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown) }
-  }, [open, mobile])
+  }, [open, mobile, id])
   const choose = (value: string) => {
     setOpen(false)
     recordMapInteraction(`map_filter_select_${analyticsKey}`)
     onPick(value)
   }
   const menu = open ? mobile ? createPortal(
-    <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
-      <section id={`${id}-options`} role="dialog" aria-modal="true" aria-label={`اختيار ${label}`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
+      <section id={`${id}-options`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
         <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-9 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
-        <h2 className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
+        <h2 id={`${id}-title`} className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
           {options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className={`block min-h-12 w-full rounded-xl px-3 py-2 text-start text-[15px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{option.text}</button>)}
         </div>
@@ -1282,7 +1300,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   ) : null
   return (
     <div ref={root} className="relative shrink-0">
-      <button id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
+      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
         className={`inline-flex min-h-10 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
