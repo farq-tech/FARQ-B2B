@@ -113,6 +113,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [q, setQ] = useState(() => handoff.take(HANDOFF.targetQuery) || '')
   const generation = useRef(0)
   const [query, setQuery] = useState('')
+  const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -543,6 +544,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
       setFailedResultRefresh(false)
+      lastSuccessfulQueryObjective.current = obj
       if (fresh) recordMapInteraction(mapSearchResultEvent(r.total))
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
@@ -1134,7 +1136,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       onDone={(sent, failed) => { setConfirming(false); setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
   const noticeLine = notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null
-  const errorLine = error ? <div role="alert" className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} /><span className="min-w-0 flex-1">{error}{failedResultRefresh ? ' النتائج المعروضة لم تتحدّث وتخص النطاق السابق.' : ''}</span>{failedResultRefresh && query ? <button type="button" onClick={() => { setQ(query); setFailedResultRefresh(false); setError(null) }} className={`shrink-0 underline ${FOCUS_RING}`}>العودة للبحث السابق</button> : null}</div> : null
+  const errorLine = error ? <div role="alert" className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} /><span className="min-w-0 flex-1">{error}{failedResultRefresh ? ' النتائج المعروضة لم تتحدّث وتخص النطاق السابق.' : ''}</span>{failedResultRefresh && query ? <button type="button" onClick={() => { const previousObjective = lastSuccessfulQueryObjective.current; setQ(query); setObjective(previousObjective); void runSearchIn(query, city, undefined, previousObjective, filters) }} className={`shrink-0 underline ${FOCUS_RING}`}>إعادة البحث السابق</button> : null}</div> : null
   const understood = chips.length ? (
     <div className={mobile ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>
       {mobile ? null : <span className="flex items-center gap-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]"><Icon name="bolt" size={16} />فهمنا طلبك كذا:</span>}
