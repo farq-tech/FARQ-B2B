@@ -96,6 +96,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [focusPanelSnap, setFocusPanelSnap] = useState<'peek' | 'half' | 'full'>('peek')
   const panelDragStart = useRef<number | null>(null)
   const panelDidDrag = useRef(false)
+  const setSheetSnap = (snap: 'peek' | 'half' | 'full') => {
+    setFocusPanelSnap(snap)
+    if (mobile) recordMapInteraction(`map_sheet_${snap}`)
+  }
   const changeFocusMode = (focused: boolean) => {
     setFocusMode(focused)
     onMapFocusChange?.(focused)
@@ -508,7 +512,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
   async function openMapProfile(key: string) {
     const existing = byKey.get(key)
-    if (existing) { recordMapInteraction('map_profile_open'); setFocusPanelSnap('full'); setProfile(key); return }
+    if (existing) { recordMapInteraction('map_profile_open'); setSheetSnap('full'); setProfile(key); return }
     if (!res?.map_query) return
     const version = generation.current
     const mapQuery = res.map_query
@@ -516,7 +520,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const result = await mapProfile(mapQuery, key)
       if (version !== generation.current) return
       setRes((current) => current?.map_query === mapQuery ? { ...current, rows: [...current.rows.filter((row) => row.poi_key !== key), result.row] } : current)
-      recordMapInteraction('map_profile_open'); setFocusPanelSnap('full')
+      recordMapInteraction('map_profile_open'); setSheetSnap('full')
       setProfile(key)
     } catch {
       if (version === generation.current) setError('تعذّر فتح بيانات المنشأة. حدّث نقاط الخريطة وحاول مرة ثانية.')
@@ -537,8 +541,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const st = dense?.list.find((x) => x.id === id)
     if (!st) return
     recordMapInteraction('map_street_select')
-    setFocusPanelOpen(true)
-    setFocusPanelSnap('half')
+    if (focusMode) {
+      if (mobile && !focusPanelOpen) recordMapInteraction('map_sheet_open')
+      setFocusPanelOpen(true)
+      if (mobile) setSheetSnap('half')
+    }
     const [w, so, e, no] = st.bbox, pad = 0.002
     fitTo([w - pad, so - pad, e + pad, no + pad])
     setActiveStreet(id)
@@ -602,7 +609,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const areas = res?.areas
   const streets = useMemo(() => (areas?.streets || []).filter((x) => !filters.district || x.district === filters.district), [areas, filters.district])
   const picker = (id: string, label: string, icon: typeof DistrictIcon, options: { value: string; text: string }[], onPick: (v: string) => void) => options.length ? (
-    <FilterPill id={id} label={label} icon={icon} options={options} disabled={busy} onPick={onPick} />
+    <FilterPill id={id} label={label} icon={icon} analyticsKey={id === 'targeting-district' ? 'district' : id === 'targeting-street' ? 'street' : id === 'targeting-role' ? 'role' : 'specialty'} options={options} disabled={busy} onPick={onPick} />
   ) : null
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
@@ -954,7 +961,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
             {site ? (
               <span className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
-                <FilterPill id="site-radius" label={`نطاق التوصيل · ${site.km} كم`} icon={null} options={RADII.map((radius) => ({ value: String(radius), text: `${radius} كم` }))} disabled={false} onPick={(value) => setSite({ ...site, km: Number(value) })} />
+                <FilterPill id="site-radius" label={`نطاق التوصيل · ${site.km} كم`} icon={null} analyticsKey="site_radius" options={RADII.map((radius) => ({ value: String(radius), text: `${radius} كم` }))} disabled={false} onPick={(value) => setSite({ ...site, km: Number(value) })} />
                 <button type="button" aria-label="إزالة موقع المشروع" onClick={() => { setSite(null); setShowUnlocated(false) }} className={`flex size-7 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
               </span>
             ) : (
@@ -1048,7 +1055,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">{direction}</div>
               <button type="button" aria-expanded={focusPanelOpen} aria-controls="map-focus-panel"
-                onClick={() => { const nextOpen = !focusPanelOpen; setFocusPanelOpen(nextOpen); if (nextOpen) setFocusPanelSnap('peek') }}
+                onClick={() => {
+                  const nextOpen = !focusPanelOpen
+                  setFocusPanelOpen(nextOpen)
+                  recordMapInteraction(nextOpen ? 'map_sheet_open' : 'map_sheet_close')
+                  if (nextOpen) setSheetSnap('peek')
+                }}
                 className={`shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm ${FOCUS_RING}`}>
                 {focusPanelOpen ? 'إخفاء اللوحة' : `النتائج · ${n(visibleCohort.length)}`}
               </button>
@@ -1068,19 +1080,19 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <aside id="map-focus-panel" aria-label="النتائج والدليل" className={`absolute z-30 flex flex-col overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-md transition-[height] duration-300 motion-reduce:transition-none ${mobile ? `inset-x-0 bottom-0 ${focusPanelSnap === 'peek' ? 'h-[15dvh]' : focusPanelSnap === 'full' ? 'h-[95dvh]' : 'h-[58dvh]'} rounded-t-2xl pb-[env(safe-area-inset-bottom)]` : 'inset-y-3 end-3 top-[116px] w-[min(400px,calc(100vw-24px))] rounded-2xl'}`}>
             {mobile ? <button type="button" aria-label="تغيير ارتفاع لوحة النتائج" onClick={() => {
               if (panelDidDrag.current) { panelDidDrag.current = false; return }
-              setFocusPanelSnap((snap) => snap === 'peek' ? 'half' : snap === 'half' ? 'full' : 'peek')
+              setSheetSnap(focusPanelSnap === 'peek' ? 'half' : focusPanelSnap === 'half' ? 'full' : 'peek')
             }} onPointerDown={(event) => { panelDragStart.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId) }} onPointerUp={(event) => {
               if (panelDragStart.current == null) return
               const delta = event.clientY - panelDragStart.current
               panelDragStart.current = null
               if (Math.abs(delta) < 28) return
               panelDidDrag.current = true
-              setFocusPanelSnap((snap) => delta < 0 ? snap === 'peek' ? 'half' : 'full' : snap === 'full' ? 'half' : 'peek')
+              setSheetSnap(delta < 0 ? focusPanelSnap === 'peek' ? 'half' : 'full' : focusPanelSnap === 'full' ? 'half' : 'peek')
             }} className={`flex h-7 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
                 <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{res ? `النتائج · ${n(visibleCohort.length)} منشأة` : `ملخص السوق · ${n(marketStats?.total || 0)} منشأة`}</p>
-                <button type="button" onClick={() => setFocusPanelSnap('half')} className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold ${FOCUS_RING}`}>عرض التفاصيل</button>
+                <button type="button" onClick={() => setSheetSnap('half')} className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold ${FOCUS_RING}`}>عرض التفاصيل</button>
               </div>
             ) : <>
               {panelHead}
@@ -1172,10 +1184,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 }
 
 /** A compact, map-friendly filter control whose menu floats over results instead of shifting them. */
-function FilterPill({ id, label, icon: IconComponent, options, disabled, onPick }: {
+function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, onPick }: {
   id: string
   label: string
   icon: typeof DistrictIcon | null
+  analyticsKey: 'district' | 'street' | 'role' | 'specialty' | 'site_radius'
   options: { value: string; text: string }[]
   disabled: boolean
   onPick: (value: string) => void
@@ -1192,14 +1205,14 @@ function FilterPill({ id, label, icon: IconComponent, options, disabled, onPick 
   }, [open])
   return (
     <div ref={root} className="relative shrink-0">
-      <button id={id} type="button" aria-haspopup="true" aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => setOpen((value) => !value)}
+      <button id={id} type="button" aria-haspopup="true" aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
         className={`inline-flex min-h-10 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
         <Icon name="chevron-down" size={14} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open ? <div id={`${id}-options`} aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-1.5 shadow-2xl backdrop-blur-xl">
-        {options.map((option) => <button key={option.value} type="button" onClick={() => { setOpen(false); onPick(option.value) }}
+        {options.map((option) => <button key={option.value} type="button" onClick={() => { setOpen(false); recordMapInteraction(`map_filter_select_${analyticsKey}`); onPick(option.value) }}
           className={`block min-h-11 w-full rounded-xl px-3 py-2 text-start text-[14px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
           {option.text}
         </button>)}
