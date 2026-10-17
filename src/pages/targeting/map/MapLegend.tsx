@@ -17,7 +17,7 @@ const FITS: { fit: PinFit | 'all'; label: string }[] = [
   { fit: 'low', label: 'منخفضة' },
   { fit: 'unknown', label: 'بدون تقدير نموذجي' },
 ]
-const LEGEND_HIDDEN_KEY = 'farq-opportunity-map-legend-hidden-v1'
+const LEGEND_HIDDEN_KEY = 'farq-opportunity-map-legend-hidden-v2'
 
 function readHiddenPreference() {
   try {
