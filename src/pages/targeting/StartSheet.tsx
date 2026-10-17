@@ -39,6 +39,7 @@ function Row({ icon, title, hint, onClick }: { icon: IconSource; title: string; 
 
 export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, onSellLines, onRfq }: Props) {
   const [step, setStep] = useState<'pick' | 'sell'>('pick')
+  const [direction, setDirection] = useState<'buy' | 'sell'>('buy')
   const [text, setText] = useState('')
   const [reading, setReading] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -93,13 +94,27 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
         </div>
         {step === 'pick' ? (
           <>
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">وش تبي تسعّر؟ اختر من وين تبدأ، وكلها توصلك لنفس البحث والخريطة.</p>
-            <div className="flex flex-col gap-2">
-              <Row icon={UploadBookletIcon} title="كراسة أو طلب شراء" hint="ارفع الملف ونطلع بنوده، وتبحث عن بائعين لكل بند" onClick={onBooklet} />
-              <Row icon={UploadCatalogIcon} title="أبي أبيع منتجاتي" hint="ارفع كتالوجك أو اكتب منتجاتك (جملة وقطاعي)، ونلقى لك مشترين" onClick={() => setStep('sell')} />
-              <Row icon={SearchIcon} title="بحث حر" hint="اكتب وش تبي، مثل: حدايد وبويات، بلاط، مليس" onClick={onFreeSearch} />
+            <div role="group" aria-label="اتجاه البحث" className="relative isolate grid grid-cols-2 rounded-full bg-[var(--color-bg-surface-2)]/90 p-1 backdrop-blur-md">
+              <span aria-hidden className={`pointer-events-none absolute inset-y-1 start-1 w-[calc(50%-4px)] rounded-full bg-[var(--color-bg-surface)] shadow-[var(--farq-button-shadow)] transition-transform duration-300 motion-reduce:transition-none ${direction === 'sell' ? '-translate-x-full' : ''}`} />
+              <button type="button" aria-pressed={direction === 'buy'} onClick={() => setDirection('buy')}
+                className={`relative z-10 min-h-11 rounded-full px-3 py-2 text-[14px] font-semibold transition-colors ${direction === 'buy' ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
+                أبحث عن مورد
+              </button>
+              <button type="button" aria-pressed={direction === 'sell'} onClick={() => setDirection('sell')}
+                className={`relative z-10 min-h-11 rounded-full px-3 py-2 text-[14px] font-semibold transition-colors ${direction === 'sell' ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
+                أبحث عن مشتري
+              </button>
             </div>
-            {onRfq ? (
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{direction === 'buy' ? 'ابحث عن الموردين من احتياجك أو من كراسة الشروط.' : 'اعرض منتجاتك على المشترين المناسبين من خلال الكتالوج أو وصف المنتجات.'}</p>
+            <div className="flex flex-col gap-2">
+              {direction === 'buy' ? <>
+                <Row icon={UploadBookletIcon} title="كراسة أو طلب شراء" hint="ارفع الملف ونطلع بنوده، وتبحث عن بائعين لكل بند" onClick={onBooklet} />
+                <Row icon={SearchIcon} title="بحث حر عن مورد" hint="اكتب المنتج أو المادة التي تبحث عنها" onClick={onFreeSearch} />
+              </> : (
+                <Row icon={UploadCatalogIcon} title="أضف منتجاتك" hint="ارفع كتالوجك أو اكتب منتجاتك لنقترح تخصصات المشترين" onClick={() => setStep('sell')} />
+              )}
+            </div>
+            {direction === 'buy' && onRfq ? (
               <button type="button" onClick={onRfq} className={`flex items-center gap-2 self-start text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] hover:underline ${FOCUS_RING}`}>
                 <PricingRequestsIcon size={16} />طلب تسعير من الموردين
                 <span className="font-normal text-[var(--color-text-tertiary)]">· بنود وتوصيل وإرسال للموردين</span>
