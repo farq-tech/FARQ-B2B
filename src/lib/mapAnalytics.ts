@@ -9,6 +9,8 @@ const MAP_EVENTS = [
   'map_browse_succeeded',
   'map_browse_failed',
   'map_browse_refresh_failed',
+  'map_browse_more_succeeded',
+  'map_browse_more_failed',
   'map_results_status_notice',
   'map_results_shortcut_seen',
   'map_results_jump',

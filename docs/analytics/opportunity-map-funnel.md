@@ -374,3 +374,31 @@ ORDER BY week_utc DESC;
 ```
 
 These are session-level navigation signals, not task completion or evidence that focus mode caused a profile open. Only sessions recorded after deployment contain the new entry/exit events. Wait for two complete weeks and at least 30 consenting focus-entry sessions before treating rates as directional; pair them with observed task completion and time-to-profile. Never infer mobile use from this query because no device class is recorded.
+
+## Market browse pagination
+
+Use this aggregate query to monitor whether consented sessions successfully load additional pages while exploring the city market. It returns weekly totals only; it does not expose session keys, search terms, cities, filters, or establishment identifiers.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_more_succeeded') AS browse_pages_loaded,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_more_failed') AS browse_page_failures,
+  round(
+    100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_browse_more_failed')
+      / nullif(count(*), 0),
+    1
+  ) AS browse_page_failure_pct
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND element_label IN (
+    'pricing_map_map_browse_more_succeeded',
+    'pricing_map_map_browse_more_failed'
+  )
+GROUP BY 1
+ORDER BY week_utc DESC;
+```
+
+The events are recorded only with accepted map-analytics consent and only after a browse page request completes. A superseded request is not counted. Treat the rate as a UI/service signal, not proof that a user found a relevant supplier; pair it with an observed discovery task and time-to-profile.
