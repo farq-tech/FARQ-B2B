@@ -68,7 +68,7 @@ const REQUESTS = [
   { id: U3, organizationId: 'org-1', createdBy: 'qa-user', kind: 'SEARCH', title: 'سخانات مياه', payload: { city: 'الرياض' }, status: 'CANCELLED', hidden: false, cancelledAt: '2026-10-11T08:00:00Z', cancelReason: 'لقينا مورد', createdAt: '2026-10-10T11:00:00Z' },
 ]
 
-async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; streets?: 'ok' | 'none'; catalogOff?: boolean; specialtiesCount?: number; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean; analyticsConsent?: 'accepted' | 'rejected' } = {}) {
+async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; districts?: 'ok' | 'none'; districtsDelayMs?: number; streets?: 'ok' | 'none'; catalogOff?: boolean; specialtiesCount?: number; marketSummaryFailures?: number; schedule?: 404 | 200; send?: boolean; malformedDistrict?: boolean; analyticsConsent?: 'accepted' | 'rejected' } = {}) {
   const writes: string[] = []
   const saved: Record<string, unknown>[] = []
   const searches: Record<string, unknown>[] = []
@@ -78,8 +78,10 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   const catalogs: Record<string, unknown>[] = []
   const buyerQueries: Record<string, unknown>[] = []
   const marketQueries: Record<string, unknown>[] = []
+  const marketSummaryStatuses: number[] = []
   const orgHeaders: (string | undefined)[] = []
   const listQueries: string[] = []
+  let marketSummaryFailuresRemaining = opts.marketSummaryFailures ?? 0
   await page.addInitScript((analyticsConsent: 'accepted' | 'rejected') => {
     (window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 7200, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' } }
     // Keep map telemetry declined by default; tests may opt in explicitly to verify the consent-gated stream.
@@ -90,6 +92,12 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 100 }, { en: 'Jeddah', ar: 'جدة', n: 80 }] })
     if (path.endsWith('/market-summary')) {
       const body = route.request().postDataJSON(); marketQueries.push(body)
+      if (marketSummaryFailuresRemaining > 0) {
+        marketSummaryFailuresRemaining -= 1
+        marketSummaryStatuses.push(503)
+        return route.fulfill({ status: 503, json: { error: 'QA_TRANSIENT_MARKET_SUMMARY_FAILURE' } })
+      }
+      marketSummaryStatuses.push(200)
       return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, n_wholesale: 2, n_whatsapp: 5, n_specialties: opts.specialtiesCount ?? 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
     }
     if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', total: 6, basis: 'نقاط دقيقة فقط', districts: [{ district_ar: 'الملك فيصل', n: 2, n_wholesale: 2, n_whatsapp: 2 }, { district_ar: 'العليا', n: 3, n_wholesale: 0, n_whatsapp: 2 }, { district_ar: 'الفيصلية', n: 1, n_wholesale: 0, n_whatsapp: 1 }] } })
@@ -112,6 +120,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     }
     if (path.endsWith('/districts')) {
       expect(url.searchParams.get('city')).toMatch(/^(Riyadh|Jeddah)$/)
+      if (opts.districtsDelayMs) await new Promise((resolve) => setTimeout(resolve, opts.districtsDelayMs))
       return opts.districts === 'none' ? route.fulfill({ status: 404, json: { error: 'not_found' } }) : route.fulfill({ json: DISTRICTS })
     }
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
@@ -165,7 +174,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
     if (route.request().method() !== 'GET') writes.push(`${route.request().method()} ${path}`)
     return route.fulfill({ status: 503, json: { ok: false, error: { message: 'QA: blocked' } } })
   })
-  return { writes, searches, searchRequests, saved, schedules, orgHeaders, listQueries, densities, catalogs, buyerQueries, marketQueries }
+  return { writes, searches, searchRequests, saved, schedules, orgHeaders, listQueries, densities, catalogs, buyerQueries, marketQueries, marketSummaryStatuses, setMarketSummaryFailuresRemaining: (count: number) => { marketSummaryFailuresRemaining = count } }
 }
 
 const counter = (page: Page, key: string) => page.locator(`[data-counter="${key === 'n' ? 'supplier-matches' : key === 'districts' ? 'supplier-districts' : key}"] span[aria-hidden]`)
@@ -287,6 +296,31 @@ test.describe('desktop 1440', () => {
 
     await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     await expect(page.getByRole('tab', { name: 'ابحث عن موردين' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('recovers a transient market-summary failure without a manual retry', async ({ page }) => {
+    const { marketQueries, marketSummaryStatuses } = await setup(page, { marketSummaryFailures: 1, districtsDelayMs: 1200 })
+    await page.goto('/opportunity-map')
+    await expect(page.locator('[data-counter="market-size"]')).toContainText('منشآت مرصودة')
+    await expect(page.getByText('تعذّر تحميل ملخص السوق.')).toHaveCount(0)
+    await expect(page.getByText('منشآت لديها تخصصات مسجلة')).toBeVisible()
+    expect(marketQueries).toHaveLength(2)
+    expect(marketSummaryStatuses).toEqual([503, 200])
+  })
+
+  test('keeps the manual market-summary retry after the automatic retry is exhausted', async ({ page }) => {
+    const { marketSummaryStatuses, setMarketSummaryFailuresRemaining } = await setup(page, { marketSummaryFailures: 20, districtsDelayMs: 1200 })
+    await page.goto('/opportunity-map')
+    await expect(page.getByRole('alert')).toContainText('تعذّر تحميل ملخص السوق.')
+    expect(marketSummaryStatuses.length).toBeGreaterThanOrEqual(2)
+    expect(marketSummaryStatuses.every((status) => status === 503)).toBe(true)
+
+    setMarketSummaryFailuresRemaining(0)
+    await page.getByRole('button', { name: 'أعد المحاولة' }).click()
+    await expect(page.locator('[data-counter="market-size"]')).toContainText('منشآت مرصودة')
+    await expect(page.getByText('تعذّر تحميل ملخص السوق.')).toHaveCount(0)
+    expect(marketSummaryStatuses.at(-1)).toBe(200)
+    expect(marketSummaryStatuses.slice(0, -1).every((status) => status === 503)).toBe(true)
   })
 
   test('does not present business specialty records as available activity filters', async ({ page }) => {
