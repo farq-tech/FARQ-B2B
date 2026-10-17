@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
-import { waNumber, type TargetRow } from '../../../api/targetingClient'
+import { statusLabel, waNumber, type TargetRow } from '../../../api/targetingClient'
 import { Button, Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { RoleChip, SpecChip } from './Badges'
@@ -35,6 +35,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
   const done = completenessOf(row)
   const sources = row.source_count ?? row.sources?.length ?? null
   const wa = Boolean(waNumber(row))
+  const status = statusLabel(row)
   const saudi = Boolean(row.saudi_registered)
   const rating = typeof row.rating === 'number' && Number.isFinite(row.rating) ? row.rating : null
   const matchReason = row.match === 'product' ? 'اسم المنشأة يذكر المنتج'
@@ -74,6 +75,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile }
           <div className="flex flex-col gap-1.5"><p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">التخصصات</p><div className="flex flex-wrap gap-1.5">{specs.map((x) => <SpecChip key={x} name={x} />)}</div></div>
         ) : <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">لم يُحدَّد تخصص لهذه المنشأة بعد؛ تظهر ضمن نشاطها الفرعي{subAr(s) ? ` «${subAr(s)}»` : ''}.</p>}
         <div className="flex flex-wrap gap-1.5">
+          {status ? <span className="inline-flex items-center rounded-full border border-[var(--map-sand)] bg-[color-mix(in_srgb,var(--map-sand)_25%,white)] px-2.5 py-1 text-[12px] leading-[18px] font-medium">حالة السجل: {status}</span> : null}
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] leading-[18px] font-medium ${wa ? 'border-[color-mix(in_srgb,var(--map-green)_40%,white)] bg-[color-mix(in_srgb,var(--map-green)_8%,white)] text-[var(--color-text-success)]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)]'}`}>
             {wa ? 'قناة واتساب متاحة للإرسال عبر فرق' : 'لا توجد قناة واتساب بعد'}
           </span>
