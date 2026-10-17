@@ -12,7 +12,7 @@ import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapSearchResultEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapSearchResultEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -145,6 +145,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [profile, setProfile] = useState<string | null>(null)
   const [tab, setTab] = useState<'streets' | 'results' | 'guide'>(() => (mobile ? 'streets' : 'results'))
   const resultsPanelRef = useRef<HTMLElement | null>(null)
+  const resultsShortcutSeen = useRef(false)
+  const [analyticsConsentRevision, setAnalyticsConsentRevision] = useState(0)
+  useEffect(() => {
+    const onConsentChange = () => setAnalyticsConsentRevision((revision) => revision + 1)
+    window.addEventListener('farq:map-analytics-consent-changed', onConsentChange)
+    return () => window.removeEventListener('farq:map-analytics-consent-changed', onConsentChange)
+  }, [])
+  useEffect(() => {
+    if (resultsShortcutSeen.current || !mobile || focusMode || !res || mapAnalyticsConsent() !== 'accepted') return
+    resultsShortcutSeen.current = true
+    recordMapInteraction('map_results_shortcut_seen')
+  }, [mobile, focusMode, res, analyticsConsentRevision])
   const [site, setSite] = useState<Site | null>(null)
   const [placingSite, setPlacingSite] = useState(false)
   const [showUnlocated, setShowUnlocated] = useState(false)

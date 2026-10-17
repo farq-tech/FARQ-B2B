@@ -19,6 +19,7 @@ WITH map_events AS (
       'pricing_map_map_search_results_1_4',
       'pricing_map_map_search_results_5_plus',
       'pricing_map_map_search_failed',
+      'pricing_map_map_results_shortcut_seen',
       'pricing_map_map_results_jump',
       'pricing_map_map_profile_open',
       'pricing_map_map_profile_quote_start'
@@ -53,6 +54,10 @@ search_actions AS (
     s.session_id,
     s.searched_at,
     min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_results_shortcut_seen'
+        AND e.occurred_at > s.searched_at
+    ) AS results_shortcut_seen_at,
+    min(e.occurred_at) FILTER (
       WHERE e.element_label = 'pricing_map_map_results_jump'
         AND e.occurred_at > s.searched_at
     ) AS results_jumped_at,
@@ -68,11 +73,13 @@ session_steps AS (
   SELECT
     s.session_id,
     s.searched_at,
+    s.results_shortcut_seen_at,
     s.results_jumped_at,
     s.profile_after_search_at,
     min(e.occurred_at) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_open'
-        AND s.results_jumped_at IS NOT NULL
+        AND s.results_shortcut_seen_at IS NOT NULL
+        AND s.results_jumped_at > s.results_shortcut_seen_at
         AND e.occurred_at > s.results_jumped_at
     ) AS profile_after_results_jump_at,
     min(e.occurred_at) FILTER (
@@ -82,14 +89,15 @@ session_steps AS (
     ) AS quote_after_profile_at
   FROM search_actions s
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY s.session_id, s.searched_at, s.results_jumped_at, s.profile_after_search_at
+  GROUP BY s.session_id, s.searched_at, s.results_shortcut_seen_at, s.results_jumped_at, s.profile_after_search_at
 ),
 weekly AS (
   SELECT
     date_trunc('week', searched_at AT TIME ZONE 'UTC') AS week_utc,
     count(*) AS search_sessions,
     count(*) FILTER (WHERE profile_after_search_at IS NOT NULL) AS profile_after_search_sessions,
-    count(*) FILTER (WHERE results_jumped_at IS NOT NULL) AS results_jump_sessions,
+    count(*) FILTER (WHERE results_shortcut_seen_at IS NOT NULL) AS results_shortcut_seen_sessions,
+    count(*) FILTER (WHERE results_jumped_at > results_shortcut_seen_at) AS results_jump_sessions,
     count(*) FILTER (WHERE profile_after_results_jump_at IS NOT NULL) AS profile_after_results_jump_sessions,
     count(*) FILTER (WHERE quote_after_profile_at IS NOT NULL) AS quote_after_profile_sessions
   FROM session_steps
@@ -101,9 +109,10 @@ SELECT
   profile_after_search_sessions,
   round(100.0 * profile_after_search_sessions / nullif(search_sessions, 0), 1)
     AS search_to_profile_pct,
+  results_shortcut_seen_sessions,
   results_jump_sessions,
-  round(100.0 * results_jump_sessions / nullif(search_sessions, 0), 1)
-    AS search_to_results_jump_pct,
+  round(100.0 * results_jump_sessions / nullif(results_shortcut_seen_sessions, 0), 1)
+    AS shortcut_seen_to_jump_pct,
   profile_after_results_jump_sessions,
   round(100.0 * profile_after_results_jump_sessions / nullif(results_jump_sessions, 0), 1)
     AS results_jump_to_profile_pct,
@@ -142,9 +151,9 @@ ORDER BY 1 DESC;
 ## Reading the numbers
 
 - `map_profile_quote_start` means the user opened the quote-request flow from a supplier profile. It does not mean a request was submitted or a supplier replied.
-- `map_results_jump` means the user tapped the mobile map's shortcut to reach the results list. It is logged only with map analytics consent and is available only in the regular mobile layout after a search.
+- `map_results_shortcut_seen` means the shortcut was rendered after a search in the regular mobile layout. `map_results_jump` means the user tapped it to reach the results list. Both are logged only with map analytics consent.
 - New search clicks are labeled by result bucket (`0`, `1–4`, `5+`) or failure. Older `map_search` rows remain in the funnel but have no outcome bucket.
-- The funnel counts a profile open after the shortcut only when its event timestamp follows the shortcut; quote-start counts must follow a profile open after search. Each session is assigned to the UTC week of its first search.
+- Shortcut use is divided by sessions in which the shortcut was actually shown, avoiding a desktop-inclusive denominator. The funnel counts a profile open after the shortcut only when its event timestamp follows the shortcut; quote-start counts must follow a profile open after search. Each session is assigned to the UTC week of its first search.
 - These events are recorded only after analytics consent. The funnel describes consenting sessions, not all map users.
 - Use at least two complete weeks for an initial comparison. If a week has fewer than 30 search sessions, treat the rate as directional and combine it with observed task completion; do not claim an experiment caused a change.
 - Compare changes in search-to-profile and profile-to-quote-start separately. If the first step is weak, inspect map discoverability and result relevance before changing the quote flow.
