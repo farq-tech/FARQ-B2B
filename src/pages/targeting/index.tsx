@@ -376,6 +376,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   )
   const chooseLens = (value: 'market' | 'sellers' | 'buyers') => {
     if (value === lens) return
+    recordMapInteraction(`map_lens_${value}`)
     if (value === 'market') {
       resetAll(); setQuery(''); setQ(''); setLens('market'); setTab('guide')
       void loadBrowse(city)
