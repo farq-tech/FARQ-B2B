@@ -503,7 +503,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
-    setBusy(true); setError(null); setFailedResultRefresh(false)
+    setBusy(true); setError(null); setFailedResultRefresh(false); setProfile(null)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
       if (version !== generation.current) return
@@ -563,7 +563,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
   async function openMapProfile(key: string) {
-    if (busy) return
+    if (busy || failedResultRefresh) return
     const existing = byKey.get(key)
     if (existing) { recordMapInteraction('map_profile_open'); setSheetSnap('full'); setProfile(key); return }
     if (!res?.map_query) return
@@ -580,7 +580,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     }
   }
   function prepareQuoteForProfile(key: string) {
-    if (busy) return
+    if (busy || failedResultRefresh) return
     const row = byKey.get(key)
     if (!row || !onRfq) return
     recordMapInteraction('map_profile_quote_start')
@@ -827,7 +827,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
 
   const toggle = (r: TargetRow) => {
-    if (busy || !waNumber(r)) return
+    if (busy || failedResultRefresh || !waNumber(r)) return
     recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
   }
@@ -852,9 +852,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return (
       <li key={r.poi_key} data-key={r.poi_key} onPointerEnter={(event) => { if (event.pointerType === 'mouse' && hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} onFocusCapture={() => { if (hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
-          <input type="checkbox" checked={on} disabled={!can || busy} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
+          <input type="checkbox" checked={on} disabled={!can || busy || failedResultRefresh} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : failedResultRefresh ? 'أعد تحديث النتائج قبل اختيار المنشآت' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
             className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
-          <button type="button" disabled={busy} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
+          <button type="button" disabled={busy || failedResultRefresh} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />
