@@ -115,7 +115,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [query, setQuery] = useState('')
   const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [busyKind, setBusyKind] = useState<'search' | 'browse' | 'more' | null>(null)
+  const busy = busyKind !== null
   const [error, setError] = useState<string | null>(null)
   const [failedResultRefresh, setFailedResultRefresh] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -518,7 +519,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   async function loadMore() {
     if (!res || res.next_offset == null || busy || !query) return
-    setBusy(true); setError(null)
+    setBusyKind('more'); setError(null)
     const version = generation.current
     try {
       const r = await searchTargets(query, city, FETCH, objective, res.next_offset, filters)
@@ -527,13 +528,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setShown((s) => s + r.rows.length)
     } catch (err) {
       if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
-    } finally { if (version === generation.current) setBusy(false) }
+    } finally { if (version === generation.current) setBusyKind(null) }
   }
   async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
-    setBusy(true); setError(null); setFailedResultRefresh(false); setProfile(null)
+    setBusyKind('browse'); setError(null); setFailedResultRefresh(false); setProfile(null)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
       if (version !== generation.current) return
@@ -549,7 +550,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         if (hadResults) recordMapInteraction('map_browse_refresh_failed')
         setFailedResultRefresh(hadResults); setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.')
       }
-    } finally { if (version === generation.current) setBusy(false) }
+    } finally { if (version === generation.current) setBusyKind(null) }
   }
   // Preserve the active search when the user changes cities. A city-wide browse
   // under the old phrase made the input and map disagree about what was searched.
@@ -576,7 +577,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   async function runSearchIn(text: string, inCity: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters, keepStreets = false): Promise<number | null> {
     if (!text || !inCity) return null
     setLens(obj === 'marketing' ? 'buyers' : 'sellers')
-    setBusy(true); setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
+    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
     const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
@@ -601,7 +602,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setFailedResultRefresh(Boolean(res) && (fresh || JSON.stringify(use) !== JSON.stringify(filters)))
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
       return null
-    } finally { if (version === generation.current) setBusy(false) }
+    } finally { if (version === generation.current) setBusyKind(null) }
   }
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
   async function openMapProfile(key: string) {
@@ -908,7 +909,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     )
   }
   const resultsContent = !res ? (
-    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
+    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busyKind === 'browse' ? 'جارٍ تحميل سوق المدينة…' : busyKind === 'more' ? 'جارٍ تحميل منشآت إضافية…' : busyKind === 'search' ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
   ) : !visibleCohort.length ? (
     <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
       <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
@@ -936,7 +937,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {truncated && shown >= visibleCohort.length ? (
           <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
             <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
-            <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
+            <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
           </li>
         ) : null}
       </ul>
@@ -972,7 +973,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </Button>
       ) : null}
       {truncated && !visibleCohort.length ? (
-        <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>
+        <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMore()}>
           {unlocatedRows.length ? 'حمّل دفعة أخرى لمراجعة المواقع التقريبية' : 'حمّل دفعة أخرى للعثور على منشآت بلا دبوس'}
         </Button>
       ) : null}
@@ -1200,13 +1201,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
       {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
-      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busy} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
+      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
   )
   const searchStatus = busy ? (
     <p role="status" aria-live="polite" aria-atomic="true" className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md">
       <span aria-hidden className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
-      جارٍ تحديث نتائج الخريطة والمنشآت…
+      {busyKind === 'browse' ? 'جارٍ تحميل منشآت السوق على الخريطة…' : busyKind === 'more' ? 'جارٍ تحميل نتائج إضافية…' : 'جارٍ تحديث نتائج البحث على الخريطة…'}
     </p>
   ) : null
 
