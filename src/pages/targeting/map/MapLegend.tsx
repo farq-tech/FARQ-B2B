@@ -11,7 +11,7 @@ const FITS: { fit: PinFit | 'all'; label: string }[] = [
   { fit: 'likely', label: 'مرجّحة' },
   { fit: 'maybe', label: 'محتملة' },
   { fit: 'low', label: 'منخفضة' },
-  { fit: 'unknown', label: 'غير مفحوصة' },
+  { fit: 'unknown', label: 'بدون تقدير نموذجي' },
 ]
 export default function MapLegend({ mobile, fitFilter, onFitFilterChange, counts }: {
   mobile: boolean
@@ -24,7 +24,7 @@ export default function MapLegend({ mobile, fitFilter, onFitFilterChange, counts
       <summary className="cursor-pointer list-none font-semibold">دليل الخريطة</summary>
       <ul className="mt-1.5 flex flex-col gap-1.5">
         <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
-        <li className="text-[var(--color-text-secondary)]">التقدير متاح لـ {counts.likely + counts.maybe + counts.low} من {counts.all} منشأة محمّلة؛ غير المفحوصة لا يعني أنها غير مناسبة.</li>
+        <li className="text-[var(--color-text-secondary)]">التقدير النموذجي متاح لـ {counts.likely + counts.maybe + counts.low} من {counts.all} منشأة محمّلة. قد تعرض المنشأة سبب مطابقة قائماً على نشاطها حتى دون تقدير نموذجي.</li>
         <li>
           <fieldset className="m-0 grid min-w-0 grid-cols-2 gap-1 border-0 p-0">
             <legend className="sr-only">تصفية المنشآت حسب تقدير الملاءمة</legend>
