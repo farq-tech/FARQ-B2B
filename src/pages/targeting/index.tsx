@@ -1159,9 +1159,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
       {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
-      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busy} loadingLabel={mobile ? '…' : 'جارٍ البحث…'}>ابحث</Button>
+      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busy} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
   )
+  const searchStatus = busy ? (
+    <p role="status" aria-live="polite" aria-atomic="true" className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md">
+      <span aria-hidden className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
+      جارٍ تحديث نتائج الخريطة والمنشآت…
+    </p>
+  ) : null
 
   if (focusMode) {
     return (
@@ -1170,6 +1176,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex justify-center">
           <div className="pointer-events-auto flex w-full max-w-[760px] flex-col gap-2 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-lg backdrop-blur">
             {searchForm}
+            {searchStatus}
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">{direction}</div>
               <button type="button" aria-expanded={focusPanelOpen} aria-controls="map-focus-panel"
@@ -1239,6 +1246,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         {searchForm}
+        {searchStatus}
         {suggestBar}
         {understood}
         {areaBar}
@@ -1276,6 +1284,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           {fileField}
         </div>
         {searchForm}
+        {searchStatus}
         {understood}
         {suggestBar}
         {areaBar}
