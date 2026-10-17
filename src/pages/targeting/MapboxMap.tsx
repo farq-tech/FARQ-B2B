@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { waNumber, type TargetRow } from '../../api/targetingClient'
+import type { TargetRow } from '../../api/targetingClient'
 
 /*
  * Mapbox map for 07 (dark style, Arabic labels). Shown before any search, framed on Saudi Arabia;
  * after a search it fits the results (middle 96%, so far-off points do not shrink the dense area).
- * Places are a clustered GeoJSON source: colour = best reachable channel (Map Marker 24:188), chosen
+ * Places are a clustered GeoJSON source: colour = supplier fit, chosen
  * places get a light ring, the outline around the chosen places is the segment. Tap a cluster to zoom in,
  * tap a place to choose it. Colours are read from the design tokens at runtime.
  */
@@ -32,7 +32,7 @@ const placesOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureColl
   type: 'FeatureCollection',
   features: rows.filter((r) => r.latitude != null && r.longitude != null).map((r) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [r.longitude!, r.latitude!] },
-    properties: { key: r.poi_key, name: r.name_ar || r.name_en || '', ch: waNumber(r) ? 'wa' : r.email ? 'email' : 'none', on: selected.has(r.poi_key) ? 1 : 0 },
+    properties: { key: r.poi_key, name: r.name_ar || r.name_en || '', fit: r.ai || 'unchecked', on: selected.has(r.poi_key) ? 1 : 0 },
   })),
 })
 const segmentOf = (rows: TargetRow[], selected: Set<string>): GeoJSON.FeatureCollection => {
@@ -57,16 +57,16 @@ export default function MapboxMap({ rows, selected, onToggle, topInset = 72, bot
     map.current = m
     if (import.meta.env.DEV) (window as unknown as { __mb?: mapboxgl.Map }).__mb = m
     m.on('load', () => {
-      const wa = tok('--brand-accent'), em = tok('--brand-action-light'), none = tok('--brand-text-3'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
+      const likely = tok('--color-icon-success'), maybe = tok('--color-icon-warning'), notFit = tok('--color-icon-secondary'), unchecked = tok('--color-text-tertiary'), ink = tok('--color-text-on-inverse'), deep = tok('--color-bg-inverse')
       const { rows: r0, selected: s0 } = latest.current
       m.addSource('segment', { type: 'geojson', data: segmentOf(r0, s0) })
-      m.addLayer({ id: 'segment-fill', type: 'fill', source: 'segment', paint: { 'fill-color': wa, 'fill-opacity': 0.12 } })
-      m.addLayer({ id: 'segment-line', type: 'line', source: 'segment', paint: { 'line-color': wa, 'line-width': 2 } })
+      m.addLayer({ id: 'segment-fill', type: 'fill', source: 'segment', paint: { 'fill-color': likely, 'fill-opacity': 0.12 } })
+      m.addLayer({ id: 'segment-line', type: 'line', source: 'segment', paint: { 'line-color': likely, 'line-width': 2 } })
       m.addSource('places', { type: 'geojson', data: placesOf(r0, s0), cluster: true, clusterRadius: 44, clusterMaxZoom: 14 })
       m.addLayer({ id: 'clusters', type: 'circle', source: 'places', filter: ['has', 'point_count'], paint: { 'circle-color': deep, 'circle-stroke-color': ink, 'circle-stroke-width': 3, 'circle-radius': ['step', ['get', 'point_count'], 20, 100, 24, 1000, 28] } })
       m.addLayer({ id: 'cluster-count', type: 'symbol', source: 'places', filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 14, 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] }, paint: { 'text-color': ink } })
       m.addLayer({ id: 'place', type: 'circle', source: 'places', filter: ['!', ['has', 'point_count']], paint: {
-        'circle-color': ['match', ['get', 'ch'], 'wa', wa, 'email', em, none],
+        'circle-color': ['match', ['get', 'fit'], 'L', likely, 'M', maybe, 'N', notFit, unchecked],
         'circle-radius': ['case', ['==', ['get', 'on'], 1], 9, 7],
         'circle-stroke-color': ink, 'circle-stroke-width': ['case', ['==', ['get', 'on'], 1], 3, 2],
       } })

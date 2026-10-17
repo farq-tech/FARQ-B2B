@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { waNumber, type TargetRow } from '../../api/targetingClient'
+import type { TargetRow } from '../../api/targetingClient'
 import { FOCUS_RING } from '../../ui/cx'
 
 /*
  * Map of the search results — Figma 07 «Map» (51:252) on the dark tone. Positions are the places'
  * real coordinates (equirectangular, fitted to the results). No tiles and no drawn roads: nothing on
- * this map is invented. Map Marker (24:188): colour = best reachable channel; Selected = ring; Cluster =
+ * this map is invented. Map Marker (24:188): colour = supplier fit; contact channels stay in the result list; Selected = ring; Cluster =
  * count in a dark circle (tap to zoom in). The segment is the outline around the chosen places.
  */
 
 type Pt = { r: TargetRow; x: number; y: number }
 const CELL = 50
-const COLOR = { wa: 'var(--brand-accent)', email: 'var(--brand-action-light)', none: 'var(--brand-text-3)' }
-const colorOf = (r: TargetRow) => (waNumber(r) ? COLOR.wa : r.email ? COLOR.email : COLOR.none)
+const FIT_COLOR = {
+  likely: 'var(--color-icon-success)',
+  maybe: 'var(--color-icon-warning)',
+  not: 'var(--color-icon-secondary)',
+  unchecked: 'var(--color-text-tertiary)',
+} as const
+const fitOf = (r: TargetRow): keyof typeof FIT_COLOR => r.ai === 'L' ? 'likely' : r.ai === 'M' ? 'maybe' : r.ai === 'N' ? 'not' : 'unchecked'
+const colorOf = (r: TargetRow) => FIT_COLOR[fitOf(r)]
 
 function hull(ps: { x: number; y: number }[]) {
   if (ps.length < 3) return ps
@@ -76,7 +82,7 @@ export default function TargetMap({ rows, selected, onToggle, topInset = 72, leg
   return (
     <div ref={box} className="absolute inset-0">
       <svg width={size.w} height={size.h} className="absolute inset-0" aria-hidden>
-        {seg.length ? <polygon points={seg.map((p) => `${p.x},${p.y}`).join(' ')} fill={COLOR.wa} fillOpacity={0.12} stroke={COLOR.wa} strokeWidth={2} strokeLinejoin="round" /> : null}
+        {seg.length ? <polygon points={seg.map((p) => `${p.x},${p.y}`).join(' ')} fill={FIT_COLOR.likely} fillOpacity={0.12} stroke={FIT_COLOR.likely} strokeWidth={2} strokeLinejoin="round" /> : null}
       </svg>
       {clusters.map((c) => {
         const x = c.reduce((a, p) => a + p.x, 0) / c.length, y = c.reduce((a, p) => a + p.y, 0) / c.length
@@ -96,7 +102,8 @@ export default function TargetMap({ rows, selected, onToggle, topInset = 72, leg
         )
       })}
       {legend ? <div className="absolute start-auto end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
-        {[['واتساب', COLOR.wa], ['إيميل', COLOR.email], ['لا يمكن', COLOR.none]].map(([l, c]) => (
+        <span className="text-[var(--color-text-on-inverse-secondary)]">الملاءمة</span>
+        {[['مناسب', FIT_COLOR.likely], ['محتمل', FIT_COLOR.maybe], ['غير مناسب', FIT_COLOR.not], ['غير مفحوص', FIT_COLOR.unchecked]].map(([l, c]) => (
           <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
         ))}
       </div> : null}

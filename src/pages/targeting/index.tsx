@@ -15,7 +15,8 @@ function MapView(props: Parameters<typeof TargetMap>[0]) {
       <MapboxMap {...props} />
       {props.legend === false ? null : (
         <div className="pointer-events-none absolute end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--color-bg-inverse)]/80 px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
-          {[['واتساب', 'var(--brand-accent)'], ['إيميل', 'var(--brand-action-light)'], ['لا يمكن', 'var(--brand-text-3)']].map(([l, c]) => (
+          <span className="text-[var(--color-text-on-inverse-secondary)]">الملاءمة</span>
+          {[['مناسب', 'var(--color-icon-success)'], ['محتمل', 'var(--color-icon-warning)'], ['غير مناسب', 'var(--color-icon-secondary)'], ['غير مفحوص', 'var(--color-text-tertiary)']].map(([l, c]) => (
             <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
           ))}
         </div>
