@@ -144,6 +144,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [focus, setFocus] = useState<Focus>(null)
   const [profile, setProfile] = useState<string | null>(null)
   const [tab, setTab] = useState<'streets' | 'results' | 'guide'>(() => (mobile ? 'streets' : 'results'))
+  const resultsPanelRef = useRef<HTMLElement | null>(null)
   const [site, setSite] = useState<Site | null>(null)
   const [placingSite, setPlacingSite] = useState(false)
   const [showUnlocated, setShowUnlocated] = useState(false)
@@ -1070,6 +1071,17 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         setShown(PAGE)
         recordMapInteraction(`fit_filter_${next}`)
       }} />
+      {mobile && !focusMode && res ? (
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
+          <button type="button" onClick={() => {
+            setTab('results')
+            recordMapInteraction('map_results_jump')
+            resultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }} className={`pointer-events-auto rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-4 py-2 text-[14px] font-semibold shadow-lg backdrop-blur-md ${FOCUS_RING}`}>
+            عرض النتائج · {n(visibleCohort.length)}
+          </button>
+        </div>
+      ) : null}
       {profile && byKey.get(profile) && !mobile ? (
         <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} />
       ) : null}
@@ -1196,7 +1208,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {mapBlock}
         {tray}
         {noticeLine}
-        <section aria-label="النتائج والدليل" className="-mx-4 flex flex-col bg-[var(--color-bg-surface)]">
+        <section ref={resultsPanelRef} aria-label="النتائج والدليل" className="-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3">
           {panelHead}
           {panelBody}
         </section>
