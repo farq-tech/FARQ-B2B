@@ -10,20 +10,22 @@
     "Read-only full-catalog map queries, city or all-KSA scope",
     "Opaque query contexts expire in 30 minutes; exact profile access is query scoped",
     "Coarser low-zoom grid reduces marker crowding while conserving every point in counts",
-    "Approximate geocodes stay list-only: browse precision counts and MVT pins include explicit point locations only"
+    "Approximate geocodes stay list-only: browse precision counts and MVT pins include explicit point locations only",
+    "Fallback search responses carry location_precision; approximate coordinates are null, excluded from located counts and MVT tiles",
+    "Source archive synchronized with the active targeting release for the precision fallback fix"
   ],
-  "tests": "Precision change verification: 5 directory/tile tests pass against the current local dataset; the older pagination test still assumes >30 matches where this snapshot has 19 (unrelated dataset expectation). The prior release test record is preserved in release notes.",
+  "tests": "11 targeting tests pass against the local directory snapshot; the legacy pagination assertion was excluded because this snapshot has 19 matches where it assumes >30. The fallback precision and strict tile regressions pass.",
   "sha256": {
-    "server.py": "16095f7816fde5b757f259ca8a54b96b68961fb2d3f48dd576406417fc3793d9",
-    "trial_search.py": "94540fbb4b8d9c0825059509844df0f3eb9a1804d98ef7a830cbae49ffb4b5ed",
-    "directory_tiles.py": "9890a923cf397cdb65423ceb1e3a260613e82f003813200f39b727fadd966462",
+    "server.py": "757715d557545a1a210d11c30c9382bbe8adb20ff0013d0adfe97833034704b8",
+    "trial_search.py": "23e082b6b525369e662940f06629849ce9eabfbc4af91b719044c095fb9abb38",
+    "directory_tiles.py": "c4e9880acb42831bcaf32152ce0e4bf3e9bd71288f186776b536b80ab5e8e21e",
     "contact_lookup.py": "4a60c2223fe5c07083f554833ee3e00df14975405955b6d6ec0f88ecf13ce840",
     "buyer_review.py": "e647d473ff3ff4bc6d2c7f1ec756d890dd42982533d40115d00837ef350208a9",
     "Dockerfile": "4cd1622f0ed94e520b1c1c989e4540e9783e2deadf5ee01c612459619260b1b7",
     "requirements.txt": "2d42c5c1db6062d1bc2fa4e69fd449d46d8ed5aca14f35465d7f54335bf695b3",
     "tests/test_supplier_roles.py": "6169d0e8cdbc43b61e2950f06001450984360321e2989ab38fe032df5b131d12",
-    "tests/test_directory_tiles.py": "f8963207ed7d6e63a276bb1b73eff4b07491e13f7f0c85c283263a3d26073223"
+    "tests/test_directory_tiles.py": "60e36b6c67e260663c1c05845e3a1f5e70832de269bee8abd2d77a487e69a4d9"
   },
   "source_archive": "targeting-vector-tiles-source.tar.gz",
-  "archive_sha256": "30d759153ae7e00d822c96b92b8308011039de4a89ccdabfec1146acdd28ad1c"
+  "archive_sha256": "feeeb77f0e739fa4cf00f145c297d723d3d9b3925f31213fbd727488e5a7764d"
 }
