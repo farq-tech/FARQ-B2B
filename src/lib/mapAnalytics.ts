@@ -1,6 +1,6 @@
 const CONSENT_KEY = 'farq:pricing-map-analytics-consent-v1'
 const SESSION_KEY = 'farq:pricing-map-analytics-session-v1'
-const ALLOWED_EVENTS = new Set([
+const MAP_EVENTS = [
   'map_search',
   'map_district_select',
   'map_district_clear',
@@ -42,7 +42,10 @@ const ALLOWED_EVENTS = new Set([
   'map_sheet_peek',
   'map_sheet_half',
   'map_sheet_full',
-])
+] as const
+
+type MapEventName = typeof MAP_EVENTS[number]
+const ALLOWED_EVENTS: ReadonlySet<string> = new Set(MAP_EVENTS)
 
 type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }
 let queue: MapEvent[] = []
@@ -99,8 +102,8 @@ function startFlush() {
   window.addEventListener('pagehide', flush)
 }
 
-export function recordMapInteraction(name: string) {
-  if (mapAnalyticsConsent() !== 'accepted' || !ALLOWED_EVENTS.has(name)) return
+export function recordMapInteraction(name: MapEventName) {
+  if (mapAnalyticsConsent() !== 'accepted') return
   startFlush()
   queue.push({ event_type: 'click', session_id: sessionId(), path: '/opportunity-map', element_label: `pricing_map_${name}` })
   if (queue.length >= 20) flush()
