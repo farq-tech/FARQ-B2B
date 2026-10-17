@@ -5,7 +5,7 @@ Authorization header, taken from the sealed HttpOnly session cookie (session_coo
 credential only after /api/auth/me validates an allowed account. Sending is
 still disabled unless TARGETING_SEND=1.
 """
-import os, sys, json, hashlib, html, urllib.request, urllib.parse, mimetypes
+import os, sys, json, hashlib, html, time, urllib.request, urllib.parse, mimetypes
 import schedule
 from trial import handle as handle_trial
 from saudi_rhythm import block_for_body
@@ -57,14 +57,27 @@ T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates')
 T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
 T_SEND = {('POST', '/send-farq')}
 
-def targeting_call(method, path, body=None):
+def targeting_call(method, path, body=None, *, retry_transient=False):
     """One call to the targeting service with the server's service header: (status, data, content-type).
-    The proxy and the scheduled-send runner (schedule.py) both go through here."""
-    req = urllib.request.Request(TARGETING + path, data=body, method=method, headers={'content-type': 'application/json'})
-    if TARGETING_SERVICE: req.add_header('X-Farq-Service', TARGETING_SERVICE)
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r: return r.status, r.read(), r.headers.get("Content-Type","application/json")
-    except urllib.error.HTTPError as e: return e.code, e.read(), "application/json"
+    The proxy and the scheduled-send runner (schedule.py) both go through here. Only callers that
+    explicitly identify an idempotent read may retry a transient failure."""
+    attempts = 2 if retry_transient else 1
+    log_path = urllib.parse.urlsplit(path).path
+    for attempt in range(attempts):
+        req = urllib.request.Request(TARGETING + path, data=body, method=method, headers={'content-type': 'application/json'})
+        if TARGETING_SERVICE: req.add_header('X-Farq-Service', TARGETING_SERVICE)
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r: return r.status, r.read(), r.headers.get("Content-Type","application/json")
+        except urllib.error.HTTPError as e:
+            if attempt + 1 < attempts and e.code in {502, 503, 504}:
+                print(f'targeting read retry after HTTP {e.code}: {method} {log_path}', flush=True)
+                time.sleep(0.2)
+                continue
+            return e.code, e.read(), "application/json"
+        except (urllib.error.URLError, OSError):
+            if attempt + 1 >= attempts: raise
+            print(f'targeting read retry after network error: {method} {log_path}', flush=True)
+            time.sleep(0.2)
 
 
 def send_gate(body):
@@ -215,7 +228,7 @@ class H(BaseHTTPRequestHandler):
         if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
-        try: status, data, ctype = send_farq(body) if key in T_SEND else targeting_call(self.command, path + (("?"+parsed.query) if parsed.query else ""), body)
+        try: status, data, ctype = send_farq(body) if key in T_SEND else targeting_call(self.command, path + (("?"+parsed.query) if parsed.query else ""), body, retry_transient=key in T_READ)
         except Exception as e: return self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json')
         self._send(status, data, ctype)
     def _origin(self): return SITE_URL or ('https://' + (self.headers.get('Host') or 'localhost'))
