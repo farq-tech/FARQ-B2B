@@ -6,7 +6,7 @@ import {
 } from '../../api/targetingClient'
 import {
   Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon, MessageTemplatesIcon, NewRequestIcon,
-  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, useIsMobile, WarningIcon, WholesaleIcon, type Channel,
+  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, UploadCatalogIcon, useIsMobile, WarningIcon, WholesaleIcon, type Channel,
 } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
@@ -609,7 +609,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (browse) void loadBrowse(city)
   }
   const startSheet = startOpen ? (
-    <StartSheet mobile={mobile} onClose={closeStart} onRfq={onRfq}
+    <StartSheet mobile={mobile} initialDirection={objective === 'marketing' ? 'sell' : 'buy'} onClose={closeStart} onRfq={onRfq}
       onBooklet={() => { beginBuyerFlow(false); fileInput.current?.click(); closeStart() }}
       onBuySearch={() => { beginBuyerFlow(true); closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
       onExplore={() => { closeStart(); if (lens !== 'market') chooseLens('market') }}
@@ -901,6 +901,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const resultsBody = <div>{resultsContent}{unlocatedPanel}</div>
   const panelHead = (
     <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
+      {lens === 'buyers' ? (
+        <div className="flex items-center justify-between gap-3 rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
+          <div className="min-w-0">
+            <p className="m-0 text-[13px] leading-[20px] font-semibold">تسوّق منتجاتك للمشترين</p>
+            <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">ابحث عن الجهات التي قد تحتاج نشاطك، أو أضف منتجاتك لتبدأ.</p>
+          </div>
+          <Button variant="Secondary" size="S" icon={UploadCatalogIcon} onClick={() => { recordMapInteraction('map_seller_add_products'); setStartOpen(true) }}>أضف منتجاتك</Button>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="اللوحة" className="flex gap-1 rounded-full bg-[var(--color-bg-surface-2)] p-1">
           {((mobile ? [['streets', 'الشوارع'], ['results', `النتائج${res ? ` · ${n(visibleCohort.length)}` : ''}`], ['guide', 'الدليل']] : [['results', `النتائج${res ? ` · ${n(visibleCohort.length)}` : ''}`], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (

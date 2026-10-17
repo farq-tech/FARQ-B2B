@@ -16,6 +16,7 @@ import { FOCUS_RING } from '../../ui/cx'
 
 type Props = {
   mobile: boolean
+  initialDirection?: 'buy' | 'sell'
   onClose: () => void
   onBooklet: () => void
   onBuySearch: () => void
@@ -39,9 +40,9 @@ function Row({ icon, title, hint, onClick }: { icon: IconSource; title: string; 
   )
 }
 
-export default function StartSheet({ mobile, onClose, onBooklet, onBuySearch, onExplore, onSellLines, onRfq }: Props) {
+export default function StartSheet({ mobile, initialDirection = 'buy', onClose, onBooklet, onBuySearch, onExplore, onSellLines, onRfq }: Props) {
   const [step, setStep] = useState<'pick' | 'sell'>('pick')
-  const [direction, setDirection] = useState<'buy' | 'sell'>('buy')
+  const [direction, setDirection] = useState<'buy' | 'sell'>(initialDirection)
   const [text, setText] = useState('')
   const [reading, setReading] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
