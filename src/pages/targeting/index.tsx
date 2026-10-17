@@ -334,7 +334,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // district, keep this indicator scoped to the visible result set.
     const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
     if (lens === 'market') return [
-      { key: 'market-size', label: 'منشآت بمواقع دقيقة', value: marketStats?.total ?? null, lead: true },
+      { key: 'market-size', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
       { key: 'market-activities', label: 'أنشطة فرعية', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : marketStats?.n_specialties ?? null },
       { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats ? marketStats.densest_street?.n ?? 0 : null },
