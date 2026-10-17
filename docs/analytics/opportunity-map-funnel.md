@@ -291,3 +291,86 @@ ORDER BY 1 DESC;
 - These events are recorded only after analytics consent. The funnel describes consenting sessions, not all map users.
 - Use at least two complete weeks for an initial comparison. If a week has fewer than 30 search sessions, treat the rate as directional and combine it with observed task completion; do not claim an experiment caused a change.
 - Compare changes in search-to-profile and profile-to-quote-start separately. If the first step is weak, inspect map discoverability and result relevance before changing the quote flow.
+
+## Expanded map mode engagement
+
+`map_focus_open` records entry to the full-screen map and `map_focus_close` records use of its “رجوع للتخطيط” control. Both are recorded only when the user has accepted map analytics consent. They carry the existing anonymous session key, but no search phrase, city, location, or establishment identifier. The query below groups each session by its first focus-mode entry in the 56-day window; repeat visits in one session are intentionally not counted separately. Closing the tab or navigating away does not emit `map_focus_close`. It is not device-specific, so do not label these sessions as mobile.
+
+Run it only against the same authorized, read-only main application database described above:
+
+```sql
+WITH map_events AS (
+  SELECT session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_focus_open',
+      'pricing_map_map_focus_close',
+      'pricing_map_map_sheet_open',
+      'pricing_map_map_sheet_peek',
+      'pricing_map_map_sheet_half',
+      'pricing_map_map_sheet_full',
+      'pricing_map_map_result_profile_open'
+    )
+), focus_entries AS (
+  SELECT session_id, min(occurred_at) AS opened_at
+  FROM map_events
+  WHERE element_label = 'pricing_map_map_focus_open'
+  GROUP BY session_id
+), focus_actions AS (
+  SELECT
+    f.session_id,
+    f.opened_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_focus_close' AND e.occurred_at > f.opened_at
+    ) AS closed_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_open' AND e.occurred_at > f.opened_at
+    ) AS sheet_opened_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_peek' AND e.occurred_at > f.opened_at
+    ) AS peek_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_half' AND e.occurred_at > f.opened_at
+    ) AS half_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_full' AND e.occurred_at > f.opened_at
+    ) AS full_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_result_profile_open' AND e.occurred_at > f.opened_at
+    ) AS result_profile_opened_at
+  FROM focus_entries f
+  LEFT JOIN map_events e USING (session_id)
+  GROUP BY f.session_id, f.opened_at
+), weekly AS (
+  SELECT
+    date_trunc('week', opened_at AT TIME ZONE 'UTC') AS week_utc,
+    count(*) AS focus_entry_sessions,
+    count(*) FILTER (WHERE closed_at IS NOT NULL) AS focus_closed_sessions,
+    count(*) FILTER (WHERE sheet_opened_at IS NOT NULL) AS result_panel_sessions,
+    count(*) FILTER (WHERE peek_at IS NOT NULL) AS peek_sessions,
+    count(*) FILTER (WHERE half_at IS NOT NULL) AS half_sessions,
+    count(*) FILTER (WHERE full_at IS NOT NULL) AS full_sessions,
+    count(*) FILTER (WHERE result_profile_opened_at IS NOT NULL) AS result_profile_sessions
+  FROM focus_actions
+  GROUP BY 1
+)
+SELECT
+  week_utc,
+  focus_entry_sessions,
+  focus_closed_sessions,
+  result_panel_sessions,
+  round(100.0 * result_panel_sessions / nullif(focus_entry_sessions, 0), 1) AS focus_to_results_panel_pct,
+  peek_sessions,
+  half_sessions,
+  full_sessions,
+  result_profile_sessions,
+  round(100.0 * result_profile_sessions / nullif(result_panel_sessions, 0), 1) AS panel_to_result_profile_pct
+FROM weekly
+ORDER BY week_utc DESC;
+```
+
+These are session-level navigation signals, not task completion or evidence that focus mode caused a profile open. Only sessions recorded after deployment contain the new entry/exit events. Wait for two complete weeks and at least 30 consenting focus-entry sessions before treating rates as directional; pair them with observed task completion and time-to-profile. Never infer mobile use from this query because no device class is recorded.

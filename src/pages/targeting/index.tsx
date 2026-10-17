@@ -103,6 +103,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (mobile) recordMapInteraction(`map_sheet_${snap}`)
   }
   const changeFocusMode = (focused: boolean) => {
+    recordMapInteraction(focused ? 'map_focus_open' : 'map_focus_close')
     setFocusMode(focused)
     onMapFocusChange?.(focused)
     if (focused) setFocusPanelOpen(false)
