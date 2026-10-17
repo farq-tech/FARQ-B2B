@@ -116,6 +116,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [res, setRes] = useState<TargetSearch | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [failedResultRefresh, setFailedResultRefresh] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [shown, setShown] = useState(PAGE)
@@ -180,7 +181,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [marketRetry, setMarketRetry] = useState(0)
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
-  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setConfirming(false); setProfile(null); setShowUnlocated(false) }
+  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
   const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
@@ -501,16 +502,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
     if (!inCity) return
     const version = ++generation.current
-    setBusy(true); setError(null)
+    const hadResults = Boolean(res)
+    setBusy(true); setError(null); setFailedResultRefresh(false)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
       if (version !== generation.current) return
+      setFailedResultRefresh(false)
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
       setSelected(new Set()); setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
       loadClusters('', inCity, false, 'purchase', true)
     } catch (err) {
-      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.')
+      if (version === generation.current) { setFailedResultRefresh(hadResults); setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.') }
     } finally { if (version === generation.current) setBusy(false) }
   }
   useEffect(() => { void loadBrowse(city) }, [city]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -532,13 +535,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   async function runSearchIn(text: string, inCity: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters, keepStreets = false): Promise<number | null> {
     if (!text || !inCity) return null
     setLens(obj === 'marketing' ? 'buyers' : 'sellers')
-    setBusy(true); setError(null); setNotice(null)
+    setBusy(true); setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
     const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
     try {
       const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
+      setFailedResultRefresh(false)
       if (fresh) recordMapInteraction(mapSearchResultEvent(r.total))
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
@@ -552,12 +556,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     } catch (err) {
       if (version !== generation.current) return null
       if (fresh) recordMapInteraction('map_search_failed')
+      setFailedResultRefresh(Boolean(res) && (fresh || JSON.stringify(use) !== JSON.stringify(filters)))
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
       return null
     } finally { if (version === generation.current) setBusy(false) }
   }
   const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
   async function openMapProfile(key: string) {
+    if (busy) return
     const existing = byKey.get(key)
     if (existing) { recordMapInteraction('map_profile_open'); setSheetSnap('full'); setProfile(key); return }
     if (!res?.map_query) return
@@ -574,6 +580,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     }
   }
   function prepareQuoteForProfile(key: string) {
+    if (busy) return
     const row = byKey.get(key)
     if (!row || !onRfq) return
     recordMapInteraction('map_profile_quote_start')
@@ -820,7 +827,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
 
   const toggle = (r: TargetRow) => {
-    if (!waNumber(r)) return
+    if (busy || !waNumber(r)) return
     recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
   }
@@ -828,8 +835,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const holder = tpl?.holder?.holder_rfq_id || null
   const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && templateFits(t)) ? 'القالب ما يناسب الحملة' : null
   const marketingBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : null
-  const sendBlock = marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
-  const scheduleBlock = marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
+  const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
+  const sendBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
+  const scheduleBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
   const templateBadge = approved || template !== OUTREACH_TEMPLATE ? { tone: 'Success' as const, label: 'قالب واتساب معتمد' } : tpl ? { tone: 'Warning' as const, label: `القالب: ${tpl.status}` } : tplError ? { tone: 'Danger' as const, label: 'حالة القالب غير معروفة' } : null
   // drafts live in this page only (owner: nothing on the device); a reload clears them
@@ -844,9 +852,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return (
       <li key={r.poi_key} data-key={r.poi_key} onPointerEnter={(event) => { if (event.pointerType === 'mouse' && hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} onFocusCapture={() => { if (hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
-          <input type="checkbox" checked={on} disabled={!can} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
-            className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
-          <button type="button" onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start ${FOCUS_RING}`}>
+          <input type="checkbox" checked={on} disabled={!can || busy} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
+            className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
+          <button type="button" disabled={busy} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />
@@ -875,7 +883,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       {cohort.length && fitFilter !== 'all' ? <button type="button" className={`mt-2 block font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`} onClick={() => setFitFilter('all')}>عرض كل النتائج</button> : null}
     </div>
   ) : (
-    <div>
+    <div aria-busy={busy}>
+      {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
       {unconfirmedStatusCount ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">
         حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة ضمن نتائج البحث الحالية. تأكد من أنها تعمل قبل التواصل.
       </p> : null}
@@ -1103,8 +1112,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             setTab('results')
             recordMapInteraction('map_results_jump')
             resultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }} className={`pointer-events-auto rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-4 py-2 text-[14px] font-semibold shadow-lg backdrop-blur-md ${FOCUS_RING}`}>
-            عرض النتائج · {n(visibleCohort.length)}
+          }} disabled={busy} className={`pointer-events-auto rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-4 py-2 text-[14px] font-semibold shadow-lg backdrop-blur-md disabled:opacity-70 ${FOCUS_RING}`}>
+            {busy ? 'جارٍ تحديث النتائج…' : `عرض النتائج · ${n(visibleCohort.length)}`}
           </button>
         </div>
       ) : null}
@@ -1125,7 +1134,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       onDone={(sent, failed) => { setConfirming(false); setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
   const noticeLine = notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null
-  const errorLine = error ? <p role="alert" className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} />{error}</p> : null
+  const errorLine = error ? <div role="alert" className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} /><span className="min-w-0 flex-1">{error}{failedResultRefresh ? ' النتائج المعروضة لم تتحدّث وتخص النطاق السابق.' : ''}</span>{failedResultRefresh && query ? <button type="button" onClick={() => { setQ(query); setFailedResultRefresh(false); setError(null) }} className={`shrink-0 underline ${FOCUS_RING}`}>العودة للبحث السابق</button> : null}</div> : null
   const understood = chips.length ? (
     <div className={mobile ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>
       {mobile ? null : <span className="flex items-center gap-1.5 text-[14px] leading-[22px] font-medium text-[var(--color-text-secondary)]"><Icon name="bolt" size={16} />فهمنا طلبك كذا:</span>}
