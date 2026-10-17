@@ -392,14 +392,24 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       void loadBrowse(city)
     }
   }
+  const directionOptions = [
+    { value: 'market', label: 'افهم السوق' },
+    { value: 'sellers', label: 'ابحث عن موردين' },
+    { value: 'buyers', label: 'ابحث عن مشترين' },
+  ] as const
+  const directionIndex = directionOptions.findIndex((option) => option.value === lens)
   const direction = (
-    <div role="tablist" aria-label="عدسات خريطة السوق" className="grid grid-cols-3 gap-1 rounded-xl bg-[var(--color-bg-surface-2)] p-1">
-      {([{ value: 'market', label: 'افهم السوق' }, { value: 'sellers', label: 'ابحث عن موردين' }, { value: 'buyers', label: 'ابحث عن مشترين' }] as const).map((option) => (
-        <button key={option.value} type="button" role="tab" aria-selected={lens === option.value} onClick={() => chooseLens(option.value)}
-          className={`rounded-lg px-2 py-2 text-[12px] font-semibold whitespace-nowrap sm:px-3 sm:text-[13px] ${lens === option.value ? 'bg-white text-[var(--color-text-primary)] shadow' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
-          {option.label}
-        </button>
-      ))}
+    <div role="tablist" aria-label="عدسات خريطة السوق" dir="rtl" className="min-w-0 rounded-full bg-[var(--color-bg-surface-2)]/80 p-1 backdrop-blur-md">
+      <div className="relative grid grid-cols-3">
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 start-0 w-1/3 rounded-full bg-[var(--color-bg-surface)] shadow-[var(--farq-button-shadow)] transition-transform duration-300 motion-reduce:transition-none"
+          style={{ transform: `translateX(-${directionIndex * 100}%)` }} />
+        {directionOptions.map((option) => (
+          <button key={option.value} type="button" role="tab" aria-selected={lens === option.value} onClick={() => chooseLens(option.value)}
+            className={`relative z-10 min-h-10 rounded-full px-2 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors sm:px-3 sm:text-[13px] ${lens === option.value ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 

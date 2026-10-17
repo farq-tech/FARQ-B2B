@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { FitSwatch, LayerSwatch } from './glyphs'
 import type { PinFit } from './model'
 
@@ -18,9 +19,13 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
   onFitFilterChange: (fit: PinFit | 'all') => void
   counts: Record<PinFit | 'all', number>
 }) {
+  const details = useRef<HTMLDetailsElement>(null)
+  const [open, setOpen] = useState(false)
   return (
-    <details data-testid="map-legend" className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
-      <summary className="cursor-pointer list-none font-semibold">دليل الخريطة</summary>
+    <details ref={details} data-testid="map-legend" onToggle={(event) => setOpen(event.currentTarget.open)} className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
+      <summary className="cursor-pointer list-none pe-16 font-semibold">دليل الخريطة</summary>
+      {open ? <button type="button" aria-label="إخفاء دليل الخريطة" onClick={() => { if (details.current) details.current.open = false }}
+        className="absolute end-2 top-1.5 rounded-full bg-[var(--color-bg-surface-2)] px-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">إخفاء</button> : null}
       <ul className="mt-1.5 flex flex-col gap-1.5">
         <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
         <li className="text-[var(--color-text-secondary)]">التقدير النموذجي متاح لـ {counts.likely + counts.maybe + counts.low} من {counts.all} منشأة محمّلة. قد تعرض المنشأة سبب مطابقة قائماً على نشاطها حتى دون تقدير نموذجي.</li>
