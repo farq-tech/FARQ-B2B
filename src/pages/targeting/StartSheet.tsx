@@ -91,9 +91,9 @@ export default function StartSheet({ mobile, initialDirection = 'buy', onClose, 
     <div className={`fixed inset-0 z-50 flex bg-[var(--color-bg-inverse)]/40 ${mobile ? 'items-end' : 'items-center justify-center p-6'}`} role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="start-title"
         className={`flex max-h-[90dvh] flex-col gap-4 overflow-y-auto bg-[var(--color-bg-surface)] p-5 shadow-[var(--elevation-lg)] ${mobile ? 'w-full rounded-t-[var(--radius-xl)] pb-8' : 'w-[560px] rounded-[var(--radius-xl)]'}`}>
-        <div className="flex items-center justify-between gap-2">
+        <div className="sticky top-0 z-10 -mx-5 -mt-5 flex items-center justify-between gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-5 pb-1 pt-5 backdrop-blur-xl">
           <h2 id="start-title" className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">{step === 'pick' ? 'وش هدفك؟' : 'وش تبيع؟'}</h2>
-          <button type="button" aria-label="إغلاق" onClick={onClose} className={`rounded-full p-1 ${FOCUS_RING}`}><Icon name="x" size={20} /></button>
+          <button type="button" aria-label="إغلاق" onClick={onClose} className={`flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={20} /></button>
         </div>
         {step === 'pick' ? (
           <>
