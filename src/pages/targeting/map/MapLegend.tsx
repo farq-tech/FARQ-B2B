@@ -1,4 +1,7 @@
 import { useRef, useState } from 'react'
+import { Icon } from '../../../ui'
+import { FOCUS_RING } from '../../../ui/cx'
+import { recordMapInteraction } from '../../../lib/mapAnalytics'
 import { FitSwatch, LayerSwatch } from './glyphs'
 import type { PinFit } from './model'
 
@@ -21,10 +24,18 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
 }) {
   const details = useRef<HTMLDetailsElement>(null)
   const [open, setOpen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  if (hidden) return (
+    <button type="button" aria-label="إظهار دليل الخريطة" title="إظهار دليل الخريطة"
+      onClick={() => { setHidden(false); recordMapInteraction('map_legend_show') }}
+      className={`pointer-events-auto absolute start-3 bottom-3 z-10 flex size-9 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 shadow-[var(--farq-soft-shadow)] backdrop-blur-md ${FOCUS_RING}`}>
+      <Icon name="info" size={17} />
+    </button>
+  )
   return (
     <details ref={details} data-testid="map-legend" onToggle={(event) => setOpen(event.currentTarget.open)} className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
       <summary className="cursor-pointer list-none pe-16 font-semibold">دليل الخريطة</summary>
-      {open ? <button type="button" aria-label="إخفاء دليل الخريطة" onClick={() => { if (details.current) details.current.open = false }}
+      {open ? <button type="button" aria-label="إخفاء دليل الخريطة" onClick={() => { setOpen(false); setHidden(true); recordMapInteraction('map_legend_hide') }}
         className="absolute end-2 top-1.5 rounded-full bg-[var(--color-bg-surface-2)] px-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">إخفاء</button> : null}
       <ul className="mt-1.5 flex flex-col gap-1.5">
         <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
