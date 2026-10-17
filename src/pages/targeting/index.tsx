@@ -790,7 +790,20 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const resultsBody = !res ? (
     <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
   ) : !visibleCohort.length ? (
-    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية. اختر «الكل» من دليل الخريطة لعرضها.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
+    <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
+      <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
+      {cohort.length && fitFilter !== 'all' && fitCounts.unknown > 0 ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span>فيه {n(fitCounts.unknown)} منشأة غير مفحوصة؛ غياب التقدير لا يعني أنها غير مناسبة.</span>
+          <Button variant="Ghost" size="S" onClick={() => {
+            setFitFilter('unknown')
+            setShown(PAGE)
+            recordMapInteraction('fit_filter_unknown')
+          }}>اعرض غير المفحوصة</Button>
+        </div>
+      ) : null}
+      {cohort.length && fitFilter !== 'all' ? <button type="button" className={`mt-2 block font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`} onClick={() => setFitFilter('all')}>عرض كل النتائج</button> : null}
+    </div>
   ) : (
     <ul>
       {visibleCohort.slice(0, shown).map(resultCard)}
