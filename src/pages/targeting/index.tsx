@@ -24,6 +24,7 @@ import ProfileDrawer from './map/ProfileDrawer'
 import CampaignTray from './map/CampaignTray'
 import StepStrip from './map/StepStrip'
 import MapLegend from './map/MapLegend'
+import { fitOf, type PinFit } from './map/model'
 import { RowBadges } from './map/Badges'
 import {
   countersOf, densityOf, districtAt, districtsFrom, fmtMeters, streetLine, streetsFrom, topStreets, districtsFromNames, guideOf, hasPoint, inDistricts, km, mainAr, mainIdOf, matchesFocus, pinsOf, safeLocationName, safeName, subAr, subIdOf,
@@ -108,6 +109,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [shown, setShown] = useState(PAGE)
+  const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
   const [message, setMessage] = useState(defaultMessage(null, null))
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
   const [tplError, setTplError] = useState(false)
@@ -253,7 +255,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return out
   }, [rows, chosenList, site])
   const cohort = useMemo(() => areaRows.filter((r) => matchesFocus(r, focus)), [areaRows, focus])
-  const counters = useMemo(() => countersOf(cohort, chosenD.size), [cohort, chosenD])
+  const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
+  const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
     const globalLocationCount = typeof res?.located_total === 'number' && Number.isFinite(res.located_total)
@@ -300,8 +303,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
   // Keep the city uncluttered until the user chooses an area or an activity; either choice
   // gives the map a useful, bounded cohort to pin even before they pick a district.
-  const pins = useMemo(() => (query && (chosenList.length || focus) ? pinsOf(cohort, layer, selected, focus) : []), [query, chosenList, cohort, layer, selected, focus])
-  const approxCount = useMemo(() => cohort.filter((r) => !hasPoint(r)).length, [cohort])
+  const pins = useMemo(() => (query && (chosenList.length || focus) ? pinsOf(visibleCohort, layer, selected, focus) : []), [query, chosenList, visibleCohort, layer, selected, focus])
+  const approxCount = useMemo(() => visibleCohort.filter((r) => !hasPoint(r)).length, [visibleCohort])
   const extent = useMemo<[number, number, number, number] | null>(() => {
     const pts = rows.filter(hasPoint)
     if (pts.length) return [Math.min(...pts.map((r) => r.longitude!)), Math.min(...pts.map((r) => r.latitude!)), Math.max(...pts.map((r) => r.longitude!)), Math.max(...pts.map((r) => r.latitude!))]
@@ -781,13 +784,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const resultsBody = !res ? (
     <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
-  ) : !cohort.length ? (
-    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
+  ) : !visibleCohort.length ? (
+    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية. اختر «الكل» من دليل الخريطة لعرضها.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
   ) : (
     <ul>
-      {cohort.slice(0, shown).map(resultCard)}
-      {shown < cohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, cohort.length - shown))} أكثر</Button></li> : null}
-      {truncated && shown >= cohort.length ? (
+      {visibleCohort.slice(0, shown).map(resultCard)}
+      {shown < visibleCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleCohort.length - shown))} أكثر</Button></li> : null}
+      {truncated && shown >= visibleCohort.length ? (
         <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
           <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
           <Button variant="Ghost" size="S" disabled={busy} loading={busy} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
@@ -799,24 +802,25 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="اللوحة" className="flex gap-1 rounded-full bg-[var(--color-bg-surface-2)] p-1">
-          {((mobile ? [['streets', 'الشوارع'], ['results', `النتائج${res ? ` · ${n(cohort.length)}` : ''}`], ['guide', 'الدليل']] : [['results', `النتائج${res ? ` · ${n(cohort.length)}` : ''}`], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (
+          {((mobile ? [['streets', 'الشوارع'], ['results', `النتائج${res ? ` · ${n(visibleCohort.length)}` : ''}`], ['guide', 'الدليل']] : [['results', `النتائج${res ? ` · ${n(visibleCohort.length)}` : ''}`], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k || (!mobile && tab === 'streets' && k === 'results')} onClick={() => setTab(k)}
               className={`rounded-full px-4 py-1.5 text-[14px] leading-[22px] font-medium ${tab === k ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[var(--farq-button-shadow)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>{l}</button>
           ))}
         </div>
         {res && waInCohort ? (
           <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] hover:underline ${FOCUS_RING}`}
-            onClick={() => setSelected(chosen.length ? new Set() : pickBest(cohort))}>
+            onClick={() => setSelected(chosen.length ? new Set() : pickBest(visibleCohort))}>
             {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
           </button>
         ) : null}
       </div>
       {res ? (
         <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-          {`يعرض ${n(Math.min(shown, cohort.length))} من ${n(cohort.length)} محمّل · ${n(res.total)} نتيجة مطابقة إجمالاً`}
+          {`يعرض ${n(Math.min(shown, visibleCohort.length))} من ${n(visibleCohort.length)} ظاهر من ${n(cohort.length)} محمّل · ${n(res.total)} نتيجة مطابقة إجمالاً`}
           {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
+          {fitFilter !== 'all' ? <span> · تقدير الملاءمة للفرز فقط</span> : null}
           {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
         </p>
       ) : null}
@@ -937,7 +941,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </dl>
         </div>
       ) : null}
-      <MapLegend mobile={mobile} />
+      <MapLegend mobile={mobile} fitFilter={fitFilter} onFitFilterChange={(next) => { setFitFilter(next); setShown(PAGE) }} />
       {profile && byKey.get(profile) && !mobile ? (
         <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} />
       ) : null}
@@ -989,7 +993,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
               <button type="button" aria-expanded={focusPanelOpen} aria-controls="map-focus-panel"
                 onClick={() => setFocusPanelOpen((open) => !open)}
                 className={`shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm ${FOCUS_RING}`}>
-                {focusPanelOpen ? 'إخفاء اللوحة' : `النتائج · ${n(cohort.length)}`}
+                {focusPanelOpen ? 'إخفاء اللوحة' : `النتائج · ${n(visibleCohort.length)}`}
               </button>
               <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
                 className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium ${FOCUS_RING}`}>
@@ -1000,7 +1004,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
-          {lens === 'market' ? `منشآت دقيقة · ${n(marketStats?.total || 0)}` : `نتائج · ${n(cohort.length)}`}
+          {lens === 'market' ? `منشآت دقيقة · ${n(marketStats?.total || 0)}` : `نتائج · ${n(visibleCohort.length)}`}
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
