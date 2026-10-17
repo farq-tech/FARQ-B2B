@@ -1252,15 +1252,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </div>
         {searchForm}
         {searchStatus}
+        {errorLine}
+        {areaBar}
+        {mapBlock}
         {suggestBar}
         {understood}
-        {areaBar}
-        {errorLine}
         {linesPanel}
         {fileField}
         <StepStrip current={step} mobile />
         <Counters items={displayCounters} compact />
-        {mapBlock}
         {tray}
         {noticeLine}
         <section ref={resultsPanelRef} aria-label="النتائج والدليل" className="-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3">
