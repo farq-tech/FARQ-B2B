@@ -23,14 +23,17 @@ export default function MapLegend({ mobile, fitFilter, onFitFilterChange }: {
       <summary className="cursor-pointer list-none font-semibold">دليل الخريطة</summary>
       <ul className="mt-1.5 flex flex-col gap-1.5">
         <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
-        <li role="group" aria-label="تصفية المنشآت حسب تقدير الملاءمة" className="grid grid-cols-2 gap-1">
-          {FITS.map(({ fit, label }) => (
-            <button key={fit} type="button" aria-pressed={fitFilter === fit}
-              onClick={(event) => { event.stopPropagation(); onFitFilterChange(fit) }}
-              className={`flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-start ${fitFilter === fit ? 'bg-[var(--color-bg-surface-2)] font-semibold text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)]'}`}>
-              {fit === 'all' ? <span className="w-3 text-center" aria-hidden>•</span> : <FitSwatch fit={fit} />}{label}
-            </button>
-          ))}
+        <li>
+          <fieldset className="m-0 grid min-w-0 grid-cols-2 gap-1 border-0 p-0">
+            <legend className="sr-only">تصفية المنشآت حسب تقدير الملاءمة</legend>
+            {FITS.map(({ fit, label }) => (
+              <button key={fit} type="button" aria-pressed={fitFilter === fit}
+                onClick={(event) => { event.stopPropagation(); onFitFilterChange(fit) }}
+                className={`flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-start ${fitFilter === fit ? 'bg-[var(--color-bg-surface-2)] font-semibold text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)]'}`}>
+                {fit === 'all' ? <span className="w-3 text-center" aria-hidden>•</span> : <FitSwatch fit={fit} />}{label}
+              </button>
+            ))}
+          </fieldset>
         </li>
         <li className="text-[var(--color-text-secondary)]">التصفية تغيّر ما يظهر فقط؛ المنشآت المحددة تبقى ضمن طلبك.</li>
         <li className="text-[var(--color-text-secondary)]">قناة التواصل تظهر في ملف المنشأة.</li>

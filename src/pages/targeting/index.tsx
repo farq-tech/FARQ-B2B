@@ -59,10 +59,10 @@ const RADII = [5, 10, 25, 50, 100] as const
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
 const n = (v: number) => v.toLocaleString('ar-SA')
-/** «حدد المناسبين»: AI-likely places with WhatsApp; without an AI check, everyone with WhatsApp. */
-const pickBest = (rows: TargetRow[]) => {
-  const ai = rows.some((r) => r.ai)
-  return new Set(rows.filter((r) => waNumber(r) && (!ai || r.ai === 'L')).map((r) => r.poi_key))
+/** With no fit filter, prioritize AI-likely places; an explicit fit filter selects WhatsApp rows in that visible group. */
+const pickForFit = (rows: TargetRow[], fitFilter: PinFit | 'all') => {
+  const prioritizeLikely = fitFilter === 'all' && rows.some((r) => r.ai)
+  return new Set(rows.filter((r) => waNumber(r) && (!prioritizeLikely || r.ai === 'L')).map((r) => r.poi_key))
 }
 const placeOf = (r: TargetRow) => [safeLocationName(r.street_ar), safeLocationName(r.district_ar) || safeLocationName(r.district_en), safeLocationName(r.region_ar) || safeLocationName(r.city_en)].filter(Boolean).join(' · ')
 const pathOf = (r: TargetRow) => { const m = mainIdOf(r), s = subAr(subIdOf(r)); return s ? `${mainAr(m)} ▸ ${s}` : r.taxonomy_sub ? mainAr(m) : r.category_ar || '' }
@@ -313,7 +313,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }, [rows, city])
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.poi_key)), [rows, selected])
   const truncated = res ? rows.length < res.total : false
-  const hasAi = Boolean(res?.ai_checked)
+  const hasAiInVisibleCohort = visibleCohort.some((row) => Boolean(row.ai))
   const waInCohort = counters.whatsapp
 
   const toggleDistrict = (id: string) => {
@@ -809,8 +809,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </div>
         {res && waInCohort ? (
           <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] hover:underline ${FOCUS_RING}`}
-            onClick={() => setSelected(chosen.length ? new Set() : pickBest(visibleCohort))}>
-            {chosen.length ? 'إلغاء التحديد' : hasAi ? 'حدد المناسبين' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
+            onClick={() => {
+              if (chosen.length) setSelected(new Set())
+              else { recordMapInteraction('fit_supplier_selection'); setSelected(pickForFit(visibleCohort, fitFilter)) }
+            }}>
+            {chosen.length ? 'إلغاء التحديد' : fitFilter === 'likely' || (fitFilter === 'all' && hasAiInVisibleCohort) ? 'حدد المناسبين' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
           </button>
         ) : null}
       </div>
@@ -941,7 +944,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </dl>
         </div>
       ) : null}
-      <MapLegend mobile={mobile} fitFilter={fitFilter} onFitFilterChange={(next) => { setFitFilter(next); setShown(PAGE) }} />
+      <MapLegend mobile={mobile} fitFilter={fitFilter} onFitFilterChange={(next) => {
+        if (next === fitFilter) return
+        setFitFilter(next)
+        setShown(PAGE)
+        recordMapInteraction(`fit_filter_${next}`)
+      }} />
       {profile && byKey.get(profile) && !mobile ? (
         <ProfileDrawer row={byKey.get(profile)!} mobile={false} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} />
       ) : null}
