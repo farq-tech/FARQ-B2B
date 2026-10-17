@@ -30,7 +30,7 @@ function hull(ps: { x: number; y: number }[]) {
   return lo.slice(0, -1).concat(up.slice(0, -1))
 }
 
-export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean }) {
+export default function TargetMap({ rows, selected, onToggle, topInset = 72, legend = true, legendPosition = 'top' }: { rows: TargetRow[]; selected: Set<string>; onToggle: (r: TargetRow) => void; /** px kept free at the top (search overlay on phones) */ topInset?: number; bottomInset?: number; legend?: boolean; legendPosition?: 'top' | 'bottom' }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   // zoom belongs to one result set: a new search shows everything again
@@ -101,8 +101,8 @@ export default function TargetMap({ rows, selected, onToggle, topInset = 72, leg
             style={{ left: x, top: y, background: colorOf(r) }} />
         )
       })}
-      {legend ? <div className="absolute start-auto end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
-        <span className="text-[var(--color-text-on-inverse-secondary)]">الملاءمة</span>
+      {legend ? <div className={`absolute end-3 ${legendPosition === 'bottom' ? 'bottom-3 grid w-[184px] grid-cols-2 gap-x-3 gap-y-1.5 rounded-[var(--radius-lg)] bg-[var(--color-bg-inverse)]/90 px-3 py-2 text-[11px] leading-[16px]' : 'top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px]'} font-medium text-[var(--color-text-on-inverse)]`}>
+        <span className={legendPosition === 'bottom' ? 'col-span-2 text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-on-inverse-secondary)]'}>الملاءمة</span>
         {[['مناسب', FIT_COLOR.likely], ['محتمل', FIT_COLOR.maybe], ['غير مناسب', FIT_COLOR.not], ['غير مفحوص', FIT_COLOR.unchecked]].map(([l, c]) => (
           <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
         ))}

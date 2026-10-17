@@ -14,8 +14,8 @@ function MapView(props: Parameters<typeof TargetMap>[0]) {
     <Suspense fallback={null}>
       <MapboxMap {...props} />
       {props.legend === false ? null : (
-        <div className="pointer-events-none absolute end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--color-bg-inverse)]/80 px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
-          <span className="text-[var(--color-text-on-inverse-secondary)]">الملاءمة</span>
+        <div className={`pointer-events-none absolute end-3 ${props.legendPosition === 'bottom' ? 'bottom-3 grid w-[184px] grid-cols-2 gap-x-3 gap-y-1.5 rounded-[var(--radius-lg)] bg-[var(--color-bg-inverse)]/90 px-3 py-2 text-[11px] leading-[16px]' : 'top-4 flex items-center gap-3 rounded-full bg-[var(--color-bg-inverse)]/80 px-3 py-2 text-[12px] leading-[18px]'} font-medium text-[var(--color-text-on-inverse)]`}>
+          <span className={props.legendPosition === 'bottom' ? 'col-span-2 text-[var(--color-text-on-inverse-secondary)]' : 'text-[var(--color-text-on-inverse-secondary)]'}>الملاءمة</span>
           {[['مناسب', 'var(--color-icon-success)'], ['محتمل', 'var(--color-icon-warning)'], ['غير مناسب', 'var(--color-icon-secondary)'], ['غير مفحوص', 'var(--color-text-tertiary)']].map(([l, c]) => (
             <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
           ))}
@@ -303,7 +303,7 @@ export default function TargetingPage({ onTemplates }: { onTemplates: () => void
       <div className="relative h-[calc(100dvh-72px)] overflow-hidden bg-[var(--color-bg-inverse)]">
         <h1 className="sr-only">الاستهداف</h1>
         <div className="absolute inset-x-0 top-0 h-[50%]">
-          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 120 : 80) + (lines.length ? 70 : 0)} legend={false} />
+          <MapView rows={rows} selected={selected} onToggle={(r) => { toggle(r); focusRow(r.poi_key) }} topInset={(chips.length ? 120 : 80) + (lines.length ? 70 : 0)} legend={rows.length > 0} legendPosition="bottom" />
         </div>
         <div className="absolute inset-x-4 top-4 flex flex-col gap-3">
           <form role="search" onSubmit={search} className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] py-1.5 ps-4 pe-1.5 shadow-[var(--elevation-lg)]">
