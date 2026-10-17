@@ -2,6 +2,10 @@ const CONSENT_KEY = 'farq:pricing-map-analytics-consent-v1'
 const SESSION_KEY = 'farq:pricing-map-analytics-session-v1'
 const MAP_EVENTS = [
   'map_search',
+  'map_search_results_empty',
+  'map_search_results_1_4',
+  'map_search_results_5_plus',
+  'map_search_failed',
   'map_district_select',
   'map_district_clear',
   'map_street_select',
@@ -108,6 +112,12 @@ export function recordMapInteraction(name: MapEventName) {
   startFlush()
   queue.push({ event_type: 'click', session_id: sessionId(), path: '/opportunity-map', element_label: `pricing_map_${name}` })
   if (queue.length >= 20) flush()
+}
+
+export function mapSearchResultEvent(total: number): MapEventName {
+  if (total <= 0) return 'map_search_results_empty'
+  if (total < 5) return 'map_search_results_1_4'
+  return 'map_search_results_5_plus'
 }
 
 export function setMapAnalyticsConsent(value: 'accepted' | 'rejected') {
