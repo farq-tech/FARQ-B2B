@@ -519,16 +519,21 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     } finally { setReading(null); if (fileInput.current) fileInput.current.value = '' }
   }
   async function loadMore() {
-    if (!res || res.next_offset == null || busy || !query) return
+    if (!res || res.next_offset == null || busy) return
     setBusyKind('more'); setError(null)
     const version = generation.current
+    const browsingMarket = !query.trim()
     try {
-      const r = await searchTargets(query, city, FETCH, objective, res.next_offset, filters)
+      const r = await searchTargets(query, city, FETCH, browsingMarket ? 'browse' : objective, res.next_offset, filters)
       if (version !== generation.current) return
       setRes((cur) => cur ? { ...cur, rows: [...cur.rows, ...r.rows.filter((x) => !cur.rows.some((y) => y.poi_key === x.poi_key))], has_more: r.has_more, next_offset: r.next_offset } : cur)
       setShown((s) => s + r.rows.length)
+      if (browsingMarket) recordMapInteraction('map_browse_more_succeeded')
     } catch (err) {
-      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
+      if (version === generation.current) {
+        setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
+        if (browsingMarket) recordMapInteraction('map_browse_more_failed')
+      }
     } finally { if (version === generation.current) setBusyKind(null) }
   }
   async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
