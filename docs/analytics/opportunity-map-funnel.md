@@ -251,7 +251,9 @@ SELECT
   count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_browse_refresh_failed') AS sessions_with_browse_refresh_failures,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_search') AS legacy_searches_without_result_bucket,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_results_status_notice') AS status_notice_impressions,
-  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_results_status_notice') AS sessions_shown_status_notice
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_results_status_notice') AS sessions_shown_status_notice,
+  count(*) FILTER (WHERE element_label = 'pricing_map_market_summary_retry') AS market_summary_retry_clicks,
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_market_summary_retry') AS sessions_with_market_summary_retry
 FROM public.analytics_events
 WHERE occurred_at >= now() - interval '56 days'
   AND event_type = 'click'
@@ -265,7 +267,8 @@ WHERE occurred_at >= now() - interval '56 days'
     'pricing_map_map_results_status_notice',
     'pricing_map_map_browse_succeeded',
     'pricing_map_map_browse_failed',
-    'pricing_map_map_browse_refresh_failed'
+    'pricing_map_map_browse_refresh_failed',
+    'pricing_map_market_summary_retry'
   )
 GROUP BY 1
 ORDER BY 1 DESC;
@@ -278,6 +281,7 @@ ORDER BY 1 DESC;
 - `district_select_sessions` and `street_select_sessions` count search sessions with an area selection later in the same session. `results_shortcut_seen_sessions` is only a proxy for a regular mobile-layout search session; the district/street-after-shortcut counts require the map-area selection to follow that mobile-only shortcut impression. This does not identify every mobile user or prove the map-first change caused an interaction.
 - `map_profile_status_unconfirmed` counts a consenting session that opened at least one profile whose source status is missing or unrecognized. It contains no establishment identifier. Do not attribute a later quote start to that same establishment; the event stream intentionally does not identify profiles.
 - `map_profile_whatsapp_unverified` counts a consenting session that opened a profile whose WhatsApp flag is not explicitly marked verified. `quote_after_unverified_whatsapp_sessions` counts a later quote start in that same session only; it does not identify the establishment or prove that the notice caused the action.
+- `market_summary_retry_clicks` and `sessions_with_market_summary_retry` count the user-triggered manual retry only, after analytics consent. Automatic retry attempts are intentionally not logged. These counts indicate that a visible summary failure led to a retry click; they do not count all failures, identify their technical cause, or represent users who declined analytics consent.
 - `quote_after_unconfirmed_status_sessions` means a quote flow began later in a session that had shown the notice. This is a session-level sequence only: it cannot prove the quote came from the same profile or that the notice caused the action.
 - New search clicks are labeled by result bucket (`0`, `1–4`, `5+`) or failure. Older `map_search` rows remain in the funnel but have no outcome bucket.
 - `map_browse_succeeded`, `map_browse_failed`, and `map_browse_refresh_failed` count completed browse-load attempts from consenting sessions. Refresh failures are also included in `map_browse_failed`; calculate the failure rate as failed browse loads divided by succeeded plus failed browse loads. Superseded requests without a terminal response are not counted. These events contain no query, city, filter, or establishment identifiers.
