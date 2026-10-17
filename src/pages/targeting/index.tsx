@@ -1222,22 +1222,24 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <div className="pointer-events-auto flex w-full max-w-[760px] flex-col gap-2 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-lg backdrop-blur">
             {searchForm}
             {searchStatus}
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">{direction}</div>
-              <button type="button" aria-expanded={focusPanelOpen} aria-controls="map-focus-panel"
-                onClick={() => {
-                  const nextOpen = !focusPanelOpen
-                  setFocusPanelOpen(nextOpen)
-                  recordMapInteraction(nextOpen ? 'map_sheet_open' : 'map_sheet_close')
-                  if (nextOpen) setSheetSnap('peek')
-                }}
-                className={`shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm ${FOCUS_RING}`}>
-                {focusPanelOpen ? 'إخفاء اللوحة' : `النتائج · ${n(visibleCohort.length)}`}
-              </button>
-              <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
-                className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium ${FOCUS_RING}`}>
-                رجوع للتخطيط
-              </button>
+            <div className={`flex gap-2 ${mobile ? 'flex-col items-stretch' : 'items-center'}`}>
+              <div className={`min-w-0 ${mobile ? 'w-full' : 'flex-1'}`}>{direction}</div>
+              <div className="flex items-center justify-between gap-2">
+                <button type="button" aria-expanded={focusPanelOpen} aria-controls="map-focus-panel"
+                  onClick={() => {
+                    const nextOpen = !focusPanelOpen
+                    setFocusPanelOpen(nextOpen)
+                    recordMapInteraction(nextOpen ? 'map_sheet_open' : 'map_sheet_close')
+                    if (nextOpen) setSheetSnap('peek')
+                  }}
+                  className={`shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm ${FOCUS_RING}`}>
+                  {focusPanelOpen ? 'إخفاء اللوحة' : `النتائج · ${n(visibleCohort.length)}`}
+                </button>
+                <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
+                  className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium ${FOCUS_RING}`}>
+                  رجوع للتخطيط
+                </button>
+              </div>
             </div>
             {errorLine}
           </div>
