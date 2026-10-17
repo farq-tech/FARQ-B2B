@@ -336,7 +336,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (lens === 'market') return [
       { key: 'market-size', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'market-activities', label: 'أنشطة فرعية', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : marketStats?.n_specialties ?? null },
+      { key: 'market-activities', label: 'تصنيفات فرعية متاحة', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : null },
       { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats ? marketStats.densest_street?.n ?? 0 : null },
     ]
     if (query && res) return lens === 'sellers' ? [
@@ -357,7 +357,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'city-whatsapp', label: 'واتساب مسجل', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'city-activities', label: 'أنشطة فرعية', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : marketStats?.n_specialties ?? null },
+      { key: 'city-activities', label: 'تصنيفات فرعية متاحة', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : null },
     ]
   }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
@@ -1013,7 +1013,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {[
               ['منشآت مرصودة', marketStats.total], ['أحياء بإسناد موثوق', marketStats.districts_count],
               ['واتساب حسب المصدر', marketStats.n_whatsapp], ['منشآت موسومة جملة', marketStats.n_wholesale],
-              ['أنشطة فرعية مصنفة', marketStats.n_specialties], ['بلا موقع دقيق', marketStats.n_approx],
+              ['منشآت لديها تخصصات مسجلة', marketStats.n_specialties], ['بلا موقع دقيق', marketStats.n_approx],
             ].map(([label, value]) => <div key={label} className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
               <dt className="text-[11px] leading-[16px] text-[var(--color-text-secondary)]">{label}</dt>
               <dd className="m-0 text-[16px] leading-[24px] font-semibold tabular-nums">{n(Number(value))}</dd>
