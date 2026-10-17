@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react'
  * with CSS), so each layout's DOM carries only what it shows.
  */
 const QUERY = '(max-width: 767px)'
-const MAP_COMPACT_QUERY = '(max-width: 1000px)'
+const MAP_COMPACT_QUERY = '(max-width: 1100px)'
 const subscribe = (cb: () => void) => {
   const m = window.matchMedia(QUERY)
   m.addEventListener('change', cb)
