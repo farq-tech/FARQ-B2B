@@ -12,7 +12,7 @@ import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapSearchResultEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -517,7 +517,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     try {
       const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
-      if (fresh) recordMapInteraction('map_search')
+      if (fresh) recordMapInteraction(mapSearchResultEvent(r.total))
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
       if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
@@ -529,6 +529,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return r.total
     } catch (err) {
       if (version !== generation.current) return null
+      if (fresh) recordMapInteraction('map_search_failed')
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
       return null
     } finally { if (version === generation.current) setBusy(false) }
