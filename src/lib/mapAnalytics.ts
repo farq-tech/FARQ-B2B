@@ -17,6 +17,23 @@ const ALLOWED_EVENTS = new Set([
   'fit_supplier_selection',
   'site_unlocated_show',
   'site_unlocated_hide',
+  'start_mode_buyer',
+  'start_mode_seller',
+  'map_filter_open_district',
+  'map_filter_select_district',
+  'map_filter_open_street',
+  'map_filter_select_street',
+  'map_filter_open_role',
+  'map_filter_select_role',
+  'map_filter_open_specialty',
+  'map_filter_select_specialty',
+  'map_filter_open_site_radius',
+  'map_filter_select_site_radius',
+  'map_sheet_open',
+  'map_sheet_close',
+  'map_sheet_peek',
+  'map_sheet_half',
+  'map_sheet_full',
 ])
 
 type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }

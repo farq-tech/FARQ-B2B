@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { suggestSpecialties, TargetingError, type SpecialtySuggestion } from '../../api/targetingClient'
 import { readBooklet } from '../../lib/readBooklet'
+import { recordMapInteraction } from '../../lib/mapAnalytics'
 import { Button, Chip, Icon, IconFrom, PricingRequestsIcon, SearchIcon, SpecialtiesIcon, UploadBookletIcon, UploadCatalogIcon, WriteProductsIcon, type IconSource } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
@@ -96,11 +97,11 @@ export default function StartSheet({ mobile, onClose, onBooklet, onFreeSearch, o
           <>
             <div role="group" aria-label="اتجاه البحث" className="relative isolate grid grid-cols-2 rounded-full bg-[var(--color-bg-surface-2)]/90 p-1 backdrop-blur-md">
               <span aria-hidden className={`pointer-events-none absolute inset-y-1 start-1 w-[calc(50%-4px)] rounded-full bg-[var(--color-bg-surface)] shadow-[var(--farq-button-shadow)] transition-transform duration-300 motion-reduce:transition-none ${direction === 'sell' ? '-translate-x-full' : ''}`} />
-              <button type="button" aria-pressed={direction === 'buy'} onClick={() => setDirection('buy')}
+              <button type="button" aria-pressed={direction === 'buy'} onClick={() => { if (direction !== 'buy') recordMapInteraction('start_mode_buyer'); setDirection('buy') }}
                 className={`relative z-10 min-h-11 rounded-full px-3 py-2 text-[14px] font-semibold transition-colors ${direction === 'buy' ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
                 أبحث عن مورد
               </button>
-              <button type="button" aria-pressed={direction === 'sell'} onClick={() => setDirection('sell')}
+              <button type="button" aria-pressed={direction === 'sell'} onClick={() => { if (direction !== 'sell') recordMapInteraction('start_mode_seller'); setDirection('sell') }}
                 className={`relative z-10 min-h-11 rounded-full px-3 py-2 text-[14px] font-semibold transition-colors ${direction === 'sell' ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
                 أبحث عن مشتري
               </button>
