@@ -7,6 +7,7 @@ const ALLOWED_EVENTS = new Set([
   'map_street_select',
   'map_activity_select',
   'map_profile_open',
+  'map_result_profile_open',
   'map_supplier_add',
   'map_supplier_remove',
   'fit_filter_all',

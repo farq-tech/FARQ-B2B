@@ -12,6 +12,8 @@ export type LayerMapProps = {
   chosen: Set<string>
   onDistrict: (id: string) => void
   pins: Pin[]
+  /** Result card or keyboard focus currently highlighting a precise map pin. */
+  highlightedPinKey?: string | null
   /** Authenticated, aggregated business vector tiles for the current city/activity/district cohort. */
   tileQuery?: string
   onTileRefresh?: () => void
