@@ -898,12 +898,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       {!anyChosen ? (
         <p role="status" data-testid="map-hint" className={`pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] ${mobile ? 'top-[100px] w-[88%] text-[13px] leading-[20px]' : 'bottom-4 max-w-[56%]'}`}>
           {polys === null ? 'نحمّل أحياء المدينة…'
-            : !res && denseList.length ? (mobile ? 'الخطوط الخضراء أكثف الشوارع. اضغط شارعاً لتظهر محلاته.' : 'الخطوط الخضراء أكثف الشوارع. اختر نشاطاً من القائمة أو اكتب وش تبي، أو اضغط شارعاً لتظهر محلاته.')
+            : !res && denseList.length ? (mobile ? 'الخطوط الخضراء أكثف الشوارع. اضغط شارعاً لتظهر منشآته.' : 'الخطوط الخضراء أكثف الشوارع. اختر نشاطاً من القائمة أو اكتب وش تبي، أو اضغط شارعاً لتظهر منشآته.')
             : !res ? 'اكتب وش تبي فوق واضغط «ابحث»، ونوريك وين يتركز في المدينة.'
             : busy ? 'نحسب أكثف الشوارع والأحياء…'
-            : denseList.length ? (mobile ? 'اضغط شارعاً أخضر أو حياً لتظهر محلاته.' : 'الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها محلات أكثر. اضغط شارعاً أو حياً لتظهر محلاته.')
-            : hasPolys ? 'الأحياء الأغمق فيها محلات أكثر. اضغط حياً لتظهر محلاته.'
-            : 'اختر حياً من القائمة فوق لتظهر محلاته.'}
+            : denseList.length ? (mobile ? 'اضغط شارعاً أخضر أو حياً لتظهر منشآته.' : 'الخطوط الخضراء أكثف الشوارع، والأحياء الأغمق فيها منشآت أكثر. اضغط شارعاً أو حياً لتظهر منشآته.')
+            : hasPolys ? 'الأحياء الأغمق فيها منشآت أكثر. اضغط حياً لتظهر منشآته.'
+            : 'اختر حياً من القائمة فوق لتظهر منشآته.'}
         </p>
       ) : null}
       {pickedStreet ? (
