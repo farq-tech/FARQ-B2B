@@ -17,6 +17,17 @@ const FITS: { fit: PinFit | 'all'; label: string }[] = [
   { fit: 'low', label: 'منخفضة' },
   { fit: 'unknown', label: 'بدون تقدير نموذجي' },
 ]
+const LEGEND_HIDDEN_KEY = 'farq-opportunity-map-legend-hidden-v1'
+
+function readHiddenPreference() {
+  try {
+    // Keep the map clear by default. Once the user dismisses the legend, remember that choice.
+    return window.localStorage.getItem(LEGEND_HIDDEN_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
 export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
   fitFilter: PinFit | 'all'
   onFitFilterChange: (fit: PinFit | 'all') => void
@@ -24,18 +35,30 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
 }) {
   const details = useRef<HTMLDetailsElement>(null)
   const [open, setOpen] = useState(false)
-  const [hidden, setHidden] = useState(false)
+  const [hidden, setHidden] = useState(readHiddenPreference)
+  const show = () => {
+    setHidden(false)
+    try { window.localStorage.setItem(LEGEND_HIDDEN_KEY, '0') } catch { /* storage can be unavailable */ }
+    recordMapInteraction('map_legend_show')
+  }
+  const hide = () => {
+    if (details.current) details.current.open = false
+    setOpen(false)
+    setHidden(true)
+    try { window.localStorage.setItem(LEGEND_HIDDEN_KEY, '1') } catch { /* storage can be unavailable */ }
+    recordMapInteraction('map_legend_hide')
+  }
   if (hidden) return (
     <button type="button" aria-label="إظهار دليل الخريطة" title="إظهار دليل الخريطة"
-      onClick={() => { setHidden(false); recordMapInteraction('map_legend_show') }}
+      onClick={show}
       className={`pointer-events-auto absolute start-3 bottom-3 z-10 flex size-9 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 shadow-[var(--farq-soft-shadow)] backdrop-blur-md ${FOCUS_RING}`}>
       <Icon name="info" size={17} />
     </button>
   )
   return (
-    <details ref={details} data-testid="map-legend" onToggle={(event) => setOpen(event.currentTarget.open)} className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
+    <details ref={details} data-testid="map-legend" onToggle={(event) => setOpen(event.currentTarget.open)} className="pointer-events-auto absolute start-3 bottom-3 z-10 max-h-[min(65dvh,560px)] max-w-[250px] overflow-y-auto overscroll-contain rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
       <summary className="cursor-pointer list-none pe-16 font-semibold">دليل الخريطة</summary>
-      {open ? <button type="button" aria-label="إخفاء دليل الخريطة" onClick={() => { setOpen(false); setHidden(true); recordMapInteraction('map_legend_hide') }}
+      {open ? <button type="button" aria-label="إخفاء دليل الخريطة" onClick={hide}
         className="absolute end-2 top-1.5 rounded-full bg-[var(--color-bg-surface-2)] px-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">إخفاء</button> : null}
       <ul className="mt-1.5 flex flex-col gap-1.5">
         <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
