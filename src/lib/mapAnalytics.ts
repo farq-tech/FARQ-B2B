@@ -22,6 +22,7 @@ const ALLOWED_EVENTS = new Set([
   'map_lens_market',
   'map_lens_sellers',
   'map_lens_buyers',
+  'market_summary_retry',
   'map_filter_open_district',
   'map_filter_select_district',
   'map_filter_open_street',

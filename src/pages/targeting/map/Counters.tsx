@@ -30,7 +30,7 @@ function Rolling({ value }: { value: number }) {
   return <>{fmt(shown)}</>
 }
 
-export type CounterItem = { key: string; label: string; value: number; lead?: boolean }
+export type CounterItem = { key: string; label: string; value: number | null; lead?: boolean }
 
 export default function Counters({ items, compact = false }: { items: CounterItem[]; compact?: boolean }) {
   return (
@@ -38,11 +38,11 @@ export default function Counters({ items, compact = false }: { items: CounterIte
       {items.map((c) => (
         <div key={c.key} data-counter={c.key}
           className={`relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'}`}>
-          <span className={`font-[family-name:var(--font-display)] ${compact ? 'text-[17px] leading-[24px]' : 'text-[20px] leading-[28px]'} font-semibold tabular-nums`} aria-hidden>
-            <Rolling value={c.value} />
+          <span className={`font-[family-name:var(--font-display)] ${compact ? 'text-[17px] leading-[24px]' : 'text-[20px] leading-[28px]'} font-semibold tabular-nums`}>
+            {c.value == null ? '—' : <span aria-hidden><Rolling value={c.value} /></span>}
           </span>
           <span className={`${compact ? 'text-[12px] leading-[18px]' : 'text-[11px] leading-[16px]'} ${c.lead ? 'text-white/80' : 'text-[var(--color-text-secondary)]'}`}>
-            <span className="sr-only">{fmt(c.value)} </span>{c.label}
+            <span className="sr-only">{c.value == null ? 'غير متاح' : fmt(c.value)} </span>{c.label}
           </span>
         </div>
       ))}
