@@ -9,6 +9,12 @@ const ALLOWED_EVENTS = new Set([
   'map_profile_open',
   'map_supplier_add',
   'map_supplier_remove',
+  'fit_filter_all',
+  'fit_filter_likely',
+  'fit_filter_maybe',
+  'fit_filter_low',
+  'fit_filter_unknown',
+  'fit_supplier_selection',
 ])
 
 type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }
