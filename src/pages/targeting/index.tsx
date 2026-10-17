@@ -117,6 +117,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [shown, setShown] = useState(PAGE)
   const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
   const [message, setMessage] = useState(defaultMessage(null, null))
@@ -817,11 +818,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const ch = channelOf(r), can = ch === 'WhatsApp', on = selected.has(r.poi_key), name = safeName(r)
     const locationNotes = [!hasPoint(r) ? (site ? 'موقع تقريبي · المسافة غير معروفة' : 'موقع تقريبي') : null, r.district_reliable === false ? 'الحي غير مؤكد' : null].filter(Boolean)
     return (
-      <li key={r.poi_key} data-key={r.poi_key} className="border-b border-[var(--color-border-default)]">
+      <li key={r.poi_key} data-key={r.poi_key} onPointerEnter={(event) => { if (event.pointerType === 'mouse' && hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} onFocusCapture={() => { if (hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
           <input type="checkbox" checked={on} disabled={!can} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
             className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
-          <button type="button" onClick={() => { recordMapInteraction('map_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start ${FOCUS_RING}`}>
+          <button type="button" onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />
@@ -999,7 +1000,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'h-[58dvh] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
+      <LayerMap focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />

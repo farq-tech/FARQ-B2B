@@ -75,7 +75,7 @@ export default function LayerMapbox(props: LayerMapProps) {
       m.addLayer({ id: 'trade-circle', type: 'circle', source: 'trade', paint: { 'circle-color': GREEN, 'circle-opacity': 0.16, 'circle-stroke-color': GREEN, 'circle-stroke-opacity': 0.65, 'circle-stroke-width': 1.5, 'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 2, 10, 8, 15, 20, 21] } })
       m.addLayer({ id: 'trade-label', type: 'symbol', source: 'trade', layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1.8], 'text-max-width': 12, 'text-font': FONT }, paint: { 'text-color': INK, 'text-halo-color': 'white', 'text-halo-width': 1.5 } })
       m.addSource('pins', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      m.addLayer({ id: 'pins', type: 'symbol', source: 'pins', layout: { 'icon-image': ['get', 'img'], 'icon-anchor': ['case', ['==', ['get', 'layer'], 'sub'], 'center', 'bottom'], 'icon-size': ['case', ['==', ['get', 'layer'], 'spec'], 1, ['interpolate', ['linear'], ['zoom'], 11, 0.6, 16, 0.9]], 'icon-allow-overlap': true, 'symbol-sort-key': ['get', 'z'] } })
+      m.addLayer({ id: 'pins', type: 'symbol', source: 'pins', layout: { 'icon-image': ['get', 'img'], 'icon-anchor': ['case', ['==', ['get', 'layer'], 'sub'], 'center', 'bottom'], 'icon-size': ['*', ['case', ['==', ['get', 'layer'], 'spec'], 1, ['interpolate', ['linear'], ['zoom'], 11, 0.6, 16, 0.9]], ['case', ['boolean', ['get', 'highlighted'], false], 1.25, 1]], 'icon-allow-overlap': true, 'symbol-sort-key': ['get', 'z'] } })
       m.on('click', (e) => {
         const L = latest.current
         if (L.placingSite) { L.onPlaceSite(e.lngLat.lat, e.lngLat.lng); return }
@@ -206,10 +206,10 @@ export default function LayerMapbox(props: LayerMapProps) {
       if (alive && !m.hasImage(id)) m.addImage(id, im)
     })).then(() => {
       if (!alive) return
-      ;(m.getSource('pins') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: pins.map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: { key: p.key, img: imgOf(p), layer: p.layer, z: p.chosen ? 1 : 0 } })) })
+      ;(m.getSource('pins') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: pins.map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: { key: p.key, img: imgOf(p), layer: p.layer, z: p.chosen ? 1 : 0, highlighted: p.key === props.highlightedPinKey } })) })
     })
     return () => { alive = false }
-  }, [loaded, pins])
+  }, [loaded, pins, props.highlightedPinKey])
 
   return (
     <div className="absolute inset-0" role="region" aria-label="خريطة الفرص">

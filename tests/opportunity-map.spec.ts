@@ -166,7 +166,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   return { writes, searches, saved, schedules, orgHeaders, listQueries, densities, catalogs, buyerQueries, marketQueries }
 }
 
-const counter = (page: Page, key: string) => page.locator(`[data-counter="${key === 'n' ? 'supplier-matches' : key === 'districts' ? 'supplier-districts' : key}"] > span[aria-hidden]`)
+const counter = (page: Page, key: string) => page.locator(`[data-counter="${key === 'n' ? 'supplier-matches' : key === 'districts' ? 'supplier-districts' : key}"] span[aria-hidden]`)
 async function searchFor(page: Page, text: string) {
   await page.getByLabel('وش تبي توصل له؟').fill(text)
   await page.getByRole('button', { name: 'ابحث', exact: true }).click()
@@ -404,6 +404,13 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('button', { name: 'حي الملك فيصل' })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('map-hint')).toHaveCount(0)
     await expect(page.locator('[data-pin="main"]')).toHaveCount(2)
+    const linkedResult = page.locator('li[data-key="1"]')
+    await linkedResult.hover()
+    await expect(page.locator('[data-pin-key="1"]')).toHaveAttribute('data-highlighted', 'true')
+    await page.locator('h1').hover()
+    await expect(page.locator('[data-pin-key="1"]')).not.toHaveAttribute('data-highlighted', 'true')
+    await linkedResult.getByRole('button').focus()
+    await expect(page.locator('[data-pin-key="1"]')).toHaveAttribute('data-highlighted', 'true')
     await expect(counter(page, 'n')).toHaveText('٢')
     await expect(counter(page, 'districts')).toHaveText('١')
     await expect(counter(page, 'supplier-whatsapp')).toHaveText('٢')

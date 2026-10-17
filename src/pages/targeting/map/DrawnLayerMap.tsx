@@ -30,7 +30,7 @@ function viewFor(b: [number, number, number, number], w: number, h: number, pad 
 const RIYADH_BOX: [number, number, number, number] = [46.55, 24.55, 46.85, 24.85]
 const enter = (fn: () => void) => (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 
-export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax }: LayerMapProps) {
+export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax }: LayerMapProps) {
   const box = useRef<HTMLDivElement>(null)
   const P = useMemo(() => palette(), [])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -198,35 +198,37 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
           })}
           {ordered.map((p) => {
             const x = sx(p.lon), y = sy(p.lat)
+            const highlighted = p.key === highlightedPinKey
             const name = nameOf(p.key)
             const pinLabel = `${name} — ${FIT_LABEL[p.fit]}`
-            const common = { role: 'button', tabIndex: 0, 'aria-label': pinLabel, className: `cursor-pointer ${FOCUS_RING}`, 'data-pin': p.layer,
+            const common = { role: 'button', tabIndex: 0, 'aria-label': pinLabel, className: `cursor-pointer ${FOCUS_RING}`, 'data-pin': p.layer, 'data-pin-key': p.key, 'data-highlighted': highlighted ? 'true' : undefined,
               onClick: (e: React.MouseEvent) => { e.stopPropagation(); if (!wasDrag()) onPin(p.key) }, onKeyDown: enter(() => onPin(p.key)) } as const
+            const halo = highlighted ? <circle cx={x} cy={y - (p.layer === 'main' ? 8 : p.layer === 'spec' ? 18 : 0)} r={18} fill={P.green} fillOpacity={0.18} stroke={P.green} strokeOpacity={0.8} strokeWidth={2} pointerEvents="none" /> : null
             if (p.layer === 'main') return (
-              <g key={p.key} {...common} transform={`translate(${x - 14} ${y - 33}) scale(.7)`}>
+              <g key={p.key}>{halo}<g {...common} transform={`translate(${x - 14} ${y - 33}) scale(.7)`}>
                 <title>{pinLabel}</title>
                 <path d={TEARDROP} fill={P.ink} stroke={p.chosen ? P.green : P.white} strokeWidth={p.chosen ? 4 : 2} />
                 <g transform="translate(9 7) scale(.92)" fill="none" stroke={P.white} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: MAP_ICON_BODY(p.icon) }} />
                 <g dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
-              </g>
+              </g></g>
             )
             if (p.layer === 'sub') return (
-              <g key={p.key} {...common} transform={`translate(${x - 13} ${y - 13}) scale(.7)`}>
+              <g key={p.key}>{halo}<g {...common} transform={`translate(${x - 13} ${y - 13}) scale(.7)`}>
                 <title>{pinLabel}</title>
                 <circle cx={19} cy={19} r={17} fill={P.green} stroke={p.chosen ? P.ink : P.white} strokeWidth={p.chosen ? 4 : 2.5} />
                 <g transform="translate(8.2 8.2) scale(.9)" fill="none" stroke={P.white} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: MAP_ICON_BODY(p.icon) }} />
                 <g dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
-              </g>
+              </g></g>
             )
             const w = chipWidth(p.text)
             return (
-              <g key={p.key} {...common} transform={`translate(${x - w / 2} ${y - 32})`}>
+              <g key={p.key}>{halo}<g {...common} transform={`translate(${x - w / 2} ${y - 32})`}>
                 <title>{pinLabel}</title>
                 <rect width={w} height={26} rx={8} fill={P.navy} stroke={p.chosen ? P.green : 'none'} strokeWidth={3} />
                 <path d={`M${w / 2 - 5} 26l5 6 5-6z`} fill={P.navy} />
                 <text x={w / 2} y={14} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.white}>{clip(p.text)}</text>
                 <g transform={`translate(${w - 38} 0)`} dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
-              </g>
+              </g></g>
             )
           })}
           {site ? (
