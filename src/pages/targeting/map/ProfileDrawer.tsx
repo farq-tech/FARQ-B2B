@@ -26,6 +26,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
   const titleId = useId()
   const heading = useRef<HTMLHeadingElement>(null)
   const closeRef = useRef(onClose)
+  const dragStart = useRef<number | null>(null)
   useEffect(() => { closeRef.current = onClose })
   useEffect(() => {
     heading.current?.focus()
@@ -63,7 +64,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
   return (
     <aside role="dialog" aria-modal="false" aria-labelledby={titleId} data-testid="profile-drawer"
       className={`z-30 flex flex-col overflow-y-auto bg-[var(--color-bg-surface)]/95 shadow-[var(--farq-soft-shadow)] backdrop-blur-xl ${mobile ? 'fixed inset-x-0 bottom-0 h-[95dvh] max-h-[calc(100dvh-env(safe-area-inset-top))] rounded-t-[20px] pb-[env(safe-area-inset-bottom)]' : 'absolute inset-y-0 end-0 w-[min(380px,92%)] border-s border-[var(--color-border-default)]'}`}>
-      {mobile ? <div aria-hidden className="flex h-7 shrink-0 items-center justify-center"><span className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></div> : null}
+      {mobile ? <div aria-hidden onPointerDown={(event) => { dragStart.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId) }} onPointerUp={(event) => { const start = dragStart.current; dragStart.current = null; if (start != null && event.clientY - start > 48) onClose() }} onPointerCancel={() => { dragStart.current = null }} className="flex h-11 shrink-0 touch-none items-center justify-center"><span className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></div> : null}
       <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-5 pt-5 pb-3 backdrop-blur-xl">
         <div className="flex min-w-0 items-start gap-3">
           <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--map-ink)] text-white"><MapIcon name={mainIcon(m)} size={20} /></span>

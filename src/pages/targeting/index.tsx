@@ -1206,7 +1206,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
               if (Math.abs(delta) < 28) return
               panelDidDrag.current = true
               setSheetSnap(delta < 0 ? focusPanelSnap === 'peek' ? 'half' : 'full' : focusPanelSnap === 'full' ? 'half' : 'peek')
-            }} className={`flex h-7 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
+            }} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
                 <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{res ? `النتائج · ${n(visibleCohort.length)} منشأة` : `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة`}</p>
@@ -1352,7 +1352,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   const menu = open ? mobile ? createPortal(
     <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
       <section id={`${id}-options`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-        <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-9 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
+        <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
         <h2 id={`${id}-title`} className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
           {options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className={`block min-h-12 w-full rounded-xl px-3 py-2 text-start text-[15px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{option.text}</button>)}
