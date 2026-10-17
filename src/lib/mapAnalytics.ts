@@ -55,6 +55,8 @@ const MAP_EVENTS = [
   'map_sheet_peek',
   'map_sheet_half',
   'map_sheet_full',
+  'map_focus_open',
+  'map_focus_close',
 ] as const
 
 type MapEventName = typeof MAP_EVENTS[number]
