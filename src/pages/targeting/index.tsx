@@ -196,13 +196,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const filter = streetPick.kind === 'main' ? { main_id: streetPick.id }
       : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : {}
     const query = { city, ...filter, ...(chosenNames.length ? { districts: chosenNames } : {}) }
-    Promise.all([marketSummary(query), districtCounts(query)]).then(([summary, counts]) => {
+    // These are independent map panels. If one endpoint rejects (for example, a
+    // city has no district aggregation), keep the result from the other endpoint.
+    Promise.allSettled([marketSummary(query), districtCounts(query)]).then(([summary, counts]) => {
       if (!active) return
-      setMarketStats(summary?.summary || null)
-      setMarketDistrictCounts(counts?.districts || [])
-    }, () => {
-      if (!active) return
-      setMarketStats(null); setMarketDistrictCounts([])
+      setMarketStats(summary.status === 'fulfilled' ? summary.value?.summary || null : null)
+      setMarketDistrictCounts(counts.status === 'fulfilled' ? counts.value?.districts || [] : [])
     }).finally(() => { if (active) setMarketLoading(false) })
     return () => { active = false }
   }, [city, lens, streetPick, chosenNames])
