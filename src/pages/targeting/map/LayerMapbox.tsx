@@ -181,7 +181,7 @@ export default function LayerMapbox(props: LayerMapProps) {
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
-    ;(m.getSource('trade') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: clusters.map((c, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { i, n: c.n, label: `${c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${c.n.toLocaleString('ar-SA')} محل` } })) })
+    ;(m.getSource('trade') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: clusters.map((c, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { i, n: c.n, label: `${c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${c.n.toLocaleString('ar-SA')} منشأة` } })) })
   }, [loaded, clusters])
   useEffect(() => {
     const m = map.current

@@ -71,8 +71,8 @@ const arabic = (s: string) => /[؀-ۿ]/.test(s)
 /** The narrowing filters under the search bar: district, street, wholesale (manual only), role and specialty. */
 type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty'>
 const clusterName = (c: TradeCluster) => [c.level === 'street' ? safeLocationName(c.street_ar) : null, safeLocationName(c.district_ar)].filter(Boolean).join('، ') || c.label_ar
-/** «سوق الزل للأقمشة — الديرة · 230 محل» when a curated popular name fits; otherwise «الشارع، الحي — 37 محل». */
-const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${clusterName(c)} · ${n(c.n)} محل` : `${clusterName(c)} — ${n(c.n)} محل`)
+/** «سوق الزل للأقمشة — الديرة · 230 منشأة» when a curated popular name fits; otherwise «الشارع، الحي — 37 منشأة». */
+const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${clusterName(c)} · ${n(c.n)} منشأة` : `${clusterName(c)} — ${n(c.n)} منشأة`)
 
 function defaultMessage(cat: string | null, area: string | null) {
   return `معك أحمد من فرق. يوصلنا طلبات تسعير${cat ? ` ${cat}` : ''} من منشآت وشركات${area ? ` في ${area}` : ''} — تبي توصلك على واتساب؟\nللإيقاف أرسل: إيقاف`
@@ -680,8 +680,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                 className={`fi-host flex w-full items-start gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-60 ${activeStreetId === st.id ? 'bg-[var(--color-bg-primary-subtle)] font-medium' : ''} ${FOCUS_RING}`}>
                 <span aria-hidden className="w-4 pt-0.5 text-center text-[12px] tabular-nums text-[var(--color-text-tertiary)]">{i + 1}</span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="line-clamp-2">{streetLine(st)} — {n(st.props.n)} محل</span>
-                  <span className="text-[12px] leading-[18px] tabular-nums text-[var(--color-text-secondary)]">{fmtMeters(st.props.length_m)} · {st.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} محل لكل ١٠٠ م</span>
+                  <span className="line-clamp-2">{streetLine(st)} — {n(st.props.n)} منشأة</span>
+                  <span className="text-[12px] leading-[18px] tabular-nums text-[var(--color-text-secondary)]">{fmtMeters(st.props.length_m)} · {st.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} منشأة لكل ١٠٠ م</span>
                 </span>
               </button>
             </li>
@@ -764,7 +764,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     )
   }
   const resultsBody = !res ? (
-    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض محلاته.'}</p>
+    <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busy ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
   ) : !cohort.length ? (
     <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
   ) : (
@@ -914,10 +914,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
           <p className="text-[var(--color-text-secondary)]">{[pickedStreet.props.district_ar, [pickedStreet.props.main_ar, pickedStreet.props.sub_ar].filter(Boolean).join(' ▸ ')].filter(Boolean).join(' · ')}</p>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
-            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">المحلات</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n)} محل</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">المنشآت</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n)} منشأة</dd></div>
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">طول المقطع</dt><dd className="m-0 font-semibold tabular-nums">{fmtMeters(pickedStreet.props.length_m)}</dd></div>
-            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{pickedStreet.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} محل لكل ١٠٠ م</dd></div>
-            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">جملة</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n_wholesale)} محل</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{pickedStreet.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} منشأة لكل ١٠٠ م</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">جملة</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n_wholesale)} منشأة</dd></div>
           </dl>
         </div>
       ) : null}
