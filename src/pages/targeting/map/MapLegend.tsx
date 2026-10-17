@@ -13,14 +13,13 @@ const FITS: { fit: PinFit | 'all'; label: string }[] = [
   { fit: 'low', label: 'منخفضة' },
   { fit: 'unknown', label: 'بدون تقدير نموذجي' },
 ]
-export default function MapLegend({ mobile, fitFilter, onFitFilterChange, counts }: {
-  mobile: boolean
+export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
   fitFilter: PinFit | 'all'
   onFitFilterChange: (fit: PinFit | 'all') => void
   counts: Record<PinFit | 'all', number>
 }) {
   return (
-    <details data-testid="map-legend" className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)]">
+    <details data-testid="map-legend" className="pointer-events-auto absolute start-3 bottom-3 z-10 max-w-[250px] rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
       <summary className="cursor-pointer list-none font-semibold">دليل الخريطة</summary>
       <ul className="mt-1.5 flex flex-col gap-1.5">
         <li className="font-medium">العلامة الصغيرة: تقدير آلي للملاءمة، وليس تأكيداً</li>
