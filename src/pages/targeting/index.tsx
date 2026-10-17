@@ -231,9 +231,27 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setMarketError(false)
     setMarketStats(null)
     setMarketDistrictCounts([])
-    // These are independent map panels. If one endpoint rejects (for example, a
-    // city has no district aggregation), keep the result from the other endpoint.
-    Promise.allSettled([marketSummary(query), districtCounts(query)]).then(([summary, counts]) => {
+    // These are independent map panels. Retry each failed read once after a short
+    // pause so a transient network error does not require the user to retry manually.
+    const withOneRetry = async <T,>(load: () => Promise<T>): Promise<T> => {
+      try { return await load() } catch (error) {
+        if (!active) throw error
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 350))
+        if (!active) throw error
+        return load()
+      }
+    }
+    const loadSummary = async () => {
+      const value = await marketSummary(query)
+      if (!value?.summary) throw new Error('Market summary unavailable')
+      return value
+    }
+    const loadCounts = async () => {
+      const value = await districtCounts(query)
+      if (!value?.ok) throw new Error('District counts unavailable')
+      return value
+    }
+    Promise.allSettled([withOneRetry(loadSummary), withOneRetry(loadCounts)]).then(([summary, counts]) => {
       if (!active) return
       const summaryValue = summary.status === 'fulfilled' ? summary.value?.summary || null : null
       const districtValues = counts.status === 'fulfilled' && counts.value?.ok ? counts.value.districts || [] : null
