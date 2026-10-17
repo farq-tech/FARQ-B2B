@@ -746,6 +746,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   const resultCard = (r: TargetRow) => {
     const ch = channelOf(r), can = ch === 'WhatsApp', on = selected.has(r.poi_key), name = safeName(r)
+    const locationNotes = [!hasPoint(r) ? 'موقع تقريبي' : null, r.district_reliable === false ? 'الحي غير مؤكد' : null].filter(Boolean)
     return (
       <li key={r.poi_key} data-key={r.poi_key} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
@@ -755,7 +756,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />
-            <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}{hasPoint(r) ? '' : ' · موقع تقريبي'}</span>
+            <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
           </button>
           <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
         </div>
