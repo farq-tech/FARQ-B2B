@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   districtCounts, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
@@ -649,7 +650,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const areas = res?.areas
   const streets = useMemo(() => (areas?.streets || []).filter((x) => !filters.district || x.district === filters.district), [areas, filters.district])
   const picker = (id: string, label: string, icon: typeof DistrictIcon, options: { value: string; text: string }[], onPick: (v: string) => void) => options.length ? (
-    <FilterPill id={id} label={label} icon={icon} analyticsKey={id === 'targeting-district' ? 'district' : id === 'targeting-street' ? 'street' : id === 'targeting-role' ? 'role' : 'specialty'} options={options} disabled={busy} onPick={onPick} />
+    <FilterPill id={id} label={label} icon={icon} analyticsKey={id === 'targeting-district' ? 'district' : id === 'targeting-street' ? 'street' : id === 'targeting-role' ? 'role' : 'specialty'} options={options} disabled={busy} mobile={mobile} onPick={onPick} />
   ) : null
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
@@ -1012,7 +1013,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
             {site ? (
               <div className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
-                <FilterPill id="site-radius" label={`نطاق التوصيل · ${site.km} كم`} icon={null} analyticsKey="site_radius" options={RADII.map((radius) => ({ value: String(radius), text: `${radius} كم` }))} disabled={false} onPick={(value) => setSite({ ...site, km: Number(value) })} />
+                <FilterPill id="site-radius" label={`نطاق التوصيل · ${site.km} كم`} icon={null} analyticsKey="site_radius" options={RADII.map((radius) => ({ value: String(radius), text: `${radius} كم` }))} disabled={false} mobile={mobile} onPick={(value) => setSite({ ...site, km: Number(value) })} />
                 <button type="button" aria-label="إزالة موقع المشروع" onClick={() => { setSite(null); setShowUnlocated(false) }} className={`flex size-7 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
               </div>
             ) : (
@@ -1235,13 +1236,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 }
 
 /** A compact, map-friendly filter control whose menu floats over results instead of shifting them. */
-function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, onPick }: {
+function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, mobile, onPick }: {
   id: string
   label: string
   icon: typeof DistrictIcon | null
   analyticsKey: 'district' | 'street' | 'role' | 'specialty' | 'site_radius'
   options: { value: string; text: string }[]
   disabled: boolean
+  mobile: boolean
   onPick: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1250,24 +1252,43 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
     if (!open) return
     const onPointerDown = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    if (mobile) {
+      document.addEventListener('keydown', onKeyDown)
+      return () => document.removeEventListener('keydown', onKeyDown)
+    }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown) }
-  }, [open])
+  }, [open, mobile])
+  const choose = (value: string) => {
+    setOpen(false)
+    recordMapInteraction(`map_filter_select_${analyticsKey}`)
+    onPick(value)
+  }
+  const menu = open ? mobile ? createPortal(
+    <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
+      <section id={`${id}-options`} role="dialog" aria-modal="true" aria-label={`اختيار ${label}`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+        <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-9 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
+        <h2 className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
+          {options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className={`block min-h-12 w-full rounded-xl px-3 py-2 text-start text-[15px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{option.text}</button>)}
+        </div>
+      </section>
+    </div>, document.body,
+  ) : (
+    <div id={`${id}-options`} aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-1.5 shadow-2xl backdrop-blur-xl">
+      {options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className={`block min-h-11 w-full rounded-xl px-3 py-2 text-start text-[14px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{option.text}</button>)}
+    </div>
+  ) : null
   return (
     <div ref={root} className="relative shrink-0">
-      <button id={id} type="button" aria-haspopup="true" aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
+      <button id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
         className={`inline-flex min-h-10 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
         <Icon name="chevron-down" size={14} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open ? <div id={`${id}-options`} aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-1.5 shadow-2xl backdrop-blur-xl">
-        {options.map((option) => <button key={option.value} type="button" onClick={() => { setOpen(false); recordMapInteraction(`map_filter_select_${analyticsKey}`); onPick(option.value) }}
-          className={`block min-h-11 w-full rounded-xl px-3 py-2 text-start text-[14px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
-          {option.text}
-        </button>)}
-      </div> : null}
+      {menu}
     </div>
   )
 }
