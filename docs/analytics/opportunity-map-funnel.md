@@ -22,6 +22,7 @@ WITH map_events AS (
       'pricing_map_map_results_shortcut_seen',
       'pricing_map_map_results_jump',
       'pricing_map_map_profile_open',
+      'pricing_map_map_result_profile_open',
       'pricing_map_map_profile_quote_start'
     )
 ),
@@ -105,7 +106,7 @@ session_steps AS (
     s.results_jumped_at,
     s.profile_after_search_at,
     min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_profile_open'
+      WHERE e.element_label = 'pricing_map_map_result_profile_open'
         AND s.results_shortcut_seen_at IS NOT NULL
         AND s.results_jumped_at > s.results_shortcut_seen_at
         AND e.occurred_at > s.results_jumped_at
@@ -181,10 +182,10 @@ ORDER BY 1 DESC;
 ## Reading the numbers
 
 - `map_profile_quote_start` means the user opened the quote-request flow from a supplier profile. It does not mean a request was submitted or a supplier replied.
-- `map_results_shortcut_seen` means the shortcut was rendered after a search in the regular mobile layout. `map_results_jump` means the user tapped it to reach the results list. Both are logged only with map analytics consent.
+- `map_results_shortcut_seen` means the shortcut was rendered after a search in the regular mobile layout. `map_results_jump` means the user tapped it to reach the results list. `map_result_profile_open` identifies an establishment opened specifically from that list, while `map_profile_open` includes opens from any map surface. These events are logged only with map analytics consent.
 - New search clicks are labeled by result bucket (`0`, `1–4`, `5+`) or failure. Older `map_search` rows remain in the funnel but have no outcome bucket.
 - Each session's funnel row is grouped by the most recent search-result bucket recorded before the shortcut was shown (or, if it was not shown, before the first search timestamp). This helps compare shortcut use when the map returned no results, a few results, or many results; it is a session-level view, not a per-search conversion rate.
-- Shortcut use is divided by sessions in which the shortcut was actually shown, avoiding a desktop-inclusive denominator. The funnel counts a profile open after the shortcut only when its event timestamp follows the shortcut; quote-start counts must follow a profile open after search. Each session is assigned to the UTC week of its first search.
+- Shortcut use is divided by sessions in which the shortcut was actually shown, avoiding a desktop-inclusive denominator. The list-discovery step counts only `map_result_profile_open` events after a shortcut jump, not pin opens elsewhere on the map; quote-start counts must follow a profile open after search. Each session is assigned to the UTC week of its first search.
 - These events are recorded only after analytics consent. The funnel describes consenting sessions, not all map users.
 - Use at least two complete weeks for an initial comparison. If a week has fewer than 30 search sessions, treat the rate as directional and combine it with observed task completion; do not claim an experiment caused a change.
 - Compare changes in search-to-profile and profile-to-quote-start separately. If the first step is weak, inspect map discoverability and result relevance before changing the quote flow.
