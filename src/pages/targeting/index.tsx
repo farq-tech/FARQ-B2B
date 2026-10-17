@@ -196,6 +196,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const filter = streetPick.kind === 'main' ? { main_id: streetPick.id }
       : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : {}
     const query = { city, ...filter, ...(chosenNames.length ? { districts: chosenNames } : {}) }
+    setMarketLoading(true)
+    setMarketStats(null)
+    setMarketDistrictCounts([])
     // These are independent map panels. If one endpoint rejects (for example, a
     // city has no district aggregation), keep the result from the other endpoint.
     Promise.allSettled([marketSummary(query), districtCounts(query)]).then(([summary, counts]) => {
