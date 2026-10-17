@@ -14,6 +14,7 @@ const ALLOWED_EVENTS = new Set([
 type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }
 let queue: MapEvent[] = []
 let flushTimer: ReturnType<typeof setInterval> | null = null
+let flushInFlight = false
 
 export function mapAnalyticsConsent(): 'accepted' | 'rejected' | null {
   try {
@@ -35,14 +36,28 @@ function sessionId() {
 
 function flush() {
   if (!queue.length || mapAnalyticsConsent() !== 'accepted') { queue = []; return }
-  const events = queue.splice(0, 25)
+  if (flushInFlight) return
+  // Keep the batch queued until the API confirms it accepted the request. A
+  // transient network/server failure should not erase opt-in usage signals.
+  const events = queue.slice(0, 25)
+  flushInFlight = true
   void fetch('/_api/events/track', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ events }),
     keepalive: true,
-  }).catch(() => { /* best effort; never interrupt map use */ })
+  }).then((response) => {
+    // Retry server errors and network failures on the next flush. A client
+    // error cannot be repaired by retrying the same payload, so discard it.
+    const sameBatchIsQueued = queue.slice(0, events.length).every((event, index) => event === events[index])
+    if (!response.ok) {
+      if (response.status >= 400 && response.status < 500 && sameBatchIsQueued) queue.splice(0, events.length)
+      return
+    }
+    if (sameBatchIsQueued) queue.splice(0, events.length)
+  }).catch(() => { /* retain the batch for the next flush; never interrupt map use */ })
+    .finally(() => { flushInFlight = false })
 }
 
 function startFlush() {
