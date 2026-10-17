@@ -8,6 +8,7 @@ const MAP_EVENTS = [
   'map_activity_select',
   'map_profile_open',
   'map_result_profile_open',
+  'map_profile_quote_start',
   'map_legend_hide',
   'map_legend_show',
   'map_supplier_add',
@@ -103,7 +104,7 @@ function startFlush() {
 }
 
 export function recordMapInteraction(name: MapEventName) {
-  if (mapAnalyticsConsent() !== 'accepted') return
+  if (mapAnalyticsConsent() !== 'accepted' || !ALLOWED_EVENTS.has(name)) return
   startFlush()
   queue.push({ event_type: 'click', session_id: sessionId(), path: '/opportunity-map', element_label: `pricing_map_${name}` })
   if (queue.length >= 20) flush()
