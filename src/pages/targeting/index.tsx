@@ -960,10 +960,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <div className="pointer-events-auto flex flex-wrap gap-1.5">
             {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
             {site ? (
-              <span className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
+              <div className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
                 <FilterPill id="site-radius" label={`نطاق التوصيل · ${site.km} كم`} icon={null} analyticsKey="site_radius" options={RADII.map((radius) => ({ value: String(radius), text: `${radius} كم` }))} disabled={false} onPick={(value) => setSite({ ...site, km: Number(value) })} />
                 <button type="button" aria-label="إزالة موقع المشروع" onClick={() => { setSite(null); setShowUnlocated(false) }} className={`flex size-7 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
-              </span>
+              </div>
             ) : (
               <button type="button" aria-pressed={placingSite} onClick={() => setPlacingSite((p) => !p)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${placingSite ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 backdrop-blur-md'} ${FOCUS_RING}`}>
                 <Icon name="map-pin" size={14} />{placingSite ? 'اضغط على الخريطة' : 'موقع المشروع'}
