@@ -156,10 +156,16 @@ export default function LayerMapbox(props: LayerMapProps) {
     if (!loaded || !m) return
     const features = districts.filter((d) => d.feature).map((d, i) => ({ ...d.feature!, properties: { ...d.feature!.properties, id: d.id, fid: i } }))
     ;(m.getSource('districts') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features })
+  }, [loaded, districts])
+  // Frame the city only when the city changes. Re-fitting on every result refresh
+  // overrides the district fit and visibly zooms back out.
+  useEffect(() => {
+    const m = map.current
+    if (!loaded || !m) return
     const all = districts.map((d) => d.bbox).filter(Boolean) as [number, number, number, number][]
     const b = all.length ? [Math.min(...all.map((x) => x[0])), Math.min(...all.map((x) => x[1])), Math.max(...all.map((x) => x[2])), Math.max(...all.map((x) => x[3]))] : extent
     if (b) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, duration: reduced() ? 0 : 500 })
-  }, [loaded, districts, extent])
+  }, [loaded, props.city]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
