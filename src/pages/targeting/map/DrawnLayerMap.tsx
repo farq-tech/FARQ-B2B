@@ -158,14 +158,14 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
               <circle cx={sx(site.lon)} cy={sy(site.lat)} r={siteR} fill={P.green} fillOpacity={0.06} stroke={P.green} strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="6 4" />
             </g>
           ) : null}
-          {/* dense streets: a soft glow under a green core, width and strength by shops per 100 m; a pill at the middle */}
+          {/* dense streets: a soft glow under a green core, width and strength by establishments per 100 m; a pill at the middle */}
           {streets.map((st) => {
             const ratio = Math.min(1, st.props.per_100m / maxPer)
             const w = 3 + 5 * ratio, on = activeStreet === st.id
             const d = st.lines.map((line) => line.map(([x, y], i) => `${i ? 'L' : 'M'}${sx(x).toFixed(1)} ${sy(y).toFixed(1)}`).join('')).join('')
             const go = () => onStreet(st.id)
             return (
-              <g key={st.id} role="button" tabIndex={0} aria-pressed={on} aria-label={st.props.label_ar || `${st.props.street_ar} — ${st.props.n} محل`} data-street={st.props.street_ar}
+              <g key={st.id} role="button" tabIndex={0} aria-pressed={on} aria-label={st.props.label_ar || `${st.props.street_ar} — ${st.props.n} منشأة`} data-street={st.props.street_ar}
                 className={`cursor-pointer ${FOCUS_RING}`} onClick={(e) => { e.stopPropagation(); if (!wasDrag()) go() }} onKeyDown={enter(go)}>
                 <path d={d} fill="none" stroke={P.green} strokeOpacity={on ? 0.35 : 0.16 + 0.12 * ratio} strokeWidth={w * 3.2} strokeLinecap="round" strokeLinejoin="round" />
                 {on ? <path d={d} fill="none" stroke={P.white} strokeWidth={w + 4} strokeLinecap="round" strokeLinejoin="round" /> : null}
@@ -188,7 +188,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, onP
             const label = c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar
             return (
               <g key={`c${i}`} data-interest={c.level} role="button" tabIndex={0} className={`cursor-pointer ${FOCUS_RING}`}
-                aria-label={`${c.popular_ar ? `${c.popular_ar} — ` : ''}${c.label_ar} — ${c.n} محل${c.wholesale_pct >= 30 ? ' · جملة' : ''}`}
+                aria-label={`${c.popular_ar ? `${c.popular_ar} — ` : ''}${c.label_ar} — ${c.n} منشأة${c.wholesale_pct >= 30 ? ' · جملة' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onCluster(c) }} onKeyDown={enter(() => onCluster(c))}>
                 <circle cx={x} cy={y} r={r} fill={P.green} fillOpacity={0.14} stroke={P.green} strokeOpacity={0.55} strokeWidth={1.5} />
                 <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.green}>{c.n.toLocaleString('ar-SA')}</text>

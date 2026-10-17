@@ -4,7 +4,7 @@ import { Icon } from '../../../ui'
  * The four steps of خريطة الفرص (owner 2026-10-16: «تجربة الخريطة غير واضحة»), the current one highlighted.
  * On a phone the strip is one line: «الخطوة ٢ من ٤ · …».
  */
-export const STEPS = ['اكتب وش تبي', 'شوف الشوارع والأحياء الأكثف', 'اختر حي أو شارع', 'اختر المحلات وأرسل'] as const
+export const STEPS = ['اكتب وش تبي', 'شوف الشوارع والأحياء الأكثف', 'اختر حي أو شارع', 'اختر المنشآت وأرسل'] as const
 const AR = ['١', '٢', '٣', '٤']
 const HINTS = [
   'ابحث باسم النشاط أو المنتج لعرض المنشآت المناسبة.',
