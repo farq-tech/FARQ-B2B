@@ -1,6 +1,12 @@
 export type MapIntent = { activity: string; district: string }
 export const MAX_MAP_INTENTS = 8
 
+/** Use the directory's established activity label for the colloquial barber variants. */
+export function directoryActivityQuery(activity: string): string {
+  const normalized = activity.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
+  return /حلاق|حلاقه/u.test(normalized) ? 'حلاق رجالي' : activity
+}
+
 const REQUEST_PREFIX = /^(?:(?:أبي|ابي|ابغى|أبغى|أريد|اريد|أحتاج|احتاج)\s*)+/u
 const INTENT_SEPARATOR = /\s+و(?=\s*(?:أبي|ابي|ابغى|أبغى|أريد|اريد|أحتاج|احتاج)\s)/u
 const DISTRICT_MARKER = /\s+(?:في\s+)?(?:ب?حي)\s+/u
