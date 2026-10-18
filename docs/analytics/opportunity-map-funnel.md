@@ -312,7 +312,7 @@ Run it against the same authorized, read-only main application database:
 
 ```sql
 WITH map_events AS (
-  SELECT session_id, occurred_at, element_label
+  SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
   WHERE occurred_at >= now() - interval '56 days'
     AND event_type = 'click'
@@ -331,7 +331,10 @@ WITH map_events AS (
 ), selector_sessions AS (
   SELECT
     session_id,
-    min(occurred_at) FILTER (WHERE element_label = 'pricing_map_map_activity_filter_open') AS opened_at
+    (array_agg(occurred_at ORDER BY id) FILTER (
+      WHERE element_label = 'pricing_map_map_activity_filter_open'
+    ))[1] AS opened_at,
+    min(id) FILTER (WHERE element_label = 'pricing_map_map_activity_filter_open') AS opened_id
   FROM map_events
   GROUP BY session_id
   HAVING count(*) FILTER (WHERE element_label IN (
@@ -345,50 +348,74 @@ WITH map_events AS (
   SELECT
     s.session_id,
     s.opened_at,
-    min(e.occurred_at) FILTER (WHERE e.element_label IN (
+    s.opened_id,
+    (array_agg(e.occurred_at ORDER BY e.id) FILTER (WHERE e.element_label IN (
       'pricing_map_map_activity_main_select',
       'pricing_map_map_activity_sub_select',
       'pricing_map_map_activity_select'
-    ) AND (s.opened_at IS NULL OR e.occurred_at >= s.opened_at)) AS selected_at,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_activity_main_select'
-      AND (s.opened_at IS NULL OR e.occurred_at >= s.opened_at)) AS main_selected_at,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_activity_sub_select'
-      AND (s.opened_at IS NULL OR e.occurred_at >= s.opened_at)) AS sub_selected_at,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_activity_select'
-      AND (s.opened_at IS NULL OR e.occurred_at >= s.opened_at)) AS legacy_selected_at,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_activity_clear'
-      AND (s.opened_at IS NULL OR e.occurred_at >= s.opened_at)) AS cleared_at
+    ) AND (s.opened_id IS NULL OR e.id >= s.opened_id)))[1] AS selected_at,
+    min(e.id) FILTER (WHERE e.element_label IN (
+      'pricing_map_map_activity_main_select',
+      'pricing_map_map_activity_sub_select',
+      'pricing_map_map_activity_select'
+    ) AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS selected_id,
+    (array_agg(e.occurred_at ORDER BY e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_activity_main_select'
+        AND (s.opened_id IS NULL OR e.id >= s.opened_id)
+    ))[1] AS main_selected_at,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_main_select'
+      AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS main_selected_id,
+    (array_agg(e.occurred_at ORDER BY e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_activity_sub_select'
+        AND (s.opened_id IS NULL OR e.id >= s.opened_id)
+    ))[1] AS sub_selected_at,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_sub_select'
+      AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS sub_selected_id,
+    (array_agg(e.occurred_at ORDER BY e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_activity_select'
+        AND (s.opened_id IS NULL OR e.id >= s.opened_id)
+    ))[1] AS legacy_selected_at,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_select'
+      AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS legacy_selected_id,
+    (array_agg(e.occurred_at ORDER BY e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_activity_clear'
+        AND (s.opened_id IS NULL OR e.id >= s.opened_id)
+    ))[1] AS cleared_at,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_clear'
+      AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS cleared_id
   FROM selector_sessions s
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY s.session_id, s.opened_at
+  GROUP BY s.session_id, s.opened_at, s.opened_id
 ), activity_actions AS (
   SELECT
     s.*,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_street_select'
-      AND s.selected_at IS NOT NULL AND e.occurred_at > s.selected_at) AS street_after_activity_at
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_street_select'
+      AND s.selected_id IS NOT NULL AND e.id > s.selected_id) AS street_after_activity_id
   FROM selections s
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY s.session_id, s.opened_at, s.selected_at, s.main_selected_at,
-    s.sub_selected_at, s.legacy_selected_at, s.cleared_at
+  GROUP BY s.session_id, s.opened_at, s.opened_id, s.selected_at, s.selected_id, s.main_selected_at,
+    s.main_selected_id, s.sub_selected_at, s.sub_selected_id, s.legacy_selected_at, s.legacy_selected_id,
+    s.cleared_at, s.cleared_id
 ), profile_actions AS (
   SELECT
     a.*,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_result_profile_open'
-      AND a.street_after_activity_at IS NOT NULL AND e.occurred_at > a.street_after_activity_at) AS profile_after_street_at
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_result_profile_open'
+      AND a.street_after_activity_id IS NOT NULL AND e.id > a.street_after_activity_id) AS profile_after_street_id
   FROM activity_actions a
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY a.session_id, a.opened_at, a.selected_at, a.main_selected_at,
-    a.sub_selected_at, a.legacy_selected_at, a.cleared_at, a.street_after_activity_at
+  GROUP BY a.session_id, a.opened_at, a.opened_id, a.selected_at, a.selected_id, a.main_selected_at,
+    a.main_selected_id, a.sub_selected_at, a.sub_selected_id, a.legacy_selected_at, a.legacy_selected_id,
+    a.cleared_at, a.cleared_id, a.street_after_activity_id
 ), quote_actions AS (
   SELECT
     p.*,
-    min(e.occurred_at) FILTER (WHERE e.element_label = 'pricing_map_map_profile_quote_start'
-      AND p.profile_after_street_at IS NOT NULL AND e.occurred_at > p.profile_after_street_at) AS quote_after_profile_at
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_profile_quote_start'
+      AND p.profile_after_street_id IS NOT NULL AND e.id > p.profile_after_street_id) AS quote_after_profile_id
   FROM profile_actions p
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY p.session_id, p.opened_at, p.selected_at, p.main_selected_at,
-    p.sub_selected_at, p.legacy_selected_at, p.cleared_at, p.street_after_activity_at,
-    p.profile_after_street_at
+  GROUP BY p.session_id, p.opened_at, p.opened_id, p.selected_at, p.selected_id, p.main_selected_at,
+    p.main_selected_id, p.sub_selected_at, p.sub_selected_id, p.legacy_selected_at, p.legacy_selected_id,
+    p.cleared_at, p.cleared_id, p.street_after_activity_id, p.profile_after_street_id
 ), weekly AS (
   SELECT
     date_trunc('week', COALESCE(opened_at, selected_at, cleared_at) AT TIME ZONE 'UTC') AS week_utc,
@@ -398,9 +425,9 @@ WITH map_events AS (
     count(*) FILTER (WHERE sub_selected_at IS NOT NULL) AS subactivity_selection_sessions,
     count(*) FILTER (WHERE legacy_selected_at IS NOT NULL) AS legacy_activity_selection_sessions,
     count(*) FILTER (WHERE cleared_at IS NOT NULL) AS activity_clear_sessions,
-    count(*) FILTER (WHERE street_after_activity_at IS NOT NULL) AS street_after_activity_sessions,
-    count(*) FILTER (WHERE profile_after_street_at IS NOT NULL) AS profile_after_street_sessions,
-    count(*) FILTER (WHERE quote_after_profile_at IS NOT NULL) AS quote_after_profile_sessions
+    count(*) FILTER (WHERE street_after_activity_id IS NOT NULL) AS street_after_activity_sessions,
+    count(*) FILTER (WHERE profile_after_street_id IS NOT NULL) AS profile_after_street_sessions,
+    count(*) FILTER (WHERE quote_after_profile_id IS NOT NULL) AS quote_after_profile_sessions
   FROM quote_actions
   GROUP BY 1
 )
@@ -435,7 +462,7 @@ Run it only against the same authorized, read-only main application database des
 
 ```sql
 WITH map_events AS (
-  SELECT session_id, occurred_at, element_label
+  SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
   WHERE occurred_at >= now() - interval '56 days'
     AND event_type = 'click'
@@ -451,7 +478,10 @@ WITH map_events AS (
       'pricing_map_map_result_profile_open'
     )
 ), focus_entries AS (
-  SELECT session_id, min(occurred_at) AS opened_at
+  SELECT
+    session_id,
+    (array_agg(occurred_at ORDER BY id))[1] AS opened_at,
+    min(id) AS opened_id
   FROM map_events
   WHERE element_label = 'pricing_map_map_focus_open'
   GROUP BY session_id
@@ -459,37 +489,37 @@ WITH map_events AS (
   SELECT
     f.session_id,
     f.opened_at,
-    min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_focus_close' AND e.occurred_at > f.opened_at
-    ) AS closed_at,
-    min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_sheet_open' AND e.occurred_at > f.opened_at
-    ) AS sheet_opened_at,
-    min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_sheet_peek' AND e.occurred_at > f.opened_at
-    ) AS peek_at,
-    min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_sheet_half' AND e.occurred_at > f.opened_at
-    ) AS half_at,
-    min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_sheet_full' AND e.occurred_at > f.opened_at
-    ) AS full_at,
-    min(e.occurred_at) FILTER (
-      WHERE e.element_label = 'pricing_map_map_result_profile_open' AND e.occurred_at > f.opened_at
-    ) AS result_profile_opened_at
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_focus_close' AND e.id > f.opened_id
+    ) AS closed_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_open' AND e.id > f.opened_id
+    ) AS sheet_opened_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_peek' AND e.id > f.opened_id
+    ) AS peek_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_half' AND e.id > f.opened_id
+    ) AS half_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_sheet_full' AND e.id > f.opened_id
+    ) AS full_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_result_profile_open' AND e.id > f.opened_id
+    ) AS result_profile_opened_id
   FROM focus_entries f
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY f.session_id, f.opened_at
+  GROUP BY f.session_id, f.opened_at, f.opened_id
 ), weekly AS (
   SELECT
     date_trunc('week', opened_at AT TIME ZONE 'UTC') AS week_utc,
     count(*) AS focus_entry_sessions,
-    count(*) FILTER (WHERE closed_at IS NOT NULL) AS focus_closed_sessions,
-    count(*) FILTER (WHERE sheet_opened_at IS NOT NULL) AS result_panel_sessions,
-    count(*) FILTER (WHERE peek_at IS NOT NULL) AS peek_sessions,
-    count(*) FILTER (WHERE half_at IS NOT NULL) AS half_sessions,
-    count(*) FILTER (WHERE full_at IS NOT NULL) AS full_sessions,
-    count(*) FILTER (WHERE result_profile_opened_at IS NOT NULL) AS result_profile_sessions
+    count(*) FILTER (WHERE closed_id IS NOT NULL) AS focus_closed_sessions,
+    count(*) FILTER (WHERE sheet_opened_id IS NOT NULL) AS result_panel_sessions,
+    count(*) FILTER (WHERE peek_id IS NOT NULL) AS peek_sessions,
+    count(*) FILTER (WHERE half_id IS NOT NULL) AS half_sessions,
+    count(*) FILTER (WHERE full_id IS NOT NULL) AS full_sessions,
+    count(*) FILTER (WHERE result_profile_opened_id IS NOT NULL) AS result_profile_sessions
   FROM focus_actions
   GROUP BY 1
 )
@@ -645,7 +675,7 @@ ORDER BY week_utc DESC, prompt_type;
 
 Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentages. Profile opens are a navigation signal, not proof of relevance, contact, or a successful match. Pair them with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.
 
-> **ترتيب الأحداث:** قد تحمل أحداث الدفعة الواحدة قيمة `occurred_at` نفسها لأن PostgreSQL يعيد `now()` نفسه طوال المعاملة. القمع الرئيسي وقمع البحث بحسب الدور يستخدمان `id` لترتيب الإدخال، لا وقت حدوث الحدث على جهاز المستخدم؛ وقد يختلف ترتيب وصول دفعتين متزامنتين عن ترتيب تفاعل المستخدم. يبقى `occurred_at` وقت استقبال تقريبي لتحديد نافذة القياس والتجميع الأسبوعي. لا تزال استعلامات تسلسل النشاط والـfocus والـportal والـwholesale في هذا المستند تقارن `occurred_at`، فلا تستخدم نتائجها لاستنتاج التحويل قبل تحديثها. كما أن قمع البحث يجمع الأحداث على مستوى الجلسة، ولا يمثل معدل تحويل لكل عملية بحث عند تكرار البحث في الجلسة.
+> **ترتيب الأحداث وحدود الاستدلال:** قد تحمل أحداث الدفعة الواحدة قيمة `occurred_at` نفسها لأن PostgreSQL يعيد `now()` نفسه طوال المعاملة. استعلامات التسلسل في هذا المستند تستخدم `id` لترتيب الإدخال، لا وقت تفاعل العميل؛ وقد يختلف ترتيب وصول طلبين متزامنين عن ترتيب تفاعل المستخدم. يبقى `occurred_at` لتحديد نافذة القياس والتجميع الأسبوعي، وقد لا يطابق أسبوع التفاعل عند تأخر الإرسال. المقاييس على مستوى الجلسة وليست لكل عملية بحث أو لكل ظهور، ولا تثبت أن خطوة سابقة سببت الخطوة التالية. يلزم جمع `client_sequence` أو توقيت رتيب من المتصفح في إصدار لاحق لتحسين الدقة؛ وحتى ذلك الحين تعامل مع القمع كإشارة اتجاهية فقط.
 
 ## Map legend control exposure and use
 
@@ -657,7 +687,7 @@ Run against the same authorized, read-only main application database described a
 
 ```sql
 WITH map_events AS (
-  SELECT session_id, occurred_at, element_label
+  SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
   WHERE occurred_at >= now() - interval '56 days'
     AND event_type = 'click'
@@ -672,6 +702,7 @@ WITH map_events AS (
 ), exposures AS (
   SELECT
     session_id,
+    id AS exposed_id,
     occurred_at AS exposed_at,
     CASE element_label
       WHEN 'pricing_map_map_legend_show_control_seen' THEN 'show'
@@ -696,7 +727,7 @@ SELECT
           WHEN 'show' THEN 'pricing_map_map_legend_show'
           ELSE 'pricing_map_map_legend_hide'
         END
-        AND action.occurred_at > exposures.exposed_at
+        AND action.id > exposures.exposed_id
     )
   ) AS control_used_after_seen_sessions,
   round(100.0 * count(DISTINCT session_id) FILTER (
@@ -708,7 +739,7 @@ SELECT
           WHEN 'show' THEN 'pricing_map_map_legend_show'
           ELSE 'pricing_map_map_legend_hide'
         END
-        AND action.occurred_at > exposures.exposed_at
+        AND action.id > exposures.exposed_id
     )
   ) / nullif(count(DISTINCT session_id), 0), 1) AS seen_to_use_pct
 FROM exposures
@@ -747,7 +778,7 @@ The query below counts the first filter-enable interval per consenting session. 
 
 ```sql
 WITH map_events AS (
-  SELECT session_id, occurred_at, element_label
+  SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
   WHERE occurred_at >= now() - interval '56 days'
     AND event_type = 'click'
@@ -767,29 +798,31 @@ WITH map_events AS (
 ), supplier_search AS (
   SELECT
     session_id,
-    min(occurred_at) AS entry_at
+    (array_agg(occurred_at ORDER BY id))[1] AS entry_at,
+    min(id) AS entry_id
   FROM map_events
   WHERE element_label = 'pricing_map_map_supplier_search_started'
   GROUP BY session_id
 ), enabled AS (
-  SELECT s.session_id, s.entry_at, min(e.occurred_at) AS enabled_at
+  SELECT s.session_id, s.entry_at, s.entry_id, min(e.id) AS enabled_id
   FROM supplier_search s
   JOIN map_events e USING (session_id)
   WHERE e.element_label = 'pricing_map_map_filter_wholesale_on'
-    AND e.occurred_at > s.entry_at
-  GROUP BY s.session_id, s.entry_at
+    AND e.id > s.entry_id
+  GROUP BY s.session_id, s.entry_at, s.entry_id
 ), filter_window AS (
   SELECT
     f.session_id,
     f.entry_at,
-    f.enabled_at,
-    min(e.occurred_at) FILTER (
+    f.entry_id,
+    f.enabled_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_filter_wholesale_off'
-        AND e.occurred_at > f.enabled_at
-    ) AS disabled_at
+        AND e.id > f.enabled_id
+    ) AS disabled_id
   FROM enabled f
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY f.session_id, f.entry_at, f.enabled_at
+  GROUP BY f.session_id, f.entry_at, f.entry_id, f.enabled_id
 ), first_filter_outcome AS (
   SELECT DISTINCT ON (w.session_id)
     w.session_id,
@@ -802,24 +835,24 @@ WITH map_events AS (
       'pricing_map_map_filter_wholesale_results_5_plus',
       'pricing_map_map_filter_wholesale_results_failed'
     )
-    AND e.occurred_at > w.enabled_at
-    AND (w.disabled_at IS NULL OR e.occurred_at < w.disabled_at)
-  ORDER BY w.session_id, e.occurred_at
+    AND e.id > w.enabled_id
+    AND (w.disabled_id IS NULL OR e.id < w.disabled_id)
+  ORDER BY w.session_id, e.id
 ), scored AS (
   SELECT
     w.session_id,
     date_trunc('week', w.entry_at AT TIME ZONE 'UTC') AS week_utc,
     o.outcome,
-    min(e.occurred_at) FILTER (
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_open'
-        AND e.occurred_at > w.enabled_at
-        AND (w.disabled_at IS NULL OR e.occurred_at < w.disabled_at)
-    ) AS profile_opened_while_enabled_at
+        AND e.id > w.enabled_id
+        AND (w.disabled_id IS NULL OR e.id < w.disabled_id)
+    ) AS profile_opened_while_enabled_id
   FROM filter_window w
   LEFT JOIN first_filter_outcome o USING (session_id)
   LEFT JOIN map_events e ON e.session_id = w.session_id
-    AND e.occurred_at > w.enabled_at
-    AND (w.disabled_at IS NULL OR e.occurred_at < w.disabled_at)
+    AND e.id > w.enabled_id
+    AND (w.disabled_id IS NULL OR e.id < w.disabled_id)
   GROUP BY w.session_id, w.entry_at, o.outcome
 ), with_quote AS (
   SELECT
@@ -829,8 +862,8 @@ WITH map_events AS (
       FROM map_events q
       WHERE q.session_id = s.session_id
         AND q.element_label = 'pricing_map_map_profile_quote_start'
-        AND s.profile_opened_while_enabled_at IS NOT NULL
-        AND q.occurred_at > s.profile_opened_while_enabled_at
+        AND s.profile_opened_while_enabled_id IS NOT NULL
+        AND q.id > s.profile_opened_while_enabled_id
     ) AS quote_after_profile
   FROM scored s
 )
@@ -841,7 +874,7 @@ SELECT
   count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_1_4') AS sessions_with_1_to_4_results,
   count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_5_plus') AS sessions_with_5_plus_results,
   count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_failed') AS filter_request_failed_sessions,
-  count(*) FILTER (WHERE profile_opened_while_enabled_at IS NOT NULL) AS profile_open_sessions,
+  count(*) FILTER (WHERE profile_opened_while_enabled_id IS NOT NULL) AS profile_open_sessions,
   count(*) FILTER (WHERE quote_after_profile) AS quote_start_after_profile_sessions
 FROM with_quote
 GROUP BY week_utc
@@ -911,7 +944,7 @@ The map emits `pricing_map_map_data_quality_notice_seen` when the first matching
 
 ```sql
 WITH notice_events AS (
-  SELECT session_id, occurred_at, element_label
+  SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
   WHERE occurred_at >= now() - interval '56 days'
     AND event_type = 'click'
@@ -925,12 +958,18 @@ WITH notice_events AS (
 sessions AS (
   SELECT
     session_id,
-    min(occurred_at) FILTER (
+    (array_agg(occurred_at ORDER BY id) FILTER (
       WHERE element_label = 'pricing_map_map_data_quality_notice_seen'
-    ) AS first_seen_at,
-    min(occurred_at) FILTER (
+    ))[1] AS first_seen_at,
+    min(id) FILTER (
+      WHERE element_label = 'pricing_map_map_data_quality_notice_seen'
+    ) AS first_seen_id,
+    (array_agg(occurred_at ORDER BY id) FILTER (
       WHERE element_label = 'pricing_map_map_data_quality_notice_open'
-    ) AS first_open_at
+    ))[1] AS first_open_at,
+    min(id) FILTER (
+      WHERE element_label = 'pricing_map_map_data_quality_notice_open'
+    ) AS first_open_id
   FROM notice_events
   GROUP BY session_id
   HAVING count(*) FILTER (
@@ -940,9 +979,9 @@ sessions AS (
 SELECT
   date_trunc('week', first_seen_at AT TIME ZONE 'UTC') AS week_utc,
   count(*) AS sessions_with_notice,
-  count(*) FILTER (WHERE first_open_at > first_seen_at) AS sessions_opening_notice,
+  count(*) FILTER (WHERE first_open_id > first_seen_id) AS sessions_opening_notice,
   round(
-    100.0 * count(*) FILTER (WHERE first_open_at > first_seen_at) / nullif(count(*), 0),
+    100.0 * count(*) FILTER (WHERE first_open_id > first_seen_id) / nullif(count(*), 0),
     1
   ) AS session_open_rate_pct
 FROM sessions
