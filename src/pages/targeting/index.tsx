@@ -998,7 +998,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (version !== generation.current) return
       recordMapInteraction('map_browse_succeeded')
       setFailedResultRefresh(false)
-      setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
+      // A city directory page is fetched in batches of FETCH rows. Show the
+      // complete first batch so the initial empty-search state does not hide
+      // 50 already-loaded establishments behind an extra click.
+      setRes(r); setQuery(''); setFilters(browseFilters); setShown(FETCH)
       setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
       loadClusters('', inCity, Boolean(browseFilters.wholesale), 'purchase', true)
@@ -1715,7 +1718,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {shown < visibleListCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleListCohort.length - shown))} أكثر</Button></li> : null}
         {truncated && shown >= visibleCohort.length ? (
           <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
-            <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
+            <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{hasTargetQuery ? `معروض ${n(rows.length)} من ${n(res.total)} — الأقرب للوصف أولًا.` : `معروض ${n(rows.length)} من ${n(res.total)} من سجلات الدليل العام.`}</span>
             <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
           </li>
         ) : null}
@@ -1805,7 +1808,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
           {hasTargetQuery
             ? `القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`
-            : `دليل المدينة: تعرض القائمة ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} منشأة مرصودة في الدليل. أضف منتجاتك لفرز الجهات حسب ملاءمتها.`}
+            : `دليل المدينة: تعرض القائمة ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} سجل مرصود في الدليل. هذه ليست ترشيحات مؤكدة للمشترين؛ أضف منتجاتك لفرز الجهات حسب ملاءمتها.`}
           {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
