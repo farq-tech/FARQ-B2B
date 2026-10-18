@@ -42,6 +42,8 @@ export type LayerMapProps = {
   /** Display-only layer toggles; they never alter the query or selected records. */
   showDensity: boolean
   showDistricts: boolean
+  /** City-wide aggregated market clusters, separate from individual establishment points. */
+  showClusters: boolean
   showPlaces: boolean
   showStreets: boolean
 }

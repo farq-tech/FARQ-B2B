@@ -30,7 +30,7 @@ function viewFor(b: [number, number, number, number], w: number, h: number, pad 
 const RIYADH_BOX: [number, number, number, number] = [46.55, 24.55, 46.85, 24.85]
 const enter = (fn: () => void) => (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 
-export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax, showDensity, showDistricts, showPlaces, showStreets }: LayerMapProps) {
+export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax, showDensity, showDistricts, showClusters, showPlaces, showStreets }: LayerMapProps) {
   const box = useRef<HTMLDivElement>(null)
   const P = useMemo(() => palette(), [])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -182,7 +182,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
               </g>
             )
           }) : null}
-          {showPlaces ? clusters.map((c, i) => {
+          {showClusters ? clusters.map((c, i) => {
             const x = sx(c.lon), y = sy(c.lat)
             const r = Math.max(12, Math.min(22, 6 + Math.sqrt(c.n) * 2))
             const label = c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar
