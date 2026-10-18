@@ -920,6 +920,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const densePanel = denseList.length || activityPicker || topDistricts.length ? (
     <section aria-labelledby="dense-title" className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-5 py-3">
       <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة في {where}</h2>
+      <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
+        {hasTargetQuery
+          ? 'اختر شارعاً من القائمة أو اضغط شارعاً أو حياً على الخريطة لتضييق النتائج.'
+          : 'اختر نشاطاً لتصفية الشوارع، أو اضغط شارعاً أو حياً على الخريطة لاستعراض منشآته.'}
+      </p>
       {activityPicker}
       {dense?.basis ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{dense.basis}</p> : null}
       {denseList.length ? (
@@ -1244,7 +1249,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {fallbackChips}
       </div> : null}
       {!anyChosen ? (
-        <p role="status" data-testid="map-hint" className={mobile ? 'sr-only' : 'pointer-events-none absolute left-1/2 bottom-4 max-w-[56%] -translate-x-1/2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-4 py-2 text-center text-[14px] leading-[22px] font-medium shadow-[var(--farq-soft-shadow)] backdrop-blur-md'}>
+        <p role="status" data-testid="map-hint" className="sr-only">
           {polys === null ? 'نحمّل أحياء المدينة…'
             : !res && denseList.length ? (mobile ? 'الخطوط الخضراء أكثف الشوارع. اضغط شارعاً لتظهر منشآته.' : 'الخطوط الخضراء أكثف الشوارع. اختر نشاطاً من القائمة أو اكتب وش تبي، أو اضغط شارعاً لتظهر منشآته.')
             : !res ? 'اكتب وش تبي فوق واضغط «ابحث»، ونوريك وين يتركز في المدينة.'
