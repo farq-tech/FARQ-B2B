@@ -576,3 +576,118 @@ ORDER BY week_utc DESC, control;
 ```
 
 These events are consented, session-level UI signals, not evidence that the guide content was understood or that the map task succeeded. The query is not device-specific. Wait for two complete weeks and 30 consenting sessions per control before treating the rate as directional; pair it with a phone task observing whether users can show, use, and hide the guide without covering the map. Missing events can reflect consent or blocked analytics requests, not absence of exposure.
+
+## Wholesale filter in market browse and supplier search
+
+The «جملة فقط» chip can be used both after a supplier search and while browsing the city-wide directory. These events record only that the filter was enabled/disabled and a coarse result bucket after enabling it. They never include the search phrase, city, selected district, or establishment key. All events require the existing map-analytics consent.
+
+The query below counts the first filter-enable interval per consenting session. It measures result availability and whether a supplier profile was opened while the filter remained enabled. A quote start is counted only after that profile open. It is a directional funnel, not proof that the filter caused the later action. Run against the same authorized, read-only database described above:
+
+```sql
+WITH map_events AS (
+  SELECT session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_browse_succeeded',
+      'pricing_map_map_supplier_search_started',
+      'pricing_map_map_filter_wholesale_on',
+      'pricing_map_map_filter_wholesale_off',
+      'pricing_map_map_filter_wholesale_results_empty',
+      'pricing_map_map_filter_wholesale_results_1_4',
+      'pricing_map_map_filter_wholesale_results_5_plus',
+      'pricing_map_map_filter_wholesale_results_failed',
+      'pricing_map_map_profile_open',
+      'pricing_map_map_profile_quote_start'
+    )
+), session_entry AS (
+  SELECT
+    session_id,
+    min(occurred_at) AS entry_at
+  FROM map_events
+  WHERE element_label IN (
+    'pricing_map_map_browse_succeeded',
+    'pricing_map_map_supplier_search_started'
+  )
+  GROUP BY session_id
+), enabled AS (
+  SELECT s.session_id, s.entry_at, min(e.occurred_at) AS enabled_at
+  FROM session_entry s
+  JOIN map_events e USING (session_id)
+  WHERE e.element_label = 'pricing_map_map_filter_wholesale_on'
+    AND e.occurred_at > s.entry_at
+  GROUP BY s.session_id, s.entry_at
+), filter_window AS (
+  SELECT
+    f.session_id,
+    f.entry_at,
+    f.enabled_at,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_filter_wholesale_off'
+        AND e.occurred_at > f.enabled_at
+    ) AS disabled_at
+  FROM enabled f
+  LEFT JOIN map_events e USING (session_id)
+  GROUP BY f.session_id, f.entry_at, f.enabled_at
+), first_filter_outcome AS (
+  SELECT DISTINCT ON (w.session_id)
+    w.session_id,
+    e.element_label AS outcome
+  FROM filter_window w
+  JOIN map_events e USING (session_id)
+  WHERE e.element_label IN (
+      'pricing_map_map_filter_wholesale_results_empty',
+      'pricing_map_map_filter_wholesale_results_1_4',
+      'pricing_map_map_filter_wholesale_results_5_plus',
+      'pricing_map_map_filter_wholesale_results_failed'
+    )
+    AND e.occurred_at > w.enabled_at
+    AND (w.disabled_at IS NULL OR e.occurred_at < w.disabled_at)
+  ORDER BY w.session_id, e.occurred_at
+), scored AS (
+  SELECT
+    w.session_id,
+    date_trunc('week', w.entry_at AT TIME ZONE 'UTC') AS week_utc,
+    o.outcome,
+    min(e.occurred_at) FILTER (
+      WHERE e.element_label = 'pricing_map_map_profile_open'
+        AND e.occurred_at > w.enabled_at
+        AND (w.disabled_at IS NULL OR e.occurred_at < w.disabled_at)
+    ) AS profile_opened_while_enabled_at
+  FROM filter_window w
+  LEFT JOIN first_filter_outcome o USING (session_id)
+  LEFT JOIN map_events e ON e.session_id = w.session_id
+    AND e.occurred_at > w.enabled_at
+    AND (w.disabled_at IS NULL OR e.occurred_at < w.disabled_at)
+  GROUP BY w.session_id, w.entry_at, o.outcome
+), with_quote AS (
+  SELECT
+    s.*,
+    EXISTS (
+      SELECT 1
+      FROM map_events q
+      WHERE q.session_id = s.session_id
+        AND q.element_label = 'pricing_map_map_profile_quote_start'
+        AND s.profile_opened_while_enabled_at IS NOT NULL
+        AND q.occurred_at > s.profile_opened_while_enabled_at
+    ) AS quote_after_profile
+  FROM scored s
+)
+SELECT
+  week_utc,
+  count(*) AS sessions_that_enabled_wholesale,
+  count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_empty') AS zero_result_sessions,
+  count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_1_4') AS sessions_with_1_to_4_results,
+  count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_5_plus') AS sessions_with_5_plus_results,
+  count(*) FILTER (WHERE outcome = 'pricing_map_map_filter_wholesale_results_failed') AS filter_request_failed_sessions,
+  count(*) FILTER (WHERE profile_opened_while_enabled_at IS NOT NULL) AS profile_open_sessions,
+  count(*) FILTER (WHERE quote_after_profile) AS quote_start_after_profile_sessions
+FROM with_quote
+GROUP BY week_utc
+ORDER BY week_utc DESC;
+```
+
+The query intentionally uses only the first enable-to-disable interval in each session; a later re-enable in the same session is not counted separately. Events may be missing when analytics consent is declined, so this is not a count of all users. Wait for two complete weeks and at least 30 consenting sessions before treating the rates as directional, and review result quality with a human task check. Do not claim the filter caused a profile open or quote start from this sequence alone.

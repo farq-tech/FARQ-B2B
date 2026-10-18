@@ -68,6 +68,12 @@ const MAP_EVENTS = [
   'map_filter_select_specialty',
   'map_filter_open_site_radius',
   'map_filter_select_site_radius',
+  'map_filter_wholesale_on',
+  'map_filter_wholesale_off',
+  'map_filter_wholesale_results_empty',
+  'map_filter_wholesale_results_1_4',
+  'map_filter_wholesale_results_5_plus',
+  'map_filter_wholesale_results_failed',
   'map_sheet_open',
   'map_sheet_close',
   'map_sheet_peek',
@@ -171,6 +177,12 @@ export function mapSearchFailedEvent(objective: SearchObjective): MapEventName {
 
 export function mapResultProfileOpenEvent(objective: SearchObjective): MapEventName {
   return objective === 'purchase' ? 'map_supplier_result_profile_open' : 'map_buyer_result_profile_open'
+}
+
+export function mapWholesaleFilterOutcomeEvent(total: number): MapEventName {
+  if (total <= 0) return 'map_filter_wholesale_results_empty'
+  if (total < 5) return 'map_filter_wholesale_results_1_4'
+  return 'map_filter_wholesale_results_5_plus'
 }
 
 export function setMapAnalyticsConsent(value: 'accepted' | 'rejected') {
