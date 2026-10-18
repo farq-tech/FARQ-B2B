@@ -45,7 +45,7 @@ export default function Counters({ items, compact = false, selectedMainId, onAct
   const grouped = !compact && items.some((item) => item.key.startsWith('market-main-'))
   const summaryItems = grouped ? items.filter((item) => !item.key.startsWith('market-main-')) : items
   const detailItems = grouped ? items.filter((item) => item.key.startsWith('market-main-')) : []
-  const tiles = (values: CounterItem[], className: string) => (
+  const tiles = (values: CounterItem[], className: string, trackDetailSelection = false) => (
     <div className={className}>
       {values.map((c) => {
         const mainId = c.key.startsWith('market-main-') ? c.key.slice('market-main-'.length) : null
@@ -60,7 +60,10 @@ export default function Counters({ items, compact = false, selectedMainId, onAct
             {selectable ? <ChevronDown aria-hidden size={12} className="shrink-0" /> : null}
           </span>
         </>
-        return selectable ? <button key={c.key} type="button" data-counter={c.key} aria-pressed={selectedMainId === mainId} aria-label={`تصفية الخريطة حسب ${c.label}، ${c.value == null ? 'العدد غير متاح' : fmt(c.value)} منشأة`} onClick={() => onActivitySelect?.(mainId!)} className={`${className} ${FOCUS_RING}`}>{body}</button>
+        return selectable ? <button key={c.key} type="button" data-counter={c.key} aria-pressed={selectedMainId === mainId} aria-label={`تصفية الخريطة حسب ${c.label}، ${c.value == null ? 'العدد غير متاح' : fmt(c.value)} منشأة`} onClick={() => {
+          if (trackDetailSelection) recordMapInteraction('map_activity_counter_detail_select')
+          onActivitySelect?.(mainId!)
+        }} className={`${className} ${FOCUS_RING}`}>{body}</button>
           : <div key={c.key} data-counter={c.key} className={className}>{body}</div>
       })}
     </div>
@@ -78,7 +81,7 @@ export default function Counters({ items, compact = false, selectedMainId, onAct
           <ChevronDown aria-hidden size={16} className="shrink-0 transition-transform" />
         </Collapsible.Trigger>
         <Collapsible.Panel className="overflow-hidden border-t border-[var(--color-border-default)] p-2">
-          {tiles(detailItems, "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5")}
+          {tiles(detailItems, "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5", true)}
         </Collapsible.Panel>
       </Collapsible.Root>
     </section>

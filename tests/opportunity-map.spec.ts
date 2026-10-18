@@ -316,7 +316,7 @@ test.describe('desktop 1440', () => {
     expect(events.some((event) => /مواد بناء|أدوات صحية|مواسير/.test(event.element_label))).toBe(false)
   })
 
-  test('opening main activity counter details records a consent-gated generic event', async ({ page }) => {
+  test('counter detail open and card selection are consent-gated and value-free', async ({ page }) => {
     const batches: { events: { event_type: string; session_id: string; path: string; element_label: string }[] }[] = []
     await setup(page, { analyticsConsent: 'rejected' })
     await page.route('**/_api/events/track', async (route) => {
@@ -334,8 +334,12 @@ test.describe('desktop 1440', () => {
     await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v2', 'accepted'))
     await trigger.click()
     await trigger.click()
+    await page.locator('[data-counter="market-main-build"]').click()
     await expect.poll(() => batches.flatMap((batch) => batch.events.map((event) => event.element_label)), { timeout: 15_000 })
-      .toContain('pricing_map_map_activity_counter_panel_open')
+      .toEqual(expect.arrayContaining([
+        'pricing_map_map_activity_counter_panel_open',
+        'pricing_map_map_activity_counter_detail_select',
+      ]))
     const events = batches.flatMap((batch) => batch.events)
     expect(events.every((event) => event.event_type === 'click' && event.path === '/opportunity-map')).toBe(true)
     expect(events.every((event) => Object.keys(event).sort().join(',') === 'element_label,event_type,path,session_id')).toBe(true)
