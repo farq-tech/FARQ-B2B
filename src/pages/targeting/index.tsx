@@ -2322,9 +2322,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   )
   const mapScopeControl = (
     <div role="group" aria-label="اختر مدينة أو حياً أو شارعاً للخريطة" className={`grid min-w-0 grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'w-[330px] shrink-0'}`}>
-      <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} disabled={busy || !cities.length} mobile={mobile} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
-      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} disabled={busy || !districts.length} mobile={mobile} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
-      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} disabled={busy || !denseList.length} mobile={mobile} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
+      <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} disabled={busy || !cities.length} mobile={mobile} portalMenu={focusMode} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
+      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} disabled={busy || !districts.length} mobile={mobile} portalMenu={focusMode} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
+      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} disabled={busy || !denseList.length} mobile={mobile} portalMenu={focusMode} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
     </div>
   )
   const searchWithScope = <div className={`flex ${mobile ? 'flex-col items-stretch gap-2' : 'items-center gap-3'}`}>
@@ -2486,7 +2486,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 }
 
 /** A compact, map-friendly filter control whose menu floats over results instead of shifting them. */
-function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen }: {
+function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen, portalMenu = false }: {
   id: string
   label: string
   icon: typeof DistrictIcon | null
@@ -2498,11 +2498,14 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   active?: boolean
   buttonClassName?: string
   onOpen?: () => void
+  /** In expanded-map mode, render above the map's stacking context and anchor to the trigger. */
+  portalMenu?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const searchUsed = useRef(false)
   const root = useRef<HTMLDivElement>(null)
+  const menuRoot = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) {
@@ -2519,7 +2522,10 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
       if (searchInput) searchInput.focus()
       else dialog?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
     }
-    const onPointerDown = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!root.current?.contains(target) && !menuRoot.current?.contains(target)) setOpen(false)
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setOpen(false); trigger.current?.focus(); return }
       if (!mobile || event.key !== 'Tab' || !dialog) return
@@ -2542,7 +2548,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown) }
-  }, [open, mobile, id])
+  }, [open, mobile, id, portalMenu])
   const choose = (value: string) => {
     setOpen(false)
     setSearch('')
@@ -2583,7 +2589,18 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
         {optionList('min-h-0 overflow-y-auto overscroll-contain px-3 pb-3')}
       </section>
     </div>, document.body,
-  ) : (
+  ) : portalMenu ? (() => {
+    const rect = trigger.current?.getBoundingClientRect()
+    if (!rect) return null
+    const width = Math.min(352, window.innerWidth - 16)
+    const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+    const top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - Math.min(360, window.innerHeight * 0.55) - 8))
+    return createPortal(
+      <div ref={menuRoot} id={`${id}-options`} role="dialog" aria-label={label} dir="rtl" style={{ position: 'fixed', top, left, width }} className="z-[180] max-h-[55dvh] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
+        {optionList('max-h-[min(45dvh,22rem)] overflow-y-auto overscroll-contain')}
+      </div>, document.body,
+    )
+  })() : (
     <div id={`${id}-options`} role="dialog" aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
       {optionList('max-h-[min(45dvh,22rem)] overflow-y-auto overscroll-contain')}
     </div>
