@@ -4,6 +4,29 @@ Use this query for a weekly, consented map funnel review. It groups only the ano
 
 Run this query against the **main application database used by `api.farq.sa`** (`COMPARISONS_DB_URL`, falling back to `DATABASE_URL`), where the API writes `public.analytics_events`. Do not select a database only because it has a table with this name: the separate comparison Supabase database is not the analytics source. Use an authorized read-only connection and return aggregates only; never copy connection strings or raw session rows into reports.
 
+## Weekly interaction event inventory
+
+Use this query as a coverage check alongside the focused funnels below. It groups all consented map click labels by complete UTC week and event name, so newly added controls or interactions remain visible even before a dedicated outcome funnel is written. It returns aggregate counts only; it does not return session identifiers, search text, location choices, or establishment identifiers.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  element_label,
+  count(*) AS actions,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND left(element_label, 12) = 'pricing_map_'
+GROUP BY 1, 2
+ORDER BY week_utc DESC, element_label;
+```
+
+Treat `actions` as repeated interactions, not people or successful outcomes. `consenting_sessions` counts a session once per event label and week. Use this inventory to spot whether a newly shipped interaction is reaching storage and to decide which high-value journey needs a focused funnel; do not change ranking, taxonomy, or defaults from this table alone. Wait for two complete weeks and at least 30 consenting sessions for the relevant journey, then pair the counts with task observation.
+
 ## Consented map page entries
 
 The map records one `pageview` event each time an accepted-consent tab enters the map. This provides a denominator for page entries, including entries with no tracked interaction, without collecting a referrer, page content, location, or establishment identifier. Rejected or undecided sessions are not counted. Counts are consenting tab sessions, not all users or unique people.
