@@ -166,6 +166,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   type StreetPick = { kind: 'all' } | { kind: 'main'; id: string } | { kind: 'sub'; ids: (string | number)[]; main: string } | { kind: 'q'; q: string; objective: string }
   const [streetPick, setStreetPick] = useState<StreetPick>({ kind: 'all' })
   const [catalog, setCatalog] = useState<StreetCatalog['mains'] | null>(null)
+  const [activityMenuOpen, setActivityMenuOpen] = useState(false)
+  const [activitySearch, setActivitySearch] = useState('')
+  const [activityMenuPosition, setActivityMenuPosition] = useState<{ top: number; right: number } | null>(null)
+  const activityMenuRef = useRef<HTMLDivElement>(null)
+  const activityOptionsRef = useRef<HTMLDivElement>(null)
+  const activityTriggerRef = useRef<HTMLButtonElement>(null)
+  const activitySearchRef = useRef<HTMLInputElement>(null)
   const streetGen = useRef(0)
   const clusterGen = useRef(0)
   // map state: districts, layer, guide pick, profile, site
@@ -911,13 +918,116 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const where = chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${AR_DIGITS(chosenNames.length)} أحياء` : cityName(city)
   const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : null
   const pickedSubs = pickedMain ? catalog?.find((m) => m.main_id === pickedMain)?.subs || [] : []
+  const selectedActivity = pickedMain ? catalog?.find((m) => m.main_id === pickedMain) : null
+  const filteredActivities = (catalog || []).filter((item) => item.main_ar.toLocaleLowerCase('ar').includes(activitySearch.trim().toLocaleLowerCase('ar')))
+  const clearActivitySelection = () => {
+    recordMapInteraction('map_activity_select')
+    setStreetPick({ kind: 'all' })
+    pickFocus(null)
+    closeActivityMenu()
+  }
+  const selectActivity = (mainId: string) => {
+    recordMapInteraction('map_activity_select')
+    const clear = pickedMain === mainId
+    setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: mainId })
+    pickFocus(clear ? null : { level: 'main', id: mainId })
+    closeActivityMenu()
+  }
+  const closeActivityMenu = () => {
+    setActivityMenuOpen(false)
+    activityTriggerRef.current?.focus()
+  }
+  useEffect(() => {
+    if (!activityMenuOpen) return
+    activitySearchRef.current?.focus()
+    const positionMenu = () => {
+      const rect = activityTriggerRef.current?.getBoundingClientRect()
+      if (rect) {
+        const menuHeight = Math.min(window.innerHeight * 0.55, 448)
+        setActivityMenuPosition({ top: Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - menuHeight - 12)), right: Math.max(12, window.innerWidth - rect.right) })
+      }
+    }
+    positionMenu()
+    const onPointerDown = (event: PointerEvent) => {
+      if (!mobile && !activityMenuRef.current?.contains(event.target as Node) && !activityOptionsRef.current?.contains(event.target as Node)) setActivityMenuOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeActivityMenu()
+        return
+      }
+      if (!mobile || event.key !== 'Tab') return
+      const dialog = document.getElementById('street-activity-options')
+      if (!dialog) return
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      if (!focusable.length) { event.preventDefault(); return }
+      const first = focusable[0], last = focusable[focusable.length - 1]
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault(); first.focus()
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', positionMenu)
+    document.addEventListener('scroll', positionMenu, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('resize', positionMenu)
+      document.removeEventListener('scroll', positionMenu, true)
+    }
+  }, [activityMenuOpen, mobile])
+  const renderActivityOptions = (items: StreetCatalog['mains'], activeMain: string | null, onAll: () => void, onSelect: (mainId: string) => void) => (
+    <>
+      <button type="button" aria-pressed={!activeMain && streetPick.kind === 'all'} onClick={onAll} className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-start text-[14px] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+        <span className="min-w-0 flex-1">كل الأنشطة</span>
+        {!activeMain && streetPick.kind === 'all' ? <Icon name="check" size={16} /> : null}
+      </button>
+      {items.map((item) => <button key={item.main_id} type="button" aria-pressed={activeMain === item.main_id} onClick={() => onSelect(item.main_id)} className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-start text-[14px] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+        <span className="min-w-0 flex-1 truncate">{item.main_ar}</span>
+        <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{n(item.streets)} شارع</span>
+        {activeMain === item.main_id ? <Icon name="check" size={16} /> : null}
+      </button>)}
+    </>
+  )
   const activityPicker = catalog && catalog.length ? (
-    <div className="flex flex-col gap-1.5" data-testid="street-picker">
-      <div role="group" aria-label="نشاط الشوارع وعدد الشوارع لكل نشاط" aria-describedby={mobile && catalog.length > 2 ? 'street-activities-scroll-hint' : undefined} className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
-        <Chip className="shrink-0" label="الكل" selected={streetPick.kind === 'all'} onClick={() => setStreetPick({ kind: 'all' })} />
-        {catalog.map((m) => <Chip key={m.main_id} className="shrink-0" label={`${m.main_ar} · ${n(m.streets)} شارع`} selected={pickedMain === m.main_id} onClick={() => { recordMapInteraction('map_activity_select'); const clear = pickedMain === m.main_id; setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: m.main_id }); pickFocus(clear ? null : { level: 'main', id: m.main_id }) }} />)}
+    <div className="flex flex-col gap-2" data-testid="street-picker">
+      <div ref={activityMenuRef} className="relative self-start">
+        <button ref={activityTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={activityMenuOpen} aria-controls="street-activity-options" onClick={() => { setActivitySearch(''); setActivityMenuOpen((open) => !open) }}
+          className={`inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm hover:border-[var(--color-border-strong)] ${FOCUS_RING}`}>
+          <FiltersIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+          <span className="max-w-[min(65vw,18rem)] truncate">النشاط: {selectedActivity ? selectedActivity.main_ar : 'الكل'}</span>
+          {selectedActivity ? <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{n(selectedActivity.streets)} شارع</span> : null}
+          <Icon name="chevron-down" size={15} className={`shrink-0 transition-transform ${activityMenuOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {activityMenuOpen ? (mobile ? createPortal(
+          <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) closeActivityMenu() }}>
+            <section id="street-activity-options" role="dialog" aria-modal="true" aria-labelledby="street-activity-title" className="flex max-h-[75dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+              <button type="button" aria-label="إغلاق قائمة الأنشطة" onClick={closeActivityMenu} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
+              <h3 id="street-activity-title" className="px-5 pb-2 text-[16px] font-semibold">اختر نشاط الشوارع</h3>
+              <label className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
+                <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+                <input ref={activitySearchRef} value={activitySearch} onChange={(event) => setActivitySearch(event.target.value)} placeholder="ابحث عن نشاط" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+              </label>
+              <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
+                {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
+                {activitySearch && filteredActivities.length === 0 ? <p className="px-3 py-4 text-[14px] text-[var(--color-text-secondary)]">ما لقينا نشاطاً بهذا الاسم.</p> : null}
+              </div>
+            </section>
+          </div>, document.body,
+        ) : createPortal(
+          <div ref={activityOptionsRef} id="street-activity-options" role="dialog" aria-label="نشاط الشوارع وعدد الشوارع لكل نشاط" style={{ position: 'fixed', top: activityMenuPosition?.top ?? 0, right: activityMenuPosition?.right ?? 12 }} className="z-[160] max-h-[min(55dvh,28rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
+            <label className="mb-1 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
+              <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+              <input ref={activitySearchRef} value={activitySearch} onChange={(event) => setActivitySearch(event.target.value)} placeholder="ابحث عن نشاط" className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+            </label>
+            {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
+            {activitySearch && filteredActivities.length === 0 ? <p className="px-3 py-4 text-[14px] text-[var(--color-text-secondary)]">ما لقينا نشاطاً بهذا الاسم.</p> : null}
+          </div>, document.body,
+        )) : null}
       </div>
-      {mobile && catalog.length > 2 ? <p id="street-activities-scroll-hint" className="px-1 text-[11px] leading-[16px] text-[var(--color-text-tertiary)]">اسحب أفقياً لاستعراض بقية الأنشطة</p> : null}
       {pickedMain ? (
         <>
         <div role="group" aria-label="الأنشطة الفرعية وعدد الشوارع لكل نشاط" aria-describedby={mobile && pickedSubs.length > 2 ? 'street-subactivities-scroll-hint' : undefined} className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
@@ -926,7 +1036,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)} شارع`} selected={on} onClick={() => { recordMapInteraction('map_activity_select'); setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
           })}
         </div>
-        {mobile && pickedSubs.length > 2 ? <p id="street-subactivities-scroll-hint" className="px-1 text-[11px] leading-[16px] text-[var(--color-text-tertiary)]">اسحب أفقياً لاستعراض بقية الأنشطة الفرعية</p> : null}
         </>
       ) : null}
       {streetPick.kind === 'q' ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الشوارع حسب طلبك: «{streetPick.q}»</p> : null}
