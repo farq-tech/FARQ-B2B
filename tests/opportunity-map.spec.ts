@@ -316,6 +316,32 @@ test.describe('desktop 1440', () => {
     expect(events.some((event) => /مواد بناء|أدوات صحية|مواسير/.test(event.element_label))).toBe(false)
   })
 
+  test('opening main activity counter details records a consent-gated generic event', async ({ page }) => {
+    const batches: { events: { event_type: string; session_id: string; path: string; element_label: string }[] }[] = []
+    await setup(page, { analyticsConsent: 'rejected' })
+    await page.route('**/_api/events/track', async (route) => {
+      const body = route.request().postDataJSON()
+      batches.push(body)
+      await route.fulfill({ json: { ok: true, accepted: body.events.length } })
+    })
+    await page.goto('/opportunity-map')
+    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v2', 'rejected'))
+    const trigger = page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ })
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+    expect(batches).toEqual([])
+
+    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v2', 'accepted'))
+    await trigger.click()
+    await trigger.click()
+    await expect.poll(() => batches.flatMap((batch) => batch.events.map((event) => event.element_label)), { timeout: 15_000 })
+      .toContain('pricing_map_map_activity_counter_panel_open')
+    const events = batches.flatMap((batch) => batch.events)
+    expect(events.every((event) => event.event_type === 'click' && event.path === '/opportunity-map')).toBe(true)
+    expect(events.every((event) => Object.keys(event).sort().join(',') === 'element_label,event_type,path,session_id')).toBe(true)
+    expect(events.some((event) => /مطاعم|تصنيفات|التصنيفات/.test(event.element_label))).toBe(false)
+  })
+
   test('market first open, three lenses, and core buyers by default', async ({ page }) => {
     const { buyerQueries, marketQueries } = await setup(page)
     await page.goto('/opportunity-map')

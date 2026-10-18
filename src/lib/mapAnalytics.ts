@@ -40,6 +40,7 @@ const MAP_EVENTS = [
   'map_street_select',
   'map_activity_select',
   'map_activity_filter_open',
+  'map_activity_counter_panel_open',
   'map_activity_main_select',
   'map_activity_sub_select',
   'map_activity_spec_select',
