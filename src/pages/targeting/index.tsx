@@ -797,19 +797,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     })
   }
 
-  const citySelect = (cls: string) => (
-    <>
-      <label className="sr-only" htmlFor="targeting-city">المدينة</label>
-      <span className="relative inline-flex shrink-0 items-center">
-        <CityIcon size={16} className="pointer-events-none absolute start-2 text-[var(--color-icon-secondary)]" />
-        <select id="targeting-city" required value={cities.some((c) => c.en === city) ? city : ''} onChange={(e) => pickCity(e.target.value)} aria-invalid={!city}
-          className={`shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1.5 ps-7 pe-2 ${city ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'} ${FOCUS_RING} ${cls}`}>
-          <option value="">اختر المدينة</option>
-          {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
-        </select>
-      </span>
-    </>
-  )
   const chooseLens = (value: 'market' | 'sellers' | 'buyers') => {
     if (value === lens) return
     recordMapInteraction(`map_lens_${value}`)
@@ -2338,21 +2325,34 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
       {(query || q.trim() || Object.values(filters).some(Boolean) || chosenD.size || streetPick.kind !== 'all' || focus || site) ? <button type="button" aria-label="مسح الكل وعرض سوق المدينة" title="مسح الكل" disabled={busy} onClick={clearMapToCity} className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-icon-secondary)] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-50 ${FOCUS_RING}`}><Icon name="x" size={16} /></button> : null}
-      {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
       <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={(!q.trim() && !query.trim() && objective !== 'marketing') || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
   )
   const mapScopeControl = (
-    <div role="group" aria-label="مستوى استكشاف السوق" className={`grid grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'shrink-0'}`}>
+    <div role="group" aria-label="اختيار المدينة والحي والشارع" className={`grid grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'shrink-0'}`}>
+      <div className={`relative flex min-w-0 items-stretch rounded-full transition-colors ${mapScope === 'city' ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
+        <button type="button" aria-pressed={mapScope === 'city'} onClick={() => chooseMapScope('city')}
+          className={`inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-full ps-2 pe-0.5 text-[12px] font-medium transition-colors md:px-2.5 md:text-[13px] ${FOCUS_RING}`}>
+          <CityIcon size={15} className="shrink-0" /><span className="truncate">{cityName(city) || 'المدينة'}</span>
+        </button>
+        <label className={`relative inline-flex min-h-10 w-7 shrink-0 cursor-pointer items-center justify-center rounded-e-full ${FOCUS_RING}`} title="تغيير المدينة">
+          <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center"><Icon name="chevron-down" size={13} /></span>
+          <span className="sr-only">تغيير المدينة</span>
+          <select aria-label="تغيير المدينة" required value={cities.some((item) => item.en === city) ? city : ''} onChange={(event) => { pickCity(event.target.value); chooseMapScope('city') }} aria-invalid={!city}
+            className="absolute inset-0 size-full cursor-pointer opacity-0">
+            <option value="">اختر المدينة</option>
+            {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
+          </select>
+        </label>
+      </div>
       {([
-        { id: 'city', label: 'المدينة', IconComponent: CityIcon },
         { id: 'district', label: 'الحي', IconComponent: DistrictIcon },
         { id: 'street', label: 'الشارع', IconComponent: StreetIcon },
       ] as const).map(({ id, label, IconComponent }) => {
         const active = mapScope === id
         return <button key={id} type="button" aria-pressed={active} onClick={() => chooseMapScope(id)}
-          className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-medium transition-colors ${active ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
-          <IconComponent size={15} />{label}
+          className={`inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[12px] font-medium transition-colors md:gap-1.5 md:px-3 md:text-[13px] ${active ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
+          <IconComponent size={15} className="shrink-0" /><span className="truncate">{label}</span>
         </button>
       })}
     </div>
