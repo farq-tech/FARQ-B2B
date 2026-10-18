@@ -66,6 +66,13 @@ html, body, #root {
   }
 }
 
+/* Supplier and buyer flows add a step card below the map; keep counters above the fixed nav on regular phone heights too. */
+@media (max-width: 767px) and (min-height: 721px) {
+  .map-compact-scroll-layout.map-targeting-lens .map-compact-scroll-anchor {
+    height: clamp(280px, 40dvh, 360px);
+  }
+}
+
 /* Keep the map available while scrolling the stacked results layout on tablet-sized screens. */
 @media (min-width: 768px) and (max-width: 1200px) {
   :root {

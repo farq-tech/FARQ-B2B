@@ -1560,7 +1560,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   if (mobile) {
     return (
-      <div className={`flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6 ${mobile ? 'map-compact-scroll-layout' : ''}`}>
+      <div className={`flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6 ${mobile ? `map-compact-scroll-layout ${lens !== 'market' ? 'map-targeting-lens' : ''}` : ''}`}>
         <h1 className="sr-only">خريطة الفرص</h1>
         <div className="flex flex-wrap items-center justify-between gap-2">
           {direction}
