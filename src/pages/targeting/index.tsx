@@ -33,7 +33,7 @@ import {
   type District, type Focus, type Layer, type Street,
 } from './map/model'
 import type { LayerMapProps, Site } from './map/types'
-import { MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
+import { directoryActivityQuery, MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
 
 /*
  * «خريطة الفرص» v2 — owner-approved redesign 2026-10-16 (Canva concepts: airy light-grey map, charcoal pins with white glyphs,
@@ -639,7 +639,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setLens(objective === 'marketing' ? 'buyers' : 'sellers')
     recordMapInteraction(mapSearchStartedEvent(objective))
     try {
-      const responses = await Promise.all(intents.map((intent) => searchTargets(intent.activity, city, FETCH, objective, 0, { district: intent.district }, true, (outcome) => {
+      const responses = await Promise.all(intents.map((intent) => searchTargets(directoryActivityQuery(intent.activity), city, FETCH, objective, 0, { district: intent.district }, true, (outcome) => {
         recordMapInteraction(mapSearchRetryEvent(objective, outcome))
       })))
       if (version !== generation.current) return
@@ -682,7 +682,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const offset = group.nextOffset
     setBusyKind('more'); setError(null)
     try {
-      const response = await searchTargets(group.intent.activity, city, FETCH, objective, offset, { district: group.intent.district }, true, (outcome) => {
+      const response = await searchTargets(directoryActivityQuery(group.intent.activity), city, FETCH, objective, offset, { district: group.intent.district }, true, (outcome) => {
         recordMapInteraction(mapSearchRetryEvent(objective, outcome))
       })
       if (version !== generation.current) return
