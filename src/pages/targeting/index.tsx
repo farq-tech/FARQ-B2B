@@ -1271,10 +1271,16 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </p>
       ) : null}
       {hasTargetQuery && res && (unverifiedWhatsappCount > 0 || unconfirmedStatusCount > 0) ? (
-        <div role="status" className="mb-3 flex flex-col gap-1 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-          {unverifiedWhatsappCount > 0 ? <p className="m-0">وسم واتساب من المصدر؛ لم يتم التحقق من استقبال الرقم للرسائل.</p> : null}
-          {unconfirmedStatusCount > 0 ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة. تحقق من نشاطها قبل التواصل.</p> : null}
-        </div>
+        <details className="group mb-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
+          <summary className={`flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 font-medium ${FOCUS_RING}`}>
+            <span className="flex min-w-0 items-center gap-1.5"><WarningIcon size={15} className="shrink-0" /><span>تنبيهات قبل التواصل</span></span>
+            <Icon name="chevron-down" size={14} className="shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-1 border-t border-[var(--color-border-default)] py-2">
+            {unverifiedWhatsappCount > 0 ? <p className="m-0">وسم واتساب من المصدر؛ لم يتم التحقق من استقبال الرقم للرسائل.</p> : null}
+            {unconfirmedStatusCount > 0 ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة. تحقق من نشاطها قبل التواصل.</p> : null}
+          </div>
+        </details>
       ) : null}
     </div>
   )
