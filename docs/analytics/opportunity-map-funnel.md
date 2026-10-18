@@ -633,7 +633,7 @@ Wait for at least two complete weeks and 30 consented prompt sessions per prompt
 
 ## Map legend control exposure and use
 
-**Historical only:** this query describes the former floating map control. The guide and filter now live in the results panel's «الدليل» tab, so the control impression events below will no longer be emitted after that UI release. Do not use this exposure denominator for post-release sessions.
+**Historical only:** this query describes the former floating map control. The guide and filter now live in a collapsed section at the top of the results panel across all tabs, so the control impression events below will no longer be emitted after that UI release. Do not use this exposure denominator for post-release sessions.
 
 The legend records a control impression only after at least half of the control is visible in the viewport and map analytics consent is accepted. `show_control_seen` is the collapsed info button; `hide_control_seen` is the hide action after the guide is open. Both are emitted at most once per control per mounted map component. The query returns weekly session counts and the share of exposed sessions that later used that control. It never returns session keys or other user and establishment data.
 
@@ -704,7 +704,7 @@ These events are consented, session-level UI signals, not evidence that the guid
 
 ## Map legend use after moving it into the guide panel
 
-After the UI release, `map_legend_show` and `map_legend_hide` mean that a user opened or closed the disclosure inside the results panel's «الدليل» tab. They no longer mean that a floating overlay was shown or dismissed. Count sessions and actions without an exposure denominator:
+After the UI release, `map_legend_show` and `map_legend_hide` mean that a user opened or closed the disclosure at the top of the results panel, available across its tabs. They no longer mean that a floating overlay was shown or dismissed. Count sessions and actions without an exposure denominator:
 
 ```sql
 SELECT
