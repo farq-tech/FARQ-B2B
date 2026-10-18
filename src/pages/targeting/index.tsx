@@ -456,8 +456,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (lens === 'market') return [
       { key: 'market-size', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'market-activities', label: 'تصنيفات فرعية متاحة', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : null },
-      { key: 'market-street', label: 'منشآت بأكثف شارع', value: marketStats ? marketStats.densest_street?.n ?? 0 : null },
+      { key: 'market-whatsapp', label: 'وسم واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
+      { key: 'market-unlocated', label: 'بلا موقع دقيق', value: marketStats?.n_approx ?? null },
     ]
     if (query && res) return lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
@@ -477,7 +477,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'city-whatsapp', label: 'وسم واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'city-activities', label: 'تصنيفات فرعية متاحة', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : null },
+      { key: 'city-unlocated', label: 'بلا موقع دقيق', value: marketStats?.n_approx ?? null },
     ]
   }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
