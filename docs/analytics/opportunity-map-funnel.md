@@ -716,3 +716,29 @@ ORDER BY 1;
 ```
 
 Do not set a performance target from this first release. First collect at least 30 successful map initializations across two complete weeks, then inspect the bucket distribution alongside user-task completion and map/search error rates. The measurements exclude load failures and nonconsenting sessions, so they are not a complete page-load success rate.
+
+## Finding unlocated supplier results
+
+Use this aggregate query to assess whether the optional “load next batch” action in the unlocated-results panel is finding establishments without precise coordinates. Events are recorded only after accepted map-analytics consent; they contain no search phrase, city, or establishment key.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) FILTER (WHERE element_label = 'pricing_map_site_unlocated_batch_found') AS batches_with_unlocated_rows,
+  count(*) FILTER (WHERE element_label = 'pricing_map_site_unlocated_batch_empty') AS batches_without_unlocated_rows,
+  count(*) FILTER (WHERE element_label = 'pricing_map_site_unlocated_batch_failed') AS failed_batches,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND element_label IN (
+    'pricing_map_site_unlocated_batch_found',
+    'pricing_map_site_unlocated_batch_empty',
+    'pricing_map_site_unlocated_batch_failed'
+  )
+GROUP BY 1
+ORDER BY week_utc DESC;
+```
+
+`batches_with_unlocated_rows` means the newly fetched page contained at least one previously unloaded result without a precise map point. It does not measure whether that establishment was useful or contacted. Read rates only after two complete weeks and at least 30 consenting batch attempts; pair the aggregate with observed discovery tasks and time-to-profile.
