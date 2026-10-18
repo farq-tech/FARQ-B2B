@@ -231,7 +231,7 @@ export default function LayerMapbox(props: LayerMapProps) {
   }, [loaded, pins, props.highlightedPinKey])
 
   return (
-    <div className="absolute inset-0" role="region" aria-label="خريطة الفرص">
+    <div className="farq-opportunity-map absolute inset-0" role="region" aria-label="خريطة الفرص">
       <div ref={box} className="h-full w-full" />
       {tileFailed ? <p role="alert" className="farq-map-error">تعذّر تحميل نقاط المنشآت. <button type="button" onClick={props.onTileRefresh}>تحديث النقاط</button></p> : null}
       {failed ? <p role="alert" className="farq-map-error">تعذّر تحميل الخريطة. تقدر تستعرض الجهات وتختارها من القائمة.</p> : null}
