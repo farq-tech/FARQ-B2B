@@ -817,17 +817,44 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   async function search(e?: FormEvent) {
     e?.preventDefault()
+    const text = q.trim()
+    // An empty box means "show the whole current audience", not "leave the
+    // last district-filtered response on screen". In seller mode, keep the
+    // product that produced the current buyer results and widen it to the city.
+    if (!text) {
+      const retainedProduct = query.trim() || lines[activeLine ?? 0]?.name || ''
+      setFilters({})
+      setChosenD(new Set())
+      setStreetPick({ kind: 'all' })
+      setActiveStreet(null)
+      setFocus(null)
+      setSite(null)
+      setShowUnlocated(false)
+      fitCity()
+      if (objective === 'marketing' && retainedProduct) {
+        setLens('buyers')
+        setTab('results')
+        setActiveLine(null)
+        const found = await runSearchIn(retainedProduct, city, undefined, 'marketing', {})
+        if (found != null) setQ('')
+      } else {
+        setQuery('')
+        setActiveLine(null)
+        if (objective === 'marketing') setLens('buyers')
+        void loadBrowse(city, {})
+      }
+      return
+    }
     setActiveLine(null)
-    const parsed = parseMapIntents(q.trim())
+    const parsed = parseMapIntents(text)
     if (parsed?.invalid) {
       setError(`ما قدرنا نفصل الطلبات. اكتب كل طلب بصيغة نشاط + حي، وبحد أقصى ${MAX_MAP_INTENTS} طلبات؛ مثال: حلاقين بحي السويدي وابي مطاعم بحي الربيع.`)
       return
     }
     if (parsed?.intents.length) {
-      await searchMultipleIntents(q.trim(), parsed.intents)
+      await searchMultipleIntents(text, parsed.intents)
       return
     }
-    const text = q.trim()
     const searchObjective = isExplicitPurchaseRequest(text) ? 'purchase' : objective
     if (searchObjective !== objective) setObjective(searchObjective)
     await runSearchIn(text, city, undefined, searchObjective)
@@ -1107,7 +1134,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!c.district_ar) return
     // the cluster's district is chosen on the map too, so its shops show
     const d = districts.find((x) => x.ar === c.district_ar)
-    if (d) setChosenD((s) => new Set(s).add(d.id))
+    if (d) setChosenD(new Set([d.id]))
     applyFilters({ ...keep(filters, ['district', 'street']), district: c.district_ar, street: c.level === 'street' && c.street_ar ? c.street_ar : undefined })
   }
 
@@ -1125,7 +1152,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     fitTo([w - pad, so - pad, e + pad, no + pad])
     setActiveStreet(id)
     const d = hasPolys ? districtAt(st.mid[0], st.mid[1], districts) : null
-    if (d) setChosenD((x) => new Set(x).add(d.id))
+    if (d) setChosenD(new Set([d.id]))
     // results for this street: the current request narrowed to it, or (before any search) the street's own trade
     if (query) applyFilters({ ...keep(filters, ['street']), street: st.props.street_ar })
     else { const term = st.props.sub_ar || st.props.main_ar; if (term) { setQ(term); void runSearchIn(term, city, undefined, objective, { street: st.props.street_ar }, true) } }
@@ -1266,6 +1293,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return densityOf(districts, marketDistrictCounts.map((item) => ({ name: item.district_ar, n: item.n })), [])
   }, [hasPolys, res, streetPick.kind, districts, rows, marketDistrictCounts, filters.role])
   const densityMax = useMemo(() => Math.max(0, ...density.values()), [density])
+  // Keep the selected neighborhood visually isolated while the rest retain
+  // their outlines for orientation. Clearing the neighborhood restores the
+  // citywide heat layer.
+  const mapDensity = useMemo(() => chosenD.size
+    ? new Map([...density].filter(([id]) => chosenD.has(id)))
+    : density, [density, chosenD])
   const anyChosen = chosenD.size > 0 || Boolean(filters.street)
   // Browse data is loaded before a customer searches; it must not advance the search journey.
   const step: 1 | 2 | 3 = !hasTargetQuery ? 1 : !anyChosen && !profile ? 2 : 3
@@ -1926,7 +1959,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
       <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins ? activeTileQuery : undefined} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
-        streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
+        streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}
         showDensity={showDensity} showDistricts={showDistricts} showPlaces={showMapPins} showStreets={showStreets}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
       <div ref={layerControlRef} className="pointer-events-none absolute bottom-3 end-3 z-30">
@@ -2041,7 +2074,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
       {(query || q.trim() || Object.values(filters).some(Boolean) || chosenD.size || streetPick.kind !== 'all' || focus || site) ? <button type="button" aria-label="مسح الكل وعرض سوق المدينة" title="مسح الكل" disabled={busy} onClick={clearMapToCity} className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-icon-secondary)] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-50 ${FOCUS_RING}`}><Icon name="x" size={16} /></button> : null}
       {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
-      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
+      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={(!q.trim() && !query.trim() && !(objective === 'marketing' && lines.length)) || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
   )
   const searchStatus = busy ? (
