@@ -81,7 +81,12 @@ const pickForFit = (rows: TargetRow[], fitFilter: PinFit | 'all') => {
   const prioritizeLikely = fitFilter === 'all' && rows.some((r) => r.ai)
   return new Set(rows.filter((r) => waNumber(r) && (!prioritizeLikely || r.ai === 'L')).map((r) => r.poi_key))
 }
-const placeOf = (r: TargetRow) => [safeLocationName(r.street_ar), safeLocationName(r.district_ar) || safeLocationName(r.district_en), safeLocationName(r.region_ar) || safeLocationName(r.city_en)].filter(Boolean).join(' · ')
+const cityLabel = (value: string | null, cities: City[]) => {
+  const key = value?.trim().toLocaleLowerCase('en-US')
+  if (!key) return null
+  return cities.find((city) => city.en.trim().toLocaleLowerCase('en-US') === key)?.ar || value
+}
+const placeOf = (r: TargetRow, cities: City[]) => [safeLocationName(r.street_ar), safeLocationName(r.district_ar) || safeLocationName(r.district_en), safeLocationName(r.region_ar) || cityLabel(r.city_en, cities)].filter(Boolean).join(' · ')
 const pathOf = (r: TargetRow) => {
   const m = mainIdOf(r), s = subAr(subIdOf(r))
   if (s) return `${mainAr(m)} ▸ ${s}`
@@ -1023,7 +1028,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />
             {sourceCountOf(r) === 1 ? <Badge tone="Neutral" showDot={false} label="مصدر مسجل واحد" className="w-fit text-[11px] leading-[16px] px-2 py-0.5" /> : null}
-            <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
+            <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r, cities) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
           </button>
           <span className="flex shrink-0 flex-col items-end gap-1">{ch === 'WhatsApp' && r.whatsapp_verification_state !== 'verified' ? <Badge tone="Warning" label="واتساب غير متحقق" className="text-[12px] leading-[18px]" /> : <ChannelBadge channel={ch} />}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
         </div>
