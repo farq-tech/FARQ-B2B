@@ -35,23 +35,33 @@ function Rolling({ value }: { value: number }) {
 }
 export type CounterItem = { key: string; label: string; value: number | null; lead?: boolean }
 
-export default function Counters({ items, compact = false }: { items: CounterItem[]; compact?: boolean }) {
+export default function Counters({ items, compact = false, selectedMainId, onActivitySelect }: {
+  items: CounterItem[]
+  compact?: boolean
+  selectedMainId?: string | null
+  onActivitySelect?: (mainId: string) => void
+}) {
   const grouped = !compact && items.some((item) => item.key.startsWith('market-main-'))
   const summaryItems = grouped ? items.filter((item) => !item.key.startsWith('market-main-')) : items
   const detailItems = grouped ? items.filter((item) => item.key.startsWith('market-main-')) : []
   const tiles = (values: CounterItem[], className: string) => (
     <div className={className}>
-      {values.map((c) => (
-        <div key={c.key} data-counter={c.key}
-          className={`relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'}`}>
+      {values.map((c) => {
+        const mainId = c.key.startsWith('market-main-') ? c.key.slice('market-main-'.length) : null
+        const selectable = Boolean(mainId && onActivitySelect)
+        const className = `relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} text-right ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'} ${selectable ? 'cursor-pointer transition-colors hover:border-[var(--map-green)] hover:bg-[var(--color-bg-surface-2)]' : ''} ${mainId && selectedMainId === mainId ? 'ring-2 ring-[var(--map-green)]' : ''}`
+        const body = <>
           <span className={`font-[family-name:var(--font-display)] ${compact ? 'text-[17px] leading-[24px]' : 'text-[20px] leading-[28px]'} font-semibold tabular-nums`}>
             {c.value == null ? '—' : <span aria-hidden><Rolling value={c.value} /></span>}
           </span>
-          <span className={`${compact ? 'text-[12px] leading-[18px]' : 'text-[11px] leading-[16px]'} ${c.lead ? 'text-white/80' : 'text-[var(--color-text-secondary)]'}`}>
+          <span className={`flex items-center gap-1 ${compact ? 'text-[12px] leading-[18px]' : 'text-[11px] leading-[16px]'} ${c.lead ? 'text-white/80' : 'text-[var(--color-text-secondary)]'}`}>
             <span className="sr-only">{c.value == null ? 'غير متاح' : fmt(c.value)} </span>{c.label}
+            {selectable ? <ChevronDown aria-hidden size={12} className="shrink-0" /> : null}
           </span>
-        </div>
-      ))}
+        </>
+        return selectable ? <button key={c.key} type="button" data-counter={c.key} aria-pressed={selectedMainId === mainId} aria-label={`تصفية الخريطة حسب ${c.label}، ${c.value == null ? 'العدد غير متاح' : fmt(c.value)} منشأة`} onClick={() => onActivitySelect?.(mainId!)} className={`${className} ${FOCUS_RING}`}>{body}</button>
+          : <div key={c.key} data-counter={c.key} className={className}>{body}</div>
+      })}
     </div>
   )
 
