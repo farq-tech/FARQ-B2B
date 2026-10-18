@@ -50,9 +50,18 @@ import type { LayerMapProps, Site } from './map/types'
 
 const HAS_MAPBOX = Boolean(import.meta.env.VITE_MAPBOX_TOKEN)
 const LayerMapbox = lazy(() => import('./map/LayerMapbox'))
+function MapLoadingState() {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--map-land)]">
+      <span role="status" className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-4 py-2 text-[13px] font-medium text-[var(--color-text-secondary)] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
+        نجهّز الخريطة…
+      </span>
+    </div>
+  )
+}
 function LayerMap(props: LayerMapProps) {
   if (!HAS_MAPBOX) return <DrawnLayerMap {...props} />
-  return <Suspense fallback={null}><LayerMapbox {...props} /></Suspense>
+  return <Suspense fallback={<MapLoadingState />}><LayerMapbox {...props} /></Suspense>
 }
 
 const PAGE = 150
