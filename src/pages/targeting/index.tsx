@@ -1114,7 +1114,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
     } finally { if (version === generation.current) setBusyKind(null) }
   }
-  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
+  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}, preserveSelection = false) {
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
@@ -1130,7 +1130,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       // 50 already-loaded establishments behind an extra click.
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(FETCH)
       setBuyerProductGroups([])
-      setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setProfile(null)
+      if (!preserveSelection) {
+        setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map())
+      }
+      setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
       loadClusters('', inCity, Boolean(browseFilters.wholesale), 'purchase', true)
     } catch (err) {
@@ -2186,6 +2189,21 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const selectedMainId = focus?.level === 'main' ? focus.id : focus?.level === 'sub' ? focus.id.split('.')[0] : focus?.level === 'spec' ? (focus.sub_id || '').split('.')[0] : null
   const selectMainFromCounter = (mainId: string) => {
     recordMapInteraction('map_activity_main_select')
+    // A market category card replaces prior text/taxonomy filters, while keeping
+    // the user's geographic scope (city, selected district, or selected street).
+    const scopeFilters: AreaFilters = {
+      ...(mapScope !== 'city' && filters.district ? { district: filters.district } : {}),
+      ...(mapScope === 'street' && filters.street ? { street: filters.street } : {}),
+    }
+    setQ('')
+    setQuery('')
+    setLens('market')
+    setFilters(scopeFilters)
+    setStreetPick({ kind: 'all' })
+    setActiveStreet(mapScope === 'street' ? activeStreet : null)
+    clusterGen.current++
+    setClusters(null)
+    void loadBrowse(city, scopeFilters, true)
     pickFocus({ level: 'main', id: mainId })
     setTab('guide')
   }
