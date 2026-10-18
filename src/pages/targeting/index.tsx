@@ -408,8 +408,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const withoutPin = res
       ? hasGlobalLocationCount ? Math.max(0, res.total - precise) : shownRows.filter((row) => !hasPoint(row)).length
       : 0
-    const locationLabel = hasGlobalLocationCount ? 'لها موقع على الخريطة' : 'لها موقع · محمّلة'
-    const missingLocationLabel = hasGlobalLocationCount ? 'بلا دبوس' : 'بلا دبوس · محمّلة'
+    const locationLabel = hasGlobalLocationCount ? 'لها موقع إجمالاً' : 'لها موقع · محمّلة'
+    const missingLocationLabel = hasGlobalLocationCount ? 'بلا دبوس إجمالاً' : 'بلا دبوس · محمّلة'
     const whatsapp = typeof res?.with_whatsapp === 'number' && Number.isFinite(res.with_whatsapp)
       ? res.with_whatsapp : shownRows.filter((row) => Boolean(waNumber(row))).length
     // Search responses describe all matching districts. Once the user narrows to a
