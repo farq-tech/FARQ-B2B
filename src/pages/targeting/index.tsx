@@ -165,6 +165,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [showMapPins, setShowMapPins] = useState(true)
   const [showDensity, setShowDensity] = useState(true)
   const [showDistricts, setShowDistricts] = useState(true)
+  const [showStreets, setShowStreets] = useState(true)
+  const [layersOpen, setLayersOpen] = useState(false)
+  const layerControlRef = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState(PAGE)
   const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
   const [message, setMessage] = useState(defaultMessage(null, null))
@@ -173,6 +176,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [confirming, setConfirming] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!layersOpen) return
+    const closeOnOutside = (event: PointerEvent) => { if (event.target instanceof Node && !layerControlRef.current?.contains(event.target)) setLayersOpen(false) }
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setLayersOpen(false) }
+    document.addEventListener('pointerdown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => { document.removeEventListener('pointerdown', closeOnOutside); document.removeEventListener('keydown', closeOnEscape) }
+  }, [layersOpen])
   const [filters, setFilters] = useState<AreaFilters>({})
   const [clusters, setClusters] = useState<{ list: TradeCluster[]; basis?: string } | null>(null)
   // the densest streets of this request, drawn along the street (POST /street-density); the one picked
@@ -1915,9 +1926,23 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins ? activeTileQuery : undefined} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
-        showDensity={showDensity} showDistricts={showDistricts} showPlaces={showMapPins}
+        showDensity={showDensity} showDistricts={showDistricts} showPlaces={showMapPins} showStreets={showStreets}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
-      <div role="group" aria-label="إظهار طبقات الخريطة" className="pointer-events-none absolute start-3 bottom-3 z-20 flex max-w-[calc(100%-24px)] flex-wrap gap-1.5"><div className="pointer-events-auto"><Switch className="min-h-11 gap-1.5 px-2 text-[12px]" label="نقاط المنشآت" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} /></div><div className="pointer-events-auto"><Switch className="min-h-11 gap-1.5 px-2 text-[12px]" label="تدرج الأحياء" checked={showDensity} onChange={(event) => { const on = event.currentTarget.checked; setShowDensity(on); recordMapInteraction(on ? 'map_filter_layer_density_on' : 'map_filter_layer_density_off') }} /></div><div className="pointer-events-auto"><Switch className="min-h-11 gap-1.5 px-2 text-[12px]" label="حدود الأحياء" checked={showDistricts} onChange={(event) => { const on = event.currentTarget.checked; setShowDistricts(on); recordMapInteraction(on ? 'map_filter_layer_districts_on' : 'map_filter_layer_districts_off') }} /></div></div>
+      <div ref={layerControlRef} className="pointer-events-none absolute bottom-3 end-3 z-30">
+        {layersOpen ? <div id="map-layer-options" role="group" aria-label="إظهار طبقات الخريطة" className="pointer-events-auto mb-2 w-[min(260px,calc(100vw-48px))] rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-3 shadow-[var(--farq-soft-shadow)] backdrop-blur-xl">
+          <div className="mb-2 flex items-center justify-between gap-3 px-1">
+            <span className="text-[13px] font-semibold">طبقات الخريطة</span>
+            <button type="button" aria-label="إغلاق طبقات الخريطة" onClick={() => setLayersOpen(false)} className={`flex size-8 items-center justify-center rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={16} /></button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Switch className="w-full justify-between" label="نقاط المنشآت" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} />
+            <Switch className="w-full justify-between" label="الشوارع الكثيفة" checked={showStreets} onChange={(event) => { const on = event.currentTarget.checked; setShowStreets(on); recordMapInteraction(on ? 'map_filter_layer_streets_on' : 'map_filter_layer_streets_off') }} />
+            <Switch className="w-full justify-between" label="تدرج الأحياء" checked={showDensity} onChange={(event) => { const on = event.currentTarget.checked; setShowDensity(on); recordMapInteraction(on ? 'map_filter_layer_density_on' : 'map_filter_layer_density_off') }} />
+            <Switch className="w-full justify-between" label="حدود الأحياء" checked={showDistricts} onChange={(event) => { const on = event.currentTarget.checked; setShowDistricts(on); recordMapInteraction(on ? 'map_filter_layer_districts_on' : 'map_filter_layer_districts_off') }} />
+          </div>
+        </div> : null}
+        <button type="button" aria-label="طبقات الخريطة" aria-expanded={layersOpen} aria-controls="map-layer-options" aria-pressed={layersOpen} onClick={() => setLayersOpen((open) => !open)} className={`pointer-events-auto flex size-11 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 text-[var(--color-text-primary)] shadow-[var(--farq-soft-shadow)] backdrop-blur-md transition-colors hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING} ${layersOpen ? 'text-[var(--color-text-info)]' : ''}`}><Icon name="layers" size={19} /></button>
+      </div>
       {!focusMode ? <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[13px] font-semibold shadow-[var(--farq-soft-shadow)] backdrop-blur-md md:min-h-8">

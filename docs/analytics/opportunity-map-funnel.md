@@ -800,7 +800,7 @@ These events require map analytics consent and indicate a disclosure interaction
 
 ## Map layer visibility controls
 
-The controls `pricing_map_map_filter_layer_places_on/off`, `pricing_map_map_filter_layer_density_on/off`, and `pricing_map_map_filter_layer_districts_on/off` record when a consenting user shows or hides establishment and trade-cluster markers, district density shading, or district outlines and labels. These controls change map presentation only; search results, filters, selections, and campaign recipients are unchanged. Count actions and consenting sessions by control and state:
+The controls `pricing_map_map_filter_layer_places_on/off`, `pricing_map_map_filter_layer_streets_on/off`, `pricing_map_map_filter_layer_density_on/off`, and `pricing_map_map_filter_layer_districts_on/off` record when a consenting user shows or hides establishment and trade-cluster markers, dense street overlays, district density shading, or district outlines and labels. These controls change map presentation only; search results, filters, selections, and campaign recipients are unchanged. Count actions and consenting sessions by control and state:
 
 ```sql
 SELECT
@@ -821,6 +821,8 @@ WHERE occurred_at >= now() - interval '56 days'
   AND element_label IN (
     'pricing_map_map_filter_layer_places_on',
     'pricing_map_map_filter_layer_places_off',
+    'pricing_map_map_filter_layer_streets_on',
+    'pricing_map_map_filter_layer_streets_off',
     'pricing_map_map_filter_layer_density_on',
     'pricing_map_map_filter_layer_density_off',
     'pricing_map_map_filter_layer_districts_on',
