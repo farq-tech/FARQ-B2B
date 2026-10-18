@@ -4,8 +4,8 @@ import { FOCUS_RING } from '../../../ui/cx'
 import { chipWidth, clip, fitBadgeSvg, MAP_ICON_BODY, palette, TEARDROP } from './glyphs'
 import { densityStep, FIT_LABEL, streetLine } from './model'
 
-/** District fill strength by density step (0 none … 4 densest): a light-to-darker green choropleth. */
-const CHORO = [0.015, 0.04, 0.07, 0.1, 0.14]
+/** District fill strength by density step (0 none … 4 densest), matched to the Mapbox layer. */
+const CHORO = [0.015, 0.1, 0.17, 0.24, 0.32]
 import type { LayerMapProps } from './types'
 
 /*
@@ -137,8 +137,8 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
                 <path key={p.id} d={p.d} role="button" tabIndex={0} aria-pressed={on} aria-label={`حي ${p.ar}${density.get(p.id) ? ` — ${density.get(p.id)} منشأة` : ''}`} data-district={p.ar} data-density={step}
                   onClick={(e) => { e.stopPropagation(); if (!wasDrag() && !placingSite) onDistrict(p.id); else if (placingSite) clickLand(e) }}
                   onKeyDown={enter(() => onDistrict(p.id))}
-                  className={`cursor-pointer outline-none transition-[fill-opacity] focus-visible:stroke-[var(--map-ink)] ${on ? '' : 'hover:fill-opacity-[0.06]'}`}
-                  fill={step || on ? P.green : P.ink} fillOpacity={Math.max(on ? 0.16 : 0, CHORO[step])} stroke={on ? P.ink : P.ink} strokeOpacity={on ? 0.95 : 0.35}
+                  className="cursor-pointer outline-none transition-[stroke] hover:stroke-[var(--map-green)] hover:stroke-opacity-100 focus-visible:stroke-[var(--map-ink)]"
+                  fill={step || on ? P.green : P.ink} fillOpacity={Math.max(on ? 0.08 : 0, CHORO[step])} stroke={on ? P.ink : P.ink} strokeOpacity={on ? 0.95 : 0.35}
                   strokeWidth={on ? 2.5 : 1} strokeDasharray={on ? undefined : '4 3'} vectorEffect="non-scaling-stroke" />
               )
             })}

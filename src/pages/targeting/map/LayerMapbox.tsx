@@ -70,8 +70,8 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
       applyFarqLight(m)
       const { green: GREEN, ink: INK, label: LABEL } = palette()
       m.addSource('districts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'fid' })
-      // choropleth: light-to-darker green by the district's share of this request (feature-state step 0…4)
-      m.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ['case', ['>', ['coalesce', ['feature-state', 'step'], 0], 0], GREEN, ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'fill-opacity': ['max', ['case', ['boolean', ['feature-state', 'on'], false], 0.16, ['boolean', ['feature-state', 'hover'], false], 0.06, 0.015], ['match', ['coalesce', ['feature-state', 'step'], 0], 1, 0.04, 2, 0.07, 3, 0.1, 4, 0.14, 0]] } })
+      // District density remains visible over the basemap; progressively stronger green fill means more matching establishments.
+      m.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ['case', ['>', ['coalesce', ['feature-state', 'step'], 0], 0], GREEN, ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'fill-opacity': ['max', ['case', ['boolean', ['feature-state', 'on'], false], 0.08, ['boolean', ['feature-state', 'hover'], false], 0.06, 0.015], ['match', ['coalesce', ['feature-state', 'step'], 0], 1, 0.1, 2, 0.17, 3, 0.24, 4, 0.32, 0]] } })
       m.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': INK, 'line-opacity': ['case', ['boolean', ['feature-state', 'on'], false], 0.95, 0.35], 'line-width': ['case', ['boolean', ['feature-state', 'on'], false], 2.5, 1], 'line-dasharray': [3, 2] } })
       // dense streets along the real street: a blurred glow under a green core, width / strength by shops per 100 m
       m.addSource('streets', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
