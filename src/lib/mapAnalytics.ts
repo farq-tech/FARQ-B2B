@@ -25,6 +25,8 @@ const MAP_EVENTS = [
   'map_profile_quote_start',
   'map_legend_hide',
   'map_legend_show',
+  'map_legend_hide_control_seen',
+  'map_legend_show_control_seen',
   'map_supplier_add',
   'map_supplier_remove',
   'map_seller_add_products',
