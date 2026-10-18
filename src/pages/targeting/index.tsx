@@ -104,6 +104,7 @@ const arabic = (s: string) => /[؀-ۿ]/.test(s)
 const isTaggedWholesaleRow = (row: TargetRow) => row.is_wholesale === true || (row.is_wholesale == null && row.role_badges?.includes('جملة') === true)
 /** The narrowing filters under the search bar: district, street, wholesale (manual only), role and specialty. */
 type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty'>
+type MapScope = 'city' | 'district' | 'street'
 const clusterName = (c: TradeCluster) => [c.level === 'street' ? safeLocationName(c.street_ar) : null, safeLocationName(c.district_ar)].filter(Boolean).join('، ') || c.label_ar
 /** «سوق الزل للأقمشة — الديرة · 230 منشأة» when a curated popular name fits; otherwise «الشارع، الحي — 37 منشأة». */
 const clusterText = (c: TradeCluster) => (c.popular_ar ? `${c.popular_ar} — ${clusterName(c)} · ${n(c.n)} منشأة` : `${clusterName(c)} — ${n(c.n)} منشأة`)
@@ -168,6 +169,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [showMapPins, setShowMapPins] = useState(false)
+  const [mapScope, setMapScope] = useState<MapScope>('city')
   const [showMarketClusters, setShowMarketClusters] = useState(false)
   const [showDensity, setShowDensity] = useState(true)
   const [showDistricts, setShowDistricts] = useState(true)
@@ -294,6 +296,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [cities, setCities] = useState<City[]>([])
   const [city, setCity] = useState('Riyadh')
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
+  const [cityOverviewStats, setCityOverviewStats] = useState<MarketSummary['summary'] | null>(null)
+  const [cityOverviewLoading, setCityOverviewLoading] = useState(true)
+  const [cityOverviewError, setCityOverviewError] = useState(false)
+  const [cityOverviewRetry, setCityOverviewRetry] = useState(0)
   const [marketDistrictCounts, setMarketDistrictCounts] = useState<DistrictCount[]>([])
   const [marketSpecialtyAvailable, setMarketSpecialtyAvailable] = useState<boolean | null>(null)
   const [marketLoading, setMarketLoading] = useState(true)
@@ -309,7 +315,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); setBuyerProductGroups([]); setBuyerProductProgress(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
-  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setExpandedDistrictActivities(new Set()); setSite(null); setFit(null) }
+  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setMapScope('city'); setChosenD(new Set()); setExpandedDistrictActivities(new Set()); setSite(null); setFit(null) }
 
   useEffect(() => {
     const name = filters.specialty?.trim()
@@ -438,6 +444,30 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     }).finally(() => { if (active && lens === 'market') setMarketLoading(false) })
     return () => { active = false }
   }, [city, lens, streetPick, densityDistrictNames, selectedSpecialtyIds, filters.specialty, filterSpecialtyScope, filterSpecialtyResolveError, specialtyScopeConflict, query, hasTargetQuery, marketRetry])
+  // Keep citywide totals separate from query- or district-scoped summaries so
+  // the city view never presents a filtered count as the whole market.
+  useEffect(() => {
+    if (!city) {
+      setCityOverviewStats(null)
+      setCityOverviewLoading(false)
+      setCityOverviewError(false)
+      return
+    }
+    let active = true
+    setCityOverviewLoading(true)
+    setCityOverviewError(false)
+    marketSummary({ city }).then((result) => {
+      if (!active) return
+      const summary = result?.ok ? result.summary : null
+      setCityOverviewStats(summary || null)
+      setCityOverviewError(!summary)
+    }, () => {
+      if (!active) return
+      setCityOverviewStats(null)
+      setCityOverviewError(true)
+    }).finally(() => { if (active) setCityOverviewLoading(false) })
+    return () => { active = false }
+  }, [city, cityOverviewRetry])
   useEffect(() => {
     if (!city || !insightDistrictNames.length) {
       setDistrictInsightRows([])
@@ -690,6 +720,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     recordMapInteraction(wasChosen ? 'map_district_clear' : 'map_district_select')
     const next = wasChosen ? new Set<string>() : new Set([id])
     setChosenD(next)
+    setMapScope(wasChosen ? 'city' : 'district')
     const district = districts.find((d) => d.id === id)
     if (!wasChosen && district?.bbox) fitTo(district.bbox)
     else if (wasChosen) fitCity()
@@ -703,11 +734,36 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const clearDistrict = () => {
     recordMapInteraction('map_district_clear')
     setChosenD(new Set())
+    setMapScope('city')
     fitCity()
     const nextFilters = { ...filters }
     delete nextFilters.district
     delete nextFilters.street
     applyFilters(nextFilters)
+  }
+  const chooseMapScope = (next: MapScope) => {
+    if (next === mapScope) return
+    setMapScope(next)
+    if (next === 'city') {
+      setChosenD(new Set())
+      setActiveStreet(null)
+      fitCity()
+      const nextFilters = { ...filters }
+      delete nextFilters.district
+      delete nextFilters.street
+      if (query) void runSearchIn(query, city, nextFilters)
+      else if (buyerProductMode) void searchSavedBuyerProducts(city, nextFilters, true)
+      else void loadBrowse(city, nextFilters)
+      return
+    }
+    if (next === 'district' && filters.street) {
+      const nextFilters = { ...filters }
+      delete nextFilters.street
+      setActiveStreet(null)
+      if (query) void runSearchIn(query, city, nextFilters)
+      else if (buyerProductMode) void searchSavedBuyerProducts(city, nextFilters, true)
+      else void loadBrowse(city, nextFilters)
+    }
   }
   const pickFocus = (f: Focus) => {
     const version = ++specialtyFocusResolution.current
@@ -961,6 +1017,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (!selected.size) setMessage(defaultMessage(null, cityName(city)))
       const districtIds = intents.map((intent) => polys?.find((district) => normalizeActivityText(district.ar) === normalizeActivityText(intent.district))?.id || `name:${intent.district}`)
       setChosenD(new Set(districtIds))
+      setMapScope('district')
       if (version === generation.current) {
         const total = [...unique.values()].length
         recordMapInteraction(mapSearchLatencyEvent(performance.now() - startedAt, objective))
@@ -1147,7 +1204,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
-      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([]); setChosenD(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
+      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([]); setChosenD(new Set()); setMapScope('city'); setFocus(null); setProfile(null); setShowUnlocated(false) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
       if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj, keepStreets)
       const p = r.parsed || {}
@@ -1167,6 +1224,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     } finally { if (version === generation.current) setBusyKind(null) }
   }
   const applyFilters = (next: AreaFilters) => {
+    if (next.street) setMapScope('street')
+    else if (next.district) setMapScope('district')
+    else if (mapScope === 'street') setMapScope(chosenD.size ? 'district' : 'city')
+    else if (mapScope === 'district' && !chosenD.size) setMapScope('city')
     if (query) void runSearchIn(query, city, next)
     else if (buyerProductMode) void searchSavedBuyerProducts(city, next, true)
     else if (!Object.values(next).some(Boolean)) clearMapToCity()
@@ -1176,7 +1237,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     generation.current++
     clusterGen.current++
     specialtyFocusResolution.current++
-    setQ(''); setQuery(''); setFilters({}); setChosenD(new Set()); setStreetPick({ kind: 'all' })
+    setQ(''); setQuery(''); setFilters({}); setChosenD(new Set()); setMapScope('city'); setStreetPick({ kind: 'all' })
     setActiveStreet(null); setFocus(null); setLayer('main'); setSite(null); setPlacingSite(false); setShowUnlocated(false)
     setLens(objective === 'marketing' ? 'buyers' : 'market')
     setTab(objective === 'marketing' ? 'results' : 'guide')
@@ -1230,6 +1291,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const st = dense?.list.find((x) => x.id === id)
     if (!st) return
     recordMapInteraction('map_street_select')
+    setMapScope('street')
     if (focusMode) {
       if (mobile && !focusPanelOpen) recordMapInteraction('map_sheet_open')
       setFocusPanelOpen(true)
@@ -2039,6 +2101,90 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setShown(PAGE)
     recordMapInteraction(`fit_filter_${next}`)
   }} />
+  const scopeDistricts = districtInsightRows
+  const scopeDistrictName = chosenNames.length === 1 ? chosenNames[0] : filters.district || null
+  const scopeDistrictTitle = scopeDistrictName ? `سوق حي ${scopeDistrictName}` : chosenNames.length > 1 ? `تحليل ${n(chosenNames.length)} أحياء` : 'تحليل الحي'
+  const scopeLabel = mapScope === 'city' ? 'المدينة' : mapScope === 'district' ? chosenNames.length > 1 ? 'الأحياء' : 'الحي' : 'الشارع'
+  const scopeStreet = pickedStreet || (filters.street ? denseList.find((street) => normalizeActivityText(street.props.street_ar) === normalizeActivityText(filters.street!)) || null : null)
+  const streetScopeRows = scopeStreet ? visibleCohort.filter((row) =>
+      normalizeActivityText(safeLocationName(row.street_ar) || '') === normalizeActivityText(scopeStreet.props.street_ar)
+      && (!scopeStreet.props.district_ar || normalizeActivityText(safeLocationName(row.district_ar) || '') === normalizeActivityText(scopeStreet.props.district_ar))
+    ) : []
+  const streetMainCounts = new Map<string, number>()
+  for (const row of streetScopeRows) {
+    const category = mainAr(mainIdOf(row))
+    if (category !== 'غير مصنّف') streetMainCounts.set(category, (streetMainCounts.get(category) || 0) + 1)
+  }
+  const streetMainBreakdown = [...streetMainCounts].sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const scopedMatchCount = res
+    ? buyerProductMode || Boolean(focus || site || chosenD.size) ? visibleCohort.length : res.total
+    : lens === 'market' ? marketStats?.total ?? cityOverviewStats?.total ?? null : null
+  const scopedMatchNote = res && (buyerProductMode || Boolean(focus || site || chosenD.size))
+    ? 'من النتائج المحمّلة بعد تضييق النطاق'
+    : res ? 'إجمالي النتائج المطابقة للبحث والفلاتر' : lens === 'market' ? 'حسب نطاق السوق الحالي' : 'ابدأ بحثاً لعرض المطابقات'
+  const scopeMetric = (label: string, value: string | number | null | undefined, note?: string, wide = false) => (
+    <div key={label} className={`min-w-0 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5 ${wide ? 'col-span-2' : ''}`}>
+      <dt className="text-[11px] leading-[17px] text-[var(--color-text-secondary)]">{label}</dt>
+      <dd className="m-0 mt-1 break-words text-[15px] leading-[21px] font-semibold tabular-nums">{value == null || value === '' ? '—' : typeof value === 'number' ? n(value) : value}</dd>
+      {note ? <p className="m-0 mt-1 text-[10px] leading-[15px] text-[var(--color-text-tertiary)]">{note}</p> : null}
+    </div>
+  )
+  const mapScopePanel = (
+    <section data-testid="map-scope-insights" className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-3" aria-label={`تحليل السوق: ${scopeLabel}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="m-0 text-[15px] font-semibold">{mapScope === 'city' ? `سوق ${cityName(city)}` : mapScope === 'district' ? scopeDistrictTitle : scopeStreet ? `شارع ${scopeStreet.props.street_ar}` : 'تحليل الشارع'}</h2>
+          <p className="m-0 mt-1 text-[11px] leading-[16px] text-[var(--color-text-tertiary)]">
+            {mapScope === 'city' ? 'إجمالي الدليل منفصل عن نتائج بحثك الحالية.' : mapScope === 'district' ? 'الأعداد من سجل الحي المصنّف؛ غيّر الحي من الخريطة أو فلتر الحي.' : 'بيانات الشارع تخص النشاط الظاهر في طبقة الكثافة.'}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px] text-[var(--color-text-secondary)]">{cityOverviewLoading && mapScope === 'city' ? 'جارٍ التحديث' : 'حسب سجل الدليل'}</span>
+      </div>
+      {mapScope === 'city' ? (
+        cityOverviewStats ? <>
+          <dl className="m-0 grid grid-cols-2 gap-2">
+            {scopeMetric('إجمالي المنشآت', cityOverviewStats.total, 'حجم الدليل في المدينة')}
+            {scopeMetric('الأحياء المغطاة', cityOverviewStats.districts_count, 'أحياء لها سجلات موثوقة')}
+            {scopeMetric('التصنيف الأكثر انتشاراً', cityOverviewStats.main_activities?.[0]?.main_ar || null, cityOverviewStats.main_activities?.[0] ? `${n(cityOverviewStats.main_activities[0].n)} سجل مصنّف` : 'لا تتوفر بيانات نشاط مصنّفة', true)}
+            {scopeMetric('أكبر حي', cityOverviewStats.top_districts?.[0]?.district_ar || null, cityOverviewStats.top_districts?.[0] ? `${n(cityOverviewStats.top_districts[0].n)} منشأة مسجلة` : 'لا تتوفر بيانات أحياء', true)}
+            {scopeMetric('ضمن الفلاتر الحالية', scopedMatchCount, scopedMatchNote, true)}
+          </dl>
+          {cityOverviewStats.main_activities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أنشطة بارزة: {cityOverviewStats.main_activities.slice(0, 3).map((activity) => `${activity.main_ar} (${n(activity.n)})`).join(' · ')}</p> : null}
+        </> : cityOverviewLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص المدينة…</p> : cityOverviewError ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"><span>تعذّر تحميل إجمالي المدينة.</span><button type="button" onClick={() => setCityOverviewRetry((retry) => retry + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></div> : null
+      ) : null}
+      {mapScope === 'district' ? (
+        scopeDistricts.length ? scopeDistricts.map((district) => {
+          const streetPool = denseList.filter((street) => normalizeActivityText(street.props.district_ar || '') === normalizeActivityText(district.district_ar))
+          const densest = [...streetPool].sort((a, b) => b.props.per_100m - a.props.per_100m)[0]
+          return <article key={district.district_ar} className="flex flex-col gap-2" aria-label={`مؤشرات حي ${district.district_ar}`}>
+            <dl className="m-0 grid grid-cols-2 gap-2">
+              {scopeMetric('إجمالي المنشآت في الحي', district.total, `${n(district.classified)} مصنّف · تغطية ${n(district.classification_pct)}٪`)}
+              {scopeMetric('الشوارع الظاهرة بالكثافة', new Set(streetPool.map((street) => street.props.street_ar)).size, 'حسب طبقة النشاط الحالية')}
+              {scopeMetric('التصنيف الأكثر انتشاراً', district.dominant_activity?.main_ar || null, district.dominant_activity ? `${n(district.dominant_activity.n)} سجل` : 'لا توجد بيانات مصنّفة', true)}
+              {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${densest.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} منشأة لكل ١٠٠ م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
+              {scopeMetric('مطابقات البحث في النطاق', scopedMatchCount, scopedMatchNote, true)}
+            </dl>
+            {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أبرز التخصصات: {district.dominant_activity.top_subactivities.slice(0, 3).map((item) => `${item.sub_ar} (${n(item.n)})`).join(' · ')}</p> : null}
+            {district.activities.length ? <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة في حي ${district.district_ar}`}>{district.activities.slice(0, 6).map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px]">{activity.main_ar} · {n(activity.n)}</span>)}</div> : null}
+            {district.least_activity ? <p className="m-0 text-[11px] text-[var(--color-text-secondary)]">الأقل بين المسجل: {district.least_activity.main_ar} · {n(district.least_activity.n)}</p> : null}
+            {district.absent_from_directory.length ? <p className="m-0 text-[10px] leading-[15px] text-[var(--color-text-tertiary)]">لا تظهر سجلات مصنفة لـ: {district.absent_from_directory.slice(0, 3).join('، ')}. غياب السجل لا يثبت غياب النشاط فعلياً.</p> : null}
+          </article>
+        }) : districtInsightLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">اختر الحي من الخريطة أو الفلتر؛ نحمّل تحليله…</p> : districtInsightError ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"><span>تعذّر تحميل تحليل الحي.</span><button type="button" onClick={() => setDistrictInsightRetry((retry) => retry + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></div> : <div className="flex flex-col gap-2"><p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">اختر حياً من الخريطة أو فلتر الحي لعرض حجمه وأنشطته.</p>{cityOverviewStats?.top_districts?.length ? <div className="flex flex-wrap gap-1.5" aria-label="أكبر الأحياء في المدينة">{cityOverviewStats.top_districts.slice(0, 5).map((district) => <button key={district.district_ar} type="button" onClick={() => toggleDistrict(districts.find((item) => normalizeActivityText(item.ar) === normalizeActivityText(district.district_ar))?.id || `name:${district.district_ar}`)} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1.5 text-[11px] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{district.district_ar} · {n(district.n)}</button>)}</div> : null}</div>
+      ) : null}
+      {mapScope === 'street' ? (
+        scopeStreet ? <>
+          <dl className="m-0 grid grid-cols-2 gap-2">
+            {scopeMetric('منشآت بهذا النشاط', scopeStreet.props.n, scopeStreet.props.sub_ar || scopeStreet.props.main_ar || 'كما ترصدها طبقة الشارع')}
+            {scopeMetric('الكثافة', `${scopeStreet.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} / ١٠٠ م`, 'منشأة لكل ١٠٠ متر')}
+            {scopeMetric('التصنيف في الطبقة', scopeStreet.props.main_ar || scopeStreet.props.sub_ar || null, scopeStreet.props.sub_ar || 'لا يوجد تصنيف فرعي', true)}
+            {scopeMetric('مطابقات البحث المحمّلة', streetScopeRows.length, 'منشآت على هذا الشارع ضمن الدفعة الحالية', true)}
+          </dl>
+          {streetMainBreakdown.length ? <div className="flex flex-wrap gap-1.5" aria-label="التصنيفات في نتائج الشارع">{streetMainBreakdown.map(([category, count]) => <span key={category} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px]">{category} · {n(count)}</span>)}</div> : null}
+          {streetScopeRows.length ? <ul className="m-0 flex list-none flex-col divide-y divide-[var(--color-border-default)] p-0" aria-label="منشآت مطابقة على الشارع">{streetScopeRows.slice(0, 5).map((row) => <li key={row.poi_key} className="flex items-center justify-between gap-2 py-2 text-[12px]"><span className="min-w-0 truncate font-medium">{safeName(row)}</span><button type="button" onClick={() => void openMapProfile(row.poi_key)} className={`shrink-0 text-[var(--color-text-info)] underline ${FOCUS_RING}`}>الملف</button></li>)}</ul> : <p className="m-0 text-[11px] text-[var(--color-text-secondary)]">ما فيه منشآت مطابقة محمّلة على هذا الشارع حالياً.</p>}
+        </> : <div className="flex flex-col gap-2"><p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">اختر شارعاً من الخريطة أو من قائمة الشوارع لعرض نشاطه ومنشآته المطابقة.</p>{denseList.length ? <div className="flex flex-wrap gap-1.5" aria-label="شوارع مقترحة">{[...denseList].sort((a, b) => b.props.per_100m - a.props.per_100m).slice(0, 5).map((street) => <button key={street.id} type="button" onClick={() => pickStreet(street.id)} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1.5 text-[11px] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{street.props.street_ar} · {n(street.props.n)}</button>)}</div> : <p className="m-0 text-[11px] text-[var(--color-text-tertiary)]">اختر نشاطاً أو حياً أولاً لعرض الشوارع.</p>}</div>
+      ) : null}
+    </section>
+  )
   const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
   const panelContent = lens === 'market'
     ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
@@ -2048,7 +2194,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{targetResultsPanel}</>
     ) : marketGuide}
   </>
-  const panelBody = <>{fitLegend}{districtInsightPanel}{panelContent}</>
+  const panelBody = <>{mapScopePanel}{fitLegend}{mapScope === 'district' ? null : districtInsightPanel}{panelContent}</>
 
   // ---------- the map with its floating controls
   const fallbackChips = !hasPolys && polys !== null && districts.length ? (
@@ -2186,7 +2332,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     </div>
   ) : null
   const searchForm = (
-    <form role="search" onSubmit={search} className={`flex items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'py-1 ps-3 pe-1' : 'py-1.5 ps-4 pe-1.5'} shadow-[var(--farq-card-shadow)] focus-within:border-[var(--map-ink)]`}>
+    <form role="search" onSubmit={search} className={`flex w-full items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'py-1 ps-3 pe-1' : 'py-1.5 ps-4 pe-1.5'} shadow-[var(--farq-card-shadow)] focus-within:border-[var(--map-ink)]`}>
       <SearchIcon size={mobile ? 18 : 20} className="text-[var(--color-icon-secondary)]" />
       <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
       <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
@@ -2196,6 +2342,25 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={(!q.trim() && !query.trim() && objective !== 'marketing') || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
   )
+  const mapScopeControl = (
+    <div role="group" aria-label="مستوى استكشاف السوق" className={`grid grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'shrink-0'}`}>
+      {([
+        { id: 'city', label: 'المدينة', IconComponent: CityIcon },
+        { id: 'district', label: 'الحي', IconComponent: DistrictIcon },
+        { id: 'street', label: 'الشارع', IconComponent: StreetIcon },
+      ] as const).map(({ id, label, IconComponent }) => {
+        const active = mapScope === id
+        return <button key={id} type="button" aria-pressed={active} onClick={() => chooseMapScope(id)}
+          className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-medium transition-colors ${active ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
+          <IconComponent size={15} />{label}
+        </button>
+      })}
+    </div>
+  )
+  const searchWithScope = <div className={`flex ${mobile ? 'flex-col items-stretch gap-2' : 'items-center gap-3'}`}>
+    <div className="min-w-0 flex-1">{searchForm}</div>
+    {mapScopeControl}
+  </div>
   const searchStatus = busy ? (
     <p role="status" aria-live="polite" aria-atomic="true" className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md">
       <span aria-hidden className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
@@ -2209,7 +2374,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <div className="relative min-h-0 flex-1">{mapBlock}</div>
         <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex justify-center">
           <div className="pointer-events-auto flex w-full max-w-[760px] flex-col gap-2 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-lg backdrop-blur">
-            {searchForm}
+            {searchWithScope}
             {searchStatus}
             <div className={`flex gap-2 ${mobile ? 'flex-col items-stretch' : 'items-center'}`}>
               <div className={`min-w-0 ${mobile ? 'w-full' : 'flex-1'}`}>{direction}</div>
@@ -2283,7 +2448,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <Button variant="Ghost" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>القوالب</Button>
           </div>
         </div>
-        {searchForm}
+        {searchWithScope}
         {searchStatus}
         {errorLine}
         {areaBar}
@@ -2323,7 +2488,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
           {fileField}
         </div>
-        {searchForm}
+        {searchWithScope}
         {searchStatus}
         {understood}
         {suggestBar}
