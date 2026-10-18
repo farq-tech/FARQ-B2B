@@ -728,15 +728,28 @@ test.describe('desktop 1440', () => {
     await nothingStored(page)
   })
 
-  test('a street picked before any search runs its trade narrowed to that street', async ({ page }) => {
-    const { searches } = await setup(page)
+  test('a street picked before any search stays the active scope for market category filters', async ({ page }) => {
+    const { searches, searchRequests, marketQueries } = await setup(page)
     await page.goto('/opportunity-map')
-    await page.getByTestId('dense-streets').getByRole('button', { name: /يوسف بن عبدالعزيز/ }).click()
+    const street = page.locator('[data-street="يوسف بن عبدالعزيز"]')
+    await street.focus()
+    await page.keyboard.press('Enter')
     await expect.poll(() => searches.length).toBe(1)
     expect(searches[0]).toMatchObject({ q: 'إنارة', filters: { street: 'يوسف بن عبدالعزيز' } })
-    await expect(page.getByTestId('street-card')).toContainText('26 منشأة')
+    await expect(page.getByTestId('street-card')).toContainText('٢٦ منشأة')
     await expect(page.locator('[data-street]')).toHaveCount(1) // the street filter keeps the selected street only
     await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في يوسف بن عبدالعزيز' })).toBeVisible()
+    await expect(page.locator('#map-scope-street')).toHaveAttribute('data-active', 'true')
+    await expect(page.getByRole('button', { name: 'حي العليا' })).toHaveAttribute('aria-pressed', 'true')
+
+    await page.getByRole('tab', { name: 'افهم السوق' }).click()
+    await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
+    await page.locator('[data-counter="market-main-build"]').click()
+    await expect.poll(() => marketQueries.some((query) => query.main_id === 'build' && JSON.stringify(query).includes('العليا'))).toBe(true)
+    await expect.poll(() => searchRequests.some((request) => {
+      const filters = request.filters as Record<string, unknown> | undefined
+      return request.q === '' && filters?.district === 'العليا' && filters?.street === 'يوسف بن عبدالعزيز'
+    })).toBe(true)
   })
 
   test('counters animate to the new value', async ({ page }) => {
