@@ -27,9 +27,6 @@ def entity_kind(legal,name):
     if re.search(r'\b(شركه|شركات|company|corporation|llc)\b',text): return 'company'
     if re.search(r'\b(مؤسسه|establishment|est)\b',text): return 'establishment'
     return 'unknown'
-# Owner rule 2026-10-16: only places with WhatsApp are shown (search, map, browse) until the rest get a WhatsApp number;
-# a place appears as soon as its WhatsApp is added to the directory. 'all' and '' both mean WhatsApp-only.
-WHATSAPP_ONLY = True
 def valid_filters(value):
     if value is None: value = {}
     if not isinstance(value,dict): raise ValueError('invalid filters')
@@ -40,7 +37,6 @@ def valid_filters(value):
         out[key]=val
     if out['entity_type'] not in ('','company','establishment','unknown'): raise ValueError('invalid entity type')
     if out['contact'] not in ('','all','whatsapp','email'): raise ValueError('invalid contact')
-    if WHATSAPP_ONLY and out['contact'] in ('','all'): out['contact']='whatsapp'
     if out['sort'] not in ('','confidence','name_first'): raise ValueError('invalid sort')
     # area and wholesale (owner 2026-10-16): «محلات السباكة بشارع معين أو حي معين», «جملة مواد سباكة»
     for key in ('district','street'):

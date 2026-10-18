@@ -17,3 +17,9 @@ The deployment's business directory and taxonomy assets are intentionally exclud
 Before connecting Railway deployments to this folder, verify the staged data asset versions and hashes against the approved production snapshot, then deploy a preview service and check its aggregate results against the current production directory. Never commit `.parquet`, `.geojson`, contact, evaluation, or operational log data here.
 
 `market_analytics.py` shares the directory's open-record policy and taxonomy classification. It returns aggregate values only; it does not expose business names, contact details, or row identifiers. Buyer counts describe taxonomy-based typical purchasing, not confirmed intent or actual transactions. The WhatsApp count reflects the source flag, not independent verification.
+
+## Directory contact filters
+
+For `/search` (including `objective: "browse"`), `/map-query`, and the resulting map tiles, an omitted or `all` `filters.contact` means **no contact-channel restriction**. This keeps the full eligible directory available for discovery and map analysis. `contact: "whatsapp"` and `contact: "email"` explicitly restrict results to those channels. Browse and search remain paginated; map tiles aggregate locations at lower zoom levels.
+
+Showing a directory record does not make it eligible for a WhatsApp campaign. The Pricing UI disables campaign selection when no WhatsApp channel is available; the send endpoint re-resolves each selected `poi_key` against the directory, applies status eligibility, and requires WhatsApp eligibility for template sends. The `has_whatsapp` source flag is not independent verification that a number is active on WhatsApp.
