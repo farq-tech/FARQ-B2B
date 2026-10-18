@@ -12,7 +12,7 @@ import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapAnalyticsConsent, mapSearchResultEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchStartedEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -619,12 +619,16 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
+    if (fresh) recordMapInteraction(mapSearchStartedEvent(obj))
     try {
       const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
       if (version !== generation.current) return null
       setFailedResultRefresh(false)
       lastSuccessfulQueryObjective.current = obj
-      if (fresh) recordMapInteraction(mapSearchResultEvent(r.total))
+      if (fresh) {
+        recordMapInteraction(mapSearchResultEvent(r.total))
+        recordMapInteraction(mapSearchOutcomeEvent(r.total, obj))
+      }
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
       if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
@@ -636,7 +640,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return r.total
     } catch (err) {
       if (version !== generation.current) return null
-      if (fresh) recordMapInteraction('map_search_failed')
+      if (fresh) {
+        recordMapInteraction('map_search_failed')
+        recordMapInteraction(mapSearchFailedEvent(obj))
+      }
       setFailedResultRefresh(Boolean(res) && (fresh || JSON.stringify(use) !== JSON.stringify(filters)))
       setError(err instanceof TargetingError ? err.message : 'تعذّر البحث. تأكد من الاتصال وحاول مرة ثانية.')
       return null
@@ -935,7 +942,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
           <input type="checkbox" checked={on} disabled={!can || busy || failedResultRefresh} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : failedResultRefresh ? 'أعد تحديث النتائج قبل اختيار المنشآت' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
             className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
-          <button type="button" disabled={busy || failedResultRefresh} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
+          <button type="button" disabled={busy || failedResultRefresh} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); recordMapInteraction(mapResultProfileOpenEvent(objective)); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />

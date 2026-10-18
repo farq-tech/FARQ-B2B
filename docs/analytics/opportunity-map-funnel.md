@@ -405,9 +405,9 @@ The events are recorded only with accepted map-analytics consent and only after 
 
 ## Blank supplier/buyer prompt visibility
 
-After deployment, these events record a blank search prompt only while its panel is visibly open: `pricing_map_map_supplier_prompt_seen` for supplier search and `pricing_map_map_buyer_prompt_seen` for buyer discovery. They contain no search text, location, or establishment key. Events are consented and session-scoped, and leaving/hiding the prompt before returning is a new impression.
+These events record a blank search prompt only while its panel is visibly open: `pricing_map_map_supplier_prompt_seen` for supplier search and `pricing_map_map_buyer_prompt_seen` for buyer discovery. New role-specific events distinguish search start, result bucket, failure, and result-profile open for the selected task direction. They contain no search text, location, or establishment key. Events are consented and session-scoped, and leaving/hiding the prompt before returning is a new impression.
 
-The following aggregate query reports prompt sessions and sessions with a search event after the prompt during the same browser session. Search events are not tied to a particular prompt type, so the latter is only a coarse follow-on signal (especially if a user switches lens); it does not establish task completion or relevance.
+The following aggregate query reports the session funnel by task direction: prompt shown, search started, result bucket/failure, and result profile opened. Legacy generic result events continue to be emitted for existing reports; do not add generic and role-specific event counts together because they represent the same searches.
 
 ```sql
 WITH map_events AS (
@@ -420,11 +420,18 @@ WITH map_events AS (
     AND element_label IN (
       'pricing_map_map_supplier_prompt_seen',
       'pricing_map_map_buyer_prompt_seen',
-      'pricing_map_map_search',
-      'pricing_map_map_search_results_empty',
-      'pricing_map_map_search_results_1_4',
-      'pricing_map_map_search_results_5_plus',
-      'pricing_map_map_search_failed'
+      'pricing_map_map_supplier_search_started',
+      'pricing_map_map_supplier_search_results_empty',
+      'pricing_map_map_supplier_search_results_1_4',
+      'pricing_map_map_supplier_search_results_5_plus',
+      'pricing_map_map_supplier_search_failed',
+      'pricing_map_map_supplier_result_profile_open',
+      'pricing_map_map_buyer_search_started',
+      'pricing_map_map_buyer_search_results_empty',
+      'pricing_map_map_buyer_search_results_1_4',
+      'pricing_map_map_buyer_search_results_5_plus',
+      'pricing_map_map_buyer_search_failed',
+      'pricing_map_map_buyer_result_profile_open'
     )
 ), prompt_sessions AS (
   SELECT
@@ -440,31 +447,63 @@ WITH map_events AS (
     'pricing_map_map_buyer_prompt_seen'
   )
   GROUP BY session_id, prompt_type
-), outcomes AS (
+), searches AS (
   SELECT
     p.session_id,
     p.prompt_type,
     p.prompt_at,
-    bool_or(e.element_label IN (
-      'pricing_map_map_search',
-      'pricing_map_map_search_results_empty',
-      'pricing_map_map_search_results_1_4',
-      'pricing_map_map_search_results_5_plus',
-      'pricing_map_map_search_failed'
-    )) FILTER (WHERE e.occurred_at > p.prompt_at) AS searched_later
+    min(e.occurred_at) FILTER (WHERE e.element_label = CASE p.prompt_type
+      WHEN 'supplier' THEN 'pricing_map_map_supplier_search_started'
+      ELSE 'pricing_map_map_buyer_search_started'
+    END AND e.occurred_at > p.prompt_at) AS search_started_at
   FROM prompt_sessions p
   LEFT JOIN map_events e ON e.session_id = p.session_id
   GROUP BY p.session_id, p.prompt_type, p.prompt_at
+), outcomes AS (
+  SELECT
+    s.session_id,
+    s.prompt_type,
+    s.prompt_at,
+    s.search_started_at,
+    bool_or(e.element_label = CASE s.prompt_type
+      WHEN 'supplier' THEN 'pricing_map_map_supplier_search_results_empty'
+      ELSE 'pricing_map_map_buyer_search_results_empty'
+    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS zero_results,
+    bool_or(e.element_label = CASE s.prompt_type
+      WHEN 'supplier' THEN 'pricing_map_map_supplier_search_results_1_4'
+      ELSE 'pricing_map_map_buyer_search_results_1_4'
+    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS results_1_4,
+    bool_or(e.element_label = CASE s.prompt_type
+      WHEN 'supplier' THEN 'pricing_map_map_supplier_search_results_5_plus'
+      ELSE 'pricing_map_map_buyer_search_results_5_plus'
+    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS results_5_plus,
+    bool_or(e.element_label = CASE s.prompt_type
+      WHEN 'supplier' THEN 'pricing_map_map_supplier_search_failed'
+      ELSE 'pricing_map_map_buyer_search_failed'
+    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS search_failed,
+    bool_or(e.element_label = CASE s.prompt_type
+      WHEN 'supplier' THEN 'pricing_map_map_supplier_result_profile_open'
+      ELSE 'pricing_map_map_buyer_result_profile_open'
+    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS result_profile_opened
+  FROM searches s
+  LEFT JOIN map_events e ON e.session_id = s.session_id
+  GROUP BY s.session_id, s.prompt_type, s.prompt_at, s.search_started_at
 )
 SELECT
   date_trunc('week', prompt_at AT TIME ZONE 'UTC') AS week_utc,
   prompt_type,
   count(*) AS prompt_sessions,
-  count(*) FILTER (WHERE searched_later) AS sessions_with_later_search,
-  round(100.0 * count(*) FILTER (WHERE searched_later) / nullif(count(*), 0), 1) AS later_search_pct
+  count(*) FILTER (WHERE search_started_at IS NOT NULL) AS search_started_sessions,
+  round(100.0 * count(*) FILTER (WHERE search_started_at IS NOT NULL) / nullif(count(*), 0), 1) AS prompt_to_search_pct,
+  count(*) FILTER (WHERE zero_results) AS zero_result_sessions,
+  count(*) FILTER (WHERE results_1_4) AS sessions_with_1_4_results,
+  count(*) FILTER (WHERE results_5_plus) AS sessions_with_5_plus_results,
+  count(*) FILTER (WHERE search_failed) AS failed_search_sessions,
+  count(*) FILTER (WHERE result_profile_opened) AS sessions_opening_result_profile,
+  round(100.0 * count(*) FILTER (WHERE result_profile_opened) / nullif(count(*) FILTER (WHERE search_started_at IS NOT NULL), 0), 1) AS search_to_profile_pct
 FROM outcomes
 GROUP BY 1, 2
 ORDER BY week_utc DESC, prompt_type;
 ```
 
-Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentage. Even then, use it as a navigation diagnostic and pair it with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.
+Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentages. Profile opens are a navigation signal, not proof of relevance, contact, or a successful match. Pair them with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.
