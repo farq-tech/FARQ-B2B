@@ -396,6 +396,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return counts
   }, [cohort])
   const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
+  const visibleListCohort = useMemo(() => {
+    if (!showUnlocated) return visibleCohort
+    const unlocatedKeys = new Set(unlocatedRows.map((row) => row.poi_key))
+    return visibleCohort.filter((row) => !unlocatedKeys.has(row.poi_key))
+  }, [showUnlocated, unlocatedRows, visibleCohort])
   const resultCountSummary = res ? `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً` : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
   const unverifiedWhatsappCount = useMemo(() => visibleCohort.filter((row) => channelOf(row) === 'WhatsApp' && row.whatsapp_verification_state !== 'verified').length, [visibleCohort])
@@ -1168,8 +1173,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <div aria-busy={busy}>
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
       <ul>
-        {visibleCohort.slice(0, shown).map(resultCard)}
-        {shown < visibleCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleCohort.length - shown))} أكثر</Button></li> : null}
+        {visibleListCohort.slice(0, shown).map(resultCard)}
+        {shown < visibleListCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleListCohort.length - shown))} أكثر</Button></li> : null}
         {truncated && shown >= visibleCohort.length ? (
           <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
             <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">معروض {n(rows.length)} من {n(res.total)} — الأقرب للوصف أولًا.</span>
