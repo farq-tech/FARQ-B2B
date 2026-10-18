@@ -1124,6 +1124,17 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         recordMapInteraction(mapSearchResultEvent(r.total))
         recordMapInteraction(mapSearchOutcomeEvent(r.total, obj))
       }
+      // In the buyer lens a typed search is a product intent. Keep it in the
+      // in-memory product list so clearing the search can broaden back out to
+      // buyers for every product the seller has entered, instead of falling
+      // back to the unfiltered city directory.
+      if (fresh && obj === 'marketing') {
+        setLines((current) => {
+          const normalized = normalizeActivityText(text)
+          if (current.some((line) => normalizeActivityText(line.name) === normalized)) return current
+          return [...current, { name: text, qty: '', unit: '', found: r.total }]
+        })
+      }
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
       if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([]); setChosenD(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
