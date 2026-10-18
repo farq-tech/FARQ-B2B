@@ -1079,8 +1079,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة في {where}</h2>
       <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
         {hasTargetQuery
-          ? 'اختر شارعاً من القائمة أو اضغط شارعاً أو حياً على الخريطة لتضييق النتائج.'
-          : 'اختر نشاطاً لتصفية الشوارع، أو اضغط شارعاً أو حياً على الخريطة لاستعراض منشآته.'}
+          ? 'اختر شارعاً من القائمة أو الخريطة لتضييق النتائج. كثافة الشارع لا تثبت ملاءمة كل منشأة لما تبحث عنه.'
+          : 'اختر نشاطاً أو اضغط شارعاً أو حياً لاستعراض المنشآت. الكثافة توضّح تجمع المنشآت، ولا تثبت ملاءمتها لما تبحث عنه.'}
       </p>
       {activityPicker}
       {dense?.basis ? <p className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{dense.basis}</p> : null}
