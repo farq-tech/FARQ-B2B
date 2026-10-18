@@ -179,9 +179,23 @@ export class TargetingError extends Error {
   constructor(public code: string, message: string) { super(message) }
 }
 
-async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown, retryTransient = false): Promise<T> {
   const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
-  const r = await fetch(`/_targeting${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
+  const request = { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' as const }
+  let r: Response
+  for (let attempt = 0; ; attempt++) {
+    try {
+      r = await fetch(`/_targeting${path}`, request)
+    } catch (error) {
+      // Browse is an idempotent read. Recover once from a dropped network connection, but
+      // let aborts and all other errors keep their normal behavior.
+      if (!retryTransient || attempt > 0 || !(error instanceof TypeError)) throw error
+      await new Promise(resolve => window.setTimeout(resolve, 200))
+      continue
+    }
+    if (!retryTransient || attempt > 0 || ![502, 503, 504].includes(r.status)) break
+    await new Promise(resolve => window.setTimeout(resolve, 200))
+  }
   let data: unknown = null
   try { data = await r.json() } catch { /* empty or not JSON */ }
   const d = (data || {}) as { error?: string; message_ar?: string }
@@ -206,7 +220,7 @@ export type DirectoryFacets = {categories:{value:string;label:string;count:numbe
 export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
 export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
 export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
-export const searchTargets = (q: string, city: string, limit = 30, objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase', offset = 0, filters:SearchFilters = {}) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false })
+export const searchTargets = (q: string, city: string, limit = 30, objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase', offset = 0, filters:SearchFilters = {}) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false }, objective === 'browse')
 export const tradeClusters = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[]; wholesale?: boolean; bounds?: [number, number, number, number] }) => call<TradeClusters>('POST', '/clusters', body)
 export type SpecialtySuggestion = { specialty_id: string | number; specialty_ar: string; sub_id?: string | number | null; sub_ar?: string | null; main_ar?: string | null }
 export const suggestSpecialties = (text: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text })
