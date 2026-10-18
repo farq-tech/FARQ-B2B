@@ -185,7 +185,7 @@ export type SendResult = { ok: boolean; error?: string; fatal?: string; sent?: {
 export const OUTREACH_TEMPLATE = 'farq_outreach_ar'
 
 export class TargetingError extends Error {
-  constructor(public code: string, message: string) { super(message) }
+  constructor(public code: string, message: string, public status: number) { super(message) }
 }
 
 type TransientRetryOutcome = 'retrying' | 'recovered' | 'failed'
@@ -230,7 +230,7 @@ async function call<T>(
   // PRAYER_WINDOW: server.py holds campaign sends during prayer (owner rule 2026-10-16) and says until when
   if (!r.ok) {
     if (retried) notifyRetry('failed')
-    throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
+    throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.', r.status)
   }
   if (retried) notifyRetry('recovered')
   return data as T
@@ -337,7 +337,7 @@ async function scheduleCall<T>(method: 'GET' | 'POST', path: string, body?: unkn
   try { data = await r.json() } catch { /* empty */ }
   // flag off: {"error":"not_found"} on every route
   if (r.status === 404 && data.error === 'not_found') return { available: false }
-  if (!r.ok) throw new TargetingError(String(data.error || r.status), r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : data.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : 'ما قدرنا نجدول الحملة. حاول بعد شوي.')
+  if (!r.ok) throw new TargetingError(String(data.error || r.status), r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : data.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : 'ما قدرنا نجدول الحملة. حاول بعد شوي.', r.status)
   return { available: true, ...(data as T) }
 }
 export const scheduleCampaign = (b: { keys: string[]; message: string; template: string; send_at: string; cities?: string[]; query?: string }) =>
