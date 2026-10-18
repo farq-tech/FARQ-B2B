@@ -4,6 +4,26 @@ Use this query for a weekly, consented map funnel review. It groups only the ano
 
 Run this query against the **main application database used by `api.farq.sa`** (`COMPARISONS_DB_URL`, falling back to `DATABASE_URL`), where the API writes `public.analytics_events`. Do not select a database only because it has a table with this name: the separate comparison Supabase database is not the analytics source. Use an authorized read-only connection and return aggregates only; never copy connection strings or raw session rows into reports.
 
+## Consented map page entries
+
+The map records one `pageview` event each time an accepted-consent tab enters the map. This provides a denominator for page entries, including entries with no tracked interaction, without collecting a referrer, page content, location, or establishment identifier. Rejected or undecided sessions are not counted. Counts are consenting tab sessions, not all users or unique people.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) AS map_page_entries,
+  count(DISTINCT session_id) AS consenting_map_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'pageview'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+GROUP BY 1
+ORDER BY 1 DESC;
+```
+
+Compare page-entry sessions with sessions carrying map interaction events in the same weekly window. Do not interpret a missing pageview as a bounce: analytics requires consent, and browser/network failures can prevent delivery. Wait for at least two complete weeks and 30 consenting page-entry sessions before treating changes as directional.
+
 ```sql
 WITH map_events AS (
   SELECT
