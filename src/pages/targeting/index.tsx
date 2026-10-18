@@ -568,7 +568,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // for the same displayed business, so key-only filtering can leave a copy.
     return visibleCohort.filter(hasPoint)
   }, [showUnlocated, visibleCohort])
-  const resultCountSummary = res ? `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً` : n(visibleCohort.length)
+  const resultCountSummary = res
+    ? buyerProductMode
+      ? `${n(visibleCohort.length)} ضمن المنشآت المحمّلة`
+      : `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً`
+    : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
   const statusNoticeKey = res ? `${res.map_query || ''}|${res.total}|${res.rows[0]?.poi_key || ''}|${unconfirmedStatusCount}` : ''
   const lastStatusNoticeKey = useRef('')
@@ -590,7 +594,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const globalLocationCount = typeof res?.located_total === 'number' && Number.isFinite(res.located_total)
       ? res.located_total : null
     const hasGlobalLocationCount = globalLocationCount != null
-    const precise = globalLocationCount ?? shownRows.filter(hasPoint).length
+    const precise = buyerProductMode ? shownRows.filter(hasPoint).length : globalLocationCount ?? shownRows.filter(hasPoint).length
     const locationLabel = hasGlobalLocationCount ? 'لها موقع إجمالاً' : 'لها موقع · محمّلة'
     const whatsapp = shownRows.filter((row) => Boolean(waNumber(row))).length
     // Search responses describe all matching districts. Once the user narrows to a
@@ -609,7 +613,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n })),
       ]
     }
-    if (query && res) return lens === 'sellers' ? [
+    if ((query || buyerProductMode) && res) return buyerProductMode ? [
+      { key: 'buyer-matches', label: 'جهات مرشحة · محمّلة', value: shownRows.length, lead: true },
+      { key: 'buyer-whatsapp', label: 'أرقام جوال · محمّلة', value: whatsapp },
+      { key: 'buyer-located', label: 'لها موقع · محمّلة', value: precise },
+      { key: 'buyer-activities', label: 'منتجات مطابقة', value: buyerProductGroups.length },
+    ] : lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
       { key: 'supplier-whatsapp', label: 'أرقام جوال · محمّلة', value: whatsapp },
       { key: 'supplier-located', label: locationLabel, value: precise },
@@ -1378,7 +1387,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     : density, [density, chosenD])
   const anyChosen = chosenD.size > 0 || Boolean(filters.street)
   // Browse data is loaded before a customer searches; it must not advance the search journey.
-  const step: 1 | 2 | 3 = !hasTargetQuery ? 1 : !anyChosen && !profile ? 2 : 3
+  const step: 1 | 2 | 3 = !(hasTargetQuery || buyerProductMode) ? 1 : !anyChosen && !profile ? 2 : 3
   const topDistricts = useMemo(() => filters.role && streetPick.kind !== 'all' ? [] : res && streetPick.kind === 'all'
     ? [...(res.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 8)
     : marketDistrictCounts.slice(0, 8).map((d) => ({ name: d.district_ar, n: d.n })), [res, streetPick.kind, marketDistrictCounts, filters.role])
@@ -1586,7 +1595,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <section aria-labelledby="dense-title" className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-5 py-3">
       <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة في {where}</h2>
       <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-        {hasTargetQuery
+        {hasTargetQuery || buyerProductMode
           ? 'اختر شارعاً من القائمة أو الخريطة لتضييق النتائج. كثافة الشارع لا تثبت ملاءمة كل منشأة لما تبحث عنه.'
           : 'اختر نشاطاً أو اضغط شارعاً أو حياً لاستعراض المنشآت. الكثافة توضّح تجمع المنشآت، ولا تثبت ملاءمتها لما تبحث عنه.'}
       </p>
@@ -1894,8 +1903,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       </div>
       {showTargetResults && res ? (
         <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-          {hasTargetQuery
-            ? `القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`
+          {buyerProductMode
+            ? `المرشحون من منتجاتك: تعرض القائمة ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة. عدد المطابقات لكل منتج موضح أعلاه.`
+            : hasTargetQuery
+              ? `القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`
             : `دليل المدينة: تعرض القائمة ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} سجل مرصود في الدليل. هذه ليست ترشيحات مؤكدة للمشترين؛ أضف منتجاتك لفرز الجهات حسب ملاءمتها.`}
           {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
