@@ -156,6 +156,18 @@ export const streetCatalog = (body: { city: string; districts?: string[] }) => c
 
 export type DistrictCount = { district_ar: string; n: number; n_wholesale: number; n_whatsapp: number }
 export type DistrictCounts = { ok: boolean; city: string; districts: DistrictCount[]; total: number; basis: string }
+export type DistrictActivity = { main_id: string; main_ar: string; n: number; top_subactivities?: { sub_id: string; sub_ar: string; n: number }[] }
+export type DistrictInsight = {
+  district_ar: string
+  total: number
+  classified: number
+  classification_pct: number
+  dominant_activity: DistrictActivity | null
+  least_activity: DistrictActivity | null
+  activities: DistrictActivity[]
+  absent_from_directory: string[]
+}
+export type DistrictInsights = { ok: boolean; city: string; districts: DistrictInsight[]; basis: string }
 export type BuyerTrade = { sub_id: string; sub_ar: string; main_id: string; main_ar: string; strength: 'core' | 'common'; n: number; n_whatsapp: number }
 export type WhoBuys = { ok: boolean; buyers: BuyerTrade[]; subject: { sub_ids: string[]; label_ar: string }; basis: string }
 export type MarketSummary = {
@@ -168,6 +180,7 @@ export type MarketSummary = {
 }
 export type MarketAnalyticsQuery = { city: string; sub_ids?: (string | number)[]; main_id?: string; q?: string; districts?: string[] }
 export const districtCounts = (body: MarketAnalyticsQuery) => call<DistrictCounts>('POST', '/district-counts', body)
+export const districtInsights = (body: { city: string; districts: string[] }) => call<DistrictInsights>('POST', '/district-insights', body)
 export const whoBuys = (body: { city: string; q?: string; sub_ids?: (string | number)[] }) => call<WhoBuys>('POST', '/who-buys', body)
 export const marketSummary = (body: MarketAnalyticsQuery) => call<MarketSummary>('POST', '/market-summary', body)
 

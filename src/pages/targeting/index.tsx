@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  districtCounts, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -257,6 +257,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [marketLoading, setMarketLoading] = useState(true)
   const [marketError, setMarketError] = useState(false)
   const [marketRetry, setMarketRetry] = useState(0)
+  const [districtInsightRows, setDistrictInsightRows] = useState<DistrictInsight[]>([])
+  const [districtInsightLoading, setDistrictInsightLoading] = useState(false)
+  const [districtInsightError, setDistrictInsightError] = useState(false)
+  const [districtInsightRetry, setDistrictInsightRetry] = useState(0)
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
@@ -293,6 +297,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   // chosen district names narrow the dense streets and the activity catalog
   const chosenNames = useMemo(() => (polys && polys.length ? polys : []).filter((d) => chosenD.has(d.id)).map((d) => d.ar).concat([...chosenD].filter((id) => id.startsWith('name:')).map((id) => id.slice(5))).sort(), [polys, chosenD])
   const chosenKey = chosenNames.join('|')
+  const insightDistrictNames = useMemo(() => (chosenNames.length ? chosenNames : filters.district ? [filters.district] : []).slice(0, 30), [chosenNames, filters.district])
+  const insightDistrictKey = insightDistrictNames.join('|')
   const buyerSubIds = streetPick.kind === 'sub' ? streetPick.ids
     : focus?.level === 'sub' ? [focus.id]
     : streetPick.kind === 'main' ? (catalog?.find((m) => m.main_id === streetPick.id)?.subs || []).map((s) => s.sub_id)
@@ -339,6 +345,24 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     }).finally(() => { if (active) setMarketLoading(false) })
     return () => { active = false }
   }, [city, lens, streetPick, chosenNames, marketRetry])
+  useEffect(() => {
+    if (!city || !insightDistrictNames.length) {
+      setDistrictInsightRows([])
+      setDistrictInsightError(false)
+      setDistrictInsightLoading(false)
+      return
+    }
+    let active = true
+    setDistrictInsightRows([])
+    setDistrictInsightLoading(true)
+    setDistrictInsightError(false)
+    districtInsights({ city, districts: insightDistrictNames }).then((result) => {
+      if (!active) return
+      setDistrictInsightRows(result?.ok ? result.districts || [] : [])
+      setDistrictInsightError(!result?.ok)
+    }, () => { if (active) setDistrictInsightError(true) }).finally(() => { if (active) setDistrictInsightLoading(false) })
+    return () => { active = false }
+  }, [city, insightDistrictKey, districtInsightRetry])
   const retryMarketStats = () => {
     recordMapInteraction('market_summary_retry')
     setMarketRetry((retry) => retry + 1)
@@ -1527,6 +1551,38 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const marketPanel = mobile
     ? <>{densePanel || <p className="px-5 py-3 text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}{marketSummaryPanel}</>
     : <>{marketSummaryPanel}{densePanel || <p className="px-5 py-3 text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}</>
+  const districtInsightPanel = insightDistrictNames.length ? (
+    <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="ملخص أنشطة الأحياء">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="m-0 text-[15px] font-semibold">ملخص {insightDistrictNames.length === 1 ? 'الحي' : 'الأحياء'}</h2>
+        <span className="text-[11px] text-[var(--color-text-tertiary)]">من سجل الدليل المصنّف</span>
+      </div>
+      {districtInsightLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحلل توزيع الأنشطة في {n(insightDistrictNames.length)} {insightDistrictNames.length === 1 ? 'حي' : 'أحياء'}…</p> : null}
+      {districtInsightRows.map((district) => (
+        <article key={district.district_ar} className="flex flex-col gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-3">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="m-0 text-[14px] font-semibold">حي {district.district_ar}</h3>
+            <span className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]">{n(district.classified)} مصنّف من {n(district.total)} سجل</span>
+          </div>
+          <p className="m-0 text-[13px] leading-[20px]">
+            الأكثر ظهوراً: <strong>{district.dominant_activity?.main_ar || 'لا توجد بيانات مصنّفة'}</strong>{district.dominant_activity ? ` · ${n(district.dominant_activity.n)} سجل` : ''}
+          </p>
+          {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">أبرز تخصصاته: {district.dominant_activity.top_subactivities.map((item) => `${item.sub_ar} (${n(item.n)})`).join('، ')}</p> : null}
+          {district.least_activity ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">الأقل بين الأنشطة المسجلة: {district.least_activity.main_ar} · {n(district.least_activity.n)} سجل</p> : null}
+          {district.activities.length > 1 ? <div className="flex flex-wrap gap-1.5" aria-label="توزيع الأنشطة المسجلة">
+            {district.activities.slice(0, 5).map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[11px]">{activity.main_ar} · {n(activity.n)}</span>)}
+            {district.activities.length > 5 ? <span className="self-center text-[11px] text-[var(--color-text-tertiary)]">و{n(district.activities.length - 5)} أنشطة أخرى</span> : null}
+          </div> : null}
+          {district.absent_from_directory.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>لا تظهر لها سجلات مصنّفة في الدليل:</strong> {district.absent_from_directory.slice(0, 4).join('، ')}{district.absent_from_directory.length > 4 ? `، و${n(district.absent_from_directory.length - 4)} أخرى` : ''}</p> : null}
+          <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">نسبة تغطية التصنيف {n(district.classification_pct)}٪ من السجلات ذات الحي الموثوق. عدم ظهور نشاط لا يثبت عدم وجوده فعلياً.</p>
+        </article>
+      ))}
+      {districtInsightError && !districtInsightLoading ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]">
+        <span>تعذّر تحميل ملخص الأحياء.</span>
+        <button type="button" onClick={() => setDistrictInsightRetry((value) => value + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button>
+      </div> : null}
+    </section>
+  ) : null
   const buyerPanel = lens === 'buyers' && currentBuyerData ? (
     <section className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="المنشآت التي تشتري هذا النشاط">
       <div className="flex items-center justify-between gap-2">
@@ -1562,7 +1618,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{targetResultsPanel}</>
     ) : marketGuide}
   </>
-  const panelBody = <>{fitLegend}{panelContent}</>
+  const panelBody = <>{fitLegend}{districtInsightPanel}{panelContent}</>
 
   // ---------- the map with its floating controls
   const fallbackChips = !hasPolys && polys !== null && districts.length ? (

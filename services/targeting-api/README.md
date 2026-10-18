@@ -4,6 +4,7 @@ This directory tracks the Python service source used by the opportunity map. It 
 
 - `POST /market-summary`
 - `POST /district-counts`
+- `POST /district-insights` — selected districts with aggregate activity mix, dominant and least represented activities, and city activities without a classified district record. Missing means not recorded in the directory, not confirmed absent in reality.
 - `POST /who-buys`
 
 The deployment's business directory and taxonomy assets are intentionally excluded from Git. A deployment requires a separately maintained, access-controlled `data/` directory containing the exact production assets listed in the `Dockerfile`. Do not substitute older local data files: the map counts and supplier coverage depend on the deployed snapshot.

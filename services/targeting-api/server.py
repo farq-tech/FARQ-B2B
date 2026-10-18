@@ -666,11 +666,12 @@ class H(BaseHTTPRequestHandler):
                             'basis': 'تجمع = عدد المحلات من نفس النشاط في الشارع/الحي مقارنة بنسبته في المدينة؛ ليس تأكيدًا للأسعار أو التوفر'})
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
-        elif self.path in ('/market-summary', '/district-counts', '/who-buys'):
+        elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys'):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
             try:
                 if self.path == '/market-summary': self._json(MARKET_ANALYTICS.market_summary(body))
                 elif self.path == '/district-counts': self._json(MARKET_ANALYTICS.district_counts(body))
+                elif self.path == '/district-insights': self._json(MARKET_ANALYTICS.district_insights(body))
                 else: self._json(MARKET_ANALYTICS.who_buys(body))
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
