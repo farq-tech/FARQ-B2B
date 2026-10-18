@@ -36,11 +36,13 @@ function Rolling({ value }: { value: number }) {
 }
 export type CounterItem = { key: string; label: string; value: number | null; lead?: boolean }
 
-export default function Counters({ items, compact = false, selectedMainId, onActivitySelect }: {
+export default function Counters({ items, compact = false, selectedMainId, selectedCounterKey, onActivitySelect, onCounterSelect }: {
   items: CounterItem[]
   compact?: boolean
   selectedMainId?: string | null
+  selectedCounterKey?: string | null
   onActivitySelect?: (mainId: string) => void
+  onCounterSelect?: (key: string) => void
 }) {
   const grouped = !compact && items.some((item) => item.key.startsWith('market-main-'))
   const summaryItems = grouped ? items.filter((item) => !item.key.startsWith('market-main-')) : items
@@ -49,8 +51,14 @@ export default function Counters({ items, compact = false, selectedMainId, onAct
     <div className={className}>
       {values.map((c) => {
         const mainId = c.key.startsWith('market-main-') ? c.key.slice('market-main-'.length) : null
-        const selectable = Boolean(mainId && onActivitySelect)
-        const className = `relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} text-right ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'} ${selectable ? 'cursor-pointer transition-colors hover:border-[var(--map-green)] hover:bg-[var(--color-bg-surface-2)]' : ''} ${mainId && selectedMainId === mainId ? 'ring-2 ring-[var(--map-green)]' : ''}`
+        const selectableActivity = Boolean(mainId && onActivitySelect)
+        const selectableSummary = Boolean(!mainId && onCounterSelect && c.value != null && ['market-size', 'market-districts', 'market-whatsapp', 'market-wholesale', 'city-places', 'city-whatsapp', 'city-districts'].includes(c.key))
+        const selectable = selectableActivity || selectableSummary
+        const pressed = mainId ? selectedMainId === mainId : selectedCounterKey === c.key
+        const opensDistrictPicker = c.key === 'market-districts' || c.key === 'city-districts'
+        const toggleable = Boolean(mainId || c.key === 'market-whatsapp' || c.key === 'market-wholesale' || c.key === 'city-whatsapp')
+        const hoverClass = c.lead ? 'hover:border-[var(--map-green)] hover:bg-[var(--map-ink)]' : 'hover:border-[var(--map-green)] hover:bg-[var(--color-bg-surface-2)]'
+        const className = `relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} text-right ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'} ${selectable ? `cursor-pointer transition-colors ${hoverClass}` : ''} ${pressed ? 'ring-2 ring-[var(--map-green)]' : ''}`
         const body = <>
           <span className={`font-[family-name:var(--font-display)] ${compact ? 'text-[17px] leading-[24px]' : 'text-[20px] leading-[28px]'} font-semibold tabular-nums`}>
             {c.value == null ? '—' : <span aria-hidden><Rolling value={c.value} /></span>}
@@ -60,9 +68,14 @@ export default function Counters({ items, compact = false, selectedMainId, onAct
             {selectable ? <ChevronDown aria-hidden size={12} className="shrink-0" /> : null}
           </span>
         </>
-        return selectable ? <button key={c.key} type="button" data-counter={c.key} aria-pressed={selectedMainId === mainId} aria-label={`تصفية الخريطة حسب ${c.label}، ${c.value == null ? 'العدد غير متاح' : fmt(c.value)} منشأة`} onClick={() => {
-          if (trackDetailSelection) recordMapInteraction('map_activity_counter_detail_select')
-          onActivitySelect?.(mainId!)
+        const actionLabel = opensDistrictPicker
+          ? `اختيار حي من قائمة الأحياء، ${fmt(c.value!)} حياً مغطى`
+          : `تصفية الخريطة حسب ${c.label}، ${c.value == null ? 'العدد غير متاح' : fmt(c.value)} منشأة`
+        return selectable ? <button key={c.key} type="button" data-counter={c.key} aria-pressed={toggleable ? pressed : undefined} aria-label={actionLabel} onClick={() => {
+          if (selectableActivity) {
+            if (trackDetailSelection) recordMapInteraction('map_activity_counter_detail_select')
+            onActivitySelect?.(mainId!)
+          } else onCounterSelect?.(c.key)
         }} className={`${className} ${FOCUS_RING}`}>{body}</button>
           : <div key={c.key} data-counter={c.key} className={className}>{body}</div>
       })}

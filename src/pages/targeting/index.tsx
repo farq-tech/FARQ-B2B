@@ -110,7 +110,7 @@ const arabic = (s: string) => /[؀-ۿ]/.test(s)
 /** Prefer the explicit place flag; only fall back to the role badge when the flag is absent. */
 const isTaggedWholesaleRow = (row: TargetRow) => row.is_wholesale === true || (row.is_wholesale == null && row.role_badges?.includes('جملة') === true)
 /** The narrowing filters under the search bar: district, street, wholesale (manual only), role and specialty. */
-type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty'>
+type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty' | 'contact'>
 type MapScope = 'city' | 'district' | 'street'
 const clusterName = (c: TradeCluster) => [c.level === 'street' ? safeLocationName(c.street_ar) : null, safeLocationName(c.district_ar)].filter(Boolean).join('، ') || c.label_ar
 /** «سوق الزل للأقمشة — الديرة · 230 منشأة» when a curated popular name fits; otherwise «الشارع، الحي — 37 منشأة». */
@@ -180,6 +180,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [showMapPins, setShowMapPins] = useState(false)
   const [mapScope, setMapScope] = useState<MapScope>('city')
+  const [districtPickerOpenRequest, setDistrictPickerOpenRequest] = useState(0)
   const [showMarketClusters, setShowMarketClusters] = useState(false)
   const [showDensity, setShowDensity] = useState(true)
   const [showDistricts, setShowDistricts] = useState(true)
@@ -1418,6 +1419,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
+      {filters.contact === 'whatsapp' ? <Chip className="shrink-0" icon="whatsapp" label="رقم واتساب متاح" selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['contact']))} /> : null}
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
           onClick={() => {
@@ -1879,7 +1881,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     </div>
   ) : !visibleCohort.length ? (
     <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
-      <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
+      <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty || filters.contact ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
       {cohort.length && fitFilter !== 'all' && fitCounts.unknown > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span>فيه {n(fitCounts.unknown)} منشأة بدون تقدير نموذجي؛ قد تظل مطابقة لنشاطها.</span>
@@ -2250,6 +2252,43 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     pickFocus({ level: 'main', id: mainId })
     setTab('guide')
   }
+  const selectedSummaryCounterKey = filters.contact === 'whatsapp' ? 'market-whatsapp' : filters.wholesale ? 'market-wholesale' : null
+  const selectSummaryCounter = (key: string) => {
+    if (key === 'market-districts' || key === 'city-districts') {
+      recordMapInteraction('map_counter_district_picker_open')
+      setMapScope('district')
+      setDistrictPickerOpenRequest((request) => request + 1)
+      return
+    }
+    if (!['market-size', 'market-whatsapp', 'market-wholesale', 'city-places', 'city-whatsapp'].includes(key)) return
+    const current = areaFiltersRef.current
+    if (key === 'market-whatsapp' || key === 'city-whatsapp') recordMapInteraction(current.contact === 'whatsapp' ? 'map_counter_whatsapp_filter_off' : 'map_counter_whatsapp_filter_on')
+    else if (key === 'market-wholesale') recordMapInteraction(current.wholesale ? 'map_counter_wholesale_filter_off' : 'map_counter_wholesale_filter_on')
+    else recordMapInteraction('map_counter_scope_reset')
+    const scopeFilters: AreaFilters = {
+      ...(current.district ? { district: current.district } : {}),
+      ...(current.street ? { street: current.street } : {}),
+    }
+    if (key === 'market-whatsapp' || key === 'city-whatsapp') {
+      if (current.contact !== 'whatsapp') scopeFilters.contact = 'whatsapp'
+    } else if (key === 'market-wholesale') {
+      if (!current.wholesale) scopeFilters.wholesale = true
+    }
+    setQ('')
+    setQuery('')
+    setLens('market')
+    setFocus(null)
+    setStreetPick({ kind: 'all' })
+    setSite(null)
+    setFitFilter('all')
+    setShowUnlocated(false)
+    setActiveStreet(mapScope === 'street' ? activeStreet : null)
+    clusterGen.current++
+    setClusters(null)
+    setAreaFilters(scopeFilters)
+    void loadBrowse(city, scopeFilters, true)
+    setTab('guide')
+  }
   const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} mobile={mobile} />
   const panelContent = lens === 'market'
     ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
@@ -2409,7 +2448,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const mapScopeControl = (
     <div role="group" aria-label="اختر مدينة أو حياً أو شارعاً للخريطة" className={`grid min-w-0 grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'w-[330px] shrink-0'}`}>
       <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} emptyText={cities.length ? 'ما لقينا مدينة بهذا الاسم.' : 'جار تحميل قائمة المدن…'} disabled={busy} mobile={mobile} portalMenu={focusMode} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
-      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} emptyText={districts.length ? 'ما لقينا حياً بهذا الاسم.' : polys === null ? 'جار تحميل أحياء المدينة…' : 'لا تتوفر أحياء للاختيار في هذه المدينة حالياً.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
+      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} emptyText={districts.length ? 'ما لقينا حياً بهذا الاسم.' : polys === null ? 'جار تحميل أحياء المدينة…' : 'لا تتوفر أحياء للاختيار في هذه المدينة حالياً.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} openRequest={districtPickerOpenRequest} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
       <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} emptyText={dense?.list.length ? 'ما لقينا شارعاً بهذا الاسم.' : denseLoadError ? 'تعذر تحميل قائمة الشوارع. حاول مرة أخرى بعد قليل.' : dense === null ? 'جار تحميل الشوارع…' : 'لا توجد شوارع كثيفة متاحة ضمن النطاق الحالي.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
     </div>
   )
@@ -2514,7 +2553,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {linesPanel}
         {fileField}
         {lens !== 'market' ? <StepStrip current={step} mobile /> : null}
-        <Counters items={displayCounters} compact selectedMainId={selectedMainId} onActivitySelect={selectMainFromCounter} />
+        <Counters items={displayCounters} compact selectedMainId={selectedMainId} selectedCounterKey={selectedSummaryCounterKey} onActivitySelect={selectMainFromCounter} onCounterSelect={selectSummaryCounter} />
         {tray}
         {noticeLine}
         <section ref={resultsPanelRef} aria-label="النتائج والدليل" className={`${mobile ? 'map-compact-results-panel ' : ''}-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3`}>
@@ -2586,7 +2625,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <Button type="button" variant="Secondary" size="S" aria-expanded="false" aria-controls="targeting-results-panel" onClick={() => { setResultsPanelOpen(true); recordMapInteraction('map_results_panel_show') }}>عرض النتائج والدليل</Button>
           </div> : null}
           {lens !== 'market' ? <StepStrip current={step} mobile={false} /> : null}
-          <Counters items={displayCounters} selectedMainId={selectedMainId} onActivitySelect={selectMainFromCounter} />
+          <Counters items={displayCounters} selectedMainId={selectedMainId} selectedCounterKey={selectedSummaryCounterKey} onActivitySelect={selectMainFromCounter} onCounterSelect={selectSummaryCounter} />
           {mapBlock}
           {noticeLine}
           {tray}
@@ -2599,7 +2638,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 }
 
 /** A compact, map-friendly filter control whose menu floats over results instead of shifting them. */
-function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emptyText, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen, portalMenu = false }: {
+function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emptyText, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen, portalMenu = false, openRequest = 0 }: {
   id: string
   label: string
   icon: typeof DistrictIcon | null
@@ -2614,10 +2653,13 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
   onOpen?: () => void
   /** In expanded-map mode, render above the map's stacking context and anchor to the trigger. */
   portalMenu?: boolean
+  /** Open the menu when a related summary counter is activated. */
+  openRequest?: number
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const searchUsed = useRef(false)
+  const handledOpenRequest = useRef(0)
   const root = useRef<HTMLDivElement>(null)
   const menuRoot = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -2627,6 +2669,14 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
       setSearch('')
     }
   }, [open])
+  useEffect(() => {
+    if (!openRequest || openRequest === handledOpenRequest.current) return
+    handledOpenRequest.current = openRequest
+    setOpen(true)
+    setSearch('')
+    onOpen?.()
+    recordMapInteraction(`map_filter_open_${analyticsKey}`)
+  }, [openRequest, onOpen, analyticsKey])
   useEffect(() => {
     if (!open) return
     const modalMenu = mobile && !portalMenu

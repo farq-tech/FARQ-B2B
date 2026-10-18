@@ -143,7 +143,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
         return route.fulfill({ json: { total: 2, rows, parsed: { keywords: [String(body.q || '')] }, areas: AREAS, understood: {}, has_more: page === 0, next_offset: page === 0 ? 1 : null } })
       }
       const source = opts.malformedDistrict ? [...ALL, row(7, 'مؤسسة بلا حي', '{"id": null, "name_ar": null, "name_en": null}', '', 24.65, 46.72)] : ALL
-      const rows = source.filter((r) => (!f.wholesale || r.is_wholesale) && (!f.district || r.district_ar === f.district) && (!f.street || r.street_ar.includes(f.street)) && (!f.role || (r.role_badges as string[]).includes(f.role)) && (!f.specialty || (r.specialties as string[]).includes(f.specialty)))
+      const rows = source.filter((r) => (!f.wholesale || Boolean((r as Extra).is_wholesale)) && (!f.district || r.district_ar === f.district) && (!f.street || r.street_ar.includes(f.street)) && (!f.role || (r.role_badges as string[]).includes(f.role)) && (!f.specialty || (r.specialties as string[]).includes(f.specialty)))
       const areas = opts.malformedDistrict ? { ...AREAS, districts: [...AREAS.districts, { name: '{"id": null, "name_ar": null, "name_en": null}', n: 1 }] } : AREAS
       return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['أدوات صحية'] }, areas, understood: { wholesale: /جمل/.test(body.q), sub_ids: ['build.plumbing_supply'] } } })
     }
@@ -389,6 +389,33 @@ test.describe('desktop 1440', () => {
     })).toBe(true)
     await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
     await expect(page.locator('[data-counter="market-main-build"]')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('market activity counter keeps the selected street', async ({ page }) => {
+    const { marketQueries, searchRequests } = await setup(page)
+    await page.goto('/opportunity-map')
+
+    const scope = page.getByRole('group', { name: 'اختر مدينة أو حياً أو شارعاً للخريطة' })
+    await scope.getByRole('button', { name: 'الحي', exact: true }).click()
+    await page.getByRole('option', { name: 'الملك فيصل', exact: true }).click()
+    await scope.getByRole('button', { name: 'الشارع', exact: true }).click()
+    await page.getByRole('option', { name: /شارع خالد بن الوليد/ }).click()
+
+    await expect.poll(() => searchRequests.some((request) => {
+      const filters = request.filters as Record<string, unknown> | undefined
+      return Boolean(filters) && filters!.district === 'الملك فيصل' && filters!.street === 'شارع خالد بن الوليد'
+    })).toBe(true)
+
+    await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
+    await page.locator('[data-counter="market-main-build"]').click()
+
+    await expect.poll(() => marketQueries.some((query) => query.main_id === 'build' &&
+      (query.districts as string[] | undefined)?.includes('الملك فيصل'))).toBe(true)
+    await expect.poll(() => searchRequests.some((request) => {
+      const filters = request.filters as Record<string, unknown> | undefined
+      return request.q === '' && Boolean(filters) && filters!.district === 'الملك فيصل' &&
+        filters!.street === 'شارع خالد بن الوليد' && Object.keys(filters!).length === 2
+    })).toBe(true)
   })
 
   test('recovers a transient market-summary failure without a manual retry', async ({ page }) => {
