@@ -608,10 +608,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const r = await searchTargets(query, city, FETCH, browsingMarket ? 'browse' : objective, res.next_offset, filters)
       if (version !== generation.current) return
       const newRows = r.rows.filter((row) => !res.rows.some((current) => current.poi_key === row.poi_key))
+      const foundUnlocated = newRows.some((row) => !hasPoint(row))
       setRes((cur) => cur ? { ...cur, rows: [...cur.rows, ...r.rows.filter((x) => !cur.rows.some((y) => y.poi_key === x.poi_key))], has_more: r.has_more, next_offset: r.next_offset } : cur)
       setShown((s) => s + r.rows.length)
       if (browsingMarket) recordMapInteraction('map_browse_more_succeeded')
-      if (forUnlocated) recordMapInteraction(newRows.some((row) => !hasPoint(row)) ? 'site_unlocated_batch_found' : 'site_unlocated_batch_empty')
+      if (forUnlocated) {
+        recordMapInteraction(foundUnlocated ? 'site_unlocated_batch_found' : 'site_unlocated_batch_empty')
+        if (foundUnlocated) setShowUnlocated(true)
+      }
     } catch (err) {
       if (version === generation.current) {
         setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
