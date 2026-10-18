@@ -577,7 +577,7 @@ ORDER BY week_utc DESC, control;
 
 These events are consented, session-level UI signals, not evidence that the guide content was understood or that the map task succeeded. The query is not device-specific. Wait for two complete weeks and 30 consenting sessions per control before treating the rate as directional; pair it with a phone task observing whether users can show, use, and hide the guide without covering the map. Missing events can reflect consent or blocked analytics requests, not absence of exposure.
 
-## Wholesale filter in market browse and supplier search
+## Wholesale filter in supplier search
 
 The «جملة فقط» chip is shown with supplier-search results. The current city-wide browse response has no area facets, so this chip is not rendered in that view. The events below measure supplier-search sessions in which it is enabled, plus a coarse result bucket. They never include the search phrase, city, selected district, or establishment key. All events require the existing map-analytics consent.
 
