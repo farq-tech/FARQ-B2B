@@ -18,6 +18,8 @@ Before connecting Railway deployments to this folder, verify the staged data ass
 
 `market_analytics.py` shares the directory's open-record policy and taxonomy classification. It returns aggregate values only; it does not expose business names, contact details, or row identifiers. Buyer counts describe taxonomy-based typical purchasing, not confirmed intent or actual transactions. The WhatsApp count reflects the source flag, not independent verification.
 
+Unexpected failures in map read endpoints keep the existing `503 UNAVAILABLE` response and emit a structured `farq.targeting` error log with a fixed endpoint label, exception class, and a short source stack. Exception messages, request bodies, search text, locations, and directory data are deliberately omitted.
+
 ## Directory contact filters
 
 For `/search` (including `objective: "browse"`), `/map-query`, and the resulting map tiles, an omitted or `all` `filters.contact` means **no contact-channel restriction**. This keeps the full eligible directory available for discovery and map analysis. `contact: "whatsapp"` and `contact: "email"` explicitly restrict results to those channels. Browse and search remain paginated; map tiles aggregate locations at lower zoom levels.
