@@ -414,6 +414,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     lastStatusNoticeKey.current = statusNoticeKey
     recordMapInteraction('map_results_status_notice')
   }, [statusNoticeKey, unconfirmedStatusCount])
+  const qualityNoticeSeen = useRef(false)
+  useEffect(() => {
+    if (qualityNoticeSeen.current || mapAnalyticsConsent() !== 'accepted' || !hasTargetQuery || !res || (!unconfirmedStatusCount && !unverifiedWhatsappCount)) return
+    qualityNoticeSeen.current = true
+    recordMapInteraction('map_data_quality_notice_seen')
+  }, [analyticsConsentRevision, hasTargetQuery, res, unconfirmedStatusCount, unverifiedWhatsappCount])
   const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
@@ -1271,7 +1277,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </p>
       ) : null}
       {hasTargetQuery && res && (unverifiedWhatsappCount > 0 || unconfirmedStatusCount > 0) ? (
-        <details className="group mb-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
+        <details onToggle={(event) => { if (event.currentTarget.open) recordMapInteraction('map_data_quality_notice_open') }} className="group mb-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
           <summary className={`flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 font-medium ${FOCUS_RING}`}>
             <span className="flex min-w-0 items-center gap-1.5"><WarningIcon size={15} className="shrink-0" /><span>تنبيهات قبل التواصل</span></span>
             <Icon name="chevron-down" size={14} className="shrink-0 transition-transform group-open:rotate-180" />
