@@ -1658,3 +1658,50 @@ ORDER BY 1 DESC;
 ```
 
 These counts show control use, not whether hiding the panel improved map-task completion. Compare them with a short desktop task check and map-search/profile outcomes after two complete weeks and at least 30 consenting sessions; internal QA traffic must not be treated as customer preference.
+
+
+## Supplier discovery choices and selection actions
+
+This weekly aggregate counts consented sessions that choose a search direction, filter the visible map results by estimated fit, select or deselect a supplier, or bulk-select the current visible candidates. It also counts use of the add-products entry point. These events contain no search text, location, supplier identifier, or selection contents.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  CASE element_label
+    WHEN 'pricing_map_start_mode_buyer' THEN 'search for suppliers'
+    WHEN 'pricing_map_start_mode_seller' THEN 'search for buyers'
+    WHEN 'pricing_map_fit_filter_all' THEN 'show all fit estimates'
+    WHEN 'pricing_map_fit_filter_likely' THEN 'filter to likely fit'
+    WHEN 'pricing_map_fit_filter_maybe' THEN 'filter to possible fit'
+    WHEN 'pricing_map_fit_filter_low' THEN 'filter to low fit'
+    WHEN 'pricing_map_fit_filter_unknown' THEN 'filter to unestimated fit'
+    WHEN 'pricing_map_fit_supplier_selection' THEN 'bulk-select visible fit candidates'
+    WHEN 'pricing_map_map_supplier_add' THEN 'select one supplier'
+    WHEN 'pricing_map_map_supplier_remove' THEN 'remove one supplier selection'
+    WHEN 'pricing_map_map_seller_add_products' THEN 'open add-products flow'
+  END AS interaction,
+  count(*) AS actions,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_start_mode_buyer',
+    'pricing_map_start_mode_seller',
+    'pricing_map_fit_filter_all',
+    'pricing_map_fit_filter_likely',
+    'pricing_map_fit_filter_maybe',
+    'pricing_map_fit_filter_low',
+    'pricing_map_fit_filter_unknown',
+    'pricing_map_fit_supplier_selection',
+    'pricing_map_map_supplier_add',
+    'pricing_map_map_supplier_remove',
+    'pricing_map_map_seller_add_products'
+  )
+GROUP BY 1, 2
+ORDER BY week_utc DESC, interaction;
+```
+
+These counts describe interaction, not supplier relevance, purchase intent, campaign completion, or successful contact. Individual selection is temporary on the page, and bulk selection does not send messages. Review at least two complete weeks and 30 consenting sessions for the interaction family before interpreting a pattern; when volume is lower, treat the result as instrumentation confirmation only.
