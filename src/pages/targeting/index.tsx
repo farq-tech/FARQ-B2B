@@ -1378,7 +1378,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
-          <aside id="map-focus-panel" aria-label="النتائج والدليل" className={`absolute z-30 flex flex-col overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-md transition-[height] duration-300 motion-reduce:transition-none ${mobile ? `inset-x-0 bottom-0 ${focusPanelSnap === 'peek' ? 'h-[15dvh]' : focusPanelSnap === 'full' ? 'h-[95dvh]' : 'h-[58dvh]'} rounded-t-2xl pb-[env(safe-area-inset-bottom)]` : 'inset-y-3 end-3 top-[116px] w-[min(400px,calc(100vw-24px))] rounded-2xl'}`}>
+          <aside id="map-focus-panel" aria-label="النتائج والدليل" style={mobile ? { height: `calc(${focusPanelSnap === 'peek' ? 15 : focusPanelSnap === 'full' ? 95 : 58}dvh + env(safe-area-inset-bottom))` } : undefined} className={`absolute z-30 flex flex-col overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-md transition-[height] duration-300 motion-reduce:transition-none ${mobile ? 'inset-x-0 bottom-0 max-h-[calc(100dvh-env(safe-area-inset-top))] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'inset-y-3 end-3 top-[116px] w-[min(400px,calc(100vw-24px))] rounded-2xl'}`}>
             {mobile ? <button type="button" aria-label="تغيير ارتفاع لوحة النتائج" onClick={() => {
               if (panelDidDrag.current) { panelDidDrag.current = false; return }
               setSheetSnap(focusPanelSnap === 'peek' ? 'half' : focusPanelSnap === 'half' ? 'full' : 'peek')
