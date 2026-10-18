@@ -1396,7 +1396,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
       {objective === 'purchase' && isWholesaleRequest(query) ? (
         <div className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
-          <p className="m-0 min-w-0 flex-1 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">وسم «جملة» مأخوذ من سجل المنشأة ولا يضمن صحة بياناتها. وجدنا {n(loadedWholesaleRows.length)} مورداً موسوماً في النتائج المحمّلة؛ الاختيار يضم الموسومين الذين لديهم واتساب فقط. حمّل دفعات إضافية لمراجعة بقية {n(res.total)} نتيجة.</p>
+          <p className="m-0 min-w-0 flex-1 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">وسم «جملة» مأخوذ من سجل المنشأة ولا يضمن صحة بياناتها. وجدنا {n(loadedWholesaleRows.length)} مورداً موسوماً ضمن {n(rows.length)} نتيجة محمّلة من أصل {n(res.total)}؛ الاختيار يضم الموسومين الذين لديهم واتساب فقط. {res.has_more ? `حمّل المزيد لمراجعة ${n(Math.max(0, res.total - rows.length))} نتيجة متبقية.` : 'تم تحميل جميع النتائج.'}</p>
           <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableWholesaleRows.length} onClick={selectLoadedWholesaleCandidates}>اختر موردي الجملة المتاحين · {n(selectableWholesaleRows.length)}</Button>
         </div>
       ) : null}
