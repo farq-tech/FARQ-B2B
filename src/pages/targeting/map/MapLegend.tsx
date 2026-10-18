@@ -69,7 +69,7 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
         <li>
           <fieldset className="m-0 grid min-w-0 grid-cols-2 gap-1 border-0 p-0">
             <legend className="sr-only">تصفية المنشآت حسب تقدير الملاءمة</legend>
-            {FITS.map(({ fit, label }) => (
+            {FITS.filter(({ fit }) => fit === 'all' || counts[fit] > 0).map(({ fit, label }) => (
               <button key={fit} type="button" aria-pressed={fitFilter === fit}
                 onClick={(event) => { event.stopPropagation(); onFitFilterChange(fit) }}
                 className={`flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-start ${fitFilter === fit ? 'bg-[var(--color-bg-surface-2)] font-semibold text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)]'}`}>
