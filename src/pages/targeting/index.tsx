@@ -1392,7 +1392,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </div>
         {focusPanelOpen ? (
           <aside id="map-focus-panel" aria-label="النتائج والدليل" style={mobile ? { height: `calc(${focusPanelSnap === 'peek' ? 15 : focusPanelSnap === 'full' ? 95 : 58}dvh + env(safe-area-inset-bottom))` } : undefined} className={`absolute z-30 flex flex-col overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-md transition-[height] duration-300 motion-reduce:transition-none ${mobile ? 'inset-x-0 bottom-0 max-h-[calc(100dvh-env(safe-area-inset-top))] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'inset-y-3 end-3 top-[116px] w-[min(400px,calc(100vw-24px))] rounded-2xl'}`}>
-            {mobile ? <button type="button" aria-label="تغيير ارتفاع لوحة النتائج" onClick={() => {
+            {mobile ? <button type="button" aria-expanded={focusPanelSnap !== 'peek'} aria-label={
+              focusPanelSnap === 'peek' ? 'لوحة النتائج مختصرة؛ اضغط لعرض التفاصيل' : focusPanelSnap === 'half' ? 'لوحة النتائج بارتفاع متوسط؛ اضغط لتوسيعها بالكامل' : 'لوحة النتائج بكامل الشاشة؛ اضغط لتصغيرها'
+            } onClick={() => {
               if (panelDidDrag.current) { panelDidDrag.current = false; return }
               setSheetSnap(focusPanelSnap === 'peek' ? 'half' : focusPanelSnap === 'half' ? 'full' : 'peek')
             }} onPointerDown={(event) => { panelDragStart.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId) }} onPointerUp={(event) => {
