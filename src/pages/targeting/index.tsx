@@ -423,13 +423,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     ]
     if (query && res) return lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
-      { key: 'supplier-whatsapp', label: 'أرقام موسومة كواتساب', value: whatsapp },
+      { key: 'supplier-whatsapp', label: 'وسم واتساب من المصدر', value: whatsapp },
       { key: 'supplier-located', label: locationLabel, value: precise },
       { key: 'supplier-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'supplier-districts', label: 'أحياء بها نتائج', value: areas },
     ] : [
       { key: 'buyer-matches', label: 'جهات قد تشتري', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
-      { key: 'buyer-whatsapp', label: 'أرقام موسومة كواتساب', value: whatsapp },
+      { key: 'buyer-whatsapp', label: 'وسم واتساب من المصدر', value: whatsapp },
       { key: 'buyer-located', label: locationLabel, value: precise },
       { key: 'buyer-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'buyer-activities', label: 'أنشطة مشترية مرصودة', value: currentBuyerData?.buyers.length || 0 },
