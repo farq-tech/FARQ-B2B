@@ -61,11 +61,28 @@ html, body, #root {
 
 /* Keep the map available while scrolling the stacked results layout on tablet-sized screens. */
 @media (min-width: 768px) and (max-width: 1200px) {
+  :root {
+    --farq-map-compact-sticky-height: clamp(220px, 26dvh, 280px);
+  }
+
+  .map-compact-scroll-layout {
+    padding-bottom: calc(100dvh - var(--farq-map-compact-sticky-height));
+  }
+
   .map-compact-scroll-anchor {
     position: sticky;
     top: 0;
     z-index: 20;
-    height: clamp(220px, 26dvh, 280px);
+    height: var(--farq-map-compact-sticky-height);
     box-shadow: var(--farq-soft-shadow);
+  }
+
+  .map-compact-results-panel {
+    position: sticky;
+    top: var(--farq-map-compact-sticky-height);
+    z-index: 30;
+    max-height: calc(100dvh - var(--farq-map-compact-sticky-height));
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }

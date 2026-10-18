@@ -1538,7 +1538,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 
   if (mobile) {
     return (
-      <div className="flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6">
+      <div className={`flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6 ${mobile ? 'map-compact-scroll-layout' : ''}`}>
         <h1 className="sr-only">خريطة الفرص</h1>
         <div className="flex flex-wrap items-center justify-between gap-2">
           {direction}
@@ -1560,7 +1560,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <Counters items={displayCounters} compact />
         {tray}
         {noticeLine}
-        <section ref={resultsPanelRef} aria-label="النتائج والدليل" className="-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3">
+        <section ref={resultsPanelRef} aria-label="النتائج والدليل" className={`${mobile ? 'map-compact-results-panel ' : ''}-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3`}>
           {panelHead}
           {panelBody}
         </section>
