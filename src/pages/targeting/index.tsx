@@ -1173,23 +1173,23 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
       {!focusMode ? <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[13px] font-semibold shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
+          <div className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[13px] font-semibold shadow-[var(--farq-soft-shadow)] backdrop-blur-md md:min-h-8">
             <span>{focus?.level === 'main' ? `النشاط الرئيسي: ${mainAr(focus.id)}` : focus?.level === 'sub' ? `النشاط الفرعي: ${subAr(focus.id) || ''}` : focus?.level === 'spec' ? `التخصص: ${focus.id}` : lens === 'market' ? 'نظرة عامة على السوق' : 'النشاط الرئيسي'}</span>
-            {focus ? <button type="button" onClick={() => pickFocus(null)} className={`text-[var(--color-text-info)] underline ${FOCUS_RING}`}>العودة للمستوى الأعلى</button> : null}
+            {focus ? <button type="button" onClick={() => pickFocus(null)} className={`inline-flex min-h-11 items-center px-2 text-[var(--color-text-info)] underline md:min-h-8 ${FOCUS_RING}`}>العودة للمستوى الأعلى</button> : null}
           </div>
           <div className="pointer-events-auto flex flex-wrap gap-1.5">
-            {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
+            {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`min-h-11 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] md:min-h-8 ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
             {site ? (
               <div className="flex items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] py-1 ps-3 pe-1 text-[13px] font-medium shadow-[var(--farq-soft-shadow)]">
                 <FilterPill id="site-radius" label={`نطاق التوصيل · ${site.km} كم`} icon={null} analyticsKey="site_radius" options={RADII.map((radius) => ({ value: String(radius), text: `${radius} كم` }))} disabled={false} mobile={mobile} onPick={(value) => setSite({ ...site, km: Number(value) })} />
                 <button type="button" aria-label="إزالة موقع المشروع" onClick={() => { setSite(null); setShowUnlocated(false) }} className={`flex ${mobile ? 'size-11' : 'size-7'} items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={14} /></button>
               </div>
             ) : (
-              <button type="button" aria-pressed={placingSite} onClick={() => setPlacingSite((p) => !p)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${placingSite ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 backdrop-blur-md'} ${FOCUS_RING}`}>
+              <button type="button" aria-pressed={placingSite} onClick={() => setPlacingSite((p) => !p)} className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] md:min-h-8 ${placingSite ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 backdrop-blur-md'} ${FOCUS_RING}`}>
                 <Icon name="map-pin" size={14} />{placingSite ? 'اضغط على الخريطة' : 'موقع المشروع'}
               </button>
             )}
-            <button type="button" onClick={() => changeFocusMode(true)} className={`rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] ${FOCUS_RING}`}>توسيع الخريطة</button>
+            <button type="button" onClick={() => changeFocusMode(true)} className={`min-h-11 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] md:min-h-8 ${FOCUS_RING}`}>توسيع الخريطة</button>
           </div>
         </div>
         {fallbackChips}
@@ -1300,11 +1300,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                     recordMapInteraction(nextOpen ? 'map_sheet_open' : 'map_sheet_close')
                     if (nextOpen) setSheetSnap('peek')
                   }}
-                  className={`shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm ${FOCUS_RING}`}>
+                  className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm md:min-h-8 ${FOCUS_RING}`}>
                   {focusPanelOpen ? 'إخفاء اللوحة' : hasTargetQuery ? `النتائج · ${n(visibleCohort.length)}` : 'ابدأ البحث'}
                 </button>
                 <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
-                  className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium ${FOCUS_RING}`}>
+                  className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium md:min-h-8 ${FOCUS_RING}`}>
                   رجوع للتخطيط
                 </button>
               </div>
@@ -1332,7 +1332,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
                 <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : hasTargetQuery ? `النتائج · ${n(visibleCohort.length)} منشأة` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
-                <button type="button" onClick={() => setSheetSnap('half')} className={`shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold ${FOCUS_RING}`}>عرض التفاصيل</button>
+                <button type="button" onClick={() => setSheetSnap('half')} className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold md:min-h-8 ${FOCUS_RING}`}>عرض التفاصيل</button>
               </div>
             ) : <>
               {panelHead}
@@ -1491,7 +1491,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   return (
     <div ref={root} className="relative shrink-0">
       <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
-        className={`inline-flex min-h-10 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 ${FOCUS_RING}`}>
+        className={`inline-flex min-h-11 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 md:min-h-10 ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
         <Icon name="chevron-down" size={14} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
