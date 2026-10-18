@@ -383,6 +383,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return counts
   }, [cohort])
   const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
+  const resultCountPair = res ? `${n(visibleCohort.length)}/${n(res.total)}` : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
   const statusNoticeKey = res ? `${res.map_query || ''}|${res.total}|${res.rows[0]?.poi_key || ''}|${unconfirmedStatusCount}` : ''
   const lastStatusNoticeKey = useRef('')
@@ -1281,7 +1282,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             recordMapInteraction('map_results_jump')
             resultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           }} disabled={busy} className={`pointer-events-auto rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-4 py-2 text-[14px] font-semibold shadow-lg backdrop-blur-md disabled:opacity-70 ${FOCUS_RING}`}>
-            {busy ? 'جارٍ تحديث النتائج…' : `عرض النتائج · ${n(visibleCohort.length)}`}
+            {busy ? 'جارٍ تحديث النتائج…' : `عرض النتائج · ${resultCountPair}`}
           </button>
         </div>
       ) : null}
@@ -1349,7 +1350,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                     if (nextOpen) setSheetSnap('peek')
                   }}
                   className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm md:min-h-8 ${FOCUS_RING}`}>
-                  {focusPanelOpen ? 'إخفاء اللوحة' : hasTargetQuery ? `النتائج · ${n(visibleCohort.length)}` : 'ابدأ البحث'}
+                  {focusPanelOpen ? 'إخفاء اللوحة' : hasTargetQuery ? `النتائج · ${resultCountPair}` : 'ابدأ البحث'}
                 </button>
                 <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
                   className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium md:min-h-8 ${FOCUS_RING}`}>
@@ -1361,7 +1362,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
-          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : hasTargetQuery ? `نتائج · ${n(visibleCohort.length)}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
+          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : hasTargetQuery ? `نتائج · ${resultCountPair}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
@@ -1379,7 +1380,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             }} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
-                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : hasTargetQuery ? `النتائج · ${n(visibleCohort.length)} منشأة` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
+                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : hasTargetQuery ? `النتائج · ${resultCountPair} منشأة` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
                 <button type="button" onClick={() => setSheetSnap('half')} className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold md:min-h-8 ${FOCUS_RING}`}>عرض التفاصيل</button>
               </div>
             ) : <>
