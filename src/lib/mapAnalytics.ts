@@ -6,6 +6,14 @@ const MAP_EVENTS = [
   'map_search_results_1_4',
   'map_search_results_5_plus',
   'map_search_failed',
+  'map_supplier_search_failure_server',
+  'map_supplier_search_failure_client',
+  'map_supplier_search_failure_network',
+  'map_supplier_search_failure_other',
+  'map_buyer_search_failure_server',
+  'map_buyer_search_failure_client',
+  'map_buyer_search_failure_network',
+  'map_buyer_search_failure_other',
   'map_browse_succeeded',
   'map_browse_failed',
   'map_browse_refresh_failed',
@@ -313,6 +321,12 @@ export function mapSearchContactAvailabilityEvent(totalRows: number, rowsWithCon
 
 export function mapSearchFailedEvent(objective: SearchObjective): MapEventName {
   return objective === 'purchase' ? 'map_supplier_search_failed' : 'map_buyer_search_failed'
+}
+
+/** Failure class only; never records query text, location, response body, or establishment data. */
+export function mapSearchFailureEvent(objective: SearchObjective, status?: number, networkFailure = false): MapEventName {
+  const cause = networkFailure ? 'network' : status != null && status >= 500 ? 'server' : status != null && status >= 400 ? 'client' : 'other'
+  return `map_${objective === 'purchase' ? 'supplier' : 'buyer'}_search_failure_${cause}` as MapEventName
 }
 
 export function mapResultProfileOpenEvent(objective: SearchObjective): MapEventName {

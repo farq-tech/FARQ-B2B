@@ -42,6 +42,14 @@ WITH map_events AS (
       'pricing_map_map_search_results_1_4',
       'pricing_map_map_search_results_5_plus',
       'pricing_map_map_search_failed',
+      'pricing_map_map_supplier_search_failure_server',
+      'pricing_map_map_supplier_search_failure_client',
+      'pricing_map_map_supplier_search_failure_network',
+      'pricing_map_map_supplier_search_failure_other',
+      'pricing_map_map_buyer_search_failure_server',
+      'pricing_map_map_buyer_search_failure_client',
+      'pricing_map_map_buyer_search_failure_network',
+      'pricing_map_map_buyer_search_failure_other',
       'pricing_map_map_browse_succeeded',
       'pricing_map_map_browse_failed',
       'pricing_map_map_browse_refresh_failed',
@@ -1705,3 +1713,38 @@ ORDER BY week_utc DESC, interaction;
 ```
 
 These counts describe interaction, not supplier relevance, purchase intent, campaign completion, or successful contact. Individual selection is temporary on the page, and bulk selection does not send messages. Review at least two complete weeks and 30 consenting sessions for the interaction family before interpreting a pattern; when volume is lower, treat the result as instrumentation confirmation only.
+
+## Search failures by cause
+
+Search failures already have role-specific events. The additional failure-class events distinguish server responses, client responses, network failures, and unclassified failures without recording the search phrase, location, response body, or business data. They are emitted for failed search attempts after the request is still current; superseded requests are ignored. This query reports aggregate event counts and consenting sessions only.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  CASE
+    WHEN element_label LIKE 'pricing_map_map_supplier_search_failure_%' THEN 'supplier search'
+    ELSE 'buyer search'
+  END AS search_type,
+  split_part(element_label, '_failure_', 2) AS failure_cause,
+  count(*) AS failed_attempts,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_supplier_search_failure_server',
+    'pricing_map_map_supplier_search_failure_client',
+    'pricing_map_map_supplier_search_failure_network',
+    'pricing_map_map_supplier_search_failure_other',
+    'pricing_map_map_buyer_search_failure_server',
+    'pricing_map_map_buyer_search_failure_client',
+    'pricing_map_map_buyer_search_failure_network',
+    'pricing_map_map_buyer_search_failure_other'
+  )
+GROUP BY 1, 2, 3
+ORDER BY week_utc DESC, search_type, failure_cause;
+```
+
+The cause is a coarse diagnostic, not proof of the upstream root cause: for example, a server response can originate from a gateway or a dependency. Compare aggregate counts with service-side logs for the same period. Consent is required, so this does not represent all attempts or all users; keep internal QA separate from customer usage.
