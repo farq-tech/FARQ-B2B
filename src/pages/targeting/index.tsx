@@ -1226,7 +1226,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     </section>
   )
   const panelHead = (
-    <div className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
+    <div className="map-compact-results-panel-head flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 pt-3">
       {lens === 'buyers' ? (
         <div className="flex items-center justify-between gap-3 rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
           <div className="min-w-0">
