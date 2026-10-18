@@ -150,7 +150,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const hasTargetQuery = Boolean(query.trim())
   const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
-  const [buyerProductGroups, setBuyerProductGroups] = useState<{ name: string; rows: TargetRow[]; total: number; nextOffset: number | null }[]>([])
+  const [buyerProductGroups, setBuyerProductGroups] = useState<{ name: string; rows: TargetRow[]; total: number; nextOffset: number | null; filters: AreaFilters }[]>([])
   const [buyerProductProgress, setBuyerProductProgress] = useState<{ completed: number; total: number } | null>(null)
   const buyerProductMode = lens === 'buyers' && buyerProductGroups.length > 0
   const hasAudienceBrowse = lens === 'buyers' && !hasTargetQuery && Boolean(res) && !buyerProductMode
@@ -854,6 +854,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const products = [...new Set(lines.map((line) => line.name.trim()).filter(Boolean))]
     if (!inCity || !products.length) { void loadBrowse(inCity, {}); return }
     const version = ++generation.current
+    const requestStartedAt = performance.now()
+    recordMapInteraction('map_buyer_products_search_started')
     setBusyKind('search'); setError(null); setFailedResultRefresh(false); setProfile(null)
     setLens('buyers'); setObjective('marketing'); setQuery(''); setQ(''); setFilters(productFilters); setRes(null)
     if (!preserveSpatial) {
@@ -878,10 +880,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         rows: responses[index].rows,
         total: responses[index].total,
         nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null),
+        filters: productFilters,
       }))
       const unique = new Map<string, TargetRow>()
       for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
       const rows = [...unique.values()]
+      recordMapInteraction(rows.length === 0 ? 'map_buyer_products_search_results_empty' : rows.length < 5 ? 'map_buyer_products_search_results_1_4' : 'map_buyer_products_search_results_5_plus')
+      recordMapInteraction(performance.now() - requestStartedAt < 1_000 ? 'map_buyer_products_search_under_1s' : performance.now() - requestStartedAt < 3_000 ? 'map_buyer_products_search_1_to_3s' : 'map_buyer_products_search_over_3s')
       const first = responses[0]
       setBuyerProductGroups(groups)
       setRes({ ...first, rows, total: rows.length, with_whatsapp: rows.filter((row) => Boolean(waNumber(row))).length, with_email: rows.filter((row) => Boolean(row.email)).length, has_more: groups.some((group) => group.nextOffset != null), next_offset: null })
@@ -892,7 +897,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setShown(FETCH); setActiveLine(null); setTab('results'); setMessage(defaultMessage(null, cityName(inCity)))
       loadClusters('', inCity, false, 'marketing', true)
     } catch (err) {
-      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل مطابقة كل منتجاتك. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
+      if (version === generation.current) {
+        recordMapInteraction('map_buyer_products_search_failed')
+        setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل مطابقة كل منتجاتك. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
+      }
     } finally {
       if (version === generation.current) { setBusyKind(null); setBuyerProductProgress(null) }
     }
@@ -904,7 +912,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const offset = group.nextOffset
     setBusyKind('more'); setError(null)
     try {
-      const response = await searchTargets(group.name, city, FETCH, 'marketing', offset, {}, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))
+      const response = await searchTargets(group.name, city, FETCH, 'marketing', offset, group.filters, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))
       if (version !== generation.current) return
       const appended = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
       const nextOffset = response.next_offset ?? (response.has_more ? offset + response.rows.length : null)
