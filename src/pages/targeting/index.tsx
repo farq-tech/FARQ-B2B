@@ -148,6 +148,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const hasTargetQuery = Boolean(query.trim())
   const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
+  const hasAudienceBrowse = lens === 'buyers' && !hasTargetQuery && Boolean(res)
+  const showTargetResults = hasTargetQuery || hasAudienceBrowse
   const [focusedTile, setFocusedTile] = useState<{ key: string; query: string } | null>(null)
   const [focusedTileError, setFocusedTileError] = useState(false)
   const [specialtyFocusResolving, setSpecialtyFocusResolving] = useState(false)
@@ -1760,7 +1762,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const targetBrowsePrompt = lens === 'sellers'
     ? 'اكتب اسم منتج أو نشاط لعرض الموردين المطابقين، أو اختر شارعاً أخضر لتبدأ البحث بنشاطه.'
     : 'اكتب منتجاتك أو اختر نشاطاً من الشوارع الخضراء لعرض المشترين المحتملين.'
-  const targetResultsPanel = hasTargetQuery ? resultsBody : (
+  const targetResultsPanel = showTargetResults ? resultsBody : (
     <section ref={searchPromptRef} className="mx-4 my-3 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-4 py-3" aria-live="polite" data-testid="map-search-prompt">
       <h2 className="m-0 text-[14px] font-semibold">{lens === 'sellers' ? 'ابدأ بالبحث عن مورد' : 'ابدأ باكتشاف المشترين'}</h2>
       <p className="mb-0 mt-1 text-[13px] leading-[21px] text-[var(--color-text-secondary)]">{targetBrowsePrompt}</p>
@@ -1779,12 +1781,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : null}
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="اللوحة" className="flex gap-1 rounded-full bg-[var(--color-bg-surface-2)] p-1">
-          {((mobile ? [['streets', 'الشوارع'], ['results', hasTargetQuery ? `النتائج · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'الدليل']] : [['results', hasTargetQuery ? `النتائج · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (
+          {((mobile ? [['streets', 'الشوارع'], ['results', showTargetResults ? `المنشآت · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'الدليل']] : [['results', showTargetResults ? `المنشآت · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k || (!mobile && tab === 'streets' && k === 'results')} onClick={() => setTab(k)}
               className={`rounded-full px-4 py-1.5 text-[14px] leading-[22px] font-medium ${tab === k ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[var(--farq-button-shadow)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>{l}</button>
           ))}
         </div>
-        {hasTargetQuery && res && waInCohort ? (
+        {showTargetResults && res && waInCohort ? (
           <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] hover:underline ${FOCUS_RING}`}
             onClick={() => {
               if (chosen.length) { setSelected(new Set()); setSelectedRows(new Map()) }
@@ -1799,9 +1801,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </button>
         ) : null}
       </div>
-      {hasTargetQuery && res ? (
+      {showTargetResults && res ? (
         <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-          {`القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`}
+          {hasTargetQuery
+            ? `القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`
+            : `دليل المدينة: تعرض القائمة ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} منشأة مرصودة في الدليل. أضف منتجاتك لفرز الجهات حسب ملاءمتها.`}
           {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
@@ -2020,7 +2024,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </dl>
         </div>
       ) : null}
-      {mobile && !focusMode && res && hasTargetQuery ? (
+      {mobile && !focusMode && res && showTargetResults ? (
         <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
           <button type="button" onClick={() => {
             setTab('results')
@@ -2096,7 +2100,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                     if (nextOpen) setSheetSnap('peek')
                   }}
                   className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm md:min-h-8 ${FOCUS_RING}`}>
-                  {focusPanelOpen ? 'إخفاء اللوحة' : hasTargetQuery ? `النتائج · ${resultCountSummary}` : 'ابدأ البحث'}
+                  {focusPanelOpen ? 'إخفاء اللوحة' : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : 'ابدأ البحث'}
                 </button>
                 <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
                   className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium md:min-h-8 ${FOCUS_RING}`}>
@@ -2108,7 +2112,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
-          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : hasTargetQuery ? `نتائج · ${resultCountSummary}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
+          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : hasTargetQuery ? `نتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
@@ -2128,7 +2132,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             }} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
-                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : hasTargetQuery ? `النتائج · ${resultCountSummary}` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
+                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
                 <button type="button" onClick={() => setSheetSnap('half')} className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold md:min-h-8 ${FOCUS_RING}`}>عرض التفاصيل</button>
               </div>
             ) : <>
