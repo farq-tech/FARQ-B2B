@@ -252,7 +252,16 @@ export type DirectoryFacets = {categories:{value:string;label:string;count:numbe
 export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
 export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
 export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
-export const searchTargets = (q: string, city: string, limit = 30, objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase', offset = 0, filters:SearchFilters = {}) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false }, objective === 'browse')
+export const searchTargets = (
+  q: string,
+  city: string,
+  limit = 30,
+  objective: 'purchase' | 'marketing' | 'name' | 'browse' = 'purchase',
+  offset = 0,
+  filters: SearchFilters = {},
+  retryTransient = objective === 'browse',
+  onTransientRetryOutcome?: (outcome: 'retrying' | 'recovered' | 'failed') => void,
+) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false }, retryTransient, onTransientRetryOutcome)
 export const tradeClusters = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[]; wholesale?: boolean; bounds?: [number, number, number, number] }) => call<TradeClusters>('POST', '/clusters', body)
 export type SpecialtySuggestion = { specialty_id: string | number; specialty_ar: string; sub_id?: string | number | null; sub_ar?: string | null; main_ar?: string | null }
 export const suggestSpecialties = (text: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text })
