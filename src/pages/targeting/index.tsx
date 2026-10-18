@@ -2516,9 +2516,10 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
   }, [open])
   useEffect(() => {
     if (!open) return
-    const priorFocus = mobile ? trigger.current : null
-    const dialog = mobile ? document.getElementById(`${id}-options`) : null
-    if (mobile) {
+    const modalMenu = mobile && !portalMenu
+    const priorFocus = modalMenu ? trigger.current : null
+    const dialog = modalMenu ? document.getElementById(`${id}-options`) : null
+    if (modalMenu) {
       const searchInput = dialog?.querySelector<HTMLInputElement>('input:not([disabled])')
       if (searchInput) searchInput.focus()
       else dialog?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
@@ -2529,7 +2530,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setOpen(false); trigger.current?.focus(); return }
-      if (!mobile || event.key !== 'Tab' || !dialog) return
+      if (!modalMenu || event.key !== 'Tab' || !dialog) return
       const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')]
       if (!focusable.length) { event.preventDefault(); return }
       const first = focusable[0], last = focusable[focusable.length - 1]
@@ -2543,7 +2544,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
       }
     }
     document.addEventListener('keydown', onKeyDown)
-    if (mobile) return () => {
+    if (modalMenu) return () => {
       document.removeEventListener('keydown', onKeyDown)
       if (priorFocus?.isConnected) priorFocus.focus()
     }
