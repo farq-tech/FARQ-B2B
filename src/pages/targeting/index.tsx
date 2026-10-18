@@ -2582,15 +2582,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
       </Command.List>
     </Command>
   )
-  const menu = open ? mobile ? createPortal(
-    <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
-      <section id={`${id}-options`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-        <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
-        <h2 id={`${id}-title`} className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
-        {optionList('min-h-0 overflow-y-auto overscroll-contain px-3 pb-3')}
-      </section>
-    </div>, document.body,
-  ) : portalMenu ? (() => {
+  const menu = open ? portalMenu ? (() => {
     const rect = trigger.current?.getBoundingClientRect()
     if (!rect) return null
     const width = Math.min(352, window.innerWidth - 16)
@@ -2601,7 +2593,15 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emp
         {optionList('max-h-[min(45dvh,22rem)] overflow-y-auto overscroll-contain')}
       </div>, document.body,
     )
-  })() : (
+  })() : mobile ? createPortal(
+    <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
+      <section id={`${id}-options`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+        <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
+        <h2 id={`${id}-title`} className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
+        {optionList('min-h-0 overflow-y-auto overscroll-contain px-3 pb-3')}
+      </section>
+    </div>, document.body,
+  ) : (
     <div id={`${id}-options`} role="dialog" aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
       {optionList('max-h-[min(45dvh,22rem)] overflow-y-auto overscroll-contain')}
     </div>
