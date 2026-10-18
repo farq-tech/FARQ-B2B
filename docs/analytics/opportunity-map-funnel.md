@@ -1570,7 +1570,7 @@ Use at least two complete weeks and 30 terminal page outcomes before treating th
 
 ## Main category detail exposure
 
-This funnel measures whether consenting sessions that opened the main-category counter details later selected a main category, subcategory, or specialty. The exposure event records only that the collapsed panel opened; it contains no category, location, search, or establishment value. Results are aggregate counts by the week of the first panel open.
+This funnel measures whether consenting sessions that opened the main-category counter details later selected one of the category cards inside that panel. The exposure and selection events record only the interaction type; they contain no category, location, search, or establishment value. Results are aggregate counts by the week of the first panel open.
 
 ```sql
 WITH category_events AS (
@@ -1582,9 +1582,7 @@ WITH category_events AS (
     AND session_id IS NOT NULL
     AND element_label IN (
       'pricing_map_map_activity_counter_panel_open',
-      'pricing_map_map_activity_main_select',
-      'pricing_map_map_activity_sub_select',
-      'pricing_map_map_activity_spec_select'
+      'pricing_map_map_activity_counter_detail_select'
     )
 ), panel_sessions AS (
   SELECT
@@ -1598,9 +1596,7 @@ WITH category_events AS (
   SELECT
     p.session_id,
     p.panel_opened_at,
-    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_main_select' AND e.id > p.panel_open_id) AS main_selected_id,
-    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_sub_select' AND e.id > p.panel_open_id) AS sub_selected_id,
-    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_spec_select' AND e.id > p.panel_open_id) AS specialty_selected_id
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_counter_detail_select' AND e.id > p.panel_open_id) AS detail_card_selected_id
   FROM panel_sessions p
   LEFT JOIN category_events e USING (session_id)
   GROUP BY p.session_id, p.panel_opened_at, p.panel_open_id
@@ -1608,14 +1604,11 @@ WITH category_events AS (
 SELECT
   date_trunc('week', panel_opened_at AT TIME ZONE 'UTC') AS week_utc,
   count(*) AS panel_open_sessions,
-  count(*) FILTER (WHERE main_selected_id IS NOT NULL OR sub_selected_id IS NOT NULL OR specialty_selected_id IS NOT NULL) AS category_selection_sessions,
-  round(100.0 * count(*) FILTER (WHERE main_selected_id IS NOT NULL OR sub_selected_id IS NOT NULL OR specialty_selected_id IS NOT NULL) / nullif(count(*), 0), 1) AS panel_open_to_category_selection_pct,
-  count(*) FILTER (WHERE main_selected_id IS NOT NULL) AS main_selection_sessions,
-  count(*) FILTER (WHERE sub_selected_id IS NOT NULL) AS subcategory_selection_sessions,
-  count(*) FILTER (WHERE specialty_selected_id IS NOT NULL) AS specialty_selection_sessions
+  count(*) FILTER (WHERE detail_card_selected_id IS NOT NULL) AS detail_card_selection_sessions,
+  round(100.0 * count(*) FILTER (WHERE detail_card_selected_id IS NOT NULL) / nullif(count(*), 0), 1) AS panel_open_to_detail_card_selection_pct
 FROM outcomes
 GROUP BY 1
 ORDER BY week_utc DESC;
 ```
 
-Interpret this as a session-level directional measure: an event after the panel opened may be from another category control in the same session. Review at least two complete weeks and 30 panel-open sessions before treating changes as directional. With less traffic, use the counts to confirm instrumentation only, not to infer customer preference.
+The selection event is emitted only by a category card inside the opened details panel, so this measures the intended entry point directly. It remains a session-level measure: a later card selection may follow a subsequent close and reopen. Review at least two complete weeks and 30 panel-open sessions before treating changes as directional. With less traffic, use the counts to confirm instrumentation only, not to infer customer preference.
