@@ -1142,7 +1142,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : null}
     </div>
   )
-  const marketPanel = (
+  const marketSummaryPanel = (
     <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-4" aria-label="ملخص السوق">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[15px] font-semibold">ملخص سوق {cityName(city)}</h2>
@@ -1176,10 +1176,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <button type="button" onClick={retryMarketStats} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button>
         </div>
       ) : null}
-      {densePanel || <p className="text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}
       {marketStats?.densest_street ? <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] leading-[20px]">أكثف شارع: <strong>{marketStats.densest_street.street_ar}</strong> · {marketStats.densest_street.district_ar || cityName(city)} · {n(marketStats.densest_street.n)} منشأة</p> : null}
     </section>
   )
+  const marketPanel = mobile
+    ? <>{densePanel || <p className="px-5 py-3 text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}{marketSummaryPanel}</>
+    : <>{marketSummaryPanel}{densePanel || <p className="px-5 py-3 text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}</>
   const buyerPanel = lens === 'buyers' && currentBuyerData ? (
     <section className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="المنشآت التي تشتري هذا النشاط">
       <div className="flex items-center justify-between gap-2">
