@@ -102,6 +102,8 @@ const MAP_EVENTS = [
   'map_supplier_result_profile_open',
   'map_buyer_result_profile_open',
   'market_summary_retry',
+  'map_filter_open_city',
+  'map_filter_select_city',
   'map_filter_open_district',
   'map_filter_select_district',
   'map_filter_open_street',

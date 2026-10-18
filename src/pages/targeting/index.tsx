@@ -732,6 +732,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (name) nextFilters.district = name
     applyFilters(nextFilters)
   }
+  const selectDistrictFromScope = (id: string) => {
+    const district = districts.find((item) => item.id === id)
+    const name = district?.ar || id.replace(/^name:/, '')
+    recordMapInteraction('map_district_select')
+    setMapScope('district')
+    setChosenD(new Set([id]))
+    setActiveStreet(null)
+    if (district?.bbox) fitTo(district.bbox)
+    const nextFilters = { ...filters, district: name }
+    delete nextFilters.street
+    applyFilters(nextFilters)
+  }
   const clearDistrict = () => {
     recordMapInteraction('map_district_clear')
     setChosenD(new Set())
@@ -743,28 +755,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     applyFilters(nextFilters)
   }
   const chooseMapScope = (next: MapScope) => {
-    if (next === mapScope) return
     setMapScope(next)
-    if (next === 'city') {
-      setChosenD(new Set())
-      setActiveStreet(null)
-      fitCity()
-      const nextFilters = { ...filters }
-      delete nextFilters.district
-      delete nextFilters.street
-      if (query) void runSearchIn(query, city, nextFilters)
-      else if (buyerProductMode) void searchSavedBuyerProducts(city, nextFilters, true)
-      else void loadBrowse(city, nextFilters)
-      return
-    }
-    if (next === 'district' && filters.street) {
-      const nextFilters = { ...filters }
-      delete nextFilters.street
-      setActiveStreet(null)
-      if (query) void runSearchIn(query, city, nextFilters)
-      else if (buyerProductMode) void searchSavedBuyerProducts(city, nextFilters, true)
-      else void loadBrowse(city, nextFilters)
-    }
   }
   const pickFocus = (f: Focus) => {
     const version = ++specialtyFocusResolution.current
@@ -1291,8 +1282,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const d = hasPolys ? districtAt(st.mid[0], st.mid[1], districts) : null
     if (d) setChosenD(new Set([d.id]))
     // results for this street: the current request narrowed to it, or (before any search) the street's own trade
-    if (query) applyFilters({ ...keep(filters, ['street']), street: st.props.street_ar })
-    else { const term = st.props.sub_ar || st.props.main_ar; if (term) { setQ(term); void runSearchIn(term, city, undefined, objective, { street: st.props.street_ar }, true) } }
+    const streetFilters = { ...keep(filters, ['district', 'street']), ...(st.props.district_ar ? { district: st.props.district_ar } : {}), street: st.props.street_ar }
+    if (query) applyFilters(streetFilters)
+    else { const term = st.props.sub_ar || st.props.main_ar; if (term) { setQ(term); void runSearchIn(term, city, undefined, objective, streetFilters, true) } }
   }
 
   /** «أبي أبيع منتجاتي»: confirmed specialties become search lines on the buyers' side; the first one runs now. */
@@ -2329,32 +2321,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     </form>
   )
   const mapScopeControl = (
-    <div role="group" aria-label="اختيار المدينة والحي والشارع" className={`grid grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'shrink-0'}`}>
-      <div className={`relative flex min-w-0 items-stretch rounded-full transition-colors ${mapScope === 'city' ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
-        <button type="button" aria-pressed={mapScope === 'city'} onClick={() => chooseMapScope('city')}
-          className={`inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-full ps-2 pe-0.5 text-[12px] font-medium transition-colors md:px-2.5 md:text-[13px] ${FOCUS_RING}`}>
-          <CityIcon size={15} className="shrink-0" /><span className="truncate">{cityName(city) || 'المدينة'}</span>
-        </button>
-        <label className={`relative inline-flex min-h-10 w-7 shrink-0 cursor-pointer items-center justify-center rounded-e-full ${FOCUS_RING}`} title="تغيير المدينة">
-          <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center"><Icon name="chevron-down" size={13} /></span>
-          <span className="sr-only">تغيير المدينة</span>
-          <select aria-label="تغيير المدينة" required value={cities.some((item) => item.en === city) ? city : ''} onChange={(event) => { pickCity(event.target.value); chooseMapScope('city') }} aria-invalid={!city}
-            className="absolute inset-0 size-full cursor-pointer opacity-0">
-            <option value="">اختر المدينة</option>
-            {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
-          </select>
-        </label>
-      </div>
-      {([
-        { id: 'district', label: 'الحي', IconComponent: DistrictIcon },
-        { id: 'street', label: 'الشارع', IconComponent: StreetIcon },
-      ] as const).map(({ id, label, IconComponent }) => {
-        const active = mapScope === id
-        return <button key={id} type="button" aria-pressed={active} onClick={() => chooseMapScope(id)}
-          className={`inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[12px] font-medium transition-colors md:gap-1.5 md:px-3 md:text-[13px] ${active ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'} ${FOCUS_RING}`}>
-          <IconComponent size={15} className="shrink-0" /><span className="truncate">{label}</span>
-        </button>
-      })}
+    <div role="group" aria-label="اختر مدينة أو حياً أو شارعاً للخريطة" className={`grid min-w-0 grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'w-[330px] shrink-0'}`}>
+      <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} disabled={busy || !cities.length} mobile={mobile} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
+      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} disabled={busy || !districts.length} mobile={mobile} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
+      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} disabled={busy || !denseList.length} mobile={mobile} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
     </div>
   )
   const searchWithScope = <div className={`flex ${mobile ? 'flex-col items-stretch gap-2' : 'items-center gap-3'}`}>
@@ -2516,15 +2486,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 }
 
 /** A compact, map-friendly filter control whose menu floats over results instead of shifting them. */
-function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, mobile, onPick }: {
+function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen }: {
   id: string
   label: string
   icon: typeof DistrictIcon | null
-  analyticsKey: 'district' | 'street' | 'role' | 'specialty' | 'site_radius'
+  analyticsKey: 'city' | 'district' | 'street' | 'role' | 'specialty' | 'site_radius'
   options: { value: string; text: string }[]
   disabled: boolean
   mobile: boolean
   onPick: (value: string) => void
+  active?: boolean
+  buttonClassName?: string
+  onOpen?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -2617,8 +2590,8 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   ) : null
   return (
     <div ref={root} className="relative shrink-0">
-      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) { setSearch(''); recordMapInteraction(`map_filter_open_${analyticsKey}`) } }}
-        className={`inline-flex min-h-11 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 md:min-h-10 ${FOCUS_RING}`}>
+      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} aria-pressed={active} data-active={active || undefined} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) { setSearch(''); onOpen?.(); recordMapInteraction(`map_filter_open_${analyticsKey}`) } }}
+        className={`inline-flex min-h-11 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 md:min-h-10 ${buttonClassName} ${active ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : ''} ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
         <Icon name="chevron-down" size={14} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
