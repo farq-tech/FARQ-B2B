@@ -159,7 +159,9 @@ const MAP_EVENTS = [
 type MapEventName = typeof MAP_EVENTS[number]
 const ALLOWED_EVENTS: ReadonlySet<string> = new Set(MAP_EVENTS)
 
-type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }
+type MapEvent =
+  | { event_type: 'pageview'; session_id: string; path: '/opportunity-map' }
+  | { event_type: 'click'; session_id: string; path: '/opportunity-map'; element_label: string }
 let queue: MapEvent[] = []
 let flushTimer: ReturnType<typeof setInterval> | null = null
 let flushInFlight = false
@@ -242,6 +244,14 @@ export function recordMapInteraction(name: MapEventName) {
   if (mapAnalyticsConsent() !== 'accepted' || !ALLOWED_EVENTS.has(name)) return
   startFlush()
   queue.push({ event_type: 'click', session_id: sessionId(), path: '/opportunity-map', element_label: `pricing_map_${name}` })
+  if (queue.length >= 20) flush()
+}
+
+/** Record a consented map-page entry without collecting referrer or page content. */
+export function recordMapPageView() {
+  if (mapAnalyticsConsent() !== 'accepted') return
+  startFlush()
+  queue.push({ event_type: 'pageview', session_id: sessionId(), path: '/opportunity-map' })
   if (queue.length >= 20) flush()
 }
 
