@@ -102,8 +102,9 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
           {dd('الشارع', row.street_ar || null)}
           {dd('الموقع', hasPoint(row) ? null : 'موقع تقريبي — لا يظهر على الخريطة')}
           {dd('التقييم', rating != null ? `${rating.toLocaleString('en-US', { maximumFractionDigits: 1 })} من 5` : null)}
-          {dd('المصادر', sources != null ? `${sources.toLocaleString('en-US')} ${sources === 1 ? 'مصدر' : 'مصادر'}` : null)}
+          {dd('المصادر المسجلة', sources != null ? `${sources.toLocaleString('en-US')} ${sources === 1 ? 'مصدر' : 'مصادر'}` : null)}
         </dl>
+        {sources === 1 ? <p className="-mt-2 rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">هذا السجل مرتبط بمصدر واحد فقط؛ عدد المصادر لا يؤكد صحة النشاط أو التصنيف.</p> : null}
         {done != null ? (
           <div className="flex flex-col gap-1.5">
             <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">اكتمال بيانات المنشأة: <span className="font-medium text-[var(--color-text-primary)]">{done}٪</span></p>
