@@ -2322,9 +2322,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   )
   const mapScopeControl = (
     <div role="group" aria-label="اختر مدينة أو حياً أو شارعاً للخريطة" className={`grid min-w-0 grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'w-[330px] shrink-0'}`}>
-      <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} disabled={busy || !cities.length} mobile={mobile} portalMenu={focusMode} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
-      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} disabled={busy || !districts.length} mobile={mobile} portalMenu={focusMode} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
-      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} disabled={busy || !denseList.length} mobile={mobile} portalMenu={focusMode} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
+      <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} emptyText={cities.length ? 'ما لقينا مدينة بهذا الاسم.' : 'جار تحميل قائمة المدن…'} disabled={busy} mobile={mobile} portalMenu={focusMode} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
+      <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districts.map((item) => ({ value: item.id, text: item.ar }))} emptyText={districts.length ? 'ما لقينا حياً بهذا الاسم.' : polys === null ? 'جار تحميل أحياء المدينة…' : 'لا تتوفر أحياء للاختيار في هذه المدينة حالياً.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
+      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} emptyText={dense?.list.length ? 'ما لقينا شارعاً بهذا الاسم.' : denseLoadError ? 'تعذر تحميل قائمة الشوارع. حاول مرة أخرى بعد قليل.' : dense === null ? 'جار تحميل الشوارع…' : 'لا توجد شوارع كثيفة متاحة ضمن النطاق الحالي.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
     </div>
   )
   const searchWithScope = <div className={`flex ${mobile ? 'flex-col items-stretch gap-2' : 'items-center gap-3'}`}>
@@ -2486,12 +2486,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
 }
 
 /** A compact, map-friendly filter control whose menu floats over results instead of shifting them. */
-function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen, portalMenu = false }: {
+function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, emptyText, disabled, mobile, onPick, active = false, buttonClassName = '', onOpen, portalMenu = false }: {
   id: string
   label: string
   icon: typeof DistrictIcon | null
   analyticsKey: 'city' | 'district' | 'street' | 'role' | 'specialty' | 'site_radius'
   options: { value: string; text: string }[]
+  emptyText?: string
   disabled: boolean
   mobile: boolean
   onPick: (value: string) => void
@@ -2577,7 +2578,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
           <span className="min-w-0 flex-1 truncate">{option.text}</span>
           <Icon name="chevron-back" size={14} className="shrink-0 text-[var(--color-icon-secondary)]" />
         </Command.Item>)}
-        <Command.Empty className="px-3 py-5 text-center text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما لقينا خياراً بهذا الاسم. جرّب كلمة أقصر.</Command.Empty>
+        <Command.Empty className="px-3 py-5 text-center text-[13px] leading-[20px] text-[var(--color-text-secondary)]">{emptyText || 'ما لقينا خياراً بهذا الاسم. جرّب كلمة أقصر.'}</Command.Empty>
       </Command.List>
     </Command>
   )
