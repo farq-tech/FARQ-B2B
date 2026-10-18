@@ -1664,6 +1664,36 @@ ORDER BY week_utc DESC;
 
 The selection event is emitted only by a category card inside the opened details panel, so this measures the intended entry point directly. It remains a session-level measure: a later card selection may follow a subsequent close and reopen. Review at least two complete weeks and 30 panel-open sessions before treating changes as directional. With less traffic, use the counts to confirm instrumentation only, not to infer customer preference.
 
+## Market summary counter interactions
+
+This inventory separates summary-counter actions that reset the current category scope, open the district picker, or turn WhatsApp and wholesale filters on or off. The events contain no selected district, activity, search text, or establishment data. Counts represent consenting sessions only; use the weekly interaction inventory above to check the same labels over time.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  element_label AS counter_action,
+  count(*) AS actions,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_counter_scope_reset',
+    'pricing_map_map_counter_district_picker_open',
+    'pricing_map_map_counter_whatsapp_filter_on',
+    'pricing_map_map_counter_whatsapp_filter_off',
+    'pricing_map_map_counter_wholesale_filter_on',
+    'pricing_map_map_counter_wholesale_filter_off'
+  )
+GROUP BY 1, 2
+ORDER BY week_utc DESC, counter_action;
+```
+
+Use this to confirm that the new controls are being used and whether users commonly clear either filter. It does not establish that a filtered result was useful or that a district choice was completed. Wait for at least two complete weeks and 30 consenting sessions across the relevant actions before treating counts as directional; with less traffic, treat them as instrumentation checks and use task observation for usability decisions.
+
 ## Desktop results panel visibility
 
 This aggregate measures use of the hide/show controls for the standard desktop results panel. Events require accepted map-analytics consent and contain no panel contents, filters, or establishment identifiers.
