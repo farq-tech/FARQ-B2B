@@ -53,7 +53,7 @@ TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
 # Service-to-service header for the targeting service: its own token when set, else a value derived from the password
 # (never equal to a browser cookie). Must match the targeting service's service_token().
 TARGETING_SERVICE = os.environ.get('TARGETING_SERVICE_TOKEN') or (hmac.new(TARGETING_PW.encode(), b'farq-proxy-v1', hashlib.sha256).hexdigest() if TARGETING_PW else None)
-T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('GET', '/cities'), ('POST', '/search'), ('GET', '/facets'), ('POST', '/map-query'), ('POST', '/map-profile'), ('POST', '/clusters'), ('POST', '/suggest-specialties'), ('GET', '/districts'), ('POST', '/street-density'), ('POST', '/street-density/catalog'), ('POST', '/district-counts'), ('POST', '/who-buys'), ('POST', '/market-summary')}
+T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('GET', '/cities'), ('POST', '/search'), ('GET', '/facets'), ('POST', '/map-query'), ('POST', '/map-profile'), ('POST', '/clusters'), ('POST', '/suggest-specialties'), ('GET', '/districts'), ('POST', '/street-density'), ('POST', '/street-density/catalog'), ('POST', '/district-counts'), ('POST', '/district-insights'), ('POST', '/who-buys'), ('POST', '/market-summary')}
 T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
 T_SEND = {('POST', '/send-farq')}
 
