@@ -34,6 +34,7 @@ export function isWholesaleRequest(value: string): boolean {
   const normalized = value.normalize('NFKD')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي')
   return /(?:^|\s)(?:جمله|بالجمله|wholesale|موزع|موزعين|مصنع|مصانع)(?:\s|$)/iu.test(normalized)
 }
