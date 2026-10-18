@@ -14,7 +14,7 @@ import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marke
 import { formatNumber } from '../../lib/formatNumber'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchContactAvailabilityEvent, mapSearchFailedEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchContactAvailabilityEvent, mapSearchFailedEvent, mapSearchFailureEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -1248,6 +1248,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return r.total
     } catch (err) {
       if (version !== generation.current) return null
+      recordMapInteraction(mapSearchFailureEvent(
+        obj,
+        err instanceof TargetingError ? err.status : undefined,
+        err instanceof TypeError,
+      ))
       if (!fresh && use.wholesale === true && filters.wholesale !== true) recordMapInteraction('map_filter_wholesale_results_failed')
       if (fresh) {
         recordMapInteraction('map_search_failed')
