@@ -62,7 +62,7 @@ html, body, #root {
 /* Keep the map available while scrolling the stacked results layout on tablet-sized screens. */
 @media (min-width: 768px) and (max-width: 1200px) {
   :root {
-    --farq-map-compact-sticky-height: clamp(240px, 32dvh, 320px);
+    --farq-map-compact-sticky-height: clamp(280px, 40dvh, 380px);
   }
 
   .map-compact-scroll-layout {
