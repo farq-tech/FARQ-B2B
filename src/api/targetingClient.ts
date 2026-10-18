@@ -177,6 +177,7 @@ export type MarketSummary = {
     total: number; districts_count: number; top_districts: { district_ar: string; n: number }[]; specialty_available?: boolean
     densest_street: { street_ar: string; district_ar: string | null; n: number; length_m: number; per_100m: number; sub_ar: string | null } | null
     n_wholesale: number; n_whatsapp: number; n_specialties: number; n_approx: number; n_cr?: number; basis: string
+    main_activities?: { main_id: string; main_ar: string; n: number }[]; main_activities_basis?: string
   }
 }
 /** q is resolved locally to taxonomy activities; activity/specialty/district filters intersect. */
