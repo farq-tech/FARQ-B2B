@@ -142,6 +142,124 @@ class MarketAnalytics:
             "basis": MARKET_BASIS,
         }
 
+    def district_insights(self, body):
+        """Aggregate confidently classified activities for selected districts.
+
+        Missing categories mean no matching directory records, not proof that a trade
+        does not exist in the real district.
+        """
+        city, q, main_id, sub_ids, districts, _ = self._validate(body)
+        if q or main_id or sub_ids or not districts:
+            raise ValueError("district_insights requires districts only")
+        tx = self._tx()
+        if tx is None:
+            return {"ok": False, "city": city, "districts": [], "basis": "التصنيف غير متاح"}
+
+        # Build a parameterized taxonomy relation from the same approved labels used
+        # by search. Counts are distinct POIs per activity to avoid double counting
+        # when one listing has multiple specialty rows.
+        subs = [
+            (sid, item.get("main_id") or "", item.get("main_ar") or "غير مصنف", item.get("sub_ar") or "")
+            for sid, item in tx.subs.items()
+            if not sid.startswith(("unc.", "noncom."))
+        ]
+        values_sql = ",".join("(?, ?, ?, ?)" for _ in subs)
+        taxonomy_params = [value for row in subs for value in row]
+        taxonomy_cte = f"taxonomy(sub_id, main_id, main_ar, sub_ar) as (values {values_sql})"
+        base = (
+            "from read_parquet(?) p where " + self.tiles.search_sql +
+            " and p.city_en = ? and p.district_reliable is true "
+            "and length(trim(coalesce(p.district_ar, ''))) > 0 "
+            "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null"
+        )
+        where_params = [DATA, city]
+        with self.lock:
+            district_rows = self.db.execute(
+                f"select p.district_ar, count(*) n {base} "
+                "and p.district_ar in (select unnest(?::varchar[])) group by 1",
+                where_params + [districts],
+            ).fetchall()
+            classified_rows = self.db.execute(
+                "select p.district_ar, count(distinct p.poi_key) from read_parquet(?) p "
+                "join read_parquet(?) c on c.poi_key = p.poi_key "
+                f"where {self.tiles.search_sql} and p.city_en = ? and p.district_reliable is true "
+                "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
+                "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null group by 1",
+                [DATA, POI_TAXONOMY, city, districts],
+            ).fetchall()
+            # City coverage defines which main activities can be called missing.
+            city_activity_rows = self.db.execute(
+                f"with {taxonomy_cte} select t.main_id, any_value(t.main_ar), count(distinct p.poi_key) n "
+                "from read_parquet(?) p join read_parquet(?) c on c.poi_key = p.poi_key "
+                "join taxonomy t on t.sub_id = c.sub_id "
+                f"where {self.tiles.search_sql} and p.city_en = ? and c.confidence in ('high','medium') "
+                "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
+                "group by t.main_id",
+                taxonomy_params + [DATA, POI_TAXONOMY, city],
+            ).fetchall()
+            main_rows = self.db.execute(
+                f"with {taxonomy_cte} select p.district_ar, t.main_id, any_value(t.main_ar), count(distinct p.poi_key) n "
+                "from read_parquet(?) p join read_parquet(?) c on c.poi_key = p.poi_key "
+                "join taxonomy t on t.sub_id = c.sub_id "
+                f"where {self.tiles.search_sql} and p.city_en = ? and p.district_reliable is true "
+                "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
+                "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
+                "group by p.district_ar, t.main_id",
+                taxonomy_params + [DATA, POI_TAXONOMY, city, districts],
+            ).fetchall()
+            sub_rows = self.db.execute(
+                f"with {taxonomy_cte} select p.district_ar, t.main_id, t.sub_id, any_value(t.sub_ar), count(distinct p.poi_key) n "
+                "from read_parquet(?) p join read_parquet(?) c on c.poi_key = p.poi_key "
+                "join taxonomy t on t.sub_id = c.sub_id "
+                f"where {self.tiles.search_sql} and p.city_en = ? and p.district_reliable is true "
+                "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
+                "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
+                "group by p.district_ar, t.main_id, t.sub_id",
+                taxonomy_params + [DATA, POI_TAXONOMY, city, districts],
+            ).fetchall()
+
+        city_mains = {mid: {"main_id": mid, "main_ar": label, "n": n} for mid, label, n in city_activity_rows}
+        totals = {name: count for name, count in district_rows}
+        classified_totals = {name: count for name, count in classified_rows}
+        by_district = {name: [] for name in districts}
+        for name, mid, label, count in main_rows:
+            by_district.setdefault(name, []).append({"main_id": mid, "main_ar": label, "n": count})
+        subs_by_district = {}
+        for name, mid, sid, label, count in sub_rows:
+            subs_by_district.setdefault((name, mid), []).append({"sub_id": sid, "sub_ar": label, "n": count})
+
+        results = []
+        for name in districts:
+            activities = sorted(by_district.get(name, []), key=lambda item: (-item["n"], item["main_ar"]))
+            for activity in activities:
+                activity["top_subactivities"] = sorted(
+                    subs_by_district.get((name, activity["main_id"]), []),
+                    key=lambda item: (-item["n"], item["sub_ar"]),
+                )[:3]
+            ranked_present = sorted(activities, key=lambda item: (item["n"], item["main_ar"]))
+            present_ids = {item["main_id"] for item in activities}
+            absent = sorted(
+                (item["main_ar"] for mid, item in city_mains.items() if mid not in present_ids),
+            )
+            total = totals.get(name, 0)
+            classified = classified_totals.get(name, 0)
+            results.append({
+                "district_ar": name,
+                "total": total,
+                "classified": classified,
+                "classification_pct": round(classified * 100 / total) if total else 0,
+                "dominant_activity": activities[0] if activities else None,
+                "least_activity": ranked_present[0] if ranked_present else None,
+                "activities": activities,
+                "absent_from_directory": absent,
+            })
+        return {
+            "ok": True,
+            "city": city,
+            "districts": results,
+            "basis": "سجلات الدليل ذات إسناد حي موثوق وتصنيف نشاط عالي أو متوسط الثقة. الأنشطة الغائبة تعني عدم ظهور سجل مصنف لها في هذا الحي، ولا تثبت غيابها فعلياً.",
+        }
+
     def market_summary(self, body):
         city, subs, where, params = self._where(body)
         aggregate = f"""
