@@ -33,7 +33,7 @@ import {
   type District, type Focus, type Layer, type Street,
 } from './map/model'
 import type { LayerMapProps, Site } from './map/types'
-import { directoryActivityQuery, hasDirectoryActivityEvidence, MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
+import { directoryActivityQuery, hasDirectoryActivityEvidence, isExplicitPurchaseRequest, isWholesaleRequest, MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
 
 /*
  * «خريطة الفرص» v2 — owner-approved redesign 2026-10-16 (Canva concepts: airy light-grey map, charcoal pins with white glyphs,
@@ -629,7 +629,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       await searchMultipleIntents(q.trim(), parsed.intents)
       return
     }
-    await runSearchIn(q.trim(), city)
+    const text = q.trim()
+    const searchObjective = isExplicitPurchaseRequest(text) ? 'purchase' : objective
+    if (searchObjective !== objective) setObjective(searchObjective)
+    await runSearchIn(text, city, undefined, searchObjective)
   }
   async function searchMultipleIntents(text: string, intents: MapIntent[]) {
     if (!city || !intents.length) return
@@ -1248,6 +1251,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
     setSelectedRows((current) => { const next = new Map(current); if (selected.has(r.poi_key)) next.delete(r.poi_key); else next.set(r.poi_key, r); return next })
   }
+  const selectLoadedWholesaleCandidates = () => {
+    const candidates = visibleCohort.filter((row) => waNumber(row) && !selected.has(row.poi_key))
+    if (!candidates.length) return
+    setSelected((current) => new Set([...current, ...candidates.map((row) => row.poi_key)]))
+    setSelectedRows((current) => new Map([...current, ...candidates.map((row) => [row.poi_key, row] as const)]))
+    setNotice(`تم تحديد ${n(candidates.length)} مرشحًا قابلاً للتواصل من النتائج المحمّلة. راجع قائمة الحملة قبل أي إرسال.`)
+  }
   const commitMultiSelection = () => {
     if (!multiPending.size) return
     setSelected((current) => new Set([...current, ...multiPending.keys()]))
@@ -1356,6 +1366,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : (
     <div aria-busy={busy}>
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
+      {objective === 'purchase' && isWholesaleRequest(query) ? (
+        <div className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
+          <p className="m-0 min-w-0 flex-1 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">رتّبنا موردي الجملة أولاً. الاختيار يشمل النتائج المحمّلة القابلة للتواصل فقط؛ حمّل المزيد لإضافة دفعات أخرى.</p>
+          <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !visibleCohort.some((row) => waNumber(row) && !selected.has(row.poi_key))} onClick={selectLoadedWholesaleCandidates}>اختر مرشحي الجملة القابلين للتواصل</Button>
+        </div>
+      ) : null}
       <ul>
         {visibleListCohort.slice(0, shown).map(resultCard)}
         {shown < visibleListCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleListCohort.length - shown))} أكثر</Button></li> : null}
