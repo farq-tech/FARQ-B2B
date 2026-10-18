@@ -632,12 +632,17 @@ class H(BaseHTTPRequestHandler):
             self.send_response(303); self.send_header('Location', '/'); self.send_header('Set-Cookie', "ft_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"); self.end_headers(); return
         if not self._authed(): self._json({'error': 'UNAUTHORIZED'}, 401); return
         body = json.loads(raw or b'{}')
-        if self.path in ('/map-query','/map-profile'):
+        if self.path in ('/map-query','/map-profile','/map-focus'):
             try:
                 if self.path=='/map-query':
                     city=body.get('city')
                     if not isinstance(city,str) or not 1<=len(city)<=80: raise ValueError()
                     self._json(TILES.browse(city,body.get('filters'),1,0))
+                elif self.path=='/map-focus':
+                    query=body.get('query'); level=body.get('level'); identifier=body.get('id')
+                    sub_id=body.get('sub_id'); specialty_id=body.get('specialty_id')
+                    if not isinstance(query,str) or not 16<=len(query)<=80: raise ValueError()
+                    self._json({'map_query':TILES.focus(query,level,identifier,sub_id,specialty_id)})
                 else:
                     row=TILES.profile(str(body.get('query','')),str(body.get('poi_key','')))
                     self._json({'row':row},200 if row else 404)
@@ -677,25 +682,32 @@ class H(BaseHTTPRequestHandler):
             except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path in ('/street-density', '/street-density/catalog'):
             # dense streets along real streets (street_density.py), owner 2026-10-16: shown as soon as the map opens (all
-            # activities in the city), narrowed by a main activity, a subcategory, a request, and/or one or more districts
+            # activities in the city), narrowed by a main activity, subcategory, exact specialty, a request, and/or districts
             try:
                 import taxonomy_search, duckdb
                 tx = taxonomy_search.get(); city = body.get('city'); q = body.get('q'); subs = body.get('sub_ids') or []
-                main = body.get('main_id'); districts = body.get('districts') or []
+                main = body.get('main_id'); districts = body.get('districts') or []; specialties = body.get('specialty_ids') or []
                 bad = (not isinstance(city, str) or not 1 <= len(city) <= 80 or (q is not None and (not isinstance(q, str) or len(q) > 120))
                        or not isinstance(subs, list) or len(subs) > 20 or not all(isinstance(x, str) and len(x) <= 80 for x in subs)
+                       or not isinstance(specialties, list) or len(specialties) > 20 or not all(isinstance(x, str) and 1 <= len(x) <= 80 for x in specialties)
                        or (main is not None and (not isinstance(main, str) or len(main) > 40))
                        or not isinstance(districts, list) or len(districts) > 30 or not all(isinstance(x, str) and len(x) <= 80 for x in districts))
                 if bad: self._json({'error': 'INPUT'}, 400); return
                 path = os.path.join(HERE, 'data', 'street_density.parquet')
-                if not os.path.isfile(path): self._json({'type': 'FeatureCollection', 'features': []}); return
+                if not os.path.isfile(path): self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': not bool(specialties), 'basis': 'بيانات كثافة الشوارع غير متاحة.'}); return
+                db = duckdb.connect()
+                if specialties:
+                    columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
+                    if 'specialty_ids' not in columns:
+                        db.close()
+                        self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': False, 'basis': 'مصدر كثافة الشوارع لا يفصل التخصصات حتى الآن؛ أخفينا الخطوط العامة كي لا تبدو كأنها مطابقة للتخصص.'}); return
                 if q and tx is not None and not subs:
                     subs = list(tx.understand(q, 'marketing' if body.get('objective') == 'marketing' else 'purchase')['targets'])
                 where, params = ['city_en = ?'], [city]
                 if subs: where.append('sub_id in (select unnest(?::varchar[]))'); params.append(subs[:20])
+                if specialties: where.append("list_has_any(string_split(coalesce(specialty_ids, ''), '|'), ?::varchar[])"); params.append(specialties)
                 if main: where.append('main_id = ?'); params.append(main)
                 if districts: where.append('district_ar in (select unnest(?::varchar[]))'); params.append(districts)
-                db = duckdb.connect()
                 if self.path.endswith('/catalog'):
                     rows = db.execute(f"""select main_id, any_value(main_ar), sub_id, any_value(sub_ar), count(*), sum(n) from read_parquet(?)
                         where {' and '.join(where)} group by main_id, sub_id order by 6 desc""", [path] + params).fetchall()
@@ -710,6 +722,7 @@ class H(BaseHTTPRequestHandler):
                     'sub_id': sid, 'sub_ar': sar or '', 'main_id': mid, 'main_ar': mar or '', 'street_ar': st, 'district_ar': dist or '', 'n': n,
                     'n_wholesale': nw, 'length_m': L, 'per_100m': d, 'lift': lf,
                     'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g in rows],
+                    'specialty_available': True,
                     'basis': 'كل منشأة على أقرب شارع لها (حتى ٤٠ م)؛ الكثافة = عدد المحلات لكل ١٠٠ م مقارنة بنسبة النشاط في المدينة'})
             except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/suggest-specialties':

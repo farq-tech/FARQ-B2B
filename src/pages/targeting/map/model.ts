@@ -12,8 +12,8 @@ export const LAYERS: { key: Layer; label: string }[] = [
   { key: 'sub', label: 'الأنشطة الفرعية' },
   { key: 'spec', label: 'التخصصات' },
 ]
-/** A guide-tree pick: one main, one sub or one specialty name. */
-export type Focus = { level: Layer; id: string } | null
+/** A guide-tree pick: one main, one sub or one specialty scoped to its parent subcategory. */
+export type Focus = { level: 'main'; id: string } | { level: 'sub'; id: string } | { level: 'spec'; id: string; sub_id?: string } | null
 
 /** 7+ digits in a row (Latin or Arabic-Indic, spaces / dashes / + between them) = a phone number: never shown. */
 const DIGIT_RUN = /\+?[\d٠-٩۰-۹](?:[\s\-.]*[\d٠-٩۰-۹]){6,}/g
@@ -158,7 +158,8 @@ export function matchesFocus(r: TargetRow, focus: Focus): boolean {
   if (!focus) return true
   if (focus.level === 'main') return mainIdOf(r) === focus.id
   if (focus.level === 'sub') return subIdOf(r) === focus.id
-  return specsOf(r).includes(focus.id)
+  if (focus.level === 'spec') return specsOf(r).includes(focus.id) && (!focus.sub_id || subIdOf(r) === focus.sub_id)
+  return false
 }
 
 // ---------- counters

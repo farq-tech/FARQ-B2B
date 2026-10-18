@@ -268,6 +268,37 @@ test.describe('desktop 1440', () => {
     expect(events.every((event) => Object.keys(event).sort().join(',') === 'element_label,event_type,path,session_id')).toBe(true)
   })
 
+  test('guide-tree focus records consent-gated source events without activity values', async ({ page }) => {
+    const batches: { events: { event_type: string; session_id: string; path: string; element_label: string }[] }[] = []
+    await setup(page, { analyticsConsent: 'rejected' })
+    await page.route('**/_api/events/track', async (route) => {
+      const body = route.request().postDataJSON()
+      batches.push(body)
+      await route.fulfill({ json: { ok: true, accepted: body.events.length } })
+    })
+    await page.goto('/opportunity-map')
+    await searchFor(page, 'مواسير PPR')
+    await page.getByRole('tab', { name: 'الدليل' }).click()
+    const main = page.getByRole('button', { name: /^مواد بناء وتشطيب \(بيع\)/ })
+    await expect(main).toBeVisible()
+    await main.click()
+    expect(batches).toEqual([])
+
+    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v1', 'accepted'))
+    const sub = page.getByRole('button', { name: 'أدوات صحية وسباكة ٥', exact: true })
+    await sub.click()
+    await sub.click()
+    await expect.poll(() => batches.flatMap((batch) => batch.events.map((event) => event.element_label)), { timeout: 15_000 })
+      .toEqual(expect.arrayContaining([
+        'pricing_map_map_guide_focus_select',
+        'pricing_map_map_guide_focus_clear',
+      ]))
+    const events = batches.flatMap((batch) => batch.events)
+    expect(events.every((event) => event.event_type === 'click' && event.path === '/opportunity-map')).toBe(true)
+    expect(events.every((event) => Object.keys(event).sort().join(',') === 'element_label,event_type,path,session_id')).toBe(true)
+    expect(events.some((event) => /مواد بناء|أدوات صحية|مواسير/.test(event.element_label))).toBe(false)
+  })
+
   test('market first open, three lenses, and core buyers by default', async ({ page }) => {
     const { buyerQueries, marketQueries } = await setup(page)
     await page.goto('/opportunity-map')

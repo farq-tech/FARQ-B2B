@@ -306,7 +306,7 @@ ORDER BY 1 DESC;
 
 ## Street activity discovery funnel
 
-This query measures the consenting-session path from opening the activity selector through selecting an activity, selecting a dense street, opening a result profile from the list, and starting a quote request. It groups by the week the selector was opened (or the first activity event for older clients). It does not store or return category names, city, search text, or establishment identifiers. The legacy `map_activity_select` event is included for comparison with clients that predate the more specific event labels; it cannot distinguish a main activity, subactivity, or clearing the filter.
+This query measures the consenting-session path from either opening the activity selector or choosing a taxonomy focus in the guide, through selecting an activity, a dense street, opening a result profile, and starting a quote request. It groups by the week of selector open or first activity action. It does not store or return category names, city, search text, or establishment identifiers. The `map_guide_focus_select` and `map_guide_focus_clear` events distinguish the guide-tree entry point without recording the chosen activity. Per-level counters continue to describe the activity selector; guide-tree selections are reported separately as a source-level count. The legacy `map_activity_select` event is included for comparison with clients that predate the more specific event labels. Exact-specialty selections filter map entities and only show street lines when the density source supports exact specialties; the app hides broader parent lines when it does not.
 
 Run it against the same authorized, read-only main application database:
 
@@ -322,7 +322,10 @@ WITH map_events AS (
       'pricing_map_map_activity_filter_open',
       'pricing_map_map_activity_main_select',
       'pricing_map_map_activity_sub_select',
+      'pricing_map_map_activity_spec_select',
       'pricing_map_map_activity_clear',
+      'pricing_map_map_guide_focus_select',
+      'pricing_map_map_guide_focus_clear',
       'pricing_map_map_activity_select',
       'pricing_map_map_street_select',
       'pricing_map_map_result_profile_open',
@@ -341,7 +344,10 @@ WITH map_events AS (
     'pricing_map_map_activity_filter_open',
     'pricing_map_map_activity_main_select',
     'pricing_map_map_activity_sub_select',
+    'pricing_map_map_activity_spec_select',
     'pricing_map_map_activity_clear',
+    'pricing_map_map_guide_focus_select',
+    'pricing_map_map_guide_focus_clear',
     'pricing_map_map_activity_select'
   )) > 0
 ), selections AS (
@@ -352,11 +358,15 @@ WITH map_events AS (
     (array_agg(e.occurred_at ORDER BY e.id) FILTER (WHERE e.element_label IN (
       'pricing_map_map_activity_main_select',
       'pricing_map_map_activity_sub_select',
+      'pricing_map_map_activity_spec_select',
+      'pricing_map_map_guide_focus_select',
       'pricing_map_map_activity_select'
     ) AND (s.opened_id IS NULL OR e.id >= s.opened_id)))[1] AS selected_at,
     min(e.id) FILTER (WHERE e.element_label IN (
       'pricing_map_map_activity_main_select',
       'pricing_map_map_activity_sub_select',
+      'pricing_map_map_activity_spec_select',
+      'pricing_map_map_guide_focus_select',
       'pricing_map_map_activity_select'
     ) AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS selected_id,
     (array_agg(e.occurred_at ORDER BY e.id) FILTER (
@@ -371,6 +381,8 @@ WITH map_events AS (
     ))[1] AS sub_selected_at,
     min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_sub_select'
       AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS sub_selected_id,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_spec_select'
+      AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS specialty_selected_id,
     (array_agg(e.occurred_at ORDER BY e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_activity_select'
         AND (s.opened_id IS NULL OR e.id >= s.opened_id)
@@ -378,10 +390,10 @@ WITH map_events AS (
     min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_select'
       AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS legacy_selected_id,
     (array_agg(e.occurred_at ORDER BY e.id) FILTER (
-      WHERE e.element_label = 'pricing_map_map_activity_clear'
+      WHERE e.element_label IN ('pricing_map_map_activity_clear', 'pricing_map_map_guide_focus_clear')
         AND (s.opened_id IS NULL OR e.id >= s.opened_id)
     ))[1] AS cleared_at,
-    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_clear'
+    min(e.id) FILTER (WHERE e.element_label IN ('pricing_map_map_activity_clear', 'pricing_map_map_guide_focus_clear')
       AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS cleared_id
   FROM selector_sessions s
   LEFT JOIN map_events e USING (session_id)
@@ -394,7 +406,7 @@ WITH map_events AS (
   FROM selections s
   LEFT JOIN map_events e USING (session_id)
   GROUP BY s.session_id, s.opened_at, s.opened_id, s.selected_at, s.selected_id, s.main_selected_at,
-    s.main_selected_id, s.sub_selected_at, s.sub_selected_id, s.legacy_selected_at, s.legacy_selected_id,
+    s.main_selected_id, s.sub_selected_at, s.sub_selected_id, s.specialty_selected_id, s.legacy_selected_at, s.legacy_selected_id,
     s.cleared_at, s.cleared_id
 ), profile_actions AS (
   SELECT
@@ -404,7 +416,7 @@ WITH map_events AS (
   FROM activity_actions a
   LEFT JOIN map_events e USING (session_id)
   GROUP BY a.session_id, a.opened_at, a.opened_id, a.selected_at, a.selected_id, a.main_selected_at,
-    a.main_selected_id, a.sub_selected_at, a.sub_selected_id, a.legacy_selected_at, a.legacy_selected_id,
+    a.main_selected_id, a.sub_selected_at, a.sub_selected_id, a.specialty_selected_id, a.legacy_selected_at, a.legacy_selected_id,
     a.cleared_at, a.cleared_id, a.street_after_activity_id
 ), quote_actions AS (
   SELECT
@@ -414,8 +426,19 @@ WITH map_events AS (
   FROM profile_actions p
   LEFT JOIN map_events e USING (session_id)
   GROUP BY p.session_id, p.opened_at, p.opened_id, p.selected_at, p.selected_id, p.main_selected_at,
-    p.main_selected_id, p.sub_selected_at, p.sub_selected_id, p.legacy_selected_at, p.legacy_selected_id,
+    p.main_selected_id, p.sub_selected_at, p.sub_selected_id, p.specialty_selected_id, p.legacy_selected_at, p.legacy_selected_id,
     p.cleared_at, p.cleared_id, p.street_after_activity_id, p.profile_after_street_id
+), guide_sessions AS (
+  SELECT
+    date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+    count(DISTINCT session_id) FILTER (
+      WHERE element_label = 'pricing_map_map_guide_focus_select'
+    ) AS guide_focus_sessions,
+    count(DISTINCT session_id) FILTER (
+      WHERE element_label = 'pricing_map_map_guide_focus_clear'
+    ) AS guide_clear_sessions
+  FROM map_events
+  GROUP BY 1
 ), weekly AS (
   SELECT
     date_trunc('week', COALESCE(opened_at, selected_at, cleared_at) AT TIME ZONE 'UTC') AS week_utc,
@@ -423,6 +446,7 @@ WITH map_events AS (
     count(*) FILTER (WHERE selected_at IS NOT NULL) AS activity_selection_sessions,
     count(*) FILTER (WHERE main_selected_at IS NOT NULL) AS main_activity_selection_sessions,
     count(*) FILTER (WHERE sub_selected_at IS NOT NULL) AS subactivity_selection_sessions,
+    count(*) FILTER (WHERE specialty_selected_id IS NOT NULL) AS specialty_selection_sessions,
     count(*) FILTER (WHERE legacy_selected_at IS NOT NULL) AS legacy_activity_selection_sessions,
     count(*) FILTER (WHERE cleared_at IS NOT NULL) AS activity_clear_sessions,
     count(*) FILTER (WHERE street_after_activity_id IS NOT NULL) AS street_after_activity_sessions,
@@ -432,24 +456,28 @@ WITH map_events AS (
   GROUP BY 1
 )
 SELECT
-  week_utc,
-  selector_open_sessions,
-  activity_selection_sessions,
-  main_activity_selection_sessions,
-  subactivity_selection_sessions,
-  legacy_activity_selection_sessions,
-  activity_clear_sessions,
-  street_after_activity_sessions,
+  w.week_utc,
+  w.selector_open_sessions,
+  w.activity_selection_sessions,
+  w.main_activity_selection_sessions,
+  w.subactivity_selection_sessions,
+  w.specialty_selection_sessions,
+  w.legacy_activity_selection_sessions,
+  w.activity_clear_sessions,
+  coalesce(g.guide_focus_sessions, 0) AS guide_focus_sessions,
+  coalesce(g.guide_clear_sessions, 0) AS guide_clear_sessions,
+  w.street_after_activity_sessions,
   round(100.0 * street_after_activity_sessions / nullif(activity_selection_sessions, 0), 1)
     AS activity_to_street_pct,
-  profile_after_street_sessions,
-  round(100.0 * profile_after_street_sessions / nullif(street_after_activity_sessions, 0), 1)
+  w.profile_after_street_sessions,
+  round(100.0 * w.profile_after_street_sessions / nullif(w.street_after_activity_sessions, 0), 1)
     AS street_to_profile_pct,
-  quote_after_profile_sessions,
-  round(100.0 * quote_after_profile_sessions / nullif(profile_after_street_sessions, 0), 1)
+  w.quote_after_profile_sessions,
+  round(100.0 * w.quote_after_profile_sessions / nullif(w.profile_after_street_sessions, 0), 1)
     AS profile_to_quote_start_pct
-FROM weekly
-ORDER BY week_utc DESC;
+FROM weekly w
+LEFT JOIN guide_sessions g USING (week_utc)
+ORDER BY w.week_utc DESC;
 ```
 
 `activity_to_street_pct` is a session-level sequence, not a per-click conversion rate. It cannot prove that the later street choice came from the selected activity or that the UI caused the action. Events are consent-gated; low weekly volume is directional only. Use at least two complete weeks and pair these aggregates with a moderated task test before concluding that the new selector improves supplier discovery.
@@ -1204,3 +1232,53 @@ ORDER BY week_utc DESC;
 ```
 
 This is an interaction count, not proof that selected candidates are valid wholesalers, were reviewed, or produced a successful campaign. Analytics consent is required, so missing events do not mean that no one used the action. Wait for two full weeks and at least 30 consenting sessions before treating the trend as directional; review candidate accuracy with a human before any outreach.
+
+## Search inside map filters
+
+For filter lists with eight or more choices, the map offers an inline search. With analytics consent, the first non-empty search in an opened filter records `map_filter_search_used` once. The event intentionally omits the typed text and filter value. Existing `map_filter_select_*` events can show whether the same tab session later selected a filter; this is a navigation signal, not proof that the option was correct or useful.
+
+```sql
+WITH filter_events AS (
+  SELECT id, session_id, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND (element_label = 'pricing_map_map_filter_search_used'
+      OR element_label IN (
+        'pricing_map_map_filter_select_district',
+        'pricing_map_map_filter_select_street',
+        'pricing_map_map_filter_select_role',
+        'pricing_map_map_filter_select_specialty'
+      ))
+), searched_sessions AS (
+  SELECT session_id, min(id) AS searched_id
+  FROM filter_events
+  WHERE element_label = 'pricing_map_map_filter_search_used'
+  GROUP BY session_id
+), outcomes AS (
+  SELECT
+    s.session_id,
+    s.searched_id,
+    min(e.id) FILTER (
+      WHERE e.element_label IN (
+        'pricing_map_map_filter_select_district',
+        'pricing_map_map_filter_select_street',
+        'pricing_map_map_filter_select_role',
+        'pricing_map_map_filter_select_specialty'
+      ) AND e.id > s.searched_id
+    ) AS selected_after_search_id
+  FROM searched_sessions s
+  LEFT JOIN filter_events e USING (session_id)
+  GROUP BY s.session_id, s.searched_id
+)
+SELECT
+  count(*) AS sessions_that_searched_a_filter,
+  count(*) FILTER (WHERE selected_after_search_id IS NOT NULL) AS sessions_that_later_selected_a_filter,
+  round(100.0 * count(*) FILTER (WHERE selected_after_search_id IS NOT NULL)
+    / nullif(count(*), 0), 1) AS search_to_filter_selection_pct
+FROM outcomes;
+```
+
+Wait for two complete weeks and at least 30 consenting sessions before interpreting the percentage. A low rate can mean the search did not help, the user was comparing options, or the session ended; inspect counts and validate with a short task study before changing the taxonomy.

@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { Command } from 'cmdk'
 import {
-  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapFocusQuery, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, suggestSpecialties, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type SpecialtySuggestion, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -147,6 +148,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const hasTargetQuery = Boolean(query.trim())
   const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
+  const [focusedTile, setFocusedTile] = useState<{ key: string; query: string } | null>(null)
+  const [focusedTileError, setFocusedTileError] = useState(false)
+  const [specialtyFocusResolving, setSpecialtyFocusResolving] = useState(false)
+  const [specialtyFocusResolveError, setSpecialtyFocusResolveError] = useState(false)
+  const specialtyFocusResolution = useRef(0)
   const [busyKind, setBusyKind] = useState<'search' | 'browse' | 'more' | null>(null)
   const busy = busyKind !== null
   const [error, setError] = useState<string | null>(null)
@@ -167,16 +173,29 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [filters, setFilters] = useState<AreaFilters>({})
   const [clusters, setClusters] = useState<{ list: TradeCluster[]; basis?: string } | null>(null)
   // the densest streets of this request, drawn along the street (POST /street-density); the one picked
-  const [dense, setDense] = useState<{ list: Street[]; basis?: string } | null>(null)
+  const [dense, setDense] = useState<{ list: Street[]; basis?: string; specialty_available?: boolean } | null>(null)
   const [denseLoadError, setDenseLoadError] = useState(false)
   const [denseRetry, setDenseRetry] = useState(0)
   const [activeStreet, setActiveStreet] = useState<string | null>(null)
   // which streets: all activities (on open), one main, some subs, or the typed request; districts narrow them
-  type StreetPick = { kind: 'all' } | { kind: 'main'; id: string } | { kind: 'sub'; ids: (string | number)[]; main: string } | { kind: 'q'; q: string; objective: string }
+  type StreetPick = { kind: 'all' } | { kind: 'main'; id: string } | { kind: 'sub'; ids: (string | number)[]; main: string } | { kind: 'spec'; id: string; specialtyId: string; name: string; subId: string; mainAr: string } | { kind: 'q'; q: string; objective: string }
   const [streetPick, setStreetPick] = useState<StreetPick>({ kind: 'all' })
+  const [filterSpecialtyScope, setFilterSpecialtyScope] = useState<{ name: string; ids: string[] } | null>(null)
+  const [filterSpecialtyResolving, setFilterSpecialtyResolving] = useState(false)
+  const [filterSpecialtyResolveError, setFilterSpecialtyResolveError] = useState(false)
+  const selectedSpecialtyIds = useMemo(() => {
+    const fromFilter = filters.specialty && filterSpecialtyScope?.name === normalizeActivityText(filters.specialty)
+      ? filterSpecialtyScope.ids : []
+    const fromStreetPick = streetPick.kind === 'spec' ? [streetPick.specialtyId] : []
+    if (fromFilter.length && fromStreetPick.length) return fromFilter.filter((id) => fromStreetPick.includes(id))
+    return fromFilter.length ? fromFilter : fromStreetPick
+  }, [filters.specialty, filterSpecialtyScope, streetPick])
+  const specialtyScopeConflict = Boolean(filters.specialty && streetPick.kind === 'spec' && filterSpecialtyScope?.name === normalizeActivityText(filters.specialty) && !selectedSpecialtyIds.length)
   const [catalog, setCatalog] = useState<StreetCatalog['mains'] | null>(null)
   const [activityMenuOpen, setActivityMenuOpen] = useState(false)
   const [activitySearch, setActivitySearch] = useState('')
+  const [activitySpecialties, setActivitySpecialties] = useState<SpecialtySuggestion[]>([])
+  const [activitySpecialtiesLoading, setActivitySpecialtiesLoading] = useState(false)
   const [activityMenuPosition, setActivityMenuPosition] = useState<{ top: number; right: number } | null>(null)
   const activityMenuRef = useRef<HTMLDivElement>(null)
   const activityOptionsRef = useRef<HTMLDivElement>(null)
@@ -256,6 +275,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [city, setCity] = useState('Riyadh')
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
   const [marketDistrictCounts, setMarketDistrictCounts] = useState<DistrictCount[]>([])
+  const [marketSpecialtyAvailable, setMarketSpecialtyAvailable] = useState<boolean | null>(null)
   const [marketLoading, setMarketLoading] = useState(true)
   const [marketError, setMarketError] = useState(false)
   const [marketRetry, setMarketRetry] = useState(0)
@@ -270,6 +290,33 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
   const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setExpandedDistrictActivities(new Set()); setSite(null); setFit(null) }
+
+  useEffect(() => {
+    const name = filters.specialty?.trim()
+    if (!name) {
+      setFilterSpecialtyScope(null)
+      setFilterSpecialtyResolving(false)
+      setFilterSpecialtyResolveError(false)
+      return
+    }
+    let active = true
+    const normalized = normalizeActivityText(name)
+    setFilterSpecialtyScope(null)
+    setFilterSpecialtyResolving(true)
+    setFilterSpecialtyResolveError(false)
+    suggestSpecialties(name).then((result) => {
+      if (!active) return
+      const ids = [...new Set((result?.suggestions || [])
+        .filter((item) => normalizeActivityText(item.specialty_ar) === normalized)
+        .map((item) => String(item.specialty_id || ''))
+        .filter(Boolean))]
+      if (!ids.length || ids.length > 20) { setFilterSpecialtyResolveError(true); return }
+      setFilterSpecialtyScope({ name: normalized, ids })
+    }, () => { if (active) setFilterSpecialtyResolveError(true) }).finally(() => {
+      if (active) setFilterSpecialtyResolving(false)
+    })
+    return () => { active = false }
+  }, [filters.specialty])
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
@@ -301,24 +348,40 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const cityName = (en: string) => cities.find((c) => c.en === en)?.ar || en
   // chosen district names narrow the dense streets and the activity catalog
   const chosenNames = useMemo(() => (polys && polys.length ? polys : []).filter((d) => chosenD.has(d.id)).map((d) => d.ar).concat([...chosenD].filter((id) => id.startsWith('name:')).map((id) => id.slice(5))).sort(), [polys, chosenD])
-  const chosenKey = chosenNames.join('|')
+  const densityDistrictNames = useMemo(() => [...new Set([...chosenNames, ...(filters.district ? [filters.district] : [])])], [chosenNames, filters.district])
+  const densityDistrictKey = densityDistrictNames.join('|')
   const insightDistrictNames = useMemo(() => (chosenNames.length ? chosenNames : filters.district ? [filters.district] : []).slice(0, 30), [chosenNames, filters.district])
   const insightDistrictKey = insightDistrictNames.join('|')
   const buyerSubIds = streetPick.kind === 'sub' ? streetPick.ids
+    : streetPick.kind === 'spec' ? [streetPick.subId]
     : focus?.level === 'sub' ? [focus.id]
+    : focus?.level === 'spec' ? (res?.rows || []).filter((row) => (row.specialties || []).includes(focus.id) && (!focus.sub_id || row.taxonomy_sub === focus.sub_id)).map((row) => row.taxonomy_sub).filter((id): id is string => Boolean(id))
     : streetPick.kind === 'main' ? (catalog?.find((m) => m.main_id === streetPick.id)?.subs || []).map((s) => s.sub_id)
     : (res?.understood?.sub_ids || [])
   const buyerQueryKey = lens === 'buyers' && buyerSubIds.length && buyerSubIds.length <= 50 ? `${city}|${buyerSubIds.join('|')}` : ''
   useEffect(() => {
-    if (!city || lens !== 'market') return
+    if (!city) return
+    const filterSpecialtyReady = !filters.specialty || filterSpecialtyScope?.name === normalizeActivityText(filters.specialty)
+    if (!filterSpecialtyReady || filters.specialty && (filterSpecialtyResolveError || !selectedSpecialtyIds.length)) {
+      setMarketStats(null)
+      setMarketDistrictCounts([])
+      setMarketSpecialtyAvailable(false)
+      if (lens === 'market') { setMarketLoading(false); setMarketError(Boolean(filters.specialty && (filterSpecialtyResolveError || specialtyScopeConflict))) }
+      return
+    }
     let active = true
+    const exactSpecialtyRequested = selectedSpecialtyIds.length > 0
     const filter = streetPick.kind === 'main' ? { main_id: streetPick.id }
-      : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : {}
-    const query = { city, ...filter, ...(chosenNames.length ? { districts: chosenNames } : {}) }
-    setMarketLoading(true)
-    setMarketError(false)
-    setMarketStats(null)
+      : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids }
+      : streetPick.kind === 'spec' ? { sub_ids: [streetPick.subId] } : {}
+    const analyticsQuery = { city, ...(hasTargetQuery ? { q: query } : {}), ...filter, ...(exactSpecialtyRequested ? { specialty_ids: selectedSpecialtyIds } : {}), ...(densityDistrictNames.length ? { districts: densityDistrictNames } : {}) }
+    if (lens === 'market') {
+      setMarketLoading(true)
+      setMarketError(false)
+      setMarketStats(null)
+    }
     setMarketDistrictCounts([])
+    if (exactSpecialtyRequested) setMarketSpecialtyAvailable(null)
     // These are independent map panels. Retry each failed read once after a short
     // pause so a transient network error does not require the user to retry manually.
     const withOneRetry = async <T,>(load: () => Promise<T>): Promise<T> => {
@@ -331,25 +394,30 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
     }
     const loadSummary = async () => {
-      const value = await marketSummary(query)
+      const value = await marketSummary(analyticsQuery)
       if (!value?.summary) throw new Error('Market summary unavailable')
       return value
     }
     const loadCounts = async () => {
-      const value = await districtCounts(query)
+      const value = await districtCounts(analyticsQuery)
       if (!value?.ok) throw new Error('District counts unavailable')
       return value
     }
-    Promise.allSettled([withOneRetry(loadSummary), withOneRetry(loadCounts)]).then(([summary, counts]) => {
+    const summaryRequest = lens === 'market' ? withOneRetry(loadSummary) : Promise.resolve(null)
+    Promise.allSettled([summaryRequest, withOneRetry(loadCounts)]).then(([summary, counts]) => {
       if (!active) return
-      const summaryValue = summary.status === 'fulfilled' ? summary.value?.summary || null : null
-      const districtValues = counts.status === 'fulfilled' && counts.value?.ok ? counts.value.districts || [] : null
-      setMarketStats(summaryValue)
+      const summaryCandidate = summary.status === 'fulfilled' ? summary.value?.summary || null : null
+      const summaryValue = exactSpecialtyRequested && summaryCandidate?.specialty_available !== true ? null : summaryCandidate
+      const countsAvailable = counts.status === 'fulfilled' && counts.value?.ok
+      const specialtyAvailability = !exactSpecialtyRequested ? true : countsAvailable && counts.value?.specialty_available === true
+      const districtValues = countsAvailable && (!exactSpecialtyRequested || specialtyAvailability) ? counts.value?.districts || [] : null
+      if (lens === 'market') setMarketStats(summaryValue)
       setMarketDistrictCounts(districtValues || [])
-      setMarketError(!summaryValue || districtValues == null)
-    }).finally(() => { if (active) setMarketLoading(false) })
+      setMarketSpecialtyAvailable(specialtyAvailability)
+      if (lens === 'market') setMarketError(!summaryValue || districtValues == null)
+    }).finally(() => { if (active && lens === 'market') setMarketLoading(false) })
     return () => { active = false }
-  }, [city, lens, streetPick, chosenNames, marketRetry])
+  }, [city, lens, streetPick, densityDistrictNames, selectedSpecialtyIds, filters.specialty, filterSpecialtyScope, filterSpecialtyResolveError, specialtyScopeConflict, query, hasTargetQuery, marketRetry])
   useEffect(() => {
     if (!city || !insightDistrictNames.length) {
       setDistrictInsightRows([])
@@ -397,15 +465,29 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const framedPick = useRef('')
   useEffect(() => {
     if (!city) { setDense(null); setDenseLoadError(false); return }
+    const filterSpecialtyReady = !filters.specialty || filterSpecialtyScope?.name === normalizeActivityText(filters.specialty)
+    if (!filterSpecialtyReady) { streetGen.current++; setDense(null); setDenseLoadError(false); return }
+    if (filters.specialty && (filterSpecialtyResolveError || !selectedSpecialtyIds.length || specialtyScopeConflict)) {
+      streetGen.current++
+      setDense({ list: [], specialty_available: false, basis: 'تعذر مطابقة التخصص المختار مع تصنيف الشوارع بدقة.' })
+      setDenseLoadError(false)
+      return
+    }
+    if (filters.role) {
+      streetGen.current++
+      setDense({ list: [], basis: 'مصدر كثافة الشوارع لا يفصل البيانات حسب دور المنشأة؛ أخفينا الخطوط العامة حتى لا تبدو مطابقة.' })
+      setDenseLoadError(false)
+      return
+    }
     const v = ++streetGen.current
-    const body: StreetDensityQuery = { city, ...(streetPick.kind === 'main' ? { main_id: streetPick.id } : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : streetPick.kind === 'q' ? { q: streetPick.q, objective: streetPick.objective } : {}), ...(chosenNames.length ? { districts: chosenNames } : {}) }
+    const body: StreetDensityQuery = { city, ...(streetPick.kind === 'main' ? { main_id: streetPick.id } : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : streetPick.kind === 'spec' ? { sub_ids: [streetPick.subId] } : streetPick.kind === 'q' ? { q: streetPick.q, objective: streetPick.objective } : {}), ...(selectedSpecialtyIds.length ? { specialty_ids: selectedSpecialtyIds } : {}), ...(densityDistrictNames.length ? { districts: densityDistrictNames } : {}) }
     setDense(null)
     setDenseLoadError(false)
     recordMapInteraction('map_street_density_started')
     streetDensity(body).then((d) => {
       if (v !== streetGen.current) return
       const list = streetsFrom(d)
-      setDense({ list, basis: d?.basis })
+      setDense({ list, basis: d?.basis, specialty_available: d?.specialty_available })
       setDenseLoadError(false)
       recordMapInteraction('map_street_density_succeeded')
       // a new activity (or request): frame its densest streets so the map shows WHERE at once
@@ -420,7 +502,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setDenseLoadError(true)
       recordMapInteraction('map_street_density_failed')
     })
-  }, [city, pickKey, chosenKey, denseRetry]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [city, pickKey, densityDistrictNames, selectedSpecialtyIds, filters.specialty, filters.role, filterSpecialtyScope, filterSpecialtyResolveError, specialtyScopeConflict, denseRetry]) // eslint-disable-line react-hooks/exhaustive-deps
   const retryStreetDensity = () => {
     recordMapInteraction('map_street_density_retry')
     setDenseRetry((retry) => retry + 1)
@@ -428,9 +510,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   useEffect(() => {
     if (!city) return
     let on = true
-    streetCatalog({ city, ...(chosenNames.length ? { districts: chosenNames } : {}) }).then((c) => { if (on) setCatalog(c?.mains || []) }, () => { if (on) setCatalog(null) })
+    streetCatalog({ city, ...(densityDistrictNames.length ? { districts: densityDistrictNames } : {}) }).then((c) => { if (on) setCatalog(c?.mains || []) }, () => { if (on) setCatalog(null) })
     return () => { on = false }
-  }, [city, chosenKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [city, densityDistrictKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => res?.rows || [], [res])
   const byKey = useMemo(() => new Map(rows.map((r) => [r.poi_key, r])), [rows])
@@ -469,7 +551,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }, [showUnlocated, visibleCohort])
   const resultCountSummary = res ? `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً` : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
-  const unverifiedWhatsappCount = useMemo(() => visibleCohort.filter((row) => channelOf(row) === 'WhatsApp' && row.whatsapp_verification_state !== 'verified').length, [visibleCohort])
   const statusNoticeKey = res ? `${res.map_query || ''}|${res.total}|${res.rows[0]?.poi_key || ''}|${unconfirmedStatusCount}` : ''
   const lastStatusNoticeKey = useRef('')
   useEffect(() => {
@@ -480,10 +561,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }, [statusNoticeKey, unconfirmedStatusCount])
   const qualityNoticeSeen = useRef(false)
   useEffect(() => {
-    if (qualityNoticeSeen.current || mapAnalyticsConsent() !== 'accepted' || !hasTargetQuery || !res || (!unconfirmedStatusCount && !unverifiedWhatsappCount)) return
+    if (qualityNoticeSeen.current || mapAnalyticsConsent() !== 'accepted' || !hasTargetQuery || !res || !unconfirmedStatusCount) return
     qualityNoticeSeen.current = true
     recordMapInteraction('map_data_quality_notice_seen')
-  }, [analyticsConsentRevision, hasTargetQuery, res, unconfirmedStatusCount, unverifiedWhatsappCount])
+  }, [analyticsConsentRevision, hasTargetQuery, res, unconfirmedStatusCount])
   const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
@@ -496,26 +577,25 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       : 0
     const locationLabel = hasGlobalLocationCount ? 'لها موقع إجمالاً' : 'لها موقع · محمّلة'
     const missingLocationLabel = hasGlobalLocationCount ? 'بلا دبوس إجمالاً' : 'بلا دبوس · محمّلة'
-    const whatsapp = typeof res?.with_whatsapp === 'number' && Number.isFinite(res.with_whatsapp)
-      ? res.with_whatsapp : shownRows.filter((row) => Boolean(waNumber(row))).length
+    const whatsapp = shownRows.filter((row) => Boolean(waNumber(row))).length
     // Search responses describe all matching districts. Once the user narrows to a
     // district, keep this indicator scoped to the visible result set.
     const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
     if (lens === 'market') return [
       { key: 'market-size', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'market-whatsapp', label: 'وسم واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
+      { key: 'market-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
       { key: 'market-unlocated', label: 'بلا موقع دقيق', value: marketStats?.n_approx ?? null },
     ]
     if (query && res) return lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
-      { key: 'supplier-whatsapp', label: 'وسم واتساب من المصدر', value: whatsapp },
+      { key: 'supplier-whatsapp', label: 'أرقام جوال · محمّلة', value: whatsapp },
       { key: 'supplier-located', label: locationLabel, value: precise },
       { key: 'supplier-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'supplier-districts', label: 'أحياء بها نتائج', value: areas },
     ] : [
       { key: 'buyer-matches', label: 'جهات قد تشتري', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
-      { key: 'buyer-whatsapp', label: 'وسم واتساب من المصدر', value: whatsapp },
+      { key: 'buyer-whatsapp', label: 'أرقام جوال · محمّلة', value: whatsapp },
       { key: 'buyer-located', label: locationLabel, value: precise },
       { key: 'buyer-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'buyer-activities', label: 'أنشطة مشترية مرصودة', value: currentBuyerData?.buyers.length || 0 },
@@ -523,15 +603,47 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
-      { key: 'city-whatsapp', label: 'وسم واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
+      { key: 'city-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
       { key: 'city-unlocated', label: 'بلا موقع دقيق', value: marketStats?.n_approx ?? null },
     ]
   }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
+  const focusedSpecialty = focus?.level === 'spec' && streetPick.kind === 'spec' && streetPick.id === focus.id && (!focus.sub_id || streetPick.subId === focus.sub_id) ? streetPick : null
+  const focusedTileKey = focus && res?.map_query
+    ? JSON.stringify([res.map_query, focus.level, focus.id, focus.level === 'spec' ? focus.sub_id || '' : '', focusedSpecialty?.specialtyId || ''])
+    : ''
+  useEffect(() => {
+    if (!focus || !res?.map_query) {
+      setFocusedTile(null)
+      setFocusedTileError(false)
+      return
+    }
+    if (focus.level === 'spec' && !focusedSpecialty) {
+      setFocusedTile(null)
+      return
+    }
+    let active = true
+    const descriptor = {
+      level: focus.level,
+      id: focus.id,
+      ...(focus.level === 'spec' ? { sub_id: focus.sub_id || focusedSpecialty!.subId, specialty_id: focusedSpecialty!.specialtyId } : {}),
+    }
+    const key = focusedTileKey
+    setFocusedTile(null)
+    setFocusedTileError(false)
+    mapFocusQuery(res.map_query, descriptor).then((result) => {
+      if (active && result?.map_query) setFocusedTile({ key, query: result.map_query })
+      else if (active) setFocusedTileError(true)
+    }, () => { if (active) setFocusedTileError(true) })
+    return () => { active = false }
+  }, [focusedTileKey, focusedSpecialty])
+  const activeTileQuery = focus
+    ? focusedTile?.key === focusedTileKey ? focusedTile.query : undefined
+    : res?.map_query
   // Keep the city uncluttered until the user chooses an area or an activity; either choice
   // gives the map a useful, bounded cohort to pin even before they pick a district.
-  const pins = useMemo(() => (query && (chosenList.length || focus) ? pinsOf(visibleCohort, layer, selected, focus) : []), [query, chosenList, visibleCohort, layer, selected, focus])
+  const pins = useMemo(() => (query && (chosenList.length || focus || filters.district || filters.street || filters.role || filters.specialty) ? pinsOf(visibleCohort, layer, selected, focus) : []), [query, chosenList, visibleCohort, layer, selected, focus, filters.district, filters.street, filters.role, filters.specialty])
   const approxCount = useMemo(() => visibleCohort.filter((r) => !hasPoint(r)).length, [visibleCohort])
   const extent = useMemo<[number, number, number, number] | null>(() => {
     const pts = rows.filter(hasPoint)
@@ -583,7 +695,36 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       void loadBrowse(city, nextFilters)
     }
   }
-  const pickFocus = (f: Focus) => { setFocus(f); setLayer(f?.level || 'main') }
+  const pickFocus = (f: Focus) => {
+    const version = ++specialtyFocusResolution.current
+    setFocus(f)
+    setLayer(f?.level || 'main')
+    setSpecialtyFocusResolving(false)
+    setSpecialtyFocusResolveError(false)
+    if (!f) {
+      if (streetPick.kind === 'main' || streetPick.kind === 'sub' || streetPick.kind === 'spec') setStreetPick({ kind: 'all' })
+      return
+    }
+    if (f.level === 'main') { setStreetPick({ kind: 'main', id: f.id }); return }
+    if (f.level === 'sub') { setStreetPick({ kind: 'sub', ids: [f.id], main: f.id.split('.')[0] }); return }
+    if (!f.sub_id) return
+    if (streetPick.kind === 'spec' && streetPick.id === f.id && streetPick.subId === f.sub_id) return
+    const findExact = (items: SpecialtySuggestion[]) => items.find((item) => item.specialty_ar === f.id && String(item.sub_id || '') === f.sub_id)
+    const applyExact = (item: SpecialtySuggestion | undefined) => {
+      if (version !== specialtyFocusResolution.current) return
+      const specialtyId = String(item?.specialty_id || '')
+      if (!item || !specialtyId) { setSpecialtyFocusResolveError(true); return }
+      setStreetPick({ kind: 'spec', id: item.specialty_ar, name: item.specialty_ar, specialtyId, subId: f.sub_id!, mainAr: item.main_ar || item.sub_ar || 'نشاط فرعي' })
+    }
+    const cached = findExact(activitySpecialties)
+    if (cached) { applyExact(cached); return }
+    setSpecialtyFocusResolving(true)
+    streetGen.current++
+    setDense(null)
+    void suggestSpecialties(f.id, f.sub_id.split('.')[0]).then((result) => applyExact(findExact(result?.suggestions || [])), () => applyExact(undefined)).finally(() => {
+      if (version === specialtyFocusResolution.current) setSpecialtyFocusResolving(false)
+    })
+  }
 
   const citySelect = (cls: string) => (
     <>
@@ -1026,6 +1167,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const picker = (id: string, label: string, icon: typeof DistrictIcon, options: { value: string; text: string }[], onPick: (v: string) => void) => options.length ? (
     <FilterPill id={id} label={label} icon={icon} analyticsKey={id === 'targeting-district' ? 'district' : id === 'targeting-street' ? 'street' : id === 'targeting-role' ? 'role' : 'specialty'} options={options} disabled={busy} mobile={mobile} onPick={onPick} />
   ) : null
+  const highlightFilterDistrict = (name?: string) => {
+    if (!name) { setChosenD(new Set()); return }
+    const normalized = safeLocationName(name)
+    const match = districts.find((district) => safeLocationName(district.ar) === normalized)
+    setChosenD(new Set([match?.id || `name:${name}`]))
+  }
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
@@ -1038,14 +1185,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           }} />
       ) : null}
       {filters.district
-        ? <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['district', 'street']))} />
+        ? <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => { highlightFilterDistrict(); applyFilters(keep(filters, ['district', 'street'])) }} />
         : picker('targeting-district', 'الحي', DistrictIcon, areas.districts.flatMap((d) => {
           const name = safeLocationName(d.name)
           return name ? [{ value: name, text: `${name} (${n(d.n)})` }] : []
-        }), (v) => applyFilters({ ...keep(filters, ['street']), district: v }))}
+        }), (v) => { highlightFilterDistrict(v); applyFilters({ ...keep(filters, ['street']), district: v }) })}
       {filters.street
         ? <Chip className="shrink-0" icon={StreetIcon} label={`الشارع: ${filters.street}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['street']))} />
-        : picker('targeting-street', 'الشارع', StreetIcon, streets.map((st, i) => ({ value: String(i), text: `${st.name}${filters.district || !st.district ? '' : ` — ${st.district}`} (${n(st.n)})` })), (v) => { const st = streets[Number(v)]; if (st) applyFilters({ ...filters, district: filters.district || st.district || undefined, street: st.name }) })}
+        : picker('targeting-street', 'الشارع', StreetIcon, streets.map((st, i) => ({ value: String(i), text: `${st.name}${filters.district || !st.district ? '' : ` — ${st.district}`} (${n(st.n)})` })), (v) => { const st = streets[Number(v)]; if (st) { highlightFilterDistrict(filters.district || st.district || undefined); applyFilters({ ...filters, district: filters.district || st.district || undefined, street: st.name }) } })}
       {filters.role
         ? <Chip className="shrink-0" icon={SupplierIcon} label={`الدور: ${filters.role}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['role']))} />
         : picker('targeting-role', 'الدور', SupplierIcon, (areas.roles || []).map((x) => ({ value: x.name, text: `${x.name} (${n(x.n)})` })), (v) => applyFilters({ ...filters, role: v }))}
@@ -1069,34 +1216,68 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     </div>
   ) : null
   // Keep a short list of high-signal trade points alongside the street-density lines.
-  const denseList = useMemo(() => dense?.list || [], [dense])
+  const denseList = useMemo(() => {
+    if (filters.role) return []
+    return (dense?.list || []).filter((street) =>
+      (!filters.street || safeLocationName(street.props.street_ar) === safeLocationName(filters.street)) &&
+      (!filters.district || safeLocationName(street.props.district_ar) === safeLocationName(filters.district)))
+  }, [dense, filters.role, filters.street, filters.district])
   const streetNames = useMemo(() => new Set(denseList.map((x) => x.props.street_ar)), [denseList])
   const clusterTop = useMemo(() => (clusters?.list || [])
-    .filter((c) => c.level !== 'cell' && !(c.level === 'street' && c.street_ar && streetNames.has(c.street_ar)))
+    .filter((c) => !filters.role && !filters.specialty && c.level !== 'cell' &&
+      (!filters.district || safeLocationName(c.district_ar) === safeLocationName(filters.district)) &&
+      (!filters.street || c.level === 'street' && safeLocationName(c.street_ar) === safeLocationName(filters.street)) &&
+      !(c.level === 'street' && c.street_ar && streetNames.has(c.street_ar)))
     .sort((a, b) => b.n - a.n)
-    .slice(0, 5), [clusters, streetNames])
-  const activeStreetId = activeStreet && dense?.list.find((x) => x.id === activeStreet)?.props.street_ar === filters.street ? activeStreet : null
-  const pickedStreet = activeStreetId ? dense!.list.find((x) => x.id === activeStreetId)! : null
-  // choropleth: places of this request per district (service counts by name, else rows inside)
+    .slice(0, 5), [clusters, streetNames, filters.role, filters.specialty, filters.district, filters.street])
+  const activeStreetId = activeStreet && denseList.some((x) => x.id === activeStreet && (!filters.street || safeLocationName(x.props.street_ar) === safeLocationName(filters.street))) ? activeStreet : null
+  const pickedStreet = activeStreetId ? denseList.find((x) => x.id === activeStreetId)! : null
+  // Use counts from the same selected cohort for map colors. Exact specialty filters only
+  // draw street lines when the source carries specialty IDs; unsupported dimensions fail closed.
   const density = useMemo(() => {
     if (!hasPolys) return new Map<string, number>()
-    if (res) return densityOf(districts, res.areas?.districts || [], rows)
+    if (filters.role && streetPick.kind !== 'all') return new Map<string, number>()
+    if (res && streetPick.kind === 'all') return densityOf(districts, res.areas?.districts || [], rows)
     return densityOf(districts, marketDistrictCounts.map((item) => ({ name: item.district_ar, n: item.n })), [])
-  }, [hasPolys, res, districts, rows, marketDistrictCounts])
+  }, [hasPolys, res, streetPick.kind, districts, rows, marketDistrictCounts, filters.role])
   const densityMax = useMemo(() => Math.max(0, ...density.values()), [density])
   const anyChosen = chosenD.size > 0 || Boolean(filters.street)
   // Browse data is loaded before a customer searches; it must not advance the search journey.
   const step: 1 | 2 | 3 = !hasTargetQuery ? 1 : !anyChosen && !profile ? 2 : 3
-  const topDistricts = useMemo(() => res
+  const topDistricts = useMemo(() => filters.role && streetPick.kind !== 'all' ? [] : res && streetPick.kind === 'all'
     ? [...(res.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 8)
-    : marketDistrictCounts.slice(0, 8).map((d) => ({ name: d.district_ar, n: d.n })), [res, marketDistrictCounts])
+    : marketDistrictCounts.slice(0, 8).map((d) => ({ name: d.district_ar, n: d.n })), [res, streetPick.kind, marketDistrictCounts, filters.role])
   const AR_DIGITS = (v: number) => String(v).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)])
-  const where = chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${AR_DIGITS(chosenNames.length)} أحياء` : cityName(city)
-  const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : null
+  const where = filters.street ? `${filters.street}${filters.district ? `، ${filters.district}` : ''}` : filters.district || (chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${AR_DIGITS(chosenNames.length)} أحياء` : cityName(city))
+  const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : streetPick.kind === 'spec' ? catalog?.find((item) => item.subs.some((sub) => String(sub.sub_id) === streetPick.subId))?.main_id || null : null
   const pickedSubs = pickedMain ? catalog?.find((m) => m.main_id === pickedMain)?.subs || [] : []
   const selectedActivity = pickedMain ? catalog?.find((m) => m.main_id === pickedMain) : null
   const normalizedActivitySearch = normalizeActivityText(activitySearch.trim())
-  const filteredActivities = (catalog || []).filter((item) => normalizeActivityText(item.main_ar).includes(normalizedActivitySearch))
+  const filteredActivities = (catalog || []).filter((item) => normalizeActivityText(item.main_ar).includes(normalizedActivitySearch) || item.subs.some((sub) => normalizeActivityText(sub.sub_ar).includes(normalizedActivitySearch)))
+  const matchingSubActivities = activitySearch.trim() ? (catalog || []).flatMap((item) => item.subs
+    .filter((sub) => normalizeActivityText(sub.sub_ar).includes(normalizedActivitySearch))
+    .map((sub) => ({ ...sub, main_id: item.main_id, main_ar: item.main_ar }))) : []
+  const filteredSpecialties = activitySpecialties.filter((item) => !selectedActivity || !item.main_ar || item.main_ar === selectedActivity.main_ar)
+  useEffect(() => {
+    const text = activitySearch.trim()
+    if (text.length < 2) {
+      setActivitySpecialties([])
+      setActivitySpecialtiesLoading(false)
+      return
+    }
+    let active = true
+    const timer = window.setTimeout(() => {
+      setActivitySpecialtiesLoading(true)
+      suggestSpecialties(text, pickedMain || undefined).then((result) => {
+        if (active) setActivitySpecialties(result?.suggestions || [])
+      }, () => {
+        if (active) setActivitySpecialties([])
+      }).finally(() => {
+        if (active) setActivitySpecialtiesLoading(false)
+      })
+    }, 250)
+    return () => { active = false; window.clearTimeout(timer) }
+  }, [activitySearch, pickedMain])
   const clearActivitySelection = () => {
     if (streetPick.kind !== 'all') recordMapInteraction('map_activity_clear')
     setStreetPick({ kind: 'all' })
@@ -1110,10 +1291,51 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     pickFocus(clear ? null : { level: 'main', id: mainId })
     closeActivityMenu()
   }
+  const selectSubActivity = (mainId: string, subId: string | number) => {
+    const selectedAlready = streetPick.kind === 'sub' && streetPick.ids.map(String).includes(String(subId))
+    recordMapInteraction(selectedAlready ? 'map_activity_clear' : 'map_activity_sub_select')
+    setStreetPick(selectedAlready ? { kind: 'main', id: mainId } : { kind: 'sub', ids: [String(subId)], main: mainId })
+    pickFocus(selectedAlready ? { level: 'main', id: mainId } : { level: 'sub', id: String(subId) })
+    closeActivityMenu()
+  }
+  const selectStreetSpecialty = (item: SpecialtySuggestion) => {
+    const id = String(item.specialty_ar)
+    const specialtyId = String(item.specialty_id)
+    const subId = String(item.sub_id || '')
+    if (!subId) return
+    const alreadySelected = streetPick.kind === 'spec' && streetPick.id === id
+    recordMapInteraction(alreadySelected ? 'map_activity_clear' : 'map_activity_spec_select')
+    setStreetPick(alreadySelected
+      ? { kind: 'all' }
+      : { kind: 'spec', id, specialtyId, name: item.specialty_ar, subId, mainAr: item.main_ar || item.sub_ar || 'نشاط فرعي' })
+    pickFocus(alreadySelected ? null : { level: 'spec', id, sub_id: subId })
+    closeActivityMenu()
+  }
   const closeActivityMenu = () => {
     setActivityMenuOpen(false)
     activityTriggerRef.current?.focus()
   }
+  const renderActivitySearchMatches = () => activitySearch.trim() ? (
+    <div className="mt-2 flex flex-col gap-1" aria-live="polite">
+      {matchingSubActivities.map((item) => (
+        <Command.Item key={`sub:${item.sub_id}`} value={`فرعي ${item.sub_ar} ${item.main_ar}`} onSelect={() => selectSubActivity(item.main_id, item.sub_id)} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-3 text-start text-[13px] data-[selected=true]:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+          <span className="min-w-0 flex-1 truncate">{item.sub_ar} <span className="text-[var(--color-text-tertiary)]">· {item.main_ar}</span></span>
+          <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{n(item.streets)} شارع</span>
+        </Command.Item>
+      ))}
+      <div className="mt-1 border-t border-[var(--color-border-default)] pt-2">
+        <p className="m-0 px-3 pb-1 text-[12px] font-medium text-[var(--color-text-secondary)]">التخصصات المطابقة</p>
+        {activitySpecialtiesLoading ? <p className="m-0 px-3 py-2 text-[12px] text-[var(--color-text-tertiary)]">نبحث في التخصصات…</p> : null}
+        {filteredSpecialties.map((item) => (
+          <Command.Item key={`spec:${item.specialty_id}`} value={`تخصص ${item.specialty_ar} ${item.sub_ar || item.main_ar}`} onSelect={() => selectStreetSpecialty(item)} className={`flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-start text-[13px] data-[selected=true]:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+            <span className="min-w-0 flex-1 truncate">{item.specialty_ar} <span className="text-[var(--color-text-tertiary)]">· {item.sub_ar || item.main_ar}</span></span>
+            {streetPick.kind === 'spec' && streetPick.id === item.specialty_ar ? <Icon name="check" size={16} /> : null}
+          </Command.Item>
+        ))}
+        {!activitySpecialtiesLoading && !matchingSubActivities.length && !filteredSpecialties.length && !filteredActivities.length ? <p className="m-0 px-3 py-2 text-[12px] text-[var(--color-text-secondary)]">ما لقينا تصنيفاً أو نشاطاً فرعياً أو تخصصاً بهذا الاسم.</p> : null}
+      </div>
+    </div>
+  ) : null
   useEffect(() => {
     if (!activityMenuOpen) return
     activitySearchRef.current?.focus()
@@ -1158,15 +1380,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }, [activityMenuOpen, mobile])
   const renderActivityOptions = (items: StreetCatalog['mains'], activeMain: string | null, onAll: () => void, onSelect: (mainId: string) => void) => (
     <>
-      <button type="button" aria-pressed={!activeMain && streetPick.kind === 'all'} onClick={onAll} className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-start text-[14px] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+      <Command.Item value="كل الأنشطة" onSelect={onAll} className={`flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-start text-[14px] data-[selected=true]:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
         <span className="min-w-0 flex-1">كل الأنشطة</span>
         {!activeMain && streetPick.kind === 'all' ? <Icon name="check" size={16} /> : null}
-      </button>
-      {items.map((item) => <button key={item.main_id} type="button" aria-pressed={activeMain === item.main_id} onClick={() => onSelect(item.main_id)} className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-start text-[14px] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+      </Command.Item>
+      {items.map((item) => <Command.Item key={item.main_id} value={`تصنيف ${item.main_ar}`} onSelect={() => onSelect(item.main_id)} className={`flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-start text-[14px] data-[selected=true]:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
         <span className="min-w-0 flex-1 truncate">{item.main_ar}</span>
         <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{n(item.streets)} شارع</span>
         {activeMain === item.main_id ? <Icon name="check" size={16} /> : null}
-      </button>)}
+      </Command.Item>)}
     </>
   )
   const activityPicker = catalog && catalog.length ? (
@@ -1175,7 +1397,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <button ref={activityTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={activityMenuOpen} aria-controls="street-activity-options" onClick={() => { setActivitySearch(''); const nextOpen = !activityMenuOpen; setActivityMenuOpen(nextOpen); if (nextOpen) recordMapInteraction('map_activity_filter_open') }}
           className={`inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm hover:border-[var(--color-border-strong)] ${FOCUS_RING}`}>
           <FiltersIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
-          <span className="max-w-[min(65vw,18rem)] truncate">النشاط: {selectedActivity ? selectedActivity.main_ar : 'الكل'}</span>
+          <span className="max-w-[min(65vw,18rem)] truncate">{streetPick.kind === 'spec' ? `التخصص: ${streetPick.name}` : streetPick.kind === 'sub' ? `النشاط الفرعي: ${pickedSubs.find((sub) => streetPick.ids.map(String).includes(String(sub.sub_id)))?.sub_ar || selectedActivity?.main_ar}` : `النشاط: ${selectedActivity ? selectedActivity.main_ar : 'الكل'}`}</span>
           {selectedActivity ? <span className="shrink-0 text-[12px] text-[var(--color-text-tertiary)]">{n(selectedActivity.streets)} شارع</span> : null}
           <Icon name="chevron-down" size={15} className={`shrink-0 transition-transform ${activityMenuOpen ? 'rotate-180' : ''}`} />
         </button>
@@ -1184,24 +1406,30 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <section id="street-activity-options" role="dialog" aria-modal="true" aria-labelledby="street-activity-title" className="flex max-h-[75dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
               <button type="button" aria-label="إغلاق قائمة الأنشطة" onClick={closeActivityMenu} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
               <h3 id="street-activity-title" className="px-5 pb-2 text-[16px] font-semibold">اختر نشاط الشوارع</h3>
-              <label className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
-                <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
-                <input ref={activitySearchRef} value={activitySearch} onChange={(event) => setActivitySearch(event.target.value)} placeholder="ابحث عن نشاط" className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-              </label>
-              <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
-                {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
-                {activitySearch && filteredActivities.length === 0 ? <p className="px-3 py-4 text-[14px] text-[var(--color-text-secondary)]">ما لقينا نشاطاً بهذا الاسم.</p> : null}
-              </div>
+              <Command label="فلتر أنشطة الشوارع" shouldFilter={false} loop>
+                <label className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
+                  <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+                  <Command.Input ref={activitySearchRef} value={activitySearch} onValueChange={setActivitySearch} aria-label="ابحث عن نشاط أو تخصص" placeholder="ابحث عن تصنيف أو نشاط فرعي أو تخصص" className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[15px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+                </label>
+                <Command.List className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
+                  {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
+                  {renderActivitySearchMatches()}
+                </Command.List>
+              </Command>
             </section>
           </div>, document.body,
         ) : createPortal(
           <div ref={activityOptionsRef} id="street-activity-options" role="dialog" aria-label="نشاط الشوارع وعدد الشوارع لكل نشاط" style={{ position: 'fixed', top: activityMenuPosition?.top ?? 0, right: activityMenuPosition?.right ?? 12 }} className="z-[160] max-h-[min(55dvh,28rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
-            <label className="mb-1 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
-              <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
-              <input ref={activitySearchRef} value={activitySearch} onChange={(event) => setActivitySearch(event.target.value)} placeholder="ابحث عن نشاط" className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
-            </label>
-            {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
-            {activitySearch && filteredActivities.length === 0 ? <p className="px-3 py-4 text-[14px] text-[var(--color-text-secondary)]">ما لقينا نشاطاً بهذا الاسم.</p> : null}
+            <Command label="فلتر أنشطة الشوارع" shouldFilter={false} loop>
+              <label className="mb-1 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
+                <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+                <Command.Input ref={activitySearchRef} value={activitySearch} onValueChange={setActivitySearch} aria-label="ابحث عن نشاط أو تخصص" placeholder="ابحث عن تصنيف أو نشاط فرعي أو تخصص" className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+              </label>
+              <Command.List>
+                {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
+                {renderActivitySearchMatches()}
+              </Command.List>
+            </Command>
           </div>, document.body,
         )) : null}
       </div>
@@ -1209,16 +1437,17 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <>
         <div role="group" aria-label="الأنشطة الفرعية وعدد الشوارع لكل نشاط" aria-describedby={mobile && pickedSubs.length > 2 ? 'street-subactivities-scroll-hint' : undefined} className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
           {pickedSubs.map((x) => {
-            const on = streetPick.kind === 'sub' && streetPick.ids.includes(x.sub_id)
+            const on = streetPick.kind === 'sub' && streetPick.ids.map(String).includes(String(x.sub_id)) || streetPick.kind === 'spec' && streetPick.subId === String(x.sub_id)
             return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)} شارع`} selected={on} onClick={() => { recordMapInteraction(on ? 'map_activity_clear' : 'map_activity_sub_select'); setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
           })}
         </div>
         </>
       ) : null}
       {streetPick.kind === 'q' ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الشوارع حسب طلبك: «{streetPick.q}»</p> : null}
+      {streetPick.kind === 'spec' ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">المنشآت وعدادات الأحياء تُصفّى على التخصص «{streetPick.name}». {marketSpecialtyAvailable === false ? 'الخدمة أو نسخة الدليل لا تدعم العد الدقيق لهذا التخصص؛ أخفينا الأعداد والخطوط العامة حتى لا تبدو مطابقة.' : 'خطوط الشوارع لا تظهر إلا إذا كان مصدرها يفصل هذا التخصص.'}</p> : null}
     </div>
   ) : null
-  const densePanel = denseList.length || activityPicker || topDistricts.length ? (
+  const densePanel = denseList.length || activityPicker || topDistricts.length || filters.role || filters.specialty || filters.street || focus?.level === 'spec' && (specialtyFocusResolving || specialtyFocusResolveError) ? (
     <section aria-labelledby="dense-title" className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-5 py-3">
       <h2 id="dense-title" className="flex items-center gap-2 text-[14px] leading-[22px] font-semibold"><StreetIcon size={18} className="text-[var(--color-icon-secondary)]" />أكثر الشوارع كثافة في {where}</h2>
       <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
@@ -1243,13 +1472,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             </li>
           ))}
         </ol>
-      ) : denseLoadError ? (
+      ) : filters.specialty && filterSpecialtyResolving ? <p role="status" className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">نطابق التخصص مع بيانات الشوارع قبل عرض أي خطوط…</p> : filters.specialty && (filterSpecialtyResolveError || specialtyScopeConflict) ? <p role="alert" className="text-[13px] leading-[20px] text-[var(--color-text-danger)]">تعذر مطابقة التخصص مع طبقة الشوارع بدقة؛ أخفينا الخطوط العامة حتى لا تظهر كأنها تطابقه.</p> : filters.role ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">مصدر كثافة الشوارع لا يفصل حسب دور المنشأة. تبقى قائمة المنشآت مفلترة، وأخفينا خطوط الشوارع العامة.</p> : filters.street && dense ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">طبقة كثافة الشوارع الحالية لا تتضمن شارع «{filters.street}»؛ أبقينا الفلتر على قائمة المنشآت فقط.</p> : focus?.level === 'spec' && specialtyFocusResolving ? <p role="status" className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">نطابق التخصص مع التصنيف الدقيق قبل تحديث كثافة الشوارع…</p> : focus?.level === 'spec' && specialtyFocusResolveError ? <p role="alert" className="text-[13px] leading-[20px] text-[var(--color-text-danger)]">ما قدرنا نطابق هذا التخصص مع بيانات الشوارع؛ أخفينا الخطوط حتى لا نعرض نشاطاً أوسع على أنه مطابق.</p> : denseLoadError ? (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-danger)]">
           <WarningIcon size={16} />
           <span className="min-w-0 flex-1">تعذر تحميل كثافة الشوارع. هذا لا يعني عدم وجود شوارع كثيفة.</span>
           <button type="button" onClick={retryStreetDensity} className={`shrink-0 underline ${FOCUS_RING}`}>إعادة المحاولة</button>
         </div>
-      ) : dense ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما فيه شوارع كثيفة بهذا الاختيار. جرّب نشاطاً آخر أو أحياء أوسع.</p> : <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p>}
+      ) : dense && selectedSpecialtyIds.length && dense.specialty_available === false ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">مصدر الشوارع الحالي لا يفصل هذا التخصص؛ أخفينا خطوط النشاط الأوسع.</p> : dense && streetPick.kind === 'spec' && dense.specialty_available === false ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما عندنا حالياً طبقة شوارع مفصلة لهذا التخصص. أوقفنا خطوط النشاط الفرعي حتى لا تظهر كأنها نتيجة دقيقة.</p> : dense ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما فيه شوارع كثيفة بهذا الاختيار. جرّب نشاطاً آخر أو أحياء أوسع.</p> : <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p>}
       {topDistricts.length ? (
         <div className="flex flex-col gap-1.5">
           <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">أكثر الأحياء بهذا النشاط</p>
@@ -1348,7 +1577,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {sourceCountOf(r) === 1 ? <Badge tone="Neutral" showDot={false} label="مصدر مسجل واحد" className="w-fit text-[11px] leading-[16px] px-2 py-0.5" /> : null}
             <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r, cities) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
           </button>
-          <span className="flex shrink-0 flex-col items-end gap-1">{ch === 'WhatsApp' && r.whatsapp_verification_state !== 'verified' ? <Badge tone="Warning" label="واتساب غير متحقق" className="px-2 py-0.5 text-[12px] leading-[18px]" /> : <ChannelBadge channel={ch} />}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
+          <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
         </div>
       </li>
     )
@@ -1529,14 +1758,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
         </p>
       ) : null}
-      {hasTargetQuery && res && (unverifiedWhatsappCount > 0 || unconfirmedStatusCount > 0) ? (
+      {hasTargetQuery && res && unconfirmedStatusCount > 0 ? (
         <details onToggle={(event) => { if (event.currentTarget.open) recordMapInteraction('map_data_quality_notice_open') }} className="group mb-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
           <summary className={`flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 font-medium ${FOCUS_RING}`}>
             <span className="flex min-w-0 items-center gap-1.5"><WarningIcon size={15} className="shrink-0" /><span>تنبيهات قبل التواصل</span></span>
             <Icon name="chevron-down" size={14} className="shrink-0 transition-transform group-open:rotate-180" />
           </summary>
           <div className="flex flex-col gap-1 border-t border-[var(--color-border-default)] py-2">
-            {unverifiedWhatsappCount > 0 ? <p className="m-0">وسم واتساب من المصدر؛ لم يتم التحقق من استقبال الرقم للرسائل.</p> : null}
             {unconfirmedStatusCount > 0 ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة. تحقق من نشاطها قبل التواصل.</p> : null}
           </div>
         </details>
@@ -1554,7 +1782,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {[
               ['منشآت مرصودة', marketStats.total], ['أحياء بإسناد موثوق', marketStats.districts_count],
-              ['واتساب حسب المصدر', marketStats.n_whatsapp], ['منشآت موسومة جملة', marketStats.n_wholesale],
+              ['واتساب مسجل بالدليل', marketStats.n_whatsapp], ['منشآت موسومة جملة', marketStats.n_wholesale],
               ['منشآت لديها تخصصات مسجلة', marketStats.n_specialties], ['بلا موقع دقيق', marketStats.n_approx],
             ].map(([label, value]) => <div key={label} className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
               <dt className="text-[11px] leading-[16px] text-[var(--color-text-secondary)]">{label}</dt>
@@ -1562,7 +1790,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             </div>)}
           </dl>
           <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">
-            الملخص يحصي سجل المنشآت في المدينة؛ نتائج الخريطة تقتصر على المنشآت الموسومة بواتساب من المصدر، والوسم لا يعني تحقق الرقم.
+            عدد واتساب هنا من وسم الدليل. أما نتائج البحث فتعتبر رقم الجوال السعودي قناة واتساب وفق إعداد المنتج.
           </p>
         </>
       ) : marketLoading ? <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص السوق…</p> : (
@@ -1681,7 +1909,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={res?.map_query} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
+      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={activeTileQuery} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
@@ -1691,6 +1919,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <span>{focus?.level === 'main' ? `النشاط الرئيسي: ${mainAr(focus.id)}` : focus?.level === 'sub' ? `النشاط الفرعي: ${subAr(focus.id) || ''}` : focus?.level === 'spec' ? `التخصص: ${focus.id}` : lens === 'market' ? 'نظرة عامة على السوق' : 'النشاط الرئيسي'}</span>
             {focus ? <button type="button" onClick={() => pickFocus(null)} className={`inline-flex min-h-11 items-center px-2 text-[var(--color-text-info)] underline md:min-h-8 ${FOCUS_RING}`}>العودة للمستوى الأعلى</button> : null}
           </div>
+          {focus && res?.map_query && !activeTileQuery ? <p role={focusedTileError ? 'alert' : 'status'} className="pointer-events-auto m-0 max-w-[min(28rem,90vw)] rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">{focusedTileError ? 'تعذّر تحديث نقاط الخلفية لهذا النشاط؛ أخفيناها حتى لا تختلط بنتائج الاختيار.' : 'نحدّث نقاط الخريطة لتطابق النشاط المحدد…'}</p> : null}
           <div className="pointer-events-auto flex flex-wrap gap-1.5">
             {districts.length && chosenD.size ? <button type="button" onClick={clearDistrict} className={`min-h-11 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] md:min-h-8 ${FOCUS_RING}`}>عرض كل الأحياء</button> : null}
             {site ? (
@@ -1949,18 +2178,30 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   onPick: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const searchUsed = useRef(false)
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) {
+      searchUsed.current = false
+      setSearch('')
+    }
+  }, [open])
   useEffect(() => {
     if (!open) return
     const priorFocus = mobile ? trigger.current : null
     const dialog = mobile ? document.getElementById(`${id}-options`) : null
-    if (mobile) dialog?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+    if (mobile) {
+      const searchInput = dialog?.querySelector<HTMLInputElement>('input:not([disabled])')
+      if (searchInput) searchInput.focus()
+      else dialog?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+    }
     const onPointerDown = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false) }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setOpen(false); return }
+      if (event.key === 'Escape') { setOpen(false); trigger.current?.focus(); return }
       if (!mobile || event.key !== 'Tab' || !dialog) return
-      const focusable = [...dialog.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')]
       if (!focusable.length) { event.preventDefault(); return }
       const first = focusable[0], last = focusable[focusable.length - 1]
       if (!dialog.contains(document.activeElement)) {
@@ -1982,27 +2223,52 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   }, [open, mobile, id])
   const choose = (value: string) => {
     setOpen(false)
+    setSearch('')
+    trigger.current?.focus()
     recordMapInteraction(`map_filter_select_${analyticsKey}`)
     onPick(value)
   }
+  const updateSearch = (value: string) => {
+    if (value.trim() && !searchUsed.current) {
+      searchUsed.current = true
+      recordMapInteraction('map_filter_search_used')
+    }
+    setSearch(value)
+  }
+  const optionList = (className: string) => (
+    <Command label={label} loop>
+      {options.length >= 8 ? (
+        <label className="mx-1 mb-1 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3">
+          <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
+          <Command.Input value={search} onValueChange={updateSearch} aria-label={`ابحث في ${label}`} placeholder={`ابحث في ${label}`} className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+          {search ? <button type="button" aria-label="مسح البحث" onClick={() => setSearch('')} className={`shrink-0 rounded-full p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={13} /></button> : null}
+        </label>
+      ) : null}
+      <Command.List className={className}>
+        {options.map((option) => <Command.Item key={option.value} value={`${option.text} ${option.value}`} onSelect={() => choose(option.value)} className={`flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 text-start text-[14px] leading-[22px] text-[var(--color-text-primary)] data-[selected=true]:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+          <span className="min-w-0 flex-1 truncate">{option.text}</span>
+          <Icon name="chevron-back" size={14} className="shrink-0 text-[var(--color-icon-secondary)]" />
+        </Command.Item>)}
+        <Command.Empty className="px-3 py-5 text-center text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما لقينا خياراً بهذا الاسم. جرّب كلمة أقصر.</Command.Empty>
+      </Command.List>
+    </Command>
+  )
   const menu = open ? mobile ? createPortal(
     <div className="fixed inset-0 z-[160] flex items-end bg-black/25" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
       <section id={`${id}-options`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} className="flex max-h-[70dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
         <button type="button" aria-label="إغلاق قائمة الخيارات" onClick={() => setOpen(false)} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
         <h2 id={`${id}-title`} className="px-5 pb-2 text-[16px] font-semibold">{label}</h2>
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
-          {options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className={`block min-h-12 w-full rounded-xl px-3 py-2 text-start text-[15px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{option.text}</button>)}
-        </div>
+        {optionList('min-h-0 overflow-y-auto overscroll-contain px-3 pb-3')}
       </section>
     </div>, document.body,
   ) : (
-    <div id={`${id}-options`} aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-1.5 shadow-2xl backdrop-blur-xl">
-      {options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className={`block min-h-11 w-full rounded-xl px-3 py-2 text-start text-[14px] leading-[22px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{option.text}</button>)}
+    <div id={`${id}-options`} role="dialog" aria-label={label} className="absolute start-0 top-[calc(100%+8px)] z-50 max-h-[55dvh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
+      {optionList('max-h-[min(45dvh,22rem)] overflow-y-auto overscroll-contain')}
     </div>
   ) : null
   return (
     <div ref={root} className="relative shrink-0">
-      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) recordMapInteraction(`map_filter_open_${analyticsKey}`) }}
+      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) { setSearch(''); recordMapInteraction(`map_filter_open_${analyticsKey}`) } }}
         className={`inline-flex min-h-11 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 md:min-h-10 ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
