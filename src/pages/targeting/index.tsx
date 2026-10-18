@@ -12,7 +12,7 @@ import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapAnalyticsConsent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchStartedEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -457,7 +457,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (name) nextFilters.district = name
       void runSearchIn(query, city, nextFilters)
     } else {
-      void loadBrowse(city, name ? { district: name } : {})
+      const nextFilters = { ...filters }
+      delete nextFilters.district
+      delete nextFilters.street
+      if (name) nextFilters.district = name
+      void loadBrowse(city, nextFilters)
     }
   }
   const clearDistrict = () => {
@@ -469,7 +473,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       delete nextFilters.district
       delete nextFilters.street
       void runSearchIn(query, city, nextFilters)
-    } else void loadBrowse(city)
+    } else {
+      const nextFilters = { ...filters }
+      delete nextFilters.district
+      delete nextFilters.street
+      void loadBrowse(city, nextFilters)
+    }
   }
   const pickFocus = (f: Focus) => { setFocus(f); setLayer(f?.level || 'main') }
 
@@ -596,7 +605,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
     } finally { if (version === generation.current) setBusyKind(null) }
   }
-  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
+  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}, trackWholesaleOutcome = false) {
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
@@ -605,14 +614,16 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
       if (version !== generation.current) return
       recordMapInteraction('map_browse_succeeded')
+      if (trackWholesaleOutcome && browseFilters.wholesale) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))
       setFailedResultRefresh(false)
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
       setSelected(new Set()); setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
-      loadClusters('', inCity, false, 'purchase', true)
+      loadClusters('', inCity, Boolean(browseFilters.wholesale), 'purchase', true)
     } catch (err) {
       if (version === generation.current) {
         recordMapInteraction('map_browse_failed')
+        if (trackWholesaleOutcome && browseFilters.wholesale) recordMapInteraction('map_filter_wholesale_results_failed')
         if (hadResults) recordMapInteraction('map_browse_refresh_failed')
         setFailedResultRefresh(hadResults); setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.')
       }
@@ -653,6 +664,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (version !== generation.current) return null
       setFailedResultRefresh(false)
       lastSuccessfulQueryObjective.current = obj
+      if (!fresh && Boolean(use.wholesale) && !Boolean(filters.wholesale)) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))
       if (fresh) {
         recordMapInteraction(mapSearchResultEvent(r.total))
         recordMapInteraction(mapSearchOutcomeEvent(r.total, obj))
@@ -668,6 +680,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return r.total
     } catch (err) {
       if (version !== generation.current) return null
+      if (!fresh && Boolean(use.wholesale) && !Boolean(filters.wholesale)) recordMapInteraction('map_filter_wholesale_results_failed')
       if (fresh) {
         recordMapInteraction('map_search_failed')
         recordMapInteraction(mapSearchFailedEvent(obj))
@@ -677,7 +690,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return null
     } finally { if (version === generation.current) setBusyKind(null) }
   }
-  const applyFilters = (next: AreaFilters) => { if (query) void runSearchIn(query, city, next) }
+  const applyFilters = (next: AreaFilters) => {
+    if (query) void runSearchIn(query, city, next)
+    else void loadBrowse(city, next, !filters.wholesale && Boolean(next.wholesale))
+  }
   async function openMapProfile(key: string) {
     if (busy || failedResultRefresh) return
     const existing = byKey.get(key)
@@ -805,7 +821,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
-          onClick={() => applyFilters({ ...filters, wholesale: !filters.wholesale || undefined })} />
+          onClick={() => {
+            const enabled = !filters.wholesale
+            recordMapInteraction(enabled ? 'map_filter_wholesale_on' : 'map_filter_wholesale_off')
+            applyFilters({ ...filters, wholesale: enabled || undefined })
+          }} />
       ) : null}
       {filters.district
         ? <Chip className="shrink-0" icon={DistrictIcon} label={`الحي: ${filters.district}`} selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['district', 'street']))} />
