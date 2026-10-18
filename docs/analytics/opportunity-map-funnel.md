@@ -865,3 +865,50 @@ ORDER BY week_utc DESC;
 ```
 
 `batches_with_unlocated_rows` means the newly fetched page contained at least one previously unloaded result without a precise map point. It does not measure whether that establishment was useful or contacted. Read rates only after two complete weeks and at least 30 consenting batch attempts; pair the aggregate with observed discovery tasks and time-to-profile.
+
+## Supplier data-quality notice exposure and opening
+
+The map emits `pricing_map_map_data_quality_notice_seen` when the first matching result set on a page visit displays the warning and `pricing_map_map_data_quality_notice_open` when a user expands its details. These events require accepted map analytics consent and contain no search text or establishment identifiers. The percentage below is the share of consenting tab sessions with at least one recorded notice exposure that opened its details; it does not measure comprehension or trust.
+
+```sql
+WITH notice_events AS (
+  SELECT session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_data_quality_notice_seen',
+      'pricing_map_map_data_quality_notice_open'
+    )
+),
+sessions AS (
+  SELECT
+    session_id,
+    min(occurred_at) FILTER (
+      WHERE element_label = 'pricing_map_map_data_quality_notice_seen'
+    ) AS first_seen_at,
+    min(occurred_at) FILTER (
+      WHERE element_label = 'pricing_map_map_data_quality_notice_open'
+    ) AS first_open_at
+  FROM notice_events
+  GROUP BY session_id
+  HAVING count(*) FILTER (
+    WHERE element_label = 'pricing_map_map_data_quality_notice_seen'
+  ) > 0
+)
+SELECT
+  date_trunc('week', first_seen_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) AS sessions_with_notice,
+  count(*) FILTER (WHERE first_open_at > first_seen_at) AS sessions_opening_notice,
+  round(
+    100.0 * count(*) FILTER (WHERE first_open_at > first_seen_at) / nullif(count(*), 0),
+    1
+  ) AS session_open_rate_pct
+FROM sessions
+GROUP BY 1
+ORDER BY week_utc DESC;
+```
+
+Use the rate only after two complete weeks and at least 30 consenting sessions with a notice. A low opening rate may mean the short warning is already clear, that users overlook the disclosure, or that details are not relevant to their task; a high rate does not show the warning was understood. Pair it with a moderated task that asks users what the WhatsApp and operating-status labels mean. Sessions are browser tabs, not unique people.
