@@ -6,7 +6,7 @@ Farq Targeting — local server over the KSA golden POI set.
 AI query parsing uses ANTHROPIC_API_KEY (claude-haiku-4-5) when present; otherwise a built-in Arabic dictionary.
 Nothing is sent automatically: the UI opens WhatsApp click-to-chat / mailto links one contact at a time after your confirmation.
 """
-import os, json, re, sys, time, urllib.request, csv, threading
+import os, json, re, sys, time, urllib.request, csv, threading, logging, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import duckdb, subprocess, base64
 from trial_search import Directory
@@ -28,6 +28,16 @@ AUTH_PASSWORD = os.environ.get('TARGETING_PASSWORD')
 HOLDER_ENV = os.environ.get('HOLDER_RFQ_ID')
 HOLDER_ACTOR = os.environ.get('HOLDER_ACTOR_USER_ID')
 MODEL = 'claude-haiku-4-5-20251001'
+LOGGER = logging.getLogger('farq.targeting')
+
+def log_map_api_failure(endpoint, error):
+    """Log a safe failure location without request bodies, query text, or exception messages."""
+    try:
+        frames = traceback.extract_tb(error.__traceback__)[-8:]
+        stack = ','.join(f'{os.path.basename(frame.filename)}:{frame.name}:{frame.lineno}' for frame in frames)
+        LOGGER.error('map_api_failure endpoint=%s error_type=%s stack=%s', endpoint, type(error).__name__, stack)
+    except Exception:
+        pass
 
 con = duckdb.connect()
 con.execute("SET threads=2; SET memory_limit='3GB'")
@@ -590,7 +600,9 @@ class H(BaseHTTPRequestHandler):
                 self.send_response(200);self.send_header("Content-Type","application/vnd.mapbox-vector-tile");self.send_header("Cache-Control","private, no-store");self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)
             except KeyError: self._json({"error":"MAP_QUERY_EXPIRED"},410)
             except ValueError: self._json({"error":"INPUT"},400)
-            except Exception: self._json({"error":"UNAVAILABLE"},503)
+            except Exception as error:
+                log_map_api_failure('map-tiles-or-facets', error)
+                self._json({"error":"UNAVAILABLE"},503)
             return
         if not self._authed():
             b = LOGIN_HTML.encode(); self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
@@ -648,12 +660,16 @@ class H(BaseHTTPRequestHandler):
                     self._json({'row':row},200 if row else 404)
             except KeyError: self._json({'error':'MAP_QUERY_EXPIRED'},410)
             except ValueError: self._json({'error':'INPUT'},400)
-            except Exception: self._json({'error':'UNAVAILABLE'},503)
+            except Exception as error:
+                log_map_api_failure('map-context', error)
+                self._json({'error':'UNAVAILABLE'},503)
         elif self.path == '/trial-search':
             try:
                 result=TRIAL_DIRECTORY.search(body.get('q'), body.get('city'), body.get('objective', 'purchase'),min(200,max(1,int(body.get('limit',30)))),int(body.get('offset',0)));result.pop('_map_rows',None);self._json(result)
             except ValueError: self._json({'error': 'INPUT'}, 400)
-            except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
+            except Exception as error:
+                log_map_api_failure('trial-search', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/clusters':
             # trade clusters for the map (owner 2026-10-16): streets/districts where a trade concentrates, wholesale marked
             try:
@@ -670,7 +686,9 @@ class H(BaseHTTPRequestHandler):
                 self._json({'clusters': taxonomy_search.trade_clusters(path, city, subs, wholesale, f.get('bounds')), 'wholesale': wholesale,
                             'basis': 'تجمع = عدد المحلات من نفس النشاط في الشارع/الحي مقارنة بنسبته في المدينة؛ ليس تأكيدًا للأسعار أو التوفر'})
             except ValueError: self._json({'error': 'INPUT'}, 400)
-            except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
+            except Exception as error:
+                log_map_api_failure('clusters', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys'):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
             try:
@@ -679,7 +697,9 @@ class H(BaseHTTPRequestHandler):
                 elif self.path == '/district-insights': self._json(MARKET_ANALYTICS.district_insights(body))
                 else: self._json(MARKET_ANALYTICS.who_buys(body))
             except ValueError: self._json({'error': 'INPUT'}, 400)
-            except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
+            except Exception as error:
+                log_map_api_failure('market-analytics', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path in ('/street-density', '/street-density/catalog'):
             # dense streets along real streets (street_density.py), owner 2026-10-16: shown as soon as the map opens (all
             # activities in the city), narrowed by a main activity, subcategory, exact specialty, a request, and/or districts
@@ -724,7 +744,9 @@ class H(BaseHTTPRequestHandler):
                     'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g in rows],
                     'specialty_available': True,
                     'basis': 'كل منشأة على أقرب شارع لها (حتى ٤٠ م)؛ الكثافة = عدد المحلات لكل ١٠٠ م مقارنة بنسبة النشاط في المدينة'})
-            except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
+            except Exception as error:
+                log_map_api_failure('street-density', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/suggest-specialties':
             # supplier onboarding: the supplier names his sector and his main materials in his own words; we suggest specialties to confirm
             try:
@@ -733,7 +755,9 @@ class H(BaseHTTPRequestHandler):
                 if tx is None: self._json({'error': 'UNAVAILABLE'}, 503); return
                 if not isinstance(text, str) or not 2 <= len(text.strip()) <= 1000 or (main is not None and not isinstance(main, str)): self._json({'error': 'INPUT'}, 400); return
                 self._json({'suggestions': tx.suggest_specialties(text, main or None)})
-            except Exception: self._json({'error': 'UNAVAILABLE'}, 503)
+            except Exception as error:
+                log_map_api_failure('suggest-specialties', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/search':
             try:
                 if body.get('objective')=='browse':
@@ -747,7 +771,9 @@ class H(BaseHTTPRequestHandler):
                 else:
                     self._json(search(body.get('q', ''), body.get('limit', 3000), body.get('only_sendable', False), body.get('city') or None))
             except ValueError: self._json({'error':'INPUT'},400)
-            except Exception: self._json({'error':'UNAVAILABLE'},503)
+            except Exception as error:
+                log_map_api_failure('search', error)
+                self._json({'error':'UNAVAILABLE'},503)
         elif self.path == '/demo-understand':
             try: self._json(demo_understand(body))
             except Exception: self._json({'ok': False, 'error': 'DEMO_FAILED'}, 500)
