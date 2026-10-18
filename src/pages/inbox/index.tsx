@@ -11,7 +11,7 @@ import {
   type ConstructionInboxThreadMessage,
   type ConstructionReplyKind,
 } from '../../api/constructionClient'
-import { Badge, Button, ChannelBadge, Chip, Icon, MobileAppBar, channelFromApi, useIsMobile, type BadgeTone } from '../../ui'
+import { Badge, Bubble as MessageBubble, BubbleContent, Button, ChannelBadge, Chip, Icon, MobileAppBar, channelFromApi, useIsMobile, type BadgeTone } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
 /*
@@ -124,7 +124,8 @@ function Bubble({ m }: { m: ConstructionInboxThreadMessage }) {
   const files = m.files || []
   return (
     <li className={`flex w-full flex-col gap-1.5 ${inbound ? 'items-start' : 'items-end'}`}>
-      <div className={`max-w-[85%] rounded-[var(--radius-lg)] px-4 py-3 text-start ${inbound ? 'border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-text-primary)]' : 'bg-[var(--color-bg-inverse)] text-[var(--color-text-on-inverse)]'}`}>
+      <MessageBubble align={inbound ? 'start' : 'end'} variant={inbound ? 'secondary' : 'default'}>
+        <BubbleContent>
         {m.subject && !m.body_text ? <p className="text-[14px] leading-[22px] font-medium">{m.subject}</p> : null}
         <p className="text-[16px] leading-[26px] break-words whitespace-pre-wrap">{m.body_text || (files.length ? '' : '—')}</p>
         {files.length ? (
@@ -135,9 +136,10 @@ function Bubble({ m }: { m: ConstructionInboxThreadMessage }) {
         <p className={`mt-1 text-[12px] leading-[18px] ${inbound ? 'text-[var(--color-text-tertiary)]' : 'text-[var(--color-text-on-inverse-secondary)]'}`}>
           {[!inbound && m.employee_name ? m.employee_name : null, clock(m.created_at), !inbound && m.state && m.state !== 'SENT' ? (m.state === 'FAILED' ? 'تعذر الإرسال' : 'قيد الإرسال') : null].filter(Boolean).join(' · ')}
         </p>
-      </div>
+        </BubbleContent>
+      </MessageBubble>
       {kind || ch ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={`flex flex-wrap items-center gap-2 ${inbound ? 'self-start' : 'self-end'}`}>
           {ch ? <ChannelBadge channel={ch} /> : null}
           {kind ? <Badge tone={kind.tone} label={kind.label} className="text-[12px] leading-[18px]" /> : null}
           {m.reply_summary_ar ? <span className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{m.reply_summary_ar}</span> : null}
