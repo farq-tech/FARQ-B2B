@@ -74,7 +74,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
             <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><span className="font-medium text-[var(--color-text-primary)]">{m === 'unc' ? `تصنيف فرق: ${mainAr(m)}` : mainAr(m)}</span>{subAr(s) ? <> ▸ {subAr(s)}</> : null}</p>
           </div>
         </div>
-        <button type="button" aria-label="إغلاق ملف المنشأة" onClick={onClose} className={`flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-default)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={16} /></button>
+        <button type="button" aria-label="إغلاق ملف المنشأة" onClick={onClose} className={`flex ${mobile ? 'size-11' : 'size-9'} shrink-0 items-center justify-center rounded-full border border-[var(--color-border-default)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={16} /></button>
       </div>
       <div className="flex flex-col gap-4 px-5 py-4 text-[14px] leading-[22px]">
         <section aria-label="سبب ظهور المنشأة" className="flex flex-col gap-1 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2.5">
