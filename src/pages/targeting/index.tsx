@@ -61,6 +61,10 @@ const RADII = [5, 10, 25, 50, 100] as const
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
 const n = (v: number) => v.toLocaleString('ar-SA')
+const sourceCountOf = (r: TargetRow) => {
+  const count = r.source_count ?? r.sources?.length ?? null
+  return typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : null
+}
 /** With no fit filter, prioritize AI-likely places; an explicit fit filter selects WhatsApp rows in that visible group. */
 const pickForFit = (rows: TargetRow[], fitFilter: PinFit | 'all') => {
   const prioritizeLikely = fitFilter === 'all' && rows.some((r) => r.ai)
@@ -907,6 +911,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
             {pathOf(r) ? <span className="truncate text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{pathOf(r)}</span> : null}
             <RowBadges r={r} />
+            {sourceCountOf(r) === 1 ? <Badge tone="Neutral" showDot={false} label="مصدر مسجل واحد" className="w-fit text-[11px] leading-[16px] px-2 py-0.5" /> : null}
             <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
           </button>
           <span className="flex shrink-0 flex-col items-end gap-1">{ch === 'WhatsApp' && r.whatsapp_verification_state !== 'verified' ? <Badge tone="Warning" label="واتساب غير متحقق" className="text-[12px] leading-[18px]" /> : <ChannelBadge channel={ch} />}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
