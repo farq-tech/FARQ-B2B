@@ -838,7 +838,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
-      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setFocus(null); setProfile(null); setShowUnlocated(false) }
+      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setChosenD(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
       if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj, keepStreets)
       const p = r.parsed || {}
