@@ -308,7 +308,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // pause so a transient network error does not require the user to retry manually.
     const withOneRetry = async <T,>(load: () => Promise<T>): Promise<T> => {
       try { return await load() } catch (error) {
-        if (!active) throw error
+        const transient = error instanceof TypeError || error instanceof TargetingError && [502, 503, 504].includes(error.status)
+        if (!active || !transient) throw error
         await new Promise<void>((resolve) => window.setTimeout(resolve, 350))
         if (!active) throw error
         return load()
