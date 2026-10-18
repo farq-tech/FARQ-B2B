@@ -405,7 +405,7 @@ The events are recorded only with accepted map-analytics consent and only after 
 
 ## Blank supplier/buyer prompt visibility
 
-These events record a blank search prompt only while its panel is visibly open: `pricing_map_map_supplier_prompt_seen` for supplier search and `pricing_map_map_buyer_prompt_seen` for buyer discovery. New role-specific events distinguish search start, result bucket, failure, and result-profile open for the selected task direction. They contain no search text, location, or establishment key. Events are consented and session-scoped, and leaving/hiding the prompt before returning is a new impression.
+These events record a blank search prompt only after at least half of the prompt intersects the visible viewport: `pricing_map_map_supplier_prompt_seen` for supplier search and `pricing_map_map_buyer_prompt_seen` for buyer discovery. A prompt rendered below the map but outside the viewport is not counted. New role-specific events distinguish search start, result bucket, failure, and result-profile open for the selected task direction. They contain no search text, location, or establishment key. Events are consented and session-scoped, and leaving/hiding the prompt before returning is a new impression.
 
 The following aggregate query reports the session funnel by task direction: prompt shown, search started, result bucket/failure, and result profile opened. Legacy generic result events continue to be emitted for existing reports; do not add generic and role-specific event counts together because they represent the same searches.
 

@@ -159,6 +159,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [profile, setProfile] = useState<string | null>(null)
   const [tab, setTab] = useState<'streets' | 'results' | 'guide'>(() => (mobile ? 'streets' : 'results'))
   const resultsPanelRef = useRef<HTMLElement | null>(null)
+  const searchPromptRef = useRef<HTMLElement | null>(null)
   const resultsShortcutSeen = useRef(false)
   const [analyticsConsentRevision, setAnalyticsConsentRevision] = useState(0)
   const lastVisiblePrompt = useRef<string | null>(null)
@@ -173,14 +174,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     recordMapInteraction('map_results_shortcut_seen')
   }, [mobile, focusMode, res, analyticsConsentRevision])
   useEffect(() => {
-    // Count only an actually visible blank search prompt. Never include query,
-    // location, or establishment data in this consented aggregate event.
-    const promptVisible = lens !== 'market'
+    // Require at least half of the blank prompt to enter the viewport; its mere
+    // presence below the map is not an impression. Never record query data.
+    const promptRendered = lens !== 'market'
       && !hasTargetQuery
       && tab !== 'guide'
       && (!mobile || tab === 'results')
       && (!focusMode || (focusPanelOpen && (!mobile || focusPanelSnap !== 'peek')))
-    if (!promptVisible) {
+    const prompt = searchPromptRef.current
+    if (!promptRendered || !prompt) {
       lastVisiblePrompt.current = null
       return
     }
@@ -188,10 +190,20 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       lastVisiblePrompt.current = null
       return
     }
+    if (typeof IntersectionObserver === 'undefined') return
     const event = lens === 'sellers' ? 'map_supplier_prompt_seen' : 'map_buyer_prompt_seen'
-    if (lastVisiblePrompt.current === event) return
-    lastVisiblePrompt.current = event
-    recordMapInteraction(event)
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.some((entry) => entry.target === prompt && entry.isIntersecting && entry.intersectionRatio >= 0.5)
+      if (!visible) {
+        lastVisiblePrompt.current = null
+        return
+      }
+      if (lastVisiblePrompt.current === event) return
+      lastVisiblePrompt.current = event
+      recordMapInteraction(event)
+    }, { threshold: 0.5 })
+    observer.observe(prompt)
+    return () => observer.disconnect()
   }, [lens, hasTargetQuery, tab, mobile, focusMode, focusPanelOpen, focusPanelSnap, analyticsConsentRevision])
   const [site, setSite] = useState<Site | null>(null)
   const [placingSite, setPlacingSite] = useState(false)
@@ -487,7 +499,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       // Keep the user's current phrase in sync with the direction they just chose.
       void runSearchIn(q.trim(), city, undefined, nextObjective)
     } else {
-      resetAll(); setQuery(''); setQ(''); setLens(value)
+      resetAll(); setQuery(''); setQ(''); setLens(value); setTab('results')
       void loadBrowse(city)
     }
   }
@@ -1030,7 +1042,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     ? 'اكتب اسم منتج أو نشاط لعرض الموردين المطابقين، أو اختر شارعاً أخضر لتبدأ البحث بنشاطه.'
     : 'اكتب منتجاتك أو اختر نشاطاً من الشوارع الخضراء لعرض المشترين المحتملين.'
   const targetResultsPanel = hasTargetQuery ? resultsBody : (
-    <section className="mx-4 my-3 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-4 py-3" aria-live="polite" data-testid="map-search-prompt">
+    <section ref={searchPromptRef} className="mx-4 my-3 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-4 py-3" aria-live="polite" data-testid="map-search-prompt">
       <h2 className="m-0 text-[14px] font-semibold">{lens === 'sellers' ? 'ابدأ بالبحث عن مورد' : 'ابدأ باكتشاف المشترين'}</h2>
       <p className="mb-0 mt-1 text-[13px] leading-[21px] text-[var(--color-text-secondary)]">{targetBrowsePrompt}</p>
     </section>
