@@ -149,6 +149,8 @@ const MAP_EVENTS = [
   'map_sheet_full',
   'map_focus_open',
   'map_focus_close',
+  'map_results_panel_hide',
+  'map_results_panel_show',
   'map_ready_under_2s',
   'map_ready_2_5s',
   'map_ready_over_5s',

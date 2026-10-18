@@ -134,6 +134,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [focusMode, setFocusMode] = useState(false)
   const [focusPanelOpen, setFocusPanelOpen] = useState(false)
   const [focusPanelSnap, setFocusPanelSnap] = useState<'peek' | 'half' | 'full'>('peek')
+  const [resultsPanelOpen, setResultsPanelOpen] = useState(true)
+  const [resultsPanelWidth, setResultsPanelWidth] = useState(400)
+  const panelResizeStart = useRef<{ x: number; width: number } | null>(null)
   const panelDragStart = useRef<number | null>(null)
   const panelDidDrag = useRef(false)
   const setSheetSnap = (snap: 'peek' | 'half' | 'full') => {
@@ -2544,11 +2547,38 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {linesPanel}
       </header>
       <div className="flex min-h-0 flex-1 flex-row">
-        <aside aria-label="النتائج والدليل" className="flex w-[400px] shrink-0 flex-col border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
-          {panelHead}
-          <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
-        </aside>
+        <>
+          <aside id="targeting-results-panel" hidden={!resultsPanelOpen} aria-label="النتائج والدليل" style={{ width: `${resultsPanelWidth}px` }} className="relative flex shrink-0 flex-col border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)] transition-[width] duration-150">
+            <div className="flex items-center justify-end px-3 pt-2">
+              <Button type="button" variant="Ghost" size="S" aria-expanded="true" aria-controls="targeting-results-panel" onClick={() => { setResultsPanelOpen(false); recordMapInteraction('map_results_panel_hide') }}>إخفاء اللوحة</Button>
+            </div>
+            {panelHead}
+            <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
+          </aside>
+          <div hidden={!resultsPanelOpen} role="separator" aria-label="تغيير عرض لوحة النتائج" aria-orientation="vertical" aria-valuemin={300} aria-valuemax={560} aria-valuenow={resultsPanelWidth} tabIndex={0}
+            onPointerDown={(event) => { panelResizeStart.current = { x: event.clientX, width: resultsPanelWidth }; event.currentTarget.setPointerCapture(event.pointerId) }}
+            onPointerMove={(event) => {
+              const start = panelResizeStart.current
+              if (!start) return
+              const direction = document.documentElement.dir === 'rtl' ? -1 : 1
+              setResultsPanelWidth(Math.max(300, Math.min(560, start.width + direction * (event.clientX - start.x))))
+            }}
+            onPointerUp={() => { panelResizeStart.current = null }} onPointerCancel={() => { panelResizeStart.current = null }}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+              event.preventDefault()
+              const rtl = document.documentElement.dir === 'rtl'
+              const grow = rtl ? event.key === 'ArrowLeft' : event.key === 'ArrowRight'
+              setResultsPanelWidth((width) => Math.max(300, Math.min(560, width + (grow ? 24 : -24))))
+            }}
+            className={`z-10 flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center outline-none hover:bg-[var(--color-bg-primary-subtle)] focus-visible:bg-[var(--color-bg-primary-subtle)] ${FOCUS_RING}`}>
+            <span aria-hidden className="h-10 w-1 rounded-full bg-[var(--color-border-strong)]" />
+          </div>
+        </>
         <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+          {!resultsPanelOpen ? <div className="flex items-center justify-start">
+            <Button type="button" variant="Secondary" size="S" aria-expanded="false" aria-controls="targeting-results-panel" onClick={() => { setResultsPanelOpen(true); recordMapInteraction('map_results_panel_show') }}>عرض النتائج والدليل</Button>
+          </div> : null}
           {lens !== 'market' ? <StepStrip current={step} mobile={false} /> : null}
           <Counters items={displayCounters} selectedMainId={selectedMainId} onActivitySelect={selectMainFromCounter} />
           {mapBlock}
