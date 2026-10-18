@@ -617,20 +617,21 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       : `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً`
     : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
+  const showUnconfirmedStatusNotice = Boolean(hasTargetQuery && res && unconfirmedStatusCount > 0)
   const statusNoticeKey = res ? `${res.map_query || ''}|${res.total}|${res.rows[0]?.poi_key || ''}|${unconfirmedStatusCount}` : ''
   const lastStatusNoticeKey = useRef('')
   useEffect(() => {
-    if (!unconfirmedStatusCount || !statusNoticeKey) { lastStatusNoticeKey.current = ''; return }
+    if (!showUnconfirmedStatusNotice || !statusNoticeKey) { lastStatusNoticeKey.current = ''; return }
     if (statusNoticeKey === lastStatusNoticeKey.current) return
     lastStatusNoticeKey.current = statusNoticeKey
     recordMapInteraction('map_results_status_notice')
-  }, [statusNoticeKey, unconfirmedStatusCount])
+  }, [showUnconfirmedStatusNotice, statusNoticeKey])
   const qualityNoticeSeen = useRef(false)
   useEffect(() => {
-    if (qualityNoticeSeen.current || mapAnalyticsConsent() !== 'accepted' || !hasTargetQuery || !res || !unconfirmedStatusCount) return
+    if (qualityNoticeSeen.current || mapAnalyticsConsent() !== 'accepted' || !showUnconfirmedStatusNotice) return
     qualityNoticeSeen.current = true
     recordMapInteraction('map_data_quality_notice_seen')
-  }, [analyticsConsentRevision, hasTargetQuery, res, unconfirmedStatusCount])
+  }, [analyticsConsentRevision, showUnconfirmedStatusNotice])
   const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
@@ -2016,7 +2017,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
         </p>
       ) : null}
-      {hasTargetQuery && res && unconfirmedStatusCount > 0 ? (
+      {showUnconfirmedStatusNotice ? (
         <details onToggle={(event) => { if (event.currentTarget.open) recordMapInteraction('map_data_quality_notice_open') }} className="group mb-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
           <summary className={`flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 font-medium ${FOCUS_RING}`}>
             <span className="flex min-w-0 items-center gap-1.5"><WarningIcon size={15} className="shrink-0" /><span>تنبيهات قبل التواصل</span></span>
