@@ -1352,7 +1352,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : <p className="text-[13px] text-[var(--color-text-secondary)]">ما فيه علاقات شراء مصنّفة لهذا النشاط في المدينة.</p>}
     </section>
   ) : null
-  const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
+  const marketGuide = <>
+    <MapLegend fitFilter={fitFilter} counts={fitCounts} onFitFilterChange={(next) => {
+      if (next === fitFilter) return
+      setFitFilter(next)
+      setShown(PAGE)
+      recordMapInteraction(`fit_filter_${next}`)
+    }} />
+    <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
+  </>
   const panelBody = lens === 'market'
     ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
     : <>
@@ -1426,12 +1434,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </dl>
         </div>
       ) : null}
-      <MapLegend fitFilter={fitFilter} counts={fitCounts} onFitFilterChange={(next) => {
-        if (next === fitFilter) return
-        setFitFilter(next)
-        setShown(PAGE)
-        recordMapInteraction(`fit_filter_${next}`)
-      }} />
       {mobile && !focusMode && res && hasTargetQuery ? (
         <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
           <button type="button" onClick={() => {
