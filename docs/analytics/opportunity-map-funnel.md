@@ -633,6 +633,8 @@ Wait for at least two complete weeks and 30 consented prompt sessions per prompt
 
 ## Map legend control exposure and use
 
+**Historical only:** this query describes the former floating map control. The guide and filter now live in the results panel's «الدليل» tab, so the control impression events below will no longer be emitted after that UI release. Do not use this exposure denominator for post-release sessions.
+
 The legend records a control impression only after at least half of the control is visible in the viewport and map analytics consent is accepted. `show_control_seen` is the collapsed info button; `hide_control_seen` is the hide action after the guide is open. Both are emitted at most once per control per mounted map component. The query returns weekly session counts and the share of exposed sessions that later used that control. It never returns session keys or other user and establishment data.
 
 Run against the same authorized, read-only main application database described above:
@@ -699,6 +701,27 @@ ORDER BY week_utc DESC, control;
 ```
 
 These events are consented, session-level UI signals, not evidence that the guide content was understood or that the map task succeeded. The query is not device-specific. Wait for two complete weeks and 30 consenting sessions per control before treating the rate as directional; pair it with a phone task observing whether users can show, use, and hide the guide without covering the map. Missing events can reflect consent or blocked analytics requests, not absence of exposure.
+
+## Map legend use after moving it into the guide panel
+
+After the UI release, `map_legend_show` and `map_legend_hide` mean that a user opened or closed the disclosure inside the results panel's «الدليل» tab. They no longer mean that a floating overlay was shown or dismissed. Count sessions and actions without an exposure denominator:
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  element_label,
+  count(*) AS actions,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND element_label IN ('pricing_map_map_legend_show', 'pricing_map_map_legend_hide')
+GROUP BY 1, 2
+ORDER BY week_utc DESC, element_label;
+```
+
+These events require map analytics consent and indicate a disclosure interaction only. They do not prove the key was read or understood. Wait for two complete weeks and 30 consenting sessions before interpreting the trend; pair it with a short usability task that checks whether users can find the key without losing map context.
 
 ## Wholesale filter in supplier search
 
