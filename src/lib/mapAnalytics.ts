@@ -93,6 +93,8 @@ type MapEvent = { event_type: 'click'; session_id: string; path: '/opportunity-m
 let queue: MapEvent[] = []
 let flushTimer: ReturnType<typeof setInterval> | null = null
 let flushInFlight = false
+let rateLimitRetries = 0
+let rateLimitRetryAt = 0
 
 export function mapAnalyticsConsent(): 'accepted' | 'rejected' | null {
   try {
@@ -112,9 +114,19 @@ function sessionId() {
   } catch { return `pricing-map-${crypto.randomUUID()}` }
 }
 
+function retryAfterMs(response: Response) {
+  const value = response.headers.get('Retry-After')
+  if (!value) return 0
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000
+  const date = Date.parse(value)
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 0
+}
+
 function flush() {
   if (!queue.length || mapAnalyticsConsent() !== 'accepted') { queue = []; return }
   if (flushInFlight) return
+  if (Date.now() < rateLimitRetryAt) return
   // Keep the batch queued until the API confirms it accepted the request. A
   // transient network/server failure should not erase opt-in usage signals.
   const events = queue.slice(0, 25)
@@ -130,10 +142,22 @@ function flush() {
     // error cannot be repaired by retrying the same payload, so discard it.
     const sameBatchIsQueued = queue.slice(0, events.length).every((event, index) => event === events[index])
     if (!response.ok) {
+      if (response.status === 429) {
+        // A rate limit is temporary: keep the opt-in batch and back off instead
+        // of retrying every 10 seconds or discarding it as a permanent 4xx.
+        rateLimitRetries += 1
+        const backoffMs = Math.min(15 * 60_000, 30_000 * 2 ** Math.min(rateLimitRetries - 1, 5))
+        rateLimitRetryAt = Date.now() + Math.max(backoffMs, retryAfterMs(response))
+        return
+      }
       if (response.status >= 400 && response.status < 500 && sameBatchIsQueued) queue.splice(0, events.length)
       return
     }
-    if (sameBatchIsQueued) queue.splice(0, events.length)
+    if (sameBatchIsQueued) {
+      queue.splice(0, events.length)
+      rateLimitRetries = 0
+      rateLimitRetryAt = 0
+    }
   }).catch(() => { /* retain the batch for the next flush; never interrupt map use */ })
     .finally(() => { flushInFlight = false })
 }
@@ -198,6 +222,8 @@ export function mapReadinessEvent(elapsedMs: number): MapEventName {
 export function setMapAnalyticsConsent(value: 'accepted' | 'rejected') {
   try { localStorage.setItem(CONSENT_KEY, value) } catch { /* consent UI remains usable for this page */ }
   queue = []
+  rateLimitRetries = 0
+  rateLimitRetryAt = 0
   if (value === 'rejected' && flushTimer) {
     clearInterval(flushTimer)
     flushTimer = null
