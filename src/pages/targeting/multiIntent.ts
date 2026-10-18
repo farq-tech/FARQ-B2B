@@ -19,6 +19,25 @@ const REQUEST_PREFIX = /^(?:(?:أبي|ابي|ابغى|أبغى|أريد|اريد
 const INTENT_SEPARATOR = /\s+و(?=\s*(?:أبي|ابي|ابغى|أبغى|أريد|اريد|أحتاج|احتاج)\s)/u
 const DISTRICT_MARKER = /\s+(?:في\s+)?(?:ب?حي)\s+/u
 
+/** Explicit buyer verbs must keep a product search in the supplier-finding flow,
+ * even when the map was previously switched to finding buyers for a seller. */
+export function isExplicitPurchaseRequest(value: string): boolean {
+  const normalized = value.normalize('NFKD')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .trim()
+  return /^(?:(?:ابي|ابغي|ابغى|اريد|احتاج)\s+)?(?:اشتري|شراء|ابحث\s+عن\s+مورد|ادور\s+على\s+مورد)(?:\s|$)/u.test(normalized)
+}
+
+export function isWholesaleRequest(value: string): boolean {
+  const normalized = value.normalize('NFKD')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+  return /(?:^|\s)(?:جمله|بالجمله|wholesale|موزع|موزعين|مصنع|مصانع)(?:\s|$)/iu.test(normalized)
+}
+
 /** Parse only explicit multi-requests that name one activity and one district per clause. */
 export function parseMapIntents(value: string): { intents: MapIntent[]; invalid: boolean } | null {
   const clauses = value.split(INTENT_SEPARATOR).map((part) => part.trim()).filter(Boolean)
