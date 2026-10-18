@@ -42,7 +42,7 @@ type SidebarProps = {
 
 export function Sidebar({ nav, footerNav, onNewRequest, account, className }: SidebarProps) {
   return (
-    <aside className={cx('flex h-screen w-[264px] shrink-0 flex-col items-stretch gap-6 border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-6', className)}>
+    <aside className={cx('flex h-screen w-[clamp(200px,24vw,264px)] shrink-0 flex-col items-stretch gap-6 border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-6', className)}>
       <div className="flex px-2"><BrandMark /></div>
       {onNewRequest ? <Button variant="Primary" size="L" icon="plus" fullWidth onClick={onNewRequest}>طلب تسعير جديد</Button> : null}
       <nav aria-label="التنقل الرئيسي" className="flex flex-col gap-1">{nav}</nav>
