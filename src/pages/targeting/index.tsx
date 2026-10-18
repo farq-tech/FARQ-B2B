@@ -194,6 +194,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return () => { document.removeEventListener('pointerdown', closeOnOutside); document.removeEventListener('keydown', closeOnEscape) }
   }, [layersOpen])
   const [filters, setFilters] = useState<AreaFilters>({})
+  const areaFiltersRef = useRef<AreaFilters>({})
+  const setAreaFilters = (next: AreaFilters) => { areaFiltersRef.current = next; setFilters(next) }
   const [clusters, setClusters] = useState<{ list: TradeCluster[]; basis?: string } | null>(null)
   // the densest streets of this request, drawn along the street (POST /street-density); the one picked
   const [dense, setDense] = useState<{ list: Street[]; basis?: string; specialty_available?: boolean } | null>(null)
@@ -285,7 +287,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [showUnlocated, setShowUnlocated] = useState(false)
   const [fit, setFit] = useState<LayerMapProps['fit']>(null)
   const fitTo = (bounds: [number, number, number, number]) => setFit((f) => ({ bounds, at: (f?.at || 0) + 1 }))
-  const clearAreas = () => { clusterGen.current++; setFilters({}); setClusters(null); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null) }
+  const clearAreas = () => { clusterGen.current++; setAreaFilters({}); setClusters(null); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null) }
   // a booklet turned into lines: tap a line to search for it in the chosen city
   const fileInput = useRef<HTMLInputElement>(null)
   const [lines, setLines] = useState<(BookletLine & { found?: number })[]>([])
@@ -792,8 +794,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (value === lens) return
     recordMapInteraction(`map_lens_${value}`)
     if (value === 'market') {
-      resetAll(); setQuery(''); setQ(''); setLens('market'); setTab('guide')
-      void loadBrowse(city)
+      const geographicFilters = { ...areaFiltersRef.current }
+      const selectedStreet = activeStreet
+      resetAll(); setAreaFilters(geographicFilters); setActiveStreet(selectedStreet); setQuery(''); setQ(''); setLens('market'); setTab('guide')
+      void loadBrowse(city, geographicFilters)
       return
     }
     const nextObjective = value === 'buyers' ? 'marketing' : 'purchase'
@@ -857,7 +861,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const requestStartedAt = performance.now()
     recordMapInteraction('map_buyer_products_search_started')
     setBusyKind('search'); setError(null); setFailedResultRefresh(false); setProfile(null)
-    setLens('buyers'); setObjective('marketing'); setQuery(''); setQ(''); setFilters(productFilters); setRes(null)
+    setLens('buyers'); setObjective('marketing'); setQuery(''); setQ(''); setAreaFilters(productFilters); setRes(null)
     if (!preserveSpatial) {
       setChosenD(new Set()); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null); setSite(null); setShowUnlocated(false); fitCity()
     }
@@ -938,7 +942,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         await searchSavedBuyerProducts(city)
         return
       }
-      setFilters({})
+      setAreaFilters({})
       setChosenD(new Set())
       setStreetPick({ kind: 'all' })
       setActiveStreet(null)
@@ -1004,7 +1008,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         map_query: first.map_query,
         has_more: false,
       })
-      setQuery(text); setQ(text); setShown(PAGE); setFilters({}); setBuyerProductGroups([]); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false)
+      setQuery(text); setQ(text); setShown(PAGE); setAreaFilters({}); setBuyerProductGroups([]); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false)
       if (!selected.size) setMessage(defaultMessage(null, cityName(city)))
       const districtIds = intents.map((intent) => polys?.find((district) => normalizeActivityText(district.ar) === normalizeActivityText(intent.district))?.id || `name:${intent.district}`)
       setChosenD(new Set(districtIds))
@@ -1116,6 +1120,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}, preserveSelection = false) {
     if (!inCity) return
+    areaFiltersRef.current = browseFilters
     const version = ++generation.current
     const hadResults = Boolean(res)
     setBuyerProductGroups([]); setBuyerProductProgress(null)
@@ -1128,7 +1133,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       // A city directory page is fetched in batches of FETCH rows. Show the
       // complete first batch so the initial empty-search state does not hide
       // 50 already-loaded establishments behind an extra click.
-      setRes(r); setQuery(''); setFilters(browseFilters); setShown(FETCH)
+      setRes(r); setQuery(''); setAreaFilters(browseFilters); setShown(FETCH)
       setBuyerProductGroups([])
       if (!preserveSelection) {
         setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map())
@@ -1174,6 +1179,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
+    areaFiltersRef.current = use
     const requestStartedAt = performance.now()
     if (fresh) recordMapInteraction(mapSearchStartedEvent(obj))
     try {
@@ -1201,7 +1207,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         })
       }
       setTab('results')
-      setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
+      setRes(r); setQuery(text); setShown(PAGE); setAreaFilters(use)
       if (fresh) {
         setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([])
         const scopedDistrictId = use.district
@@ -1245,7 +1251,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     generation.current++
     clusterGen.current++
     specialtyFocusResolution.current++
-    setQ(''); setQuery(''); setFilters({}); setChosenD(new Set()); setMapScope('city'); setStreetPick({ kind: 'all' })
+    setQ(''); setQuery(''); setAreaFilters({}); setChosenD(new Set()); setMapScope('city'); setStreetPick({ kind: 'all' })
     setActiveStreet(null); setFocus(null); setLayer('main'); setSite(null); setPlacingSite(false); setShowUnlocated(false)
     setLens(objective === 'marketing' ? 'buyers' : 'market')
     setTab(objective === 'marketing' ? 'results' : 'guide')
@@ -2203,13 +2209,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // active geographic filters. The visible scope picker can be opened without
     // changing the underlying district or street filter.
     const scopeFilters: AreaFilters = {
-      ...(filters.district ? { district: filters.district } : {}),
-      ...(filters.street ? { street: filters.street } : {}),
+      ...(areaFiltersRef.current.district ? { district: areaFiltersRef.current.district } : {}),
+      ...(areaFiltersRef.current.street ? { street: areaFiltersRef.current.street } : {}),
     }
     setQ('')
     setQuery('')
     setLens('market')
-    setFilters(scopeFilters)
+    setAreaFilters(scopeFilters)
     setStreetPick({ kind: 'all' })
     setActiveStreet(mapScope === 'street' ? activeStreet : null)
     clusterGen.current++

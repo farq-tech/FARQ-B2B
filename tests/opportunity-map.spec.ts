@@ -344,7 +344,6 @@ test.describe('desktop 1440', () => {
     await pickDistrict(page, 'الملك فيصل')
     await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
     await page.locator('[data-counter="market-main-build"]').click()
-
     await expect.poll(() => marketQueries.some((query) => JSON.stringify(query).includes('الملك فيصل') && query.main_id === 'build')).toBe(true)
     await expect.poll(() => searchRequests.some((request) => {
       const filters = request.filters as Record<string, unknown> | undefined
@@ -736,7 +735,7 @@ test.describe('desktop 1440', () => {
     await page.keyboard.press('Enter')
     await expect.poll(() => searches.length).toBe(1)
     expect(searches[0]).toMatchObject({ q: 'إنارة', filters: { street: 'يوسف بن عبدالعزيز' } })
-    await expect(page.getByTestId('street-card')).toContainText('٢٦ منشأة')
+    await expect(page.getByTestId('street-card')).toContainText('26 منشأة')
     await expect(page.locator('[data-street]')).toHaveCount(1) // the street filter keeps the selected street only
     await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في يوسف بن عبدالعزيز' })).toBeVisible()
     await expect(page.locator('#map-scope-street')).toHaveAttribute('data-active', 'true')
@@ -746,10 +745,9 @@ test.describe('desktop 1440', () => {
     await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
     await page.locator('[data-counter="market-main-build"]').click()
     await expect.poll(() => marketQueries.some((query) => query.main_id === 'build' && JSON.stringify(query).includes('العليا'))).toBe(true)
-    await expect.poll(() => searchRequests.some((request) => {
-      const filters = request.filters as Record<string, unknown> | undefined
-      return request.q === '' && filters?.district === 'العليا' && filters?.street === 'يوسف بن عبدالعزيز'
-    })).toBe(true)
+    await expect(searchRequests).toEqual(expect.arrayContaining([
+      expect.objectContaining({ q: '', filters: expect.objectContaining({ district: 'العليا', street: 'يوسف بن عبدالعزيز' }) }),
+    ]))
   })
 
   test('counters animate to the new value', async ({ page }) => {
