@@ -936,13 +936,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const pickedStreet = activeStreetId ? dense!.list.find((x) => x.id === activeStreetId)! : null
   // choropleth: places of this request per district (service counts by name, else rows inside)
   const density = useMemo(() => {
-    if (hasPolys && res) return densityOf(districts, res.areas?.districts || [], rows)
-    const values = new Map<string, number>()
-    if (hasPolys) for (const item of marketDistrictCounts) {
-      const d = districts.find((x) => x.ar === item.district_ar)
-      if (d) values.set(d.id, item.n)
-    }
-    return values
+    if (!hasPolys) return new Map<string, number>()
+    if (res) return densityOf(districts, res.areas?.districts || [], rows)
+    return densityOf(districts, marketDistrictCounts.map((item) => ({ name: item.district_ar, n: item.n })), [])
   }, [hasPolys, res, districts, rows, marketDistrictCounts])
   const densityMax = useMemo(() => Math.max(0, ...density.values()), [density])
   const anyChosen = chosenD.size > 0 || Boolean(filters.street)
