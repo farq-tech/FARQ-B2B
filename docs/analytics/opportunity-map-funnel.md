@@ -1319,6 +1319,78 @@ FROM outcomes;
 
 Wait for two complete weeks and at least 30 consenting sessions before interpreting the percentage. A low rate can mean the search did not help, the user was comparing options, or the session ended; inspect counts and validate with a short task study before changing the taxonomy.
 
+## City, district, and street selector use
+
+The map records a level-specific `map_filter_open_*` event when a location menu opens and `map_filter_select_*` when a location is chosen. This aggregate measures how often a consenting session that opened each selector later chose a location from that same level. It does not record the selected place, search text, or establishment, and it does not prove the map moved to the right feature or that the selected area was useful.
+
+Run against the same authorized, read-only application database. A session is counted once per level and UTC week, using the first open event and the first subsequent selection event for that level.
+
+```sql
+WITH selector_events AS (
+  SELECT
+    id,
+    session_id,
+    occurred_at,
+    CASE
+      WHEN element_label IN ('pricing_map_map_filter_open_city', 'pricing_map_map_filter_select_city') THEN 'city'
+      WHEN element_label IN ('pricing_map_map_filter_open_district', 'pricing_map_map_filter_select_district') THEN 'district'
+      WHEN element_label IN ('pricing_map_map_filter_open_street', 'pricing_map_map_filter_select_street') THEN 'street'
+    END AS scope,
+    CASE
+      WHEN element_label LIKE 'pricing_map_map_filter_open_%' THEN 'open'
+      ELSE 'select'
+    END AS action
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_filter_open_city',
+      'pricing_map_map_filter_select_city',
+      'pricing_map_map_filter_open_district',
+      'pricing_map_map_filter_select_district',
+      'pricing_map_map_filter_open_street',
+      'pricing_map_map_filter_select_street'
+    )
+), selector_sessions AS (
+  SELECT
+    date_trunc('week', opened.occurred_at AT TIME ZONE 'UTC') AS week_utc,
+    opened.scope,
+    opened.session_id,
+    min(opened.id) AS opened_id
+  FROM selector_events opened
+  WHERE opened.action = 'open'
+  GROUP BY 1, 2, 3
+), outcomes AS (
+  SELECT
+    s.week_utc,
+    s.scope,
+    s.session_id,
+    min(e.id) FILTER (
+      WHERE e.action = 'select'
+        AND e.scope = s.scope
+        AND e.id > s.opened_id
+        AND date_trunc('week', e.occurred_at AT TIME ZONE 'UTC') = s.week_utc
+    ) AS selected_id
+  FROM selector_sessions s
+  LEFT JOIN selector_events e USING (session_id)
+  GROUP BY s.week_utc, s.scope, s.session_id
+)
+SELECT
+  week_utc,
+  scope,
+  count(*) AS selector_open_sessions,
+  count(*) FILTER (WHERE selected_id IS NOT NULL) AS selector_selection_sessions,
+  round(100.0 * count(*) FILTER (WHERE selected_id IS NOT NULL) / nullif(count(*), 0), 1)
+    AS open_to_selection_pct
+FROM outcomes
+GROUP BY week_utc, scope
+ORDER BY week_utc DESC, scope;
+```
+
+The selection may happen after another location scope was opened in the same session, so this is a session-level directional measure rather than proof that one specific menu caused one specific choice. Review at least two complete weeks and 30 selector-open sessions per scope before treating differences as directional. Pair the counts with a manual task check that each selection updates the map viewport, result scope, and selected-state display correctly.
+
 
 ## Saved-product buyer search
 
