@@ -328,10 +328,33 @@ class MarketAnalytics:
               and length(trim(coalesce(p.district_ar, ''))) > 0
             group by p.district_ar order by n desc, p.district_ar limit 5
         """
+        tx = self._tx()
         with self.lock:
             row = self.db.execute(aggregate, params).fetchone()
             n_specialties = self.db.execute(specialty_sql, [DATA, POI_TAXONOMY] + params[1:]).fetchone()[0]
             top_districts = self.db.execute(district_sql, params).fetchall()
+            activity_rows = []
+            if tx is not None:
+                # Use the same approved taxonomy as discovery. Counts are distinct
+                # businesses per main activity (a business can belong to multiple).
+                taxonomy = [
+                    (sid, item.get("main_id") or "", item.get("main_ar") or "غير مصنف")
+                    for sid, item in tx.subs.items()
+                    if not sid.startswith(("unc.", "noncom."))
+                ]
+                if taxonomy:
+                    taxonomy_sql = ",".join("(?, ?, ?)" for _ in taxonomy)
+                    taxonomy_params = [value for activity in taxonomy for value in activity]
+                    activity_rows = self.db.execute(
+                        f"with taxonomy(sub_id, main_id, main_ar) as (values {taxonomy_sql}) "
+                        "select t.main_id, any_value(t.main_ar), count(distinct p.poi_key) n "
+                        "from read_parquet(?) p join read_parquet(?) c on c.poi_key = p.poi_key "
+                        "join taxonomy t on t.sub_id = c.sub_id "
+                        f"where {where} and c.confidence in ('high', 'medium') "
+                        "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
+                        "group by t.main_id order by n desc, t.main_id",
+                        taxonomy_params + [DATA, POI_TAXONOMY] + params[1:],
+                    ).fetchall()
         # Street lines are aggregated only to subcategory in the current data asset.
         # Do not show one as an exact specialty result.
         dense = None if body.get("specialty_ids") else self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
@@ -346,6 +369,13 @@ class MarketAnalytics:
                 "n_wholesale": n_wholesale,
                 "n_whatsapp": n_whatsapp,
                 "n_specialties": n_specialties,
+                "main_activities": [
+                    {"main_id": main_id, "main_ar": label, "n": count}
+                    for main_id, label, count in activity_rows
+                ],
+                "main_activities_basis": (
+                    "سجلات دليل ذات تصنيف نشاط عالي أو متوسط الثقة؛ قد يظهر السجل ضمن أكثر من نشاط."
+                ),
                 "n_approx": n_approx,
                 "n_cr": n_cr,
                 "specialty_available": specialty_available,

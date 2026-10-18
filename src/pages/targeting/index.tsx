@@ -586,32 +586,33 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ? res.located_total : null
     const hasGlobalLocationCount = globalLocationCount != null
     const precise = globalLocationCount ?? shownRows.filter(hasPoint).length
-    const withoutPin = res
-      ? hasGlobalLocationCount ? Math.max(0, res.total - precise) : shownRows.filter((row) => !hasPoint(row)).length
-      : 0
     const locationLabel = hasGlobalLocationCount ? 'لها موقع إجمالاً' : 'لها موقع · محمّلة'
-    const missingLocationLabel = hasGlobalLocationCount ? 'بلا دبوس إجمالاً' : 'بلا دبوس · محمّلة'
     const whatsapp = shownRows.filter((row) => Boolean(waNumber(row))).length
     // Search responses describe all matching districts. Once the user narrows to a
     // district, keep this indicator scoped to the visible result set.
     const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
-    if (lens === 'market') return [
-      { key: 'market-size', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
-      { key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'market-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
-      { key: 'market-unlocated', label: 'بلا موقع دقيق', value: marketStats?.n_approx ?? null },
-    ]
+    if (lens === 'market') {
+      const scopeLabel = densityDistrictNames.length === 1
+        ? `منشآت حي ${densityDistrictNames[0]}`
+        : densityDistrictNames.length > 1 ? 'منشآت الأحياء المحددة' : 'منشآت مرصودة'
+      const activities = marketStats?.main_activities || []
+      return [
+        { key: 'market-size', label: scopeLabel, value: marketStats?.total ?? null, lead: true },
+        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null }]),
+        { key: 'market-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
+        { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null },
+        ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n })),
+      ]
+    }
     if (query && res) return lens === 'sellers' ? [
       { key: 'supplier-matches', label: 'موردون محتملون', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
       { key: 'supplier-whatsapp', label: 'أرقام جوال · محمّلة', value: whatsapp },
       { key: 'supplier-located', label: locationLabel, value: precise },
-      { key: 'supplier-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'supplier-districts', label: 'أحياء بها نتائج', value: areas },
     ] : [
       { key: 'buyer-matches', label: 'جهات قد تشتري', value: Number.isFinite(res.total) ? res.total : shownRows.length, lead: true },
       { key: 'buyer-whatsapp', label: 'أرقام جوال · محمّلة', value: whatsapp },
       { key: 'buyer-located', label: locationLabel, value: precise },
-      { key: 'buyer-unlocated', label: missingLocationLabel, value: withoutPin },
       { key: 'buyer-activities', label: 'أنشطة مشترية مرصودة', value: currentBuyerData?.buyers.length || 0 },
     ]
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
@@ -619,9 +620,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'city-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
-      { key: 'city-unlocated', label: 'بلا موقع دقيق', value: marketStats?.n_approx ?? null },
     ]
-  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district])
+  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district, densityDistrictNames])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
   const focusedSpecialty = focus?.level === 'spec' && streetPick.kind === 'spec' && streetPick.id === focus.id && (!focus.sub_id || streetPick.subId === focus.sub_id) ? streetPick : null
   const focusedTileKey = focus && res?.map_query
@@ -1057,7 +1057,18 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const applyFilters = (next: AreaFilters) => {
     if (query) void runSearchIn(query, city, next)
+    else if (!Object.values(next).some(Boolean)) clearMapToCity()
     else void loadBrowse(city, next)
+  }
+  const clearMapToCity = () => {
+    generation.current++
+    clusterGen.current++
+    specialtyFocusResolution.current++
+    setQ(''); setQuery(''); setFilters({}); setChosenD(new Set()); setStreetPick({ kind: 'all' })
+    setActiveStreet(null); setFocus(null); setLayer('main'); setSite(null); setPlacingSite(false); setShowUnlocated(false)
+    setLens('market'); setTab('guide'); setLayersOpen(false); setError(null); setFailedResultRefresh(false)
+    fitCity()
+    void loadBrowse(city, {})
   }
   async function openMapProfile(key: string) {
     if (busy || failedResultRefresh) return
@@ -1190,6 +1201,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
+      {(query || q.trim() || Object.values(filters).some(Boolean) || chosenD.size || streetPick.kind !== 'all' || focus || site) ? <button type="button" disabled={busy} onClick={clearMapToCity} className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-text-info)] shadow-[var(--farq-soft-shadow)] disabled:opacity-60 md:min-h-8 ${FOCUS_RING}`}>مسح الكل</button> : null}
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
           onClick={() => {
@@ -1788,23 +1800,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const marketSummaryPanel = (
     <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-4" aria-label="ملخص السوق">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-[15px] font-semibold">ملخص سوق {cityName(city)}</h2>
+        <h2 className="text-[15px] font-semibold">{densityDistrictNames.length === 1 ? `ملخص حي ${densityDistrictNames[0]}` : densityDistrictNames.length > 1 ? `ملخص ${n(densityDistrictNames.length)} أحياء محددة` : `ملخص سوق ${cityName(city)}`}</h2>
         <span className="text-[12px] text-[var(--color-text-tertiary)]">{marketLoading ? 'جارٍ التحديث…' : marketError ? 'بعض بيانات السوق غير متاحة' : 'حسب سجل الدليل الحالي'}</span>
       </div>
       {marketStats ? (
         <>
-          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {[
-              ['منشآت مرصودة', marketStats.total], ['أحياء بإسناد موثوق', marketStats.districts_count],
-              ['واتساب مسجل بالدليل', marketStats.n_whatsapp], ['منشآت موسومة جملة', marketStats.n_wholesale],
-              ['منشآت لديها تخصصات مسجلة', marketStats.n_specialties], ['بلا موقع دقيق', marketStats.n_approx],
-            ].map(([label, value]) => <div key={label} className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
-              <dt className="text-[11px] leading-[16px] text-[var(--color-text-secondary)]">{label}</dt>
-              <dd className="m-0 text-[16px] leading-[24px] font-semibold tabular-nums">{n(Number(value))}</dd>
-            </div>)}
-          </dl>
           <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">
-            عدد واتساب هنا من وسم الدليل. أما نتائج البحث فتعتبر رقم الجوال السعودي قناة واتساب وفق إعداد المنتج.
+            بطاقات الخريطة تعرض عدد المنشآت والتصنيفات الرئيسية لهذا النطاق. أعداد الأنشطة للسجلات المصنفة بثقة عالية أو متوسطة، وقد يظهر السجل ضمن أكثر من نشاط. عدد واتساب من وسم الدليل، ولا يعني تحققاً مستقلاً من الرقم.
           </p>
         </>
       ) : marketLoading ? <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص السوق…</p> : (
@@ -2038,6 +2040,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
       <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
+      {q || query ? <button type="button" aria-label="مسح البحث والفلاتر وعرض كل السوق" disabled={busy} onClick={clearMapToCity} className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-icon-secondary)] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-50 ${FOCUS_RING}`}><Icon name="x" size={16} /></button> : null}
       {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
       <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
