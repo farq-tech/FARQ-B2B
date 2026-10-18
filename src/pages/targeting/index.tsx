@@ -900,19 +900,24 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const AR_DIGITS = (v: number) => String(v).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)])
   const where = chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${AR_DIGITS(chosenNames.length)} أحياء` : cityName(city)
   const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : null
+  const pickedSubs = pickedMain ? catalog?.find((m) => m.main_id === pickedMain)?.subs || [] : []
   const activityPicker = catalog && catalog.length ? (
     <div className="flex flex-col gap-1.5" data-testid="street-picker">
-      <div role="group" aria-label="نشاط الشوارع وعدد الشوارع لكل نشاط" className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
+      <div role="group" aria-label="نشاط الشوارع وعدد الشوارع لكل نشاط" aria-describedby={mobile && catalog.length > 2 ? 'street-activities-scroll-hint' : undefined} className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
         <Chip className="shrink-0" label="الكل" selected={streetPick.kind === 'all'} onClick={() => setStreetPick({ kind: 'all' })} />
         {catalog.map((m) => <Chip key={m.main_id} className="shrink-0" label={`${m.main_ar} · ${n(m.streets)} شارع`} selected={pickedMain === m.main_id} onClick={() => { recordMapInteraction('map_activity_select'); const clear = pickedMain === m.main_id; setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: m.main_id }); pickFocus(clear ? null : { level: 'main', id: m.main_id }) }} />)}
       </div>
+      {mobile && catalog.length > 2 ? <p id="street-activities-scroll-hint" className="px-1 text-[11px] leading-[16px] text-[var(--color-text-tertiary)]">اسحب أفقياً لاستعراض بقية الأنشطة</p> : null}
       {pickedMain ? (
-        <div role="group" aria-label="الأنشطة الفرعية وعدد الشوارع لكل نشاط" className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
-          {(catalog.find((m) => m.main_id === pickedMain)?.subs || []).map((x) => {
+        <>
+        <div role="group" aria-label="الأنشطة الفرعية وعدد الشوارع لكل نشاط" aria-describedby={mobile && pickedSubs.length > 2 ? 'street-subactivities-scroll-hint' : undefined} className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
+          {pickedSubs.map((x) => {
             const on = streetPick.kind === 'sub' && streetPick.ids.includes(x.sub_id)
             return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)} شارع`} selected={on} onClick={() => { recordMapInteraction('map_activity_select'); setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
           })}
         </div>
+        {mobile && pickedSubs.length > 2 ? <p id="street-subactivities-scroll-hint" className="px-1 text-[11px] leading-[16px] text-[var(--color-text-tertiary)]">اسحب أفقياً لاستعراض بقية الأنشطة الفرعية</p> : null}
+        </>
       ) : null}
       {streetPick.kind === 'q' ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الشوارع حسب طلبك: «{streetPick.q}»</p> : null}
     </div>
