@@ -23,12 +23,12 @@ export const isValidPostalCode = (s: string) => /^\d{5}$/.test(digits(s))
 /** Empty is allowed (optional fields); a wrong shape gives the Arabic reason. */
 export function crError(s: string): string | null {
   if (!String(s ?? '').trim()) return null
-  return isValidCr(s) ? null : 'السجل التجاري ١٠ أرقام.'
+  return isValidCr(s) ? null : 'السجل التجاري 10 أرقام.'
 }
 export function vatError(s: string): string | null {
   if (!String(s ?? '').trim()) return null
   const v = normalizeVat(s)
-  if (!/^\d+$/.test(v) || v.length !== 15) return 'الرقم الضريبي ١٥ رقمًا.'
+  if (!/^\d+$/.test(v) || v.length !== 15) return 'الرقم الضريبي 15 رقمًا.'
   return isValidVat(v) ? null : 'الرقم الضريبي يبدأ بـ 3 وينتهي بـ 3.'
 }
 
@@ -40,10 +40,10 @@ export function nationalAddressErrors(a: NationalAddress): Partial<Record<keyof 
   const any = Object.values(a).some((v) => String(v ?? '').trim())
   if (!any) return {}
   const out: Partial<Record<keyof NationalAddress, string>> = {}
-  if (!isValidShortAddress(a.shortAddress)) out.shortAddress = 'العنوان المختصر ٤ حروف إنجليزية ثم ٤ أرقام، مثل RRRD2929.'
-  if (a.buildingNo.trim() && !isValidBuildingNo(a.buildingNo)) out.buildingNo = 'رقم المبنى ٤ أرقام.'
-  if (a.additionalNo.trim() && !isValidAdditionalNo(a.additionalNo)) out.additionalNo = 'الرقم الإضافي ٤ أرقام.'
-  if (a.postalCode.trim() && !isValidPostalCode(a.postalCode)) out.postalCode = 'الرمز البريدي ٥ أرقام.'
+  if (!isValidShortAddress(a.shortAddress)) out.shortAddress = 'العنوان المختصر 4 حروف إنجليزية ثم 4 أرقام، مثل RRRD2929.'
+  if (a.buildingNo.trim() && !isValidBuildingNo(a.buildingNo)) out.buildingNo = 'رقم المبنى 4 أرقام.'
+  if (a.additionalNo.trim() && !isValidAdditionalNo(a.additionalNo)) out.additionalNo = 'الرقم الإضافي 4 أرقام.'
+  if (a.postalCode.trim() && !isValidPostalCode(a.postalCode)) out.postalCode = 'الرمز البريدي 5 أرقام.'
   if (!a.city.trim()) out.city = 'اكتب المدينة.'
   return out
 }

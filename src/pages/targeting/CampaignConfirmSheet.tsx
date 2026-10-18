@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { hasUnconfirmedStatus, sendCampaign, sendStatus, TargetingError, OUTREACH_TEMPLATE, type TargetRow } from '../../api/targetingClient'
 import { Badge, Button, RiyalSign, useIsMobile, WarningIcon } from '../../ui'
 import SendTiming from './SendTiming'
+import { formatNumber } from '../../lib/formatNumber'
 
 /*
  * «المراجعة والتكلفة» — Figma B2B M11 `18375:23935` / M11c `18416:2498` (sending not enabled).
@@ -130,10 +131,10 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
           {row('سعر الرسالة', price != null ? <><bdi dir="ltr" className="inline-flex items-baseline gap-1">{money(price)} <RiyalSign /> × {count}</bdi> · تسويق</> : 'ما وصلنا السعر الحين')}
           {row('التكلفة', cost != null ? <bdi dir="ltr" className="inline-flex items-baseline gap-1.5">{cost} <RiyalSign /></bdi> : '—', true)}
         </dl>
-        <p className="mt-3 text-[14px] leading-[22px] font-medium">السعر قبل الضريبة. ضريبة القيمة المضافة ١٥٪ تُضاف حسب الفاتورة.</p>
+        <p className="mt-3 text-[14px] leading-[22px] font-medium">السعر قبل الضريبة. ضريبة القيمة المضافة 15% تُضاف حسب الفاتورة.</p>
         {unconfirmedStatusCount ? (
           <div role="note" className="mt-3 flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--map-sand)] bg-[color-mix(in_srgb,var(--map-sand)_18%,white)] p-3 text-[13px] leading-[21px]">
-            {unconfirmedStatusCount ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {unconfirmedStatusCount.toLocaleString('ar-SA')} من المنشآت المحددة؛ تأكد من استمرار نشاطها قبل التواصل.</p> : null}
+            {unconfirmedStatusCount ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {formatNumber(unconfirmedStatusCount)} من المنشآت المحددة؛ تأكد من استمرار نشاطها قبل التواصل.</p> : null}
           </div>
         ) : null}
         <SendTiming city={city} className="mt-2" />

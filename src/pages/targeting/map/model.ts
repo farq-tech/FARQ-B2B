@@ -1,4 +1,5 @@
 import { waNumber, type DistrictFeature, type StreetDensityProps, type StreetLine, type TargetRow } from '../../../api/targetingClient'
+import { formatNumber } from '../../../lib/formatNumber'
 import { MAINS, SUBS } from './taxonomy.data'
 
 /*
@@ -296,4 +297,4 @@ export function densityOf(districts: District[], counts: { name: string; n: numb
 }
 /** 0 (none) … 4 (densest) on a square-root scale, so one huge district does not wash out the rest. */
 export const densityStep = (n: number, max: number) => (!n || !max ? 0 : Math.max(1, Math.min(4, Math.ceil((Math.sqrt(n) / Math.sqrt(max)) * 4))))
-export const fmtMeters = (m: number) => (m >= 1000 ? `${(m / 1000).toLocaleString('ar-SA', { maximumFractionDigits: 1 })} كم` : `${Math.round(m).toLocaleString('ar-SA')} م`)
+export const fmtMeters = (m: number) => (m >= 1000 ? `${formatNumber(m / 1000, { maximumFractionDigits: 1 })} كم` : `${formatNumber(Math.round(m))} م`)

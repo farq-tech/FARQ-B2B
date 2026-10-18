@@ -47,7 +47,7 @@ function commonBasis(values: Array<boolean | null | undefined>): Basis {
   return set.size === 1 ? basisOf([...set][0]) : null
 }
 
-/** A price: number + riyal sign (+ «شامل الضريبة ١٥٪» / «قبل الضريبة» when the basis is known). */
+/** A price: number + riyal sign (+ «شامل الضريبة 15%» / «قبل الضريبة» when the basis is known). */
 function money(n?: number | null, currency = 'SAR', vat: Basis = null, noteClassName?: string): ReactNode {
   if (n == null || !Number.isFinite(Number(n))) return '—'
   if (currency && currency !== 'SAR') return `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`

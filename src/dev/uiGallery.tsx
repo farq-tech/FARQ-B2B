@@ -136,8 +136,8 @@ function Gallery() {
 
         <Section id="quote" title="Quote Card" figma="quote-card" note="الحقائق (ضمان/توريد/توصيل) تظهر فقط إذا ذكرها المورد">
           <div className="grid grid-cols-2 gap-4">
-            <QuoteCard state="Default" supplier="مستودع الرياض للكهرباء" meta="قبل 25 دقيقة · واتساب" amount={<Money amount={41200} />} amountNote="شامل الضريبة ١٥٪ والتوصيل" coverageLabel="12 من 14 بند" facts={[{ icon: 'truck', label: 'توصيل مجاني' }, { icon: 'clock', label: 'التوريد 3 أيام' }, { icon: 'shield', label: 'ضمان سنة' }]} />
-            <QuoteCard state="New" supplier="مؤسسة النور للكهرباء" meta="وصل الحين · إيميل" amount={<Money amount={42500} />} amountNote="شامل الضريبة ١٥٪" facts={[{ icon: 'clock', label: 'التوريد 5 أيام' }]} />
+            <QuoteCard state="Default" supplier="مستودع الرياض للكهرباء" meta="قبل 25 دقيقة · واتساب" amount={<Money amount={41200} />} amountNote="شامل الضريبة 15% والتوصيل" coverageLabel="12 من 14 بند" facts={[{ icon: 'truck', label: 'توصيل مجاني' }, { icon: 'clock', label: 'التوريد 3 أيام' }, { icon: 'shield', label: 'ضمان سنة' }]} />
+            <QuoteCard state="New" supplier="مؤسسة النور للكهرباء" meta="وصل الحين · إيميل" amount={<Money amount={42500} />} amountNote="شامل الضريبة 15%" facts={[{ icon: 'clock', label: 'التوريد 5 أيام' }]} />
             <QuoteCard state="Best" supplier="شركة الخليج للكابلات" meta="قبل ساعة · واتساب" amount={<Money amount={39850} />} amountNote="قبل الضريبة" />
           </div>
         </Section>

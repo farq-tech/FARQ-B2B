@@ -466,7 +466,7 @@ export function NewRequestV2({ navigate }: NavProps) {
               <form className="flex w-full flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6" onSubmit={(e) => { e.preventDefault(); addTyped() }}>
                 <div className={mobile ? 'grid grid-cols-2 items-end gap-3 [&>*:first-child]:col-span-2' : 'grid grid-cols-[1fr_140px_140px] items-end gap-3'}>
                   <Input label="البند" placeholder="مثال: كيبل نحاس 4×16 مم²" value={name} onChange={(e) => setName(e.target.value)} />
-                  <Input label="الكمية" inputMode="decimal" placeholder="0" value={qty} onChange={(e) => setQty(e.target.value)} />
+                  <Input label="الكمية" inputMode="decimal" lang="en" dir="ltr" placeholder="0" value={qty} onChange={(e) => setQty(e.target.value)} />
                   <div className="flex flex-col gap-2">
                     <label htmlFor="typed-unit" className="text-[14px] leading-[22px] font-medium">الوحدة</label>
                     <select id="typed-unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="h-[52px] rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 text-[16px] outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]">
@@ -502,7 +502,7 @@ export function NewRequestV2({ navigate }: NavProps) {
                       {seed?.targets?.length ? (
                         <>
                           <label className="sr-only" htmlFor={`seed-qty-${l.id}`}>الكمية لـ {l.name}</label>
-                          <input id={`seed-qty-${l.id}`} type="number" min="0.001" step="any" inputMode="decimal" value={l.qty}
+                          <input id={`seed-qty-${l.id}`} type="number" lang="en" dir="ltr" min="0.001" step="any" inputMode="decimal" value={l.qty}
                             onChange={(e) => setLines((current) => current.map((line) => line.id === l.id ? { ...line, qty: e.target.value } : line))}
                             className="h-10 w-20 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] px-2 text-end tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-[var(--color-border-primary)]" />
                           <label className="sr-only" htmlFor={`seed-unit-${l.id}`}>وحدة {l.name}</label>
@@ -663,8 +663,8 @@ export function NewRequestV2({ navigate }: NavProps) {
             <div className={`grid gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'grid-cols-1 p-4' : 'grid-cols-2 p-6'}`}>
               <Input label="اسم المشروع" placeholder="مثال: تجهيز العيادة" value={project} onChange={(e) => setProject(e.target.value)} helper="يظهر للموردين مع المدينة" />
               <Input label="مدينة التسليم" value={city} onChange={(e) => setCity(e.target.value)} error={!city.trim() ? 'اكتب مدينة التسليم.' : undefined} />
-              <Input label="موعد التوريد" type="date" value={requiredDate} onChange={(e) => pickWorkingDay(e.target.value, setRequiredDate, setRequiredNote)} helper={requiredNote || hijriOf(requiredDate) || undefined} />
-              <Input label="آخر موعد للعروض" type="date" value={quoteDeadline} onChange={(e) => pickWorkingDay(e.target.value, setQuoteDeadline, setDeadlineNote)} helper={deadlineNote || ['الساعة 5:00 م', hijriOf(quoteDeadline)].filter(Boolean).join(' · ')} error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
+              <Input label="موعد التوريد" type="date" lang="en" dir="ltr" value={requiredDate} onChange={(e) => pickWorkingDay(e.target.value, setRequiredDate, setRequiredNote)} helper={requiredNote || hijriOf(requiredDate) || undefined} />
+              <Input label="آخر موعد للعروض" type="date" lang="en" dir="ltr" value={quoteDeadline} onChange={(e) => pickWorkingDay(e.target.value, setQuoteDeadline, setDeadlineNote)} helper={deadlineNote || ['الساعة 5:00 م', hijriOf(quoteDeadline)].filter(Boolean).join(' · ')} error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 text-[14px] leading-[22px] font-medium">نوع الطلب</legend>
                 <div className="flex gap-2">

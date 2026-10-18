@@ -97,10 +97,10 @@ test.describe('desktop 1440', () => {
     const districtValue = await district.locator('option').filter({ hasText: 'الديرة' }).getAttribute('value')
     await district.selectOption(districtValue!)
     await expect.poll(() => (searches.at(-1)?.filters as Record<string, unknown> | undefined)?.district).toBe('الديرة')
-    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · (?:٢٣٠|230) محل/ })).toBeVisible()
-    await expect(page.getByRole('button', { name: /^شارع الثميري، المرقب — (?:٤٨|48) محل/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · (?:230) محل/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^شارع الثميري، المرقب — (?:48) محل/ })).toBeVisible()
     // map label (drawn map) carries the popular name too
-    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — أقمشة — الديرة — (?:٢٣٠|230) محل/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — أقمشة — الديرة — (?:230) محل/ })).toBeVisible()
     // «منشأة سعودية»: CR on row 1, trade-licence registry on row 2, nothing on row 3
     await expect(page.getByText('منشأة سعودية')).toHaveCount(2)
     // the send step: riyal sign, before tax, prayer note, usual window
@@ -159,10 +159,10 @@ test.describe('desktop 1440', () => {
     await page.getByLabel('الرقم الضريبي').fill('210123456700003')
     await page.getByLabel('العنوان المختصر').fill('RRD29')
     await page.getByRole('button', { name: 'حفظ بيانات المنشأة' }).click()
-    await expect(page.getByText('السجل التجاري ١٠ أرقام.')).toBeVisible()
+    await expect(page.getByText('السجل التجاري 10 أرقام.')).toBeVisible()
     expect(puts).toHaveLength(0) // invalid fields never reach the server
     await expect(page.getByText('الرقم الضريبي يبدأ بـ 3 وينتهي بـ 3.')).toBeVisible()
-    await expect(page.getByText('العنوان المختصر ٤ حروف إنجليزية ثم ٤ أرقام، مثل RRRD2929.')).toBeVisible()
+    await expect(page.getByText('العنوان المختصر 4 حروف إنجليزية ثم 4 أرقام، مثل RRRD2929.')).toBeVisible()
     await expect(page.getByRole('status')).toHaveText('راجع الخانات المعلّمة بالأحمر قبل الحفظ.')
     await page.screenshot({ path: `${SHOTS}/desktop-5-account-errors.png`, fullPage: true })
     await page.getByLabel('السجل التجاري').fill('١٠١٠١٢٣٤٥٦')
@@ -222,7 +222,7 @@ test.describe('mobile 390', () => {
     const districtValue = await district.locator('option').filter({ hasText: 'الديرة' }).getAttribute('value')
     await district.selectOption(districtValue!)
     await expect.poll(() => (searches.at(-1)?.filters as Record<string, unknown> | undefined)?.district).toBe('الديرة')
-    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · (?:٢٣٠|230) محل/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^سوق الزل للأقمشة — الديرة · (?:230) محل/ })).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/mobile-2-sheet.png` })
     await page.getByRole('button', { name: 'حدد واتساب' }).click()
     const step = page.getByTestId('campaign-tray')
