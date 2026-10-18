@@ -7,6 +7,14 @@ export function directoryActivityQuery(activity: string): string {
   return /حلاق|حلاقه/u.test(normalized) ? 'حلاق رجالي' : activity
 }
 
+/** Avoid bulk-selecting barber-query rows with no barber evidence in the name or directory classification. */
+export function hasDirectoryActivityEvidence(activity: string, values: (string | null | undefined)[]): boolean {
+  const normalizedActivity = activity.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
+  if (!/حلاق|حلاقه/u.test(normalizedActivity)) return true
+  const evidence = values.filter(Boolean).join(' ').normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').toLocaleLowerCase('ar')
+  return /حلاق|حلاقه|barber/u.test(evidence)
+}
+
 const REQUEST_PREFIX = /^(?:(?:أبي|ابي|ابغى|أبغى|أريد|اريد|أحتاج|احتاج)\s*)+/u
 const INTENT_SEPARATOR = /\s+و(?=\s*(?:أبي|ابي|ابغى|أبغى|أريد|اريد|أحتاج|احتاج)\s)/u
 const DISTRICT_MARKER = /\s+(?:في\s+)?(?:ب?حي)\s+/u

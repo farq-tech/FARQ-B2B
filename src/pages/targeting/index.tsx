@@ -33,7 +33,7 @@ import {
   type District, type Focus, type Layer, type Street,
 } from './map/model'
 import type { LayerMapProps, Site } from './map/types'
-import { directoryActivityQuery, MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
+import { directoryActivityQuery, hasDirectoryActivityEvidence, MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
 
 /*
  * «خريطة الفرص» v2 — owner-approved redesign 2026-10-16 (Canva concepts: airy light-grey map, charcoal pins with white glyphs,
@@ -151,7 +151,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [failedResultRefresh, setFailedResultRefresh] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedRows, setSelectedRows] = useState<Map<string, TargetRow>>(new Map())
-  const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null }[]>([])
+  const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null; excludedCount: number }[]>([])
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [shown, setShown] = useState(PAGE)
@@ -643,7 +643,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         recordMapInteraction(mapSearchRetryEvent(objective, outcome))
       })))
       if (version !== generation.current) return
-      const groups = intents.map((intent, index) => ({ intent, rows: responses[index].rows, total: responses[index].total, nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null) }))
+      const groups = intents.map((intent, index) => {
+        const matches = (row: TargetRow) => hasDirectoryActivityEvidence(intent.activity, [row.name_ar, row.name_en, row.category, row.category_ar, row.category_main, row.entity_type, ...(row.subcategories || [])])
+        const rows = responses[index].rows.filter(matches)
+        return { intent, rows, total: responses[index].total, nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null), excludedCount: responses[index].rows.length - rows.length }
+      })
       const unique = new Map<string, TargetRow>()
       for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
       const first = responses[0]
@@ -686,11 +690,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         recordMapInteraction(mapSearchRetryEvent(objective, outcome))
       })
       if (version !== generation.current) return
-      const appended = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
+      const newRows = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
+      const matches = (row: TargetRow) => hasDirectoryActivityEvidence(group.intent.activity, [row.name_ar, row.name_en, row.category, row.category_ar, row.category_main, row.entity_type, ...(row.subcategories || [])])
+      const appended = newRows.filter(matches)
+      const excludedCount = newRows.length - appended.length
       setMultiIntents((current) => current.map((item, itemIndex) => itemIndex === index ? {
         ...item,
         rows: [...item.rows, ...appended],
         total: response.total,
+        excludedCount: item.excludedCount + excludedCount,
         nextOffset: response.next_offset ?? (response.has_more ? offset + response.rows.length : null),
       } : item))
       setRes((current) => {
@@ -1290,7 +1298,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <p className="m-0 min-w-0 flex-1 text-[14px] leading-[22px]">راجع النتائج لكل طلب، ثم أضف المختار إلى قائمة الحملة. لا يتم الإرسال هنا.</p>
         <Button variant="Primary" size="S" disabled={!multiPending.size || busy} onClick={commitMultiSelection}>أضف المحدد للحملة · {n(multiPending.size)}</Button>
       </div>
-      {multiIntents.map(({ intent, rows: intentRows, total, nextOffset }, index) => {
+      {multiIntents.map(({ intent, rows: intentRows, total, nextOffset, excludedCount }, index) => {
         const available = intentRows.filter((row) => waNumber(row) && !selected.has(row.poi_key))
         const allChecked = available.length > 0 && available.every((row) => multiPending.has(row.poi_key))
         return (
@@ -1298,6 +1306,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <div className="flex flex-wrap items-center gap-2 bg-[var(--color-bg-surface-2)] px-3 py-2">
               <h3 className="m-0 min-w-0 flex-1 text-[14px] font-semibold">{intent.activity} · حي {intent.district}</h3>
               <span className="text-[12px] text-[var(--color-text-secondary)]">{n(intentRows.length)} معروضة من {n(total)}</span>
+              {excludedCount ? <span className="text-[11px] text-[var(--color-text-tertiary)]" title="لم يظهر اسم النشاط في اسم المنشأة أو تصنيفها">استُبعدت {n(excludedCount)} لعدم وضوح التخصص</span> : null}
               {nextOffset != null ? <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMoreIntent(index)}>حمّل المزيد</Button> : null}
               <button type="button" disabled={!available.length || busy} onClick={() => setMultiPending((current) => {
                 const next = new Map(current)
