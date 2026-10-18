@@ -167,7 +167,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null; excludedCount: number }[]>([])
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
-  const [showMapPins, setShowMapPins] = useState(true)
+  const [showMapPins, setShowMapPins] = useState(false)
   const [showMarketClusters, setShowMarketClusters] = useState(true)
   const [showDensity, setShowDensity] = useState(true)
   const [showDistricts, setShowDistricts] = useState(true)
