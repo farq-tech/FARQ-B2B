@@ -1874,9 +1874,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <div className="flex items-center justify-between gap-3 rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2">
           <div className="min-w-0">
             <p className="m-0 text-[13px] leading-[20px] font-semibold">تسوّق منتجاتك للمشترين</p>
-            <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">ابحث عن الجهات التي قد تحتاج نشاطك، أو أضف منتجاتك لتبدأ.</p>
+            <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{buyerProductMode
+              ? 'تعرض اللوحة مرشحي منتجاتك المحفوظة؛ راجع نشاط المنشأة وبياناتها قبل التواصل.'
+              : hasTargetQuery
+                ? 'تعرض اللوحة الجهات المرتبطة ببحثك الحالي؛ أضف منتجات أخرى لمقارنة المرشحين.'
+                : 'ابحث عن الجهات التي قد تحتاج نشاطك، أو أضف منتجاتك لتبدأ.'}</p>
           </div>
-          <Button variant="Secondary" size="S" icon={UploadCatalogIcon} onClick={() => { recordMapInteraction('map_seller_add_products'); setStartOpen(true) }}>أضف منتجاتك</Button>
+          <Button variant="Secondary" size="S" icon={UploadCatalogIcon} onClick={() => { recordMapInteraction('map_seller_add_products'); setStartOpen(true) }}>{buyerProductMode || hasTargetQuery ? 'أضف منتجاً آخر' : 'أضف منتجاتك'}</Button>
         </div>
       ) : null}
       <div className="flex items-center justify-between gap-2">
