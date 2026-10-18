@@ -81,6 +81,9 @@ const MAP_EVENTS = [
   'map_sheet_full',
   'map_focus_open',
   'map_focus_close',
+  'map_ready_under_2s',
+  'map_ready_2_5s',
+  'map_ready_over_5s',
 ] as const
 
 type MapEventName = typeof MAP_EVENTS[number]
@@ -183,6 +186,13 @@ export function mapWholesaleFilterOutcomeEvent(total: number): MapEventName {
   if (total <= 0) return 'map_filter_wholesale_results_empty'
   if (total < 5) return 'map_filter_wholesale_results_1_4'
   return 'map_filter_wholesale_results_5_plus'
+}
+
+/** Coarse readiness buckets only; the exact duration stays in the browser. */
+export function mapReadinessEvent(elapsedMs: number): MapEventName {
+  if (elapsedMs < 2_000) return 'map_ready_under_2s'
+  if (elapsedMs < 5_000) return 'map_ready_2_5s'
+  return 'map_ready_over_5s'
 }
 
 export function setMapAnalyticsConsent(value: 'accepted' | 'rejected') {
