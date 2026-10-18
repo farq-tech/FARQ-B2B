@@ -1569,7 +1569,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <span className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]">{n(district.classified)} مصنّف من {n(district.total)} سجل</span>
           </div>
           <p className="m-0 text-[13px] leading-[20px]">
-            الأكثر ظهوراً: <strong>{district.dominant_activity?.main_ar || 'لا توجد بيانات مصنّفة'}</strong>{district.dominant_activity ? ` · ${n(district.dominant_activity.n)} سجل` : ''}
+            الأكثر ظهوراً: <strong>{district.dominant_activity?.main_ar || 'لا توجد بيانات مصنّفة'}</strong>{district.dominant_activity ? ` · ${n(district.dominant_activity.n)} سجل${district.classified > 0 ? ` (${n(Math.round(district.dominant_activity.n / district.classified * 100))}٪ من السجلات المصنّفة)` : ''}` : ''}
           </p>
           {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">أبرز تخصصاته: {district.dominant_activity.top_subactivities.map((item) => `${item.sub_ar} (${n(item.n)})`).join('، ')}</p> : null}
           {district.least_activity ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">الأقل بين الأنشطة المسجلة: {district.least_activity.main_ar} · {n(district.least_activity.n)} سجل</p> : null}
