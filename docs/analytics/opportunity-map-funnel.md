@@ -1612,3 +1612,29 @@ ORDER BY week_utc DESC;
 ```
 
 The selection event is emitted only by a category card inside the opened details panel, so this measures the intended entry point directly. It remains a session-level measure: a later card selection may follow a subsequent close and reopen. Review at least two complete weeks and 30 panel-open sessions before treating changes as directional. With less traffic, use the counts to confirm instrumentation only, not to infer customer preference.
+
+## Desktop results panel visibility
+
+This aggregate measures use of the hide/show controls for the standard desktop results panel. Events require accepted map-analytics consent and contain no panel contents, filters, or establishment identifiers.
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_results_panel_hide') AS hide_events,
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_results_panel_hide') AS sessions_hiding_panel,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_results_panel_show') AS show_events,
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_results_panel_show') AS sessions_showing_panel
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_results_panel_hide',
+    'pricing_map_map_results_panel_show'
+  )
+GROUP BY 1
+ORDER BY 1 DESC;
+```
+
+These counts show control use, not whether hiding the panel improved map-task completion. Compare them with a short desktop task check and map-search/profile outcomes after two complete weeks and at least 30 consenting sessions; internal QA traffic must not be treated as customer preference.
