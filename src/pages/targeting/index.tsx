@@ -69,6 +69,7 @@ function LayerMap(props: LayerMapProps) {
 const PAGE = 150
 const FETCH = 200   // rows per server page (the API maximum); «حمّل أكثر» appends the next page
 const RADII = [5, 10, 25, 50, 100] as const
+const normalizeActivityText = (value: string) => value.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').toLocaleLowerCase('ar')
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
 const n = (v: number) => v.toLocaleString('ar-SA')
@@ -919,7 +920,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : null
   const pickedSubs = pickedMain ? catalog?.find((m) => m.main_id === pickedMain)?.subs || [] : []
   const selectedActivity = pickedMain ? catalog?.find((m) => m.main_id === pickedMain) : null
-  const filteredActivities = (catalog || []).filter((item) => item.main_ar.toLocaleLowerCase('ar').includes(activitySearch.trim().toLocaleLowerCase('ar')))
+  const normalizedActivitySearch = normalizeActivityText(activitySearch.trim())
+  const filteredActivities = (catalog || []).filter((item) => normalizeActivityText(item.main_ar).includes(normalizedActivitySearch))
   const clearActivitySelection = () => {
     recordMapInteraction('map_activity_select')
     setStreetPick({ kind: 'all' })
