@@ -1352,16 +1352,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : <p className="text-[13px] text-[var(--color-text-secondary)]">ما فيه علاقات شراء مصنّفة لهذا النشاط في المدينة.</p>}
     </section>
   ) : null
-  const marketGuide = <>
-    <MapLegend fitFilter={fitFilter} counts={fitCounts} onFitFilterChange={(next) => {
-      if (next === fitFilter) return
-      setFitFilter(next)
-      setShown(PAGE)
-      recordMapInteraction(`fit_filter_${next}`)
-    }} />
-    <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
-  </>
-  const panelBody = lens === 'market'
+  const fitLegend = <MapLegend fitFilter={fitFilter} counts={fitCounts} onFitFilterChange={(next) => {
+    if (next === fitFilter) return
+    setFitFilter(next)
+    setShown(PAGE)
+    recordMapInteraction(`fit_filter_${next}`)
+  }} />
+  const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
+  const panelContent = lens === 'market'
     ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
     : <>
     {buyerPanel}
@@ -1369,6 +1367,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{targetResultsPanel}</>
     ) : marketGuide}
   </>
+  const panelBody = <>{fitLegend}{panelContent}</>
 
   // ---------- the map with its floating controls
   const fallbackChips = !hasPolys && polys !== null && districts.length ? (
