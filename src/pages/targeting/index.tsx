@@ -99,6 +99,8 @@ const FIT = { L: { tone: 'Success', label: 'مناسب', icon: SuccessIcon }, M:
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} icon={FIT[r.ai].icon} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" icon={WarningIcon} label={l} className="text-[12px] leading-[18px]" /> : null }
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
+/** Prefer the explicit place flag; only fall back to the role badge when the flag is absent. */
+const isTaggedWholesaleRow = (row: TargetRow) => row.is_wholesale === true || (row.is_wholesale == null && row.role_badges?.includes('جملة') === true)
 /** The narrowing filters under the search bar: district, street, wholesale (manual only), role and specialty. */
 type AreaFilters = Pick<SearchFilters, 'district' | 'street' | 'wholesale' | 'role' | 'specialty'>
 const clusterName = (c: TradeCluster) => [c.level === 'street' ? safeLocationName(c.street_ar) : null, safeLocationName(c.district_ar)].filter(Boolean).join('، ') || c.label_ar
@@ -1276,12 +1278,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
     setSelectedRows((current) => { const next = new Map(current); if (selected.has(r.poi_key)) next.delete(r.poi_key); else next.set(r.poi_key, r); return next })
   }
+  const loadedWholesaleRows = visibleCohort.filter(isTaggedWholesaleRow)
+  const selectableWholesaleRows = loadedWholesaleRows.filter((row) => waNumber(row) && !selected.has(row.poi_key))
   const selectLoadedWholesaleCandidates = () => {
-    const candidates = visibleCohort.filter((row) => waNumber(row) && !selected.has(row.poi_key))
-    if (!candidates.length) return
-    setSelected((current) => new Set([...current, ...candidates.map((row) => row.poi_key)]))
-    setSelectedRows((current) => new Map([...current, ...candidates.map((row) => [row.poi_key, row] as const)]))
-    setNotice(`تم تحديد ${n(candidates.length)} مرشحًا قابلاً للتواصل من النتائج المحمّلة. راجع قائمة الحملة قبل أي إرسال.`)
+    if (!selectableWholesaleRows.length) return
+    setSelected((current) => new Set([...current, ...selectableWholesaleRows.map((row) => row.poi_key)]))
+    setSelectedRows((current) => new Map([...current, ...selectableWholesaleRows.map((row) => [row.poi_key, row] as const)]))
+    setNotice(`تم تحديد ${n(selectableWholesaleRows.length)} مورداً موسوماً بالجملة من النتائج المحمّلة ولديه واتساب. راجع قائمة الحملة قبل أي إرسال.`)
   }
   const commitMultiSelection = () => {
     if (!multiPending.size) return
@@ -1393,8 +1396,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
       {objective === 'purchase' && isWholesaleRequest(query) ? (
         <div className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
-          <p className="m-0 min-w-0 flex-1 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">رتّبنا موردي الجملة أولاً. الاختيار يشمل النتائج المحمّلة القابلة للتواصل فقط؛ حمّل المزيد لإضافة دفعات أخرى.</p>
-          <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !visibleCohort.some((row) => waNumber(row) && !selected.has(row.poi_key))} onClick={selectLoadedWholesaleCandidates}>اختر مرشحي الجملة القابلين للتواصل</Button>
+          <p className="m-0 min-w-0 flex-1 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">وسم «جملة» مأخوذ من سجل المنشأة ولا يضمن صحة بياناتها. وجدنا {n(loadedWholesaleRows.length)} مورداً موسوماً في النتائج المحمّلة؛ الاختيار يضم الموسومين الذين لديهم واتساب فقط. حمّل دفعات إضافية لمراجعة بقية {n(res.total)} نتيجة.</p>
+          <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableWholesaleRows.length} onClick={selectLoadedWholesaleCandidates}>اختر موردي الجملة المتاحين · {n(selectableWholesaleRows.length)}</Button>
         </div>
       ) : null}
       <ul>
