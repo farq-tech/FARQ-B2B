@@ -818,11 +818,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   async function search(e?: FormEvent) {
     e?.preventDefault()
     const text = q.trim()
-    // An empty box means "show the whole current audience", not "leave the
-    // last district-filtered response on screen". In seller mode, keep the
-    // product that produced the current buyer results and widen it to the city.
+    // An empty box means "show the whole city directory", not "reuse the last
+    // product query" or leave a district-filtered response on screen.
     if (!text) {
-      const retainedProduct = query.trim() || lines[activeLine ?? 0]?.name || ''
       setFilters({})
       setChosenD(new Set())
       setStreetPick({ kind: 'all' })
@@ -831,18 +829,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setSite(null)
       setShowUnlocated(false)
       fitCity()
-      if (objective === 'marketing' && retainedProduct) {
-        setLens('buyers')
-        setTab('results')
-        setActiveLine(null)
-        const found = await runSearchIn(retainedProduct, city, undefined, 'marketing', {})
-        if (found != null) setQ('')
-      } else {
-        setQuery('')
-        setActiveLine(null)
-        if (objective === 'marketing') setLens('buyers')
-        void loadBrowse(city, {})
-      }
+      setQuery('')
+      setActiveLine(null)
+      if (objective === 'marketing') setLens('buyers')
+      setTab('results')
+      void loadBrowse(city, {})
       return
     }
     setActiveLine(null)
@@ -1093,7 +1084,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     specialtyFocusResolution.current++
     setQ(''); setQuery(''); setFilters({}); setChosenD(new Set()); setStreetPick({ kind: 'all' })
     setActiveStreet(null); setFocus(null); setLayer('main'); setSite(null); setPlacingSite(false); setShowUnlocated(false)
-    setLens('market'); setTab('guide'); setLayersOpen(false); setError(null); setFailedResultRefresh(false)
+    setLens(objective === 'marketing' ? 'buyers' : 'market')
+    setTab(objective === 'marketing' ? 'results' : 'guide')
+    setLayersOpen(false); setError(null); setFailedResultRefresh(false)
     fitCity()
     void loadBrowse(city, {})
   }
@@ -2074,7 +2067,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
       {(query || q.trim() || Object.values(filters).some(Boolean) || chosenD.size || streetPick.kind !== 'all' || focus || site) ? <button type="button" aria-label="مسح الكل وعرض سوق المدينة" title="مسح الكل" disabled={busy} onClick={clearMapToCity} className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-icon-secondary)] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-50 ${FOCUS_RING}`}><Icon name="x" size={16} /></button> : null}
       {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
-      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={(!q.trim() && !query.trim() && !(objective === 'marketing' && lines.length)) || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
+      <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={(!q.trim() && !query.trim() && objective !== 'marketing') || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
   )
   const searchStatus = busy ? (
