@@ -33,7 +33,7 @@ export default function MapAnalyticsConsent({ active }: { active: boolean }) {
     <aside role="region" aria-label="تفضيلات قياس استخدام الخريطة" className="fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-[620px] rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 shadow-[var(--farq-soft-shadow)] sm:inset-x-auto sm:end-5 sm:bottom-5">
       <h2 className="m-0 text-[16px] leading-6 font-semibold">قياس اختياري لتحسين الخريطة</h2>
       <p className="mt-2 mb-0 text-[13px] leading-5 text-[var(--color-text-secondary)]">
-        عند الموافقة، نرسل إلى خوادم فرق أسماء تفاعلات عامة في الخريطة وفئة زمنية عامة لجاهزيتها، مع رقم جلسة عشوائياً لهذا التبويب؛ مثل البحث أو اختيار حي وظهور ملخصه أو توسيع أنشطته أو استخدام الدليل أو فتح ملف منشأة. لا يتضمن القياس مدة دقيقة أو نص البحث أو المدينة أو الحي أو اسم النشاط أو المنشأة أو بيانات التواصل أو الإحداثيات. يمكنك تغيير اختيارك لاحقاً من «حسابي».
+        عند الموافقة، نرسل إلى خوادم فرق أسماء تفاعلات عامة في الخريطة وفئة زمنية عامة لجاهزيتها، مع رقم جلسة عشوائياً لهذا التبويب؛ مثل البحث أو اختيار حي وظهور ملخصه أو توسيع أنشطته أو استخدام الدليل أو فتح ملف منشأة أو إضافة مرشحين للحملة. لا يتضمن القياس مدة دقيقة أو نص البحث أو المدينة أو الحي أو اسم النشاط أو المنشأة أو بيانات التواصل أو الإحداثيات. يمكنك تغيير اختيارك لاحقاً من «حسابي».
       </p>
       {choice === 'accepted' ? <p className="mt-2 mb-0 text-[12px] text-[var(--color-text-secondary)]">اختيارك الحالي: موافق.</p> : null}
       {choice === 'rejected' ? <p className="mt-2 mb-0 text-[12px] text-[var(--color-text-secondary)]">اختيارك الحالي: غير موافق.</p> : null}

@@ -44,6 +44,7 @@ const MAP_EVENTS = [
   'map_legend_show_control_seen',
   'map_supplier_add',
   'map_supplier_remove',
+  'map_supplier_candidate_batch_add',
   'map_seller_add_products',
   'fit_filter_all',
   'fit_filter_likely',
