@@ -43,6 +43,18 @@ const MAP_EVENTS = [
   'map_lens_buyers',
   'map_supplier_prompt_seen',
   'map_buyer_prompt_seen',
+  'map_supplier_search_started',
+  'map_buyer_search_started',
+  'map_supplier_search_results_empty',
+  'map_supplier_search_results_1_4',
+  'map_supplier_search_results_5_plus',
+  'map_supplier_search_failed',
+  'map_buyer_search_results_empty',
+  'map_buyer_search_results_1_4',
+  'map_buyer_search_results_5_plus',
+  'map_buyer_search_failed',
+  'map_supplier_result_profile_open',
+  'map_buyer_result_profile_open',
   'market_summary_retry',
   'map_filter_open_district',
   'map_filter_select_district',
@@ -132,6 +144,31 @@ export function mapSearchResultEvent(total: number): MapEventName {
   if (total <= 0) return 'map_search_results_empty'
   if (total < 5) return 'map_search_results_1_4'
   return 'map_search_results_5_plus'
+}
+
+type SearchObjective = 'purchase' | 'marketing'
+
+export function mapSearchStartedEvent(objective: SearchObjective): MapEventName {
+  return objective === 'purchase' ? 'map_supplier_search_started' : 'map_buyer_search_started'
+}
+
+export function mapSearchOutcomeEvent(total: number, objective: SearchObjective): MapEventName {
+  if (objective === 'purchase') {
+    if (total <= 0) return 'map_supplier_search_results_empty'
+    if (total < 5) return 'map_supplier_search_results_1_4'
+    return 'map_supplier_search_results_5_plus'
+  }
+  if (total <= 0) return 'map_buyer_search_results_empty'
+  if (total < 5) return 'map_buyer_search_results_1_4'
+  return 'map_buyer_search_results_5_plus'
+}
+
+export function mapSearchFailedEvent(objective: SearchObjective): MapEventName {
+  return objective === 'purchase' ? 'map_supplier_search_failed' : 'map_buyer_search_failed'
+}
+
+export function mapResultProfileOpenEvent(objective: SearchObjective): MapEventName {
+  return objective === 'purchase' ? 'map_supplier_result_profile_open' : 'map_buyer_result_profile_open'
 }
 
 export function setMapAnalyticsConsent(value: 'accepted' | 'rejected') {
