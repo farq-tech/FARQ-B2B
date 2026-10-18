@@ -983,22 +983,22 @@ The buckets measure wait for a completed API search, not relevance, time-to-firs
 
 ## Street-density load health
 
-The street-density request now records consented `started`, `succeeded`, `failed`, and manual `retry` events. These labels contain no city, activity, query, or establishment data. The outcome rate uses completed requests only; requests superseded by a newer selection or still in flight at the end of the window have a start but no terminal event.
+The street-density load records consented `started`, `succeeded`, `failed`, and manual `retry` events. These labels contain no city, activity, query, or establishment data. One logical load may make a single automatic retry after a transient network failure or 502/503/504; the events describe the logical load, not individual HTTP attempts. The outcome rate uses completed loads only; loads superseded by a newer selection or still in flight at the end of the window have a start but no terminal event.
 
 Run against the same authorized, read-only main application database:
 
 ```sql
 SELECT
   date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
-  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_started') AS attempts_started,
-  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_succeeded') AS attempts_succeeded,
-  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_failed') AS attempts_failed,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_started') AS loads_started,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_succeeded') AS loads_succeeded,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_failed') AS loads_failed,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_retry') AS manual_retries,
   round(100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_failed')
     / nullif(count(*) FILTER (WHERE element_label IN (
       'pricing_map_map_street_density_succeeded',
       'pricing_map_map_street_density_failed'
-    )), 0), 1) AS completed_attempt_failure_pct,
+    )), 0), 1) AS completed_load_failure_pct,
   count(DISTINCT session_id) FILTER (
     WHERE element_label = 'pricing_map_map_street_density_failed'
   ) AS sessions_with_failure
@@ -1017,4 +1017,4 @@ GROUP BY 1
 ORDER BY 1 DESC;
 ```
 
-These are request events, not unique users or streets. Use at least two complete weeks and 30 completed attempts before interpreting the percentage; when volume is lower, review failure sessions as directional evidence and pair them with the app's aggregate HTTP status counts.
+These are logical-load events, not unique users, physical HTTP attempts, or streets. Use at least two complete weeks and 30 completed loads before interpreting the percentage; when volume is lower, review failure sessions as directional evidence and pair them with the app's aggregate HTTP status counts.
