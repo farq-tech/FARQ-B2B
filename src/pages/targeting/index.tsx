@@ -923,14 +923,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const normalizedActivitySearch = normalizeActivityText(activitySearch.trim())
   const filteredActivities = (catalog || []).filter((item) => normalizeActivityText(item.main_ar).includes(normalizedActivitySearch))
   const clearActivitySelection = () => {
-    recordMapInteraction('map_activity_select')
+    if (streetPick.kind !== 'all') recordMapInteraction('map_activity_clear')
     setStreetPick({ kind: 'all' })
     pickFocus(null)
     closeActivityMenu()
   }
   const selectActivity = (mainId: string) => {
-    recordMapInteraction('map_activity_select')
     const clear = pickedMain === mainId
+    recordMapInteraction(clear ? 'map_activity_clear' : 'map_activity_main_select')
     setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: mainId })
     pickFocus(clear ? null : { level: 'main', id: mainId })
     closeActivityMenu()
@@ -997,7 +997,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const activityPicker = catalog && catalog.length ? (
     <div className="flex flex-col gap-2" data-testid="street-picker">
       <div ref={activityMenuRef} className="relative self-start">
-        <button ref={activityTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={activityMenuOpen} aria-controls="street-activity-options" onClick={() => { setActivitySearch(''); setActivityMenuOpen((open) => !open) }}
+        <button ref={activityTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={activityMenuOpen} aria-controls="street-activity-options" onClick={() => { setActivitySearch(''); const nextOpen = !activityMenuOpen; setActivityMenuOpen(nextOpen); if (nextOpen) recordMapInteraction('map_activity_filter_open') }}
           className={`inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm hover:border-[var(--color-border-strong)] ${FOCUS_RING}`}>
           <FiltersIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
           <span className="max-w-[min(65vw,18rem)] truncate">النشاط: {selectedActivity ? selectedActivity.main_ar : 'الكل'}</span>
@@ -1035,7 +1035,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <div role="group" aria-label="الأنشطة الفرعية وعدد الشوارع لكل نشاط" aria-describedby={mobile && pickedSubs.length > 2 ? 'street-subactivities-scroll-hint' : undefined} className={mobile ? '-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-1' : 'flex flex-wrap gap-1.5'}>
           {pickedSubs.map((x) => {
             const on = streetPick.kind === 'sub' && streetPick.ids.includes(x.sub_id)
-            return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)} شارع`} selected={on} onClick={() => { recordMapInteraction('map_activity_select'); setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
+            return <Chip key={String(x.sub_id)} className="shrink-0" label={`${x.sub_ar} · ${n(x.streets)} شارع`} selected={on} onClick={() => { recordMapInteraction(on ? 'map_activity_clear' : 'map_activity_sub_select'); setStreetPick(on ? { kind: 'main', id: pickedMain } : { kind: 'sub', ids: [x.sub_id], main: pickedMain }); pickFocus(on ? { level: 'main', id: pickedMain } : { level: 'sub', id: String(x.sub_id) }) }} />
           })}
         </div>
         </>
