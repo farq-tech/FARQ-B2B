@@ -7,7 +7,7 @@ import {
 } from '../../api/targetingClient'
 import {
   Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon, MessageTemplatesIcon, NewRequestIcon,
-  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, UploadCatalogIcon, useIsMapCompact, WarningIcon, WholesaleIcon, type Channel,
+  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, Switch, UploadCatalogIcon, useIsMapCompact, WarningIcon, WholesaleIcon, type Channel,
 } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
@@ -162,6 +162,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null; excludedCount: number }[]>([])
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
+  const [showMapPins, setShowMapPins] = useState(true)
+  const [showDensity, setShowDensity] = useState(true)
+  const [showDistricts, setShowDistricts] = useState(true)
   const [shown, setShown] = useState(PAGE)
   const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
   const [message, setMessage] = useState(defaultMessage(null, null))
@@ -1909,10 +1912,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={pins} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={activeTileQuery} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
+      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins ? activeTileQuery : undefined} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={density} densityMax={densityMax}
+        showDensity={showDensity} showDistricts={showDistricts} showPlaces={showMapPins}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
+      <div role="group" aria-label="إظهار طبقات الخريطة" className="pointer-events-none absolute start-3 bottom-3 z-20 flex max-w-[calc(100%-24px)] flex-wrap gap-1.5"><div className="pointer-events-auto"><Switch className="min-h-11 gap-1.5 px-2 text-[12px]" label="نقاط المنشآت" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} /></div><div className="pointer-events-auto"><Switch className="min-h-11 gap-1.5 px-2 text-[12px]" label="تدرج الأحياء" checked={showDensity} onChange={(event) => { const on = event.currentTarget.checked; setShowDensity(on); recordMapInteraction(on ? 'map_filter_layer_density_on' : 'map_filter_layer_density_off') }} /></div><div className="pointer-events-auto"><Switch className="min-h-11 gap-1.5 px-2 text-[12px]" label="حدود الأحياء" checked={showDistricts} onChange={(event) => { const on = event.currentTarget.checked; setShowDistricts(on); recordMapInteraction(on ? 'map_filter_layer_districts_on' : 'map_filter_layer_districts_off') }} /></div></div>
       {!focusMode ? <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[13px] font-semibold shadow-[var(--farq-soft-shadow)] backdrop-blur-md md:min-h-8">

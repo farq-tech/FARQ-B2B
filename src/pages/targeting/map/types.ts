@@ -39,4 +39,8 @@ export type LayerMapProps = {
   /** places per district for the choropleth (district id → n) and its maximum */
   density: Map<string, number>
   densityMax: number
+  /** Display-only layer toggles; they never alter the query or selected records. */
+  showDensity: boolean
+  showDistricts: boolean
+  showPlaces: boolean
 }

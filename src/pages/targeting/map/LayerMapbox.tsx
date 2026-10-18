@@ -71,7 +71,7 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
       const { green: GREEN, ink: INK, label: LABEL } = palette()
       m.addSource('districts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'fid' })
       // District density remains visible over the basemap; progressively stronger green fill means more matching establishments.
-      m.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ['case', ['>', ['coalesce', ['feature-state', 'step'], 0], 0], GREEN, ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'fill-opacity': ['max', ['case', ['boolean', ['feature-state', 'on'], false], 0.08, ['boolean', ['feature-state', 'hover'], false], 0.06, 0.015], ['match', ['coalesce', ['feature-state', 'step'], 0], 1, 0.14, 2, 0.27, 3, 0.4, 4, 0.55, 0]] } })
+      m.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ['case', ['>', ['coalesce', ['feature-state', 'step'], 0], 0], GREEN, ['boolean', ['feature-state', 'on'], false], GREEN, INK], 'fill-opacity': ['max', ['case', ['boolean', ['feature-state', 'on'], false], 0.08, ['all', ['boolean', ['feature-state', 'hover'], false], ['any', ['boolean', ['feature-state', 'densityVisible'], true], ['boolean', ['feature-state', 'districtsVisible'], true]]], 0.06, ['boolean', ['feature-state', 'densityVisible'], true], 0.015, 0], ['case', ['boolean', ['feature-state', 'densityVisible'], true], ['match', ['coalesce', ['feature-state', 'step'], 0], 1, 0.14, 2, 0.27, 3, 0.4, 4, 0.55, 0], 0]] } })
       m.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': INK, 'line-opacity': ['case', ['boolean', ['feature-state', 'on'], false], 0.95, 0.35], 'line-width': ['case', ['boolean', ['feature-state', 'on'], false], 2.5, 1], 'line-dasharray': [3, 2] } })
       // dense streets along the real street: a blurred glow under a green core, width / strength by shops per 100 m
       m.addSource('streets', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -106,6 +106,7 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
         if (st) { L.onStreet(String(st.properties?.id)); return }
         const tr = m.queryRenderedFeatures(e.point, { layers: ['trade-circle'] })[0]
         if (tr) { const c = L.clusters[Number(tr.properties?.i)]; if (c) L.onCluster(c); return }
+        if (!L.showDistricts && !L.showDensity) return
         const d = m.queryRenderedFeatures(e.point, { layers: ['district-fill'] })[0]
         if (d) L.onDistrict(String(d.properties?.id))
       })
@@ -114,7 +115,7 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
         const id = e.features?.[0]?.id
         if (hover != null && hover !== id) m.setFeatureState({ source: 'districts', id: hover }, { hover: false })
         if (id != null) { hover = id; m.setFeatureState({ source: 'districts', id }, { hover: true }) }
-        m.getCanvas().style.cursor = latest.current.placingSite ? 'crosshair' : 'pointer'
+        m.getCanvas().style.cursor = latest.current.placingSite ? 'crosshair' : latest.current.showDistricts || latest.current.showDensity ? 'pointer' : ''
       })
       m.on('mouseleave', 'district-fill', () => { if (hover != null) m.setFeatureState({ source: 'districts', id: hover }, { hover: false }); hover = null; m.getCanvas().style.cursor = '' })
       const tip = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 14 })
@@ -184,8 +185,15 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
-    districts.filter((d) => d.feature).forEach((d, i) => m.setFeatureState({ source: 'districts', id: i }, { on: chosen.has(d.id), step: densityStep(density.get(d.id) || 0, densityMax) }))
-  }, [loaded, districts, chosen, density, densityMax])
+    districts.filter((d) => d.feature).forEach((d, i) => m.setFeatureState({ source: 'districts', id: i }, { on: chosen.has(d.id), step: densityStep(density.get(d.id) || 0, densityMax), densityVisible: props.showDensity, districtsVisible: props.showDistricts }))
+  }, [loaded, districts, chosen, density, densityMax, props.showDensity, props.showDistricts])
+  useEffect(() => {
+    const m = map.current
+    if (!loaded || !m) return
+    const visible = (ids: string[], on: boolean) => ids.forEach((id) => { if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none') })
+    visible(['district-line', 'district-label'], props.showDistricts)
+    visible(['pins', 'directory-points', 'directory-count', 'directory-hit', 'trade-circle', 'trade-label'], props.showPlaces)
+  }, [loaded, props.showDistricts, props.showPlaces, props.tileQuery])
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
@@ -242,7 +250,7 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
           </span>
         </div>
       ) : null}
-      {tileFailed ? <p role="alert" className="farq-map-error">تعذّر تحميل نقاط المنشآت. <button type="button" onClick={props.onTileRefresh}>تحديث النقاط</button></p> : null}
+      {tileFailed && props.showPlaces ? <p role="alert" className="farq-map-error">تعذّر تحميل نقاط المنشآت. <button type="button" onClick={props.onTileRefresh}>تحديث النقاط</button></p> : null}
       {failed ? <p role="alert" className="farq-map-error">تعذّر تحميل الخريطة. تقدر تستعرض الجهات وتختارها من القائمة.</p> : null}
     </div>
   )
