@@ -7,7 +7,7 @@ export function directoryActivityQuery(activity: string): string {
   return /حلاق|حلاقه/u.test(normalized) ? 'حلاق رجالي' : activity
 }
 
-/** Avoid bulk-selecting barber-query rows with no barber evidence in the name or directory classification. */
+/** Avoid bulk-selecting barber-query rows unless the business name itself indicates barber / haircut. */
 export function hasDirectoryActivityEvidence(activity: string, values: (string | null | undefined)[]): boolean {
   const normalizedActivity = activity.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
   if (!/حلاق|حلاقه/u.test(normalizedActivity)) return true
