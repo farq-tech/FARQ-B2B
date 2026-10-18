@@ -82,6 +82,11 @@ html, body, #root {
     top: var(--farq-map-compact-sticky-height);
     z-index: 30;
     max-height: calc(100dvh - var(--farq-map-compact-sticky-height));
+  }
+
+  .map-compact-results-panel-scroll {
+    min-height: 0;
+    flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
   }

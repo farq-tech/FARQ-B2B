@@ -1568,8 +1568,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {tray}
         {noticeLine}
         <section ref={resultsPanelRef} aria-label="النتائج والدليل" className={`${mobile ? 'map-compact-results-panel ' : ''}-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3`}>
-          {panelHead}
-          {panelBody}
+          <div className={mobile ? 'map-compact-results-panel-scroll' : ''}>
+            {panelHead}
+            {panelBody}
+          </div>
         </section>
         {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} /> : null}
         {confirmSheet}
