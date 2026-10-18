@@ -53,11 +53,9 @@ export function Sidebar({ nav, footerNav, onNewRequest, account, className }: Si
           <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-bg-primary-subtle)] text-[16px] font-medium text-[var(--color-text-info)]">{(account.name.trim()[0] || 'ف').toUpperCase()}</span>
           <div className="flex min-w-0 flex-1 flex-col items-start text-start">
             <p
+              title={account.name}
               dir={account.name.includes('@') ? 'ltr' : undefined}
-              className={cx(
-                'max-w-full text-[14px] leading-[22px] font-medium text-[var(--color-text-primary)]',
-                account.name.includes('@') ? 'break-all whitespace-normal' : 'truncate',
-              )}
+              className="max-w-full truncate whitespace-nowrap text-[14px] leading-[22px] font-medium text-[var(--color-text-primary)]"
             >{account.name}</p>
             {account.onSignOut ? <button type="button" onClick={account.onSignOut} className={cx('fi-host inline-flex items-center gap-1 rounded-[var(--radius-sm)] text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]', FOCUS_RING)}><LogoutIcon size={14} />{account.detail || 'تسجيل الخروج'}</button> : account.detail ? <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{account.detail}</p> : null}
           </div>
