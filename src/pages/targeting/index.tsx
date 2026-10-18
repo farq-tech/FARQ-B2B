@@ -598,7 +598,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setReadErr(err instanceof Error ? err.message : 'تعذّرت قراءة الملف.')
     } finally { setReading(null); if (fileInput.current) fileInput.current.value = '' }
   }
-  async function loadMore() {
+  async function loadMore(forUnlocated = false) {
     if (!res || res.next_offset == null || busy) return
     setBusyKind('more'); setError(null)
     const version = generation.current
@@ -606,13 +606,16 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     try {
       const r = await searchTargets(query, city, FETCH, browsingMarket ? 'browse' : objective, res.next_offset, filters)
       if (version !== generation.current) return
+      const newRows = r.rows.filter((row) => !res.rows.some((current) => current.poi_key === row.poi_key))
       setRes((cur) => cur ? { ...cur, rows: [...cur.rows, ...r.rows.filter((x) => !cur.rows.some((y) => y.poi_key === x.poi_key))], has_more: r.has_more, next_offset: r.next_offset } : cur)
       setShown((s) => s + r.rows.length)
       if (browsingMarket) recordMapInteraction('map_browse_more_succeeded')
+      if (forUnlocated) recordMapInteraction(newRows.some((row) => !hasPoint(row)) ? 'site_unlocated_batch_found' : 'site_unlocated_batch_empty')
     } catch (err) {
       if (version === generation.current) {
         setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل باقي النتائج.')
         if (browsingMarket) recordMapInteraction('map_browse_more_failed')
+        if (forUnlocated) recordMapInteraction('site_unlocated_batch_failed')
       }
     } finally { if (version === generation.current) setBusyKind(null) }
   }
@@ -1076,9 +1079,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           اعرض {n(Math.min(PAGE, unlocatedRows.length - shown))} أخرى بلا دبوس
         </Button>
       ) : null}
-      {hasTargetQuery && truncated && !visibleCohort.length ? (
-        <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMore()}>
-          {unlocatedRows.length ? 'حمّل دفعة أخرى لمراجعة المواقع التقريبية' : 'حمّل دفعة أخرى للعثور على منشآت بلا دبوس'}
+      {hasTargetQuery && truncated && !unlocatedRows.length ? (
+        <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMore(true)}>
+          حمّل الدفعة التالية للعثور على منشآت بلا دبوس
         </Button>
       ) : null}
     </section>
