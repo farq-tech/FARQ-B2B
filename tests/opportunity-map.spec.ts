@@ -274,7 +274,8 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('tab', { name: 'افهم السوق' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('heading', { name: 'ملخص سوق الرياض' })).toBeVisible()
     await expect(page.locator('[data-counter="market-size"]')).toContainText('منشآت مرصودة')
-    await expect(page.locator('[data-counter="market-activities"]')).toContainText('تصنيفات فرعية متاحة')
+    await expect(page.locator('[data-counter="market-whatsapp"]')).toContainText('وسم واتساب من المصدر')
+    await expect(page.locator('[data-counter="market-unlocated"]')).toContainText('بلا موقع دقيق')
     await expect(page.getByText('منشآت لديها تخصصات مسجلة')).toBeVisible()
     await page.getByRole('button', { name: 'توسيع الخريطة' }).click()
     await expect(page.getByText(/منشآت مرصودة ·/)).toBeVisible()
@@ -326,12 +327,11 @@ test.describe('desktop 1440', () => {
   test('does not present business specialty records as available activity filters', async ({ page }) => {
     await setup(page, { catalogOff: true, specialtiesCount: 99 })
     await page.goto('/opportunity-map')
-    const optionsCounter = page.locator('[data-counter="market-activities"]')
-    await expect(optionsCounter).toContainText('—')
-    await expect(optionsCounter).toContainText('تصنيفات فرعية متاحة')
+    const mapCounters = page.getByRole('region', { name: 'مؤشرات الخريطة' })
+    await expect(mapCounters.getByText('تصنيفات فرعية متاحة')).toHaveCount(0)
+    await expect(page.getByTestId('street-picker')).toHaveCount(0)
     const summary = page.locator('dl').filter({ hasText: 'منشآت لديها تخصصات مسجلة' })
     await expect(summary).toContainText('٩٩')
-    await expect(optionsCounter).not.toContainText('٩٩')
   })
 
   test('changing city repeats the active search instead of showing city-wide results under the old phrase', async ({ page }) => {
