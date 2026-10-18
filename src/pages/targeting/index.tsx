@@ -149,6 +149,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
   const [buyerProductGroups, setBuyerProductGroups] = useState<{ name: string; rows: TargetRow[]; total: number; nextOffset: number | null }[]>([])
+  const [buyerProductProgress, setBuyerProductProgress] = useState<{ completed: number; total: number } | null>(null)
   const buyerProductMode = lens === 'buyers' && buyerProductGroups.length > 0
   const hasAudienceBrowse = lens === 'buyers' && !hasTargetQuery && Boolean(res) && !buyerProductMode
   const showTargetResults = hasTargetQuery || hasAudienceBrowse || buyerProductMode
@@ -306,7 +307,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const districtInsightSeenKeys = useRef(new Set<string>())
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
-  const resetAll = () => { generation.current++; setRes(null); setBuyerProductGroups([]); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
+  const resetAll = () => { generation.current++; setRes(null); setBuyerProductGroups([]); setBuyerProductProgress(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
   const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setExpandedDistrictActivities(new Set()); setSite(null); setFit(null) }
 
   useEffect(() => {
@@ -814,6 +815,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       setChosenD(new Set()); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null); setSite(null); setShowUnlocated(false); fitCity()
     }
     setMultiIntents([]); setMultiPending(new Map()); setSelected(new Set()); setSelectedRows(new Map()); setBuyerProductGroups([])
+    setBuyerProductProgress({ completed: 0, total: products.length })
     try {
       // Each saved product gets its own server-side buyer match. A single joined
       // phrase can be interpreted as an AND query and silently lose products.
@@ -822,6 +824,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       for (let start = 0; start < products.length; start += 4) {
         const batch = await Promise.all(products.slice(start, start + 4).map((name) => searchTargets(name, inCity, FETCH, 'marketing', 0, productFilters, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))))
         responses.push(...batch)
+        setBuyerProductProgress({ completed: responses.length, total: products.length })
         if (version !== generation.current) return
       }
       if (version !== generation.current) return
@@ -845,7 +848,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       loadClusters('', inCity, false, 'marketing', true)
     } catch (err) {
       if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل مطابقة كل منتجاتك. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
-    } finally { if (version === generation.current) setBusyKind(null) }
+    } finally {
+      if (version === generation.current) { setBusyKind(null); setBuyerProductProgress(null) }
+    }
   }
   async function loadMoreBuyerProduct(index: number) {
     const group = buyerProductGroups[index]
@@ -1051,7 +1056,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
-    setBuyerProductGroups([])
+    setBuyerProductGroups([]); setBuyerProductProgress(null)
     setBusyKind('browse'); setError(null); setFailedResultRefresh(false); setProfile(null)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
@@ -1766,7 +1771,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     </div>
   ) : (
     <div aria-busy={busy}>
-      {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
+      {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">{buyerProductProgress ? `نبحث عن المشترين لـ ${n(buyerProductProgress.completed)} من ${n(buyerProductProgress.total)} منتج…` : 'جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.'}</p> : null}
       {buyerProductMode ? <section className="mx-3 mt-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3" aria-label="مطابقة منتجاتك مع المشترين">
         <p className="m-0 text-[13px] leading-[21px] font-medium">مرشحو المشترين جُمِعوا من منتجاتك المحفوظة. المطابقة حسب النشاط المسجل وليست تأكيداً لنية الشراء.</p>
         <ul className="mt-2 flex flex-col gap-2 p-0">
@@ -2152,7 +2157,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const searchStatus = busy ? (
     <p role="status" aria-live="polite" aria-atomic="true" className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md">
       <span aria-hidden className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
-      {busyKind === 'browse' ? 'جارٍ تحميل منشآت السوق على الخريطة…' : busyKind === 'more' ? 'جارٍ تحميل نتائج إضافية…' : 'جارٍ تحديث نتائج البحث على الخريطة…'}
+      {busyKind === 'browse' ? 'جارٍ تحميل منشآت السوق على الخريطة…' : busyKind === 'more' ? 'جارٍ تحميل نتائج إضافية…' : buyerProductProgress ? `نبحث عن المشترين لـ ${n(buyerProductProgress.completed)} من ${n(buyerProductProgress.total)} منتج…` : 'جارٍ تحديث نتائج البحث على الخريطة…'}
     </p>
   ) : null
 
