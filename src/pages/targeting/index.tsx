@@ -148,8 +148,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const hasTargetQuery = Boolean(query.trim())
   const lastSuccessfulQueryObjective = useRef(objective)
   const [res, setRes] = useState<TargetSearch | null>(null)
-  const hasAudienceBrowse = lens === 'buyers' && !hasTargetQuery && Boolean(res)
-  const showTargetResults = hasTargetQuery || hasAudienceBrowse
+  const [buyerProductGroups, setBuyerProductGroups] = useState<{ name: string; rows: TargetRow[]; total: number; nextOffset: number | null }[]>([])
+  const buyerProductMode = lens === 'buyers' && buyerProductGroups.length > 0
+  const hasAudienceBrowse = lens === 'buyers' && !hasTargetQuery && Boolean(res) && !buyerProductMode
+  const showTargetResults = hasTargetQuery || hasAudienceBrowse || buyerProductMode
   const [focusedTile, setFocusedTile] = useState<{ key: string; query: string } | null>(null)
   const [focusedTileError, setFocusedTileError] = useState(false)
   const [specialtyFocusResolving, setSpecialtyFocusResolving] = useState(false)
@@ -304,7 +306,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const districtInsightSeenKeys = useRef(new Set<string>())
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
-  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
+  const resetAll = () => { generation.current++; setRes(null); setBuyerProductGroups([]); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
   const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setExpandedDistrictActivities(new Set()); setSite(null); setFit(null) }
 
   useEffect(() => {
@@ -659,7 +661,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     : res?.map_query
   // Keep the city uncluttered until the user chooses an area or an activity; either choice
   // gives the map a useful, bounded cohort to pin even before they pick a district.
-  const pins = useMemo(() => (query && (chosenList.length || focus || filters.district || filters.street || filters.role || filters.specialty) ? pinsOf(visibleCohort, layer, selected, focus) : []), [query, chosenList, visibleCohort, layer, selected, focus, filters.district, filters.street, filters.role, filters.specialty])
+  const pins = useMemo(() => ((query || buyerProductMode) && (chosenList.length || focus || filters.district || filters.street || filters.role || filters.specialty || buyerProductMode) ? pinsOf(visibleCohort, layer, selected, focus) : []), [query, buyerProductMode, chosenList, visibleCohort, layer, selected, focus, filters.district, filters.street, filters.role, filters.specialty])
   const approxCount = useMemo(() => visibleCohort.filter((r) => !hasPoint(r)).length, [visibleCohort])
   const extent = useMemo<[number, number, number, number] | null>(() => {
     const pts = rows.filter(hasPoint)
@@ -681,35 +683,20 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!wasChosen && district?.bbox) fitTo(district.bbox)
     else if (wasChosen) fitCity()
     const name = wasChosen ? undefined : district?.ar || id.replace(/^name:/, '')
-    if (query) {
-      const nextFilters = { ...filters }
-      delete nextFilters.district
-      delete nextFilters.street
-      if (name) nextFilters.district = name
-      void runSearchIn(query, city, nextFilters)
-    } else {
-      const nextFilters = { ...filters }
-      delete nextFilters.district
-      delete nextFilters.street
-      if (name) nextFilters.district = name
-      void loadBrowse(city, nextFilters)
-    }
+    const nextFilters = { ...filters }
+    delete nextFilters.district
+    delete nextFilters.street
+    if (name) nextFilters.district = name
+    applyFilters(nextFilters)
   }
   const clearDistrict = () => {
     recordMapInteraction('map_district_clear')
     setChosenD(new Set())
     fitCity()
-    if (query) {
-      const nextFilters = { ...filters }
-      delete nextFilters.district
-      delete nextFilters.street
-      void runSearchIn(query, city, nextFilters)
-    } else {
-      const nextFilters = { ...filters }
-      delete nextFilters.district
-      delete nextFilters.street
-      void loadBrowse(city, nextFilters)
-    }
+    const nextFilters = { ...filters }
+    delete nextFilters.district
+    delete nextFilters.street
+    applyFilters(nextFilters)
   }
   const pickFocus = (f: Focus) => {
     const version = ++specialtyFocusResolution.current
@@ -817,12 +804,82 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return [cat ? `المنتج: ${cat}` : null, p.seller_label ? `الجهات المناسبة: ${p.seller_label}` : null, area ? `المدينة: ${area}` : null].filter(Boolean) as string[]
   }, [res, cities]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function searchSavedBuyerProducts(inCity: string, productFilters: AreaFilters = {}, preserveSpatial = false) {
+    const products = [...new Set(lines.map((line) => line.name.trim()).filter(Boolean))]
+    if (!inCity || !products.length) { void loadBrowse(inCity, {}); return }
+    const version = ++generation.current
+    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setProfile(null)
+    setLens('buyers'); setObjective('marketing'); setQuery(''); setQ(''); setFilters(productFilters); setRes(null)
+    if (!preserveSpatial) {
+      setChosenD(new Set()); setStreetPick({ kind: 'all' }); setActiveStreet(null); setFocus(null); setSite(null); setShowUnlocated(false); fitCity()
+    }
+    setMultiIntents([]); setMultiPending(new Map()); setSelected(new Set()); setSelectedRows(new Map()); setBuyerProductGroups([])
+    try {
+      // Each saved product gets its own server-side buyer match. A single joined
+      // phrase can be interpreted as an AND query and silently lose products.
+      const responses: TargetSearch[] = []
+      // Keep larger catalogues from firing dozens of requests at the search API at once.
+      for (let start = 0; start < products.length; start += 4) {
+        const batch = await Promise.all(products.slice(start, start + 4).map((name) => searchTargets(name, inCity, FETCH, 'marketing', 0, productFilters, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))))
+        responses.push(...batch)
+        if (version !== generation.current) return
+      }
+      if (version !== generation.current) return
+      const groups = products.map((name, index) => ({
+        name,
+        rows: responses[index].rows,
+        total: responses[index].total,
+        nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null),
+      }))
+      const unique = new Map<string, TargetRow>()
+      for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
+      const rows = [...unique.values()]
+      const first = responses[0]
+      setBuyerProductGroups(groups)
+      setRes({ ...first, rows, total: rows.length, with_whatsapp: rows.filter((row) => Boolean(waNumber(row))).length, with_email: rows.filter((row) => Boolean(row.email)).length, has_more: groups.some((group) => group.nextOffset != null), next_offset: null })
+      setLines((current) => current.map((line) => {
+        const index = products.indexOf(line.name.trim())
+        return index < 0 ? line : { ...line, found: responses[index].total }
+      }))
+      setShown(FETCH); setActiveLine(null); setTab('results'); setMessage(defaultMessage(null, cityName(inCity)))
+      loadClusters('', inCity, false, 'marketing', true)
+    } catch (err) {
+      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل مطابقة كل منتجاتك. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
+    } finally { if (version === generation.current) setBusyKind(null) }
+  }
+  async function loadMoreBuyerProduct(index: number) {
+    const group = buyerProductGroups[index]
+    if (!group || group.nextOffset == null || busy) return
+    const version = generation.current
+    const offset = group.nextOffset
+    setBusyKind('more'); setError(null)
+    try {
+      const response = await searchTargets(group.name, city, FETCH, 'marketing', offset, {}, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))
+      if (version !== generation.current) return
+      const appended = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
+      const nextOffset = response.next_offset ?? (response.has_more ? offset + response.rows.length : null)
+      setBuyerProductGroups((current) => current.map((item, i) => i === index ? { ...item, rows: [...item.rows, ...appended], total: response.total, nextOffset } : item))
+      setRes((current) => {
+        if (!current) return current
+        const rowsByKey = new Map(current.rows.map((row) => [row.poi_key, row]))
+        for (const row of response.rows) rowsByKey.set(row.poi_key, row)
+        const rows = [...rowsByKey.values()]
+        return { ...current, rows, total: rows.length, with_whatsapp: rows.filter((row) => Boolean(waNumber(row))).length, with_email: rows.filter((row) => Boolean(row.email)).length, has_more: buyerProductGroups.some((item, i) => i === index ? nextOffset != null : item.nextOffset != null) }
+      })
+    } catch (err) {
+      if (version === generation.current) setError(err instanceof TargetingError ? err.message : `تعذّر تحميل بقية مرشحي ${group.name}.`)
+    } finally { if (version === generation.current) setBusyKind(null) }
+  }
   async function search(e?: FormEvent) {
     e?.preventDefault()
     const text = q.trim()
-    // An empty box means "show the whole city directory", not "reuse the last
-    // product query" or leave a district-filtered response on screen.
+    // Clearing a seller's product search means match every saved product,
+    // without retaining the previous district or other spatial filters.
     if (!text) {
+      if (objective === 'marketing' && lines.some((line) => line.name.trim())) {
+        await searchSavedBuyerProducts(city)
+        return
+      }
       setFilters({})
       setChosenD(new Set())
       setStreetPick({ kind: 'all' })
@@ -833,6 +890,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       fitCity()
       setQuery('')
       setActiveLine(null)
+      setBuyerProductGroups([])
       if (objective === 'marketing') setLens('buyers')
       setTab('results')
       void loadBrowse(city, {})
@@ -884,7 +942,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         map_query: first.map_query,
         has_more: false,
       })
-      setQuery(text); setQ(text); setShown(PAGE); setFilters({}); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false)
+      setQuery(text); setQ(text); setShown(PAGE); setFilters({}); setBuyerProductGroups([]); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false)
       if (!selected.size) setMessage(defaultMessage(null, cityName(city)))
       const districtIds = intents.map((intent) => polys?.find((district) => normalizeActivityText(district.ar) === normalizeActivityText(intent.district))?.id || `name:${intent.district}`)
       setChosenD(new Set(districtIds))
@@ -937,6 +995,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   async function searchLine(i: number) {
     if (!city || !cities.some((value) => value.en === city)) { setError('اختر مدينة البحث من القائمة.'); return }
+    setBuyerProductGroups([])
     setActiveLine(i); setQ(lines[i].name)
     const found = await runSearchIn(lines[i].name, city)
     if (found != null) setLines((ls) => ls.map((l, k) => (k === i ? { ...l, found } : l)))
@@ -992,6 +1051,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
+    setBuyerProductGroups([])
     setBusyKind('browse'); setError(null); setFailedResultRefresh(false); setProfile(null)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
@@ -1002,6 +1062,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       // complete first batch so the initial empty-search state does not hide
       // 50 already-loaded establishments behind an extra click.
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(FETCH)
+      setBuyerProductGroups([])
       setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
       loadClusters('', inCity, Boolean(browseFilters.wholesale), 'purchase', true)
@@ -1018,6 +1079,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   useEffect(() => {
     const text = query.trim()
     if (text) void runSearchIn(text, city)
+    else if (lens === 'buyers' && lines.some((line) => line.name.trim())) void searchSavedBuyerProducts(city)
     else void loadBrowse(city)
   }, [city]) // eslint-disable-line react-hooks/exhaustive-deps
   /** Where this trade concentrates in the city (POST /clusters); quiet when the service has none or is older. */
@@ -1059,7 +1121,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
-      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setChosenD(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
+      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([]); setChosenD(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
       if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj, keepStreets)
       const p = r.parsed || {}
@@ -1080,6 +1142,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const applyFilters = (next: AreaFilters) => {
     if (query) void runSearchIn(query, city, next)
+    else if (buyerProductMode) void searchSavedBuyerProducts(city, next, true)
     else if (!Object.values(next).some(Boolean)) clearMapToCity()
     else void loadBrowse(city, next)
   }
@@ -1192,7 +1255,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         <>
           <div className="flex items-center justify-between gap-2">
             <p className="text-[14px] leading-[22px] font-medium">عناصر الملف ({n(lines.length)}){booklet ? <span className="text-[var(--color-text-tertiary)]"> · <bdi>{booklet}</bdi></span> : null}</p>
-            <button type="button" onClick={() => { setLines([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] text-[var(--color-text-tertiary)] hover:underline ${FOCUS_RING}`}>إزالة</button>
+            <button type="button" onClick={() => { setLines([]); setBuyerProductGroups([]); setBooklet(null); setActiveLine(null) }} className={`text-[12px] leading-[18px] text-[var(--color-text-tertiary)] hover:underline ${FOCUS_RING}`}>إزالة</button>
           </div>
           <ul className={mobile ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex max-h-[112px] flex-wrap gap-2 overflow-y-auto'}>
             {lines.map((l, i) => (
@@ -1704,6 +1767,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : (
     <div aria-busy={busy}>
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
+      {buyerProductMode ? <section className="mx-3 mt-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3" aria-label="مطابقة منتجاتك مع المشترين">
+        <p className="m-0 text-[13px] leading-[21px] font-medium">مرشحو المشترين جُمِعوا من منتجاتك المحفوظة. المطابقة حسب النشاط المسجل وليست تأكيداً لنية الشراء.</p>
+        <ul className="mt-2 flex flex-col gap-2 p-0">
+          {buyerProductGroups.map((group, index) => <li key={`${group.name}-${index}`} className="flex flex-wrap items-center gap-2 text-[12px] leading-[18px]">
+            <span className="min-w-0 flex-1 truncate">{group.name} · {n(group.rows.length)} من {n(group.total)}</span>
+            {group.nextOffset != null ? <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMoreBuyerProduct(index)}>حمّل المزيد</Button> : <span className="text-[var(--color-text-tertiary)]">اكتمل التحميل</span>}
+          </li>)}
+        </ul>
+      </section> : null}
       {objective === 'purchase' && isWholesaleRequest(query) ? (
         <div className="mx-3 mt-3 flex flex-col gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
           <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">نتائج البحث مرشحون بحسب النشاط، وليست تأكيداً أن المنشأة تبيع بالجملة. قناة واتساب من سجل الدليل ولا تؤكد استقبال الرقم. اختر الموسومين بالجملة فقط لفلترة أدق، أو أضف نتائج الدفعة المطابقة للمرشحات الحالية وذات واتساب للمراجعة. {res.has_more ? `الاختيار يقتصر على الدفعة الحالية (${n(rows.length)} من ${n(res.total)})؛ حمّل المزيد ثم أعد الاختيار لبقية النتائج.` : 'تم تحميل جميع النتائج.'} لا يحدث إرسال أو جدولة عند الاختيار.</p>
@@ -1909,7 +1981,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       </div> : null}
     </section>
   ) : null
-  const buyerPanel = lens === 'buyers' && currentBuyerData ? (
+  const buyerPanel = lens === 'buyers' && !buyerProductMode && currentBuyerData ? (
     <section className="flex flex-col gap-2 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="المنشآت التي تشتري هذا النشاط">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[14px] font-semibold">من يشتري عادةً؟</h2>
@@ -1957,7 +2029,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins ? activeTileQuery : undefined} onTileRefresh={() => void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters))}
+      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}
         showDensity={showDensity} showDistricts={showDistricts} showPlaces={showMapPins} showStreets={showStreets}
@@ -2103,7 +2175,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                     if (nextOpen) setSheetSnap('peek')
                   }}
                   className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm md:min-h-8 ${FOCUS_RING}`}>
-                  {focusPanelOpen ? 'إخفاء اللوحة' : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : 'ابدأ البحث'}
+          {focusPanelOpen ? 'إخفاء اللوحة' : buyerProductMode ? `مرشحو منتجاتك · ${n(res?.total || 0)}` : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : 'ابدأ البحث'}
                 </button>
                 <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
                   className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium md:min-h-8 ${FOCUS_RING}`}>
@@ -2115,7 +2187,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </div>
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
-          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : hasTargetQuery ? `نتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
+          {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : buyerProductMode ? `مرشحو منتجاتك · ${n(res?.total || 0)}` : hasTargetQuery ? `نتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
           {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
@@ -2135,7 +2207,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             }} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button> : null}
             {mobile && focusPanelSnap === 'peek' ? (
               <div className="flex min-h-0 items-center justify-between gap-2 px-4 pb-3">
-                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
+                <p className="m-0 truncate text-[13px] font-medium text-[var(--color-text-secondary)]">{lens === 'market' ? `ملخص السوق · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'} منشأة` : buyerProductMode ? `مرشحو منتجاتك · ${n(res?.total || 0)}` : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابحث عن مورد' : 'اكتشف المشترين'}</p>
                 <button type="button" onClick={() => setSheetSnap('half')} className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-1.5 text-[13px] font-semibold md:min-h-8 ${FOCUS_RING}`}>عرض التفاصيل</button>
               </div>
             ) : <>
