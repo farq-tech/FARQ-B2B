@@ -51,7 +51,7 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
   if (hidden) return (
     <button type="button" aria-label="إظهار دليل الخريطة" title="إظهار دليل الخريطة"
       onClick={show}
-      className={`pointer-events-auto absolute start-3 bottom-3 z-10 flex size-9 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 shadow-[var(--farq-soft-shadow)] backdrop-blur-md ${FOCUS_RING}`}>
+      className={`pointer-events-auto absolute start-3 bottom-3 z-10 flex size-11 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 shadow-[var(--farq-soft-shadow)] backdrop-blur-md md:size-9 ${FOCUS_RING}`}>
       <Icon name="info" size={17} />
     </button>
   )
@@ -60,7 +60,7 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
       <summary className="sticky top-0 z-10 -mx-3 -mt-2 cursor-pointer list-none bg-[var(--color-bg-surface)]/95 px-3 pb-1 pt-2 pe-16 font-semibold backdrop-blur-md">دليل الخريطة</summary>
       {open ? <button type="button" aria-label="إخفاء دليل الخريطة وإخلاء مساحة الخريطة" title="إخفاء الدليل"
         onClick={(event) => { event.preventDefault(); event.stopPropagation(); hide() }}
-        className={`sticky top-1 z-20 ms-auto -mt-8 mb-1 inline-flex min-h-8 items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 text-[12px] font-semibold text-[var(--color-text-primary)] shadow-sm hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>
+        className={`sticky top-1 z-20 ms-auto -mt-8 mb-1 inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 text-[12px] font-semibold text-[var(--color-text-primary)] shadow-sm hover:bg-[var(--color-bg-surface-2)] md:min-h-8 ${FOCUS_RING}`}>
         <Icon name="x" size={14} />إخفاء
       </button> : null}
       <ul className="mt-1.5 flex flex-col gap-1.5">
@@ -72,7 +72,7 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
             {FITS.filter(({ fit }) => fit === 'all' || counts[fit] > 0).map(({ fit, label }) => (
               <button key={fit} type="button" aria-pressed={fitFilter === fit}
                 onClick={(event) => { event.stopPropagation(); onFitFilterChange(fit) }}
-                className={`flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-start ${fitFilter === fit ? 'bg-[var(--color-bg-surface-2)] font-semibold text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)]'}`}>
+                className={`flex min-h-11 items-center gap-1.5 rounded-md px-1.5 text-start md:min-h-8 ${fitFilter === fit ? 'bg-[var(--color-bg-surface-2)] font-semibold text-[var(--color-text-primary)] ring-1 ring-[var(--color-border-default)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)]'}`}>
                 {fit === 'all' ? <span className="w-3 text-center" aria-hidden>•</span> : <FitSwatch fit={fit} />}{label} <span className="ms-auto tabular-nums text-[var(--color-text-secondary)]">{counts[fit]}</span>
               </button>
             ))}
