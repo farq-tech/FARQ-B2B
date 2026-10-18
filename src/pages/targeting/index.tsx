@@ -985,6 +985,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         const rows = responses[index].rows.filter(matches)
         return { intent, rows, total: responses[index].total, nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null), excludedCount: responses[index].rows.length - rows.length }
       })
+      const visibleGroups = groups.filter((group) => group.rows.length > 0).length
+      recordMapInteraction(visibleGroups === groups.length
+        ? 'map_multi_intent_groups_all_visible'
+        : visibleGroups > 0 ? 'map_multi_intent_groups_some_visible' : 'map_multi_intent_groups_none_visible')
       const unique = new Map<string, TargetRow>()
       for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
       const first = responses[0]
@@ -1012,7 +1016,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         recordMapInteraction(mapSearchOutcomeEvent(total, objective))
       }
     } catch (err) {
-      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر إكمال كل طلبات البحث. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
+      if (version === generation.current) {
+        recordMapInteraction(mapSearchFailedEvent(objective))
+        recordMapInteraction('map_multi_intent_search_failed')
+        setError(err instanceof TargetingError ? err.message : 'تعذّر إكمال كل طلبات البحث. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
+      }
     } finally {
       if (version === generation.current) setBusyKind(null)
     }
