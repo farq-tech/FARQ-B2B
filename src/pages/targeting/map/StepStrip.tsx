@@ -1,24 +1,23 @@
 import { Icon } from '../../../ui'
 
 /*
- * The four steps of خريطة الفرص (owner 2026-10-16: «تجربة الخريطة غير واضحة»), the current one highlighted.
- * On a phone the strip is one line: «الخطوة ٢ من ٤ · …».
+ * The three steps of supplier discovery, with the current action highlighted.
+ * On a phone the strip is one line: «الخطوة ٢ من ٣ · …».
  */
-export const STEPS = ['اكتب وش تبي', 'شوف الشوارع والأحياء الأكثف', 'اختر حي أو شارع', 'اختر المنشآت وأرسل'] as const
-const AR = ['١', '٢', '٣', '٤']
+export const STEPS = ['اكتب النشاط', 'اختر الحي أو الشارع', 'راجع المنشآت وتواصل'] as const
+const AR = ['١', '٢', '٣']
 const HINTS = [
-  'ابحث باسم النشاط أو المنتج لعرض المنشآت المناسبة.',
-  'الخطوط تبيّن كثافة النشاط؛ اضغط حيّاً أو شارعاً لاستكشافه.',
-  'اختيار حي أو شارع يضيّق النتائج إلى هذا الموقع.',
-  'راجع المنشآت المحددة، ثم أرسلها عبر واتساب.',
+  'ابحث باسم المنتج أو النشاط، أو اختر شارعاً أخضر للبدء بنشاطه.',
+  'استكشف كثافة الشوارع والأحياء، ثم اختر الموقع المناسب.',
+  'افتح ملفات المنشآت المناسبة وتأكد من بياناتها قبل التواصل.',
 ] as const
 
-export default function StepStrip({ current, mobile }: { current: 1 | 2 | 3 | 4; mobile: boolean }) {
+export default function StepStrip({ current, mobile }: { current: 1 | 2 | 3; mobile: boolean }) {
   if (mobile) {
     return (
       <div data-testid="map-steps" aria-label="خطوات الخريطة" className="rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2">
         <div className="flex items-center gap-2 text-[13px] leading-[20px]">
-          <span className="shrink-0 rounded-full bg-[var(--map-ink)] px-2 text-[12px] font-semibold text-white">الخطوة {AR[current - 1]} من ٤</span>
+          <span className="shrink-0 rounded-full bg-[var(--map-ink)] px-2 text-[12px] font-semibold text-white">الخطوة {AR[current - 1]} من ٣</span>
           <span className="truncate font-medium">{STEPS[current - 1]}</span>
         </div>
         <p className="m-0 mt-1 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{HINTS[current - 1]}</p>

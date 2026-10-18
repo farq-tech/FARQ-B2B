@@ -843,7 +843,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }, [hasPolys, res, districts, rows, marketDistrictCounts])
   const densityMax = useMemo(() => Math.max(0, ...density.values()), [density])
   const anyChosen = chosenD.size > 0 || Boolean(filters.street)
-  const step: 1 | 2 | 3 | 4 = !res ? 1 : !anyChosen ? 2 : !selected.size ? 3 : 4
+  // Browse data is loaded before a customer searches; it must not advance the search journey.
+  const step: 1 | 2 | 3 = !hasTargetQuery ? 1 : !anyChosen && !profile ? 2 : 3
   const topDistricts = useMemo(() => res
     ? [...(res.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 8)
     : marketDistrictCounts.slice(0, 8).map((d) => ({ name: d.district_ar, n: d.n })), [res, marketDistrictCounts])
@@ -1368,7 +1369,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {understood}
         {linesPanel}
         {fileField}
-        <StepStrip current={step} mobile />
+        {lens !== 'market' ? <StepStrip current={step} mobile /> : null}
         <Counters items={displayCounters} compact />
         {tray}
         {noticeLine}
@@ -1411,7 +1412,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <div className="min-h-0 flex-1 overflow-y-auto">{panelBody}</div>
         </aside>
         <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-          <StepStrip current={step} mobile={false} />
+          {lens !== 'market' ? <StepStrip current={step} mobile={false} /> : null}
           <Counters items={displayCounters} />
           {mapBlock}
           {noticeLine}
