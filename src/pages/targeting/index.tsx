@@ -1262,7 +1262,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       </div>
       {hasTargetQuery && res ? (
         <p className="pb-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
-          {`يعرض ${n(Math.min(shown, visibleCohort.length))} من ${n(visibleCohort.length)} ظاهر من ${n(cohort.length)} محمّل · ${n(res.total)} نتيجة مطابقة إجمالاً`}
+          {`القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`}
           {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
