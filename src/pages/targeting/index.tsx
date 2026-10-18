@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   districtCounts, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, whoBuys, type DistrictCount, type MarketSummary, type WhoBuys, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
@@ -120,6 +120,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   // hand-offs from «هدف جديد» pages (memory only); the default is «بائعون»
   const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => (handoff.take(HANDOFF.targetDirection) === 'marketing' ? 'marketing' : 'purchase'))
   const [lens, setLens] = useState<'market' | 'sellers' | 'buyers'>(() => (objective === 'marketing' ? 'buyers' : 'market'))
+  const lensTabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [q, setQ] = useState(() => handoff.take(HANDOFF.targetQuery) || '')
   const generation = useRef(0)
   const [query, setQuery] = useState('')
@@ -509,14 +510,29 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     { value: 'buyers', label: 'ابحث عن مشترين' },
   ] as const
   const directionIndex = directionOptions.findIndex((option) => option.value === lens)
+  const moveDirectionFocus = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? directionOptions.length - 1
+        : event.key === 'ArrowLeft'
+          ? (index + 1) % directionOptions.length
+          : event.key === 'ArrowRight'
+            ? (index - 1 + directionOptions.length) % directionOptions.length
+            : -1
+    if (nextIndex < 0) return
+    event.preventDefault()
+    lensTabRefs.current[nextIndex]?.focus()
+    chooseLens(directionOptions[nextIndex].value)
+  }
   const direction = (
     <div role="tablist" aria-label="عدسات خريطة السوق" dir="rtl" className="min-w-0 rounded-full bg-[var(--color-bg-surface-2)]/80 p-1 backdrop-blur-md">
       <div className="relative grid grid-cols-3">
         <span aria-hidden className="pointer-events-none absolute inset-y-0 start-0 w-1/3 rounded-full bg-[var(--color-bg-surface)] shadow-[var(--farq-button-shadow)] transition-transform duration-300 motion-reduce:transition-none"
           style={{ transform: `translateX(-${directionIndex * 100}%)` }} />
-        {directionOptions.map((option) => (
-          <button key={option.value} type="button" role="tab" aria-selected={lens === option.value} onClick={() => chooseLens(option.value)}
-            className={`relative z-10 min-h-10 rounded-full px-2 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors sm:px-3 sm:text-[13px] ${lens === option.value ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
+        {directionOptions.map((option, index) => (
+          <button key={option.value} ref={(node) => { lensTabRefs.current[index] = node }} type="button" role="tab" tabIndex={lens === option.value ? 0 : -1} aria-selected={lens === option.value} onClick={() => chooseLens(option.value)} onKeyDown={(event) => moveDirectionFocus(event, index)}
+            className={`relative z-10 min-h-11 rounded-full px-2 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors sm:px-3 sm:text-[13px] ${lens === option.value ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
             {option.label}
           </button>
         ))}
