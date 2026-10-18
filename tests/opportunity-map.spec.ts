@@ -98,7 +98,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
         return route.fulfill({ status: 503, json: { error: 'QA_TRANSIENT_MARKET_SUMMARY_FAILURE' } })
       }
       marketSummaryStatuses.push(200)
-      return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, n_wholesale: 2, n_whatsapp: 5, n_specialties: opts.specialtiesCount ?? 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
+      return route.fulfill({ json: { ok: true, summary: { total: 6, districts_count: 3, top_districts: [{ district_ar: 'الملك فيصل', n: 2 }, { district_ar: 'العليا', n: 3 }], densest_street: { street_ar: 'شارع خالد بن الوليد', district_ar: 'الملك فيصل', n: 37, length_m: 900, per_100m: 4.1, sub_ar: 'أدوات صحية وسباكة' }, main_activities: [{ main_id: 'build', main_ar: 'مواد بناء وتشطيب', n: 3 }], n_wholesale: 2, n_whatsapp: 5, n_specialties: opts.specialtiesCount ?? 3, n_approx: 1, n_cr: 1, basis: 'نقاط دقيقة فقط' } } })
     }
     if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', total: 6, basis: 'نقاط دقيقة فقط', districts: [{ district_ar: 'الملك فيصل', n: 2, n_wholesale: 2, n_whatsapp: 2 }, { district_ar: 'العليا', n: 3, n_wholesale: 0, n_whatsapp: 2 }, { district_ar: 'الفيصلية', n: 1, n_wholesale: 0, n_whatsapp: 1 }] } })
     if (path.endsWith('/district-insights')) return route.fulfill({ json: { ok: true, city: 'Riyadh', districts: [], basis: 'اختبار' } })
@@ -336,6 +336,22 @@ test.describe('desktop 1440', () => {
 
     await page.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     await expect(page.getByRole('tab', { name: 'ابحث عن موردين' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('market activity counter replaces other filters but keeps the selected district', async ({ page }) => {
+    const { marketQueries, searchRequests } = await setup(page)
+    await page.goto('/opportunity-map')
+    await pickDistrict(page, 'الملك فيصل')
+    await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
+    await page.locator('[data-counter="market-main-build"]').click()
+
+    await expect.poll(() => marketQueries.some((query) => JSON.stringify(query).includes('الملك فيصل') && query.main_id === 'build')).toBe(true)
+    await expect.poll(() => searchRequests.some((request) => {
+      const filters = request.filters as Record<string, unknown> | undefined
+      return request.q === '' && Boolean(filters) && filters!.district === 'الملك فيصل' && Object.keys(filters!).length === 1
+    })).toBe(true)
+    await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
+    await expect(page.locator('[data-counter="market-main-build"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('recovers a transient market-summary failure without a manual retry', async ({ page }) => {
