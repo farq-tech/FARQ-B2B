@@ -33,6 +33,7 @@ import {
   type District, type Focus, type Layer, type Street,
 } from './map/model'
 import type { LayerMapProps, Site } from './map/types'
+import { MAX_MAP_INTENTS, parseMapIntents, type MapIntent } from './multiIntent'
 
 /*
  * «خريطة الفرص» v2 — owner-approved redesign 2026-10-16 (Canva concepts: airy light-grey map, charcoal pins with white glyphs,
@@ -149,6 +150,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [error, setError] = useState<string | null>(null)
   const [failedResultRefresh, setFailedResultRefresh] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selectedRows, setSelectedRows] = useState<Map<string, TargetRow>>(new Map())
+  const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null }[]>([])
+  const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [shown, setShown] = useState(PAGE)
   const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
@@ -255,7 +259,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [marketRetry, setMarketRetry] = useState(0)
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
-  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
+  const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
   const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null); setFit(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
@@ -492,7 +496,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const c = cityCoords(city)
     return c ? [c.lon - 0.15, c.lat - 0.12, c.lon + 0.15, c.lat + 0.12] : null
   }, [rows, city])
-  const chosen = useMemo(() => rows.filter((r) => selected.has(r.poi_key)), [rows, selected])
+  const chosen = useMemo(() => [...selected].map((key) => selectedRows.get(key)).filter((row): row is TargetRow => Boolean(row)), [selected, selectedRows])
   const truncated = res ? rows.length < res.total : false
   const hasAiInVisibleCohort = visibleCohort.some((row) => Boolean(row.ai))
   const waInCohort = counters.whatsapp
@@ -616,7 +620,91 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   async function search(e?: FormEvent) {
     e?.preventDefault()
     setActiveLine(null)
+    const parsed = parseMapIntents(q.trim())
+    if (parsed?.invalid) {
+      setError(`ما قدرنا نفصل الطلبات. اكتب كل طلب بصيغة نشاط + حي، وبحد أقصى ${MAX_MAP_INTENTS} طلبات؛ مثال: حلاقين بحي السويدي وابي مطاعم بحي الربيع.`)
+      return
+    }
+    if (parsed?.intents.length) {
+      await searchMultipleIntents(q.trim(), parsed.intents)
+      return
+    }
     await runSearchIn(q.trim(), city)
+  }
+  async function searchMultipleIntents(text: string, intents: MapIntent[]) {
+    if (!city || !intents.length) return
+    const version = ++generation.current
+    const startedAt = performance.now()
+    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
+    setLens(objective === 'marketing' ? 'buyers' : 'sellers')
+    recordMapInteraction(mapSearchStartedEvent(objective))
+    try {
+      const responses = await Promise.all(intents.map((intent) => searchTargets(intent.activity, city, FETCH, objective, 0, { district: intent.district }, true, (outcome) => {
+        recordMapInteraction(mapSearchRetryEvent(objective, outcome))
+      })))
+      if (version !== generation.current) return
+      const groups = intents.map((intent, index) => ({ intent, rows: responses[index].rows, total: responses[index].total, nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null) }))
+      const unique = new Map<string, TargetRow>()
+      for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
+      const first = responses[0]
+      const districtCounts = new Map<string, number>()
+      for (const group of groups) districtCounts.set(group.intent.district, (districtCounts.get(group.intent.district) || 0) + group.rows.length)
+      setRes({
+        ...first,
+        rows: [...unique.values()],
+        total: unique.size,
+        with_whatsapp: [...unique.values()].filter((row) => Boolean(waNumber(row))).length,
+        with_email: [...unique.values()].filter((row) => Boolean(row.email)).length,
+        areas: { districts: [...districtCounts].map(([name, count]) => ({ name, n: count })), streets: [], wholesale: 0 },
+        map_query: first.map_query,
+        has_more: false,
+      })
+      setQuery(text); setQ(text); setShown(PAGE); setFilters({}); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false)
+      if (!selected.size) setMessage(defaultMessage(null, cityName(city)))
+      const districtIds = intents.map((intent) => polys?.find((district) => normalizeActivityText(district.ar) === normalizeActivityText(intent.district))?.id || `name:${intent.district}`)
+      setChosenD(new Set(districtIds))
+      if (version === generation.current) {
+        const total = [...unique.values()].length
+        recordMapInteraction(mapSearchLatencyEvent(performance.now() - startedAt, objective))
+        recordMapInteraction(mapSearchResultEvent(total))
+        recordMapInteraction(mapSearchOutcomeEvent(total, objective))
+      }
+    } catch (err) {
+      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر إكمال كل طلبات البحث. لم نعرض نتائج جزئية؛ حاول مرة ثانية.')
+    } finally {
+      if (version === generation.current) setBusyKind(null)
+    }
+  }
+  async function loadMoreIntent(index: number) {
+    const group = multiIntents[index]
+    if (!group || group.nextOffset == null || busy) return
+    const version = generation.current
+    const offset = group.nextOffset
+    setBusyKind('more'); setError(null)
+    try {
+      const response = await searchTargets(group.intent.activity, city, FETCH, objective, offset, { district: group.intent.district }, true, (outcome) => {
+        recordMapInteraction(mapSearchRetryEvent(objective, outcome))
+      })
+      if (version !== generation.current) return
+      const appended = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
+      setMultiIntents((current) => current.map((item, itemIndex) => itemIndex === index ? {
+        ...item,
+        rows: [...item.rows, ...appended],
+        total: response.total,
+        nextOffset: response.next_offset ?? (response.has_more ? offset + response.rows.length : null),
+      } : item))
+      setRes((current) => {
+        if (!current) return current
+        const rowsByKey = new Map(current.rows.map((row) => [row.poi_key, row]))
+        for (const row of response.rows) rowsByKey.set(row.poi_key, row)
+        const rows = [...rowsByKey.values()]
+        return { ...current, rows, total: rows.length, with_whatsapp: rows.filter((row) => Boolean(waNumber(row))).length, with_email: rows.filter((row) => Boolean(row.email)).length }
+      })
+    } catch (err) {
+      if (version === generation.current) setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل بقية نتائج هذا الطلب.')
+    } finally {
+      if (version === generation.current) setBusyKind(null)
+    }
   }
   async function searchLine(i: number) {
     if (!city || !cities.some((value) => value.en === city)) { setError('اختر مدينة البحث من القائمة.'); return }
@@ -682,7 +770,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       recordMapInteraction('map_browse_succeeded')
       setFailedResultRefresh(false)
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
-      setSelected(new Set()); setProfile(null)
+      setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setProfile(null)
       // Show a few high-signal city trading points on the first map view, before the user searches.
       loadClusters('', inCity, Boolean(browseFilters.wholesale), 'purchase', true)
     } catch (err) {
@@ -731,7 +819,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       if (version !== generation.current) return null
       setFailedResultRefresh(false)
       lastSuccessfulQueryObjective.current = obj
-      if (!fresh && Boolean(use.wholesale) && !Boolean(filters.wholesale)) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))
+      if (!fresh && use.wholesale === true && filters.wholesale !== true) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))
       if (fresh) {
         recordMapInteraction(mapSearchLatencyEvent(performance.now() - requestStartedAt, obj))
         recordMapInteraction(mapSearchResultEvent(r.total))
@@ -739,7 +827,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
       setTab('results')
       setRes(r); setQuery(text); setShown(PAGE); setFilters(use)
-      if (fresh) { setSelected(new Set()); setFocus(null); setProfile(null); setShowUnlocated(false) }
+      if (fresh) { setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setFocus(null); setProfile(null); setShowUnlocated(false) }
       else setSelected((cur) => new Set(r.rows.filter((x) => cur.has(x.poi_key)).map((x) => x.poi_key)))
       if (fresh || Boolean(use.wholesale) !== Boolean(filters.wholesale)) loadClusters(text, inCity, Boolean(use.wholesale), obj, keepStreets)
       const p = r.parsed || {}
@@ -748,7 +836,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return r.total
     } catch (err) {
       if (version !== generation.current) return null
-      if (!fresh && Boolean(use.wholesale) && !Boolean(filters.wholesale)) recordMapInteraction('map_filter_wholesale_results_failed')
+      if (!fresh && use.wholesale === true && filters.wholesale !== true) recordMapInteraction('map_filter_wholesale_results_failed')
       if (fresh) {
         recordMapInteraction('map_search_failed')
         recordMapInteraction(mapSearchFailedEvent(obj))
@@ -1150,6 +1238,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (busy || failedResultRefresh || !waNumber(r)) return
     recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
+    setSelectedRows((current) => { const next = new Map(current); if (selected.has(r.poi_key)) next.delete(r.poi_key); else next.set(r.poi_key, r); return next })
+  }
+  const commitMultiSelection = () => {
+    if (!multiPending.size) return
+    setSelected((current) => new Set([...current, ...multiPending.keys()]))
+    setSelectedRows((current) => new Map([...current, ...multiPending]))
+    setMultiPending(new Map())
+    setNotice(`أُضيف ${n(multiPending.size)} منشأة إلى قائمة الحملة للمراجعة. لم يُرسل شيء.`)
   }
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
@@ -1188,6 +1284,51 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const resultsContent = !res ? (
     <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{busyKind === 'browse' ? 'جارٍ تحميل سوق المدينة…' : busyKind === 'more' ? 'جارٍ تحميل منشآت إضافية…' : busyKind === 'search' ? 'جارٍ البحث…' : objective === 'marketing' ? 'اكتب تخصصك مثل «مواد سباكة» أو ارفع كتالوجك، ثم اختر حياً على الخريطة.' : 'اكتب المنتج أو الخدمة (مثل: حدايد وبويات)، واختر المدينة، واضغط ابحث. ثم اختر حياً على الخريطة لعرض منشآته.'}</p>
+  ) : multiIntents.length ? (
+    <div className="flex flex-col gap-3 p-3" aria-label="مراجعة نتائج الطلبات المتعددة">
+      <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] p-3">
+        <p className="m-0 min-w-0 flex-1 text-[14px] leading-[22px]">راجع النتائج لكل طلب، ثم أضف المختار إلى قائمة الحملة. لا يتم الإرسال هنا.</p>
+        <Button variant="Primary" size="S" disabled={!multiPending.size || busy} onClick={commitMultiSelection}>أضف المحدد للحملة · {n(multiPending.size)}</Button>
+      </div>
+      {multiIntents.map(({ intent, rows: intentRows, total, nextOffset }, index) => {
+        const available = intentRows.filter((row) => waNumber(row) && !selected.has(row.poi_key))
+        const allChecked = available.length > 0 && available.every((row) => multiPending.has(row.poi_key))
+        return (
+          <section key={`${intent.activity}|${intent.district}`} className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)]" aria-label={`${intent.activity} في حي ${intent.district}`}>
+            <div className="flex flex-wrap items-center gap-2 bg-[var(--color-bg-surface-2)] px-3 py-2">
+              <h3 className="m-0 min-w-0 flex-1 text-[14px] font-semibold">{intent.activity} · حي {intent.district}</h3>
+              <span className="text-[12px] text-[var(--color-text-secondary)]">{n(intentRows.length)} معروضة من {n(total)}</span>
+              {nextOffset != null ? <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMoreIntent(index)}>حمّل المزيد</Button> : null}
+              <button type="button" disabled={!available.length || busy} onClick={() => setMultiPending((current) => {
+                const next = new Map(current)
+                if (allChecked) available.forEach((row) => next.delete(row.poi_key))
+                else available.forEach((row) => next.set(row.poi_key, row))
+                return next
+              })} className={`rounded-full border border-[var(--color-border-default)] px-3 py-1 text-[12px] font-medium disabled:opacity-50 ${FOCUS_RING}`}>{allChecked ? 'إلغاء اختيار الطلب' : 'اختر القابل للإضافة'}</button>
+            </div>
+            {intentRows.length ? <ul className="m-0 list-none p-0">{intentRows.map((row) => {
+              const channel = channelOf(row)
+              const inCampaign = selected.has(row.poi_key)
+              const checked = inCampaign || multiPending.has(row.poi_key)
+              return <li key={row.poi_key} className="flex items-start gap-3 border-t border-[var(--color-border-default)] px-3 py-2.5">
+                <input type="checkbox" checked={checked} disabled={busy || inCampaign || channel !== 'WhatsApp'} onChange={() => setMultiPending((current) => {
+                  const next = new Map(current)
+                  if (next.has(row.poi_key)) next.delete(row.poi_key)
+                  else next.set(row.poi_key, row)
+                  return next
+                })} aria-label={`اختر ${safeName(row)} من ${intent.activity} في ${intent.district}`} className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 truncate text-[14px] font-semibold">{safeName(row)}</p>
+                  <p className="m-0 truncate text-[12px] text-[var(--color-text-secondary)]">{placeOf(row, cities) || `حي ${intent.district}`}{row.district_reliable === false ? ' · الحي غير مؤكد' : ''}</p>
+                  {inCampaign ? <span className="text-[11px] text-[var(--color-text-success)]">مضافة للحملة</span> : channel !== 'WhatsApp' ? <span className="text-[11px] text-[var(--color-text-tertiary)]">لا تتوفر قناة واتساب</span> : null}
+                </div>
+                <ChannelBadge channel={channel} />
+              </li>
+            })}</ul> : <p className="m-0 px-3 py-4 text-[13px] text-[var(--color-text-secondary)]">ما لقينا منشآت لهذا الطلب.</p>}
+          </section>
+        )
+      })}
+    </div>
   ) : !visibleCohort.length ? (
     <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
       <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
@@ -1285,8 +1426,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {hasTargetQuery && res && waInCohort ? (
           <button type="button" className={`text-[14px] leading-[22px] font-medium text-[var(--color-text-info)] hover:underline ${FOCUS_RING}`}
             onClick={() => {
-              if (chosen.length) setSelected(new Set())
-              else { recordMapInteraction('fit_supplier_selection'); setSelected(pickForFit(visibleCohort, fitFilter)) }
+              if (chosen.length) { setSelected(new Set()); setSelectedRows(new Map()) }
+              else {
+                recordMapInteraction('fit_supplier_selection')
+                const picked = visibleCohort.filter((row) => pickForFit(visibleCohort, fitFilter).has(row.poi_key))
+                setSelected(new Set(picked.map((row) => row.poi_key)))
+                setSelectedRows(new Map(picked.map((row) => [row.poi_key, row])))
+              }
             }}>
             {chosen.length ? 'إلغاء التحديد' : fitFilter === 'likely' || (fitFilter === 'all' && hasAiInVisibleCohort) ? 'حدد المناسبين' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
           </button>
@@ -1477,7 +1623,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const tray = chosen.length ? (
     <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage}
       template={template} onTemplate={setTemplate} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
-      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onClear={() => setSelected(new Set())} onNotice={setNotice} />
+      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()) }} onNotice={setNotice} />
   ) : null
   const confirmSheet = confirming && holder ? (
     <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price} city={city}
