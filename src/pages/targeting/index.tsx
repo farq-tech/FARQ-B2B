@@ -419,7 +419,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
-      { key: 'city-whatsapp', label: 'واتساب مسجل', value: marketStats?.n_whatsapp ?? null },
+      { key: 'city-whatsapp', label: 'وسم واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
       { key: 'city-activities', label: 'تصنيفات فرعية متاحة', value: catalog ? catalog.reduce((sum, main) => sum + main.subs.length, 0) : null },
     ]
