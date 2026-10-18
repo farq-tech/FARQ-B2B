@@ -140,7 +140,7 @@ export type StreetLine = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.MultiLineS
 export type StreetDensity = { type?: 'FeatureCollection'; features: StreetLine[]; basis?: string }
 /** No activity = the densest streets of ALL activities in the city (up to 80, by n). districts narrows to those districts. */
 export type StreetDensityQuery = { city: string; q?: string; objective?: string; main_id?: string; sub_ids?: (string | number)[]; districts?: string[] }
-export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('POST', '/street-density', body)
+export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('POST', '/street-density', body, true)
 /** Which activities have dense streets in this city (optionally inside these districts): mains with their subs, counts. */
 export type StreetCatalog = { mains: { main_id: string; main_ar: string; streets: number; shops: number; subs: { sub_id: string | number; sub_ar: string; streets: number; shops: number }[] }[] }
 export const streetCatalog = (body: { city: string; districts?: string[] }) => call<StreetCatalog>('POST', '/street-density/catalog', body)
@@ -187,8 +187,8 @@ async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown, ret
     try {
       r = await fetch(`/_targeting${path}`, request)
     } catch (error) {
-      // Browse is an idempotent read. Recover once from a dropped network connection, but
-      // let aborts and all other errors keep their normal behavior.
+      // Explicitly opted-in map reads are idempotent. Recover once from a dropped network
+      // connection; let aborts and all other errors keep their normal behavior.
       if (!retryTransient || attempt > 0 || !(error instanceof TypeError)) throw error
       await new Promise(resolve => window.setTimeout(resolve, 200))
       continue
