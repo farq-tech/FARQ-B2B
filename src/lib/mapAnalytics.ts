@@ -46,6 +46,7 @@ const MAP_EVENTS = [
   'map_activity_clear',
   'map_guide_focus_select',
   'map_guide_focus_clear',
+  'map_guide_search_used',
   'map_profile_open',
   'map_result_profile_open',
   'map_profile_status_unconfirmed',

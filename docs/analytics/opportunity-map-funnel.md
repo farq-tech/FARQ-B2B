@@ -1319,6 +1319,48 @@ FROM outcomes;
 
 Wait for two complete weeks and at least 30 consenting sessions before interpreting the percentage. A low rate can mean the search did not help, the user was comparing options, or the session ended; inspect counts and validate with a short task study before changing the taxonomy.
 
+## Search inside the activity guide
+
+The activity guide records `map_guide_search_used` once per mounted guide after the first non-empty query and only when map analytics consent is accepted. It never records the query, selected taxonomy, location, or establishment. Compare guide-search sessions with later guide-focus selections in the same tab session. This is a navigation signal only; it cannot show whether the search returned a useful result or caused the selection.
+
+```sql
+WITH guide_events AS (
+  SELECT id, session_id, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_guide_search_used',
+      'pricing_map_map_guide_focus_select'
+    )
+), searches AS (
+  SELECT session_id, min(id) AS searched_id
+  FROM guide_events
+  WHERE element_label = 'pricing_map_map_guide_search_used'
+  GROUP BY session_id
+), outcomes AS (
+  SELECT
+    s.session_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_guide_focus_select'
+        AND e.id > s.searched_id
+    ) AS selected_after_search_id
+  FROM searches s
+  LEFT JOIN guide_events e USING (session_id)
+  GROUP BY s.session_id, s.searched_id
+)
+SELECT
+  count(*) AS sessions_that_searched_the_guide,
+  count(*) FILTER (WHERE selected_after_search_id IS NOT NULL) AS sessions_that_later_selected_a_focus,
+  round(100.0 * count(*) FILTER (WHERE selected_after_search_id IS NOT NULL)
+    / nullif(count(*), 0), 1) AS search_to_focus_selection_pct
+FROM outcomes;
+```
+
+Require two complete weeks and at least 30 consenting sessions before treating the rate as directional. Pair it with a short task study: a focus selection after searching does not prove that the selected activity was the user's intended one.
+
 ## City, district, and street selector use
 
 The map records a level-specific `map_filter_open_*` event when a location menu opens and `map_filter_select_*` when a location is chosen. This aggregate measures how often a consenting session that opened each selector later chose a location from that same level. It does not record the selected place, search text, or establishment, and it does not prove the map moved to the right feature or that the selected area was useful.
