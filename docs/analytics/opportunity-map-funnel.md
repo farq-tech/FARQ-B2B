@@ -912,3 +912,48 @@ ORDER BY week_utc DESC;
 ```
 
 Use the rate only after two complete weeks and at least 30 consenting sessions with a notice. A low opening rate may mean the short warning is already clear, that users overlook the disclosure, or that details are not relevant to their task; a high rate does not show the warning was understood. Pair it with a moderated task that asks users what the WhatsApp and operating-status labels mean. Sessions are browser tabs, not unique people.
+
+## Successful search response-time buckets
+
+On a fresh supplier or buyer search, the browser records one coarse duration bucket after the API returns and the response has been parsed: under 1 second, 1–3 seconds, or over 3 seconds. Only the bucket and search direction are sent; exact duration, search phrase, city, and establishment identifiers remain in the browser. Existing search-failure events remain separate, so these buckets describe completed requests, including successful zero-result searches, not failed requests.
+
+```sql
+WITH latency_events AS (
+  SELECT
+    occurred_at,
+    session_id,
+    CASE
+      WHEN element_label LIKE 'pricing_map_map_supplier_search_latency_%' THEN 'supplier'
+      ELSE 'buyer'
+    END AS search_type,
+    CASE
+      WHEN element_label LIKE '%_under_1s' THEN 'under 1 second'
+      WHEN element_label LIKE '%_1_to_3s' THEN '1 to 3 seconds'
+      ELSE 'over 3 seconds'
+    END AS latency_bucket
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_supplier_search_latency_under_1s',
+      'pricing_map_map_supplier_search_latency_1_to_3s',
+      'pricing_map_map_supplier_search_latency_over_3s',
+      'pricing_map_map_buyer_search_latency_under_1s',
+      'pricing_map_map_buyer_search_latency_1_to_3s',
+      'pricing_map_map_buyer_search_latency_over_3s'
+    )
+)
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  search_type,
+  latency_bucket,
+  count(*) AS completed_searches,
+  count(DISTINCT session_id) AS consenting_tab_sessions
+FROM latency_events
+GROUP BY 1, 2, 3
+ORDER BY week_utc DESC, search_type, latency_bucket;
+```
+
+The buckets measure wait for a completed API search, not relevance, time-to-first-card paint, or time-to-useful-profile. Pair them with the existing result-count and failure buckets. Wait for two complete weeks and at least 30 completed searches per direction before setting a performance target; low consented volume is directional only.
