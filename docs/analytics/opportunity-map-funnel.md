@@ -304,6 +304,44 @@ ORDER BY 1 DESC;
 - Use at least two complete weeks for an initial comparison. If a week has fewer than 30 search sessions, treat the rate as directional and combine it with observed task completion; do not claim an experiment caused a change.
 - Compare changes in search-to-profile and profile-to-quote-start separately. If the first step is weak, inspect map discoverability and result relevance before changing the quote flow.
 
+## Search result contact availability
+
+This query measures whether a non-empty batch returned by the targeting search contained a phone or email for none, some, or all rows. It counts response batches and consenting sessions; it does not include contact values, result counts, search terms, location, or establishment identifiers. Empty search results remain in the existing search outcome metrics. A batch was received by the page but may not have been fully viewed, so this is a data-availability measure, not an impression or contact-success rate.
+
+Run it against the same authorized, read-only main application database:
+
+```sql
+WITH contact_batches AS (
+  SELECT
+    date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+    session_id,
+    element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_search_results_contact_none',
+      'pricing_map_map_search_results_contact_some',
+      'pricing_map_map_search_results_contact_all'
+    )
+)
+SELECT
+  week_utc,
+  count(*) AS nonempty_result_batches,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_search_results_contact_none') AS batches_no_contact,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_search_results_contact_some') AS batches_mixed_contact,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_search_results_contact_all') AS batches_all_contact,
+  round(100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_search_results_contact_none') / nullif(count(*), 0), 1) AS batches_no_contact_pct,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM contact_batches
+GROUP BY week_utc
+ORDER BY week_utc DESC;
+```
+
+These events use only phone/email presence returned to the page, including verified phone enrichment when configured. The base Parquet coverage is not a substitute for this service-response measure. Read at least two complete weeks and require 30 consenting sessions before treating a weekly share as more than directional. With no customer traffic, no conclusion about user experience can yet be drawn.
+
 ## Street activity discovery funnel
 
 This query measures the consenting-session path from either opening the activity selector or choosing a taxonomy focus in the guide, through selecting an activity, a dense street, opening a result profile, and starting a quote request. It groups by the week of selector open or first activity action. It does not store or return category names, city, search text, or establishment identifiers. The `map_guide_focus_select` and `map_guide_focus_clear` events distinguish the guide-tree entry point without recording the chosen activity. Per-level counters continue to describe the activity selector; guide-tree selections are reported separately as a source-level count. The legacy `map_activity_select` event is included for comparison with clients that predate the more specific event labels. Exact-specialty selections filter map entities and only show street lines when the density source supports exact specialties; the app hides broader parent lines when it does not.

@@ -14,7 +14,7 @@ import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marke
 import { formatNumber } from '../../lib/formatNumber'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchContactAvailabilityEvent, mapSearchFailedEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -75,6 +75,12 @@ const RADII = [5, 10, 25, 50, 100] as const
 const normalizeActivityText = (value: string) => value.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').toLocaleLowerCase('ar')
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
+function recordSearchContactAvailability(rows: readonly Pick<TargetRow, 'phone' | 'email'>[]) {
+  if (!rows.length) return
+  const withContact = rows.filter((row) => Boolean(row.phone?.trim() || row.email?.trim())).length
+  const event = mapSearchContactAvailabilityEvent(rows.length, withContact)
+  if (event) recordMapInteraction(event)
+}
 const n = (v: number) => formatNumber(v)
 const sourceCountOf = (r: TargetRow) => {
   const count = r.source_count ?? r.sources?.length ?? null
@@ -889,6 +895,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const unique = new Map<string, TargetRow>()
       for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
       const rows = [...unique.values()]
+      recordSearchContactAvailability(rows)
       recordMapInteraction(rows.length === 0 ? 'map_buyer_products_search_results_empty' : rows.length < 5 ? 'map_buyer_products_search_results_1_4' : 'map_buyer_products_search_results_5_plus')
       recordMapInteraction(performance.now() - requestStartedAt < 1_000 ? 'map_buyer_products_search_under_1s' : performance.now() - requestStartedAt < 3_000 ? 'map_buyer_products_search_1_to_3s' : 'map_buyer_products_search_over_3s')
       const first = responses[0]
@@ -920,6 +927,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const response = await searchTargets(group.name, city, FETCH, 'marketing', offset, group.filters, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))
       if (version !== generation.current) return
       const appended = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
+      recordSearchContactAvailability(appended)
       const nextOffset = response.next_offset ?? (response.has_more ? offset + response.rows.length : null)
       setBuyerProductGroups((current) => current.map((item, i) => i === index ? { ...item, rows: [...item.rows, ...appended], total: response.total, nextOffset } : item))
       setRes((current) => {
@@ -1000,6 +1008,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         : visibleGroups > 0 ? 'map_multi_intent_groups_some_visible' : 'map_multi_intent_groups_none_visible')
       const unique = new Map<string, TargetRow>()
       for (const group of groups) for (const row of group.rows) if (!unique.has(row.poi_key)) unique.set(row.poi_key, row)
+      recordSearchContactAvailability([...unique.values()])
       const first = responses[0]
       const districtCounts = new Map<string, number>()
       for (const group of groups) districtCounts.set(group.intent.district, (districtCounts.get(group.intent.district) || 0) + group.rows.length)
@@ -1048,6 +1057,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const newRows = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
       const matches = (row: TargetRow) => hasDirectoryActivityEvidence(group.intent.activity, [row.name_ar, row.name_en])
       const appended = newRows.filter(matches)
+      recordSearchContactAvailability(appended)
       const excludedCount = newRows.length - appended.length
       setMultiIntents((current) => current.map((item, itemIndex) => itemIndex === index ? {
         ...item,
@@ -1107,6 +1117,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       })
       if (version !== generation.current) return
       const newRows = r.rows.filter((row) => !res.rows.some((current) => current.poi_key === row.poi_key))
+      if (!browsingMarket) recordSearchContactAvailability(newRows)
       const foundUnlocated = newRows.some((row) => !hasPoint(row))
       setRes((cur) => cur ? { ...cur, rows: [...cur.rows, ...r.rows.filter((x) => !cur.rows.some((y) => y.poi_key === x.poi_key))], has_more: r.has_more, next_offset: r.next_offset } : cur)
       setShown((s) => s + r.rows.length)
@@ -1192,6 +1203,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         recordMapInteraction(mapSearchRetryEvent(obj, outcome))
       })
       if (version !== generation.current) return null
+      recordSearchContactAvailability(r.rows)
       setFailedResultRefresh(false)
       lastSuccessfulQueryObjective.current = obj
       if (!fresh && use.wholesale === true && filters.wholesale !== true) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))

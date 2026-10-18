@@ -1,4 +1,4 @@
-const CONSENT_KEY = 'farq:pricing-map-analytics-consent-v1'
+const CONSENT_KEY = 'farq:pricing-map-analytics-consent-v2'
 const SESSION_KEY = 'farq:pricing-map-analytics-session-v1'
 const MAP_EVENTS = [
   'map_search',
@@ -94,6 +94,9 @@ const MAP_EVENTS = [
   'map_supplier_search_latency_under_1s',
   'map_supplier_search_latency_1_to_3s',
   'map_supplier_search_latency_over_3s',
+  'map_search_results_contact_none',
+  'map_search_results_contact_some',
+  'map_search_results_contact_all',
   'map_buyer_search_results_empty',
   'map_buyer_search_results_1_4',
   'map_buyer_search_results_5_plus',
@@ -284,6 +287,14 @@ export function mapSearchOutcomeEvent(total: number, objective: SearchObjective)
   if (total <= 0) return 'map_buyer_search_results_empty'
   if (total < 5) return 'map_buyer_search_results_1_4'
   return 'map_buyer_search_results_5_plus'
+}
+
+/** Coarse contact availability for a received result batch; no contact values or counts are sent. */
+export function mapSearchContactAvailabilityEvent(totalRows: number, rowsWithContact: number): MapEventName | null {
+  if (totalRows <= 0) return null
+  if (rowsWithContact <= 0) return 'map_search_results_contact_none'
+  if (rowsWithContact >= totalRows) return 'map_search_results_contact_all'
+  return 'map_search_results_contact_some'
 }
 
 export function mapSearchFailedEvent(objective: SearchObjective): MapEventName {
