@@ -5,7 +5,7 @@ import { chipWidth, clip, fitBadgeSvg, MAP_ICON_BODY, palette, TEARDROP } from '
 import { densityStep, FIT_LABEL, streetLine } from './model'
 
 /** District fill strength by density step (0 none … 4 densest), matched to the Mapbox layer. */
-const CHORO = [0.015, 0.1, 0.17, 0.24, 0.32]
+const CHORO = [0.015, 0.14, 0.27, 0.4, 0.55]
 import type { LayerMapProps } from './types'
 
 /*
