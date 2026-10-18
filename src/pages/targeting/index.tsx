@@ -914,6 +914,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!group || group.nextOffset == null || busy) return
     const version = generation.current
     const offset = group.nextOffset
+    recordMapInteraction('map_buyer_products_more_started')
     setBusyKind('more'); setError(null)
     try {
       const response = await searchTargets(group.name, city, FETCH, 'marketing', offset, group.filters, true, (outcome) => recordMapInteraction(mapSearchRetryEvent('marketing', outcome)))
@@ -928,8 +929,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         const rows = [...rowsByKey.values()]
         return { ...current, rows, total: rows.length, with_whatsapp: rows.filter((row) => Boolean(waNumber(row))).length, with_email: rows.filter((row) => Boolean(row.email)).length, has_more: buyerProductGroups.some((item, i) => i === index ? nextOffset != null : item.nextOffset != null) }
       })
+      recordMapInteraction('map_buyer_products_more_succeeded')
     } catch (err) {
-      if (version === generation.current) setError(err instanceof TargetingError ? err.message : `تعذّر تحميل بقية مرشحي ${group.name}.`)
+      if (version === generation.current) {
+        recordMapInteraction('map_buyer_products_more_failed')
+        setError(err instanceof TargetingError ? err.message : `تعذّر تحميل بقية مرشحي ${group.name}.`)
+      }
     } finally { if (version === generation.current) setBusyKind(null) }
   }
   async function search(e?: FormEvent) {

@@ -1482,10 +1482,50 @@ WHERE occurred_at >= now() - interval '56 days'
     'pricing_map_map_buyer_products_search_failed',
     'pricing_map_map_buyer_products_search_under_1s',
     'pricing_map_map_buyer_products_search_1_to_3s',
-    'pricing_map_map_buyer_products_search_over_3s'
+    'pricing_map_map_buyer_products_search_over_3s',
+    'pricing_map_map_buyer_products_more_started',
+    'pricing_map_map_buyer_products_more_succeeded',
+    'pricing_map_map_buyer_products_more_failed'
   )
 GROUP BY element_label
 ORDER BY element_label;
 ```
 
-Treat sessions as a broad denominator rather than independent product searches: one session may run the flow multiple times. The results buckets refer to unique establishments loaded across all saved products on the first page, not the server's full result totals. QA sessions are not currently separated from customer sessions.
+Treat sessions as a broad denominator rather than independent product searches: one session may run the flow multiple times. The results buckets refer to unique establishments loaded across all saved products on the first page, not the server's full result totals. Pagination events count a request per saved-product group, not unique products; they do not include which group was loaded. Requests superseded by a newer search have a start but no terminal outcome. QA sessions are not currently separated from customer sessions.
+
+Use this aggregate to review whether subsequent pages load successfully. The failure percentage uses only terminal outcomes so an interrupted or superseded request does not inflate the denominator.
+
+```sql
+WITH page_events AS (
+  SELECT occurred_at, session_id, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_buyer_products_more_started',
+      'pricing_map_map_buyer_products_more_succeeded',
+      'pricing_map_map_buyer_products_more_failed'
+    )
+)
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_buyer_products_more_started') AS page_requests_started,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_buyer_products_more_succeeded') AS page_requests_succeeded,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_buyer_products_more_failed') AS page_requests_failed,
+  round(
+    100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_buyer_products_more_failed')
+      / nullif(count(*) FILTER (WHERE element_label IN (
+        'pricing_map_map_buyer_products_more_succeeded',
+        'pricing_map_map_buyer_products_more_failed'
+      )), 0),
+    1
+  ) AS terminal_page_failure_pct,
+  count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_buyer_products_more_started') AS sessions_loading_more
+FROM page_events
+GROUP BY 1
+ORDER BY week_utc DESC;
+```
+
+Use at least two complete weeks and 30 terminal page outcomes before treating the failure percentage as directional. Compare it with the first-page latency and result-profile signals above; do not infer that a successful page was relevant or that the user completed a buyer match.
