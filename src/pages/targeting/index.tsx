@@ -2200,10 +2200,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const selectMainFromCounter = (mainId: string) => {
     recordMapInteraction('map_activity_main_select')
     // A market category card replaces prior text/taxonomy filters, while keeping
-    // the user's geographic scope (city, selected district, or selected street).
+    // active geographic filters. The visible scope picker can be opened without
+    // changing the underlying district or street filter.
     const scopeFilters: AreaFilters = {
-      ...(mapScope !== 'city' && filters.district ? { district: filters.district } : {}),
-      ...(mapScope === 'street' && filters.street ? { street: filters.street } : {}),
+      ...(filters.district ? { district: filters.district } : {}),
+      ...(filters.street ? { street: filters.street } : {}),
     }
     setQ('')
     setQuery('')
