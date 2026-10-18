@@ -162,6 +162,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [clusters, setClusters] = useState<{ list: TradeCluster[]; basis?: string } | null>(null)
   // the densest streets of this request, drawn along the street (POST /street-density); the one picked
   const [dense, setDense] = useState<{ list: Street[]; basis?: string } | null>(null)
+  const [denseLoadError, setDenseLoadError] = useState(false)
+  const [denseRetry, setDenseRetry] = useState(0)
   const [activeStreet, setActiveStreet] = useState<string | null>(null)
   // which streets: all activities (on open), one main, some subs, or the typed request; districts narrow them
   type StreetPick = { kind: 'all' } | { kind: 'main'; id: string } | { kind: 'sub'; ids: (string | number)[]; main: string } | { kind: 'q'; q: string; objective: string }
@@ -346,21 +348,35 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const pickKey = JSON.stringify(streetPick)
   const framedPick = useRef('')
   useEffect(() => {
-    if (!city) return
+    if (!city) { setDense(null); setDenseLoadError(false); return }
     const v = ++streetGen.current
     const body: StreetDensityQuery = { city, ...(streetPick.kind === 'main' ? { main_id: streetPick.id } : streetPick.kind === 'sub' ? { sub_ids: streetPick.ids } : streetPick.kind === 'q' ? { q: streetPick.q, objective: streetPick.objective } : {}), ...(chosenNames.length ? { districts: chosenNames } : {}) }
+    setDense(null)
+    setDenseLoadError(false)
+    recordMapInteraction('map_street_density_started')
     streetDensity(body).then((d) => {
       if (v !== streetGen.current) return
       const list = streetsFrom(d)
       setDense({ list, basis: d?.basis })
+      setDenseLoadError(false)
+      recordMapInteraction('map_street_density_succeeded')
       // a new activity (or request): frame its densest streets so the map shows WHERE at once
       const top = topStreets(list)
       if (top.length && framedPick.current !== `${city}|${pickKey}` && !chosenNames.length) {
         framedPick.current = `${city}|${pickKey}`
         fitTo([Math.min(...top.map((x) => x.bbox[0])), Math.min(...top.map((x) => x.bbox[1])), Math.max(...top.map((x) => x.bbox[2])), Math.max(...top.map((x) => x.bbox[3]))])
       }
-    }, () => { if (v === streetGen.current) setDense({ list: [] }) })
-  }, [city, pickKey, chosenKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, () => {
+      if (v !== streetGen.current) return
+      setDense({ list: [] })
+      setDenseLoadError(true)
+      recordMapInteraction('map_street_density_failed')
+    })
+  }, [city, pickKey, chosenKey, denseRetry]) // eslint-disable-line react-hooks/exhaustive-deps
+  const retryStreetDensity = () => {
+    recordMapInteraction('map_street_density_retry')
+    setDenseRetry((retry) => retry + 1)
+  }
   useEffect(() => {
     if (!city) return
     let on = true
@@ -1083,6 +1099,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             </li>
           ))}
         </ol>
+      ) : denseLoadError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-danger)]">
+          <WarningIcon size={16} />
+          <span className="min-w-0 flex-1">تعذر تحميل كثافة الشوارع. هذا لا يعني عدم وجود شوارع كثيفة.</span>
+          <button type="button" onClick={retryStreetDensity} className={`shrink-0 underline ${FOCUS_RING}`}>إعادة المحاولة</button>
+        </div>
       ) : dense ? <p className="text-[13px] leading-[20px] text-[var(--color-text-secondary)]">ما فيه شوارع كثيفة بهذا الاختيار. جرّب نشاطاً آخر أو أحياء أوسع.</p> : <p role="status" className="text-[13px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p>}
       {topDistricts.length ? (
         <div className="flex flex-col gap-1.5">
