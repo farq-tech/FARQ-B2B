@@ -60,10 +60,16 @@ const MAP_EVENTS = [
   'map_supplier_search_results_1_4',
   'map_supplier_search_results_5_plus',
   'map_supplier_search_failed',
+  'map_supplier_search_latency_under_1s',
+  'map_supplier_search_latency_1_to_3s',
+  'map_supplier_search_latency_over_3s',
   'map_buyer_search_results_empty',
   'map_buyer_search_results_1_4',
   'map_buyer_search_results_5_plus',
   'map_buyer_search_failed',
+  'map_buyer_search_latency_under_1s',
+  'map_buyer_search_latency_1_to_3s',
+  'map_buyer_search_latency_over_3s',
   'map_supplier_result_profile_open',
   'map_buyer_result_profile_open',
   'market_summary_retry',
@@ -194,6 +200,18 @@ type SearchObjective = 'purchase' | 'marketing'
 
 export function mapSearchStartedEvent(objective: SearchObjective): MapEventName {
   return objective === 'purchase' ? 'map_supplier_search_started' : 'map_buyer_search_started'
+}
+
+/** Coarse successful-search latency buckets; the exact duration remains in the browser. */
+export function mapSearchLatencyEvent(elapsedMs: number, objective: SearchObjective): MapEventName {
+  if (objective === 'purchase') {
+    if (elapsedMs < 1_000) return 'map_supplier_search_latency_under_1s'
+    if (elapsedMs < 3_000) return 'map_supplier_search_latency_1_to_3s'
+    return 'map_supplier_search_latency_over_3s'
+  }
+  if (elapsedMs < 1_000) return 'map_buyer_search_latency_under_1s'
+  if (elapsedMs < 3_000) return 'map_buyer_search_latency_1_to_3s'
+  return 'map_buyer_search_latency_over_3s'
 }
 
 export function mapSearchOutcomeEvent(total: number, objective: SearchObjective): MapEventName {
