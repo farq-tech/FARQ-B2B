@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button, Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { recordMapInteraction } from '../../../lib/mapAnalytics'
@@ -12,13 +12,37 @@ import { MAINS, SUBS } from './taxonomy.data'
  * A tap filters the map to that level and switches the map to its layer; a second tap clears it.
  */
 const fmt = (n: number) => formatNumber(n)
+const normalizeSearchText = (value: string) => value
+  .normalize('NFKD')
+  .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا')
+  .replace(/ؤ/g, 'و')
+  .replace(/ئ/g, 'ي')
+  .replace(/ى/g, 'ي')
+  .replace(/ة/g, 'ه')
+  .toLocaleLowerCase('ar')
+
+const focusFirstGuideOption = (input: HTMLInputElement) => {
+  input.closest<HTMLElement>('[data-map-guide-root]')
+    ?.querySelector<HTMLButtonElement>('[aria-pressed]')
+    ?.focus()
+}
 
 export default function GuideTree({ guide, focus, onFocus, empty, mobile = false }: { guide: GuideMain[]; focus: Focus; onFocus: (f: Focus) => void; empty: string; mobile?: boolean }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const toggleOpen = (k: string, force?: boolean) => setOpen((s) => { const x = new Set(s); if (force ?? !x.has(k)) x.add(k); else x.delete(k); return x })
   const [q, setQ] = useState('')
+  const searchUsed = useRef(false)
+  const updateSearch = (value: string) => {
+    if (value.trim() && !searchUsed.current) {
+      searchUsed.current = true
+      recordMapInteraction('map_guide_search_used')
+    }
+    setQ(value)
+  }
   if (!guide.length && !mobile) return <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{empty}</p>
-  const hit = (t: string) => !q.trim() || t.includes(q.trim())
+  const normalizedQuery = normalizeSearchText(q.trim())
+  const hit = (t: string) => !normalizedQuery || normalizeSearchText(t).includes(normalizedQuery)
   const pick = (f: NonNullable<Focus>) => {
     const clear = Boolean(focus && focus.level === f.level && focus.id === f.id && (f.level !== 'spec' || focus.level === 'spec' && focus.sub_id === f.sub_id))
     recordMapInteraction(clear ? 'map_guide_focus_clear' : 'map_guide_focus_select')
@@ -42,12 +66,12 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
     const knownSubs = activeMain ? Object.entries(SUBS)
       .filter(([id]) => id.startsWith(`${activeMain.id}.`) && id !== `${activeMain.id}.?`)
       .map(([id, [ar]]) => ({ id, ar, data: activeMain.subs.find((item) => item.id === id) }))
-      .filter((item) => !q.trim() || item.ar.includes(q.trim())) : []
+      .filter((item) => hit(item.ar) || item.data?.specs.some((spec) => hit(spec.name))) : []
     const activeSubId = focus?.level === 'sub' ? focus.id : focus?.level === 'spec' ? focus.sub_id || '' : ''
     const activeSub = activeMain?.subs.find((item) => item.id === activeSubId)
-    const specialties = activeSub?.specs.filter((item) => !q.trim() || item.name.includes(q.trim())) || []
+    const specialties = activeSub?.specs.filter((item) => hit(item.name)) || []
     const mainCatalog = guide.length ? guide : Object.entries(MAINS).map(([id, [ar]]) => ({ id, ar, n: 0, subs: [] }))
-    const mainOptions = mainCatalog.filter((item) => !q.trim() || item.ar.includes(q.trim()) || item.subs.some((sub) => sub.ar.includes(q.trim()) || sub.specs.some((spec) => spec.name.includes(q.trim()))))
+    const mainOptions = mainCatalog.filter((item) => hit(item.ar) || item.subs.some((sub) => hit(sub.ar) || sub.specs.some((spec) => hit(spec.name))))
     const compactRow = (label: string, count: number | undefined, selected: boolean, onClick: () => void, icon?: string) => (
       <Button key={label} type="button" variant="Secondary" size="S" aria-pressed={selected} onClick={onClick}
         className={`w-full min-w-0 justify-between gap-2 text-start ${selected ? '!border-[var(--map-green)] !bg-[var(--color-bg-primary-subtle)] !text-[var(--color-text-primary)]' : ''}`}>
@@ -63,7 +87,7 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
       : focus?.level === 'sub' ? { level: 'main', id: activeMainId } : null
 
     return (
-      <div className="flex flex-col gap-2 px-3 py-2">
+      <div data-map-guide-root className="flex flex-col gap-2 px-3 py-2">
         <div className="flex min-h-8 items-center justify-between gap-2 px-1">
           <h2 className="m-0 truncate text-[13px] font-semibold leading-[20px]">{focus?.level === 'spec' ? 'التخصصات' : focus?.level === 'sub' ? 'تخصصات النشاط الفرعي' : activeMain ? `أنشطة ${activeMain.ar}` : 'التصنيفات الرئيسية'}</h2>
           {focus ? <Button variant="Ghost" size="S" onClick={() => {
@@ -73,9 +97,13 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
         </div>
         <label className="px-1">
           <span className="sr-only">ابحث في الدليل</span>
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={focus?.level === 'spec' || focus?.level === 'sub' ? 'ابحث عن تخصص' : 'ابحث عن تصنيف أو نشاط'}
+          <input type="search" value={q} onChange={(e) => updateSearch(e.target.value)} onKeyDown={(event) => {
+            if (event.key === 'Escape' && q) { event.preventDefault(); updateSearch('') }
+            if (event.key === 'ArrowDown') { event.preventDefault(); focusFirstGuideOption(event.currentTarget) }
+          }} placeholder={focus?.level === 'spec' || focus?.level === 'sub' ? 'ابحث عن تخصص' : 'ابحث عن تصنيف أو نشاط'}
             className={`h-8 w-full rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 text-[12px] ${FOCUS_RING}`} />
         </label>
+        {q.trim() ? <p role="status" aria-live="polite" className="m-0 px-2 text-[11px] leading-[16px] text-[var(--color-text-secondary)]">تظهر الأنشطة والتخصصات المطابقة لعبارة البحث، ويمكنك التنقل إلى أول نتيجة بالسهم لأسفل.</p> : null}
         {focusLabel ? <p className="m-0 truncate px-2 text-[11px] leading-[16px] text-[var(--color-text-secondary)]">المحدد على الخريطة: <strong>{focusLabel}</strong></p> : null}
         <div className="flex max-h-[30dvh] flex-col gap-1 overflow-y-auto overscroll-contain px-1 pb-1" aria-label={focus ? 'خيارات التصنيف المحدد' : 'التصنيفات الرئيسية'}>
           {!focus ? mainOptions.map((item) => compactRow(item.ar, undefined, false, () => pick({ level: 'main', id: item.id }), mainIcon(item.id))) : null}
@@ -92,16 +120,20 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
   }
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-3">
+    <div data-map-guide-root className="flex flex-col gap-2 px-3 py-3">
       <div className="px-2">
         <h2 className="m-0 text-[14px] font-semibold leading-[22px]">تصفّح الأنشطة</h2>
         <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">السهم يفتح الفروع. اضغط اسم النشاط لتصفية الخريطة والقائمة، والعدد يوضح المنشآت المطابقة.</p>
       </div>
       <label className="px-2">
         <span className="sr-only">ابحث في الدليل</span>
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث عن نشاط أو تخصص"
+        <input type="search" value={q} onChange={(e) => updateSearch(e.target.value)} onKeyDown={(event) => {
+          if (event.key === 'Escape' && q) { event.preventDefault(); updateSearch('') }
+          if (event.key === 'ArrowDown') { event.preventDefault(); focusFirstGuideOption(event.currentTarget) }
+        }} placeholder="ابحث عن نشاط أو تخصص"
           className={`w-full rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[14px] ${FOCUS_RING}`} />
       </label>
+      {q.trim() ? <p role="status" aria-live="polite" className="px-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر الأنشطة والتخصصات المطابقة لعبارة البحث، ويمكنك التنقل إلى أول نتيجة بالسهم لأسفل.</p> : null}
       {focus && focusLabel ? (
         <div className="mx-2 flex items-center gap-2 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[18px]">
           <span className="min-w-0 flex-1 truncate">التصفية الحالية: <strong>{focusLabel}</strong></span>
