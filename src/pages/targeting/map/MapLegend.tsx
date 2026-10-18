@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
-import { recordMapInteraction } from '../../../lib/mapAnalytics'
+import { mapAnalyticsConsent, recordMapInteraction } from '../../../lib/mapAnalytics'
 import { FitSwatch, LayerSwatch } from './glyphs'
 import type { PinFit } from './model'
 
@@ -34,8 +34,30 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
   counts: Record<PinFit | 'all', number>
 }) {
   const details = useRef<HTMLDetailsElement>(null)
+  const showButton = useRef<HTMLButtonElement>(null)
+  const hideButton = useRef<HTMLButtonElement>(null)
+  const seenControls = useRef(new Set<string>())
   const [open, setOpen] = useState(false)
   const [hidden, setHidden] = useState(readHiddenPreference)
+  const [consentRevision, setConsentRevision] = useState(0)
+  useEffect(() => {
+    const onConsentChange = () => setConsentRevision((revision) => revision + 1)
+    window.addEventListener('farq:map-analytics-consent-changed', onConsentChange)
+    return () => window.removeEventListener('farq:map-analytics-consent-changed', onConsentChange)
+  }, [])
+  useEffect(() => {
+    const control = hidden ? showButton.current : open ? hideButton.current : null
+    const eventName = hidden ? 'map_legend_show_control_seen' : open ? 'map_legend_hide_control_seen' : null
+    if (mapAnalyticsConsent() !== 'accepted' || !control || !eventName || seenControls.current.has(eventName) || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.target === control && entry.isIntersecting && entry.intersectionRatio >= 0.5)) return
+      seenControls.current.add(eventName)
+      recordMapInteraction(eventName)
+      observer.disconnect()
+    }, { threshold: 0.5 })
+    observer.observe(control)
+    return () => observer.disconnect()
+  }, [hidden, open, consentRevision])
   const show = () => {
     setHidden(false)
     try { window.localStorage.setItem(LEGEND_HIDDEN_KEY, '0') } catch { /* storage can be unavailable */ }
@@ -49,7 +71,7 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
     recordMapInteraction('map_legend_hide')
   }
   if (hidden) return (
-    <button type="button" aria-label="إظهار دليل الخريطة" title="إظهار دليل الخريطة"
+    <button ref={showButton} type="button" aria-label="إظهار دليل الخريطة" title="إظهار دليل الخريطة"
       onClick={show}
       className={`pointer-events-auto absolute start-3 bottom-3 z-10 flex size-11 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 shadow-[var(--farq-soft-shadow)] backdrop-blur-md md:size-9 ${FOCUS_RING}`}>
       <Icon name="info" size={17} />
@@ -58,7 +80,7 @@ export default function MapLegend({ fitFilter, onFitFilterChange, counts }: {
   return (
     <details ref={details} data-testid="map-legend" onToggle={(event) => setOpen(event.currentTarget.open)} className="pointer-events-auto absolute start-3 bottom-3 z-10 max-h-[min(48dvh,360px)] max-w-[250px] overflow-y-auto overscroll-contain rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[12px] leading-[18px] shadow-[var(--farq-soft-shadow)] backdrop-blur-md md:max-h-[min(65dvh,560px)]">
       <summary className="sticky top-0 z-10 -mx-3 -mt-2 cursor-pointer list-none bg-[var(--color-bg-surface)]/95 px-3 pb-1 pt-2 pe-16 font-semibold backdrop-blur-md">دليل الخريطة</summary>
-      {open ? <button type="button" aria-label="إخفاء دليل الخريطة وإخلاء مساحة الخريطة" title="إخفاء الدليل"
+      {open ? <button ref={hideButton} type="button" aria-label="إخفاء دليل الخريطة وإخلاء مساحة الخريطة" title="إخفاء الدليل"
         onClick={(event) => { event.preventDefault(); event.stopPropagation(); hide() }}
         className={`sticky top-1 z-20 ms-auto -mt-8 mb-1 inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 text-[12px] font-semibold text-[var(--color-text-primary)] shadow-sm hover:bg-[var(--color-bg-surface-2)] md:min-h-8 ${FOCUS_RING}`}>
         <Icon name="x" size={14} />إخفاء

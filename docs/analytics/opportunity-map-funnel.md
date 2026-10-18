@@ -507,3 +507,72 @@ ORDER BY week_utc DESC, prompt_type;
 ```
 
 Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentages. Profile opens are a navigation signal, not proof of relevance, contact, or a successful match. Pair them with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.
+
+## Map legend control exposure and use
+
+The legend records a control impression only after at least half of the control is visible in the viewport and map analytics consent is accepted. `show_control_seen` is the collapsed info button; `hide_control_seen` is the hide action after the guide is open. Both are emitted at most once per control per mounted map component. The query returns weekly session counts and the share of exposed sessions that later used that control. It never returns session keys or other user and establishment data.
+
+Run against the same authorized, read-only main application database described above:
+
+```sql
+WITH map_events AS (
+  SELECT session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_legend_show_control_seen',
+      'pricing_map_map_legend_hide_control_seen',
+      'pricing_map_map_legend_show',
+      'pricing_map_map_legend_hide'
+    )
+), exposures AS (
+  SELECT
+    session_id,
+    occurred_at AS exposed_at,
+    CASE element_label
+      WHEN 'pricing_map_map_legend_show_control_seen' THEN 'show'
+      ELSE 'hide'
+    END AS control
+  FROM map_events
+  WHERE element_label IN (
+    'pricing_map_map_legend_show_control_seen',
+    'pricing_map_map_legend_hide_control_seen'
+  )
+)
+SELECT
+  date_trunc('week', exposed_at AT TIME ZONE 'UTC') AS week_utc,
+  control,
+  count(DISTINCT session_id) AS control_seen_sessions,
+  count(DISTINCT session_id) FILTER (
+    WHERE EXISTS (
+      SELECT 1
+      FROM map_events action
+      WHERE action.session_id = exposures.session_id
+        AND action.element_label = CASE control
+          WHEN 'show' THEN 'pricing_map_map_legend_show'
+          ELSE 'pricing_map_map_legend_hide'
+        END
+        AND action.occurred_at > exposures.exposed_at
+    )
+  ) AS control_used_after_seen_sessions,
+  round(100.0 * count(DISTINCT session_id) FILTER (
+    WHERE EXISTS (
+      SELECT 1
+      FROM map_events action
+      WHERE action.session_id = exposures.session_id
+        AND action.element_label = CASE control
+          WHEN 'show' THEN 'pricing_map_map_legend_show'
+          ELSE 'pricing_map_map_legend_hide'
+        END
+        AND action.occurred_at > exposures.exposed_at
+    )
+  ) / nullif(count(DISTINCT session_id), 0), 1) AS seen_to_use_pct
+FROM exposures
+GROUP BY 1, 2
+ORDER BY week_utc DESC, control;
+```
+
+These events are consented, session-level UI signals, not evidence that the guide content was understood or that the map task succeeded. The query is not device-specific. Wait for two complete weeks and 30 consenting sessions per control before treating the rate as directional; pair it with a phone task observing whether users can show, use, and hide the guide without covering the map. Missing events can reflect consent or blocked analytics requests, not absence of exposure.
