@@ -1182,3 +1182,25 @@ FROM per_session;
 ```
 
 These are session-level reach and interest signals, not evidence that the summaries improved a business outcome. The query cannot reliably distinguish QA from customer sessions and only compares the earliest event of each kind in a session; treat results as directional, inspect counts with percentages, and wait for at least 30 eligible sessions before deciding whether the activity distribution needs a product change.
+
+## Selecting loaded wholesale-intent candidates for review
+
+For an explicit wholesale purchase query, the results are activity-based candidates; neither the query nor a directory WhatsApp field confirms that an establishment sells wholesale or receives messages. The UI keeps the narrower batch action for rows tagged wholesale and separately lets the user add the loaded candidates matching the current filters with a WhatsApp field to the campaign review tray. The batch action does not send or schedule anything. It does not fetch unseen pages; after loading more, users can add the next batch. A consented generic event records use of this broader batch action and contains no query, district, activity, establishment key, or selected count.
+
+Count sessions that used this action by week:
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) AS candidate_batch_actions,
+  count(DISTINCT session_id) AS consenting_tab_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND element_label = 'pricing_map_map_supplier_candidate_batch_add'
+GROUP BY 1
+ORDER BY week_utc DESC;
+```
+
+This is an interaction count, not proof that selected candidates are valid wholesalers, were reviewed, or produced a successful campaign. Analytics consent is required, so missing events do not mean that no one used the action. Wait for two full weeks and at least 30 consenting sessions before treating the trend as directional; review candidate accuracy with a human before any outreach.

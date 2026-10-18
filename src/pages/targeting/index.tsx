@@ -1296,11 +1296,20 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const loadedWholesaleRows = visibleCohort.filter(isTaggedWholesaleRow)
   const selectableWholesaleRows = loadedWholesaleRows.filter((row) => waNumber(row) && !selected.has(row.poi_key))
+  const loadedContactableRows = visibleCohort.filter((row) => waNumber(row))
+  const selectableLoadedContactableRows = loadedContactableRows.filter((row) => !selected.has(row.poi_key))
   const selectLoadedWholesaleCandidates = () => {
     if (!selectableWholesaleRows.length) return
     setSelected((current) => new Set([...current, ...selectableWholesaleRows.map((row) => row.poi_key)]))
     setSelectedRows((current) => new Map([...current, ...selectableWholesaleRows.map((row) => [row.poi_key, row] as const)]))
     setNotice(`تم تحديد ${n(selectableWholesaleRows.length)} مورداً موسوماً بالجملة من النتائج المحمّلة ولديه واتساب. راجع قائمة الحملة قبل أي إرسال.`)
+  }
+  const selectLoadedContactableCandidates = () => {
+    if (!selectableLoadedContactableRows.length) return
+    setSelected((current) => new Set([...current, ...selectableLoadedContactableRows.map((row) => row.poi_key)]))
+    setSelectedRows((current) => new Map([...current, ...selectableLoadedContactableRows.map((row) => [row.poi_key, row] as const)]))
+    recordMapInteraction('map_supplier_candidate_batch_add')
+    setNotice(`أُضيف ${n(selectableLoadedContactableRows.length)} مرشحاً من النتائج المحمّلة إلى قائمة الحملة للمراجعة. ليسوا جميعاً مؤكدين للبيع بالجملة، ولم يُرسل شيء.`)
   }
   const commitMultiSelection = () => {
     if (!multiPending.size) return
@@ -1411,9 +1420,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <div aria-busy={busy}>
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
       {objective === 'purchase' && isWholesaleRequest(query) ? (
-        <div className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
-          <p className="m-0 min-w-0 flex-1 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">وسم «جملة» مأخوذ من سجل المنشأة ولا يضمن صحة بياناتها. وجدنا {n(loadedWholesaleRows.length)} مورداً موسوماً ضمن {n(rows.length)} نتيجة محمّلة من أصل {n(res.total)}؛ الاختيار يضم الموسومين الذين لديهم واتساب فقط. {res.has_more ? `حمّل المزيد لمراجعة ${n(Math.max(0, res.total - rows.length))} نتيجة متبقية.` : 'تم تحميل جميع النتائج.'}</p>
-          <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableWholesaleRows.length} onClick={selectLoadedWholesaleCandidates}>اختر موردي الجملة المتاحين · {n(selectableWholesaleRows.length)}</Button>
+        <div className="mx-3 mt-3 flex flex-col gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
+          <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">نتائج البحث مرشحون بحسب النشاط، وليست تأكيداً أن المنشأة تبيع بالجملة. قناة واتساب من سجل الدليل ولا تؤكد استقبال الرقم. اختر الموسومين بالجملة فقط لفلترة أدق، أو أضف نتائج الدفعة المطابقة للمرشحات الحالية وذات واتساب للمراجعة. {res.has_more ? `الاختيار يقتصر على الدفعة الحالية (${n(rows.length)} من ${n(res.total)})؛ حمّل المزيد ثم أعد الاختيار لبقية النتائج.` : 'تم تحميل جميع النتائج.'} لا يحدث إرسال أو جدولة عند الاختيار.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableWholesaleRows.length} onClick={selectLoadedWholesaleCandidates}>اختر الموسومين بالجملة · {n(selectableWholesaleRows.length)}</Button>
+            <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableLoadedContactableRows.length} onClick={selectLoadedContactableCandidates}>أضف المرشحين المحمّلين للمراجعة · {n(selectableLoadedContactableRows.length)}</Button>
+          </div>
         </div>
       ) : null}
       <ul>
