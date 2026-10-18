@@ -798,6 +798,40 @@ ORDER BY week_utc DESC, element_label;
 
 These events require map analytics consent and indicate a disclosure interaction only. They do not prove the key was read or understood. Wait for two complete weeks and 30 consenting sessions before interpreting the trend; pair it with a short usability task that checks whether users can find the key without losing map context.
 
+## Map layer visibility controls
+
+The controls `pricing_map_map_filter_layer_places_on/off`, `pricing_map_map_filter_layer_density_on/off`, and `pricing_map_map_filter_layer_districts_on/off` record when a consenting user shows or hides establishment and trade-cluster markers, district density shading, or district outlines and labels. These controls change map presentation only; search results, filters, selections, and campaign recipients are unchanged. Count actions and consenting sessions by control and state:
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  CASE
+    WHEN element_label LIKE '%_places_%' THEN 'establishment and trade-cluster markers'
+    WHEN element_label LIKE '%_density_%' THEN 'district density shading'
+    WHEN element_label LIKE '%_districts_%' THEN 'district outlines and labels'
+  END AS control,
+  CASE WHEN element_label LIKE '%_on' THEN 'shown' ELSE 'hidden' END AS state,
+  count(*) AS actions,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_filter_layer_places_on',
+    'pricing_map_map_filter_layer_places_off',
+    'pricing_map_map_filter_layer_density_on',
+    'pricing_map_map_filter_layer_density_off',
+    'pricing_map_map_filter_layer_districts_on',
+    'pricing_map_map_filter_layer_districts_off'
+  )
+GROUP BY 1, 2, 3
+ORDER BY week_utc DESC, control, state;
+```
+
+These are consented UI interactions, not evidence that users found the map clearer or that a search filter changed. Wait for two complete weeks and at least 30 consenting sessions per control before interpreting the pattern; pair it with a short task that asks users to locate an area or establishment with layers visible and hidden. Missing events may mean consent was not granted or the analytics request was blocked.
+
 ## Wholesale filter in supplier search
 
 The «جملة فقط» chip is shown with supplier-search results. The current city-wide browse response has no area facets, so this chip is not rendered in that view. The events below measure supplier-search sessions in which it is enabled, plus a coarse result bucket. They never include the search phrase, city, selected district, or establishment key. All events require the existing map-analytics consent.

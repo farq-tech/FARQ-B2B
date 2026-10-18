@@ -30,7 +30,7 @@ function viewFor(b: [number, number, number, number], w: number, h: number, pad 
 const RIYADH_BOX: [number, number, number, number] = [46.55, 24.55, 46.85, 24.85]
 const enter = (fn: () => void) => (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 
-export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax }: LayerMapProps) {
+export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax, showDensity, showDistricts, showPlaces }: LayerMapProps) {
   const box = useRef<HTMLDivElement>(null)
   const P = useMemo(() => palette(), [])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -132,19 +132,19 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
           <g transform={`translate(${size.w / 2 - v.cx * v.k} ${size.h / 2 - v.cy * v.k}) scale(${v.k})`}>
             {paths.map((p) => {
               const on = chosen.has(p.id)
-              const step = densityStep(density.get(p.id) || 0, densityMax)
+              const step = showDensity ? densityStep(density.get(p.id) || 0, densityMax) : 0
               return (
                 <path key={p.id} d={p.d} role="button" tabIndex={0} aria-pressed={on} aria-label={`حي ${p.ar}${density.get(p.id) ? ` — ${density.get(p.id)} منشأة` : ''}`} data-district={p.ar} data-density={step}
-                  onClick={(e) => { e.stopPropagation(); if (!wasDrag() && !placingSite) onDistrict(p.id); else if (placingSite) clickLand(e) }}
-                  onKeyDown={enter(() => onDistrict(p.id))}
+                  onClick={(e) => { e.stopPropagation(); if (!wasDrag() && !placingSite && (showDistricts || showDensity)) onDistrict(p.id); else if (placingSite) clickLand(e) }}
+                  onKeyDown={enter(() => { if (showDistricts || showDensity) onDistrict(p.id) })}
                   className="cursor-pointer outline-none transition-[stroke] hover:stroke-[var(--map-green)] hover:stroke-opacity-100 focus-visible:stroke-[var(--map-ink)]"
-                  fill={step || on ? P.green : P.ink} fillOpacity={Math.max(on ? 0.08 : 0, CHORO[step])} stroke={on ? P.ink : P.ink} strokeOpacity={on ? 0.95 : 0.35}
+                  fill={step || on ? P.green : P.ink} fillOpacity={Math.max(on ? 0.08 : 0, showDensity ? CHORO[step] : 0)} stroke={on ? P.ink : P.ink} strokeOpacity={showDistricts ? (on ? 0.95 : 0.35) : 0}
                   strokeWidth={on ? 2.5 : 1} strokeDasharray={on ? undefined : '4 3'} vectorEffect="non-scaling-stroke" />
               )
             })}
           </g>
           {/* district names: chosen ones always, the rest when there is room */}
-          {paths.map((p) => {
+          {showDistricts ? paths.map((p) => {
             const on = chosen.has(p.id)
             const wpx = (projX(p.bbox[2]) - projX(p.bbox[0])) * v.k
             if (!on && wpx < 70) return null
@@ -152,7 +152,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
             if (x < -50 || y < -20 || x > size.w + 50 || y > size.h + 20) return null
             return <text key={`l${p.id}`} x={x} y={y} textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
               className="text-[12px] font-semibold" fill={on ? P.green : P.label} stroke={P.white} strokeWidth={3} paintOrder="stroke">{p.ar}</text>
-          })}
+          }) : null}
           {site ? (
             <g pointerEvents="none">
               <circle cx={sx(site.lon)} cy={sy(site.lat)} r={siteR} fill={P.green} fillOpacity={0.06} stroke={P.green} strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="6 4" />
@@ -182,7 +182,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
               </g>
             )
           })}
-          {clusters.map((c, i) => {
+          {showPlaces ? clusters.map((c, i) => {
             const x = sx(c.lon), y = sy(c.lat)
             const r = Math.max(12, Math.min(22, 6 + Math.sqrt(c.n) * 2))
             const label = c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar
@@ -195,8 +195,8 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
                 <text x={x} y={y + r + 12} textAnchor="middle" className="text-[11px] font-medium" fill={P.ink} stroke={P.white} strokeWidth={3} paintOrder="stroke">{label}</text>
               </g>
             )
-          })}
-          {ordered.map((p) => {
+          }) : null}
+          {showPlaces ? ordered.map((p) => {
             const x = sx(p.lon), y = sy(p.lat)
             const highlighted = p.key === highlightedPinKey
             const name = nameOf(p.key)
@@ -230,7 +230,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
                 <g transform={`translate(${w - 38} 0)`} dangerouslySetInnerHTML={{ __html: fitBadgeSvg(p.fit, P) }} />
               </g></g>
             )
-          })}
+          }) : null}
           {site ? (
             <g pointerEvents="none" transform={`translate(${sx(site.lon) - 12} ${sy(site.lat) - 12})`}>
               <circle cx={12} cy={12} r={11} fill={P.white} stroke={P.ink} strokeWidth={2} />
