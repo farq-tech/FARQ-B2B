@@ -1318,3 +1318,34 @@ FROM outcomes;
 ```
 
 Wait for two complete weeks and at least 30 consenting sessions before interpreting the percentage. A low rate can mean the search did not help, the user was comparing options, or the session ended; inspect counts and validate with a short task study before changing the taxonomy.
+
+
+## Saved-product buyer search
+
+This aggregate query counts the consented saved-product discovery events only. It does not return product text, locations, establishment identifiers, or session identifiers.
+
+```sql
+SELECT
+  element_label,
+  count(*) AS event_count,
+  count(DISTINCT session_id) AS sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_buyer_products_search_started',
+    'pricing_map_map_buyer_products_search_results_empty',
+    'pricing_map_map_buyer_products_search_results_1_4',
+    'pricing_map_map_buyer_products_search_results_5_plus',
+    'pricing_map_map_buyer_products_search_failed',
+    'pricing_map_map_buyer_products_search_under_1s',
+    'pricing_map_map_buyer_products_search_1_to_3s',
+    'pricing_map_map_buyer_products_search_over_3s'
+  )
+GROUP BY element_label
+ORDER BY element_label;
+```
+
+Treat sessions as a broad denominator rather than independent product searches: one session may run the flow multiple times. The results buckets refer to unique establishments loaded across all saved products on the first page, not the server's full result totals. QA sessions are not currently separated from customer sessions.
