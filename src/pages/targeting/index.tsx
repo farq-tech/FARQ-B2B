@@ -644,7 +644,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       })))
       if (version !== generation.current) return
       const groups = intents.map((intent, index) => {
-        const matches = (row: TargetRow) => hasDirectoryActivityEvidence(intent.activity, [row.name_ar, row.name_en, row.category, row.category_ar, row.category_main, row.entity_type, ...(row.subcategories || [])])
+        const matches = (row: TargetRow) => hasDirectoryActivityEvidence(intent.activity, [row.name_ar, row.name_en])
         const rows = responses[index].rows.filter(matches)
         return { intent, rows, total: responses[index].total, nextOffset: responses[index].next_offset ?? (responses[index].has_more ? responses[index].rows.length : null), excludedCount: responses[index].rows.length - rows.length }
       })
@@ -691,7 +691,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       })
       if (version !== generation.current) return
       const newRows = response.rows.filter((row) => !group.rows.some((existing) => existing.poi_key === row.poi_key))
-      const matches = (row: TargetRow) => hasDirectoryActivityEvidence(group.intent.activity, [row.name_ar, row.name_en, row.category, row.category_ar, row.category_main, row.entity_type, ...(row.subcategories || [])])
+      const matches = (row: TargetRow) => hasDirectoryActivityEvidence(group.intent.activity, [row.name_ar, row.name_en])
       const appended = newRows.filter(matches)
       const excludedCount = newRows.length - appended.length
       setMultiIntents((current) => current.map((item, itemIndex) => itemIndex === index ? {
@@ -1306,7 +1306,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             <div className="flex flex-wrap items-center gap-2 bg-[var(--color-bg-surface-2)] px-3 py-2">
               <h3 className="m-0 min-w-0 flex-1 text-[14px] font-semibold">{intent.activity} · حي {intent.district}</h3>
               <span className="text-[12px] text-[var(--color-text-secondary)]">{n(intentRows.length)} معروضة من {n(total)}</span>
-              {excludedCount ? <span className="text-[11px] text-[var(--color-text-tertiary)]" title="لم يظهر اسم النشاط في اسم المنشأة أو تصنيفها">استُبعدت {n(excludedCount)} لعدم وضوح التخصص</span> : null}
+              {excludedCount ? <span className="text-[11px] text-[var(--color-text-tertiary)]" title="لم يظهر وصف الحلاقة في اسم المنشأة">استُبعدت {n(excludedCount)} لعدم وضوح التخصص</span> : null}
               {nextOffset != null ? <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMoreIntent(index)}>حمّل المزيد</Button> : null}
               <button type="button" disabled={!available.length || busy} onClick={() => setMultiPending((current) => {
                 const next = new Map(current)
