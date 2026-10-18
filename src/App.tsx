@@ -46,8 +46,8 @@ function landingGoal(): boolean {
   return Boolean(handoff.get(HANDOFF.entryGoal))
 }
 
-function SectionLabel({ children, icon: I }: { children: string; icon?: IconComponent }) {
-  return <p className="flex items-center gap-1.5 px-3 pt-3 pb-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{I ? <I size={14} /> : null}{children}</p>
+function SectionLabel({ children, icon: I, collapsed = false }: { children: string; icon?: IconComponent; collapsed?: boolean }) {
+  return <p title={collapsed ? children : undefined} className={`flex items-center gap-1.5 px-3 pt-3 pb-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)] ${collapsed ? 'justify-center' : ''}`}>{I ? <I size={14} /> : null}{collapsed ? <span className="sr-only">{children}</span> : children}</p>
 }
 
 function Routes() {
@@ -56,6 +56,7 @@ function Routes() {
   const mobile = useIsMobile()
   const [checked, setChecked] = useState<'pending' | 'ok' | 'denied'>('pending')
   const [mapFocus, setMapFocus] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const email = String(session.user?.email || '')
   useEffect(() => {
     if (!session.isAuthenticated) { setChecked('pending'); return }
@@ -89,16 +90,18 @@ function Routes() {
       {mobile || mapFocus ? null : (
         <Sidebar
           className="sticky top-0"
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
           nav={<>
-            <SectionLabel>التسعير</SectionLabel>
-            <NavItem icon={PricingRequestsIcon} label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
-            <NavItem icon={NewRequestIcon} label="طلب جديد" active={view === 'targeting-new'} onClick={() => navigate('targeting-new')} />
-            <SectionLabel icon={MarketIcon}>السوق</SectionLabel>
-            <NavItem icon={InboxIcon} label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
-            <NavItem icon={OpportunityMapIcon} label="خريطة الفرص" active={view === 'targeting'} onClick={() => navigate('targeting')} />
-            <NavItem icon={MessageTemplatesIcon} label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
+            <SectionLabel collapsed={sidebarCollapsed}>التسعير</SectionLabel>
+            <NavItem collapsed={sidebarCollapsed} icon={PricingRequestsIcon} label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
+            <NavItem collapsed={sidebarCollapsed} icon={NewRequestIcon} label="طلب جديد" active={view === 'targeting-new'} onClick={() => navigate('targeting-new')} />
+            <SectionLabel collapsed={sidebarCollapsed} icon={MarketIcon}>السوق</SectionLabel>
+            <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
+            <NavItem collapsed={sidebarCollapsed} icon={OpportunityMapIcon} label="خريطة الفرص" active={view === 'targeting'} onClick={() => navigate('targeting')} />
+            <NavItem collapsed={sidebarCollapsed} icon={MessageTemplatesIcon} label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
           </>}
-          footerNav={<NavItem icon={AccountIcon} label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
+          footerNav={<NavItem collapsed={sidebarCollapsed} icon={AccountIcon} label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
           account={{ name: email || 'المالك', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
         />
       )}
