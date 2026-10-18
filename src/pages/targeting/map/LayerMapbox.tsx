@@ -233,6 +233,13 @@ export default function LayerMapbox(props: LayerMapProps) {
   return (
     <div className="farq-opportunity-map absolute inset-0" role="region" aria-label="خريطة الفرص">
       <div ref={box} className="h-full w-full" />
+      {!loaded && !failed ? (
+        <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center bg-[var(--map-land)]/60">
+          <span role="status" className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-4 py-2 text-[13px] font-medium text-[var(--color-text-secondary)] shadow-[var(--farq-soft-shadow)] backdrop-blur-md">
+            نحمّل طبقات الخريطة…
+          </span>
+        </div>
+      ) : null}
       {tileFailed ? <p role="alert" className="farq-map-error">تعذّر تحميل نقاط المنشآت. <button type="button" onClick={props.onTileRefresh}>تحديث النقاط</button></p> : null}
       {failed ? <p role="alert" className="farq-map-error">تعذّر تحميل الخريطة. تقدر تستعرض الجهات وتختارها من القائمة.</p> : null}
     </div>
