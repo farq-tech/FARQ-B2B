@@ -1141,3 +1141,44 @@ ORDER BY 1 DESC, 2;
 ```
 
 These counts describe retry attempts, not unique people or proof that results were relevant. Compare them with the existing search failure and latency funnels. Wait for two complete weeks and at least 30 completed retries per direction before interpreting a recovery rate; with lower volume, report counts and treat percentages as directional.
+
+## District insight reach and activity-list expansion
+
+The map records `map_district_insight_seen` when a loaded district-insight panel intersects the visible scroll viewport, and `map_district_activities_expand` when the user expands the complete activity list. Both are consented, generic events: neither includes the district name, activity name, count, query, or business identifier. The first event means that some portion of the panel entered the viewport; it does not prove that the user read or understood it.
+
+Run this aggregate query against the main application database described above. It returns session counts only, and requires that the earliest insight view and activity expansion follow the earliest district selection in the same tab session:
+
+```sql
+WITH district_events AS (
+  SELECT id, session_id, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_district_select',
+      'pricing_map_map_district_insight_seen',
+      'pricing_map_map_district_activities_expand'
+    )
+), per_session AS (
+  SELECT
+    session_id,
+    min(id) FILTER (WHERE element_label = 'pricing_map_map_district_select') AS selected_id,
+    min(id) FILTER (WHERE element_label = 'pricing_map_map_district_insight_seen') AS insight_seen_id,
+    min(id) FILTER (WHERE element_label = 'pricing_map_map_district_activities_expand') AS activities_expanded_id
+  FROM district_events
+  GROUP BY session_id
+)
+SELECT
+  count(*) FILTER (WHERE selected_id IS NOT NULL) AS district_selection_sessions,
+  count(*) FILTER (WHERE selected_id IS NOT NULL AND insight_seen_id > selected_id) AS selected_then_insight_seen_sessions,
+  count(*) FILTER (WHERE selected_id IS NOT NULL AND insight_seen_id > selected_id AND activities_expanded_id > insight_seen_id) AS selected_seen_then_expanded_sessions,
+  round(100.0 * count(*) FILTER (WHERE selected_id IS NOT NULL AND insight_seen_id > selected_id)
+    / nullif(count(*) FILTER (WHERE selected_id IS NOT NULL), 0), 1) AS selected_to_insight_seen_pct,
+  round(100.0 * count(*) FILTER (WHERE selected_id IS NOT NULL AND insight_seen_id > selected_id AND activities_expanded_id > insight_seen_id)
+    / nullif(count(*) FILTER (WHERE selected_id IS NOT NULL AND insight_seen_id > selected_id), 0), 1) AS insight_seen_to_expanded_pct
+FROM per_session;
+```
+
+These are session-level reach and interest signals, not evidence that the summaries improved a business outcome. The query cannot reliably distinguish QA from customer sessions and only compares the earliest event of each kind in a session; treat results as directional, inspect counts with percentages, and wait for at least 30 eligible sessions before deciding whether the activity distribution needs a product change.

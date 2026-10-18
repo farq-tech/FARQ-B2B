@@ -264,6 +264,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [districtInsightLoading, setDistrictInsightLoading] = useState(false)
   const [districtInsightError, setDistrictInsightError] = useState(false)
   const [districtInsightRetry, setDistrictInsightRetry] = useState(0)
+  const districtInsightRef = useRef<HTMLElement | null>(null)
+  const districtInsightSeenKeys = useRef(new Set<string>())
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
@@ -366,6 +368,20 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     }, () => { if (active) setDistrictInsightError(true) }).finally(() => { if (active) setDistrictInsightLoading(false) })
     return () => { active = false }
   }, [city, insightDistrictKey, districtInsightRetry])
+  useEffect(() => {
+    if (!districtInsightRows.length || districtInsightLoading || mapAnalyticsConsent() !== 'accepted') return
+    const section = districtInsightRef.current
+    const seenKey = `${city}:${insightDistrictKey}`
+    if (!section || districtInsightSeenKeys.current.has(seenKey) || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting) || mapAnalyticsConsent() !== 'accepted') return
+      districtInsightSeenKeys.current.add(seenKey)
+      recordMapInteraction('map_district_insight_seen')
+      observer.disconnect()
+    }, { threshold: 0 })
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [city, insightDistrictKey, districtInsightRows.length, districtInsightLoading, analyticsConsentRevision])
   const retryMarketStats = () => {
     recordMapInteraction('market_summary_retry')
     setMarketRetry((retry) => retry + 1)
@@ -1556,7 +1572,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     ? <>{densePanel || <p className="px-5 py-3 text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}{marketSummaryPanel}</>
     : <>{marketSummaryPanel}{densePanel || <p className="px-5 py-3 text-[13px] text-[var(--color-text-secondary)]">نحمّل الأحياء والشوارع والأنشطة…</p>}</>
   const districtInsightPanel = insightDistrictNames.length ? (
-    <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="ملخص أنشطة الأحياء">
+    <section ref={districtInsightRef} className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="ملخص أنشطة الأحياء">
       <div className="flex items-center justify-between gap-2">
         <h2 className="m-0 text-[15px] font-semibold">ملخص {insightDistrictNames.length === 1 ? 'الحي' : 'الأحياء'}</h2>
         <span className="text-[11px] text-[var(--color-text-tertiary)]">من كامل دليل الحي، وليس نتائج بحثك</span>
@@ -1582,12 +1598,15 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
               {district.activities.length > 5 ? <button
                 type="button"
                 aria-expanded={expanded}
-                onClick={() => setExpandedDistrictActivities((current) => {
-                  const next = new Set(current)
-                  if (next.has(districtKey)) next.delete(districtKey)
-                  else next.add(districtKey)
-                  return next
-                })}
+                onClick={() => {
+                  if (!expanded) recordMapInteraction('map_district_activities_expand')
+                  setExpandedDistrictActivities((current) => {
+                    const next = new Set(current)
+                    if (next.has(districtKey)) next.delete(districtKey)
+                    else next.add(districtKey)
+                    return next
+                  })
+                }}
                 className={`self-center rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}
               >{expanded ? 'إخفاء الأنشطة الإضافية' : `عرض كل الأنشطة (${n(district.activities.length)})`}</button> : null}
             </div>

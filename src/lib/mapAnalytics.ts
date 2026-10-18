@@ -25,6 +25,8 @@ const MAP_EVENTS = [
   'map_results_jump',
   'map_district_select',
   'map_district_clear',
+  'map_district_insight_seen',
+  'map_district_activities_expand',
   'map_street_select',
   'map_activity_select',
   'map_activity_filter_open',
