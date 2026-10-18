@@ -1559,7 +1559,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     <section className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-3" aria-label="ملخص أنشطة الأحياء">
       <div className="flex items-center justify-between gap-2">
         <h2 className="m-0 text-[15px] font-semibold">ملخص {insightDistrictNames.length === 1 ? 'الحي' : 'الأحياء'}</h2>
-        <span className="text-[11px] text-[var(--color-text-tertiary)]">من سجل الدليل المصنّف</span>
+        <span className="text-[11px] text-[var(--color-text-tertiary)]">من كامل دليل الحي، وليس نتائج بحثك</span>
       </div>
       {districtInsightLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحلل توزيع الأنشطة في {n(insightDistrictNames.length)} {insightDistrictNames.length === 1 ? 'حي' : 'أحياء'}…</p> : null}
       {districtInsightRows.map((district) => (
