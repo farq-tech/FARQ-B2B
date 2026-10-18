@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { Collapsible } from '@base-ui/react/collapsible'
 import { formatNumber } from '../../../lib/formatNumber'
+import { FOCUS_RING } from '../../../ui/cx'
 
 /*
  * Live counters strip above the map (owner 2026-10-16): numbers count up / down to the visible cohort,
@@ -30,13 +33,15 @@ function Rolling({ value }: { value: number }) {
   }, [value])
   return <>{fmt(shown)}</>
 }
-
 export type CounterItem = { key: string; label: string; value: number | null; lead?: boolean }
 
 export default function Counters({ items, compact = false }: { items: CounterItem[]; compact?: boolean }) {
-  return (
-    <section aria-label="مؤشرات الخريطة" className={compact ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : `grid ${items.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`}>
-      {items.map((c) => (
+  const grouped = !compact && items.some((item) => item.key.startsWith('market-main-'))
+  const summaryItems = grouped ? items.filter((item) => !item.key.startsWith('market-main-')) : items
+  const detailItems = grouped ? items.filter((item) => item.key.startsWith('market-main-')) : []
+  const tiles = (values: CounterItem[], className: string) => (
+    <div className={className}>
+      {values.map((c) => (
         <div key={c.key} data-counter={c.key}
           className={`relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'}`}>
           <span className={`font-[family-name:var(--font-display)] ${compact ? 'text-[17px] leading-[24px]' : 'text-[20px] leading-[28px]'} font-semibold tabular-nums`}>
@@ -47,6 +52,27 @@ export default function Counters({ items, compact = false }: { items: CounterIte
           </span>
         </div>
       ))}
+    </div>
+  )
+
+  if (grouped) return (
+    <section aria-label="مؤشرات الخريطة" className="flex flex-col gap-2">
+      {tiles(summaryItems, `grid ${summaryItems.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`)}
+      <Collapsible.Root className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
+        <Collapsible.Trigger className={`flex min-h-10 w-full items-center justify-between gap-3 px-3 text-start text-[13px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] data-panel-open:[&_svg]:rotate-180 ${FOCUS_RING}`}>
+          <span className="flex min-w-0 items-center gap-2"><span className="truncate">تفصيل التصنيفات الرئيسية</span><span className="rounded-full bg-[var(--color-bg-surface-2)] px-2 py-0.5 text-[11px] tabular-nums">{fmt(detailItems.length)}</span></span>
+          <ChevronDown aria-hidden size={16} className="shrink-0 transition-transform" />
+        </Collapsible.Trigger>
+        <Collapsible.Panel className="overflow-hidden border-t border-[var(--color-border-default)] p-2">
+          {tiles(detailItems, "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5")}
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </section>
+  )
+
+  return (
+    <section aria-label="مؤشرات الخريطة">
+      {tiles(items, compact ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : `grid ${items.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`)}
     </section>
   )
 }
