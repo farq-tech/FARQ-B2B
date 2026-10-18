@@ -39,7 +39,20 @@ export default function LayerMapbox(props: LayerMapProps) {
     if (!box.current) return
     mapboxgl.accessToken = MAPBOX_TOKEN
     if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') mapboxgl.setRTLTextPlugin(RTL_PLUGIN, null, true)
-    const m = new mapboxgl.Map({ container: box.current, style: 'mapbox://styles/mapbox/light-v11', bounds: KSA, attributionControl: false, language: 'ar' })
+    const m = new mapboxgl.Map({
+      container: box.current,
+      style: 'mapbox://styles/mapbox/light-v11',
+      bounds: KSA,
+      attributionControl: false,
+      language: 'ar',
+      // Mapbox controls use their own locale strings; keep their accessible labels
+      // consistent with the Arabic controls around the map.
+      locale: {
+        'NavigationControl.ZoomIn': 'تكبير الخريطة',
+        'NavigationControl.ZoomOut': 'تصغير الخريطة',
+        'AttributionControl.ToggleAttribution': 'مصادر الخريطة',
+      },
+    })
     map.current = m
     m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left')
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-left')
