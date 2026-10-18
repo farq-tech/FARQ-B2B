@@ -1573,7 +1573,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {district.activities.slice(0, 5).map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[11px]">{activity.main_ar} · {n(activity.n)}</span>)}
             {district.activities.length > 5 ? <span className="self-center text-[11px] text-[var(--color-text-tertiary)]">و{n(district.activities.length - 5)} أنشطة أخرى</span> : null}
           </div> : null}
-          {district.absent_from_directory.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>لا تظهر لها سجلات مصنّفة في الدليل:</strong> {district.absent_from_directory.slice(0, 4).join('، ')}{district.absent_from_directory.length > 4 ? `، و${n(district.absent_from_directory.length - 4)} أخرى` : ''}</p> : null}
+          {district.absent_from_directory.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>لا تظهر لها سجلات مصنّفة في الدليل:</strong> {district.absent_from_directory.slice(0, 4).join('، ')}{district.absent_from_directory.length > 4 ? `، و${n(district.absent_from_directory.length - 4)} أخرى` : ''}</p> : <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>الأنشطة غير الظاهرة:</strong> لم يرصد التحليل نشاطاً مصنّفاً على مستوى المدينة بلا سجل في هذا الحي.</p>}
           <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">نسبة تغطية التصنيف {n(district.classification_pct)}٪ من السجلات ذات الحي الموثوق. عدم ظهور نشاط لا يثبت عدم وجوده فعلياً.</p>
         </article>
       ))}
