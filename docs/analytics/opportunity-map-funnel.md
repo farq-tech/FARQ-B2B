@@ -1361,6 +1361,32 @@ FROM outcomes;
 
 Require two complete weeks and at least 30 consenting sessions before treating the rate as directional. Pair it with a short task study: a focus selection after searching does not prove that the selected activity was the user's intended one.
 
+## Multi-intent search first-page coverage
+
+When a combined search contains multiple activity-and-district requests, the map records exactly one successful first-page outcome: `map_multi_intent_groups_all_visible`, `map_multi_intent_groups_some_visible`, or `map_multi_intent_groups_none_visible`. A group is visible when at least one row passes the existing activity-name evidence check. If any request fails and the combined results are not shown, the map records `map_multi_intent_search_failed` instead. Events require map analytics consent and omit the search text, activity, district, business, and number of groups. Successful outcomes describe only the initially loaded page, not all matching directory rows, campaign eligibility, or whether the user found the result useful.
+
+```sql
+SELECT
+  element_label,
+  count(*) AS multi_intent_search_events,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_multi_intent_groups_all_visible',
+    'pricing_map_map_multi_intent_groups_some_visible',
+    'pricing_map_map_multi_intent_groups_none_visible',
+    'pricing_map_map_multi_intent_search_failed'
+  )
+GROUP BY element_label
+ORDER BY element_label;
+```
+
+One user session can contain multiple combined searches, so compare both event and session counts. Review at least two complete weeks and 30 consenting sessions before treating the distribution as directional; pair it with a task check of each request group and its loaded-more path.
+
 ## City, district, and street selector use
 
 The map records a level-specific `map_filter_open_*` event when a location menu opens and `map_filter_select_*` when a location is chosen. This aggregate measures how often a consenting session that opened each selector later chose a location from that same level. It does not record the selected place, search text, or establishment, and it does not prove the map moved to the right feature or that the selected area was useful.
