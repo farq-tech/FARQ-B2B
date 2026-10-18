@@ -30,7 +30,7 @@ function viewFor(b: [number, number, number, number], w: number, h: number, pad 
 const RIYADH_BOX: [number, number, number, number] = [46.55, 24.55, 46.85, 24.85]
 const enter = (fn: () => void) => (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn() } }
 
-export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax, showDensity, showDistricts, showPlaces }: LayerMapProps) {
+export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, highlightedPinKey, onPin, nameOf, clusters, onCluster, site, placingSite, onPlaceSite, fit, extent, streets, activeStreet, onStreet, density, densityMax, showDensity, showDistricts, showPlaces, showStreets }: LayerMapProps) {
   const box = useRef<HTMLDivElement>(null)
   const P = useMemo(() => palette(), [])
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -159,7 +159,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
             </g>
           ) : null}
           {/* dense streets: a soft glow under a green core, width and strength by establishments per 100 m; a pill at the middle */}
-          {streets.map((st) => {
+          {showStreets ? streets.map((st) => {
             const ratio = Math.min(1, st.props.per_100m / maxPer)
             const w = 3 + 5 * ratio, on = activeStreet === st.id
             const d = st.lines.map((line) => line.map(([x, y], i) => `${i ? 'L' : 'M'}${sx(x).toFixed(1)} ${sy(y).toFixed(1)}`).join('')).join('')
@@ -172,8 +172,8 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
                 <path d={d} fill="none" stroke={P.green} strokeOpacity={0.55 + 0.45 * ratio} strokeWidth={on ? w + 1.5 : w} strokeLinecap="round" strokeLinejoin="round" />
               </g>
             )
-          })}
-          {labels.map(({ st, x, y, w, text }) => {
+          }) : null}
+          {showStreets ? labels.map(({ st, x, y, w, text }) => {
             const on = activeStreet === st.id
             return (
               <g key={`p${st.id}`} transform={`translate(${x - w / 2} ${y - 13})`} className="cursor-pointer" aria-hidden onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onStreet(st.id) }}>
@@ -181,7 +181,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
                 <text x={w / 2} y={12} textAnchor="middle" dominantBaseline="middle" className="text-[11px] font-semibold" fill={on ? P.white : P.ink}>{text}</text>
               </g>
             )
-          })}
+          }) : null}
           {showPlaces ? clusters.map((c, i) => {
             const x = sx(c.lon), y = sy(c.lat)
             const r = Math.max(12, Math.min(22, 6 + Math.sqrt(c.n) * 2))

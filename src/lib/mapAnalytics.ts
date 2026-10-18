@@ -31,6 +31,8 @@ const MAP_EVENTS = [
   'map_filter_layer_districts_off',
   'map_filter_layer_places_on',
   'map_filter_layer_places_off',
+  'map_filter_layer_streets_on',
+  'map_filter_layer_streets_off',
   'map_district_insight_seen',
   'map_district_activities_expand',
   'map_street_select',

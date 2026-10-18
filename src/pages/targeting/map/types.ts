@@ -43,4 +43,5 @@ export type LayerMapProps = {
   showDensity: boolean
   showDistricts: boolean
   showPlaces: boolean
+  showStreets: boolean
 }

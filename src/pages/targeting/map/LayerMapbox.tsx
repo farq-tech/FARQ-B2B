@@ -193,7 +193,8 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
     const visible = (ids: string[], on: boolean) => ids.forEach((id) => { if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none') })
     visible(['district-line', 'district-label'], props.showDistricts)
     visible(['pins', 'directory-points', 'directory-count', 'directory-hit', 'trade-circle', 'trade-label'], props.showPlaces)
-  }, [loaded, props.showDistricts, props.showPlaces, props.tileQuery])
+    visible(['street-glow', 'street-case', 'street-line', 'street-label'], props.showStreets)
+  }, [loaded, props.showDistricts, props.showPlaces, props.showStreets, props.tileQuery])
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
