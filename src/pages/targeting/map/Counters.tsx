@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import { formatNumber } from '../../../lib/formatNumber'
 import { FOCUS_RING } from '../../../ui/cx'
+import { recordMapInteraction } from '../../../lib/mapAnalytics'
 
 /*
  * Live counters strip above the map (owner 2026-10-16): numbers count up / down to the visible cohort,
@@ -68,7 +69,10 @@ export default function Counters({ items, compact = false, selectedMainId, onAct
   if (grouped) return (
     <section aria-label="مؤشرات الخريطة" className="flex flex-col gap-2">
       {tiles(summaryItems, `grid ${summaryItems.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`)}
-      <Collapsible.Root className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
+      <Collapsible.Root
+        className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]"
+        onOpenChange={(open) => { if (open) recordMapInteraction('map_activity_counter_panel_open') }}
+      >
         <Collapsible.Trigger className={`flex min-h-10 w-full items-center justify-between gap-3 px-3 text-start text-[13px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] data-panel-open:[&_svg]:rotate-180 ${FOCUS_RING}`}>
           <span className="flex min-w-0 items-center gap-2"><span className="truncate">تفصيل التصنيفات الرئيسية</span><span className="rounded-full bg-[var(--color-bg-surface-2)] px-2 py-0.5 text-[11px] tabular-nums">{fmt(detailItems.length)}</span></span>
           <ChevronDown aria-hidden size={16} className="shrink-0 transition-transform" />

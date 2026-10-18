@@ -1567,3 +1567,55 @@ ORDER BY week_utc DESC;
 ```
 
 Use at least two complete weeks and 30 terminal page outcomes before treating the failure percentage as directional. Compare it with the first-page latency and result-profile signals above; do not infer that a successful page was relevant or that the user completed a buyer match.
+
+## Main category detail exposure
+
+This funnel measures whether consenting sessions that opened the main-category counter details later selected a main category, subcategory, or specialty. The exposure event records only that the collapsed panel opened; it contains no category, location, search, or establishment value. Results are aggregate counts by the week of the first panel open.
+
+```sql
+WITH category_events AS (
+  SELECT id, session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_activity_counter_panel_open',
+      'pricing_map_map_activity_main_select',
+      'pricing_map_map_activity_sub_select',
+      'pricing_map_map_activity_spec_select'
+    )
+), panel_sessions AS (
+  SELECT
+    session_id,
+    min(id) FILTER (WHERE element_label = 'pricing_map_map_activity_counter_panel_open') AS panel_open_id,
+    min(occurred_at) FILTER (WHERE element_label = 'pricing_map_map_activity_counter_panel_open') AS panel_opened_at
+  FROM category_events
+  GROUP BY session_id
+  HAVING count(*) FILTER (WHERE element_label = 'pricing_map_map_activity_counter_panel_open') > 0
+), outcomes AS (
+  SELECT
+    p.session_id,
+    p.panel_opened_at,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_main_select' AND e.id > p.panel_open_id) AS main_selected_id,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_sub_select' AND e.id > p.panel_open_id) AS sub_selected_id,
+    min(e.id) FILTER (WHERE e.element_label = 'pricing_map_map_activity_spec_select' AND e.id > p.panel_open_id) AS specialty_selected_id
+  FROM panel_sessions p
+  LEFT JOIN category_events e USING (session_id)
+  GROUP BY p.session_id, p.panel_opened_at, p.panel_open_id
+)
+SELECT
+  date_trunc('week', panel_opened_at AT TIME ZONE 'UTC') AS week_utc,
+  count(*) AS panel_open_sessions,
+  count(*) FILTER (WHERE main_selected_id IS NOT NULL OR sub_selected_id IS NOT NULL OR specialty_selected_id IS NOT NULL) AS category_selection_sessions,
+  round(100.0 * count(*) FILTER (WHERE main_selected_id IS NOT NULL OR sub_selected_id IS NOT NULL OR specialty_selected_id IS NOT NULL) / nullif(count(*), 0), 1) AS panel_open_to_category_selection_pct,
+  count(*) FILTER (WHERE main_selected_id IS NOT NULL) AS main_selection_sessions,
+  count(*) FILTER (WHERE sub_selected_id IS NOT NULL) AS subcategory_selection_sessions,
+  count(*) FILTER (WHERE specialty_selected_id IS NOT NULL) AS specialty_selection_sessions
+FROM outcomes
+GROUP BY 1
+ORDER BY week_utc DESC;
+```
+
+Interpret this as a session-level directional measure: an event after the panel opened may be from another category control in the same session. Review at least two complete weeks and 30 panel-open sessions before treating changes as directional. With less traffic, use the counts to confirm instrumentation only, not to infer customer preference.
