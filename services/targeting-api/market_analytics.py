@@ -16,6 +16,7 @@ STREET_DENSITY = os.path.join(os.path.dirname(__file__), "data", "street_density
 
 MAX_SUB_IDS = 50
 MAX_DISTRICTS = 30
+MAX_SPECIALTY_IDS = 20
 MAX_TEXT = 120
 
 MARKET_BASIS = (
@@ -35,6 +36,8 @@ class MarketAnalytics:
         self.db = directory_tiles.db
         self._taxonomy = None
         self._taxonomy_lock = threading.Lock()
+        self._specialty_column = None
+        self._specialty_column_lock = threading.Lock()
 
     def _tx(self):
         if self._taxonomy is None:
@@ -42,6 +45,15 @@ class MarketAnalytics:
                 if self._taxonomy is None:
                     self._taxonomy = taxonomy_search.get()
         return self._taxonomy
+
+    def _has_specialty_column(self):
+        if self._specialty_column is None:
+            with self._specialty_column_lock:
+                if self._specialty_column is None:
+                    with self.lock:
+                        columns = {row[0] for row in self.db.execute("describe select * from read_parquet(?)", [DATA]).fetchall()}
+                    self._specialty_column = "specialty_ids" in columns
+        return self._specialty_column
 
     @staticmethod
     def _validate(body):
@@ -64,6 +76,11 @@ class MarketAnalytics:
             isinstance(item, str) and 1 <= len(item) <= 80 for item in districts
         ):
             raise ValueError("districts")
+        specialty_ids = body.get("specialty_ids") or []
+        if not isinstance(specialty_ids, list) or len(specialty_ids) > MAX_SPECIALTY_IDS or not all(
+            isinstance(item, str) and 1 <= len(item) <= 80 for item in specialty_ids
+        ):
+            raise ValueError("specialty_ids")
         objective = body.get("objective", "purchase")
         if objective not in ("purchase", "marketing"):
             raise ValueError("objective")
@@ -75,20 +92,29 @@ class MarketAnalytics:
             if q or main_id:
                 return [], True
             return sub_ids, False
-        resolved = list(sub_ids)
+        if sub_ids and not all(sid in tx.subs for sid in sub_ids):
+            raise ValueError("unknown sub_id")
+        resolved = None
+        if q:
+            # Resolve free text locally, then intersect it with any explicit
+            # activity selection below. Silently ignoring either filter makes
+            # district totals disagree with what the user asked the map to show.
+            specialty_ids, _ = tx.spec_hits(q)
+            query_subs = list(dict.fromkeys(tx.specs[sid]["sub_id"] for sid in specialty_ids))
+            if not query_subs:
+                query_subs = tx.subs_in(q)[0]
+            if not query_subs:
+                return [], True
+            resolved = set(query_subs)
         if main_id:
             if main_id not in {item.get("main_id") for item in tx.subs.values()}:
                 return [], True
             main_subs = {sid for sid, item in tx.subs.items() if item.get("main_id") == main_id}
-            resolved = list(main_subs) if not resolved else [sid for sid in resolved if sid in main_subs]
-        elif q and not resolved:
-            # Keep analytics local-only: don't pass a query to any model/provider.
-            specialty_ids, _ = tx.spec_hits(q)
-            resolved = list(dict.fromkeys(tx.specs[sid]["sub_id"] for sid in specialty_ids))
-            if not resolved:
-                resolved = tx.subs_in(q)[0]
-            if not resolved:
-                return [], True
+            resolved = main_subs if resolved is None else resolved & main_subs
+        if sub_ids:
+            requested_subs = set(sub_ids)
+            resolved = requested_subs if resolved is None else resolved & requested_subs
+        resolved = sorted(resolved) if resolved is not None else []
         if resolved and not all(sid in tx.subs for sid in resolved):
             raise ValueError("unknown sub_id")
         return resolved, bool((main_id or q) and not resolved)
@@ -96,6 +122,8 @@ class MarketAnalytics:
     def _where(self, body):
         city, q, main_id, sub_ids, districts, objective = self._validate(body)
         subs, empty_match = self._resolve_subs(q, main_id, sub_ids, objective)
+        specialty_ids = list(dict.fromkeys(body.get("specialty_ids") or []))
+        specialty_available = not specialty_ids or self._has_specialty_column()
         clauses = [
             self.tiles.search_sql,
             "coalesce(nullif(p.name_ar, ''), p.name_en) is not null",
@@ -113,10 +141,18 @@ class MarketAnalytics:
         if districts:
             clauses.append("p.district_ar in (select unnest(?::varchar[]))")
             params.append(districts)
-        return city, subs, " and ".join(clauses), params
+        if specialty_ids:
+            if not specialty_available:
+                # Older directory snapshots cannot answer exact-specialty questions;
+                # fail closed rather than show the wider parent subcategory as exact.
+                clauses.append("false")
+            else:
+                clauses.append("list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])")
+                params.append(specialty_ids)
+        return city, subs, " and ".join(clauses), params, specialty_available
 
     def district_counts(self, body):
-        city, _, where, params = self._where(body)
+        city, _, where, params, specialty_available = self._where(body)
         query = f"""
             select p.district_ar, count(*) n,
                    count(*) filter (where coalesce(p.has_whatsapp, false)) n_whatsapp,
@@ -139,6 +175,7 @@ class MarketAnalytics:
                 for name, n, whatsapp, wholesale in rows
             ],
             "total": total,
+            "specialty_available": specialty_available,
             "basis": MARKET_BASIS,
         }
 
@@ -261,7 +298,7 @@ class MarketAnalytics:
         }
 
     def market_summary(self, body):
-        city, subs, where, params = self._where(body)
+        city, subs, where, params, specialty_available = self._where(body)
         aggregate = f"""
             select count(*) total,
                    count(*) filter (where coalesce(p.has_whatsapp, false)) n_whatsapp,
@@ -295,7 +332,9 @@ class MarketAnalytics:
             row = self.db.execute(aggregate, params).fetchone()
             n_specialties = self.db.execute(specialty_sql, [DATA, POI_TAXONOMY] + params[1:]).fetchone()[0]
             top_districts = self.db.execute(district_sql, params).fetchall()
-            dense = self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
+        # Street lines are aggregated only to subcategory in the current data asset.
+        # Do not show one as an exact specialty result.
+        dense = None if body.get("specialty_ids") else self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
         total, n_whatsapp, n_wholesale, n_approx, n_cr, districts_count = row
         return {
             "ok": True,
@@ -309,6 +348,7 @@ class MarketAnalytics:
                 "n_specialties": n_specialties,
                 "n_approx": n_approx,
                 "n_cr": n_cr,
+                "specialty_available": specialty_available,
                 "basis": MARKET_BASIS,
             },
         }

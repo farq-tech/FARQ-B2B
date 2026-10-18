@@ -53,6 +53,10 @@ def valid_filters(value):
         val=value.get(key,'')
         if not isinstance(val,str) or len(val)>100: raise ValueError('invalid filters')
         out[key]=val.strip()
+    for key, max_len in (('taxonomy_main_id',40),('taxonomy_sub_id',80),('taxonomy_specialty_id',80)):
+        val=value.get(key,'')
+        if not isinstance(val,str) or len(val)>max_len: raise ValueError('invalid taxonomy filter')
+        out[key]=val.strip()
     out['branches_only']=value.get('branches_only') is True
     out['name_only']=value.get('name_only') is True
     bounds=value.get('bounds')
@@ -147,12 +151,50 @@ class DirectoryTiles:
         item=self.contexts.get(key)
         if not item or item[0]<time.monotonic(): raise KeyError('MAP_QUERY_EXPIRED')
         return item
+    def focus(self,key,level,identifier,sub_id=None,specialty_id=None):
+        """Create a read-only map tile cohort matching the selected taxonomy focus."""
+        if level not in ('main','sub','spec') or not isinstance(identifier,str) or not identifier or len(identifier)>100:
+            raise ValueError('invalid map focus')
+        with self.lock:
+            _,rows,city,filters=self.context(key)
+            filters=dict(filters)
+        for name in ('taxonomy_main_id','taxonomy_sub_id','taxonomy_specialty_id'):
+            filters.pop(name,None)
+        if level=='main':
+            if rows is not None:
+                if identifier=='unc':
+                    rows=[r for r in rows if not r.get('taxonomy_sub') or str(r.get('taxonomy_sub'))=='unc' or str(r.get('taxonomy_sub')).startswith('unc.')]
+                else:
+                    rows=[r for r in rows if str(r.get('taxonomy_sub') or '').split('.',1)[0]==identifier]
+            else:
+                filters['taxonomy_main_id']=identifier
+        elif level=='sub':
+            if rows is not None:
+                rows=[r for r in rows if r.get('taxonomy_sub')==identifier]
+            else:
+                filters['taxonomy_sub_id']=identifier
+        else:
+            if rows is not None:
+                rows=[r for r in rows if r.get('taxonomy_sub')==sub_id and identifier in (r.get('specialties') or [])]
+            else:
+                if not isinstance(sub_id,str) or not sub_id or not isinstance(specialty_id,str) or not specialty_id:
+                    raise ValueError('specialty focus needs taxonomy ids')
+                filters.update(taxonomy_sub_id=sub_id,taxonomy_specialty_id=specialty_id)
+        if rows is not None:
+            return self.register(rows=rows)
+        return self.register(city=city,filters=filters)
     def sql(self,city,f,bounds=None):
         clauses=[self.search_sql,"coalesce(nullif(name_ar,''),name_en) is not null"]
         params=[self.path]
         if city and city!='*':clauses.append('city_en=?');params.append(city)
         if f.get('category'):clauses.append("coalesce(nullif(trim(split_part(coalesce(category,''),'|',1)),''),'غير مصنف')=?");params.append(f['category'])
         if f.get('subcategory'):clauses.append("(regexp_matches(coalesce(secondary_category,''),?) or regexp_matches(coalesce(category_l3,''),?))");params.extend([r'''(^|[|,\[{])\s*["']?'''+re.escape(f['subcategory'])+r'''["']?\s*($|[|,\]}])''']*2)
+        if f.get('taxonomy_main_id')=='unc':clauses.append("(p.sub_id is null or p.sub_id='unc' or starts_with(p.sub_id,'unc.'))")
+        elif f.get('taxonomy_main_id'):clauses.append("split_part(coalesce(p.sub_id,''),'.',1)=?");params.append(f['taxonomy_main_id'])
+        if f.get('taxonomy_sub_id'):clauses.append('p.sub_id=?');params.append(f['taxonomy_sub_id'])
+        if f.get('taxonomy_specialty_id'):
+            clauses.append("list_contains(string_split(coalesce(p.specialty_ids,''),'|'),?)")
+            params.append(f['taxonomy_specialty_id'])
         identity="translate(lower(coalesce(nullif(legal_name,''),name_ar,name_en,'')),'أإآةىؤئ','اااهيوي')"
         company="regexp_matches("+identity+",'(^|[^[:alnum:]؀-ۿ])(شركه|شركات|company|corporation|llc)($|[^[:alnum:]؀-ۿ])')"
         institution="regexp_matches("+identity+",'(^|[^[:alnum:]؀-ۿ])(مؤسسه|establishment|est)($|[^[:alnum:]؀-ۿ])')"

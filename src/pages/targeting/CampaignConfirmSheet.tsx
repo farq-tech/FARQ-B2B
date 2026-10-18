@@ -80,7 +80,6 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
   const close = () => (result ? onDone(result.sent.size, result.failed.size) : onClose())
   useEffect(() => { busyRef.current = busy; closeRef.current = close })
   const count = rows.length.toLocaleString('en-US')
-  const unverifiedWhatsappCount = rows.filter((r) => r.whatsapp_verification_state !== 'verified').length
   const unconfirmedStatusCount = rows.filter(hasUnconfirmedStatus).length
   const money = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const cost = price != null ? money(price * rows.length) : null
@@ -132,9 +131,8 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
           {row('التكلفة', cost != null ? <bdi dir="ltr" className="inline-flex items-baseline gap-1.5">{cost} <RiyalSign /></bdi> : '—', true)}
         </dl>
         <p className="mt-3 text-[14px] leading-[22px] font-medium">السعر قبل الضريبة. ضريبة القيمة المضافة ١٥٪ تُضاف حسب الفاتورة.</p>
-        {unverifiedWhatsappCount || unconfirmedStatusCount ? (
+        {unconfirmedStatusCount ? (
           <div role="note" className="mt-3 flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--map-sand)] bg-[color-mix(in_srgb,var(--map-sand)_18%,white)] p-3 text-[13px] leading-[21px]">
-            {unverifiedWhatsappCount ? <p className="m-0">أرقام واتساب المحددة ({unverifiedWhatsappCount.toLocaleString('ar-SA')}) مسجلة من المصدر فقط ولم نتحقق من استقبالها للرسائل. راجع الأرقام قبل الإرسال.</p> : null}
             {unconfirmedStatusCount ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {unconfirmedStatusCount.toLocaleString('ar-SA')} من المنشآت المحددة؛ تأكد من استمرار نشاطها قبل التواصل.</p> : null}
           </div>
         ) : null}

@@ -25,6 +25,38 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
   const ok = (data: unknown) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { 'content-type': 'application/json' } })
+  // A local, read-only design fixture for the street-activity picker; no account or targeting API needed.
+  if (new URLSearchParams(window.location.search).get('harness') === 'activity-filter') {
+    const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } })
+    if (url.includes('/cities')) return json([{ en: 'Riyadh', ar: 'الرياض', n: 8400 }])
+    if (url.includes('/districts?')) return json({ type: 'FeatureCollection', features: [] })
+    if (url.includes('/street-density/catalog')) return json({ mains: [
+      { main_id: 'build', main_ar: 'التشييد والبناء', streets: 42, shops: 1360, subs: [
+        { sub_id: 'build.painting', sub_ar: 'الدهانات', streets: 18, shops: 420 },
+        { sub_id: 'build.plumbing_supply', sub_ar: 'الأدوات الصحية والسباكة', streets: 15, shops: 510 },
+        { sub_id: 'build.tiles', sub_ar: 'البلاط والسيراميك', streets: 9, shops: 430 },
+      ] },
+      { main_id: 'food', main_ar: 'الأغذية والمطاعم', streets: 28, shops: 920, subs: [
+        { sub_id: 'food.restaurant', sub_ar: 'المطاعم', streets: 21, shops: 730 },
+        { sub_id: 'food.bakery', sub_ar: 'المخابز', streets: 7, shops: 190 },
+      ] },
+      { main_id: 'beauty', main_ar: 'العناية الشخصية', streets: 16, shops: 640, subs: [
+        { sub_id: 'beauty.barber', sub_ar: 'الحلاقة الرجالية', streets: 16, shops: 640 },
+      ] },
+    ] })
+    if (url.includes('/suggest-specialties')) return json({ suggestions: [
+      { specialty_id: 'interior-paint', specialty_ar: 'دهانات داخلية', sub_id: 'build.painting', sub_ar: 'الدهانات', main_ar: 'التشييد والبناء' },
+      { specialty_id: 'industrial-paint', specialty_ar: 'دهانات صناعية', sub_id: 'build.painting', sub_ar: 'الدهانات', main_ar: 'التشييد والبناء' },
+    ] })
+    if (url.includes('/street-density')) return json({ type: 'FeatureCollection', features: [], basis: 'بيانات توضيحية للمعاينة المحلية فقط.' })
+    if (url.includes('/market-summary')) return json({ ok: true, summary: { total: 8400, districts_count: 8, top_districts: [], densest_street: null, n_wholesale: 1270, n_whatsapp: 5100, n_specialties: 320, n_approx: 160, basis: 'بيانات توضيحية للمعاينة المحلية فقط.' } })
+    if (url.includes('/district-counts')) return json({ ok: true, city: 'Riyadh', districts: [], total: 8400, basis: 'بيانات توضيحية للمعاينة المحلية فقط.' })
+    if (url.includes('/template-status')) return json({ name: 'farq_outreach_ar', status: 'APPROVED' })
+    if (url.includes('/send-status')) return json({ send: false })
+    if (url.endsWith('/status')) return json({ pois: 8400, whatsapp: 5100, email: 900, ai: true })
+    if (url.includes('/templates')) return json({ ok: true, data: [] })
+    return json({ ok: true, data: [] })
+  }
   // targeting (harness=targeting|templates|template-new): the local service's real search data; never the send endpoint
   if (url.includes('/_targeting/') && !url.includes('/_targeting/send')) return realFetch(input, init)
   // the targeting map's tiles and style (read-only)
@@ -46,7 +78,7 @@ function Screen({ which }: { which: string }) {
   const { setSelectedRfqId, navigate } = useProcurement()
   useEffect(() => { setSelectedRfqId(RFQ_ID) }, [setSelectedRfqId])
   if (which === 'new') return <NewRequestV2 navigate={navigate} />
-  if (which === 'targeting') return <TargetingPage onTemplates={() => {}} />
+  if (which === 'targeting' || which === 'activity-filter') return <TargetingPage onTemplates={() => {}} />
   if (which === 'templates') return <TemplatesPage onBack={() => {}} onNew={() => {}} />
   if (which === 'template-new') return <TemplateEditor onBack={() => {}} />
   return which.startsWith('comparison') ? <ComparisonV2 navigate={navigate} /> : <RequestTrackingV2 navigate={navigate} />

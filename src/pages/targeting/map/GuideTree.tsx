@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
+import { recordMapInteraction } from '../../../lib/mapAnalytics'
 import { MapIcon } from './glyphs'
 import { mainIcon, specialtyIcon, subIcon, type Focus, type GuideMain } from './model'
 
@@ -16,13 +17,17 @@ export default function GuideTree({ guide, focus, onFocus, empty }: { guide: Gui
   const [q, setQ] = useState('')
   if (!guide.length) return <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{empty}</p>
   const hit = (t: string) => !q.trim() || t.includes(q.trim())
-  const pick = (f: NonNullable<Focus>) => onFocus(focus && focus.level === f.level && focus.id === f.id ? null : f)
-  const on = (level: NonNullable<Focus>['level'], id: string) => Boolean(focus && focus.level === level && focus.id === id)
+  const pick = (f: NonNullable<Focus>) => {
+    const clear = Boolean(focus && focus.level === f.level && focus.id === f.id && (f.level !== 'spec' || focus.level === 'spec' && focus.sub_id === f.sub_id))
+    recordMapInteraction(clear ? 'map_guide_focus_clear' : 'map_guide_focus_select')
+    onFocus(clear ? null : f)
+  }
+  const on = (level: NonNullable<Focus>['level'], id: string, subId?: string) => Boolean(focus && focus.level === level && focus.id === id && (level !== 'spec' || focus.level === 'spec' && focus.sub_id === subId))
   const focusLabel = focus?.level === 'main'
     ? guide.find((m) => m.id === focus.id)?.ar
     : focus?.level === 'sub'
       ? guide.flatMap((m) => m.subs).find((s) => s.id === focus.id)?.ar
-      : focus?.level === 'spec' ? focus.id : null
+      : focus?.level === 'spec' ? `${focus.id}${focus.sub_id ? ` · ${guide.flatMap((m) => m.subs).find((s) => s.id === focus.sub_id)?.ar || ''}` : ''}` : null
   const rowCls = (active: boolean) => `fi-host flex min-h-10 w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] ${active ? 'bg-[var(--color-bg-surface-2)] ring-1 ring-[var(--map-ink)]' : ''} ${FOCUS_RING}`
 
   return (
@@ -82,7 +87,7 @@ export default function GuideTree({ guide, focus, onFocus, empty }: { guide: Gui
                           <ul className="ms-7">
                             {specs.map((x) => (
                               <li key={x.name}>
-                                <button type="button" aria-pressed={on('spec', x.name)} onClick={() => pick({ level: 'spec', id: x.name })} className={rowCls(on('spec', x.name))}>
+                                <button type="button" aria-pressed={on('spec', x.name, s.id)} onClick={() => pick({ level: 'spec', id: x.name, sub_id: s.id })} className={rowCls(on('spec', x.name, s.id))}>
                                   <span aria-hidden data-specialty-icon={specialtyIcon(x.name, s.id)} className="flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--map-navy)] text-white">
                                     <MapIcon name={specialtyIcon(x.name, s.id)} size={12} />
                                   </span>

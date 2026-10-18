@@ -6,6 +6,7 @@
  * Endpoints (the service's own, unchanged):
  *   POST /suggest-specialties — { text, main_id? } → specialties a seller's products fit (read only)
  *   POST /clusters          — { city, q?, objective?, sub_ids?, wholesale?, bounds? } → where a trade concentrates (street / district / cell)
+ *   POST /map-focus         — { query, level, id, sub_id?, specialty_id? } → short-lived map tile cohort for the focused taxonomy
  *   POST /street-density    — { city, q?, objective?, sub_ids? } → GeoJSON LineStrings: the densest streets for a trade (n, length_m, per_100m)
  *   GET  /status            — dataset size
  *   GET  /template-status   — Meta status of farq_outreach_ar + the holder request
@@ -139,9 +140,9 @@ export type TradeClusters = { clusters: TradeCluster[]; wholesale?: number; basi
 /** One street where a trade concentrates, drawn along the real street (POST /street-density). */
 export type StreetDensityProps = { sub_id: string | number | null; sub_ar: string | null; street_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number; label_ar: string; district_ar?: string | null; main_ar?: string | null }
 export type StreetLine = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.MultiLineString, StreetDensityProps>
-export type StreetDensity = { type?: 'FeatureCollection'; features: StreetLine[]; basis?: string }
-/** No activity = the densest streets of ALL activities in the city (up to 80, by n). districts narrows to those districts. */
-export type StreetDensityQuery = { city: string; q?: string; objective?: string; main_id?: string; sub_ids?: (string | number)[]; districts?: string[] }
+export type StreetDensity = { type?: 'FeatureCollection'; features: StreetLine[]; specialty_available?: boolean; basis?: string }
+/** No activity = the densest streets of ALL activities in the city (up to 80, by n). Exact specialty lines require a specialty-aware data asset. */
+export type StreetDensityQuery = { city: string; q?: string; objective?: string; main_id?: string; sub_ids?: (string | number)[]; specialty_ids?: string[]; districts?: string[] }
 export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('POST', '/street-density', body, true, (outcome) => {
   const event = outcome === 'retrying'
     ? 'map_street_density_auto_retry'
@@ -155,7 +156,7 @@ export type StreetCatalog = { mains: { main_id: string; main_ar: string; streets
 export const streetCatalog = (body: { city: string; districts?: string[] }) => call<StreetCatalog>('POST', '/street-density/catalog', body)
 
 export type DistrictCount = { district_ar: string; n: number; n_wholesale: number; n_whatsapp: number }
-export type DistrictCounts = { ok: boolean; city: string; districts: DistrictCount[]; total: number; basis: string }
+export type DistrictCounts = { ok: boolean; city: string; districts: DistrictCount[]; total: number; specialty_available?: boolean; basis: string }
 export type DistrictActivity = { main_id: string; main_ar: string; n: number; top_subactivities?: { sub_id: string; sub_ar: string; n: number }[] }
 export type DistrictInsight = {
   district_ar: string
@@ -173,12 +174,13 @@ export type WhoBuys = { ok: boolean; buyers: BuyerTrade[]; subject: { sub_ids: s
 export type MarketSummary = {
   ok: boolean
   summary: {
-    total: number; districts_count: number; top_districts: { district_ar: string; n: number }[]
+    total: number; districts_count: number; top_districts: { district_ar: string; n: number }[]; specialty_available?: boolean
     densest_street: { street_ar: string; district_ar: string | null; n: number; length_m: number; per_100m: number; sub_ar: string | null } | null
     n_wholesale: number; n_whatsapp: number; n_specialties: number; n_approx: number; n_cr?: number; basis: string
   }
 }
-export type MarketAnalyticsQuery = { city: string; sub_ids?: (string | number)[]; main_id?: string; q?: string; districts?: string[] }
+/** q is resolved locally to taxonomy activities; activity/specialty/district filters intersect. */
+export type MarketAnalyticsQuery = { city: string; sub_ids?: (string | number)[]; main_id?: string; specialty_ids?: string[]; q?: string; districts?: string[] }
 export const districtCounts = (body: MarketAnalyticsQuery) => call<DistrictCounts>('POST', '/district-counts', body)
 export const districtInsights = (body: { city: string; districts: string[] }) => call<DistrictInsights>('POST', '/district-insights', body)
 export const whoBuys = (body: { city: string; q?: string; sub_ids?: (string | number)[] }) => call<WhoBuys>('POST', '/who-buys', body)
@@ -264,6 +266,7 @@ export type SearchFilters = {keyword?:string; category?:string; subcategory?:str
 export type DirectoryFacets = {categories:{value:string;label:string;count:number;subcategories:{value:string;label:string;count:number}[]}[]; size_available:boolean}
 export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
 export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
+export const mapFocusQuery = (query:string, focus:{level:'main'|'sub'|'spec'; id:string; sub_id?:string; specialty_id?:string}) => call<{map_query:string}>('POST','/map-focus',{query,...focus})
 export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
 export const searchTargets = (
   q: string,
@@ -277,7 +280,7 @@ export const searchTargets = (
 ) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false }, retryTransient, onTransientRetryOutcome)
 export const tradeClusters = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[]; wholesale?: boolean; bounds?: [number, number, number, number] }) => call<TradeClusters>('POST', '/clusters', body)
 export type SpecialtySuggestion = { specialty_id: string | number; specialty_ar: string; sub_id?: string | number | null; sub_ar?: string | null; main_ar?: string | null }
-export const suggestSpecialties = (text: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text })
+export const suggestSpecialties = (text: string, mainId?: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text, ...(mainId ? { main_id: mainId } : {}) })
 export type City = { en: string; ar: string | null; n: number }
 /** District polygons of one city (GET /districts?city=Riyadh): properties ar, en, city_en, id. 404 or empty = no polygons for this city. */
 export type DistrictFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, { ar: string; en?: string | null; city_en?: string | null; id: string | number }>
@@ -305,14 +308,13 @@ export const templateFits = (t: MetaTemplate) => {
   const vars = [...new Set((templateBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => m.replace(/\D/g, '')))].sort()
   return vars.join(',') === '1,2'
 }
-/** Valid Saudi mobile for WhatsApp, as the service checks it (9665XXXXXXXX). */
+/** Product assumption: a valid Saudi mobile is treated as a WhatsApp channel (9665XXXXXXXX). */
 /** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaigns: open or temporarily closed with a verified WhatsApp (owner 2026-10-15). */
 export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في هدهد' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
 export const hasUnconfirmedStatus = (r: Pick<TargetRow, 'status_class'>): boolean => ['hidden', 'unknown_empty', 'unknown_invalid'].includes(r.status_class || '')
 export const waNumber = (r: TargetRow) => {
-  if (r.sendable === false) return null
   const n = String(r.phone || '').replace(/[^0-9]/g, '')
-  return r.has_whatsapp && /^9665[0-9]{8}$/.test(n) ? n : null
+  return /^9665[0-9]{8}$/.test(n) ? n : null
 }
 
 /**
