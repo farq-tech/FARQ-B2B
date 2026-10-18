@@ -21,9 +21,11 @@ type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> & {
 }
 
 const SIZE: Record<ButtonSize, { box: string; wide: string; text: string; icon: number }> = {
-  S: { box: 'h-8 px-3 gap-1', wide: 'min-h-8 py-1 px-3 gap-1', text: 'text-[14px] leading-[22px]', icon: 16 },
-  M: { box: 'h-10 px-4 gap-2', wide: 'min-h-10 py-1.5 px-4 gap-2', text: 'text-[16px] leading-[26px]', icon: 20 },
-  L: { box: 'h-12 px-6 gap-2', wide: 'min-h-12 py-2 px-6 gap-2', text: 'text-[16px] leading-[26px]', icon: 20 },
+  // Keep the size prop for call-site compatibility; shared platform actions use
+  // one compact footprint so buttons stay visually consistent between screens.
+  S: { box: 'h-9 px-3 gap-1.5', wide: 'min-h-9 py-1 px-3 gap-1.5', text: 'text-[14px] leading-5', icon: 16 },
+  M: { box: 'h-9 px-3 gap-1.5', wide: 'min-h-9 py-1 px-3 gap-1.5', text: 'text-[14px] leading-5', icon: 16 },
+  L: { box: 'h-9 px-3 gap-1.5', wide: 'min-h-9 py-1 px-3 gap-1.5', text: 'text-[14px] leading-5', icon: 16 },
 }
 
 const STYLE: Record<ButtonStyle, string> = {
@@ -57,8 +59,8 @@ export function Button({ variant = 'Primary', size = 'M', icon, loading, loading
 /** Square icon-only button (Top Bar «Icon button»). Always needs an accessible label. */
 export function IconButton({ icon, label, className, ...rest }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style' | 'children'> & { icon: IconSource; label: string }) {
   return (
-    <button type="button" aria-label={label} title={label} className={cx('fi-motion inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-40', FOCUS_RING, className)} {...rest}>
-      <IconFrom icon={icon} size={20} />
+    <button type="button" aria-label={label} title={label} className={cx('fi-motion inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-40', FOCUS_RING, className)} {...rest}>
+      <IconFrom icon={icon} size={16} />
     </button>
   )
 }

@@ -16,16 +16,16 @@ export function Chip({ label, icon, selected, disabled, onClick, onRemove, class
         disabled={disabled}
         onClick={onClick}
         className={cx(
-          'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] leading-[22px] font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+          'inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] leading-[18px] font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50',
           selected
             ? 'border-[var(--color-border-primary)] bg-[var(--color-bg-primary-subtle)] text-[var(--color-text-info)]'
             : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] enabled:hover:border-[var(--color-border-strong)] enabled:hover:bg-[var(--color-bg-surface-2)] enabled:hover:text-[var(--color-text-primary)] disabled:text-[var(--color-text-tertiary)]',
           FOCUS_RING,
         )}
       >
-        {icon ? <IconFrom icon={icon} size={16} /> : null}
+        {icon ? <IconFrom icon={icon} size={14} /> : null}
         {label}
-        {selected ? <Icon name="check" size={16} /> : null}
+        {selected ? <Icon name="check" size={14} /> : null}
       </button>
       {onRemove ? (
         <button type="button" aria-label={`إزالة ${label}`} onClick={onRemove} disabled={disabled} className={cx('-ms-1 inline-flex items-center rounded-full px-1 text-[var(--color-icon-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50', FOCUS_RING)}>

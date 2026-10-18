@@ -83,7 +83,7 @@ function Gallery() {
               <Button variant={v} loading>x</Button>
             </Row>
           ))}
-          <Row label="Size"><Button size="S" icon="plus">صغير</Button><Button size="M" icon="plus">متوسط</Button><Button size="L" icon="plus">كبير</Button><IconButton icon="bell" label="التنبيهات" /></Row>
+          <Row label="الحجم الموحد"><Button icon="plus">إجراء</Button><IconButton icon="bell" label="التنبيهات" /></Row>
         </Section>
 
         <Section id="input" title="Input" figma="input" note="Default · Hover · Focus · Filled · Error · Disabled">

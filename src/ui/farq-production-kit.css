@@ -3,8 +3,8 @@
 @font-face { font-family: 'ITF Huwiya Arabic'; src: url('/fonts/huwiya-arabic-bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 .farq-glass-button {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  min-height: 48px; max-width: 100%; padding: 11px 18px; border-radius: 14px;
-  font: 700 15px/1.45 'ITF Huwiya Arabic', system-ui, sans-serif;
+  min-height: 36px; max-width: 100%; padding: 7px 12px; border-radius: 12px;
+  font: 700 14px/1.4 'ITF Huwiya Arabic', system-ui, sans-serif;
   border: 1px solid var(--farq-button-border); cursor: pointer;
   background: var(--farq-button-gradient); color: var(--farq-button-ink, var(--white)); box-shadow: var(--farq-button-shadow);
   transition: background 160ms ease-out, box-shadow 160ms ease-out, transform 100ms ease-out;
