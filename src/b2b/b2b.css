@@ -95,7 +95,7 @@
 .farq-skip-link { position:absolute; top:0; right:20px; transform:translateY(-110%); padding:12px; background:var(--color-bg-surface); z-index:90; }
 .farq-skip-link:focus { transform:none; }
 /* Shared existing workflow controls adopt the approved kit without changing API behavior. */
-.farq-b2b .farq-legacy-button { min-height:44px; height:auto; white-space:normal; overflow-wrap:anywhere; font-weight:700; border-radius:14px; }
+.farq-b2b .farq-legacy-button { min-height:36px; height:auto; padding-block:6px; white-space:normal; overflow-wrap:anywhere; font-weight:700; border-radius:12px; }
 .farq-b2b .farq-legacy-button--Primary, .farq-b2b .farq-legacy-button--Accent { background:var(--farq-button-gradient); border:1px solid var(--farq-button-border); color:var(--farq-button-ink, var(--white)); box-shadow:var(--farq-button-shadow); }
 .farq-b2b .farq-legacy-button--Secondary { border-color:var(--farq-glass-border); }
 .farq-b2b .font-\[Readex_Pro\] { font-family:'ITF Huwiya Arabic',sans-serif; }
