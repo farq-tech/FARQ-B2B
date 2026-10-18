@@ -85,4 +85,11 @@ html, body, #root {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
+
+  .map-compact-results-panel > .map-compact-results-panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--color-bg-surface);
+  }
 }
