@@ -2172,7 +2172,13 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       ) : null}
     </section>
   )
-  const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} />
+  const selectedMainId = focus?.level === 'main' ? focus.id : focus?.level === 'sub' ? focus.id.split('.')[0] : focus?.level === 'spec' ? (focus.sub_id || '').split('.')[0] : null
+  const selectMainFromCounter = (mainId: string) => {
+    recordMapInteraction('map_activity_main_select')
+    pickFocus({ level: 'main', id: mainId })
+    setTab('guide')
+  }
+  const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} mobile={mobile} />
   const panelContent = lens === 'market'
     ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
     : <>
@@ -2436,7 +2442,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         {linesPanel}
         {fileField}
         {lens !== 'market' ? <StepStrip current={step} mobile /> : null}
-        <Counters items={displayCounters} compact />
+        <Counters items={displayCounters} compact selectedMainId={selectedMainId} onActivitySelect={selectMainFromCounter} />
         {tray}
         {noticeLine}
         <section ref={resultsPanelRef} aria-label="النتائج والدليل" className={`${mobile ? 'map-compact-results-panel ' : ''}-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3`}>
@@ -2481,7 +2487,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         </aside>
         <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
           {lens !== 'market' ? <StepStrip current={step} mobile={false} /> : null}
-          <Counters items={displayCounters} />
+          <Counters items={displayCounters} selectedMainId={selectedMainId} onActivitySelect={selectMainFromCounter} />
           {mapBlock}
           {noticeLine}
           {tray}
