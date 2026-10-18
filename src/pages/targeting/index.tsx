@@ -390,6 +390,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
   const resultCountSummary = res ? `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً` : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
+  const unverifiedWhatsappCount = useMemo(() => visibleCohort.filter((row) => channelOf(row) === 'WhatsApp' && row.whatsapp_verification_state !== 'verified').length, [visibleCohort])
   const statusNoticeKey = res ? `${res.map_query || ''}|${res.total}|${res.rows[0]?.poi_key || ''}|${unconfirmedStatusCount}` : ''
   const lastStatusNoticeKey = useRef('')
   useEffect(() => {
@@ -1055,9 +1056,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   ) : (
     <div aria-busy={busy}>
       {busy ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">جارٍ تحديث النتائج. ستتمكن من اختيار المنشآت بعد اكتمال البحث.</p> : null}
-      {unconfirmedStatusCount ? <p role="status" className="mx-3 mt-3 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">
-        حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة ضمن نتائج البحث الحالية. تأكد من أنها تعمل قبل التواصل.
-      </p> : null}
       <ul>
         {visibleCohort.slice(0, shown).map(resultCard)}
         {shown < visibleCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleCohort.length - shown))} أكثر</Button></li> : null}
@@ -1153,6 +1151,12 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           {fitFilter !== 'all' ? <span> · تقدير الملاءمة للفرز فقط</span> : null}
           {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
         </p>
+      ) : null}
+      {hasTargetQuery && res && (unverifiedWhatsappCount > 0 || unconfirmedStatusCount > 0) ? (
+        <div role="status" className="mb-3 flex flex-col gap-1 rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">
+          {unverifiedWhatsappCount > 0 ? <p className="m-0">وسم واتساب من المصدر؛ لم يتم التحقق من استقبال الرقم للرسائل.</p> : null}
+          {unconfirmedStatusCount > 0 ? <p className="m-0">حالة التشغيل غير مؤكدة لـ {n(unconfirmedStatusCount)} من {n(visibleCohort.length)} منشأة. تحقق من نشاطها قبل التواصل.</p> : null}
+        </div>
       ) : null}
     </div>
   )
