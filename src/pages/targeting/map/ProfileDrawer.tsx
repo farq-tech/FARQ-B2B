@@ -35,6 +35,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
     return () => document.removeEventListener('keydown', onKey)
   }, [row.poi_key])
   const m = mainIdOf(row), s = subIdOf(row)
+  const sourceActivity = m === 'unc' ? row.category_ar?.trim() : null
   const roles = rolesOf(row), specs = specsOf(row)
   const done = completenessOf(row)
   const sources = row.source_count ?? row.sources?.length ?? null
@@ -70,7 +71,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
           <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--map-ink)] text-white"><MapIcon name={mainIcon(m)} size={20} /></span>
           <div className="flex min-w-0 flex-col">
             <h3 id={titleId} ref={heading} tabIndex={-1} className="text-[18px] leading-[28px] font-semibold text-balance outline-none">{safeName(row)}</h3>
-            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><span className="font-medium text-[var(--color-text-primary)]">{mainAr(m)}</span>{subAr(s) ? <> ▸ {subAr(s)}</> : null}</p>
+            <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]"><span className="font-medium text-[var(--color-text-primary)]">{m === 'unc' ? `تصنيف فرق: ${mainAr(m)}` : mainAr(m)}</span>{subAr(s) ? <> ▸ {subAr(s)}</> : null}</p>
           </div>
         </div>
         <button type="button" aria-label="إغلاق ملف المنشأة" onClick={onClose} className={`flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-default)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={16} /></button>
@@ -81,6 +82,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
           <p className="m-0 font-medium">{matchReason}</p>
           <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تقدير الملاءمة: {fitLabel}. {fitBasis || 'المطابقة إشارة من النشاط والبيانات، وليست تأكيداً لتوفر المنتج أو قبول المورد للطلب.'}</p>
         </section>
+        {sourceActivity ? <p className="rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">النشاط الوارد في الدليل: <span className="font-medium text-[var(--color-text-primary)]">{sourceActivity}</span>. لم يُربط هذا الوصف بتصنيف فرق بعد، ولا يؤكد صحته.</p> : null}
         {roles.length ? (
           <div className="flex flex-col gap-1.5"><p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الدور</p><div className="flex flex-wrap gap-1.5">{roles.map((x) => <RoleChip key={x} role={x} />)}</div></div>
         ) : null}

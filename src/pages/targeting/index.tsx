@@ -71,7 +71,12 @@ const pickForFit = (rows: TargetRow[], fitFilter: PinFit | 'all') => {
   return new Set(rows.filter((r) => waNumber(r) && (!prioritizeLikely || r.ai === 'L')).map((r) => r.poi_key))
 }
 const placeOf = (r: TargetRow) => [safeLocationName(r.street_ar), safeLocationName(r.district_ar) || safeLocationName(r.district_en), safeLocationName(r.region_ar) || safeLocationName(r.city_en)].filter(Boolean).join(' · ')
-const pathOf = (r: TargetRow) => { const m = mainIdOf(r), s = subAr(subIdOf(r)); return s ? `${mainAr(m)} ▸ ${s}` : r.taxonomy_sub ? mainAr(m) : r.category_ar || '' }
+const pathOf = (r: TargetRow) => {
+  const m = mainIdOf(r), s = subAr(subIdOf(r))
+  if (s) return `${mainAr(m)} ▸ ${s}`
+  if (m !== 'unc') return mainAr(m)
+  return r.category_ar ? `نشاط الدليل · ${r.category_ar}` : ''
+}
 const FIT = { L: { tone: 'Success', label: 'مناسب', icon: SuccessIcon }, M: { tone: 'Warning', label: 'محتمل', icon: WarningIcon }, N: { tone: 'Neutral', label: 'غير مناسب', icon: ErrorIcon } } as const
 const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} icon={FIT[r.ai].icon} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" icon={WarningIcon} label={l} className="text-[12px] leading-[18px]" /> : null }
