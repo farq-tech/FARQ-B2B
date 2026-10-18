@@ -21,6 +21,8 @@
  *                             the dev server always answers 403.
  */
 
+import { recordMapInteraction } from '../lib/mapAnalytics'
+
 export type TargetRow = {
   category_main?: string
   subcategories?: string[]
@@ -140,7 +142,14 @@ export type StreetLine = GeoJSON.Feature<GeoJSON.LineString | GeoJSON.MultiLineS
 export type StreetDensity = { type?: 'FeatureCollection'; features: StreetLine[]; basis?: string }
 /** No activity = the densest streets of ALL activities in the city (up to 80, by n). districts narrows to those districts. */
 export type StreetDensityQuery = { city: string; q?: string; objective?: string; main_id?: string; sub_ids?: (string | number)[]; districts?: string[] }
-export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('POST', '/street-density', body, true)
+export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('POST', '/street-density', body, true, (outcome) => {
+  const event = outcome === 'retrying'
+    ? 'map_street_density_auto_retry'
+    : outcome === 'recovered'
+      ? 'map_street_density_auto_retry_recovered'
+      : 'map_street_density_auto_retry_failed'
+  recordMapInteraction(event)
+})
 /** Which activities have dense streets in this city (optionally inside these districts): mains with their subs, counts. */
 export type StreetCatalog = { mains: { main_id: string; main_ar: string; streets: number; shops: number; subs: { sub_id: string | number; sub_ar: string; streets: number; shops: number }[] }[] }
 export const streetCatalog = (body: { city: string; districts?: string[] }) => call<StreetCatalog>('POST', '/street-density/catalog', body)
@@ -179,9 +188,21 @@ export class TargetingError extends Error {
   constructor(public code: string, message: string) { super(message) }
 }
 
-async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown, retryTransient = false): Promise<T> {
+type TransientRetryOutcome = 'retrying' | 'recovered' | 'failed'
+
+async function call<T>(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  retryTransient = false,
+  onTransientRetryOutcome?: (outcome: TransientRetryOutcome) => void,
+): Promise<T> {
   const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
   const request = { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' as const }
+  const notifyRetry = (outcome: TransientRetryOutcome) => {
+    try { onTransientRetryOutcome?.(outcome) } catch { /* telemetry must not affect the request */ }
+  }
+  let retried = false
   let r: Response
   for (let attempt = 0; ; attempt++) {
     try {
@@ -189,18 +210,29 @@ async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown, ret
     } catch (error) {
       // Explicitly opted-in map reads are idempotent. Recover once from a dropped network
       // connection; let aborts and all other errors keep their normal behavior.
-      if (!retryTransient || attempt > 0 || !(error instanceof TypeError)) throw error
+      if (!retryTransient || attempt > 0 || !(error instanceof TypeError)) {
+        if (retried) notifyRetry('failed')
+        throw error
+      }
+      retried = true
+      notifyRetry('retrying')
       await new Promise(resolve => window.setTimeout(resolve, 200))
       continue
     }
     if (!retryTransient || attempt > 0 || ![502, 503, 504].includes(r.status)) break
+    retried = true
+    notifyRetry('retrying')
     await new Promise(resolve => window.setTimeout(resolve, 200))
   }
   let data: unknown = null
   try { data = await r.json() } catch { /* empty or not JSON */ }
   const d = (data || {}) as { error?: string; message_ar?: string }
   // PRAYER_WINDOW: server.py holds campaign sends during prayer (owner rule 2026-10-16) and says until when
-  if (!r.ok) throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
+  if (!r.ok) {
+    if (retried) notifyRetry('failed')
+    throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.')
+  }
+  if (retried) notifyRetry('recovered')
   return data as T
 }
 
