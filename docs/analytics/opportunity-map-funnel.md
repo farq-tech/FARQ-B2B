@@ -7,6 +7,7 @@ Run this query against the **main application database used by `api.farq.sa`** (
 ```sql
 WITH map_events AS (
   SELECT
+    id,
     session_id,
     occurred_at,
     element_label
@@ -38,7 +39,7 @@ WITH map_events AS (
 search_sessions AS (
   SELECT
     session_id,
-    min(occurred_at) FILTER (
+    (array_agg(occurred_at ORDER BY id) FILTER (
       WHERE element_label IN (
         'pricing_map_map_search',
         'pricing_map_map_search_results_empty',
@@ -46,7 +47,16 @@ search_sessions AS (
         'pricing_map_map_search_results_5_plus',
         'pricing_map_map_search_failed'
       )
-    ) AS searched_at
+    ))[1] AS searched_at,
+    min(id) FILTER (
+      WHERE element_label IN (
+        'pricing_map_map_search',
+        'pricing_map_map_search_results_empty',
+        'pricing_map_map_search_results_1_4',
+        'pricing_map_map_search_results_5_plus',
+        'pricing_map_map_search_failed'
+      )
+    ) AS searched_id
   FROM map_events
   GROUP BY session_id
   HAVING count(*) FILTER (
@@ -63,37 +73,38 @@ search_actions AS (
   SELECT
     s.session_id,
     s.searched_at,
-    min(e.occurred_at) FILTER (
+    s.searched_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_results_shortcut_seen'
-        AND e.occurred_at > s.searched_at
-    ) AS results_shortcut_seen_at,
-    min(e.occurred_at) FILTER (
+        AND e.id > s.searched_id
+    ) AS results_shortcut_seen_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_results_jump'
-        AND e.occurred_at > s.searched_at
-    ) AS results_jumped_at,
-    min(e.occurred_at) FILTER (
+        AND e.id > s.searched_id
+    ) AS results_jumped_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_district_select'
-        AND e.occurred_at > s.searched_at
-    ) AS district_selected_after_search_at,
-    min(e.occurred_at) FILTER (
+        AND e.id > s.searched_id
+    ) AS district_selected_after_search_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_street_select'
-        AND e.occurred_at > s.searched_at
-    ) AS street_selected_after_search_at,
-    min(e.occurred_at) FILTER (
+        AND e.id > s.searched_id
+    ) AS street_selected_after_search_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_open'
-        AND e.occurred_at > s.searched_at
-    ) AS profile_after_search_at,
-    min(e.occurred_at) FILTER (
+        AND e.id > s.searched_id
+    ) AS profile_after_search_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_status_unconfirmed'
-        AND e.occurred_at > s.searched_at
-    ) AS unconfirmed_status_profile_at,
-    min(e.occurred_at) FILTER (
+        AND e.id > s.searched_id
+    ) AS unconfirmed_status_profile_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_whatsapp_unverified'
-        AND e.occurred_at > s.searched_at
-    ) AS unverified_whatsapp_profile_at
+        AND e.id > s.searched_id
+    ) AS unverified_whatsapp_profile_id
   FROM search_sessions s
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY s.session_id, s.searched_at
+  GROUP BY s.session_id, s.searched_at, s.searched_id
 ),
 session_context AS (
   SELECT
@@ -117,8 +128,8 @@ session_context AS (
         'pricing_map_map_search_results_5_plus',
         'pricing_map_map_search_failed'
       )
-      AND e.occurred_at <= COALESCE(s.results_shortcut_seen_at, s.searched_at)
-    ORDER BY e.occurred_at DESC
+      AND e.id <= COALESCE(s.results_shortcut_seen_id, s.searched_id)
+    ORDER BY e.id DESC
     LIMIT 1
   ) result_bucket ON true
 ),
@@ -126,70 +137,71 @@ session_steps AS (
   SELECT
     s.session_id,
     s.searched_at,
+    s.searched_id,
     s.result_bucket,
-    s.results_shortcut_seen_at,
-    s.results_jumped_at,
-    s.district_selected_after_search_at,
-    s.street_selected_after_search_at,
-    s.profile_after_search_at,
-    s.unconfirmed_status_profile_at,
-    s.unverified_whatsapp_profile_at,
-    min(e.occurred_at) FILTER (
+    s.results_shortcut_seen_id,
+    s.results_jumped_id,
+    s.district_selected_after_search_id,
+    s.street_selected_after_search_id,
+    s.profile_after_search_id,
+    s.unconfirmed_status_profile_id,
+    s.unverified_whatsapp_profile_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_district_select'
-        AND s.results_shortcut_seen_at IS NOT NULL
-        AND e.occurred_at > s.results_shortcut_seen_at
-    ) AS district_selected_after_shortcut_at,
-    min(e.occurred_at) FILTER (
+        AND s.results_shortcut_seen_id IS NOT NULL
+        AND e.id > s.results_shortcut_seen_id
+    ) AS district_selected_after_shortcut_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_street_select'
-        AND s.results_shortcut_seen_at IS NOT NULL
-        AND e.occurred_at > s.results_shortcut_seen_at
-    ) AS street_selected_after_shortcut_at,
-    min(e.occurred_at) FILTER (
+        AND s.results_shortcut_seen_id IS NOT NULL
+        AND e.id > s.results_shortcut_seen_id
+    ) AS street_selected_after_shortcut_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_result_profile_open'
-        AND s.results_shortcut_seen_at IS NOT NULL
-        AND s.results_jumped_at > s.results_shortcut_seen_at
-        AND e.occurred_at > s.results_jumped_at
-    ) AS profile_after_results_jump_at,
-    min(e.occurred_at) FILTER (
+        AND s.results_shortcut_seen_id IS NOT NULL
+        AND s.results_jumped_id > s.results_shortcut_seen_id
+        AND e.id > s.results_jumped_id
+    ) AS profile_after_results_jump_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_quote_start'
-        AND s.profile_after_search_at IS NOT NULL
-        AND e.occurred_at > s.profile_after_search_at
-    ) AS quote_after_profile_at,
-    min(e.occurred_at) FILTER (
+        AND s.profile_after_search_id IS NOT NULL
+        AND e.id > s.profile_after_search_id
+    ) AS quote_after_profile_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_quote_start'
-        AND s.unconfirmed_status_profile_at IS NOT NULL
-        AND e.occurred_at > s.unconfirmed_status_profile_at
-    ) AS quote_after_unconfirmed_status_at,
-    min(e.occurred_at) FILTER (
+        AND s.unconfirmed_status_profile_id IS NOT NULL
+        AND e.id > s.unconfirmed_status_profile_id
+    ) AS quote_after_unconfirmed_status_id,
+    min(e.id) FILTER (
       WHERE e.element_label = 'pricing_map_map_profile_quote_start'
-        AND s.unverified_whatsapp_profile_at IS NOT NULL
-        AND e.occurred_at > s.unverified_whatsapp_profile_at
-    ) AS quote_after_unverified_whatsapp_at
+        AND s.unverified_whatsapp_profile_id IS NOT NULL
+        AND e.id > s.unverified_whatsapp_profile_id
+    ) AS quote_after_unverified_whatsapp_id
   FROM session_context s
   LEFT JOIN map_events e USING (session_id)
-  GROUP BY s.session_id, s.searched_at, s.result_bucket, s.results_shortcut_seen_at, s.results_jumped_at,
-    s.district_selected_after_search_at, s.street_selected_after_search_at, s.profile_after_search_at,
-    s.unconfirmed_status_profile_at, s.unverified_whatsapp_profile_at
+  GROUP BY s.session_id, s.searched_at, s.searched_id, s.result_bucket, s.results_shortcut_seen_id, s.results_jumped_id,
+    s.district_selected_after_search_id, s.street_selected_after_search_id, s.profile_after_search_id,
+    s.unconfirmed_status_profile_id, s.unverified_whatsapp_profile_id
 ),
 weekly AS (
   SELECT
     date_trunc('week', searched_at AT TIME ZONE 'UTC') AS week_utc,
     result_bucket,
     count(*) AS search_sessions,
-    count(*) FILTER (WHERE district_selected_after_search_at IS NOT NULL OR street_selected_after_search_at IS NOT NULL) AS area_select_sessions,
-    count(*) FILTER (WHERE district_selected_after_search_at IS NOT NULL) AS district_select_sessions,
-    count(*) FILTER (WHERE street_selected_after_search_at IS NOT NULL) AS street_select_sessions,
-    count(*) FILTER (WHERE profile_after_search_at IS NOT NULL) AS profile_after_search_sessions,
-    count(*) FILTER (WHERE unconfirmed_status_profile_at IS NOT NULL) AS unconfirmed_status_profile_sessions,
-    count(*) FILTER (WHERE unverified_whatsapp_profile_at IS NOT NULL) AS unverified_whatsapp_profile_sessions,
-    count(*) FILTER (WHERE results_shortcut_seen_at IS NOT NULL) AS results_shortcut_seen_sessions,
-    count(*) FILTER (WHERE results_jumped_at > results_shortcut_seen_at) AS results_jump_sessions,
-    count(*) FILTER (WHERE district_selected_after_shortcut_at IS NOT NULL) AS district_select_after_shortcut_sessions,
-    count(*) FILTER (WHERE street_selected_after_shortcut_at IS NOT NULL) AS street_select_after_shortcut_sessions,
-    count(*) FILTER (WHERE profile_after_results_jump_at IS NOT NULL) AS profile_after_results_jump_sessions,
-    count(*) FILTER (WHERE quote_after_profile_at IS NOT NULL) AS quote_after_profile_sessions,
-    count(*) FILTER (WHERE quote_after_unconfirmed_status_at IS NOT NULL) AS quote_after_unconfirmed_status_sessions,
-    count(*) FILTER (WHERE quote_after_unverified_whatsapp_at IS NOT NULL) AS quote_after_unverified_whatsapp_sessions
+    count(*) FILTER (WHERE district_selected_after_search_id IS NOT NULL OR street_selected_after_search_id IS NOT NULL) AS area_select_sessions,
+    count(*) FILTER (WHERE district_selected_after_search_id IS NOT NULL) AS district_select_sessions,
+    count(*) FILTER (WHERE street_selected_after_search_id IS NOT NULL) AS street_select_sessions,
+    count(*) FILTER (WHERE profile_after_search_id IS NOT NULL) AS profile_after_search_sessions,
+    count(*) FILTER (WHERE unconfirmed_status_profile_id IS NOT NULL) AS unconfirmed_status_profile_sessions,
+    count(*) FILTER (WHERE unverified_whatsapp_profile_id IS NOT NULL) AS unverified_whatsapp_profile_sessions,
+    count(*) FILTER (WHERE results_shortcut_seen_id IS NOT NULL) AS results_shortcut_seen_sessions,
+    count(*) FILTER (WHERE results_jumped_id > results_shortcut_seen_id) AS results_jump_sessions,
+    count(*) FILTER (WHERE district_selected_after_shortcut_id IS NOT NULL) AS district_select_after_shortcut_sessions,
+    count(*) FILTER (WHERE street_selected_after_shortcut_id IS NOT NULL) AS street_select_after_shortcut_sessions,
+    count(*) FILTER (WHERE profile_after_results_jump_id IS NOT NULL) AS profile_after_results_jump_sessions,
+    count(*) FILTER (WHERE quote_after_profile_id IS NOT NULL) AS quote_after_profile_sessions,
+    count(*) FILTER (WHERE quote_after_unconfirmed_status_id IS NOT NULL) AS quote_after_unconfirmed_status_sessions,
+    count(*) FILTER (WHERE quote_after_unverified_whatsapp_id IS NOT NULL) AS quote_after_unverified_whatsapp_sessions
   FROM session_steps
   GROUP BY 1, 2
 )
@@ -633,7 +645,7 @@ ORDER BY week_utc DESC, prompt_type;
 
 Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentages. Profile opens are a navigation signal, not proof of relevance, contact, or a successful match. Pair them with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.
 
-> **ترتيب الأحداث:** قد تحمل أحداث الدفعة الواحدة قيمة `occurred_at` نفسها لأن PostgreSQL يعيد `now()` نفسه طوال المعاملة. يستخدم هذا الاستعلام `id` لترتيب الإدخال، لا وقت حدوث الحدث على جهاز المستخدم؛ وقد يختلف ترتيب وصول دفعتين متزامنتين عن ترتيب تفاعل المستخدم. يبقى `occurred_at` وقت استقبال تقريبي للتجميع الأسبوعي. هذا الاستعلام وحده يستخدم `id` حالياً؛ الاستعلام الرئيسي وبقية استعلامات التسلسل لم تُحدّث، فلا تستخدم نتائجها لاستنتاج التحويل قبل تعديلها.
+> **ترتيب الأحداث:** قد تحمل أحداث الدفعة الواحدة قيمة `occurred_at` نفسها لأن PostgreSQL يعيد `now()` نفسه طوال المعاملة. القمع الرئيسي وقمع البحث بحسب الدور يستخدمان `id` لترتيب الإدخال، لا وقت حدوث الحدث على جهاز المستخدم؛ وقد يختلف ترتيب وصول دفعتين متزامنتين عن ترتيب تفاعل المستخدم. يبقى `occurred_at` وقت استقبال تقريبي لتحديد نافذة القياس والتجميع الأسبوعي. لا تزال استعلامات تسلسل النشاط والـfocus والـportal والـwholesale في هذا المستند تقارن `occurred_at`، فلا تستخدم نتائجها لاستنتاج التحويل قبل تحديثها. كما أن قمع البحث يجمع الأحداث على مستوى الجلسة، ولا يمثل معدل تحويل لكل عملية بحث عند تكرار البحث في الجلسة.
 
 ## Map legend control exposure and use
 
