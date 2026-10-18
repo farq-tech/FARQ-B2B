@@ -1201,7 +1201,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
-      {(query || q.trim() || Object.values(filters).some(Boolean) || chosenD.size || streetPick.kind !== 'all' || focus || site) ? <button type="button" disabled={busy} onClick={clearMapToCity} className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-text-info)] shadow-[var(--farq-soft-shadow)] disabled:opacity-60 md:min-h-8 ${FOCUS_RING}`}>مسح الكل</button> : null}
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
           onClick={() => {
@@ -2040,6 +2039,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <label className="sr-only" htmlFor="targeting-q">وش تبي توصل له؟</label>
       <input id="targeting-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={objective === 'marketing' ? (mobile ? SELL_PLACEHOLDER_SHORT : SELL_PLACEHOLDER) : (mobile ? BUY_PLACEHOLDER_SHORT : BUY_PLACEHOLDER)}
         className={`min-w-0 flex-1 bg-transparent ${mobile ? 'text-[16px]' : 'text-[17px]'} leading-[28px] outline-none placeholder:text-[var(--color-text-tertiary)]`} />
+      {(query || q.trim() || Object.values(filters).some(Boolean) || chosenD.size || streetPick.kind !== 'all' || focus || site) ? <button type="button" aria-label="مسح الكل وعرض سوق المدينة" title="مسح الكل" disabled={busy} onClick={clearMapToCity} className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-icon-secondary)] hover:bg-[var(--color-bg-surface-2)] disabled:opacity-50 ${FOCUS_RING}`}><Icon name="x" size={16} /></button> : null}
       {citySelect(mobile ? 'max-w-[112px] text-[14px]' : 'w-[160px] text-[15px] rounded-full')}
       <Button type="submit" variant="Primary" size={mobile ? 'S' : 'M'} disabled={!q.trim() || !city || busy} loading={busyKind === 'search'} loadingLabel={mobile ? 'بحث…' : 'جارٍ البحث…'}>ابحث</Button>
     </form>
