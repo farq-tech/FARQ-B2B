@@ -168,6 +168,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
   const [showMapPins, setShowMapPins] = useState(true)
+  const [showMarketClusters, setShowMarketClusters] = useState(true)
   const [showDensity, setShowDensity] = useState(true)
   const [showDistricts, setShowDistricts] = useState(true)
   const [showStreets, setShowStreets] = useState(true)
@@ -2063,19 +2064,34 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}
-        showDensity={showDensity} showDistricts={showDistricts} showPlaces={showMapPins} showStreets={showStreets}
+        showDensity={showDensity} showDistricts={showDistricts} showClusters={showMarketClusters} showPlaces={showMapPins} showStreets={showStreets}
         site={site} placingSite={placingSite} onPlaceSite={(lat, lon) => { setSite({ lat, lon, km: site?.km || 10 }); setPlacingSite(false); setShowUnlocated(false) }} fit={fit} extent={extent} />
       <div ref={layerControlRef} className="pointer-events-none absolute bottom-3 end-3 z-30">
-        {layersOpen ? <div id="map-layer-options" role="group" aria-label="إظهار طبقات الخريطة" className="pointer-events-auto mb-2 w-[min(260px,calc(100vw-48px))] rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-3 shadow-[var(--farq-soft-shadow)] backdrop-blur-xl">
+        {layersOpen ? <div id="map-layer-options" role="group" aria-label="إظهار طبقات الخريطة" className="pointer-events-auto mb-2 max-h-[calc(100%-56px)] w-[min(300px,calc(100vw-48px))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-3 shadow-[var(--farq-soft-shadow)] backdrop-blur-xl">
           <div className="mb-2 flex items-center justify-between gap-3 px-1">
-            <span className="text-[13px] font-semibold">طبقات الخريطة</span>
+            <span className="text-[13px] font-semibold">طبقات السوق</span>
             <button type="button" aria-label="إغلاق طبقات الخريطة" onClick={() => setLayersOpen(false)} className={`flex size-8 items-center justify-center rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={16} /></button>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Switch className="w-full justify-between" label="نقاط المنشآت" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} />
-            <Switch className="w-full justify-between" label="الشوارع الكثيفة" checked={showStreets} onChange={(event) => { const on = event.currentTarget.checked; setShowStreets(on); recordMapInteraction(on ? 'map_filter_layer_streets_on' : 'map_filter_layer_streets_off') }} />
-            <Switch className="w-full justify-between" label="تدرج الأحياء" checked={showDensity} onChange={(event) => { const on = event.currentTarget.checked; setShowDensity(on); recordMapInteraction(on ? 'map_filter_layer_density_on' : 'map_filter_layer_density_off') }} />
-            <Switch className="w-full justify-between" label="حدود الأحياء" checked={showDistricts} onChange={(event) => { const on = event.currentTarget.checked; setShowDistricts(on); recordMapInteraction(on ? 'map_filter_layer_districts_on' : 'map_filter_layer_districts_off') }} />
+          <div className="flex flex-col gap-2">
+            <section aria-labelledby="map-layer-city" className="rounded-xl bg-[var(--color-bg-surface-2)]/70 p-2">
+              <h3 id="map-layer-city" className="m-0 px-2 pb-1 text-[11px] font-semibold text-[var(--color-text-secondary)]">المدينة · بؤر السوق</h3>
+              <Switch className="w-full justify-between" label="تجمعات النشاط" description="مواقع مجمّعة وأعدادها" checked={showMarketClusters} onChange={(event) => { const on = event.currentTarget.checked; setShowMarketClusters(on); recordMapInteraction(on ? 'map_filter_layer_city_on' : 'map_filter_layer_city_off') }} />
+            </section>
+            <section aria-labelledby="map-layer-districts" className="rounded-xl bg-[var(--color-bg-surface-2)]/70 p-2">
+              <h3 id="map-layer-districts" className="m-0 px-2 pb-1 text-[11px] font-semibold text-[var(--color-text-secondary)]">الأحياء · قارن واختر</h3>
+              <div className="flex flex-col gap-1.5">
+                <Switch className="w-full justify-between" label="تدرج الكثافة" description="الأغمق يعني منشآت أكثر" checked={showDensity} onChange={(event) => { const on = event.currentTarget.checked; setShowDensity(on); recordMapInteraction(on ? 'map_filter_layer_density_on' : 'map_filter_layer_density_off') }} />
+                <Switch className="w-full justify-between" label="حدود وأسماء الأحياء" checked={showDistricts} onChange={(event) => { const on = event.currentTarget.checked; setShowDistricts(on); recordMapInteraction(on ? 'map_filter_layer_districts_on' : 'map_filter_layer_districts_off') }} />
+              </div>
+            </section>
+            <section aria-labelledby="map-layer-streets" className="rounded-xl bg-[var(--color-bg-surface-2)]/70 p-2">
+              <h3 id="map-layer-streets" className="m-0 px-2 pb-1 text-[11px] font-semibold text-[var(--color-text-secondary)]">الشوارع · كثافة النشاط</h3>
+              <Switch className="w-full justify-between" label="الشوارع الكثيفة" description="اضغط الشارع لتضييق النتائج" checked={showStreets} onChange={(event) => { const on = event.currentTarget.checked; setShowStreets(on); recordMapInteraction(on ? 'map_filter_layer_streets_on' : 'map_filter_layer_streets_off') }} />
+            </section>
+            <section aria-labelledby="map-layer-places" className="rounded-xl bg-[var(--color-bg-surface-2)]/70 p-2">
+              <h3 id="map-layer-places" className="m-0 px-2 pb-1 text-[11px] font-semibold text-[var(--color-text-secondary)]">التفاصيل</h3>
+              <Switch className="w-full justify-between" label="نقاط المنشآت" description="المواقع الفردية وملفاتها" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} />
+            </section>
           </div>
         </div> : null}
         <button type="button" aria-label="طبقات الخريطة" aria-expanded={layersOpen} aria-controls="map-layer-options" aria-pressed={layersOpen} onClick={() => setLayersOpen((open) => !open)} className={`pointer-events-auto flex size-11 items-center justify-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 text-[var(--color-text-primary)] shadow-[var(--farq-soft-shadow)] backdrop-blur-md transition-colors hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING} ${layersOpen ? 'text-[var(--color-text-info)]' : ''}`}><Icon name="layers" size={19} /></button>

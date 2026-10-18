@@ -27,6 +27,8 @@ const MAP_EVENTS = [
   'map_district_clear',
   'map_filter_layer_density_on',
   'map_filter_layer_density_off',
+  'map_filter_layer_city_on',
+  'map_filter_layer_city_off',
   'map_filter_layer_districts_on',
   'map_filter_layer_districts_off',
   'map_filter_layer_places_on',
