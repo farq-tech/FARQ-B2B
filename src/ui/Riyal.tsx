@@ -10,13 +10,13 @@ import { RiyalSign } from './icons/RiyalSign'
 export { RiyalSign }
 
 export type VatBasis = 'incl' | 'excl'
-export const VAT_NOTE: Record<VatBasis, string> = { incl: 'شامل الضريبة ١٥٪', excl: 'قبل الضريبة' }
+export const VAT_NOTE: Record<VatBasis, string> = { incl: 'شامل الضريبة 15%', excl: 'قبل الضريبة' }
 
 /** «12,500.00» with the riyal sign after the number (Arabic order), digits kept left-to-right. */
 export const formatSar = (v: number, decimals = 2) => v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 
 /**
- * A price: number + riyal sign, and — when the basis is known — «شامل الضريبة ١٥٪» or «قبل الضريبة».
+ * A price: number + riyal sign, and — when the basis is known — «شامل الضريبة 15%» or «قبل الضريبة».
  * `vat` null = the source does not say (nothing is claimed).
  */
 export function Money({ amount, vat, decimals = 2, className, noteClassName, children }: { amount: number | string; vat?: VatBasis | null; decimals?: number; className?: string; noteClassName?: string; children?: ReactNode }) {

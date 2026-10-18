@@ -130,7 +130,7 @@ test.describe('CR / VAT / national address', () => {
     expect(isValidCr('10101234567')).toBe(false)
     expect(isValidCr('10101234a6')).toBe(false)
     expect(crError('')).toBeNull()
-    expect(crError('123')).toBe('السجل التجاري ١٠ أرقام.')
+    expect(crError('123')).toBe('السجل التجاري 10 أرقام.')
   })
   test('VAT: 15 digits, starts and ends with 3', () => {
     expect(isValidVat('300000000000003')).toBe(true)
@@ -138,7 +138,7 @@ test.describe('CR / VAT / national address', () => {
     expect(isValidVat('210123456700003')).toBe(false)
     expect(isValidVat('310123456700002')).toBe(false)
     expect(isValidVat('31012345670003')).toBe(false)
-    expect(vatError('31012345670003')).toBe('الرقم الضريبي ١٥ رقمًا.')
+    expect(vatError('31012345670003')).toBe('الرقم الضريبي 15 رقمًا.')
     expect(vatError('310123456700002')).toBe('الرقم الضريبي يبدأ بـ 3 وينتهي بـ 3.')
     expect(vatError('')).toBeNull()
   })

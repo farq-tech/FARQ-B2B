@@ -198,7 +198,7 @@ for (const width of [390,1440]) test(`تحميل كل الصفحات والفل�
   await page.getByLabel('الأسماء التي تحتوي البحث فقط').check();await page.getByLabel('كلمة البحث في الاسم أولًا').check()
   await page.getByRole('button',{name:'تطبيق الفلاتر',exact:true}).click();await expect(page.locator('.farq-results article')).toHaveCount(7)
   expect(calls.at(-1).filters).toMatchObject({category:'Shopping',subcategory:'Tiles',entity_type:'company',name_only:true,sort:'name_first'})
-  await page.getByRole('button',{name:'كل نقاط السجل',exact:true}).click();await expect(page.getByText(/١٬٥٠٠ جهة وفق الفلاتر/)).toBeVisible()
+  await page.getByRole('button',{name:'كل نقاط السجل',exact:true}).click();await expect(page.getByText(/1٬500 جهة وفق الفلاتر/)).toBeVisible()
   expect(calls.at(-1).filters).toMatchObject({category:'Shopping',subcategory:'Tiles',entity_type:'company'})
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true)
 })

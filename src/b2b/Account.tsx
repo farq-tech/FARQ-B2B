@@ -105,15 +105,15 @@ export default function Account() {
       <fieldset disabled={!editable} className="farq-account-grid m-0 border-0 p-0">
         <legend className="mb-3 text-[16px] leading-[26px] font-semibold">البيانات النظامية</legend>
         <Field label="السجل التجاري" hint="10 أرقام" error={show(errors.crNumber)}>
-          {({ id, describedBy, invalid }) => <input id={id} inputMode="numeric" dir="ltr" maxLength={14} autoComplete="off" value={profile.crNumber} aria-invalid={invalid} aria-describedby={describedBy} onChange={e => setProfile(p => ({ ...p, crNumber: e.target.value }))} placeholder="1010123456" />}
+          {({ id, describedBy, invalid }) => <input id={id} inputMode="numeric" lang="en" dir="ltr" maxLength={14} autoComplete="off" value={profile.crNumber} aria-invalid={invalid} aria-describedby={describedBy} onChange={e => setProfile(p => ({ ...p, crNumber: e.target.value }))} placeholder="1010123456" />}
         </Field>
         <Field label="الرقم الضريبي" hint="15 رقمًا، يبدأ بـ 3 وينتهي بـ 3" error={show(errors.vatNumber)}>
-          {({ id, describedBy, invalid }) => <input id={id} inputMode="numeric" dir="ltr" maxLength={19} autoComplete="off" value={profile.vatNumber} aria-invalid={invalid} aria-describedby={describedBy} onChange={e => setProfile(p => ({ ...p, vatNumber: e.target.value }))} placeholder="3XXXXXXXXXXXXX3" />}
+          {({ id, describedBy, invalid }) => <input id={id} inputMode="numeric" lang="en" dir="ltr" maxLength={19} autoComplete="off" value={profile.vatNumber} aria-invalid={invalid} aria-describedby={describedBy} onChange={e => setProfile(p => ({ ...p, vatNumber: e.target.value }))} placeholder="3XXXXXXXXXXXXX3" />}
         </Field>
       </fieldset>
       <fieldset disabled={!editable} className="farq-account-grid m-0 border-0 p-0">
         <legend className="mb-1 text-[16px] leading-[26px] font-semibold">العنوان الوطني</legend>
-        <p className="farq-muted col-span-full -mt-2">من سُبل (العنوان الوطني). العنوان المختصر ٤ حروف و٤ أرقام.</p>
+        <p className="farq-muted col-span-full -mt-2">من سُبل (العنوان الوطني). العنوان المختصر 4 حروف و4 أرقام.</p>
         {ADDRESS.map(([key, label, ph, dir]) => (
           <Field key={key} label={label} error={show(errors.address[key])}>
             {({ id, describedBy, invalid }) => <input id={id} dir={dir} inputMode={dir === 'ltr' && key !== 'shortAddress' ? 'numeric' : undefined} autoComplete="off" value={address[key]} placeholder={ph} aria-invalid={invalid} aria-describedby={describedBy}

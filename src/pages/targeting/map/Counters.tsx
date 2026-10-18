@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatNumber } from '../../../lib/formatNumber'
 
 /*
  * Live counters strip above the map (owner 2026-10-16): numbers count up / down to the visible cohort,
  * ease-out over ≤ 700 ms, instant under reduced motion. «المنشآت» is the dark lead tile.
  */
-const fmt = (v: number) => Math.round(v).toLocaleString('ar-SA')
+const fmt = (v: number) => formatNumber(Math.round(v))
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 function Rolling({ value }: { value: number }) {

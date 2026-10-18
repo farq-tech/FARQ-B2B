@@ -77,13 +77,13 @@ for (const [width, height, name] of [[1440, 1000, 'desktop'], [390, 844, 'mobile
     const best = offers.getByRole('listitem').first()
     await expect(best.getByRole('img', { name: 'ريال' }).first()).toBeVisible()
     await expect(best).toContainText('67,942') // l1 … l5 of s1, all tax-inclusive
-    await expect(best).toContainText('شامل الضريبة ١٥٪')
+    await expect(best).toContainText('شامل الضريبة 15%')
     await expect(best).toContainText('1448 هـ') // when the quote was submitted, with its Hijri date
     await expect(page.getByText('ر.س')).toHaveCount(0)
     await page.screenshot({ path: `${SHOTS}/views-${name}-comparison.png`, fullPage: true })
     await page.getByRole('button', { name: 'قارن البنود بنداً بنداً' }).click()
     await expect(page.getByRole('img', { name: 'ريال' }).first()).toBeVisible()
-    await expect(page.getByText('شامل الضريبة ١٥٪').first()).toBeVisible()
+    await expect(page.getByText('شامل الضريبة 15%').first()).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/views-${name}-comparison-lines.png`, fullPage: true })
     expect(refused).toEqual([])
   })

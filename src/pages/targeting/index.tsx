@@ -11,6 +11,7 @@ import {
 } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
+import { formatNumber } from '../../lib/formatNumber'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
 import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
@@ -74,7 +75,7 @@ const RADII = [5, 10, 25, 50, 100] as const
 const normalizeActivityText = (value: string) => value.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').toLocaleLowerCase('ar')
 
 export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
-const n = (v: number) => v.toLocaleString('ar-SA')
+const n = (v: number) => formatNumber(v)
 const sourceCountOf = (r: TargetRow) => {
   const count = r.source_count ?? r.sources?.length ?? null
   return typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : null
@@ -1454,8 +1455,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const topDistricts = useMemo(() => filters.role && streetPick.kind !== 'all' ? [] : res && streetPick.kind === 'all'
     ? [...(res.areas?.districts || [])].sort((a, b) => b.n - a.n).slice(0, 8)
     : marketDistrictCounts.slice(0, 8).map((d) => ({ name: d.district_ar, n: d.n })), [res, streetPick.kind, marketDistrictCounts, filters.role])
-  const AR_DIGITS = (v: number) => String(v).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)])
-  const where = filters.street ? `${filters.street}${filters.district ? `، ${filters.district}` : ''}` : filters.district || (chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${AR_DIGITS(chosenNames.length)} أحياء` : cityName(city))
+  const where = filters.street ? `${filters.street}${filters.district ? `، ${filters.district}` : ''}` : filters.district || (chosenNames.length === 1 ? chosenNames[0] : chosenNames.length > 1 ? `${formatNumber(chosenNames.length)} أحياء` : cityName(city))
   const pickedMain = streetPick.kind === 'main' ? streetPick.id : streetPick.kind === 'sub' ? streetPick.main : streetPick.kind === 'spec' ? catalog?.find((item) => item.subs.some((sub) => String(sub.sub_id) === streetPick.subId))?.main_id || null : null
   const pickedSubs = pickedMain ? catalog?.find((m) => m.main_id === pickedMain)?.subs || [] : []
   const selectedActivity = pickedMain ? catalog?.find((m) => m.main_id === pickedMain) : null
@@ -1673,7 +1673,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
                 <span aria-hidden className="w-4 pt-0.5 text-center text-[12px] tabular-nums text-[var(--color-text-tertiary)]">{i + 1}</span>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="line-clamp-2">{streetLine(st)} — {n(st.props.n)} منشأة</span>
-                  <span className="text-[12px] leading-[18px] tabular-nums text-[var(--color-text-secondary)]">{fmtMeters(st.props.length_m)} · {st.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} منشأة لكل ١٠٠ م</span>
+                  <span className="text-[12px] leading-[18px] tabular-nums text-[var(--color-text-secondary)]">{fmtMeters(st.props.length_m)} · {formatNumber(st.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م</span>
                 </span>
               </button>
             </li>
@@ -2161,7 +2161,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
               {scopeMetric('إجمالي المنشآت في الحي', district.total, `${n(district.classified)} مصنّف · تغطية ${n(district.classification_pct)}٪`)}
               {scopeMetric('الشوارع الظاهرة بالكثافة', new Set(streetPool.map((street) => street.props.street_ar)).size, 'حسب طبقة النشاط الحالية')}
               {scopeMetric('التصنيف الأكثر انتشاراً', district.dominant_activity?.main_ar || null, district.dominant_activity ? `${n(district.dominant_activity.n)} سجل` : 'لا توجد بيانات مصنّفة', true)}
-              {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${densest.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} منشأة لكل ١٠٠ م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
+              {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${formatNumber(densest.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
               {scopeMetric('مطابقات البحث في النطاق', scopedMatchCount, scopedMatchNote, true)}
             </dl>
             {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أبرز التخصصات: {district.dominant_activity.top_subactivities.slice(0, 3).map((item) => `${item.sub_ar} (${n(item.n)})`).join(' · ')}</p> : null}
@@ -2175,7 +2175,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         scopeStreet ? <>
           <dl className="m-0 grid grid-cols-2 gap-2">
             {scopeMetric('منشآت بهذا النشاط', scopeStreet.props.n, scopeStreet.props.sub_ar || scopeStreet.props.main_ar || 'كما ترصدها طبقة الشارع')}
-            {scopeMetric('الكثافة', `${scopeStreet.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} / ١٠٠ م`, 'منشأة لكل ١٠٠ متر')}
+            {scopeMetric('الكثافة', `${formatNumber(scopeStreet.props.per_100m, { maximumFractionDigits: 1 })} / 100 م`, 'منشأة لكل 100 متر')}
             {scopeMetric('التصنيف في الطبقة', scopeStreet.props.main_ar || scopeStreet.props.sub_ar || null, scopeStreet.props.sub_ar || 'لا يوجد تصنيف فرعي', true)}
             {scopeMetric('مطابقات البحث المحمّلة', streetScopeRows.length, 'منشآت على هذا الشارع ضمن الدفعة الحالية', true)}
           </dl>
@@ -2287,7 +2287,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">المنشآت</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n)} منشأة</dd></div>
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">طول المقطع</dt><dd className="m-0 font-semibold tabular-nums">{fmtMeters(pickedStreet.props.length_m)}</dd></div>
-            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{pickedStreet.props.per_100m.toLocaleString('ar-SA', { maximumFractionDigits: 1 })} منشأة لكل ١٠٠ م</dd></div>
+            <div><dt className="text-[12px] text-[var(--color-text-secondary)]">الكثافة</dt><dd className="m-0 font-semibold tabular-nums">{formatNumber(pickedStreet.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م</dd></div>
             <div><dt className="text-[12px] text-[var(--color-text-secondary)]">جملة</dt><dd className="m-0 font-semibold tabular-nums">{n(pickedStreet.props.n_wholesale)} منشأة</dd></div>
           </dl>
         </div>

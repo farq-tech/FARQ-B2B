@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { recordMapInteraction } from '../../../lib/mapAnalytics'
+import { formatNumber } from '../../../lib/formatNumber'
 import { MapIcon } from './glyphs'
 import { mainIcon, specialtyIcon, subIcon, type Focus, type GuideMain } from './model'
 
@@ -9,7 +10,7 @@ import { mainIcon, specialtyIcon, subIcon, type Focus, type GuideMain } from './
  * «الدليل»: main ▸ sub ▸ specialty with counts from the chosen-district cohort (owner 2026-10-16).
  * A tap filters the map to that level and switches the map to its layer; a second tap clears it.
  */
-const fmt = (n: number) => n.toLocaleString('ar-SA')
+const fmt = (n: number) => formatNumber(n)
 
 export default function GuideTree({ guide, focus, onFocus, empty }: { guide: GuideMain[]; focus: Focus; onFocus: (f: Focus) => void; empty: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set())

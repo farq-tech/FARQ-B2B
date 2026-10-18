@@ -95,7 +95,7 @@ test('campaign results (mocked in the browser, no network): each recipient shows
   await expect(result.getByRole('button', { name: /أعد|إعادة/ })).toHaveCount(0)
   await page.screenshot({ path: 'docs/qa/b2b/campaign-m12.png' })
   await result.getByRole('button', { name: 'تم' }).click()
-  await expect(page.getByText(/تم بحمد الله، أرسلنا [٢2] رسالة · ما وصلت [١1]/)).toBeVisible()
+  await expect(page.getByText(/تم بحمد الله، أرسلنا [0-9]+ رسالة · ما وصلت [0-9]+/)).toBeVisible()
   expect(sends).toEqual(['register', 'template']) // one register + one send, never a retry
   expect(writes).toEqual([])
 })

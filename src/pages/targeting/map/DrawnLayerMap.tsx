@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent, type WheelEvent } from 'react'
 import { Icon } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
+import { formatNumber } from '../../../lib/formatNumber'
 import { chipWidth, clip, fitBadgeSvg, MAP_ICON_BODY, palette, TEARDROP } from './glyphs'
 import { densityStep, FIT_LABEL, streetLine } from './model'
 
@@ -114,7 +115,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
   for (const st of [...streets].sort((a, b) => Number(b.id === activeStreet) - Number(a.id === activeStreet) || b.props.n - a.props.n).slice(0, 12)) {
     const x = sx(st.mid[0]), y = sy(st.mid[1])
     const label = streetLine(st)
-    const text = `${label.length > 24 ? `${label.slice(0, 23)}…` : label} · ${st.props.n.toLocaleString('ar-SA')}`
+    const text = `${label.length > 24 ? `${label.slice(0, 23)}…` : label} · ${formatNumber(st.props.n)}`
     const w = Math.min(220, 20 + text.length * 6.1)
     if (labels.some((l) => Math.abs(l.x - x) < (l.w + w) / 2 + 4 && Math.abs(l.y - y) < 26)) continue
     labels.push({ st, x, y, w, text })
@@ -191,7 +192,7 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
                 aria-label={`${c.popular_ar ? `${c.popular_ar} — ` : ''}${c.label_ar} — ${c.n} منشأة${c.wholesale_pct >= 30 ? ' · جملة' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!wasDrag()) onCluster(c) }} onKeyDown={enter(() => onCluster(c))}>
                 <circle cx={x} cy={y} r={r} fill={P.green} fillOpacity={0.14} stroke={P.green} strokeOpacity={0.55} strokeWidth={1.5} />
-                <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.green}>{c.n.toLocaleString('ar-SA')}</text>
+                <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-semibold" fill={P.green}>{formatNumber(c.n)}</text>
                 <text x={x} y={y + r + 12} textAnchor="middle" className="text-[11px] font-medium" fill={P.ink} stroke={P.white} strokeWidth={3} paintOrder="stroke">{label}</text>
               </g>
             )

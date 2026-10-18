@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { applyFarqLight, MAPBOX_TOKEN } from '../MapboxMap'
 import { mapReadinessEvent, recordMapInteraction } from '../../../lib/mapAnalytics'
+import { formatNumber } from '../../../lib/formatNumber'
 import { chipImage, circleSvg, palette, pinSvg, svgImage } from './glyphs'
 import type { LayerMapProps } from './types'
 import { densityStep, streetLine, type PinFit } from './model'
@@ -201,7 +202,7 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
     if (!loaded || !m) return
     const maxPer = Math.max(1, ...streets.map((st) => st.props.per_100m))
     ;(m.getSource('streets') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: streets.map((st) => ({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: st.lines }, properties: { id: st.id, ratio: Math.min(1, st.props.per_100m / maxPer), on: activeStreet === st.id ? 1 : 0 } })) })
-    ;(m.getSource('street-mid') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [...streets].sort((a, b) => b.props.n - a.props.n).map((st, rank) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: st.mid }, properties: { id: st.id, rank: st.id === activeStreet ? -1 : rank, label: `${streetLine(st)} · ${st.props.n.toLocaleString('ar-SA')}` } })) })
+    ;(m.getSource('street-mid') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [...streets].sort((a, b) => b.props.n - a.props.n).map((st, rank) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: st.mid }, properties: { id: st.id, rank: st.id === activeStreet ? -1 : rank, label: `${streetLine(st)} · ${formatNumber(st.props.n)}` } })) })
   }, [loaded, streets, activeStreet])
   useEffect(() => {
     const m = map.current
@@ -212,7 +213,7 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
   useEffect(() => {
     const m = map.current
     if (!loaded || !m) return
-    ;(m.getSource('trade') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: clusters.map((c, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { i, n: c.n, label: `${c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${c.n.toLocaleString('ar-SA')} منشأة` } })) })
+    ;(m.getSource('trade') as mapboxgl.GeoJSONSource).setData({ type: 'FeatureCollection', features: clusters.map((c, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lon, c.lat] }, properties: { i, n: c.n, label: `${c.popular_ar || (c.level === 'street' ? c.street_ar : c.district_ar) || c.label_ar}\n${formatNumber(c.n)} منشأة` } })) })
   }, [loaded, clusters])
   useEffect(() => {
     const m = map.current
