@@ -258,13 +258,14 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [marketError, setMarketError] = useState(false)
   const [marketRetry, setMarketRetry] = useState(0)
   const [districtInsightRows, setDistrictInsightRows] = useState<DistrictInsight[]>([])
+  const [expandedDistrictActivities, setExpandedDistrictActivities] = useState<Set<string>>(new Set())
   const [districtInsightLoading, setDistrictInsightLoading] = useState(false)
   const [districtInsightError, setDistrictInsightError] = useState(false)
   const [districtInsightRetry, setDistrictInsightRetry] = useState(0)
   const [buyerData, setBuyerData] = useState<{ key: string; data: WhoBuys } | null>(null)
   const [includeCommonBuyers, setIncludeCommonBuyers] = useState(false)
   const resetAll = () => { generation.current++; setRes(null); clearAreas(); setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setActiveLine(null); setLines((ls) => ls.map(({ found: _found, ...line }) => line)); setError(null); setFailedResultRefresh(false); setConfirming(false); setProfile(null); setShowUnlocated(false) }
-  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setSite(null); setFit(null) }
+  const pickCity = (v: string) => { resetAll(); setMarketLoading(true); setCity(v); setChosenD(new Set()); setExpandedDistrictActivities(new Set()); setSite(null); setFit(null) }
 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
@@ -1569,10 +1570,25 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
           </p>
           {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">أبرز تخصصاته: {district.dominant_activity.top_subactivities.map((item) => `${item.sub_ar} (${n(item.n)})`).join('، ')}</p> : null}
           {district.least_activity ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">الأقل بين الأنشطة المسجلة: {district.least_activity.main_ar} · {n(district.least_activity.n)} سجل</p> : null}
-          {district.activities.length > 1 ? <div className="flex flex-wrap gap-1.5" aria-label="توزيع الأنشطة المسجلة">
-            {district.activities.slice(0, 5).map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[11px]">{activity.main_ar} · {n(activity.n)}</span>)}
-            {district.activities.length > 5 ? <span className="self-center text-[11px] text-[var(--color-text-tertiary)]">و{n(district.activities.length - 5)} أنشطة أخرى</span> : null}
-          </div> : null}
+          {district.activities.length > 1 ? (() => {
+            const districtKey = `${city}:${district.district_ar}`
+            const expanded = expandedDistrictActivities.has(districtKey)
+            const visibleActivities = expanded ? district.activities : district.activities.slice(0, 5)
+            return <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة المسجلة في حي ${district.district_ar}`}>
+              {visibleActivities.map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[11px]">{activity.main_ar} · {n(activity.n)}</span>)}
+              {district.activities.length > 5 ? <button
+                type="button"
+                aria-expanded={expanded}
+                onClick={() => setExpandedDistrictActivities((current) => {
+                  const next = new Set(current)
+                  if (next.has(districtKey)) next.delete(districtKey)
+                  else next.add(districtKey)
+                  return next
+                })}
+                className={`self-center rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}
+              >{expanded ? 'إخفاء الأنشطة الإضافية' : `عرض كل الأنشطة (${n(district.activities.length)})`}</button> : null}
+            </div>
+          })() : null}
           {district.absent_from_directory.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>لا تظهر لها سجلات مصنّفة في الدليل:</strong> {district.absent_from_directory.slice(0, 4).join('، ')}{district.absent_from_directory.length > 4 ? `، و${n(district.absent_from_directory.length - 4)} أخرى` : ''}</p> : <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>الأنشطة غير الظاهرة:</strong> لم يرصد التحليل نشاطاً مصنّفاً على مستوى المدينة بلا سجل في هذا الحي.</p>}
           <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">نسبة تغطية التصنيف {n(district.classification_pct)}٪ من السجلات ذات الحي الموثوق. عدم ظهور نشاط لا يثبت عدم وجوده فعلياً.</p>
         </article>
