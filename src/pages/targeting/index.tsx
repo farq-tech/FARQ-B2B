@@ -1157,7 +1157,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
             {sourceCountOf(r) === 1 ? <Badge tone="Neutral" showDot={false} label="مصدر مسجل واحد" className="w-fit text-[11px] leading-[16px] px-2 py-0.5" /> : null}
             <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r, cities) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
           </button>
-          <span className="flex shrink-0 flex-col items-end gap-1">{ch === 'WhatsApp' && r.whatsapp_verification_state !== 'verified' ? <Badge tone="Warning" label="واتساب غير متحقق" className="px-2 py-0.5 text-[11px] leading-[16px]" /> : <ChannelBadge channel={ch} />}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
+          <span className="flex shrink-0 flex-col items-end gap-1">{ch === 'WhatsApp' && r.whatsapp_verification_state !== 'verified' ? <Badge tone="Warning" label="واتساب غير متحقق" className="px-2 py-0.5 text-[12px] leading-[18px]" /> : <ChannelBadge channel={ch} />}{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
         </div>
       </li>
     )
