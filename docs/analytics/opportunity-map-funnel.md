@@ -402,3 +402,69 @@ ORDER BY week_utc DESC;
 ```
 
 The events are recorded only with accepted map-analytics consent and only after a browse page request completes. A superseded request is not counted. Treat the rate as a UI/service signal, not proof that a user found a relevant supplier; pair it with an observed discovery task and time-to-profile.
+
+## Blank supplier/buyer prompt visibility
+
+After deployment, these events record a blank search prompt only while its panel is visibly open: `pricing_map_map_supplier_prompt_seen` for supplier search and `pricing_map_map_buyer_prompt_seen` for buyer discovery. They contain no search text, location, or establishment key. Events are consented and session-scoped, and leaving/hiding the prompt before returning is a new impression.
+
+The following aggregate query reports prompt sessions and sessions with a search event after the prompt during the same browser session. Search events are not tied to a particular prompt type, so the latter is only a coarse follow-on signal (especially if a user switches lens); it does not establish task completion or relevance.
+
+```sql
+WITH map_events AS (
+  SELECT session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_supplier_prompt_seen',
+      'pricing_map_map_buyer_prompt_seen',
+      'pricing_map_map_search',
+      'pricing_map_map_search_results_empty',
+      'pricing_map_map_search_results_1_4',
+      'pricing_map_map_search_results_5_plus',
+      'pricing_map_map_search_failed'
+    )
+), prompt_sessions AS (
+  SELECT
+    session_id,
+    CASE element_label
+      WHEN 'pricing_map_map_supplier_prompt_seen' THEN 'supplier'
+      ELSE 'buyer'
+    END AS prompt_type,
+    min(occurred_at) AS prompt_at
+  FROM map_events
+  WHERE element_label IN (
+    'pricing_map_map_supplier_prompt_seen',
+    'pricing_map_map_buyer_prompt_seen'
+  )
+  GROUP BY session_id, prompt_type
+), outcomes AS (
+  SELECT
+    p.session_id,
+    p.prompt_type,
+    p.prompt_at,
+    bool_or(e.element_label IN (
+      'pricing_map_map_search',
+      'pricing_map_map_search_results_empty',
+      'pricing_map_map_search_results_1_4',
+      'pricing_map_map_search_results_5_plus',
+      'pricing_map_map_search_failed'
+    )) FILTER (WHERE e.occurred_at > p.prompt_at) AS searched_later
+  FROM prompt_sessions p
+  LEFT JOIN map_events e ON e.session_id = p.session_id
+  GROUP BY p.session_id, p.prompt_type, p.prompt_at
+)
+SELECT
+  date_trunc('week', prompt_at AT TIME ZONE 'UTC') AS week_utc,
+  prompt_type,
+  count(*) AS prompt_sessions,
+  count(*) FILTER (WHERE searched_later) AS sessions_with_later_search,
+  round(100.0 * count(*) FILTER (WHERE searched_later) / nullif(count(*), 0), 1) AS later_search_pct
+FROM outcomes
+GROUP BY 1, 2
+ORDER BY week_utc DESC, prompt_type;
+```
+
+Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentage. Even then, use it as a navigation diagnostic and pair it with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.

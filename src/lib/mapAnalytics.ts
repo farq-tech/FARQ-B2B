@@ -41,6 +41,8 @@ const MAP_EVENTS = [
   'map_lens_market',
   'map_lens_sellers',
   'map_lens_buyers',
+  'map_supplier_prompt_seen',
+  'map_buyer_prompt_seen',
   'market_summary_retry',
   'map_filter_open_district',
   'map_filter_select_district',

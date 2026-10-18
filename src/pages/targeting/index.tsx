@@ -161,6 +161,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const resultsPanelRef = useRef<HTMLElement | null>(null)
   const resultsShortcutSeen = useRef(false)
   const [analyticsConsentRevision, setAnalyticsConsentRevision] = useState(0)
+  const lastVisiblePrompt = useRef<string | null>(null)
   useEffect(() => {
     const onConsentChange = () => setAnalyticsConsentRevision((revision) => revision + 1)
     window.addEventListener('farq:map-analytics-consent-changed', onConsentChange)
@@ -171,6 +172,27 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     resultsShortcutSeen.current = true
     recordMapInteraction('map_results_shortcut_seen')
   }, [mobile, focusMode, res, analyticsConsentRevision])
+  useEffect(() => {
+    // Count only an actually visible blank search prompt. Never include query,
+    // location, or establishment data in this consented aggregate event.
+    const promptVisible = lens !== 'market'
+      && !hasTargetQuery
+      && tab !== 'guide'
+      && (!mobile || tab === 'results')
+      && (!focusMode || (focusPanelOpen && (!mobile || focusPanelSnap !== 'peek')))
+    if (!promptVisible) {
+      lastVisiblePrompt.current = null
+      return
+    }
+    if (mapAnalyticsConsent() !== 'accepted') {
+      lastVisiblePrompt.current = null
+      return
+    }
+    const event = lens === 'sellers' ? 'map_supplier_prompt_seen' : 'map_buyer_prompt_seen'
+    if (lastVisiblePrompt.current === event) return
+    lastVisiblePrompt.current = event
+    recordMapInteraction(event)
+  }, [lens, hasTargetQuery, tab, mobile, focusMode, focusPanelOpen, focusPanelSnap, analyticsConsentRevision])
   const [site, setSite] = useState<Site | null>(null)
   const [placingSite, setPlacingSite] = useState(false)
   const [showUnlocated, setShowUnlocated] = useState(false)
