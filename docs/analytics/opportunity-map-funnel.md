@@ -687,3 +687,32 @@ ORDER BY week_utc DESC;
 ```
 
 The query intentionally uses only the first enable-to-disable interval in each session; a later re-enable in the same session is not counted separately. Events may be missing when analytics consent is declined, so this is not a count of all users. Wait for two complete weeks and at least 30 consenting sessions before treating the rates as directional, and review result quality with a human task check. Do not claim the filter caused a profile open or quote start from this sequence alone.
+
+## Successful map readiness buckets
+
+`map_ready_under_2s`, `map_ready_2_5s`, and `map_ready_over_5s` are recorded only after the Mapbox `load` event succeeds, and only for production sessions that have accepted map analytics. The timer starts when the map component first renders, so it includes the lazy-loaded map chunk and Mapbox initialization. Only a coarse bucket is sent; the exact duration stays in the browser. Sessions that have not accepted analytics or whose map never reaches `load` are not represented, and a user who accepts after the map is already ready is counted on a later map visit. Counts are map initializations, not unique people. This performance signal does not establish that the map is useful or that results are accurate.
+
+```sql
+SELECT
+  CASE element_label
+    WHEN 'pricing_map_map_ready_under_2s' THEN 'under 2 seconds'
+    WHEN 'pricing_map_map_ready_2_5s' THEN '2 to 5 seconds'
+    WHEN 'pricing_map_map_ready_over_5s' THEN 'over 5 seconds'
+  END AS readiness_bucket,
+  count(*) AS successful_map_initializations,
+  count(DISTINCT session_id) AS consenting_tab_sessions
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_ready_under_2s',
+    'pricing_map_map_ready_2_5s',
+    'pricing_map_map_ready_over_5s'
+  )
+GROUP BY 1
+ORDER BY 1;
+```
+
+Do not set a performance target from this first release. First collect at least 30 successful map initializations across two complete weeks, then inspect the bucket distribution alongside user-task completion and map/search error rates. The measurements exclude load failures and nonconsenting sessions, so they are not a complete page-load success rate.

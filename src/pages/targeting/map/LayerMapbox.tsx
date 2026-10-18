@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { applyFarqLight, MAPBOX_TOKEN } from '../MapboxMap'
+import { mapReadinessEvent, recordMapInteraction } from '../../../lib/mapAnalytics'
 import { chipImage, circleSvg, palette, pinSvg, svgImage } from './glyphs'
 import type { LayerMapProps } from './types'
 import { densityStep, streetLine, type PinFit } from './model'
@@ -25,7 +26,7 @@ function circle(lat: number, lon: number, km: number): GeoJSON.Feature<GeoJSON.P
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts] }, properties: {} }
 }
 
-export default function LayerMapbox(props: LayerMapProps) {
+export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: number }) {
   const box = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const ready = useRef(false)
@@ -121,6 +122,7 @@ export default function LayerMapbox(props: LayerMapProps) {
       m.on('mouseleave', 'pins', () => { m.getCanvas().style.cursor = ''; tip.remove() })
       ready.current = true
       setLoaded(true)
+      if (import.meta.env.PROD) recordMapInteraction(mapReadinessEvent(performance.now() - props.mapStartedAt))
     })
     const ro = new ResizeObserver(() => m.resize())
     ro.observe(box.current)
