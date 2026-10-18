@@ -534,7 +534,7 @@ The following aggregate query reports the session funnel by task direction: prom
 
 ```sql
 WITH map_events AS (
-  SELECT session_id, occurred_at, element_label
+  SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
   WHERE occurred_at >= now() - interval '56 days'
     AND event_type = 'click'
@@ -563,73 +563,77 @@ WITH map_events AS (
       WHEN 'pricing_map_map_supplier_prompt_seen' THEN 'supplier'
       ELSE 'buyer'
     END AS prompt_type,
-    min(occurred_at) AS prompt_at
+    min(id) AS prompt_id,
+    (array_agg(occurred_at ORDER BY id))[1] AS prompt_at
   FROM map_events
   WHERE element_label IN (
     'pricing_map_map_supplier_prompt_seen',
     'pricing_map_map_buyer_prompt_seen'
   )
   GROUP BY session_id, prompt_type
-), searches AS (
+), search_ids AS (
   SELECT
     p.session_id,
     p.prompt_type,
+    p.prompt_id,
     p.prompt_at,
-    min(e.occurred_at) FILTER (WHERE e.element_label = CASE p.prompt_type
+    min(e.id) FILTER (WHERE e.element_label = CASE p.prompt_type
       WHEN 'supplier' THEN 'pricing_map_map_supplier_search_started'
       ELSE 'pricing_map_map_buyer_search_started'
-    END AND e.occurred_at > p.prompt_at) AS search_started_at
+    END AND e.id > p.prompt_id) AS search_started_id
   FROM prompt_sessions p
   LEFT JOIN map_events e ON e.session_id = p.session_id
-  GROUP BY p.session_id, p.prompt_type, p.prompt_at
+  GROUP BY p.session_id, p.prompt_type, p.prompt_id, p.prompt_at
 ), outcomes AS (
   SELECT
     s.session_id,
     s.prompt_type,
     s.prompt_at,
-    s.search_started_at,
+    s.search_started_id,
     bool_or(e.element_label = CASE s.prompt_type
       WHEN 'supplier' THEN 'pricing_map_map_supplier_search_results_empty'
       ELSE 'pricing_map_map_buyer_search_results_empty'
-    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS zero_results,
+    END) FILTER (WHERE e.id > s.search_started_id) AS zero_results,
     bool_or(e.element_label = CASE s.prompt_type
       WHEN 'supplier' THEN 'pricing_map_map_supplier_search_results_1_4'
       ELSE 'pricing_map_map_buyer_search_results_1_4'
-    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS results_1_4,
+    END) FILTER (WHERE e.id > s.search_started_id) AS results_1_4,
     bool_or(e.element_label = CASE s.prompt_type
       WHEN 'supplier' THEN 'pricing_map_map_supplier_search_results_5_plus'
       ELSE 'pricing_map_map_buyer_search_results_5_plus'
-    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS results_5_plus,
+    END) FILTER (WHERE e.id > s.search_started_id) AS results_5_plus,
     bool_or(e.element_label = CASE s.prompt_type
       WHEN 'supplier' THEN 'pricing_map_map_supplier_search_failed'
       ELSE 'pricing_map_map_buyer_search_failed'
-    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS search_failed,
+    END) FILTER (WHERE e.id > s.search_started_id) AS search_failed,
     bool_or(e.element_label = CASE s.prompt_type
       WHEN 'supplier' THEN 'pricing_map_map_supplier_result_profile_open'
       ELSE 'pricing_map_map_buyer_result_profile_open'
-    END) FILTER (WHERE e.occurred_at > s.search_started_at) AS result_profile_opened
-  FROM searches s
+    END) FILTER (WHERE e.id > s.search_started_id) AS result_profile_opened
+  FROM search_ids s
   LEFT JOIN map_events e ON e.session_id = s.session_id
-  GROUP BY s.session_id, s.prompt_type, s.prompt_at, s.search_started_at
+  GROUP BY s.session_id, s.prompt_type, s.prompt_at, s.search_started_id
 )
 SELECT
   date_trunc('week', prompt_at AT TIME ZONE 'UTC') AS week_utc,
   prompt_type,
   count(*) AS prompt_sessions,
-  count(*) FILTER (WHERE search_started_at IS NOT NULL) AS search_started_sessions,
-  round(100.0 * count(*) FILTER (WHERE search_started_at IS NOT NULL) / nullif(count(*), 0), 1) AS prompt_to_search_pct,
+  count(*) FILTER (WHERE search_started_id IS NOT NULL) AS search_started_sessions,
+  round(100.0 * count(*) FILTER (WHERE search_started_id IS NOT NULL) / nullif(count(*), 0), 1) AS prompt_to_search_pct,
   count(*) FILTER (WHERE zero_results) AS zero_result_sessions,
   count(*) FILTER (WHERE results_1_4) AS sessions_with_1_4_results,
   count(*) FILTER (WHERE results_5_plus) AS sessions_with_5_plus_results,
   count(*) FILTER (WHERE search_failed) AS failed_search_sessions,
   count(*) FILTER (WHERE result_profile_opened) AS sessions_opening_result_profile,
-  round(100.0 * count(*) FILTER (WHERE result_profile_opened) / nullif(count(*) FILTER (WHERE search_started_at IS NOT NULL), 0), 1) AS search_to_profile_pct
+  round(100.0 * count(*) FILTER (WHERE result_profile_opened) / nullif(count(*) FILTER (WHERE search_started_id IS NOT NULL), 0), 1) AS search_to_profile_pct
 FROM outcomes
 GROUP BY 1, 2
 ORDER BY week_utc DESC, prompt_type;
 ```
 
 Wait for at least two complete weeks and 30 consented prompt sessions per prompt type before interpreting the percentages. Profile opens are a navigation signal, not proof of relevance, contact, or a successful match. Pair them with moderated supplier-discovery tasks, relevance ratings, and time-to-first-relevant-profile. Missing events can reflect analytics consent or blocked requests; they do not prove the prompt was not shown.
+
+> **ترتيب الأحداث:** قد تحمل أحداث الدفعة الواحدة قيمة `occurred_at` نفسها لأن PostgreSQL يعيد `now()` نفسه طوال المعاملة. يستخدم هذا الاستعلام `id` لترتيب الإدخال، لا وقت حدوث الحدث على جهاز المستخدم؛ وقد يختلف ترتيب وصول دفعتين متزامنتين عن ترتيب تفاعل المستخدم. يبقى `occurred_at` وقت استقبال تقريبي للتجميع الأسبوعي. هذا الاستعلام وحده يستخدم `id` حالياً؛ الاستعلام الرئيسي وبقية استعلامات التسلسل لم تُحدّث، فلا تستخدم نتائجها لاستنتاج التحويل قبل تعديلها.
 
 ## Map legend control exposure and use
 
