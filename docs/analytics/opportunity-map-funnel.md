@@ -579,7 +579,7 @@ These events are consented, session-level UI signals, not evidence that the guid
 
 ## Wholesale filter in market browse and supplier search
 
-The «جملة فقط» chip can be used both after a supplier search and while browsing the city-wide directory. These events record only that the filter was enabled/disabled and a coarse result bucket after enabling it. They never include the search phrase, city, selected district, or establishment key. All events require the existing map-analytics consent.
+The «جملة فقط» chip is shown with supplier-search results. The current city-wide browse response has no area facets, so this chip is not rendered in that view. The events below measure supplier-search sessions in which it is enabled, plus a coarse result bucket. They never include the search phrase, city, selected district, or establishment key. All events require the existing map-analytics consent.
 
 The query below counts the first filter-enable interval per consenting session. It measures result availability and whether a supplier profile was opened while the filter remained enabled. A quote start is counted only after that profile open. It is a directional funnel, not proof that the filter caused the later action. Run against the same authorized, read-only database described above:
 
@@ -592,7 +592,6 @@ WITH map_events AS (
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
     AND element_label IN (
-      'pricing_map_map_browse_succeeded',
       'pricing_map_map_supplier_search_started',
       'pricing_map_map_filter_wholesale_on',
       'pricing_map_map_filter_wholesale_off',
@@ -603,19 +602,16 @@ WITH map_events AS (
       'pricing_map_map_profile_open',
       'pricing_map_map_profile_quote_start'
     )
-), session_entry AS (
+), supplier_search AS (
   SELECT
     session_id,
     min(occurred_at) AS entry_at
   FROM map_events
-  WHERE element_label IN (
-    'pricing_map_map_browse_succeeded',
-    'pricing_map_map_supplier_search_started'
-  )
+  WHERE element_label = 'pricing_map_map_supplier_search_started'
   GROUP BY session_id
 ), enabled AS (
   SELECT s.session_id, s.entry_at, min(e.occurred_at) AS enabled_at
-  FROM session_entry s
+  FROM supplier_search s
   JOIN map_events e USING (session_id)
   WHERE e.element_label = 'pricing_map_map_filter_wholesale_on'
     AND e.occurred_at > s.entry_at

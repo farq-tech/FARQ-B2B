@@ -605,7 +605,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       }
     } finally { if (version === generation.current) setBusyKind(null) }
   }
-  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}, trackWholesaleOutcome = false) {
+  async function loadBrowse(inCity: string, browseFilters: AreaFilters = {}) {
     if (!inCity) return
     const version = ++generation.current
     const hadResults = Boolean(res)
@@ -614,7 +614,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
       if (version !== generation.current) return
       recordMapInteraction('map_browse_succeeded')
-      if (trackWholesaleOutcome && browseFilters.wholesale) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))
       setFailedResultRefresh(false)
       setRes(r); setQuery(''); setFilters(browseFilters); setShown(PAGE)
       setSelected(new Set()); setProfile(null)
@@ -623,7 +622,6 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     } catch (err) {
       if (version === generation.current) {
         recordMapInteraction('map_browse_failed')
-        if (trackWholesaleOutcome && browseFilters.wholesale) recordMapInteraction('map_filter_wholesale_results_failed')
         if (hadResults) recordMapInteraction('map_browse_refresh_failed')
         setFailedResultRefresh(hadResults); setError(err instanceof TargetingError ? err.message : 'تعذّر تحميل نقاط السوق.')
       }
@@ -692,7 +690,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
   const applyFilters = (next: AreaFilters) => {
     if (query) void runSearchIn(query, city, next)
-    else void loadBrowse(city, next, !filters.wholesale && Boolean(next.wholesale))
+    else void loadBrowse(city, next)
   }
   async function openMapProfile(key: string) {
     if (busy || failedResultRefresh) return
