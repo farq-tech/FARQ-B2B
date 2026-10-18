@@ -1084,3 +1084,60 @@ ORDER BY 1 DESC;
 ```
 
 These are logical-load events, not unique users, physical HTTP attempts, or streets. Use at least two complete weeks and 30 completed loads before interpreting load failure; use 30 completed automatic retries before interpreting recovery. When volume is lower, treat the percentages as directional and pair them with aggregate HTTP status counts.
+
+## Supplier and buyer search retry health
+
+Map supplier and buyer searches are read-only requests. The map retries one time after a transient browser-to-Pricing network failure or HTTP 502/503/504. These role-only events are recorded only after map analytics consent; they include no search text, city, filters, or establishment identifiers. The retry-start event is recorded once per retried request, followed by one recovery or failure event if the request reaches a terminal response. A tab closed during the retry may have no terminal event.
+
+Use this query to review the recovery rate of completed automatic retries by week and map direction:
+
+```sql
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  CASE
+    WHEN element_label IN (
+      'pricing_map_map_supplier_search_auto_retry',
+      'pricing_map_map_supplier_search_auto_retry_recovered',
+      'pricing_map_map_supplier_search_auto_retry_failed'
+    ) THEN 'supplier'
+    ELSE 'buyer'
+  END AS search_direction,
+  count(*) FILTER (WHERE element_label IN (
+    'pricing_map_map_supplier_search_auto_retry',
+    'pricing_map_map_buyer_search_auto_retry'
+  )) AS retries_started,
+  count(*) FILTER (WHERE element_label IN (
+    'pricing_map_map_supplier_search_auto_retry_recovered',
+    'pricing_map_map_buyer_search_auto_retry_recovered'
+  )) AS retries_recovered,
+  count(*) FILTER (WHERE element_label IN (
+    'pricing_map_map_supplier_search_auto_retry_failed',
+    'pricing_map_map_buyer_search_auto_retry_failed'
+  )) AS retries_failed,
+  round(100.0 * count(*) FILTER (WHERE element_label IN (
+    'pricing_map_map_supplier_search_auto_retry_recovered',
+    'pricing_map_map_buyer_search_auto_retry_recovered'
+  )) / nullif(count(*) FILTER (WHERE element_label IN (
+    'pricing_map_map_supplier_search_auto_retry_recovered',
+    'pricing_map_map_buyer_search_auto_retry_recovered',
+    'pricing_map_map_supplier_search_auto_retry_failed',
+    'pricing_map_map_buyer_search_auto_retry_failed'
+  )), 0), 1) AS completed_retry_recovery_pct
+FROM public.analytics_events
+WHERE occurred_at >= now() - interval '56 days'
+  AND event_type = 'click'
+  AND path = '/opportunity-map'
+  AND session_id IS NOT NULL
+  AND element_label IN (
+    'pricing_map_map_supplier_search_auto_retry',
+    'pricing_map_map_supplier_search_auto_retry_recovered',
+    'pricing_map_map_supplier_search_auto_retry_failed',
+    'pricing_map_map_buyer_search_auto_retry',
+    'pricing_map_map_buyer_search_auto_retry_recovered',
+    'pricing_map_map_buyer_search_auto_retry_failed'
+  )
+GROUP BY 1, 2
+ORDER BY 1 DESC, 2;
+```
+
+These counts describe retry attempts, not unique people or proof that results were relevant. Compare them with the existing search failure and latency funnels. Wait for two complete weeks and at least 30 completed retries per direction before interpreting a recovery rate; with lower volume, report counts and treat percentages as directional.

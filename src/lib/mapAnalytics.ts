@@ -67,6 +67,9 @@ const MAP_EVENTS = [
   'map_supplier_search_results_1_4',
   'map_supplier_search_results_5_plus',
   'map_supplier_search_failed',
+  'map_supplier_search_auto_retry',
+  'map_supplier_search_auto_retry_recovered',
+  'map_supplier_search_auto_retry_failed',
   'map_supplier_search_latency_under_1s',
   'map_supplier_search_latency_1_to_3s',
   'map_supplier_search_latency_over_3s',
@@ -74,6 +77,9 @@ const MAP_EVENTS = [
   'map_buyer_search_results_1_4',
   'map_buyer_search_results_5_plus',
   'map_buyer_search_failed',
+  'map_buyer_search_auto_retry',
+  'map_buyer_search_auto_retry_recovered',
+  'map_buyer_search_auto_retry_failed',
   'map_buyer_search_latency_under_1s',
   'map_buyer_search_latency_1_to_3s',
   'map_buyer_search_latency_over_3s',
@@ -204,6 +210,19 @@ export function mapSearchResultEvent(total: number): MapEventName {
 }
 
 type SearchObjective = 'purchase' | 'marketing'
+type SearchRetryOutcome = 'retrying' | 'recovered' | 'failed'
+
+/** Role-only retry telemetry; never includes search text, city, or establishment data. */
+export function mapSearchRetryEvent(objective: SearchObjective, outcome: SearchRetryOutcome): MapEventName {
+  if (objective === 'purchase') {
+    if (outcome === 'retrying') return 'map_supplier_search_auto_retry'
+    if (outcome === 'recovered') return 'map_supplier_search_auto_retry_recovered'
+    return 'map_supplier_search_auto_retry_failed'
+  }
+  if (outcome === 'retrying') return 'map_buyer_search_auto_retry'
+  if (outcome === 'recovered') return 'map_buyer_search_auto_retry_recovered'
+  return 'map_buyer_search_auto_retry_failed'
+}
 
 export function mapSearchStartedEvent(objective: SearchObjective): MapEventName {
   return objective === 'purchase' ? 'map_supplier_search_started' : 'map_buyer_search_started'

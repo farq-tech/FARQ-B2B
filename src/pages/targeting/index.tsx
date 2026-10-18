@@ -12,7 +12,7 @@ import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchFailedEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -648,7 +648,10 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const version = generation.current
     const browsingMarket = !query.trim()
     try {
-      const r = await searchTargets(query, city, FETCH, browsingMarket ? 'browse' : objective, res.next_offset, filters)
+      const searchObjective = browsingMarket ? 'browse' : objective
+      const r = await searchTargets(query, city, FETCH, searchObjective, res.next_offset, filters, true, browsingMarket ? undefined : (outcome) => {
+        recordMapInteraction(mapSearchRetryEvent(objective, outcome))
+      })
       if (version !== generation.current) return
       const newRows = r.rows.filter((row) => !res.rows.some((current) => current.poi_key === row.poi_key))
       const foundUnlocated = newRows.some((row) => !hasPoint(row))
@@ -721,7 +724,9 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     const requestStartedAt = performance.now()
     if (fresh) recordMapInteraction(mapSearchStartedEvent(obj))
     try {
-      const r = await searchTargets(text, inCity, FETCH, obj, 0, use)
+      const r = await searchTargets(text, inCity, FETCH, obj, 0, use, true, (outcome) => {
+        recordMapInteraction(mapSearchRetryEvent(obj, outcome))
+      })
       if (version !== generation.current) return null
       setFailedResultRefresh(false)
       lastSuccessfulQueryObjective.current = obj
