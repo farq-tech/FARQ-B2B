@@ -398,9 +398,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
   const visibleListCohort = useMemo(() => {
     if (!showUnlocated) return visibleCohort
-    const unlocatedKeys = new Set(unlocatedRows.map((row) => row.poi_key))
-    return visibleCohort.filter((row) => !unlocatedKeys.has(row.poi_key))
-  }, [showUnlocated, unlocatedRows, visibleCohort])
+    // Move every row without a precise point out of the main list while its
+    // dedicated section is open. Source records can have different poi_keys
+    // for the same displayed business, so key-only filtering can leave a copy.
+    return visibleCohort.filter(hasPoint)
+  }, [showUnlocated, visibleCohort])
   const resultCountSummary = res ? `${n(visibleCohort.length)} ضمن الدفعة · ${n(res.total)} إجمالاً` : n(visibleCohort.length)
   const unconfirmedStatusCount = useMemo(() => visibleCohort.filter(hasUnconfirmedStatus).length, [visibleCohort])
   const unverifiedWhatsappCount = useMemo(() => visibleCohort.filter((row) => channelOf(row) === 'WhatsApp' && row.whatsapp_verification_state !== 'verified').length, [visibleCohort])
