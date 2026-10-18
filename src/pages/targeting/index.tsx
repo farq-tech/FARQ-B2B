@@ -2590,7 +2590,7 @@ function FilterPill({ id, label, icon: IconComponent, analyticsKey, options, dis
   ) : null
   return (
     <div ref={root} className="relative shrink-0">
-      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} aria-pressed={active} data-active={active || undefined} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) { setSearch(''); onOpen?.(); recordMapInteraction(`map_filter_open_${analyticsKey}`) } }}
+      <button ref={trigger} id={id} type="button" aria-haspopup={mobile ? 'dialog' : 'true'} aria-expanded={open} aria-controls={`${id}-options`} data-active={active || undefined} disabled={disabled} onClick={() => { const nextOpen = !open; setOpen(nextOpen); if (nextOpen) { setSearch(''); onOpen?.(); recordMapInteraction(`map_filter_open_${analyticsKey}`) } }}
         className={`inline-flex min-h-11 max-w-[min(13rem,78vw)] items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-2 text-[14px] leading-[20px] font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md hover:border-[var(--color-border-strong)] disabled:opacity-50 md:min-h-10 ${buttonClassName} ${active ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm' : ''} ${FOCUS_RING}`}>
         {IconComponent ? <IconComponent size={16} className="shrink-0 text-[var(--color-icon-secondary)]" /> : null}
         <span className="truncate">{label}</span>
