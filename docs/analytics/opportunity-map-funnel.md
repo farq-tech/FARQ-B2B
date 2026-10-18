@@ -983,7 +983,7 @@ The buckets measure wait for a completed API search, not relevance, time-to-firs
 
 ## Street-density load health
 
-The street-density load records consented `started`, `succeeded`, `failed`, and manual `retry` events. These labels contain no city, activity, query, or establishment data. One logical load may make a single automatic retry after a transient network failure or 502/503/504; the events describe the logical load, not individual HTTP attempts. The outcome rate uses completed loads only; loads superseded by a newer selection or still in flight at the end of the window have a start but no terminal event.
+The street-density load records consented `started`, `succeeded`, `failed`, manual `retry`, and automatic-retry outcome events. These labels contain no city, activity, query, or establishment data. One logical load may make a single automatic retry after a transient network failure or 502/503/504; the events describe the logical load, not individual HTTP attempts. The outcome rate uses completed loads only; loads superseded by a newer selection or still in flight at the end of the window have a start but no terminal event. The automatic-retry result is recorded separately as retry started, recovered, or failed.
 
 Run against the same authorized, read-only main application database:
 
@@ -994,6 +994,14 @@ SELECT
   count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_succeeded') AS loads_succeeded,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_failed') AS loads_failed,
   count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_retry') AS manual_retries,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_auto_retry') AS automatic_retries,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_auto_retry_recovered') AS automatic_retry_recoveries,
+  count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_auto_retry_failed') AS automatic_retry_failures,
+  round(100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_auto_retry_recovered')
+    / nullif(count(*) FILTER (WHERE element_label IN (
+      'pricing_map_map_street_density_auto_retry_recovered',
+      'pricing_map_map_street_density_auto_retry_failed'
+    )), 0), 1) AS automatic_retry_recovery_pct,
   round(100.0 * count(*) FILTER (WHERE element_label = 'pricing_map_map_street_density_failed')
     / nullif(count(*) FILTER (WHERE element_label IN (
       'pricing_map_map_street_density_succeeded',
@@ -1011,10 +1019,13 @@ WHERE occurred_at >= now() - interval '56 days'
     'pricing_map_map_street_density_started',
     'pricing_map_map_street_density_succeeded',
     'pricing_map_map_street_density_failed',
-    'pricing_map_map_street_density_retry'
+    'pricing_map_map_street_density_retry',
+    'pricing_map_map_street_density_auto_retry',
+    'pricing_map_map_street_density_auto_retry_recovered',
+    'pricing_map_map_street_density_auto_retry_failed'
   )
 GROUP BY 1
 ORDER BY 1 DESC;
 ```
 
-These are logical-load events, not unique users, physical HTTP attempts, or streets. Use at least two complete weeks and 30 completed loads before interpreting the percentage; when volume is lower, review failure sessions as directional evidence and pair them with the app's aggregate HTTP status counts.
+These are logical-load events, not unique users, physical HTTP attempts, or streets. Use at least two complete weeks and 30 completed loads before interpreting load failure; use 30 completed automatic retries before interpreting recovery. When volume is lower, treat the percentages as directional and pair them with aggregate HTTP status counts.
