@@ -602,13 +602,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const districtScopeOptions = useMemo(() => [...districtScopeGroups.entries()]
     .map(([key, group]) => ({ value: `scope:${key}`, text: group[0].ar }))
     .sort((a, b) => a.text.localeCompare(b.text, 'ar')), [districtScopeGroups])
-  // Some source boundaries split one named neighbourhood into several polygons.
-  // When the summary count mirrors that polygon total, show the actual selectable
-  // neighbourhood count instead of overstating coverage.
-  const displayedDistrictCount = (summary: MarketSummary['summary'] | null) => {
-    const count = summary?.districts_count ?? null
-    return count === districts.length && districtScopeOptions.length < districts.length ? districtScopeOptions.length : count
-  }
+  // The map selector is the source of truth for this UI count. A named
+  // neighbourhood can span several polygons, so source summaries may count those
+  // fragments instead of the distinct choices a person can make on the map.
+  const displayedDistrictCount = (summary: MarketSummary['summary'] | null) =>
+    districtScopeOptions.length || summary?.districts_count || null
   const chosenList = useMemo(() => districts.filter((d) => chosenD.has(d.id)), [districts, chosenD])
   const fitCity = () => {
     const bounds = districts.map((d) => d.bbox).filter(Boolean) as [number, number, number, number][]
