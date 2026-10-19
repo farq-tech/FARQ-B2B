@@ -40,9 +40,25 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
     }
     setQ(value)
   }
-  if (!guide.length && !mobile) return <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{empty}</p>
   const normalizedQuery = normalizeSearchText(q.trim())
   const hit = (t: string) => !normalizedQuery || normalizeSearchText(t).includes(normalizedQuery)
+  const activeMainId = focus?.level === 'main' ? focus.id
+    : focus?.level === 'sub' ? focus.id.split('.')[0]
+      : focus?.level === 'spec' ? (focus.sub_id || '').split('.')[0] : ''
+  const observedMain = activeMainId ? guide.find((item) => item.id === activeMainId) : undefined
+  const fallbackMain = activeMainId ? { id: activeMainId, ar: MAINS[activeMainId]?.[0] || activeMainId, n: 0, subs: [] } : null
+  const activeMain = observedMain || fallbackMain
+  // The market cards can select a valid main category before the small browse
+  // batch contains rows for it. Keep its known subcategories navigable instead
+  // of leaving the guide blank; counts are shown only when observed in the batch.
+  const knownSubs = activeMain ? Object.entries(SUBS)
+    .filter(([id]) => id.startsWith(`${activeMain.id}.`) && id !== `${activeMain.id}.?`)
+    .map(([id, [ar]]) => ({ id, ar, data: activeMain.subs.find((item) => item.id === id) }))
+    .filter((item) => hit(item.ar) || item.data?.specs.some((spec) => hit(spec.name))) : []
+  const fallbackGuide = activeMain
+    ? [{ ...activeMain, subs: knownSubs.map((item) => item.data || { id: item.id, ar: item.ar, n: 0, specs: [] }) }]
+    : guide
+  if (!fallbackGuide.length && !mobile) return <p className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{empty}</p>
   const pick = (f: NonNullable<Focus>) => {
     const clear = Boolean(focus && focus.level === f.level && focus.id === f.id && (f.level !== 'spec' || focus.level === 'spec' && focus.sub_id === f.sub_id))
     const selectionEvent = f.level === 'main'
@@ -53,23 +69,13 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
   }
   const on = (level: NonNullable<Focus>['level'], id: string, subId?: string) => Boolean(focus && focus.level === level && focus.id === id && (level !== 'spec' || focus.level === 'spec' && focus.sub_id === subId))
   const focusLabel = focus?.level === 'main'
-    ? guide.find((m) => m.id === focus.id)?.ar
+    ? activeMain?.ar
     : focus?.level === 'sub'
-      ? guide.flatMap((m) => m.subs).find((s) => s.id === focus.id)?.ar
-      : focus?.level === 'spec' ? `${focus.id}${focus.sub_id ? ` · ${guide.flatMap((m) => m.subs).find((s) => s.id === focus.sub_id)?.ar || ''}` : ''}` : null
+      ? guide.flatMap((m) => m.subs).find((s) => s.id === focus.id)?.ar || SUBS[focus.id]?.[0] || focus.id
+      : focus?.level === 'spec' ? `${focus.id}${focus.sub_id ? ` · ${guide.flatMap((m) => m.subs).find((s) => s.id === focus.sub_id)?.ar || SUBS[focus.sub_id]?.[0] || ''}` : ''}` : null
   const rowCls = (active: boolean) => `fi-host flex min-h-10 w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-start text-[14px] leading-[22px] hover:bg-[var(--color-bg-surface-2)] ${active ? 'bg-[var(--color-bg-surface-2)] ring-1 ring-[var(--map-ink)]' : ''} ${FOCUS_RING}`
 
   if (mobile) {
-    const activeMainId = focus?.level === 'main' ? focus.id
-      : focus?.level === 'sub' ? focus.id.split('.')[0]
-      : focus?.level === 'spec' ? (focus.sub_id || '').split('.')[0] : ''
-    const activeMain = activeMainId
-      ? guide.find((item) => item.id === activeMainId) || { id: activeMainId, ar: MAINS[activeMainId]?.[0] || activeMainId, n: 0, subs: [] }
-      : null
-    const knownSubs = activeMain ? Object.entries(SUBS)
-      .filter(([id]) => id.startsWith(`${activeMain.id}.`) && id !== `${activeMain.id}.?`)
-      .map(([id, [ar]]) => ({ id, ar, data: activeMain.subs.find((item) => item.id === id) }))
-      .filter((item) => hit(item.ar) || item.data?.specs.some((spec) => hit(spec.name))) : []
     const activeSubId = focus?.level === 'sub' ? focus.id : focus?.level === 'spec' ? focus.sub_id || '' : ''
     const activeSub = activeMain?.subs.find((item) => item.id === activeSubId)
     const specialties = activeSub?.specs.filter((item) => hit(item.name)) || []
@@ -144,7 +150,7 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
         </div>
       ) : null}
       <ul aria-label="الدليل" className="flex flex-col">
-        {guide.map((m) => {
+        {fallbackGuide.map((m) => {
           const subs = m.subs.filter((s) => hit(m.ar) || hit(s.ar) || s.specs.some((x) => hit(x.name)))
           if (!subs.length) return null
           const mo = open.has(m.id) || Boolean(q.trim())
@@ -157,7 +163,7 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
                 <button type="button" aria-pressed={on('main', m.id)} onClick={() => { pick({ level: 'main', id: m.id }); toggleOpen(m.id, true) }} className={rowCls(on('main', m.id))}>
                   <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--map-ink)] text-white"><MapIcon name={mainIcon(m.id)} size={15} /></span>
                   <span className="min-w-0 flex-1 truncate font-semibold">{m.ar}</span>
-                  <span className="text-[12px] tabular-nums text-[var(--color-text-secondary)]">{fmt(m.n)}</span>
+                  {m.n > 0 ? <span className="text-[12px] tabular-nums text-[var(--color-text-secondary)]">{fmt(m.n)}</span> : null}
                 </button>
               </div>
               {mo ? (
@@ -176,7 +182,7 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
                           <button type="button" aria-pressed={on('sub', s.id)} onClick={() => { pick({ level: 'sub', id: s.id }); toggleOpen(s.id, true) }} className={rowCls(on('sub', s.id))}>
                             <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--map-green)] text-white"><MapIcon name={subIcon(s.id)} size={13} /></span>
                             <span className="min-w-0 flex-1 truncate">{s.ar}</span>
-                            <span className="text-[12px] tabular-nums text-[var(--color-text-secondary)]">{fmt(s.n)}</span>
+                            {s.n > 0 ? <span className="text-[12px] tabular-nums text-[var(--color-text-secondary)]">{fmt(s.n)}</span> : null}
                           </button>
                         </div>
                         {so && specs.length ? (
