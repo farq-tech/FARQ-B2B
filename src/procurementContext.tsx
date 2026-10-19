@@ -11,7 +11,7 @@ import type { AppView } from './types'
  *   /requests/:id/award       تأكيد الترسية (05) — deep link; 04 opens the same sheet in place
  *   /requests/:id/review      → متابعة الطلب: review (02) is a step of /new, before the request has an id
  *   /inbox                    صندوق الوارد (06)
- *   /explore                  استكشف (discovery: أبي أشتري / أبي أبيع)
+ *   /explore                  رابط قديم يعيد التوجيه إلى خريطة الفرص
  *   /opportunity-map                خريطة الفرص (Figma M07 map, was «حملات الموردين») — confirm sheet in place
  *   /opportunity-map/new            خريطة الفرص with «طلب جديد» open (the one place to start anything)
  *   /opportunity-map/templates      قوالب واتساب (09)
@@ -23,7 +23,7 @@ import type { AppView } from './types'
  * `?rfq=<id>` link, which still opens that request. The dev harness (`?harness=`) is left alone.
  */
 /** App screens: the copied AppView plus the inbox (not a فرق بناء view, so not added to types.ts). */
-export type View = AppView | 'goal-new' | 'explore' | 'inbox' | 'targeting' | 'targeting-new' | 'templates' | 'template-new' | 'whatsapp-leads' | 'account' | 'opportunities'
+export type View = AppView | 'inbox' | 'targeting' | 'targeting-new' | 'templates' | 'template-new' | 'whatsapp-leads' | 'account' | 'opportunities'
 type Ctx = {
   view: View
   navigate: (v: View) => void
@@ -39,8 +39,8 @@ export function parseRoute(pathname: string, search = ''): Route {
   const p = pathname.replace(/\/+$/, '') || '/'
   if (p === '/account') return { view: 'account', rfqId: null }
   if (p === '/opportunities') return { view: 'opportunities', rfqId: null }
-  if (p === '/explore') return { view: 'explore', rfqId: null }
-  if (p === '/goals/new') return { view: 'goal-new', rfqId: null }
+  // Keep shared links working while replacing the retired discovery experience.
+  if (p === '/explore' || p === '/goals/new') return { view: 'targeting', rfqId: null }
   if (p === '/new') return { view: 'create-upload', rfqId: null }
   if (p === '/inbox') return { view: 'inbox', rfqId: null }
   // «خريطة الفرص»; the old /targeting links open the same screens (the URL is then replaced)
@@ -59,8 +59,6 @@ export function parseRoute(pathname: string, search = ''): Route {
 export function routePath(view: View, rfqId: string | null): string {
   if (view === 'account') return '/account'
   if (view === 'opportunities') return '/opportunities'
-  if (view === 'goal-new') return '/goals/new'
-  if (view === 'explore') return '/explore'
   if (view === 'create-upload') return '/new'
   if (view === 'inbox') return '/inbox'
   if (view === 'targeting') return '/opportunity-map'

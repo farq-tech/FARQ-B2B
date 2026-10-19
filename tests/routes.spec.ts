@@ -13,6 +13,8 @@ test('URL ⇄ screen mapping (shareable links)', () => {
   expect(parseRoute(`/requests/${id}/review`)).toEqual({ view: 'rfq-detail', rfqId: id }) // 02 is a step of /new
   expect(parseRoute('/inbox')).toEqual({ view: 'inbox', rfqId: null })
   expect(parseRoute('/opportunity-map')).toEqual({ view: 'targeting', rfqId: null })
+  expect(parseRoute('/explore')).toEqual({ view: 'targeting', rfqId: null })
+  expect(parseRoute('/goals/new')).toEqual({ view: 'targeting', rfqId: null })
   expect(parseRoute('/opportunity-map/new')).toEqual({ view: 'targeting-new', rfqId: null })
   expect(routePath('targeting', null)).toBe('/opportunity-map')
   // old links keep working

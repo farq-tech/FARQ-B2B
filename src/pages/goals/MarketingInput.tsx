@@ -20,7 +20,7 @@ export default function MarketingInput() {
     finally { setBusy(false); setNote('') }
   }
   return <section dir="rtl" className="mx-auto flex min-h-screen w-full max-w-[760px] flex-col gap-6 p-5 sm:p-10">
-    <button type="button" className="self-start underline" onClick={() => navigate('goal-new')}>رجوع للهدف</button>
+    <button type="button" className="self-start underline" onClick={() => navigate('targeting')}>رجوع لخريطة الفرص</button>
     <h1 className="text-[32px] font-bold">{review ? 'راجع المنتجات والخدمات اللي تبي تسوّقها' : 'وش تبي نسوّق لك اليوم؟'}</h1>
     <p className="leading-7 text-[var(--color-text-secondary)]">ارفع كتالوجك أو اكتب تخصصك مباشرة، مثل «مواد سباكة». نبحث عن جهات قد تستخدم منتجاتك أو تستفيد من خدماتك.</p>
     <label className="flex flex-col gap-2 font-medium">{review ? 'عدّل العناصر قبل البحث — سطر لكل منتج أو خدمة' : 'اكتب تخصصك أو منتجاتك وخدماتك — سطر لكل عنصر'}
