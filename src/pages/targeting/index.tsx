@@ -20,7 +20,7 @@ import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
-import TargetingAssistant from './TargetingAssistant'
+import TargetingAssistant, { type TargetingAssistantPlan } from './TargetingAssistant'
 import StartSheet from './StartSheet'
 import MyRequests from './MyRequests'
 import Counters, { type CounterItem } from './map/Counters'
@@ -1931,7 +1931,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       || 'منشآت أعمال مناسبة'
   }
 
-  const understandAssistantPrompt = async (prompt: string): Promise<{ target: string; purpose: string; prompt: string; source?: 'directory' | 'fallback' }> => {
+  const understandAssistantPrompt = async (prompt: string): Promise<TargetingAssistantPlan> => {
     // Uses the live directory analyzer. When ANTHROPIC_API_KEY is present in the targeting service,
     // this invokes its model parser; otherwise the service states its deterministic fallback in `parsed`.
     // Keep this request on the same production-safe page size as the map search.
@@ -1940,7 +1940,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       const analysis = await searchTargets(prompt.slice(0, 120), city, 30, 'marketing')
       const parsed = analysis.parsed || {}
       const target = parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ') || assistantFallbackTarget(prompt)
-      return { target, purpose: assistantPurpose(prompt), prompt, source: 'directory' }
+      return { target, purpose: assistantPurpose(prompt), prompt, source: 'directory', seed: analysis }
     } catch {
       // The draft search below remains the authority. This path lets a temporary
       // analyzer outage never strand a user before reviewing a draft.
@@ -1948,12 +1948,28 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     }
   }
 
-  const prepareAssistantDraft = async (plan: { target: string; purpose: string; prompt: string }) => {
+  const prepareAssistantDraft = async (plan: TargetingAssistantPlan) => {
     if (preparingMarketing) throw new Error('BUSY')
     setObjective('marketing'); setLens('buyers'); setQ(plan.target)
-    // Never leave a prior audience on screen when this new draft cannot be refreshed.
-    setRes(null); lastSearchRows.current = []; setSelected(new Set()); setSelectedRows(new Map())
-    const total = await runSearchIn(plan.target, city, undefined, 'marketing')
+    // The analysis request already loaded a small, reviewable cohort. Reuse it
+    // instead of blocking the screen with the same directory lookup a second time.
+    const seed = plan.seed
+    let total: number | null
+    if (seed?.rows?.length) {
+      generation.current += 1
+      setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
+      lastSearchRows.current = seed.rows
+      lastSuccessfulQueryObjective.current = 'marketing'
+      setTab('results'); setRes(seed); setQuery(plan.target); setShown(PAGE); setAreaFilters({})
+      setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([])
+      setChosenD(new Set()); setMapScope('city'); setFocus(null); setShowUnlocated(false)
+      total = seed.total
+    } else {
+      // A fallback understanding has no preloaded cohort, so it performs one
+      // bounded live lookup. The user can stop it immediately if it is slow.
+      setRes(null); lastSearchRows.current = []; setSelected(new Set()); setSelectedRows(new Map())
+      total = await runSearchIn(plan.target, city, undefined, 'marketing')
+    }
     if (total === null) throw new Error('SEARCH_FAILED')
     const rows = lastSearchRows.current.filter((row) => Boolean(waNumber(row))).slice(0, 50)
     if (!rows.length) throw new Error('NO_WHATSAPP_RESULTS')
