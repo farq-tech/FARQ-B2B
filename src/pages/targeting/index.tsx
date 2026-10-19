@@ -2363,7 +2363,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setQuery('')
     setLens('market')
     setAreaFilters(scopeFilters)
-    setStreetPick({ kind: 'all' })
     setActiveStreet(mapScope === 'street' ? activeStreet : null)
     clusterGen.current++
     setClusters(null)
