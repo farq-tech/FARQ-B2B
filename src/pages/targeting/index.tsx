@@ -602,6 +602,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const districtScopeOptions = useMemo(() => [...districtScopeGroups.entries()]
     .map(([key, group]) => ({ value: `scope:${key}`, text: group[0].ar }))
     .sort((a, b) => a.text.localeCompare(b.text, 'ar')), [districtScopeGroups])
+  // Some source boundaries split one named neighbourhood into several polygons.
+  // When the summary count mirrors that polygon total, show the actual selectable
+  // neighbourhood count instead of overstating coverage.
+  const displayedDistrictCount = (summary: MarketSummary['summary'] | null) => {
+    const count = summary?.districts_count ?? null
+    return count === districts.length && districtScopeOptions.length < districts.length ? districtScopeOptions.length : count
+  }
   const chosenList = useMemo(() => districts.filter((d) => chosenD.has(d.id)), [districts, chosenD])
   const fitCity = () => {
     const bounds = districts.map((d) => d.bbox).filter(Boolean) as [number, number, number, number][]
@@ -654,7 +661,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     qualityNoticeSeen.current = true
     recordMapInteraction('map_data_quality_notice_seen')
   }, [analyticsConsentRevision, showUnconfirmedStatusNotice])
-  const counters = useMemo(() => countersOf(visibleCohort, chosenD.size), [visibleCohort, chosenD])
+  const counters = useMemo(() => countersOf(visibleCohort, chosenNames.length), [visibleCohort, chosenNames])
   const displayCounters = useMemo<CounterItem[]>(() => {
     const shownRows = res?.rows || []
     const globalLocationCount = typeof res?.located_total === 'number' && Number.isFinite(res.located_total)
@@ -665,7 +672,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     const whatsapp = shownRows.filter((row) => Boolean(waNumber(row))).length
     // Search responses describe all matching districts. Once the user narrows to a
     // district, keep this indicator scoped to the visible result set.
-    const areas = filters.district ? 1 : chosenD.size || res?.areas?.districts.length || 0
+    const areas = filters.district ? 1 : chosenNames.length || res?.areas?.districts.length || 0
     if (lens === 'market') {
       const scopeLabel = densityDistrictNames.length === 1
         ? `منشآت حي ${densityDistrictNames[0]}`
@@ -673,7 +680,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       const activities = marketStats?.main_activities || []
       return [
         { key: 'market-size', label: scopeLabel, value: marketStats?.total ?? null, lead: true },
-        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null }]),
+        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats) }]),
         { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
         { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null },
         ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n })),
@@ -699,9 +706,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     return [
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
       { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
-      { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
+      { key: 'city-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats) },
     ]
-  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district, densityDistrictNames])
+  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
   const focusedSpecialty = focus?.level === 'spec' && streetPick.kind === 'spec' && streetPick.id === focus.id && (!focus.sub_id || streetPick.subId === focus.sub_id) ? streetPick : null
   const focusedTileKey = focus && res?.map_query
@@ -750,15 +757,20 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const hasAiInVisibleCohort = visibleCohort.some((row) => Boolean(row.ai))
   const waInCohort = counters.whatsapp
 
+  const fitDistrictSelection = (selection: District[]) => {
+    const bounds = selection.map((item) => item.bbox).filter((bbox): bbox is [number, number, number, number] => Boolean(bbox))
+    if (bounds.length) fitTo([Math.min(...bounds.map((bbox) => bbox[0])), Math.min(...bounds.map((bbox) => bbox[1])), Math.max(...bounds.map((bbox) => bbox[2])), Math.max(...bounds.map((bbox) => bbox[3]))])
+  }
   const toggleDistrict = (id: string) => {
-    const wasChosen = chosenD.has(id)
+    const district = districts.find((item) => item.id === id)
+    const grouped = district ? districtScopeGroups.get(normalizeActivityText(district.ar)) : undefined
+    const selection = grouped?.length ? grouped : district ? [district] : []
+    const wasChosen = selection.length > 0 && selection.every((item) => chosenD.has(item.id))
     recordMapInteraction(wasChosen ? 'map_district_clear' : 'map_district_select')
-    const next = wasChosen ? new Set<string>() : new Set([id])
-    setChosenD(next)
+    setChosenD(wasChosen ? new Set<string>() : new Set(selection.map((item) => item.id)))
     setMapScope(wasChosen ? 'city' : 'district')
-    const district = districts.find((d) => d.id === id)
-    if (!wasChosen && district?.bbox) fitTo(district.bbox)
-    else if (wasChosen) fitCity()
+    if (!wasChosen) fitDistrictSelection(selection)
+    else fitCity()
     const name = wasChosen ? undefined : district?.ar || id.replace(/^name:/, '')
     const nextFilters = { ...filters }
     delete nextFilters.district
@@ -775,8 +787,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setMapScope('district')
     setChosenD(new Set(selectedDistricts.map((item) => item.id)))
     setActiveStreet(null)
-    const bounds = selectedDistricts.map((item) => item.bbox).filter((bbox): bbox is [number, number, number, number] => Boolean(bbox))
-    if (bounds.length) fitTo([Math.min(...bounds.map((bbox) => bbox[0])), Math.min(...bounds.map((bbox) => bbox[1])), Math.max(...bounds.map((bbox) => bbox[2])), Math.max(...bounds.map((bbox) => bbox[3]))])
+    fitDistrictSelection(selectedDistricts)
     const nextFilters = { ...filters, district: name }
     delete nextFilters.street
     applyFilters(nextFilters)
@@ -2064,7 +2075,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             : hasTargetQuery
               ? `القائمة تعرض ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} نتيجة مطابقة إجمالاً`
             : `دليل المدينة: تعرض القائمة ${n(Math.min(shown, visibleListCohort.length))} من ${n(visibleListCohort.length)} منشأة محمّلة · ${n(res.total)} سجل مرصود في الدليل. هذه ليست ترشيحات مؤكدة للمشترين؛ أضف منتجاتك لفرز الجهات حسب ملاءمتها.`}
-          {chosenD.size ? ` · داخل ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
+          {chosenNames.length ? ` · داخل ${n(chosenNames.length)} ${chosenNames.length === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
           {fitFilter !== 'all' ? <span> · تقدير الملاءمة للفرز فقط</span> : null}
@@ -2233,7 +2244,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         cityOverviewStats ? <>
           <dl className="m-0 grid grid-cols-2 gap-2">
             {scopeMetric('إجمالي المنشآت', cityOverviewStats.total, 'حجم الدليل في المدينة')}
-            {scopeMetric('الأحياء المغطاة', cityOverviewStats.districts_count, 'أحياء لها سجلات موثوقة')}
+            {scopeMetric('الأحياء المغطاة', displayedDistrictCount(cityOverviewStats), 'أحياء لها سجلات موثوقة')}
             {scopeMetric('التصنيف الأكثر انتشاراً', cityOverviewStats.main_activities?.[0]?.main_ar || 'غير متاح حالياً', cityOverviewStats.main_activities?.[0] ? `${n(cityOverviewStats.main_activities[0].n)} سجل مصنّف` : 'لم يصل توزيع أنشطة المدينة', true)}
             {scopeMetric('أكبر حي', cityOverviewStats.top_districts?.[0]?.district_ar || null, cityOverviewStats.top_districts?.[0] ? `${n(cityOverviewStats.top_districts[0].n)} منشأة مسجلة` : 'لا تتوفر بيانات أحياء', true)}
             {scopeMetric('ضمن الفلاتر الحالية', scopedMatchCount, scopedMatchNote, true)}
@@ -2542,7 +2553,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         </div>
         <div className="pointer-events-none absolute bottom-3 start-3 z-20 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 px-3 py-1.5 text-[12px] font-medium shadow-sm">
           {lens === 'market' ? `منشآت مرصودة · ${marketStats ? n(marketStats.total) : marketLoading ? '…' : '—'}` : buyerProductMode ? `مرشحو منتجاتك · ${n(res?.total || 0)}` : hasTargetQuery ? `نتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : lens === 'sellers' ? 'ابدأ البحث عن مورد' : 'ابدأ البحث عن مشترين'}
-          {chosenD.size ? ` · ${n(chosenD.size)} ${chosenD.size === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
+          {chosenNames.length ? ` · ${n(chosenNames.length)} ${chosenNames.length === 1 ? 'حي محدد' : 'أحياء محددة'}` : ''}
         </div>
         {focusPanelOpen ? (
           <aside id="map-focus-panel" aria-label="النتائج والدليل" style={mobile ? { height: `calc(${focusPanelSnap === 'peek' ? 15 : focusPanelSnap === 'full' ? 95 : 58}dvh + env(safe-area-inset-bottom))` } : undefined} className={`absolute z-30 flex flex-col overflow-hidden border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 shadow-2xl backdrop-blur-md transition-[height] duration-300 motion-reduce:transition-none ${mobile ? 'inset-x-0 bottom-0 max-h-[calc(100dvh-env(safe-area-inset-top))] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'inset-y-3 end-3 top-[116px] w-[min(400px,calc(100vw-24px))] rounded-2xl'}`}>
