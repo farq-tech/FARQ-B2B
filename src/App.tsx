@@ -101,7 +101,7 @@ function Routes() {
             <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
             <NavItem collapsed={sidebarCollapsed} icon={OpportunityMapIcon} label="خريطة الفرص" active={view === 'targeting'} onClick={() => navigate('targeting')} />
             <NavItem collapsed={sidebarCollapsed} icon={MessageTemplatesIcon} label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
-            <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="فرص واتساب" active={view === 'whatsapp-leads'} onClick={() => navigate('whatsapp-leads')} />
+            <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="الفرص" active={view === 'whatsapp-leads'} onClick={() => navigate('whatsapp-leads')} />
           </>}
           footerNav={<NavItem collapsed={sidebarCollapsed} icon={AccountIcon} label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
           account={{ name: email || 'المالك', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
