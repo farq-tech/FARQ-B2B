@@ -367,7 +367,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   useEffect(() => { templateStatus().then(setTpl, () => setTplError(true)) }, [])
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
   const [templates, setTemplates] = useState<MetaTemplate[]>([])
-  useEffect(() => { listTemplates().then((r) => setTemplates(r?.ok ? (r.data || []).filter((t) => t.status === 'APPROVED') : []), () => setTemplates([])) }, [])
+  useEffect(() => { listTemplates().then((r) => setTemplates(r?.ok ? (r.data || []) : []), () => setTemplates([])) }, [])
   const [startOpen, setStartOpen] = useState(startNew)
   const [startSeen, setStartSeen] = useState(startNew)
   if (startNew !== startSeen) { setStartSeen(startNew); if (startNew) setStartOpen(true) }
@@ -1907,7 +1907,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const marketingBlock = null
   const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
   const sendBlock = objective === 'marketing'
-    ? refreshBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : null)
+    ? refreshBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
     : refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
   const scheduleBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
@@ -2666,7 +2666,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
 
   const tray = chosen.length ? (
     <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage}
-      template={template} onTemplate={setTemplate} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
+      template={template} onTemplate={(next) => { setTemplate(next); setPreparedCampaignId(null) }} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
       city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onPrepare={objective === 'marketing' ? () => void prepareWhatsAppCampaign() : undefined} onOpenLeads={onLeads} openRequest={draftOpenRequest} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} />
   ) : null
   const confirmSheet = confirming && holder ? (
