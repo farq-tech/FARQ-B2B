@@ -7,6 +7,10 @@ import { cityCoords, fromKsaInput, ksaClock, nextScheduleSlot, RIYADH, scheduleW
 import { categoryAr, previewOf } from '../MessageStep'
 import SendTiming from '../SendTiming'
 
+// Meta does not always return the body for the default approved template. Keep
+// the preview useful in that case; these are the two values sent by the API.
+const DEFAULT_TEMPLATE_BODY = 'السلام عليكم {{1}}،\n{{2}}'
+
 /*
  * «رسالة الحملة» as a tray under the map (owner 2026-10-16): hidden until at least one recipient is chosen, collapsed
  * by default, never on top of the map. It holds the approved template, the text, «إرسال الآن» / «جدولة» (Saudi time,
@@ -53,7 +57,8 @@ export default function CampaignTray(p: Props) {
   const at = fromKsaInput(when)
   const warn = at ? scheduleWarning(at, new Date(), where) : 'اختر التاريخ والوقت.'
   const hardStop = !at || (warn !== null && (warn.startsWith('اختر') || warn.startsWith('هذا الوقت وقت صلاة')))
-  const body = p.template === OUTREACH_TEMPLATE ? '' : templateBody(p.templates.find((t) => t.name === p.template) || { name: '', status: '' })
+  const body = templateBody(p.templates.find((t) => t.name === p.template) || { name: '', status: '' })
+  const preview = previewOf(body || DEFAULT_TEMPLATE_BODY, p.message)
 
   async function schedule() {
     if (!at || busy) return
@@ -69,7 +74,7 @@ export default function CampaignTray(p: Props) {
   const costLine = p.cost != null ? <>≈ <Money amount={p.cost} vat="excl" noteClassName="text-[length:inherit] leading-[inherit] font-[inherit]" /></> : 'السعر يظهر في المراجعة'
   return (
     <section aria-labelledby="campaign-title" data-testid="campaign-tray"
-      className={`flex flex-col border-t border-[var(--color-border-default)] bg-[var(--color-bg-surface)] shadow-[0_-6px_20px_-12px_var(--map-ink)] ${p.mobile ? '-mx-4 rounded-[18px] border' : 'max-h-[46%] shrink-0'}`}>
+      className={`flex min-h-0 max-h-[min(72dvh,34rem)] flex-col overflow-hidden border-t border-[var(--color-border-default)] bg-[var(--color-bg-surface)] shadow-[0_-6px_20px_-12px_var(--map-ink)] ${p.mobile ? '-mx-4 rounded-[18px] border' : 'max-h-[46%] shrink-0'}`}>
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <div className="flex min-w-0 flex-col">
           <h2 id="campaign-title" className="text-[16px] leading-[24px] font-semibold">{p.onPrepare ? 'قائمة حملة واتساب' : 'رسالة الحملة'} <span className="font-medium text-[var(--color-text-secondary)]">· اخترت <bdi dir="ltr">{p.count.toLocaleString('en-US')}</bdi> منشأة</span></h2>
@@ -84,7 +89,7 @@ export default function CampaignTray(p: Props) {
         </div>
       </div>
       {open ? (
-        <div id="campaign-body" className={`grid min-h-0 gap-4 overflow-y-auto border-t border-[var(--color-border-default)] px-4 py-3 ${p.mobile ? 'grid-cols-1' : 'grid-cols-[1.2fr_1fr]'}`}>
+        <div id="campaign-body" className={`grid min-h-0 flex-1 touch-pan-y gap-4 overflow-y-auto overscroll-contain border-t border-[var(--color-border-default)] px-4 py-3 ${p.mobile ? 'grid-cols-1' : 'grid-cols-[1.2fr_1fr]'}`}>
           <div className="flex flex-col gap-2.5">
             {p.onPrepare ? (
               <div className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[14px] leading-[22px]">
@@ -106,7 +111,10 @@ export default function CampaignTray(p: Props) {
               <span className="sr-only">نص الرسالة</span>
               <textarea value={p.message} onChange={(e) => p.onMessage(e.target.value)} rows={3} maxLength={900} className="w-full resize-none bg-transparent text-[15px] leading-[24px] outline-none" />
             </label>
-            {body ? <p className="text-[12px] leading-[18px] whitespace-pre-line text-[var(--color-text-secondary)]">معاينة: {previewOf(body, p.message)}</p> : null}
+            <section data-testid="campaign-message-preview" aria-label="معاينة الرسالة قبل الإرسال" className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5">
+              <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">معاينة الرسالة قبل الإرسال</p>
+              <p className="mt-1 whitespace-pre-line text-[14px] leading-[22px]">{preview}</p>
+            </section>
             </>}
           </div>
           <div className="flex flex-col gap-2.5">

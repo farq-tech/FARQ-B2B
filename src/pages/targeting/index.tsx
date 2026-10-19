@@ -1868,7 +1868,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     if (busy || failedResultRefresh || !waNumber(r)) return
     recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
-    setSelectedRows((current) => { const next = new Map(current); if (selected.has(r.poi_key)) next.delete(r.poi_key); else next.set(r.poi_key, r); return next })
+    setSelectedRows((current) => { const next = new Map(current); if (next.has(r.poi_key)) next.delete(r.poi_key); else next.set(r.poi_key, r); return next })
   }
   const loadedWholesaleRows = visibleCohort.filter(isTaggedWholesaleRow)
   const selectableWholesaleRows = loadedWholesaleRows.filter((row) => waNumber(row) && !selected.has(row.poi_key))
@@ -2848,7 +2848,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         {errorLine}
         {linesPanel}
       </header>
-      <div className="flex min-h-0 flex-1 flex-row">
+      <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
         <>
           <aside id="targeting-results-panel" hidden={!resultsPanelOpen} aria-label="النتائج والدليل" style={{ width: `${resultsPanelWidth}px` }} className="relative flex shrink-0 flex-col border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)] transition-[width] duration-150">
             <div className="flex items-center justify-end px-3 pt-2">
@@ -2877,7 +2877,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             <span aria-hidden className="h-10 w-1 rounded-full bg-[var(--color-border-strong)]" />
           </div>
         </>
-        <main className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4">
           {!resultsPanelOpen ? <div className="flex items-center justify-start">
             <Button type="button" variant="Secondary" size="S" aria-expanded="false" aria-controls="targeting-results-panel" onClick={() => { setResultsPanelOpen(true); recordMapInteraction('map_results_panel_show') }}>عرض النتائج والدليل</Button>
           </div> : null}
