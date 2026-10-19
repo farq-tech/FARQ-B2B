@@ -1,4 +1,5 @@
 """Contract checks for broad directory discovery and explicit contact filters."""
+import collections
 import pathlib
 import sys
 import tempfile
@@ -164,6 +165,12 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual(broad["rows"][0]["specialties"], [])
             self.assertEqual(tiles.browse("Riyadh", {"wholesale": True})["total"], 0)
             self.assertEqual(tiles.browse("Riyadh", {"specialty": "حديد"})["total"], 0)
+            # The map tiles must also work: a browse-only fallback would still leave
+            # the live map blank for a legacy data asset.
+            tiles.context = lambda _key: (9999999999, None, "Riyadh", {})
+            tiles.tiles = collections.OrderedDict()
+            tile = tiles.tile("map-key", 0, 0, 0)
+            self.assertGreater(len(tile), 0)
             db.close()
 
     def test_map_sql_restricts_contact_only_when_explicitly_requested(self):

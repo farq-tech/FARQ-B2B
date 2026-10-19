@@ -294,7 +294,8 @@ class DirectoryTiles:
                 grid=1024 if z<12 else 512 if z<16 else 1
                 px=f'((longitude+180)/360*{size}-{x})*4096'
                 py=f'((1-asinh(tan(radians(latitude)))/pi())/2*{size}-{y})*4096'
-                grouped=self.db.execute(f"select floor(({px})/{grid}),floor(({py})/{grid}),avg({px}),avg({py}),count(*),first(poi_key),first(coalesce(name_ar,name_en)) "+base+" and coalesce(location_precision,'point')='point' and latitude between -85.05112878 and 85.05112878 group by 1,2",params).fetchall()
+                location_precision=self.column('location_precision', "'point'")
+                grouped=self.db.execute(f"select floor(({px})/{grid}),floor(({py})/{grid}),avg({px}),avg({py}),count(*),first(poi_key),first(coalesce(name_ar,name_en)) "+base+" and coalesce("+location_precision+",'point')='point' and latitude between -85.05112878 and 85.05112878 group by 1,2",params).fetchall()
                 points=[]
             cells={};grid=1024 if z<12 else 512 if z<16 else 1
             for poi,name,lon,lat in points:
