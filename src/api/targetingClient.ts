@@ -216,6 +216,20 @@ async function call<T>(
 ): Promise<T> {
   const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
   const request = { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' as const }
+  const requestWithTimeout = async () => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 10_000)
+    try {
+      return await fetch(`/_targeting${path}`, { ...request, signal: controller.signal })
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new TargetingError('TIMEOUT', 'استغرق البحث وقتًا أطول من المعتاد. عدّل النطاق أو أعد المحاولة.', 408)
+      }
+      throw error
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
   const notifyRetry = (outcome: TransientRetryOutcome) => {
     try { onTransientRetryOutcome?.(outcome) } catch { /* telemetry must not affect the request */ }
   }
@@ -223,7 +237,7 @@ async function call<T>(
   let r: Response
   for (let attempt = 0; ; attempt++) {
     try {
-      r = await fetch(`/_targeting${path}`, request)
+      r = await requestWithTimeout()
     } catch (error) {
       // Explicitly opted-in map reads are idempotent. Recover once from a dropped network
       // connection; let aborts and all other errors keep their normal behavior.
