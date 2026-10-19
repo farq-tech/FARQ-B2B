@@ -2248,12 +2248,18 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     if (category !== 'غير مصنّف') streetMainCounts.set(category, (streetMainCounts.get(category) || 0) + 1)
   }
   const streetMainBreakdown = [...streetMainCounts].sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const scopedMatchCount = res
-    ? buyerProductMode || Boolean(focus || site || chosenD.size) ? visibleCohort.length : res.total
-    : lens === 'market' ? marketStats?.total ?? cityOverviewStats?.total ?? null : null
-  const scopedMatchNote = res && (buyerProductMode || Boolean(focus || site || chosenD.size))
-    ? 'من النتائج المحمّلة بعد تضييق النطاق'
-    : res ? 'إجمالي النتائج المطابقة للبحث والفلاتر' : lens === 'market' ? 'حسب نطاق السوق الحالي' : 'ابدأ بحثاً لعرض المطابقات'
+  // With no text search, market analytics are the source of truth for the
+  // selected district and activity. `res` is only a loaded result page, so
+  // using its row count here understated the actual commercial scope.
+  const useMarketScopeTotal = lens === 'market' && !hasTargetQuery
+  const scopedMatchCount = useMarketScopeTotal
+    ? marketStats?.total ?? cityOverviewStats?.total ?? null
+    : res ? buyerProductMode || Boolean(focus || site || chosenD.size) ? visibleCohort.length : res.total : null
+  const scopedMatchNote = useMarketScopeTotal
+    ? 'إجمالي سجلات الدليل ضمن النطاق والفلاتر'
+    : res && (buyerProductMode || Boolean(focus || site || chosenD.size))
+      ? 'من النتائج المحمّلة بعد تضييق النطاق'
+      : res ? 'إجمالي النتائج المطابقة للبحث والفلاتر' : 'ابدأ بحثاً لعرض المطابقات'
   const scopeMetric = (label: string, value: string | number | null | undefined, note?: string, wide = false) => (
     <div key={label} className={`min-w-0 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5 ${wide ? 'col-span-2' : ''}`}>
       <dt className="text-[11px] leading-[17px] text-[var(--color-text-secondary)]">{label}</dt>
