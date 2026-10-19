@@ -6,8 +6,8 @@ import {
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
-  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon,
-  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, Switch, UploadCatalogIcon, useIsMapCompact, WarningIcon, WholesaleIcon, type Channel,
+  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, FiltersIcon, Icon,
+  SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SupplierIcon, Switch, UploadCatalogIcon, useIsMapCompact, WarningIcon, WholesaleIcon, type Channel,
 } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marketNameFor, marketSuggestions, SELL_EXAMPLES, SELL_PLACEHOLDER, SELL_PLACEHOLDER_SHORT } from '../../lib/saudi'
@@ -32,7 +32,6 @@ import CampaignTray from './map/CampaignTray'
 import ReviewList from './ReviewList'
 import ReviewSelectionTray from './ReviewSelectionTray'
 import StepStrip from './map/StepStrip'
-import { fitOf, type PinFit } from './map/model'
 import { RowBadges } from './map/Badges'
 import {
   countersOf, densityOf, districtAt, districtsFrom, fmtMeters, streetLine, streetsFrom, topStreets, districtsFromNames, guideOf, hasPoint, inDistricts, km, mainAr, mainIdOf, matchesFocus, pinsOf, safeLocationName, safeName, subAr, subIdOf,
@@ -90,11 +89,7 @@ const sourceCountOf = (r: TargetRow) => {
   const count = r.source_count ?? r.sources?.length ?? null
   return typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : null
 }
-/** With no fit filter, prioritize AI-likely places; an explicit fit filter selects WhatsApp rows in that visible group. */
-const pickForFit = (rows: TargetRow[], fitFilter: PinFit | 'all') => {
-  const prioritizeLikely = fitFilter === 'all' && rows.some((r) => r.ai)
-  return new Set(rows.filter((r) => waNumber(r) && (!prioritizeLikely || r.ai === 'L')).map((r) => r.poi_key))
-}
+const pickWhatsAppRows = (rows: TargetRow[]) => new Set(rows.filter((r) => waNumber(r)).map((r) => r.poi_key))
 const cityLabel = (value: string | null, cities: City[]) => {
   const key = value?.trim().toLocaleLowerCase('en-US')
   if (!key) return null
@@ -107,8 +102,6 @@ const pathOf = (r: TargetRow) => {
   if (m !== 'unc') return mainAr(m)
   return r.category_ar ? `نشاط الدليل · ${r.category_ar}` : ''
 }
-const FIT = { L: { tone: 'Success', label: 'مناسب', icon: SuccessIcon }, M: { tone: 'Warning', label: 'محتمل', icon: WarningIcon }, N: { tone: 'Neutral', label: 'غير مناسب', icon: ErrorIcon } } as const
-const fitBadge = (r: TargetRow) => (r.ai ? <Badge tone={FIT[r.ai].tone} icon={FIT[r.ai].icon} label={FIT[r.ai].label} className="text-[12px] leading-[18px]" /> : null)
 const statusBadge = (r: TargetRow) => { const l = statusLabel(r); return l ? <Badge tone="Warning" icon={WarningIcon} label={l} className="text-[12px] leading-[18px]" /> : null }
 const arabic = (s: string) => /[؀-ۿ]/.test(s)
 /** Prefer the explicit place flag; only fall back to the role badge when the flag is absent. */
@@ -195,7 +188,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [layersOpen, setLayersOpen] = useState(false)
   const layerControlRef = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState(PAGE)
-  const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
   const [message, setMessage] = useState(defaultMessage(null, null))
   const [templateValues, setTemplateValues] = useState<Record<string, string>>({})
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
@@ -641,12 +633,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     ? districtRows.filter((r) => hasPoint(r) && km(site, { lat: r.latitude!, lon: r.longitude! }) <= site.km)
     : districtRows, [districtRows, site])
   const cohort = useMemo(() => areaRows.filter((r) => matchesFocus(r, focus)), [areaRows, focus])
-  const fitCounts = useMemo(() => {
-    const counts: Record<PinFit | 'all', number> = { all: cohort.length, likely: 0, maybe: 0, low: 0, unknown: 0 }
-    for (const row of cohort) counts[fitOf(row)] += 1
-    return counts
-  }, [cohort])
-  const visibleCohort = useMemo(() => fitFilter === 'all' ? cohort : cohort.filter((r) => fitOf(r) === fitFilter), [cohort, fitFilter])
+  const visibleCohort = cohort
   const visibleListCohort = useMemo(() => {
     if (!showUnlocated) return visibleCohort
     // Move every row without a precise point out of the main list while its
@@ -778,7 +765,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const chosen = useMemo(() => [...selected].map((key) => selectedRows.get(key)).filter((row): row is TargetRow => Boolean(row)), [selected, selectedRows])
   const campaignChosen = useMemo(() => chosen.filter((row) => Boolean(waNumber(row))), [chosen])
   const truncated = res ? rows.length < res.total : false
-  const hasAiInVisibleCohort = visibleCohort.some((row) => Boolean(row.ai))
   const waInCohort = counters.whatsapp
 
   const fitDistrictSelection = (selection: District[]) => {
@@ -2177,7 +2163,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             {sourceCountOf(r) === 1 ? <Badge tone="Neutral" showDot={false} label="مصدر مسجل واحد" className="w-fit text-[11px] leading-[16px] px-2 py-0.5" /> : null}
             <span className="truncate text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{placeOf(r, cities) || '—'}{locationNotes.length ? ` · ${locationNotes.join(' · ')}` : ''}</span>
           </button>
-          <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}{fitBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
+          <span className="flex shrink-0 flex-col items-end gap-1"><ChannelBadge channel={ch} />{statusBadge(r)}<SaudiEstablishmentBadge evidence={r} /></span>
         </div>
       </li>
     )
@@ -2233,17 +2219,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   ) : !visibleCohort.length ? (
     <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
       <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty || filters.contact ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
-      {cohort.length && fitFilter !== 'all' && fitCounts.unknown > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span>فيه {n(fitCounts.unknown)} منشأة بدون تقدير نموذجي؛ قد تظل مطابقة لنشاطها.</span>
-          <Button variant="Ghost" size="S" onClick={() => {
-            setFitFilter('unknown')
-            setShown(PAGE)
-            recordMapInteraction('fit_filter_unknown')
-          }}>اعرض بدون تقدير نموذجي</Button>
-        </div>
-      ) : null}
-      {cohort.length && fitFilter !== 'all' ? <button type="button" className={`mt-2 block font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`} onClick={() => setFitFilter('all')}>عرض كل النتائج</button> : null}
     </div>
   ) : (
     <div aria-busy={busy}>
@@ -2298,8 +2273,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         </p>
         {unlocatedRows.length ? (
           <Button variant="Ghost" size="S" onClick={() => {
-            setFitFilter('all')
-            setShowUnlocated((value) => {
+                    setShowUnlocated((value) => {
               const next = !value
               recordMapInteraction(next ? 'site_unlocated_show' : 'site_unlocated_hide')
               return next
@@ -2362,12 +2336,12 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
               if (chosen.length) { setSelected(new Set()); setSelectedRows(new Map()) }
               else {
                 recordMapInteraction('fit_supplier_selection')
-                const picked = visibleCohort.filter((row) => pickForFit(visibleCohort, fitFilter).has(row.poi_key))
+                const picked = visibleCohort.filter((row) => pickWhatsAppRows(visibleCohort).has(row.poi_key))
                 setSelected(new Set(picked.map((row) => row.poi_key)))
                 setSelectedRows(new Map(picked.map((row) => [row.poi_key, row])))
               }
             }}>
-            {chosen.length ? 'إلغاء التحديد' : fitFilter === 'likely' || (fitFilter === 'all' && hasAiInVisibleCohort) ? 'حدد المناسبين' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
+            {chosen.length ? 'إلغاء التحديد' : mobile ? 'حدد واتساب' : 'حدد اللي عندهم واتساب'}
           </button>
         ) : null}
       </div>
@@ -2381,7 +2355,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           {chosenNames.length ? ` · داخل ${n(chosenNames.length)} ${chosenNames.length === 1 ? 'حي' : 'أحياء'} مختارة` : ' · اختر حياً على الخريطة لتضييق النتائج'}
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
-          {fitFilter !== 'all' ? <span> · تقدير الملاءمة للفرز فقط</span> : null}
           {focus ? <button type="button" onClick={() => pickFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
         </p>
       ) : null}
@@ -2684,7 +2657,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setFocus(null)
     setStreetPick({ kind: 'all' })
     setSite(null)
-    setFitFilter('all')
     setShowUnlocated(false)
     setActiveStreet(mapScope === 'street' ? activeStreet : null)
     clusterGen.current++
