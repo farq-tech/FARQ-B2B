@@ -2134,7 +2134,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           {focus ? ` · ${focus.level === 'main' ? mainAr(focus.id) : focus.level === 'sub' ? subAr(focus.id) || '' : focus.id}` : ''}
           {approxCount ? ` · ${n(approxCount)} بموقع تقريبي (بلا دبوس)` : ''}
           {fitFilter !== 'all' ? <span> · تقدير الملاءمة للفرز فقط</span> : null}
-          {focus ? <button type="button" onClick={() => setFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
+          {focus ? <button type="button" onClick={() => pickFocus(null)} className={`ms-2 font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>إلغاء الفرز</button> : null}
         </p>
       ) : null}
       {showUnconfirmedStatusNotice ? (
