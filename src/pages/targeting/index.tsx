@@ -679,8 +679,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         ? `منشآت حي ${densityDistrictNames[0]}`
         : densityDistrictNames.length > 1 ? 'منشآت الأحياء المحددة' : 'منشآت مرصودة'
       const activities = marketStats?.main_activities || []
+      const filteredScopeTotal = filters.contact === 'whatsapp'
+        ? marketStats?.n_whatsapp ?? null
+        : filters.wholesale
+          ? marketStats?.n_wholesale ?? null
+          : marketStats?.total ?? null
       return [
-        { key: 'market-size', label: scopeLabel, value: marketStats?.total ?? null, lead: true },
+        { key: 'market-size', label: scopeLabel, value: filteredScopeTotal, lead: true },
         ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats) }]),
         { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
         { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null },
@@ -709,7 +714,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats) },
     ]
-  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length])
+  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.contact, filters.wholesale, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
   const focusedSpecialty = focus?.level === 'spec' && streetPick.kind === 'spec' && streetPick.id === focus.id && (!focus.sub_id || streetPick.subId === focus.sub_id) ? streetPick : null
   const focusedTileKey = focus && res?.map_query
@@ -2252,8 +2257,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // selected district and activity. `res` is only a loaded result page, so
   // using its row count here understated the actual commercial scope.
   const useMarketScopeTotal = lens === 'market' && !hasTargetQuery
+  const marketScopeTotal = filters.contact === 'whatsapp'
+    ? marketStats?.n_whatsapp ?? null
+    : filters.wholesale
+      ? marketStats?.n_wholesale ?? null
+      : marketStats?.total ?? cityOverviewStats?.total ?? null
   const scopedMatchCount = useMarketScopeTotal
-    ? marketStats?.total ?? cityOverviewStats?.total ?? null
+    ? marketScopeTotal
     : res ? buyerProductMode || Boolean(focus || site || chosenD.size) ? visibleCohort.length : res.total : null
   const scopedMatchLabel = useMarketScopeTotal && mapScope !== 'city' ? 'منشآت الخريطة في النطاق' : 'مطابقات البحث في النطاق'
   const scopedMatchNote = useMarketScopeTotal
