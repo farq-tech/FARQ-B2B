@@ -1873,7 +1873,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const understandAssistantPrompt = async (prompt: string): Promise<{ target: string; purpose: string; prompt: string }> => {
     // Uses the live directory analyzer. When ANTHROPIC_API_KEY is present in the targeting service,
     // this invokes its model parser; otherwise the service states its deterministic fallback in `parsed`.
-    const analysis = await searchTargets(prompt, city, 1, 'marketing')
+    // Keep this request on the same production-safe page size as the map search.
+    // The targeting service validates the range before invoking its analyzer.
+    const analysis = await searchTargets(prompt.slice(0, 120), city, 30, 'marketing')
     const parsed = analysis.parsed || {}
     const target = parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ') || prompt
     return { target, purpose: assistantPurpose(prompt), prompt }
