@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { templateBody, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
 import { scheduleCampaign } from '../../../api/scheduleClient'
 import { Badge, Button, Icon, Money } from '../../../ui'
@@ -35,6 +35,7 @@ type Props = {
   onOpenLeads?: () => void
   preparing?: boolean
   prepared?: boolean
+  openRequest?: number
   onClear: () => void
   onNotice: (text: string) => void
   mobile: boolean
@@ -48,6 +49,7 @@ export default function CampaignTray(p: Props) {
   const [soon, setSoon] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useEffect(() => { if (p.openRequest) setOpen(true) }, [p.openRequest])
   const at = fromKsaInput(when)
   const warn = at ? scheduleWarning(at, new Date(), where) : 'اختر التاريخ والوقت.'
   const hardStop = !at || (warn !== null && (warn.startsWith('اختر') || warn.startsWith('هذا الوقت وقت صلاة')))
@@ -130,8 +132,8 @@ export default function CampaignTray(p: Props) {
             {error ? <p role="alert" className="text-[12px] leading-[18px] text-[var(--color-text-danger)]">{error}</p> : null}
             {p.onPrepare ? (
               <>
-                <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock) || p.preparing} loading={p.preparing} loadingLabel="نضيف القائمة…" title={p.sendBlock || undefined} onClick={p.prepared ? p.onOpenLeads : p.onPrepare}>{p.prepared ? 'فتح حملة واتساب' : 'أضف إلى حملة واتساب'}</Button>
-                <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">هذه الخطوة تحفظ قائمتك كمسودة في واتساب ولا ترسل رسالة.</p>
+                <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock) || p.preparing || p.prepared} loading={p.preparing} loadingLabel="نضيف القائمة…" title={p.sendBlock || undefined} onClick={p.onPrepare}>{p.prepared ? 'المسودة محفوظة' : 'أضف إلى حملة واتساب'}</Button>
+                <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">هذه الخطوة تحفظ قائمتك كمسودة في واتساب ولا ترسل رسالة. الإرسال يبقى إجراءً يدويًا منفصلًا.</p>
                 {p.sendBlock ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{p.sendBlock}</p> : null}
               </>
             ) : mode === 'now' ? (
