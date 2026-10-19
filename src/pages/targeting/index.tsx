@@ -2362,7 +2362,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setClusters(null)
     void loadBrowse(city, scopeFilters, true)
     pickFocus({ level: 'main', id: mainId })
-    setTab('guide')
+    // On a phone, take the user straight to the compact subactivity row.
+    // The guide remains the useful next surface on a wide layout.
+    setTab(mobile ? 'streets' : 'guide')
   }
   const selectSubFromDistrictInsight = (mainId: string, subId: string) => {
     // The insight belongs to the selected district. Keep that geography while
@@ -2382,7 +2384,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setClusters(null)
     void loadBrowse(city, scopeFilters, true)
     pickFocus({ level: 'sub', id: subId })
-    setTab('guide')
+    // Keep the selected subactivity visible with its sibling activities and
+    // specialty search on phones instead of moving it behind the guide tab.
+    setTab(mobile ? 'streets' : 'guide')
   }
   const selectedSummaryCounterKey = filters.contact === 'whatsapp' ? 'market-whatsapp' : filters.wholesale ? 'market-wholesale' : null
   const selectSummaryCounter = (key: string) => {
