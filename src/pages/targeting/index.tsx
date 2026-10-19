@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, t
 import { createPortal } from 'react-dom'
 import { Command } from 'cmdk'
 import {
-  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapFocusQuery, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, suggestSpecialties, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type SpecialtySuggestion, type StreetCatalog, type StreetDensityQuery, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapFocusQuery, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, suggestSpecialties, templateFits, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type SpecialtySuggestion, type StreetCatalog, type StreetDensityQuery, templateStatus, templateVariables, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -193,6 +193,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [shown, setShown] = useState(PAGE)
   const [fitFilter, setFitFilter] = useState<PinFit | 'all'>('all')
   const [message, setMessage] = useState(defaultMessage(null, null))
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({})
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
   const [tplError, setTplError] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -1951,7 +1952,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
-  const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && t.status === 'APPROVED') ? 'القالب غير معتمد من Meta' : null
+  const selectedTemplate = templates.find((t) => t.name === template)
+  const requiredTemplateValues = (selectedTemplate ? templateVariables(selectedTemplate) : [1, 2]).filter((n) => n > 2)
+  const missingTemplateValue = requiredTemplateValues.find((n) => !templateValues[String(n)]?.trim())
+  const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : selectedTemplate && !templateFits(selectedTemplate) ? 'اختر قالباً معتمداً ومهيأ للإرسال' : missingTemplateValue ? `أدخل ${missingTemplateValue === 3 ? 'الكمية' : missingTemplateValue === 4 ? 'موقع أو موعد التوريد' : `المتغير ${missingTemplateValue}`}` : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && t.status === 'APPROVED') ? 'القالب غير معتمد من Meta' : null
   const marketingBlock = null
   const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
   const sendBlock = objective === 'marketing'
@@ -2744,12 +2748,12 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   )
 
   const tray = chosen.length ? (
-    <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage}
+    <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage} templateValues={templateValues} onTemplateValues={(values) => { setTemplateValues(values); setPreparedCampaignId(null) }}
       template={template} onTemplate={(next) => { setTemplate(next); setPreparedCampaignId(null) }} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
       city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onPrepare={objective === 'marketing' ? () => void prepareWhatsAppCampaign() : undefined} onOpenLeads={onLeads} openRequest={draftOpenRequest} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} />
   ) : null
   const confirmSheet = confirming && holder ? (
-    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price} city={city}
+    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} templateValues={templateValues} query={query} price={price} city={city}
       onClose={() => setConfirming(false)} onSaveDraft={saveDraft}
       onDone={(sent, failed) => { setConfirming(false); setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null

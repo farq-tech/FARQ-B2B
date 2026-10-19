@@ -306,10 +306,12 @@ export const listCities = () => call<City[]>('GET', '/cities')
 /** Body text of a Meta template. */
 export const templateBody = (t: MetaTemplate) => (t.components || []).find((c) => c.type === 'BODY')?.text || ''
 /**
- * The send path (/send-farq, mode 'template') sends any template by name, always in Arabic with exactly two body
- * values: {{1}} the place's name and {{2}} the campaign text. So an approved template can be used for a campaign
- * only when its body takes exactly {{1}} and {{2}}; otherwise Meta would refuse every message.
+ * The send path fills {{1}} with the directory recipient name. Every following
+ * contiguous body variable is shown as an explicit campaign field and sent in
+ * its numbered order, so Meta always receives a complete template payload.
  */
+export const templateVariables = (t: MetaTemplate): number[] => [...new Set((templateBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => Number(m.replace(/\D/g, ''))))].sort((a, b) => a - b)
+
 export const templateFits = (t: MetaTemplate) => {
   if (t.status !== 'APPROVED') return false
   if (t.language && t.language !== 'ar') return false
@@ -321,8 +323,14 @@ export const templateFits = (t: MetaTemplate) => {
     return false
   })
   if (needsMore) return false
-  const vars = [...new Set((templateBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => m.replace(/\D/g, '')))].sort()
-  return vars.join(',') === '1,2'
+  const vars = templateVariables(t)
+  // Some Meta list responses omit components for the known default template.
+  // Its contract is fixed at {{1}}, {{2}}, so do not hide the only safe
+  // fallback while the account response is incomplete.
+  if (!vars.length) return t.name === OUTREACH_TEMPLATE
+  // {{1}} is always the directory recipient name. Additional contiguous body
+  // variables are entered by the campaign owner and passed through untouched.
+  return vars.length >= 2 && vars[0] === 1 && vars.every((value, index) => value === index + 1)
 }
 /** Normalize a valid Saudi mobile only when the directory source flags it as WhatsApp. The flag is not independent verification. */
 /** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaign eligibility is rechecked by the send API. */
@@ -341,7 +349,7 @@ export const waNumber = (r: TargetRow) => {
  * Sends the campaign: register the places on the holder request (no dispatch), then send the template.
  * Called only from the confirm sheet (screen 10) after the owner's explicit yes.
  */
-export async function sendCampaign(holderRfqId: string, rows: TargetRow[], message: string, query: string, template: string = OUTREACH_TEMPLATE): Promise<SendResult> {
+export async function sendCampaign(holderRfqId: string, rows: TargetRow[], message: string, query: string, template: string = OUTREACH_TEMPLATE, templateValues: Record<string, string> = {}): Promise<SendResult> {
   const targets = rows.map((r) => ({ poi_key: r.poi_key, name_ar: r.name_ar, name_en: r.name_en, city: r.city_en, category: r.category, whatsapp: waNumber(r), email: r.email || null, message }))
   const out: SendResult = { ok: true, sent: [], failed: [] }
   // the service takes at most 500 places per call
@@ -349,7 +357,7 @@ export async function sendCampaign(holderRfqId: string, rows: TargetRow[], messa
     const chunk = targets.slice(i, i + 200)
     const reg = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, dispatch: false, query, targets: chunk })
     if (!reg.ok) return { ...out, ok: false, error: reg.error || reg.fatal }
-    const res = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, mode: 'template', template, query, targets: chunk })
+    const res = await call<SendResult>('POST', '/send-farq', { rfq_id: holderRfqId, mode: 'template', template, query, template_values: { '2': message, ...templateValues }, targets: chunk })
     if (!res.ok) return { ...out, ok: false, error: res.error || res.fatal }
     out.sent!.push(...(res.sent || [])); out.failed!.push(...(res.failed || []))
   }

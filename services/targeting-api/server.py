@@ -387,6 +387,11 @@ def _send_farq(body):
     for k, why in rejected.items():
         (out['failed'] if mode == 'template' else out['errors']).append({'poi_key': k, 'error': why}); log_decision('send_farq', rfq_id, k, 'reject', why)
     message = {str(t.get('poi_key')): t.get('message') for t in targets if isinstance(t, dict)}
+    # Template variables are shared by the reviewed campaign. {{1}} remains the
+    # directory recipient name; all later values originate from the explicit
+    # fields rendered by the frontend for this template.
+    raw_template_values = body.get('template_values') or {}
+    template_values = raw_template_values if isinstance(raw_template_values, dict) else {}
     decided = []
     for k, row in found.items():
         ok, why = status_policy.send_decision(row)
@@ -405,13 +410,27 @@ def _send_farq(body):
             _, owner, ver, status = rfq; owner = str(owner); ver = str(ver); out['buyer'] = owner; out['rfq_status'] = status
             if mode == 'template':
                 tpl = body.get('template', 'farq_outreach_ar')
+                custom_indexes = sorted(int(k) for k, v in template_values.items() if str(k).isdigit() and int(k) > 1 and clean(v))
+                if custom_indexes and custom_indexes != list(range(2, max(custom_indexes) + 1)):
+                    return {**out, 'error': 'TEMPLATE_VALUES_INVALID'}
                 for k, row, wa_ok, _ in decided:
                     if not wa_ok: continue
                     to = status_policy.mobile_of(row)
                     inv = con_pg.execute('select i.id from construction.rfq_invites i join construction.suppliers s on s.id=i.supplier_id where i.rfq_version_id=%s and s.external_key=%s limit 1', (ver, f"golden:{k}"[:300])).fetchone()
                     if not inv: out['failed'].append({'poi_key': k, 'error': 'NOT_REGISTERED'}); continue
+                    values = {**template_values, '2': message.get(k) or template_values.get('2')}
+                    max_index = max([1, *custom_indexes, 2])
+                    parameters = [{'type': 'text', 'text': clean(row.get('name_ar') or row.get('name_en') or 'عميلنا الكريم')}]
+                    for index in range(2, max_index + 1):
+                        value = clean(values.get(str(index)))
+                        if not value:
+                            out['failed'].append({'poi_key': k, 'error': f'TEMPLATE_VALUE_{index}_MISSING'})
+                            parameters = []
+                            break
+                        parameters.append({'type': 'text', 'text': value})
+                    if not parameters: continue
                     payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template', 'template': {'name': tpl, 'language': {'code': 'ar'},
-                               'components': [{'type': 'body', 'parameters': [{'type': 'text', 'text': clean(row.get('name_ar') or row.get('name_en') or 'عميلنا الكريم')}, {'type': 'text', 'text': clean(message.get(k))}]}]}}
+                               'components': [{'type': 'body', 'parameters': parameters}]}}
                     r = provider_send(payload)
                     mid = (r.get('messages') or [{}])[0].get('id')
                     if mid:

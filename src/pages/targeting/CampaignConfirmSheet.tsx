@@ -17,7 +17,7 @@ import { formatNumber } from '../../lib/formatNumber'
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-export default function CampaignConfirmSheet({ holderRfqId, rows, message, query, price, onClose, onDone, onSaveDraft, template = OUTREACH_TEMPLATE, city }: {
+export default function CampaignConfirmSheet({ holderRfqId, rows, message, templateValues = {}, query, price, onClose, onDone, onSaveDraft, template = OUTREACH_TEMPLATE, city }: {
   /** the search city (City.en): prayer times for the send note; server.py holds sends during prayer either way */
   city?: string | null
   /** The approved template chosen on the page ({{1}} name, {{2}} campaign text); the invitation template by default. */
@@ -25,6 +25,8 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
   holderRfqId: string
   rows: TargetRow[]
   message: string
+  /** Values entered for body variables {{3}} and above. */
+  templateValues?: Record<string, string>
   query: string
   /** Server price per WhatsApp message in SAR, before tax; null when the server did not give one. */
   price: number | null
@@ -69,7 +71,7 @@ export default function CampaignConfirmSheet({ holderRfqId, rows, message, query
     if (lock.current) return
     lock.current = true; setBusy(true); setError(null)
     try {
-      const r = await sendCampaign(holderRfqId, rows, message, query, template)
+      const r = await sendCampaign(holderRfqId, rows, message, query, template, templateValues)
       if (!r.ok) { setError(`ما انرسلت الحملة: ${r.error || 'خطأ غير معروف'}${r.sent?.length ? ` (انرسل ${r.sent.length} قبل الخطأ)` : ''}`); return }
       setResult({ sent: new Set((r.sent || []).map((x) => x.poi_key)), failed: new Map((r.failed || []).map((x) => [x.poi_key, x.error])) })
     } catch (e) {

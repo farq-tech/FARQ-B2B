@@ -1,15 +1,23 @@
 import { useEffect, useState } from 'react'
-import { listTemplates, templateBody, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
+import { listTemplates, templateBody, templateFits, templateVariables, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
 import { scheduleCampaign } from '../../../api/scheduleClient'
 import { Badge, Button, Icon, Money } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
 import { cityCoords, fromKsaInput, ksaClock, nextScheduleSlot, RIYADH, scheduleWarning, toKsaInput, dualDateLabel } from '../../../lib/saudi'
-import { categoryAr, previewOf } from '../MessageStep'
+import { categoryAr } from '../MessageStep'
 import SendTiming from '../SendTiming'
 
 // Meta does not always return the body for the default approved template. Keep
 // the preview useful in that case; these are the two values sent by the API.
 const DEFAULT_TEMPLATE_BODY = 'السلام عليكم {{1}}،\n{{2}}'
+const labelForVariable = (n: number) => n === 1 ? 'اسم المنشأة المستلمة' : n === 2 ? 'نص الرسالة' : n === 3 ? 'الكمية' : n === 4 ? 'موقع أو موعد التوريد' : `المتغير ${n}`
+const placeholderForVariable = (n: number) => n === 3 ? 'مثال: 120 م²' : n === 4 ? 'مثال: الرياض · خلال أسبوع' : `أدخل قيمة المتغير ${n}`
+const previewTemplate = (body: string, message: string, values: Record<string, string>) => body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, raw) => {
+  const n = Number(raw)
+  if (n === 1) return '{اسم المنشأة}'
+  if (n === 2) return message.trim() || '…'
+  return values[String(n)]?.trim() || `{${labelForVariable(n)}}`
+})
 
 /*
  * «رسالة الحملة» as a tray under the map (owner 2026-10-16): hidden until at least one recipient is chosen, collapsed
@@ -24,6 +32,8 @@ type Props = {
   cost: string | null
   message: string
   onMessage: (v: string) => void
+  templateValues: Record<string, string>
+  onTemplateValues: (values: Record<string, string>) => void
   template: string
   onTemplate: (v: string) => void
   templates: MetaTemplate[]
@@ -60,11 +70,20 @@ export default function CampaignTray(p: Props) {
     if (!open) return
     listTemplates().then((listed) => { if (listed.ok) setAccountTemplates(listed.data || []) }, () => { /* retain parent data */ })
   }, [open])
+  const sendableTemplates = accountTemplates.filter(templateFits)
+  useEffect(() => {
+    if (!sendableTemplates.length || sendableTemplates.some((t) => t.name === p.template)) return
+    const fallback = sendableTemplates.find((t) => t.name === OUTREACH_TEMPLATE) || sendableTemplates[0]
+    p.onTemplate(fallback.name)
+  }, [p.template, sendableTemplates.map((t) => t.name).join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
   const at = fromKsaInput(when)
   const warn = at ? scheduleWarning(at, new Date(), where) : 'اختر التاريخ والوقت.'
   const hardStop = !at || (warn !== null && (warn.startsWith('اختر') || warn.startsWith('هذا الوقت وقت صلاة')))
-  const body = templateBody(accountTemplates.find((t) => t.name === p.template) || { name: '', status: '' })
-  const preview = previewOf(body || DEFAULT_TEMPLATE_BODY, p.message)
+  const activeTemplate = accountTemplates.find((t) => t.name === p.template) || { name: '', status: '' } as MetaTemplate
+  const body = templateBody(activeTemplate)
+  const variables = templateVariables(activeTemplate)
+  const hasExtraVariables = variables.some((n) => n > 2)
+  const preview = previewTemplate(body || DEFAULT_TEMPLATE_BODY, p.message, p.templateValues)
 
   async function schedule() {
     if (!at || busy) return
@@ -102,15 +121,24 @@ export default function CampaignTray(p: Props) {
               {p.templateBadge ? <Badge tone={p.templateBadge.tone} showDot={false} label={p.templateBadge.label} /> : null}
             </div>
             <select id="campaign-template" value={p.template} onChange={(e) => p.onTemplate(e.target.value)} className={`rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] ${FOCUS_RING}`}>
-              {accountTemplates.some((t) => t.name === OUTREACH_TEMPLATE) ? null : <option value={OUTREACH_TEMPLATE}>{OUTREACH_TEMPLATE}</option>}
-              {accountTemplates.map((t) => <option key={t.name} value={t.name}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{t.status === 'APPROVED' ? '' : ` — ${t.status}`}</option>)}
+              {sendableTemplates.map((t) => <option key={t.name} value={t.name}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}</option>)}
             </select>
-            {p.onPrepare ? <p className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر كل القوالب هنا. يمكن حفظ المسودة بأي قالب؛ لا يتاح الإرسال إلا بعد اعتماد القالب من ميتا.</p> : <>
+            {!sendableTemplates.length ? <p role="alert" className="text-[12px] leading-[18px] text-[var(--color-text-danger)]">لا يوجد قالب معتمد ومهيأ للإرسال الآن.</p> : null}
+            {p.onPrepare ? <p className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر القوالب المعتمدة والمهيأة للإرسال فقط. القوالب قيد المراجعة تظهر هنا بعد اعتمادها من ميتا.</p> : <>
               <label className="flex flex-col rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
-                <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المنشأة}'}،</span>
+                <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">نص الرسالة · المتغير 2</span>
                 <span className="sr-only">نص الرسالة</span>
                 <textarea value={p.message} onChange={(e) => p.onMessage(e.target.value)} rows={3} maxLength={900} className="w-full resize-none bg-transparent text-[15px] leading-[24px] outline-none" />
               </label>
+              {variables.map((n) => n === 1 ? (
+                <label key={n} className="flex flex-col gap-1 rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{labelForVariable(n)}
+                  <input value="يُعبأ تلقائياً من الدليل لكل مستلم" readOnly aria-label={labelForVariable(n)} className="rounded-[8px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] text-[var(--color-text-primary)]" />
+                </label>
+              ) : n === 2 ? null : (
+                <label key={n} className="flex flex-col gap-1 rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{labelForVariable(n)}
+                  <input value={p.templateValues[String(n)] || ''} onChange={(e) => p.onTemplateValues({ ...p.templateValues, [String(n)]: e.target.value })} placeholder={placeholderForVariable(n)} aria-label={labelForVariable(n)} className={`rounded-[8px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] text-[var(--color-text-primary)] ${FOCUS_RING}`} />
+                </label>
+              ))}
               <section data-testid="campaign-message-preview" aria-label="معاينة الرسالة قبل الإرسال" className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5">
                 <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">معاينة الرسالة قبل الإرسال</p>
                 <p className="mt-1 whitespace-pre-line text-[14px] leading-[22px]">{preview}</p>
@@ -122,12 +150,13 @@ export default function CampaignTray(p: Props) {
               <legend className="sr-only">وقت الإرسال</legend>
               {([['now', 'إرسال الآن'], ['schedule', 'جدولة']] as const).map(([k, l]) => (
                 <label key={k} className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-[14px] font-medium has-[:checked]:border-[var(--map-ink)] has-[:checked]:bg-[var(--map-ink)] has-[:checked]:text-white has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 border-[var(--color-border-default)]`}>
-                  <input type="radio" name="campaign-when" value={k} checked={mode === k} disabled={k === 'schedule' && soon} onChange={() => setMode(k)} className="sr-only" />
+                  <input type="radio" name="campaign-when" value={k} checked={mode === k} disabled={k === 'schedule' && (soon || hasExtraVariables)} onChange={() => setMode(k)} className="sr-only" />
                   {l}
                 </label>
               ))}
             </fieldset> : null}
             {soon ? <p role="status" className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">الجدولة قريباً. تقدر ترسل الآن.</p> : null}
+            {hasExtraVariables ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">القوالب ذات المتغيرات الإضافية تُرسل الآن بعد المراجعة؛ الجدولة لا تحفظ هذه القيم بعد.</p> : null}
             {!p.onPrepare && mode === 'schedule' ? (
               <div className="flex flex-col gap-1">
                 <label htmlFor="campaign-at" className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">موعد الإرسال (بتوقيت السعودية)</label>
