@@ -2255,8 +2255,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const scopedMatchCount = useMarketScopeTotal
     ? marketStats?.total ?? cityOverviewStats?.total ?? null
     : res ? buyerProductMode || Boolean(focus || site || chosenD.size) ? visibleCohort.length : res.total : null
+  const scopedMatchLabel = useMarketScopeTotal && mapScope !== 'city' ? 'منشآت الخريطة في النطاق' : 'مطابقات البحث في النطاق'
   const scopedMatchNote = useMarketScopeTotal
-    ? 'إجمالي سجلات الدليل ضمن النطاق والفلاتر'
+    ? mapScope === 'district'
+      ? 'سجل الخريطة بحسب الحدود والفلاتر؛ وقد يختلف عن تحليل الحي المصنف.'
+      : 'إجمالي سجلات الدليل ضمن النطاق والفلاتر'
     : res && (buyerProductMode || Boolean(focus || site || chosenD.size))
       ? 'من النتائج المحمّلة بعد تضييق النطاق'
       : res ? 'إجمالي النتائج المطابقة للبحث والفلاتر' : 'ابدأ بحثاً لعرض المطابقات'
@@ -2303,7 +2306,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
               {scopeMetric('الشوارع الظاهرة بالكثافة', new Set(streetPool.map((street) => street.props.street_ar)).size, 'حسب طبقة النشاط الحالية')}
               {scopeMetric('التصنيف الأكثر انتشاراً', district.dominant_activity?.main_ar || null, district.dominant_activity ? `${n(district.dominant_activity.n)} سجل` : 'لا توجد بيانات مصنّفة', true)}
               {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${formatNumber(densest.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
-              {scopeMetric('مطابقات البحث في النطاق', scopedMatchCount, scopedMatchNote, true)}
+              {scopeMetric(scopedMatchLabel, scopedMatchCount, scopedMatchNote, true)}
             </dl>
             {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أبرز الأنشطة الفرعية: {district.dominant_activity.top_subactivities.slice(0, 3).map((item) => `${item.sub_ar} (${n(item.n)})`).join(' · ')}</p> : null}
             {district.activities.length ? <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة في حي ${district.district_ar}`}>{district.activities.slice(0, 6).map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px]">{activity.main_ar} · {n(activity.n)}</span>)}</div> : null}
