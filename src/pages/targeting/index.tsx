@@ -6,7 +6,7 @@ import {
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
-  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon, MessageTemplatesIcon, NewRequestIcon,
+  Badge, Button, ChannelBadge, Chip, CityIcon, ClustersIcon, DistrictIcon, ErrorIcon, FiltersIcon, Icon,
   SaudiEstablishmentBadge, SearchIcon, SpecialtiesIcon, StreetIcon, SuccessIcon, SupplierIcon, Switch, UploadCatalogIcon, useIsMapCompact, WarningIcon, WholesaleIcon, type Channel,
 } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
@@ -20,7 +20,6 @@ import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
-import TargetingAssistant, { type TargetingAssistantPlan } from './TargetingAssistant'
 import StartSheet from './StartSheet'
 import MyRequests from './MyRequests'
 import Counters, { type CounterItem } from './map/Counters'
@@ -368,7 +367,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
   const [templates, setTemplates] = useState<MetaTemplate[]>([])
   useEffect(() => { listTemplates().then((r) => setTemplates(r?.ok ? (r.data || []) : []), () => setTemplates([])) }, [])
-  const [startOpen, setStartOpen] = useState(startNew)
+  // Opening the page starts with one decision. The map tools appear only after the user picks a goal.
+  const [startOpen, setStartOpen] = useState(true)
   const [startSeen, setStartSeen] = useState(startNew)
   if (startNew !== startSeen) { setStartSeen(startNew); if (startNew) setStartOpen(true) }
   const closeStart = () => { setStartOpen(false); if (startNew) onStartClosed?.() }
@@ -901,6 +901,21 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         ))}
       </div>
     </div>
+  )
+
+  const journey = lens === 'market'
+    ? { title: 'استكشف السوق', hint: 'اختر نطاقاً ثم اقرأ الفرص والأحياء والشوارع.' }
+    : lens === 'sellers'
+      ? { title: 'ابحث عن موردين', hint: 'اكتب احتياجك ثم حدّد المنشآت المناسبة.' }
+      : { title: 'ابحث عن مشترين', hint: 'أضف منتجاتك ثم راجع الجهات المناسبة للحملة.' }
+  const journeyControl = (
+    <section aria-label="هدفك الحالي" className="flex min-w-0 items-center justify-between gap-3 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2">
+      <div className="min-w-0">
+        <p className="m-0 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">هدفك الحالي</p>
+        <p className="m-0 truncate text-[14px] leading-[22px] font-semibold">{journey.title}<span className="hidden text-[var(--color-text-secondary)] md:inline"> · {journey.hint}</span></p>
+      </div>
+      <Button variant="Ghost" size="S" onClick={() => setStartOpen(true)}>غيّر الهدف</Button>
+    </section>
   )
 
   const chips = useMemo(() => {
@@ -2752,7 +2767,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   )
   const searchWithScope = <div className={`flex ${mobile ? 'flex-col items-stretch gap-2' : 'items-center gap-3'}`}>
     <div className="min-w-0 flex-1">{searchForm}</div>
-    {mapScopeControl}
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="px-2 text-[11px] font-medium text-[var(--color-text-secondary)]">نطاق النتائج: مدينة ← حي ← شارع</span>
+      {mapScopeControl}
+    </div>
   </div>
   const cancelActiveSearch = () => {
     if (busyKind !== 'search') return
@@ -2846,13 +2864,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     return (
       <div className={`flex min-w-0 flex-col gap-3 bg-[var(--color-bg-canvas)] px-4 pt-4 pb-6 ${mobile ? `map-compact-scroll-layout ${lens !== 'market' ? 'map-targeting-lens' : ''}` : ''}`}>
         <h1 className="sr-only">خريطة الفرص</h1>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {direction}
-          <div className="flex gap-1">
-            <Button variant="Ghost" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
-            <Button variant="Ghost" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>القوالب</Button>
-          </div>
-        </div>
+        {journeyControl}
         {searchWithScope}
         {searchStatus}
         {errorLine}
@@ -2883,18 +2895,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--color-bg-canvas)]">
       <header className="flex flex-col gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-          <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">خريطة السوق — FARQ B2B</h1>
-            {direction}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="Primary" size="S" icon={NewRequestIcon} onClick={() => setStartOpen(true)}>طلب جديد</Button>
-            <Button variant="Secondary" size="S" icon={MessageTemplatesIcon} onClick={onTemplates}>قوالب واتساب</Button>
-          </div>
+          <h1 className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">خريطة الفرص</h1>
           {fileField}
         </div>
+        {journeyControl}
         {searchWithScope}
-        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onUnderstand={understandAssistantPrompt} onPrepare={prepareAssistantDraft} onOpenDraft={() => { setDraftOpenRequest((value) => value + 1); requestAnimationFrame(() => document.querySelector('[data-testid=campaign-tray]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })) }} />
         {searchStatus}
         {understood}
         {suggestBar}
