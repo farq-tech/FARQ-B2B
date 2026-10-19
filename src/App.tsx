@@ -116,7 +116,7 @@ function Routes() {
           {view === 'comparison' && <Comparison navigate={navigate} />}
           {view === 'award' && selectedRfqId && <Award rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')} onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />}
           {view === 'inbox' && <Inbox onOpenRequest={openRequest} />}
-          {(view === 'targeting' || view === 'targeting-new') && <Targeting onTemplates={() => navigate('templates')} startNew={view === 'targeting-new'} onStartClosed={() => navigate('targeting')} onRfq={() => navigate('create-upload')} onMapFocusChange={setMapFocus} />}
+          {(view === 'targeting' || view === 'targeting-new') && <Targeting onTemplates={() => navigate('templates')} onLeads={() => navigate('whatsapp-leads')} startNew={view === 'targeting-new'} onStartClosed={() => navigate('targeting')} onRfq={() => navigate('create-upload')} onMapFocusChange={setMapFocus} />}
           {view === 'templates' && <Templates onBack={() => navigate('targeting')} onNew={() => navigate('template-new')} />}
           {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
           {view === 'whatsapp-leads' && <WhatsAppLeads onBack={() => navigate('targeting')} />}

@@ -26,3 +26,24 @@ export async function listMarketingInteractions(campaignId?: string): Promise<Ma
   if (!response.ok || !body?.ok || !Array.isArray(body.data)) throw new Error(body?.error || 'MARKETING_INTERACTIONS_UNAVAILABLE')
   return body.data
 }
+
+async function write<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${apiBase()}${path}`, {
+    method: 'POST',
+    headers: constructionHeaders({ 'content-type': 'application/json' }),
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  const result = await response.json().catch(() => null) as { ok?: boolean; data?: T; error?: string } | null
+  if (!response.ok || !result?.ok || !result.data) throw new Error(result?.error || 'MARKETING_CAMPAIGN_UNAVAILABLE')
+  return result.data
+}
+
+export async function prepareMarketingCampaign(input: { name: string; segment: string; phones: string[]; consentRecordedAt: string; consentSource: string }) {
+  const campaign = await write<{ id: string }>('/admin/marketing/campaigns', { name: input.name, segment: input.segment })
+  await write(`/admin/marketing/campaigns/${encodeURIComponent(campaign.id)}/recipients/batch`, {
+    recipients: input.phones.map((phone) => ({ phone })),
+    consent: { recordedAt: input.consentRecordedAt, source: input.consentSource },
+  })
+  return campaign
+}
