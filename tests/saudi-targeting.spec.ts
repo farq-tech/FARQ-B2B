@@ -115,6 +115,7 @@ test.describe('desktop 1440', () => {
     await expect(tray).toContainText('الحفظ لا يرسل شيئاً')
     await tray.getByRole('button', { name: 'حفظ القائمة' }).click()
     await expect.poll(() => created.length).toBe(1)
+    await expect(tray.getByRole('button', { name: 'فتح الطلبات' })).toBeVisible()
     expect(created[0]).toMatchObject({ kind: 'SEARCH', payload: { filters: { review: true, source: 'OPPORTUNITY_MAP', objective: 'purchase', selectedCount: 1 } } })
     expect(writes).toEqual([])
   })
