@@ -64,10 +64,10 @@ export default function Counters({ items, compact = false, selectedMainId, selec
         const className = `relative flex shrink-0 flex-col rounded-[12px] border ${compact ? 'px-3' : 'px-2.5'} py-1.5 ${compact ? 'min-w-[76px]' : 'min-w-0'} text-right ${c.lead ? 'border-[var(--map-ink)] bg-[var(--map-ink)] text-white' : 'border-[var(--color-border-default)] bg-[var(--color-bg-surface)]'} ${selectable ? `cursor-pointer transition-colors ${hoverClass}` : ''} ${pressed ? 'ring-2 ring-[var(--map-green)]' : ''}`
         const body = <>
           <span className={`font-[family-name:var(--font-display)] ${compact ? 'text-[17px] leading-[24px]' : 'text-[20px] leading-[28px]'} font-semibold tabular-nums`}>
-            {c.value == null ? '—' : <span aria-hidden><Rolling value={c.value} /></span>}
+            {c.value == null ? c.loading ? <span aria-hidden>…</span> : '—' : <span aria-hidden><Rolling value={c.value} /></span>}
           </span>
           <span className={`flex items-center gap-1 ${compact ? 'text-[12px] leading-[18px]' : 'text-[11px] leading-[16px]'} ${c.lead ? 'text-white/80' : 'text-[var(--color-text-secondary)]'}`}>
-            <span className="sr-only">{c.value == null ? 'غير متاح' : fmt(c.value)} </span>{c.label}
+            <span className="sr-only">{c.value == null ? c.loading ? 'جارٍ تحميل العدد' : 'غير متاح' : fmt(c.value)} </span>{c.label}
             {selectable ? <ChevronDown aria-hidden size={12} className="shrink-0" /> : null}
           </span>
         </>
