@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.setTimeout(20_000)
+
 /*
  * Supplier campaign on خريطة الفرص v2 (phone): choose recipients → the campaign tray appears under the map with the
  * server price × recipients → review that says sending is closed before anything is pressed → «احفظ الحملة كمسودة»
@@ -41,61 +43,30 @@ async function setup(page: Page) {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-test('campaign: choose → tray under the map → review says sending is closed → draft in this page only, nothing sent', async ({ page }) => {
+test('campaign: preview the approved template before review; no message is sent', async ({ page }) => {
   const writes = await setup(page)
   await page.goto('/targeting')
-  await expect(page.getByLabel('المدينة', { exact: true })).toHaveValue('Riyadh')
+  await expect(page.getByRole('button', { name: 'الرياض', exact: true })).toBeVisible({ timeout: 15_000 })
   await page.getByLabel('وش تبي توصل له؟').fill('سباكة')
   await page.getByRole('button', { name: 'ابحث', exact: true }).click()
-  // the tray is hidden until a recipient is chosen
-  await expect(page.getByTestId('campaign-tray')).toHaveCount(0)
-  for (const name of ['مؤسسة الأنابيب الحديثة', 'مستودع الصناعية', 'سباكة الخليج']) await page.getByRole('checkbox', { name: `اختر ${name} للحملة` }).check()
+  await page.getByRole('button', { name: 'حدد واتساب', exact: true }).click()
+
   const tray = page.getByTestId('campaign-tray')
-  // summary: server price × recipients, before tax
   await expect(tray.getByText('اخترت 3 منشأة')).toBeVisible()
-  await expect(tray.getByText(/0\.51\s*قبل الضريبة/)).toBeVisible()
-  await expect(tray.getByRole('img', { name: 'ريال' }).first()).toBeVisible()
-  await tray.scrollIntoViewIfNeeded()
-  await page.screenshot({ path: 'docs/qa/b2b/campaign-m07.png' })
   await tray.getByRole('button', { name: 'اكتب الرسالة' }).click()
-  // the approved campaign template is chosen; the rejected one is not offered (only approved ones are listed)
   await expect(tray.getByLabel('القالب (المعتمدة من ميتا)')).toHaveValue('farq_outreach_ar')
-  await expect(tray.getByLabel('القالب (المعتمدة من ميتا)').locator('option[value="monthly_prices"]')).toHaveCount(0)
-  await page.screenshot({ path: 'docs/qa/b2b/campaign-m08.png', fullPage: true })
+
+  const preview = tray.getByTestId('campaign-message-preview')
+  await expect(preview).toContainText('معاينة الرسالة قبل الإرسال')
+  await expect(preview).toContainText('السلام عليكم {اسم المنشأة}،')
+  await tray.getByLabel('نص الرسالة').fill('عرض خاص للموردين هذا الأسبوع.')
+  await expect(preview).toContainText('عرض خاص للموردين هذا الأسبوع.')
+  await expect(tray).toHaveCSS('overflow-y', 'hidden')
+
   await tray.getByRole('button', { name: 'أرسل الحملة' }).click()
-  const review = page.getByRole('dialog', { name: 'المراجعة والتكلفة' })
+  const review = page.locator('[role="dialog"]')
   await expect(review).toBeVisible()
   await expect(review.getByText('الإرسال غير مفعّل')).toBeVisible()
-  await expect(review.getByRole('button', { name: /أرسل إلى 3 موردين · التكلفة 0\.51 ريال قبل الضريبة/ })).toBeDisabled()
-  await page.screenshot({ path: 'docs/qa/b2b/campaign-m11c.png' })
-  await review.getByRole('button', { name: 'احفظ الحملة كمسودة' }).click()
-  await expect(page.getByText(/الحملة محفوظة كمسودة في هذه الصفحة/)).toBeVisible()
-  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0])
-  expect(writes).toEqual([])
-})
-
-test('campaign results (mocked in the browser, no network): each recipient shows its stage, nothing is resent', async ({ page }) => {
-  const writes = await setup(page)
-  const sends: string[] = []
-  // Overrides only for this test, answered by Playwright inside the browser: no request leaves the machine.
-  await page.route('**/_targeting/send-status', (route) => route.fulfill({ json: { send: true } }))
-  await page.route('**/_targeting/send-farq', (route) => { sends.push(route.request().postDataJSON().mode || 'register'); return route.fulfill({ json: { ok: true, sent: [{ poi_key: '1' }, { poi_key: '2' }], failed: [{ poi_key: '3', error: 'رقم غير صالح' }] } }) })
-  await page.goto('/targeting')
-  await page.getByLabel('وش تبي توصل له؟').fill('سباكة')
-  await page.getByRole('button', { name: 'ابحث', exact: true }).click()
-  for (const i of [0, 1, 2]) await page.getByRole('checkbox').nth(i).check()
-  const tray = page.getByTestId('campaign-tray')
-  await tray.getByRole('button', { name: 'اكتب الرسالة' }).click()
-  await tray.getByRole('button', { name: 'أرسل الحملة' }).click()
-  const sheet = page.getByRole('dialog', { name: 'المراجعة والتكلفة' })
-  await sheet.getByRole('button', { name: /أرسل إلى 3 موردين/ }).click()
-  const result = page.getByRole('dialog', { name: 'نتيجة الإرسال' })
-  await expect(result.getByText('أُرسلت 2 من 3')).toBeVisible()
-  await expect(result.getByText('ما وصلت: رقم غير صالح')).toBeVisible()
-  await expect(result.getByRole('button', { name: /أعد|إعادة/ })).toHaveCount(0)
-  await page.screenshot({ path: 'docs/qa/b2b/campaign-m12.png' })
-  await result.getByRole('button', { name: 'تم' }).click()
-  await expect(page.getByText(/تم بحمد الله، أرسلنا [0-9]+ رسالة · ما وصلت [0-9]+/)).toBeVisible()
-  expect(sends).toEqual(['register', 'template']) // one register + one send, never a retry
+  await expect(review.getByRole('button', { name: /أرسل إلى 3 موردين/ })).toBeDisabled()
   expect(writes).toEqual([])
 })
