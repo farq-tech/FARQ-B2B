@@ -395,7 +395,7 @@ These events use only phone/email presence returned to the page, including verif
 
 ## Street activity discovery funnel
 
-This query measures the consenting-session path from either opening the activity selector or choosing a taxonomy focus in the guide, through selecting an activity, a dense street, opening a result profile, and starting a quote request. It groups by the week of selector open or first activity action. It does not store or return category names, city, search text, or establishment identifiers. The `map_guide_focus_select` and `map_guide_focus_clear` events distinguish the guide-tree entry point without recording the chosen activity. Per-level counters continue to describe the activity selector; guide-tree selections are reported separately as a source-level count. The legacy `map_activity_select` event is included for comparison with clients that predate the more specific event labels. Exact-specialty selections filter map entities and only show street lines when the density source supports exact specialties; the app hides broader parent lines when it does not.
+This query measures the consenting-session path from either opening the activity selector or choosing a taxonomy focus in the guide, through selecting an activity, a dense street, opening a result profile, and starting a quote request. It groups by the week of selector open or first activity action. It does not store or return category names, city, search text, or establishment identifiers. The guide records separate aggregate events for main, subactivity, and specialty selection (`map_guide_main_select`, `map_guide_sub_select`, `map_guide_spec_select`) without recording the chosen taxonomy value; the older `map_guide_focus_select` is retained in reporting for historical comparison. Per-level counters continue to describe the activity selector; guide-tree selections are reported separately by source and level. The legacy `map_activity_select` event is included for comparison with clients that predate the more specific event labels. Exact-specialty selections filter map entities and only show street lines when the density source supports exact specialties; the app hides broader parent lines when it does not.
 
 Run it against the same authorized, read-only main application database:
 
@@ -415,6 +415,9 @@ WITH map_events AS (
       'pricing_map_map_activity_clear',
       'pricing_map_map_guide_focus_select',
       'pricing_map_map_guide_focus_clear',
+      'pricing_map_map_guide_main_select',
+      'pricing_map_map_guide_sub_select',
+      'pricing_map_map_guide_spec_select',
       'pricing_map_map_activity_select',
       'pricing_map_map_street_select',
       'pricing_map_map_result_profile_open',
@@ -437,6 +440,9 @@ WITH map_events AS (
     'pricing_map_map_activity_clear',
     'pricing_map_map_guide_focus_select',
     'pricing_map_map_guide_focus_clear',
+    'pricing_map_map_guide_main_select',
+    'pricing_map_map_guide_sub_select',
+    'pricing_map_map_guide_spec_select',
     'pricing_map_map_activity_select'
   )) > 0
 ), selections AS (
@@ -449,6 +455,9 @@ WITH map_events AS (
       'pricing_map_map_activity_sub_select',
       'pricing_map_map_activity_spec_select',
       'pricing_map_map_guide_focus_select',
+      'pricing_map_map_guide_main_select',
+      'pricing_map_map_guide_sub_select',
+      'pricing_map_map_guide_spec_select',
       'pricing_map_map_activity_select'
     ) AND (s.opened_id IS NULL OR e.id >= s.opened_id)))[1] AS selected_at,
     min(e.id) FILTER (WHERE e.element_label IN (
@@ -456,6 +465,9 @@ WITH map_events AS (
       'pricing_map_map_activity_sub_select',
       'pricing_map_map_activity_spec_select',
       'pricing_map_map_guide_focus_select',
+      'pricing_map_map_guide_main_select',
+      'pricing_map_map_guide_sub_select',
+      'pricing_map_map_guide_spec_select',
       'pricing_map_map_activity_select'
     ) AND (s.opened_id IS NULL OR e.id >= s.opened_id)) AS selected_id,
     (array_agg(e.occurred_at ORDER BY e.id) FILTER (
@@ -521,8 +533,16 @@ WITH map_events AS (
   SELECT
     date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
     count(DISTINCT session_id) FILTER (
-      WHERE element_label = 'pricing_map_map_guide_focus_select'
+      WHERE element_label IN (
+        'pricing_map_map_guide_focus_select',
+        'pricing_map_map_guide_main_select',
+        'pricing_map_map_guide_sub_select',
+        'pricing_map_map_guide_spec_select'
+      )
     ) AS guide_focus_sessions,
+    count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_guide_main_select') AS guide_main_sessions,
+    count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_guide_sub_select') AS guide_sub_sessions,
+    count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_guide_spec_select') AS guide_spec_sessions,
     count(DISTINCT session_id) FILTER (
       WHERE element_label = 'pricing_map_map_guide_focus_clear'
     ) AS guide_clear_sessions
@@ -554,6 +574,9 @@ SELECT
   w.legacy_activity_selection_sessions,
   w.activity_clear_sessions,
   coalesce(g.guide_focus_sessions, 0) AS guide_focus_sessions,
+  coalesce(g.guide_main_sessions, 0) AS guide_main_sessions,
+  coalesce(g.guide_sub_sessions, 0) AS guide_sub_sessions,
+  coalesce(g.guide_spec_sessions, 0) AS guide_spec_sessions,
   coalesce(g.guide_clear_sessions, 0) AS guide_clear_sessions,
   w.street_after_activity_sessions,
   round(100.0 * street_after_activity_sessions / nullif(activity_selection_sessions, 0), 1)
@@ -1426,7 +1449,10 @@ WITH guide_events AS (
     AND session_id IS NOT NULL
     AND element_label IN (
       'pricing_map_map_guide_search_used',
-      'pricing_map_map_guide_focus_select'
+      'pricing_map_map_guide_focus_select',
+      'pricing_map_map_guide_main_select',
+      'pricing_map_map_guide_sub_select',
+      'pricing_map_map_guide_spec_select'
     )
 ), searches AS (
   SELECT session_id, min(id) AS searched_id
@@ -1437,7 +1463,12 @@ WITH guide_events AS (
   SELECT
     s.session_id,
     min(e.id) FILTER (
-      WHERE e.element_label = 'pricing_map_map_guide_focus_select'
+      WHERE e.element_label IN (
+        'pricing_map_map_guide_focus_select',
+        'pricing_map_map_guide_main_select',
+        'pricing_map_map_guide_sub_select',
+        'pricing_map_map_guide_spec_select'
+      )
         AND e.id > s.searched_id
     ) AS selected_after_search_id
   FROM searches s
