@@ -59,13 +59,13 @@ class DirectoryContactFilterTests(unittest.TestCase):
                 district_ar varchar, district_en varchar, latitude double, longitude double, location_precision varchar,
                 phone_norm varchar, phone_kind varchar, has_whatsapp boolean, is_wholesale boolean, email varchar,
                 sources varchar, source_count integer, legal_name varchar, company_status varchar, lifecycle_state varchar,
-                brand_name varchar, completeness_pct double
+                brand_name varchar, completeness_pct double, district_reliable boolean, street_ar varchar
             )""")
             db.execute("""insert into places values
                 ('wholesale', 'مورد جملة', 'Wholesale supplier', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
-                 'الملز', '', 24.6, 46.7, 'point', null, null, false, true, null, '', 1, '', null, null, '', 90),
+                 'حي الملز', '', 24.6, 46.7, 'point', null, null, false, true, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد'),
                 ('retail', 'متجر تجزئة', 'Retail shop', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
-                 'الملز', '', 24.61, 46.71, 'point', null, null, false, false, null, '', 1, '', null, null, '', 80)
+                 'حي الملز', '', 24.61, 46.71, 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا')
             """)
             db.execute("copy places to ? (format parquet)", [str(path)])
             db.execute("create table branches(brand varchar, n integer)")
@@ -81,6 +81,41 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual(result["total"], 1)
             self.assertEqual(result["rows"][0]["poi_key"], "wholesale")
             self.assertIs(result["rows"][0]["is_wholesale"], True)
+            db.close()
+
+    def test_browse_applies_normalized_district_and_street_filters(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = pathlib.Path(temp_dir) / "directory.parquet"
+            db = duckdb.connect()
+            db.execute("""create table places(
+                poi_key varchar, name_ar varchar, name_en varchar, category varchar, category_ar varchar,
+                secondary_category varchar, category_l3 varchar, city_en varchar, region_en varchar, region_ar varchar,
+                district_ar varchar, district_en varchar, latitude double, longitude double, location_precision varchar,
+                phone_norm varchar, phone_kind varchar, has_whatsapp boolean, is_wholesale boolean, email varchar,
+                sources varchar, source_count integer, legal_name varchar, company_status varchar, lifecycle_state varchar,
+                brand_name varchar, completeness_pct double, district_reliable boolean, street_ar varchar
+            )""")
+            db.execute("""insert into places values
+                ('target', 'منشأة الهدف', '', '', '', '', '', 'Riyadh', '', '', 'حي الملز', '', 24.6, 46.7,
+                 'point', null, null, false, false, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد'),
+                ('other-street', 'منشأة أخرى', '', '', '', '', '', 'Riyadh', '', '', 'حي الملز', '', 24.61, 46.71,
+                 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا'),
+                ('other-district', 'منشأة حي آخر', '', '', '', '', '', 'Riyadh', '', '', 'حي النخيل', '', 24.62, 46.72,
+                 'point', null, null, false, false, null, '', 1, '', null, null, '', 70, true, 'طريق الملك فهد')
+            """)
+            db.execute("copy places to ? (format parquet)", [str(path)])
+            db.execute("create table branches(brand varchar, n integer)")
+            tiles = DirectoryTiles.__new__(DirectoryTiles)
+            tiles.db = db
+            tiles.lock = threading.RLock()
+            tiles.path = str(path)
+            tiles.search_sql = "true"
+            tiles.register = lambda **_kwargs: "map-key"
+
+            result = tiles.browse("Riyadh", {"district": "الملز", "street": "الملك فهد"})
+
+            self.assertEqual(result["total"], 1)
+            self.assertEqual([row["poi_key"] for row in result["rows"]], ["target"])
             db.close()
 
     def test_map_sql_restricts_contact_only_when_explicitly_requested(self):

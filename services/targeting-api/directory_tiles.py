@@ -206,6 +206,14 @@ class DirectoryTiles:
             clauses.append("contains(regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en)),'أإآةىؤئ','اااهيوي'),'[ً-ْـ]','','g'),?)");params.append(keyword)
         if f.get('branches_only'):clauses.append('coalesce(b.n,0)>=2')
         if f.get('wholesale'):clauses.append('coalesce(is_wholesale,false)')
+        def sql_area_key(column):
+            return "regexp_replace(regexp_replace(translate(lower(coalesce(" + column + ",'')),'أإآةى','اااهي'),'^(حي|شارع|طريق)\\s+',''),'\\s+',' ','g')"
+        if f.get('district'):
+            clauses.append("coalesce(district_reliable,true) and " + sql_area_key('district_ar') + "=?")
+            params.append(area_key(f['district']))
+        if f.get('street'):
+            clauses.append("contains(" + sql_area_key('street_ar') + ",?)")
+            params.append(area_key(f['street']))
         if f.get('contact')=='whatsapp':
             clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'), '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$')")
         if f.get('contact')=='email':clauses.append("length(trim(coalesce(email,'')))>0")
