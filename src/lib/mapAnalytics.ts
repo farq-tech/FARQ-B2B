@@ -62,6 +62,7 @@ const MAP_EVENTS = [
   'map_district_insight_seen',
   'map_district_activities_expand',
   'map_district_activity_select',
+  'map_city_summary_activity_select',
   'map_district_subactivity_select',
   'map_street_select',
   'map_activity_select',
