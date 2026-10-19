@@ -1,7 +1,11 @@
 """Contract checks for broad directory discovery and explicit contact filters."""
 import pathlib
 import sys
+import tempfile
+import threading
 import unittest
+
+import duckdb
 
 SERVICE_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVICE_DIR))
@@ -44,6 +48,40 @@ class DirectoryContactFilterTests(unittest.TestCase):
         for phone, expected in cases.items():
             with self.subTest(phone=phone):
                 self.assertEqual(status_policy.mobile_of({"phone_norm": phone}), expected)
+
+    def test_browse_returns_wholesale_flag_for_filtered_rows(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = pathlib.Path(temp_dir) / "directory.parquet"
+            db = duckdb.connect()
+            db.execute("""create table places(
+                poi_key varchar, name_ar varchar, name_en varchar, category varchar, category_ar varchar,
+                secondary_category varchar, category_l3 varchar, city_en varchar, region_en varchar, region_ar varchar,
+                district_ar varchar, district_en varchar, latitude double, longitude double, location_precision varchar,
+                phone_norm varchar, phone_kind varchar, has_whatsapp boolean, is_wholesale boolean, email varchar,
+                sources varchar, source_count integer, legal_name varchar, company_status varchar, lifecycle_state varchar,
+                brand_name varchar, completeness_pct double
+            )""")
+            db.execute("""insert into places values
+                ('wholesale', 'مورد جملة', 'Wholesale supplier', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
+                 'الملز', '', 24.6, 46.7, 'point', null, null, false, true, null, '', 1, '', null, null, '', 90),
+                ('retail', 'متجر تجزئة', 'Retail shop', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
+                 'الملز', '', 24.61, 46.71, 'point', null, null, false, false, null, '', 1, '', null, null, '', 80)
+            """)
+            db.execute("copy places to ? (format parquet)", [str(path)])
+            db.execute("create table branches(brand varchar, n integer)")
+            tiles = DirectoryTiles.__new__(DirectoryTiles)
+            tiles.db = db
+            tiles.lock = threading.RLock()
+            tiles.path = str(path)
+            tiles.search_sql = "true"
+            tiles.register = lambda **_kwargs: "map-key"
+
+            result = tiles.browse("Riyadh", {"wholesale": True})
+
+            self.assertEqual(result["total"], 1)
+            self.assertEqual(result["rows"][0]["poi_key"], "wholesale")
+            self.assertIs(result["rows"][0]["is_wholesale"], True)
+            db.close()
 
     def test_map_sql_restricts_contact_only_when_explicitly_requested(self):
         tiles = DirectoryTiles.__new__(DirectoryTiles)

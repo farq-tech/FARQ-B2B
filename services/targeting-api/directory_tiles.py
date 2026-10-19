@@ -205,6 +205,7 @@ class DirectoryTiles:
             if not keyword:raise ValueError('name filter needs keyword')
             clauses.append("contains(regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en)),'أإآةىؤئ','اااهيوي'),'[ً-ْـ]','','g'),?)");params.append(keyword)
         if f.get('branches_only'):clauses.append('coalesce(b.n,0)>=2')
+        if f.get('wholesale'):clauses.append('coalesce(is_wholesale,false)')
         if f.get('contact')=='whatsapp':
             clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'), '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$')")
         if f.get('contact')=='email':clauses.append("length(trim(coalesce(email,'')))>0")
@@ -218,7 +219,7 @@ class DirectoryTiles:
         f=valid_filters(filters);base,params=self.sql(city,f)
         with self.lock:
             total,located=self.db.execute("select count(*),count(*) filter(where coalesce(location_precision,'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) "+base,params).fetchone()
-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,is_wholesale,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
         for row in rows:
             row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
