@@ -6,6 +6,7 @@ type Plan = { target: string; purpose: string; prompt: string }
 type Props = {
   city: string
   cityLabel: string
+  onUnderstand: (prompt: string) => Promise<Plan>
   onPrepare: (plan: Plan) => Promise<{ count: number; campaignId: string }>
   onOpenDraft?: () => void
   mobile: boolean
@@ -17,32 +18,23 @@ const purposeOf = (text: string) => {
   return 'التعرّف على فرق وبدء متابعة يدوية للمهتمين'
 }
 
-const targetOf = (text: string) => {
-  const groups: Array<[RegExp, string]> = [
-    [/مقاول|بناء|تشطيب|حديد|سباك|كهربائ/, 'شركات المقاولات والبناء والتشطيب'],
-    [/مطعم|مقهى|كافيه|أغذية|تموين/, 'المطاعم والمقاهي ومنشآت الأغذية'],
-    [/بقال|تجزئة|متجر|سوبر/, 'تجار التجزئة والبقالات'],
-    [/مصنع|صناع/, 'المصانع والمنشآت الصناعية'],
-    [/عياد|طبي|صحة/, 'العيادات والمنشآت الصحية'],
-    [/عقار|مكتب عقار/, 'مكاتب وشركات العقار'],
-  ]
-  return groups.find(([pattern]) => pattern.test(text))?.[1] || text
-    .replace(/(?:ابي|أبي|ابغى|أبغى|استهدف|استهداف|الشريحة|العملاء|المنشآت|الشركات|الغاية|الهدف|الحملة|واتساب|في الرياض|في جدة|في الدمام)/g, ' ')
-    .replace(/\s+/g, ' ').trim() || 'منشآت أعمال مناسبة'
-}
 
-export default function TargetingAssistant({ city, cityLabel, onPrepare, onOpenDraft, mobile }: Props) {
+
+export default function TargetingAssistant({ city, cityLabel, onUnderstand, onPrepare, onOpenDraft, mobile }: Props) {
   const [prompt, setPrompt] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
+  const [understanding, setUnderstanding] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [ready, setReady] = useState<{ count: number; campaignId: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const understand = () => {
+  const understand = async () => {
     const text = prompt.trim()
-    if (!text) return
-    setReady(null); setError(null)
-    setPlan({ target: targetOf(text), purpose: purposeOf(text), prompt: text })
+    if (!text || understanding) return
+    setUnderstanding(true); setReady(null); setError(null)
+    try { setPlan(await onUnderstand(text)) }
+    catch { setPlan(null); setError('تعذّر تحليل الطلب الآن. تأكد من الاتصال ثم حاول مرة ثانية.') }
+    finally { setUnderstanding(false) }
   }
   const prepare = async () => {
     if (!plan || preparing) return
@@ -63,11 +55,11 @@ export default function TargetingAssistant({ city, cityLabel, onPrepare, onOpenD
       </div>
       <div className="mt-3 flex gap-2">
         <label className="sr-only" htmlFor="targeting-assistant-prompt">طلب الاستهداف</label>
-        <textarea id="targeting-assistant-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') understand() }} rows={mobile ? 3 : 2} placeholder="مثال: استهدف شركات المقاولات في الرياض، والغاية تعريفهم بفرق لتقليل تكلفة المشتريات" className={`min-w-0 flex-1 resize-none rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[14px] leading-[22px] outline-none shadow-sm focus:border-[var(--color-border-primary)] ${FOCUS_RING}`} />
-        <Button type="button" variant="Primary" size={mobile ? 'S' : 'M'} icon="arrow-forward" disabled={!prompt.trim()} onClick={understand}>افهم طلبي</Button>
+        <textarea id="targeting-assistant-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void understand() }} rows={mobile ? 3 : 2} placeholder="مثال: استهدف شركات المقاولات في الرياض، والغاية تعريفهم بفرق لتقليل تكلفة المشتريات" className={`min-w-0 flex-1 resize-none rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[14px] leading-[22px] outline-none shadow-sm focus:border-[var(--color-border-primary)] ${FOCUS_RING}`} />
+        <Button type="button" variant="Primary" size={mobile ? 'S' : 'M'} icon="arrow-forward" disabled={!prompt.trim() || understanding} loading={understanding} loadingLabel="أحلل الطلب…" onClick={() => void understand()}>حلّل طلبي</Button>
       </div>
       {plan ? <div aria-live="polite" className="mt-3 rounded-[12px] border border-[color-mix(in_srgb,var(--color-border-primary)_24%,var(--color-border-default))] bg-[var(--color-bg-surface)] p-3 text-[14px] leading-[22px] shadow-sm">
-        <p className="font-medium text-[var(--color-text-brand)]">فهمت طلبك.</p>
+        <p className="font-medium text-[var(--color-text-brand)]">حللت طلبك من دليل السوق.</p>
         <p className="mt-1 text-[var(--color-text-secondary)]">سأستهدف <b>{plan.target}</b> في <b>{cityLabel || city}</b> بهدف <b>{plan.purpose}</b>. سأختار فقط المنشآت التي لديها إشارة واتساب برقم صالح.</p>
         {!ready ? <Button type="button" variant="Primary" size="S" icon="check" loading={preparing} loadingLabel="نجهز المسودة…" className="mt-3" onClick={() => void prepare()}>جهّز مسودة الحملة</Button> : <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-[13px] text-[var(--color-text-success)]">تم تجهيز مسودة لـ {ready.count.toLocaleString('ar-SA')} منشأة. لم تُرسل أي رسالة.</span>{onOpenDraft ? <Button type="button" variant="Primary" size="S" icon="arrow-forward" onClick={onOpenDraft}>فتح المسودة</Button> : null}</div>}
       </div> : null}

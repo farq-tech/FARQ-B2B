@@ -1864,6 +1864,21 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setNotice(`أبشر، الحملة محفوظة كمسودة في هذه الصفحة (${n(chosen.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال؛ تحديث الصفحة يمسحها.`)
   }
 
+  const assistantPurpose = (text: string) => {
+    if (/طلبات|عرض سعر|مورد|شراء|مشتريات/.test(text)) return 'التعرّف على فرق ومقارنة خيارات الشراء'
+    if (/زيارة|تجربة|اشتراك|تسجيل/.test(text)) return 'دعوة مناسبة للتعرّف على الخدمة'
+    return 'التعرّف على فرق وبدء متابعة يدوية للمهتمين'
+  }
+
+  const understandAssistantPrompt = async (prompt: string): Promise<{ target: string; purpose: string; prompt: string }> => {
+    // Uses the live directory analyzer. When ANTHROPIC_API_KEY is present in the targeting service,
+    // this invokes its model parser; otherwise the service states its deterministic fallback in `parsed`.
+    const analysis = await searchTargets(prompt, city, 1, 'marketing')
+    const parsed = analysis.parsed || {}
+    const target = parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ') || prompt
+    return { target, purpose: assistantPurpose(prompt), prompt }
+  }
+
   const prepareAssistantDraft = async (plan: { target: string; purpose: string; prompt: string }) => {
     if (preparingMarketing) throw new Error('BUSY')
     setObjective('marketing'); setLens('buyers'); setQ(plan.target)
@@ -2726,7 +2741,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           {fileField}
         </div>
         {searchWithScope}
-        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onPrepare={prepareAssistantDraft} onOpenDraft={() => { setDraftOpenRequest((value) => value + 1); requestAnimationFrame(() => document.querySelector('[data-testid=campaign-tray]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })) }} />
+        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onUnderstand={understandAssistantPrompt} onPrepare={prepareAssistantDraft} onOpenDraft={() => { setDraftOpenRequest((value) => value + 1); requestAnimationFrame(() => document.querySelector('[data-testid=campaign-tray]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })) }} />
         {searchStatus}
         {understood}
         {suggestBar}
