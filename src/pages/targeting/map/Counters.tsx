@@ -44,7 +44,10 @@ export default function Counters({ items, compact = false, selectedMainId, selec
   onActivitySelect?: (mainId: string) => void
   onCounterSelect?: (key: string) => void
 }) {
-  const grouped = !compact && items.some((item) => item.key.startsWith('market-main-'))
+  // Keep the many activity filters out of the primary mobile scroll. The
+  // summary stays immediately usable, while the compact disclosure gives the
+  // same choices without turning the map page into a long row of tiny cards.
+  const grouped = items.some((item) => item.key.startsWith('market-main-'))
   const summaryItems = grouped ? items.filter((item) => !item.key.startsWith('market-main-')) : items
   const detailItems = grouped ? items.filter((item) => item.key.startsWith('market-main-')) : []
   const tiles = (values: CounterItem[], className: string, trackDetailSelection = false) => (
@@ -87,7 +90,7 @@ export default function Counters({ items, compact = false, selectedMainId, selec
 
   if (grouped) return (
     <section aria-label="مؤشرات الخريطة" className="flex flex-col gap-2">
-      {tiles(summaryItems, `grid ${summaryItems.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`)}
+      {tiles(summaryItems, compact ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : `grid ${summaryItems.length > 4 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`)}
       <Collapsible.Root
         className="overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]"
         onOpenChange={(open) => { if (open) recordMapInteraction('map_activity_counter_panel_open') }}
@@ -97,7 +100,7 @@ export default function Counters({ items, compact = false, selectedMainId, selec
           <ChevronDown aria-hidden size={16} className="shrink-0 transition-transform" />
         </Collapsible.Trigger>
         <Collapsible.Panel className="overflow-hidden border-t border-[var(--color-border-default)] p-2">
-          {tiles(detailItems, "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5", true)}
+          {tiles(detailItems, compact ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5', true)}
         </Collapsible.Panel>
       </Collapsible.Root>
     </section>
