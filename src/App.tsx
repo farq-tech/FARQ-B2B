@@ -12,8 +12,8 @@ import './b2b/b2b.css'
  * Shell = Figma «✦ Farq B2B: Screens» (file gxlY4uu8hzkUNrcN61uQZt): web W00 sidebar 18371:99,
  * mobile tabs: الطلبات · الوارد · خريطة الفرص. «خريطة الفرص» opens the
  * targeting map → message → Meta approval → review & cost. Its contextual «طلب جديد» opens the start sheet
- * (booklet / catalog / free search); the buyer RFQ wizard (/new) stays, linked from that sheet. Explore (/explore), opportunities and
- * account stay reachable (landing entry, saved opportunities, «حسابي» under the account row).
+ * (booklet / catalog / free search); the buyer RFQ wizard (/new) stays, linked from that sheet. Opportunities and
+ * account stay reachable (saved opportunities, «حسابي» under the account row).
  */
 const RfqList = lazy(() => import('./views/RfqListV2').then(m => ({ default: m.RfqListV2 })))
 const Tracking = lazy(() => import('./views/RequestTrackingV2').then(m => ({ default: m.RequestTrackingV2 })))
@@ -25,7 +25,6 @@ const Targeting = lazy(() => import('./pages/targeting'))
 const Templates = lazy(() => import('./pages/targeting/Templates'))
 const TemplateEditor = lazy(() => import('./pages/targeting/TemplateEditor'))
 const WhatsAppLeads = lazy(() => import('./pages/targeting/WhatsAppLeads'))
-const Explore = lazy(() => import('./b2b/Explore'))
 const Account = lazy(() => import('./b2b/Account'))
 const Opportunities = lazy(() => import('./b2b/Opportunities'))
 const Loading = () => <p role="status" className="farq-loading">جارٍ التحميل…</p>
@@ -37,7 +36,7 @@ const CAMPAIGN: View[] = ['targeting', 'targeting-new', 'templates', 'template-n
 /*
  * The landing's «حدد هدفك وابدأ» links to /requests?goal=marketing|purchase (a full page load, so memory cannot carry it).
  * Read it once here, before the router rewrites the URL, into the in-memory hand-off: after sign-in that visit opens
- * Explore, which takes the goal. Nothing is stored on the device.
+ * خريطة الفرص، التي تقود رحلة الهدف. Nothing is stored on the device.
  */
 {
   const goal = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('goal')
@@ -64,9 +63,9 @@ function Routes() {
     const e = email.toLowerCase()
     if (e) setChecked(ALLOWED.includes(e) ? 'ok' : 'denied')
   }, [session.isAuthenticated, email])
-  useEffect(() => { if (session.isAuthenticated && view === 'login') navigate(landingGoal() ? 'explore' : 'rfq-list') }, [session.isAuthenticated, view, navigate])
-  // landing → app while already signed in (the session cookie survives the full page load): the chosen goal opens Explore
-  useEffect(() => { if (session.isAuthenticated && landingGoal() && view !== 'explore' && view !== 'login') navigate('explore') }, [session.isAuthenticated, view, navigate])
+  useEffect(() => { if (session.isAuthenticated && view === 'login') navigate(landingGoal() ? 'targeting' : 'rfq-list') }, [session.isAuthenticated, view, navigate])
+  // landing → app while already signed in (the session cookie survives the full page load): the chosen goal opens the opportunity map.
+  useEffect(() => { if (session.isAuthenticated && landingGoal() && view !== 'targeting' && view !== 'login') navigate('targeting') }, [session.isAuthenticated, view, navigate])
 
   if (session.checking) return <Loading />
   if (!session.isAuthenticated) return <LoginV2 navigate={navigate} />
@@ -108,7 +107,6 @@ function Routes() {
         {/* Eid al-Fitr / Eid al-Adha / National Day / Founding Day: a quiet, dismissible line (not over the full-screen map) */}
         {onCampaign ? null : <OccasionBanner />}
         <Suspense fallback={<Loading />}>
-          {(view === 'explore' || view === 'goal-new') && <Explore />}
           {view === 'rfq-detail' && <Tracking navigate={navigate} />}
           {view === 'comparison' && <Comparison navigate={navigate} />}
           {view === 'award' && selectedRfqId && <Award rfqId={selectedRfqId} supplierId={new URLSearchParams(window.location.search).get('supplier')} onBack={() => navigate('comparison')} onDone={() => navigate('rfq-detail')} />}

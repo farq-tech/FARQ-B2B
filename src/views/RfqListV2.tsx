@@ -139,7 +139,7 @@ export function RfqListV2({ navigate }: NavProps) {
         </ListSection>
       ))}
       {rows && rows.length > 0 && shown.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما لقينا طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
-      {rows ? <p className="text-[14px] text-[var(--color-text-secondary)]">تدوّر على موردين أو مشترين بدون طلب؟ <button type="button" onClick={() => go('explore')} className="min-h-11 text-[var(--color-text-link)] underline">استكشف السوق</button></p> : null}
+      {rows ? <p className="text-[14px] text-[var(--color-text-secondary)]">تدوّر على موردين أو مشترين بدون طلب؟ <button type="button" onClick={() => go('targeting')} className="min-h-11 text-[var(--color-text-link)] underline">افتح خريطة الفرص</button></p> : null}
     </div>
   )
 }
