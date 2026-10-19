@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Button } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
@@ -5,7 +6,8 @@ type Props = {
   count: number
   objective: 'purchase' | 'marketing'
   saving: boolean
-  onSave: () => void
+  onSave: () => Promise<boolean>
+  onOpenRequests?: () => void
   onClear: () => void
   onCreateRfq?: () => void
   mobile: boolean
@@ -13,7 +15,8 @@ type Props = {
 
 /** A saved review list is deliberately separate from outreach. It is the shared
  * decision point for purchase and marketing work before an RFQ or campaign draft. */
-export default function ReviewSelectionTray({ count, objective, saving, onSave, onClear, onCreateRfq, mobile }: Props) {
+export default function ReviewSelectionTray({ count, objective, saving, onSave, onOpenRequests, onClear, onCreateRfq, mobile }: Props) {
+  const [saved, setSaved] = useState(false)
   const purchase = objective === 'purchase'
   return (
     <section aria-label="قائمة المراجعة المختارة" className={`border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] shadow-[var(--farq-soft-shadow)] ${mobile ? 'rounded-[18px]' : 'rounded-[14px]'}`}>
@@ -26,7 +29,8 @@ export default function ReviewSelectionTray({ count, objective, saving, onSave, 
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="Ghost" size="S" onClick={onClear}>إلغاء التحديد</Button>
-          <Button variant="Secondary" size="S" loading={saving} loadingLabel="نحفظ…" onClick={onSave}>حفظ القائمة</Button>
+          <Button variant="Secondary" size="S" loading={saving} loadingLabel="نحفظ…" onClick={() => void onSave().then(setSaved)}>حفظ القائمة</Button>
+          {saved && onOpenRequests ? <Button variant="Ghost" size="S" onClick={onOpenRequests}>فتح الطلبات</Button> : null}
           {purchase && onCreateRfq ? <button type="button" onClick={onCreateRfq} className={`rounded-full bg-[var(--map-ink)] px-3 py-2 text-[13px] font-semibold text-white ${FOCUS_RING}`}>إنشاء طلب تسعير</button> : null}
         </div>
       </div>

@@ -32,7 +32,6 @@ import CampaignTray from './map/CampaignTray'
 import ReviewList from './ReviewList'
 import ReviewSelectionTray from './ReviewSelectionTray'
 import StepStrip from './map/StepStrip'
-import MapLegend from './map/MapLegend'
 import { fitOf, type PinFit } from './map/model'
 import { RowBadges } from './map/Badges'
 import {
@@ -126,7 +125,7 @@ function defaultMessage(cat: string | null, area: string | null) {
 }
 const boxAround = (lat: number, lon: number, d = 0.012): [number, number, number, number] => [lon - d, lat - d, lon + d, lat + d]
 
-export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, startNew = false, onStartClosed, onRfq }: {
+export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, startNew = false, onStartClosed, onRfq, onRequests }: {
   onTemplates: () => void
   onLeads?: () => void
   onMapFocusChange?: (focused: boolean) => void
@@ -135,6 +134,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   onStartClosed?: () => void
   /** the buyer price-request wizard (/new), linked from the start sheet */
   onRfq?: () => void
+  /** Open the unified requests page after a review list is safely saved. */
+  onRequests?: () => void
 }) {
   const mobile = useIsMapCompact()
   const [focusMode, setFocusMode] = useState(false)
@@ -1195,8 +1196,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setSavedTick((tick) => tick + 1)
     return draft
   }
-  async function saveReviewList() {
-    if (!chosen.length || savingReviewList) return
+  async function saveReviewList(): Promise<boolean> {
+    if (!chosen.length || savingReviewList) return false
     setSavingReviewList(true)
     try {
       const draft = await createOpportunityRequest({
@@ -1212,8 +1213,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       setSavedTick((tick) => tick + 1)
       setNotice(`حُفظت قائمة المراجعة لـ ${n(chosen.length)} جهة. تلقاها في «طلباتي».`)
       window.history.replaceState(null, '', `/opportunity-map#review=${encodeURIComponent(draft.id)}`)
+      return true
     } catch (err) {
       setNotice(err instanceof Error && err.message ? err.message : 'تعذّر حفظ قائمة المراجعة. حاول بعد شوي.')
+      return false
     } finally { setSavingReviewList(false) }
   }
   function prepareQuoteFromReviewList() {
@@ -2348,7 +2351,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       ) : null}
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="اللوحة" className="flex gap-1 rounded-full bg-[var(--color-bg-surface-2)] p-1">
-          {((mobile ? [['streets', 'الشوارع'], ['results', showTargetResults ? `المنشآت · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'الدليل']] : [['results', showTargetResults ? `المنشآت · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'الدليل']]) as [typeof tab, string][]).map(([k, l]) => (
+          {((mobile ? [['streets', 'الشوارع'], ['results', showTargetResults ? `المنشآت · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'التصنيفات']] : [['results', showTargetResults ? `المنشآت · ${n(visibleCohort.length)}` : 'ابدأ البحث'], ['guide', 'التصنيفات']]) as [typeof tab, string][]).map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k || (!mobile && tab === 'streets' && k === 'results')} onClick={() => setTab(k)}
               className={`rounded-full px-4 py-1.5 text-[14px] leading-[22px] font-medium ${tab === k ? 'bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-[var(--farq-button-shadow)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>{l}</button>
           ))}
@@ -2496,12 +2499,6 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       ) : <p className="text-[13px] text-[var(--color-text-secondary)]">ما فيه علاقات شراء مصنّفة لهذا النشاط في المدينة.</p>}
     </section>
   ) : null
-  const fitLegend = <MapLegend fitFilter={fitFilter} counts={fitCounts} onFitFilterChange={(next) => {
-    if (next === fitFilter) return
-    setFitFilter(next)
-    setShown(PAGE)
-    recordMapInteraction(`fit_filter_${next}`)
-  }} />
   const scopeDistricts = districtInsightRows
   const scopeDistrictName = chosenNames.length === 1 ? chosenNames[0] : filters.district || null
   const scopeDistrictTitle = scopeDistrictName ? `سوق حي ${scopeDistrictName}` : chosenNames.length > 1 ? `تحليل ${n(chosenNames.length)} أحياء` : 'تحليل الحي'
@@ -2706,7 +2703,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{targetResultsPanel}</>
     ) : marketGuide}
   </>
-  const panelBody = <>{showMarketContext ? <>{mapScopePanel}{fitLegend}{mapScope === 'district' ? null : districtInsightPanel}</> : null}{panelContent}</>
+  const panelBody = <>{showMarketContext ? <>{mapScopePanel}{mapScope === 'district' ? null : districtInsightPanel}</> : null}{panelContent}</>
 
   // ---------- the map with its floating controls
   const fallbackChips = !hasPolys && polys !== null && districts.length ? (
@@ -2823,7 +2820,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
 
   const tray = chosen.length ? (
     <div className="flex flex-col gap-3">
-      <ReviewSelectionTray mobile={mobile} count={chosen.length} objective={objective} saving={savingReviewList} onSave={() => void saveReviewList()} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onCreateRfq={objective === 'purchase' ? prepareQuoteFromReviewList : undefined} />
+      <ReviewSelectionTray mobile={mobile} count={chosen.length} objective={objective} saving={savingReviewList} onSave={saveReviewList} onOpenRequests={onRequests} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onCreateRfq={objective === 'purchase' ? prepareQuoteFromReviewList : undefined} />
       {objective === 'marketing' && campaignChosen.length ? <CampaignTray mobile={mobile} count={campaignChosen.length} keys={campaignChosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage} templateValues={templateValues} onTemplateValues={(values) => { setTemplateValues(values); setPreparedCampaignId(null) }}
       template={template} onTemplate={(next) => { setTemplate(next); setPreparedCampaignId(null) }} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
       city={city} showTiming={false} onSend={() => setConfirming(true)} onPrepare={() => void prepareWhatsAppCampaign()} onOpenLeads={onLeads} openRequest={draftOpenRequest} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} /> : null}

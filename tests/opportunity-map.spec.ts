@@ -295,7 +295,7 @@ test.describe('desktop 1440', () => {
     })
     await page.goto('/opportunity-map')
     await searchFor(page, 'مواسير PPR')
-    await page.getByRole('tab', { name: 'الدليل' }).click()
+    await page.getByRole('tab', { name: 'التصنيفات' }).click()
     const main = page.getByRole('button', { name: /^مواد بناء وتشطيب \(بيع\)/ })
     await expect(main).toBeVisible()
     await main.click()
@@ -726,7 +726,7 @@ test.describe('desktop 1440', () => {
     await expect(counter(page, 'districts')).toHaveText('3')
     await expect(counter(page, 'n')).toHaveText('6')
     // guide tree: main ▸ sub ▸ specialty; a pick filters and switches the layer
-    await page.getByRole('tab', { name: 'الدليل' }).click()
+    await page.getByRole('tab', { name: 'التصنيفات' }).click()
     await page.getByRole('button', { name: /^مقاولات وخدمات إنشائية/ }).click()
     await expect(page.getByText(/^النشاط الرئيسي:/)).toBeVisible()
     await expect(page.locator('[data-pin="main"]')).toHaveCount(1)
