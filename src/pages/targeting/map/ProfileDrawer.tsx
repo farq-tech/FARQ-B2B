@@ -89,7 +89,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
           {status ? <span className="inline-flex items-center rounded-full border border-[var(--map-sand)] bg-[color-mix(in_srgb,var(--map-sand)_25%,white)] px-2.5 py-1 text-[12px] leading-[18px] font-medium">حالة السجل: {status}</span> : null}
           {statusUnconfirmed ? <span className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">حالة التشغيل غير مؤكدة</span> : null}
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] leading-[18px] font-medium ${wa ? 'border-[color-mix(in_srgb,var(--map-green)_40%,white)] bg-[color-mix(in_srgb,var(--map-green)_8%,white)] text-[var(--color-text-success)]' : 'border-[var(--color-border-default)] text-[var(--color-text-secondary)]'}`}>
-            {wa ? 'واتساب متاح عبر فرق' : 'لا توجد قناة واتساب بعد'}
+            {wa ? 'واتساب بحسب المصدر' : 'لا توجد إشارة واتساب من المصدر'}
           </span>
           {saudi ? <span className="inline-flex items-center rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[12px] leading-[18px] font-medium">منشأة سعودية</span> : null}
         </div>
@@ -110,7 +110,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
             </div>
           </div>
         ) : null}
-        <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">بيانات التواصل لا تظهر. التواصل يتم عبر فرق بالقوالب المعتمدة من ميتا.</p>
+        <p className="rounded-[10px] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">{wa ? 'إشارة واتساب بحسب مصدر الدليل؛ لا تؤكد أن الرقم نشط. يعاد فحص الأهلية قبل إرسال القالب المعتمد.' : 'بيانات التواصل لا تظهر. لا توجد إشارة واتساب من المصدر لهذه المنشأة.'}</p>
         {wa ? <Button variant={chosen ? 'Secondary' : 'Primary'} size="M" fullWidth onClick={onChoose}>{chosen ? 'إزالة من الحملة' : 'أضف للحملة'}</Button> : null}
         {onRequestQuote && (wa || row.email) ? <Button variant="Secondary" size="M" fullWidth onClick={onRequestQuote}>جهّز طلب تسعير لهذا المورد</Button> : null}
       </div>

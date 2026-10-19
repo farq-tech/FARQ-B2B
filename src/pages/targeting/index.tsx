@@ -74,7 +74,7 @@ const FETCH = 200   // rows per server page (the API maximum); «حمّل أكث
 const RADII = [5, 10, 25, 50, 100] as const
 const normalizeActivityText = (value: string) => value.normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').toLocaleLowerCase('ar')
 
-export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsApp' : r.email ? 'Email' : 'Unreachable')
+export const channelOf = (r: TargetRow): Channel => (waNumber(r) ? 'WhatsAppSource' : r.email ? 'Email' : 'Unreachable')
 function recordSearchContactAvailability(rows: readonly Pick<TargetRow, 'phone' | 'email'>[]) {
   if (!rows.length) return
   const withContact = rows.filter((row) => Boolean(row.phone?.trim() || row.email?.trim())).length
@@ -653,7 +653,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return [
         { key: 'market-size', label: scopeLabel, value: marketStats?.total ?? null, lead: true },
         ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null }]),
-        { key: 'market-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
+        { key: 'market-whatsapp', label: 'إشارة واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
         { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null },
         ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n })),
       ]
@@ -677,7 +677,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
-      { key: 'city-whatsapp', label: 'واتساب مسجل بالدليل', value: marketStats?.n_whatsapp ?? null },
+      { key: 'city-whatsapp', label: 'إشارة واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
     ]
   }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district, densityDistrictNames])
@@ -1813,7 +1813,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   }
 
   const resultCard = (r: TargetRow) => {
-    const ch = channelOf(r), can = ch === 'WhatsApp', on = selected.has(r.poi_key), name = safeName(r)
+    const ch = channelOf(r), can = ch === 'WhatsAppSource', on = selected.has(r.poi_key), name = safeName(r)
     const locationNotes = [!hasPoint(r) ? (site ? 'موقع تقريبي · المسافة غير معروفة' : 'موقع تقريبي') : null, r.district_reliable === false ? 'الحي غير مؤكد' : null].filter(Boolean)
     return (
       <li key={r.poi_key} data-key={r.poi_key} onPointerEnter={(event) => { if (event.pointerType === 'mouse' && hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} onFocusCapture={() => { if (hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} className="border-b border-[var(--color-border-default)]">
@@ -1862,16 +1862,16 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
               const inCampaign = selected.has(row.poi_key)
               const checked = inCampaign || multiPending.has(row.poi_key)
               return <li key={row.poi_key} className="flex items-start gap-3 border-t border-[var(--color-border-default)] px-3 py-2.5">
-                <input type="checkbox" checked={checked} disabled={busy || inCampaign || channel !== 'WhatsApp'} onChange={() => setMultiPending((current) => {
+                <input type="checkbox" checked={checked} disabled={busy || inCampaign || channel !== 'WhatsAppSource'} onChange={() => setMultiPending((current) => {
                   const next = new Map(current)
                   if (next.has(row.poi_key)) next.delete(row.poi_key)
                   else next.set(row.poi_key, row)
                   return next
-                })} aria-label={`اختر ${safeName(row)} من ${intent.activity} في ${intent.district}`} className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
+              })} aria-label={`اختر ${safeName(row)} من ${intent.activity} في ${intent.district}`} className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] ${FOCUS_RING}`} />
                 <div className="min-w-0 flex-1">
                   <p className="m-0 truncate text-[14px] font-semibold">{safeName(row)}</p>
                   <p className="m-0 truncate text-[12px] text-[var(--color-text-secondary)]">{placeOf(row, cities) || `حي ${intent.district}`}{row.district_reliable === false ? ' · الحي غير مؤكد' : ''}</p>
-                  {inCampaign ? <span className="text-[11px] text-[var(--color-text-success)]">مضافة للحملة</span> : channel !== 'WhatsApp' ? <span className="text-[11px] text-[var(--color-text-tertiary)]">لا تتوفر قناة واتساب</span> : null}
+                  {inCampaign ? <span className="text-[11px] text-[var(--color-text-success)]">مضافة للحملة</span> : channel !== 'WhatsAppSource' ? <span className="text-[11px] text-[var(--color-text-tertiary)]">لا توجد إشارة واتساب من المصدر</span> : null}
                 </div>
                 <ChannelBadge channel={channel} />
               </li>

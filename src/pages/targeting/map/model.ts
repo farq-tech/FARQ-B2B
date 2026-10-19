@@ -176,7 +176,7 @@ export const COUNTERS: { key: keyof Counters; label: string; lead?: boolean }[] 
   { key: 'specs', label: 'التخصصات' },
   { key: 'wholesale', label: 'جملة' },
   { key: 'factory', label: 'مصانع' },
-  { key: 'whatsapp', label: 'واتساب مسجل' },
+  { key: 'whatsapp', label: 'إشارة واتساب من المصدر' },
   { key: 'cr', label: 'سجل تجاري' },
 ]
 export function countersOf(rows: TargetRow[], districts: number): Counters {

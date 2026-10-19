@@ -117,7 +117,7 @@ export default function TargetMap({ rows, selected, focusedKey, onToggle, topIns
         )
       })}
       {legend ? <div className="absolute start-auto end-4 top-4 flex items-center gap-3 rounded-full bg-[var(--white-a16)] px-3 py-2 text-[12px] leading-[18px] font-medium text-[var(--color-text-on-inverse)]">
-        {[['واتساب', COLOR.wa], ['إيميل', COLOR.email], ['لا يمكن', COLOR.none]].map(([l, c]) => (
+        {[['واتساب بحسب المصدر', COLOR.wa], ['إيميل', COLOR.email], ['لا يمكن', COLOR.none]].map(([l, c]) => (
           <span key={l} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c }} />{l}</span>
         ))}
       </div> : null}
