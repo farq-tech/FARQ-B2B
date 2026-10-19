@@ -20,6 +20,10 @@ Before connecting Railway deployments to this folder, verify the staged data ass
 
 Unexpected failures in map read endpoints keep the existing `503 UNAVAILABLE` response and emit a structured `farq.targeting` error log with a fixed endpoint label, exception class, and a short source stack. Exception messages, request bodies, search text, locations, and directory data are deliberately omitted.
 
+## Street scope options
+
+`POST /search` with `objective: "browse"` returns `areas.streets`: every distinct directory street for the selected city, or for the selected district when `filters.district` is supplied. Each item contains `{name, district, n}`. The list deliberately ignores the current `filters.street` value so people can switch streets from the same picker. Counts are directory records and do not imply street-density coverage.
+
 ## Directory contact filters
 
 For `/search` (including `objective: "browse"`), `/map-query`, and the resulting map tiles, an omitted or `all` `filters.contact` means **no contact-channel restriction**. This keeps the full eligible directory available for discovery and map analysis. `contact: "whatsapp"` requires both the source WhatsApp marker and a valid Saudi mobile number; `contact: "email"` restricts results to email. Browse and search remain paginated; map tiles aggregate locations at lower zoom levels.

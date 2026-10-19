@@ -83,6 +83,12 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual(result["rows"][0]["poi_key"], "wholesale")
             self.assertIs(result["rows"][0]["is_wholesale"], True)
             self.assertEqual(result["rows"][0]["street_ar"], "طريق الملك فهد")
+            self.assertEqual(result["areas"]["streets"], [{"name": "طريق الملك فهد", "district": "حي الملز", "n": 1}])
+            broad_result = tiles.browse("Riyadh", {})
+            self.assertCountEqual(broad_result["areas"]["streets"], [
+                {"name": "طريق الملك فهد", "district": "حي الملز", "n": 1},
+                {"name": "شارع العليا", "district": "حي الملز", "n": 1},
+            ])
             self.assertIs(result["rows"][0]["district_reliable"], True)
             self.assertEqual(result["rows"][0]["role_badges"], ["مصنع", "جملة"])
             role_result = tiles.browse("Riyadh", {"role": "مصنع"})
