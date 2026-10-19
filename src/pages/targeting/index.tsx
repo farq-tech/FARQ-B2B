@@ -685,11 +685,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           ? marketStats?.n_wholesale ?? null
           : marketStats?.total ?? null
       return [
-        { key: 'market-size', label: scopeLabel, value: filteredScopeTotal, lead: true },
-        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats) }]),
-        { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
-        { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null },
-        ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n })),
+        { key: 'market-size', label: scopeLabel, value: filteredScopeTotal, lead: true, loading: marketLoading },
+        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats), loading: marketLoading }]),
+        { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null, loading: marketLoading },
+        { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null, loading: marketLoading },
+        ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n, loading: marketLoading })),
       ]
     }
     if ((query || buyerProductMode) && res) return buyerProductMode ? [
@@ -710,11 +710,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     ]
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
-      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
-      { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
-      { key: 'city-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats) },
+      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true, loading: marketLoading },
+      { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null, loading: marketLoading },
+      { key: 'city-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats), loading: marketLoading },
     ]
-  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.contact, filters.wholesale, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length])
+  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.contact, filters.wholesale, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length, marketLoading])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
   const focusedSpecialty = focus?.level === 'spec' && streetPick.kind === 'spec' && streetPick.id === focus.id && (!focus.sub_id || streetPick.subId === focus.sub_id) ? streetPick : null
   const focusedTileKey = focus && res?.map_query

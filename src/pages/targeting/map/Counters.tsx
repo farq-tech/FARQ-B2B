@@ -34,7 +34,7 @@ function Rolling({ value }: { value: number }) {
   }, [value])
   return <>{fmt(shown)}</>
 }
-export type CounterItem = { key: string; label: string; value: number | null; lead?: boolean }
+export type CounterItem = { key: string; label: string; value: number | null; lead?: boolean; loading?: boolean }
 
 export default function Counters({ items, compact = false, selectedMainId, selectedCounterKey, onActivitySelect, onCounterSelect }: {
   items: CounterItem[]
