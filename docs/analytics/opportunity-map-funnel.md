@@ -1621,7 +1621,7 @@ Use at least two complete weeks and 30 terminal page outcomes before treating th
 
 ## Main category detail exposure
 
-This funnel measures whether consenting sessions that opened the main-category counter details later selected one of the category cards inside that panel. The exposure and selection events record only the interaction type; they contain no category, location, search, or establishment value. Results are aggregate counts by the week of the first panel open.
+This funnel measures whether consenting sessions that opened the main-category counter details later selected one of the category cards inside that panel. The panel-open and generic detail-selection events record only the interaction type. A separate event records the selected card's normalized stable taxonomy ID so category interest can be compared in aggregate; it never includes the display name, location, search text, or establishment value. All events remain conditional on analytics consent.
 
 ```sql
 WITH category_events AS (
@@ -1663,6 +1663,36 @@ ORDER BY week_utc DESC;
 ```
 
 The selection event is emitted only by a category card inside the opened details panel, so this measures the intended entry point directly. It remains a session-level measure: a later card selection may follow a subsequent close and reopen. Review at least two complete weeks and 30 panel-open sessions before treating changes as directional. With less traffic, use the counts to confirm instrumentation only, not to infer customer preference.
+
+### Main-category card choices
+
+`pricing_map_map_activity_counter_select_<main_id>` records the selected card's stable taxonomy ID in the existing `element_label` field. The client accepts only IDs matching `[a-z0-9][a-z0-9._-]{0,63}` and records them only after analytics consent. The receiver trims `element_label` to 120 characters. The query returns the ID and aggregate action/session counts only; do not join the session IDs back to raw event rows in reports.
+
+```sql
+WITH category_selections AS (
+  SELECT
+    occurred_at,
+    session_id,
+    substr(element_label, length('pricing_map_map_activity_counter_select_') + 1) AS main_category_id
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label ~ '^pricing_map_map_activity_counter_select_[a-z0-9][a-z0-9._-]{0,63}$'
+)
+SELECT
+  date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
+  main_category_id,
+  count(*) AS card_selections,
+  count(DISTINCT session_id) AS consenting_sessions
+FROM category_selections
+GROUP BY 1, 2
+ORDER BY week_utc DESC, card_selections DESC, main_category_id;
+```
+
+This measures which category cards consenting users select, not whether the resulting map scope was useful or they found a suitable establishment. Wait for two complete weeks and at least 30 consenting panel-open sessions before interpreting preferences; with less activity, treat the counts as an instrumentation check.
 
 ## Market summary counter interactions
 

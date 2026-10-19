@@ -261,6 +261,19 @@ export function recordMapInteraction(name: MapEventName) {
   if (queue.length >= 20) flush()
 }
 
+/** Record a category-card choice with only its stable taxonomy ID, never its display name. */
+export function recordMapActivityCounterSelection(mainId: string) {
+  if (mapAnalyticsConsent() !== 'accepted' || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(mainId)) return
+  startFlush()
+  queue.push({
+    event_type: 'click',
+    session_id: sessionId(),
+    path: '/opportunity-map',
+    element_label: `pricing_map_map_activity_counter_select_${mainId.toLowerCase()}`,
+  })
+  if (queue.length >= 20) flush()
+}
+
 /** Record a consented map-page entry without collecting referrer or page content. */
 export function recordMapPageView() {
   if (mapAnalyticsConsent() !== 'accepted') return

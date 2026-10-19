@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import { formatNumber } from '../../../lib/formatNumber'
 import { FOCUS_RING } from '../../../ui/cx'
-import { recordMapInteraction } from '../../../lib/mapAnalytics'
+import { recordMapActivityCounterSelection, recordMapInteraction } from '../../../lib/mapAnalytics'
 
 /*
  * Live counters strip above the map (owner 2026-10-16): numbers count up / down to the visible cohort,
@@ -73,7 +73,10 @@ export default function Counters({ items, compact = false, selectedMainId, selec
           : `تصفية الخريطة حسب ${c.label}، ${c.value == null ? 'العدد غير متاح' : fmt(c.value)} منشأة`
         return selectable ? <button key={c.key} type="button" data-counter={c.key} aria-pressed={toggleable ? pressed : undefined} aria-label={actionLabel} onClick={() => {
           if (selectableActivity) {
-            if (trackDetailSelection) recordMapInteraction('map_activity_counter_detail_select')
+            if (trackDetailSelection) {
+              recordMapInteraction('map_activity_counter_detail_select')
+              recordMapActivityCounterSelection(mainId!)
+            }
             onActivitySelect?.(mainId!)
           } else onCounterSelect?.(c.key)
         }} className={`${className} ${FOCUS_RING}`}>{body}</button>
