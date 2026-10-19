@@ -59,25 +59,25 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         specialty = ", specialty_ids varchar" if include_specialty else ""
         db.execute(f"""create table targets(
             poi_key varchar, city_en varchar, name_ar varchar, name_en varchar,
-            has_whatsapp boolean, is_wholesale boolean, district_ar varchar,
+            has_whatsapp boolean, phone_norm varchar, is_wholesale boolean, district_ar varchar,
             district_reliable boolean, location_precision varchar, longitude double,
             latitude double, commercial_license varchar{specialty})""")
-        columns = "poi_key,city_en,name_ar,name_en,has_whatsapp,is_wholesale,district_ar,district_reliable,location_precision,longitude,latitude,commercial_license"
+        columns = "poi_key,city_en,name_ar,name_en,has_whatsapp,phone_norm,is_wholesale,district_ar,district_reliable,location_precision,longitude,latitude,commercial_license"
         if include_specialty:
             columns += ",specialty_ids"
         base_rows = [
-            ("p1", "Riyadh", "منشأة أ", "Place A", True, False, "حي النخيل", True, "point", 46.6, 24.7, "CR1"),
-            ("p2", "Riyadh", "منشأة ب", "Place B", False, True, "حي الياسمين", True, "point", 46.7, 24.8, "CR2"),
-            ("p3", "Riyadh", "منشأة ج", "Place C", True, False, "حي النخيل", True, "point", 46.6, 24.71, "CR3"),
-            ("p4", "Jeddah", "منشأة د", "Place D", True, False, "حي النخيل", True, "point", 39.2, 21.5, "CR4"),
-            ("p5", "Riyadh", "منشأة هـ", "Place E", False, False, None, False, "unknown", None, None, ""),
+            ("p1", "Riyadh", "منشأة أ", "Place A", True, "966501234567", False, "حي النخيل", True, "point", 46.6, 24.7, "CR1"),
+            ("p2", "Riyadh", "منشأة ب", "Place B", False, None, True, "حي الياسمين", True, "point", 46.7, 24.8, "CR2"),
+            ("p3", "Riyadh", "منشأة ج", "Place C", True, "0111234567", False, "حي النخيل", True, "point", 46.6, 24.71, "CR3"),
+            ("p4", "Jeddah", "منشأة د", "Place D", True, "0501234567", False, "حي النخيل", True, "point", 39.2, 21.5, "CR4"),
+            ("p5", "Riyadh", "منشأة هـ", "Place E", False, None, False, None, False, "unknown", None, None, ""),
         ]
         if include_specialty:
             rows = [row + (specs,) for row, specs in zip(base_rows, ["spec.sinks", "spec.taps", "spec.sinks", "spec.sinks", "spec.sinks"])]
-            placeholders = ",".join("?" for _ in range(13))
+            placeholders = ",".join("?" for _ in range(14))
         else:
             rows = base_rows
-            placeholders = ",".join("?" for _ in range(12))
+            placeholders = ",".join("?" for _ in range(13))
         db.executemany(f"insert into targets({columns}) values ({placeholders})", rows)
         db.execute("copy targets to ? (format parquet)", [str(path)])
         db.close()
@@ -121,6 +121,15 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(result["n_whatsapp"], 1)
         self.assertEqual(result["n_approx"], 1)
         self.assertIsNone(result["densest_street"])
+
+    def test_whatsapp_counts_require_marker_and_deliverable_mobile(self):
+        summary = self.analytics.market_summary({"city": "Riyadh"})["summary"]
+        districts = self.analytics.district_counts({"city": "Riyadh"})["districts"]
+
+        # p3 carries the source marker but has a landline, so it must not inflate
+        # an aggregate whose click applies the directory WhatsApp contact filter.
+        self.assertEqual(summary["n_whatsapp"], 1)
+        self.assertEqual(next(row for row in districts if row["district_ar"] == "حي النخيل")["n_whatsapp"], 1)
 
     def test_unmatched_query_and_activity_intersection_returns_zero(self):
         city, subs, where, params, _ = self.analytics._where({
