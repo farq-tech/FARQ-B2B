@@ -23,6 +23,8 @@ type Props = {
   /** Keep the underlying search question aligned with the selected goal. */
   onDirectionChange?: (direction: 'buy' | 'sell') => void
   onExplore: () => void
+  /** Opens the natural-language targeting flow. */
+  onTarget: () => void
   /** confirmed specialties; files = names of the catalog files read (none when typed) */
   onSellLines: (names: string[], files: string[]) => void
   onRfq?: () => void
@@ -42,7 +44,7 @@ function Row({ icon, title, hint, onClick }: { icon: IconSource; title: string; 
   )
 }
 
-export default function StartSheet({ mobile, initialDirection = 'buy', onClose, onBooklet, onBuySearch, onExplore, onSellLines, onRfq, onDirectionChange }: Props) {
+export default function StartSheet({ mobile, initialDirection = 'buy', onClose, onBooklet, onBuySearch, onExplore, onTarget, onSellLines, onRfq, onDirectionChange }: Props) {
   const [step, setStep] = useState<'pick' | 'sell'>('pick')
   const [direction, setDirection] = useState<'buy' | 'sell'>(initialDirection)
   const [text, setText] = useState('')
@@ -143,6 +145,7 @@ export default function StartSheet({ mobile, initialDirection = 'buy', onClose, 
               )}
             </div>
             <Row icon={SearchIcon} title="استكشف السوق" hint="تصفح الأحياء والشوارع والمؤشرات بدون كتابة بحث" onClick={onExplore} />
+            <Row icon={SpecialtiesIcon} title="استهدف جهات" hint="اكتب الشريحة والغاية، ثم راجع مسودة الحملة قبل الإرسال" onClick={onTarget} />
             {direction === 'buy' && onRfq ? (
               <button type="button" onClick={onRfq} className={`flex items-center gap-2 self-start text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] hover:underline ${FOCUS_RING}`}>
                 <PricingRequestsIcon size={16} />أنشئ طلب تسعير رسمي

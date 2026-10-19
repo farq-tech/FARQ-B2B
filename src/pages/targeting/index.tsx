@@ -202,6 +202,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [confirming, setConfirming] = useState(false)
   const [preparingMarketing, setPreparingMarketing] = useState(false)
   const [preparedCampaignId, setPreparedCampaignId] = useState<string | null>(null)
+  const [assistantOpen, setAssistantOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -1530,6 +1531,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       onBooklet={() => { beginBuyerFlow(false); fileInput.current?.click(); closeStart() }}
       onBuySearch={() => { beginBuyerFlow(true); closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
       onExplore={() => { closeStart(); if (lens !== 'market') chooseLens('market') }}
+      onTarget={() => { closeStart(); setObjective('marketing'); setLens('buyers'); setAssistantOpen(true) }}
       onSellLines={startSelling} />
   ) : null
   const fileField = (
@@ -2127,6 +2129,18 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       setNotice('تعذّر حفظ مسودة حملة واتساب. تأكد من صلاحية الحساب ثم أعد المحاولة.')
     } finally { setPreparingMarketing(false) }
   }
+
+  const assistantSheet = assistantOpen ? (
+    <div className="fixed inset-0 z-[60] flex items-end bg-[var(--color-bg-inverse)]/40 p-0 sm:items-center sm:justify-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssistantOpen(false) }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="targeting-assistant-title" className={`w-full bg-[var(--color-bg-surface)] p-4 shadow-[var(--elevation-lg)] ${mobile ? 'max-h-[88dvh] overflow-y-auto rounded-t-[var(--radius-xl)] pb-8' : 'max-w-[720px] rounded-[var(--radius-xl)]'}`}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 id="targeting-assistant-title" className="font-[family-name:var(--font-display)] text-[20px] leading-[30px] font-semibold">استهداف ذكي</h2>
+          <button type="button" aria-label="إغلاق" onClick={() => setAssistantOpen(false)} className={`flex size-10 items-center justify-center rounded-full hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}><Icon name="x" size={18} /></button>
+        </div>
+        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onUnderstand={understandAssistantPrompt} onPrepare={prepareAssistantDraft} onOpenDraft={() => { setAssistantOpen(false); setDraftOpenRequest((value) => value + 1) }} />
+      </div>
+    </div>
+  ) : null
 
   const resultCard = (r: TargetRow) => {
     const ch = channelOf(r), can = true, on = selected.has(r.poi_key), name = safeName(r)
@@ -2918,6 +2932,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         {noticeLine ? <div className="absolute inset-x-3 bottom-3 z-40 flex justify-center"><div className="w-full max-w-[700px]">{noticeLine}</div></div> : null}
         {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile={mobile} onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} /> : null}
         {confirmSheet}
+        {assistantSheet}
         {startSheet}
       </div>
     )
@@ -2949,6 +2964,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         </section>
         {profile && byKey.get(profile) ? <ProfileDrawer row={byKey.get(profile)!} mobile onClose={() => setProfile(null)} chosen={selected.has(profile)} onChoose={() => toggle(byKey.get(profile)!)} onRequestQuote={lens === 'sellers' && onRfq ? () => prepareQuoteForProfile(profile) : undefined} /> : null}
         {confirmSheet}
+        {assistantSheet}
         {startSheet}
       </div>
     )
@@ -3011,6 +3027,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         </main>
       </div>
       {confirmSheet}
+      {assistantSheet}
       {startSheet}
     </div>
   )
