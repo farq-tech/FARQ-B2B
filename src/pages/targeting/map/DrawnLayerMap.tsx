@@ -82,7 +82,12 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
     const k = Math.max(200, Math.min(80000, v.k * f))
     setView({ k, cx: projX(p.lon) - (px - size.w / 2) / k, cy: projY(p.lat) - (py - size.h / 2) / k })
   }
-  const onWheel = (e: WheelEvent) => { const r = box.current!.getBoundingClientRect(); zoomBy(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top) }
+  const onWheel = (e: WheelEvent) => {
+    // The map owns its wheel gesture. Without this the browser zooms the map and scrolls the page at once.
+    e.preventDefault()
+    const r = box.current!.getBoundingClientRect()
+    zoomBy(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top)
+  }
   const down = (e: RPointerEvent) => { if (e.button !== 0) return; drag.current = { x: e.clientX, y: e.clientY, moved: false, v }; }
   const move = (e: RPointerEvent) => {
     const d = drag.current
