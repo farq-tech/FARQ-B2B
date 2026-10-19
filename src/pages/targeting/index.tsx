@@ -2163,11 +2163,12 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         <span className="text-[11px] text-[var(--color-text-tertiary)]">من كامل دليل الحي، وليس نتائج بحثك</span>
       </div>
       {districtInsightLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحلل توزيع الأنشطة في {n(insightDistrictNames.length)} {insightDistrictNames.length === 1 ? 'حي' : 'أحياء'}…</p> : null}
-      {districtInsightRows.map((district) => (
-        <article key={district.district_ar} className="flex flex-col gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-3">
+      {districtInsightRows.map((district) => {
+        const hasReliableTotal = district.total > 0
+        return <article key={district.district_ar} className="flex flex-col gap-2 rounded-[14px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-3">
           <div className="flex items-start justify-between gap-2">
             <h3 className="m-0 text-[14px] font-semibold">حي {district.district_ar}</h3>
-            <span className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]">{n(district.classified)} مصنّف من {n(district.total)} سجل</span>
+            <span className="shrink-0 text-[11px] text-[var(--color-text-tertiary)]">{hasReliableTotal ? `${n(district.classified)} مصنّف من ${n(district.total)} سجل` : `${n(district.classified)} سجل مصنّف`}</span>
           </div>
           <p className="m-0 text-[13px] leading-[20px]">
             الأكثر ظهوراً: <strong>{district.dominant_activity?.main_ar || 'لا توجد بيانات مصنّفة'}</strong>{district.dominant_activity ? ` · ${n(district.dominant_activity.n)} سجل${district.classified > 0 ? ` (${n(Math.round(district.dominant_activity.n / district.classified * 100))}٪ من السجلات المصنّفة)` : ''}` : ''}
@@ -2197,9 +2198,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             </div>
           })() : null}
           {district.absent_from_directory.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>لا تظهر لها سجلات مصنّفة في الدليل:</strong> {district.absent_from_directory.slice(0, 4).join('، ')}{district.absent_from_directory.length > 4 ? `، و${n(district.absent_from_directory.length - 4)} أخرى` : ''}</p> : <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><strong>الأنشطة غير الظاهرة:</strong> لم يرصد التحليل نشاطاً مصنّفاً على مستوى المدينة بلا سجل في هذا الحي.</p>}
-          <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">نسبة تغطية التصنيف {n(district.classification_pct)}٪ من السجلات ذات الحي الموثوق. عدم ظهور نشاط لا يثبت عدم وجوده فعلياً.</p>
+          {hasReliableTotal ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">نسبة تغطية التصنيف {n(district.classification_pct)}٪ من السجلات ذات الحي الموثوق. عدم ظهور نشاط لا يثبت عدم وجوده فعلياً.</p> : <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-tertiary)]">إجمالي سجلات الحي قيد التحقق؛ نعرض فقط السجلات المصنفة المؤكدة.</p>}
         </article>
-      ))}
+      })}
       {districtInsightError && !districtInsightLoading ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]">
         <span>تعذّر تحميل ملخص الأحياء.</span>
         <button type="button" onClick={() => setDistrictInsightRetry((value) => value + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button>
@@ -2287,9 +2288,12 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         scopeDistricts.length ? scopeDistricts.map((district) => {
           const streetPool = denseList.filter((street) => normalizeActivityText(street.props.district_ar || '') === normalizeActivityText(district.district_ar))
           const densest = [...streetPool].sort((a, b) => b.props.per_100m - a.props.per_100m)[0]
+          const hasReliableTotal = district.total > 0
           return <article key={district.district_ar} className="flex flex-col gap-2" aria-label={`مؤشرات حي ${district.district_ar}`}>
             <dl className="m-0 grid grid-cols-2 gap-2">
-              {scopeMetric('إجمالي المنشآت في الحي', district.total, `${n(district.classified)} مصنّف · تغطية ${n(district.classification_pct)}٪`)}
+              {hasReliableTotal
+                ? scopeMetric('إجمالي المنشآت في الحي', district.total, `${n(district.classified)} مصنّف · تغطية ${n(district.classification_pct)}٪`)
+                : scopeMetric('السجلات المصنفة في الحي', district.classified, 'إجمالي الدليل قيد التحقق؛ لا نعرض نسبة تغطية غير مؤكدة')}
               {scopeMetric('الشوارع الظاهرة بالكثافة', new Set(streetPool.map((street) => street.props.street_ar)).size, 'حسب طبقة النشاط الحالية')}
               {scopeMetric('التصنيف الأكثر انتشاراً', district.dominant_activity?.main_ar || null, district.dominant_activity ? `${n(district.dominant_activity.n)} سجل` : 'لا توجد بيانات مصنّفة', true)}
               {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${formatNumber(densest.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
