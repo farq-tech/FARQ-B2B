@@ -321,7 +321,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewStats, setCityOverviewStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewLoading, setCityOverviewLoading] = useState(true)
-  const [cityOverviewError, setCityOverviewError] = useState(false)
+  const cityOverviewError = !cityOverviewLoading && cityOverviewStats == null
   const [cityOverviewRetry, setCityOverviewRetry] = useState(0)
   const [marketDistrictCounts, setMarketDistrictCounts] = useState<DistrictCount[]>([])
   const [marketSpecialtyAvailable, setMarketSpecialtyAvailable] = useState<boolean | null>(null)
@@ -484,21 +484,17 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     if (!city) {
       setCityOverviewStats(null)
       setCityOverviewLoading(false)
-      setCityOverviewError(false)
       return
     }
     let active = true
     setCityOverviewLoading(true)
-    setCityOverviewError(false)
     marketSummary({ city }).then((result) => {
       if (!active) return
       const summary = result?.ok ? result.summary : null
       setCityOverviewStats(summary || null)
-      setCityOverviewError(!summary)
     }, () => {
       if (!active) return
       setCityOverviewStats(null)
-      setCityOverviewError(true)
     }).finally(() => { if (active) setCityOverviewLoading(false) })
     return () => { active = false }
   }, [city, cityOverviewRetry])

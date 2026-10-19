@@ -23,6 +23,7 @@
  */
 
 import { recordMapInteraction } from '../lib/mapAnalytics'
+import { farqSession } from './farqSession'
 
 export type TargetRow = {
   category_main?: string
@@ -260,6 +261,9 @@ async function call<T>(
   const d = (data || {}) as { error?: string; message_ar?: string }
   // PRAYER_WINDOW: server.py holds campaign sends during prayer (owner rule 2026-10-16) and says until when
   if (!r.ok) {
+    // A protected targeting response can arrive after an expired proxy cookie.
+    // Re-read the session so the app returns to sign-in instead of leaving a stale map interactive.
+    if (r.status === 401) void farqSession.loadUser()
     if (retried) notifyRetry('failed')
     throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.', r.status)
   }

@@ -27,8 +27,8 @@ export default defineConfig({
       '/_session': { target: process.env.VITE_APP_PROXY_TARGET || 'http://127.0.0.1:8080', changeOrigin: true },
       '/api': { target: process.env.VITE_APP_PROXY_TARGET || 'http://127.0.0.1:8080', changeOrigin: true },
       '/_api': { target: process.env.VITE_API_PROXY_TARGET || 'https://api.farq.sa', changeOrigin: true, rewrite: (p) => p.replace(/^\/_api/, '') },
-      // Standalone targeting service is still supported for fixture development.
-      '/_targeting': { target: process.env.VITE_TARGETING_TARGET || 'http://127.0.0.1:8766', changeOrigin: true, rewrite: (p) => p.replace(/^\/_targeting/, '') },
+      // Authenticated development uses server.py; an explicit target keeps standalone fixture work possible.
+      '/_targeting': { target: process.env.VITE_TARGETING_TARGET || process.env.VITE_APP_PROXY_TARGET || 'http://127.0.0.1:8080', changeOrigin: true },
     },
   },
   // manifest: server.py reads it to serve only the landing's own files without the site password
