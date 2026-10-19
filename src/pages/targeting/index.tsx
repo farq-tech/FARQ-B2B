@@ -2185,7 +2185,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             const expanded = expandedDistrictActivities.has(districtKey)
             const visibleActivities = expanded ? district.activities : district.activities.slice(0, 5)
             return <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة المسجلة في حي ${district.district_ar}`}>
-              {visibleActivities.map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[11px]">{activity.main_ar} · {n(activity.n)}</span>)}
+              {visibleActivities.map((activity) => <button key={activity.main_id} type="button" aria-label={`تصفية خريطة حي ${district.district_ar} حسب ${activity.main_ar}، ${n(activity.n)} سجل مصنف`} onClick={() => { recordMapInteraction('map_district_activity_select'); selectMainFromCounter(activity.main_id) }} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[11px] transition-colors hover:bg-[var(--color-bg-primary-subtle)] hover:text-[var(--color-text-info)] ${FOCUS_RING}`}>{activity.main_ar} · {n(activity.n)}</button>)}
               {district.activities.length > 5 ? <button
                 type="button"
                 aria-expanded={expanded}
@@ -2319,7 +2319,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
               {scopeMetric(scopedMatchLabel, scopedMatchCount, scopedMatchNote, true)}
             </dl>
             {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أبرز الأنشطة الفرعية: {district.dominant_activity.top_subactivities.slice(0, 3).map((item) => `${item.sub_ar} (${n(item.n)})`).join(' · ')}</p> : null}
-            {district.activities.length ? <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة في حي ${district.district_ar}`}>{district.activities.slice(0, 6).map((activity) => <span key={activity.main_id} className="rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px]">{activity.main_ar} · {n(activity.n)}</span>)}</div> : null}
+            {district.activities.length ? <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة في حي ${district.district_ar}`}>{district.activities.slice(0, 6).map((activity) => <button key={activity.main_id} type="button" aria-label={`تصفية خريطة حي ${district.district_ar} حسب ${activity.main_ar}، ${n(activity.n)} سجل مصنف`} onClick={() => { recordMapInteraction('map_district_activity_select'); selectMainFromCounter(activity.main_id) }} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px] transition-colors hover:bg-[var(--color-bg-primary-subtle)] hover:text-[var(--color-text-info)] ${FOCUS_RING}`}>{activity.main_ar} · {n(activity.n)}</button>)}</div> : null}
             {district.least_activity ? <p className="m-0 text-[11px] text-[var(--color-text-secondary)]">الأقل بين المسجل: {district.least_activity.main_ar} · {n(district.least_activity.n)}</p> : null}
             {district.absent_from_directory.length ? <p className="m-0 text-[10px] leading-[15px] text-[var(--color-text-tertiary)]">لا تظهر سجلات مصنفة لـ: {district.absent_from_directory.slice(0, 3).join('، ')}. غياب السجل لا يثبت غياب النشاط فعلياً.</p> : null}
           </article>
