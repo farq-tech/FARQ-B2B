@@ -1933,9 +1933,18 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       [/عياد|طبي|صحة/, 'العيادات والمنشآت الصحية'],
       [/عقار|مكتب عقار/, 'مكاتب وشركات العقار'],
     ]
-    return groups.find(([pattern]) => pattern.test(text))?.[1]
-      || text.replace(/(?:ابي|أبي|ابغى|أبغى|استهدف|استهداف|الشريحة|العملاء|المنشآت|الشركات|الغاية|الهدف|الحملة|واتساب|في الرياض|في جدة|في الدمام)/g, ' ').replace(/\s+/g, ' ').trim()
+    const explicitGroups = groups.filter(([pattern]) => pattern.test(text)).map(([, label]) => label)
+    if (explicitGroups.length) return explicitGroups.join('، ')
+    return text.replace(/(?:ابي|أبي|ابغى|أبغى|استهدف|استهداف|الشريحة|العملاء|المنشآت|الشركات|الغاية|الهدف|الحملة|واتساب|في الرياض|في جدة|في الدمام)/g, ' ').replace(/\s+/g, ' ').trim()
       || 'منشآت أعمال مناسبة'
+  }
+
+  const assistantRequestedCount = (text: string) => {
+    const match = text.match(/(?:استهدف|اختر|جهّز(?:\s+لي)?|جهز(?:\s+لي)?)\s*([0-9٠-٩]{1,4})\s*(?:منشأة|منشآت|شركة|شركات|جهة|جهات|مرشح)/)
+    if (!match) return 30
+    const digits = match[1].replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    const count = Number.parseInt(digits, 10)
+    return Number.isFinite(count) ? Math.max(1, Math.min(300, count)) : 30
   }
 
   const understandAssistantPrompt = async (prompt: string): Promise<TargetingAssistantPlan> => {
@@ -1946,39 +1955,47 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     try {
       const analysis = await searchTargets(prompt.slice(0, 120), city, 30, 'marketing')
       const parsed = analysis.parsed || {}
-      const target = parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ') || assistantFallbackTarget(prompt)
-      return { target, purpose: assistantPurpose(prompt), prompt, source: 'directory', seed: analysis }
+      const explicitTarget = assistantFallbackTarget(prompt)
+      const target = explicitTarget || parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ')
+      return { target, purpose: assistantPurpose(prompt), prompt, requestedCount: assistantRequestedCount(prompt), source: 'directory', seed: analysis }
     } catch {
       // The draft search below remains the authority. This path lets a temporary
       // analyzer outage never strand a user before reviewing a draft.
-      return { target: assistantFallbackTarget(prompt), purpose: assistantPurpose(prompt), prompt, source: 'fallback' }
+      return { target: assistantFallbackTarget(prompt), purpose: assistantPurpose(prompt), prompt, requestedCount: assistantRequestedCount(prompt), source: 'fallback' }
     }
   }
 
   const prepareAssistantDraft = async (plan: TargetingAssistantPlan) => {
     if (preparingMarketing) throw new Error('BUSY')
     setObjective('marketing'); setLens('buyers'); setQ(plan.target)
-    // The analysis request already loaded a small, reviewable cohort. Reuse it
-    // instead of blocking the screen with the same directory lookup a second time.
-    const seed = plan.seed
-    let total: number | null
-    if (seed?.rows?.length) {
-      generation.current += 1
-      setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
-      lastSearchRows.current = seed.rows
-      lastSuccessfulQueryObjective.current = 'marketing'
-      setTab('results'); setRes(seed); setQuery(plan.target); setShown(PAGE); setAreaFilters({})
-      setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([])
-      setChosenD(new Set()); setMapScope('city'); setFocus(null); setShowUnlocated(false)
-      total = seed.total
-    } else {
-      // A fallback understanding has no preloaded cohort, so it performs one
-      // bounded live lookup. The user can stop it immediately if it is slow.
-      setRes(null); lastSearchRows.current = []; setSelected(new Set()); setSelectedRows(new Map())
-      total = await runSearchIn(plan.target, city, undefined, 'marketing')
+    const requestedCount = plan.requestedCount || 30
+    const version = ++generation.current
+    setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
+    setRes(null); lastSearchRows.current = []; setSelected(new Set()); setSelectedRows(new Map())
+    setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([])
+    setChosenD(new Set()); setMapScope('city'); setFocus(null); setShowUnlocated(false)
+
+    // Search the understood audience itself, rather than reusing the analyzer's
+    // exploratory cohort. Continue paging until the requested review size is met.
+    let page = await searchTargets(plan.target, city, Math.min(FETCH, requestedCount), 'marketing')
+    const allRows = new Map(page.rows.map((row) => [row.poi_key, row] as const))
+    let nextOffset = page.next_offset
+    while ([...allRows.values()].filter((row) => Boolean(waNumber(row))).length < requestedCount && nextOffset != null) {
+      const following = await searchTargets(plan.target, city, FETCH, 'marketing', nextOffset)
+      let added = 0
+      for (const row of following.rows) {
+        if (!allRows.has(row.poi_key)) { allRows.set(row.poi_key, row); added += 1 }
+      }
+      nextOffset = following.next_offset
+      if (!added) break
     }
-    if (total === null) throw new Error('SEARCH_FAILED')
-    const rows = lastSearchRows.current.filter((row) => Boolean(waNumber(row))).slice(0, 50)
+    if (version !== generation.current) throw new Error('SEARCH_CANCELLED')
+    const loadedRows = [...allRows.values()]
+    const result = { ...page, rows: loadedRows, has_more: nextOffset != null, next_offset: nextOffset }
+    lastSearchRows.current = loadedRows
+    lastSuccessfulQueryObjective.current = 'marketing'
+    setTab('results'); setRes(result); setQuery(plan.target); setShown(Math.max(PAGE, loadedRows.length)); setAreaFilters({})
+    const rows = loadedRows.filter((row) => Boolean(waNumber(row))).slice(0, requestedCount)
     if (!rows.length) throw new Error('NO_WHATSAPP_RESULTS')
     const phones = rows.map(waNumber).filter((phone): phone is string => Boolean(phone))
     setSelected(new Set(rows.map((row) => row.poi_key)))
