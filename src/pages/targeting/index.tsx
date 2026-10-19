@@ -20,6 +20,7 @@ import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
+import TargetingAssistant, { type TargetingAssistantPlan } from './TargetingAssistant'
 import StartSheet from './StartSheet'
 import { categoryCampaignTemplate } from './categoryCampaignTemplates'
 import MyRequests from './MyRequests'
@@ -28,6 +29,7 @@ import DrawnLayerMap from './map/DrawnLayerMap'
 import GuideTree from './map/GuideTree'
 import ProfileDrawer from './map/ProfileDrawer'
 import CampaignTray from './map/CampaignTray'
+import ReviewList from './ReviewList'
 import StepStrip from './map/StepStrip'
 import MapLegend from './map/MapLegend'
 import { fitOf, type PinFit } from './map/model'
@@ -2203,16 +2205,26 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           </div>
         </div>
       ) : null}
-      <ul>
-        {visibleListCohort.slice(0, shown).map(resultCard)}
-        {shown < visibleListCohort.length ? <li className="px-4 py-3"><Button variant="Ghost" size="S" onClick={() => setShown((s) => s + PAGE)}>اعرض {n(Math.min(PAGE, visibleListCohort.length - shown))} أكثر</Button></li> : null}
-        {truncated && shown >= visibleCohort.length ? (
-          <li className="flex flex-row items-center justify-between gap-3 px-4 py-3">
-            <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{hasTargetQuery ? `معروض ${n(rows.length)} من ${n(res.total)} — الأقرب للوصف أولًا.` : `معروض ${n(rows.length)} من ${n(res.total)} من سجلات الدليل العام.`}</span>
-            <Button variant="Ghost" size="S" disabled={busy} loading={busyKind === 'more'} loadingLabel="نحمّل…" onClick={() => void loadMore()}>حمّل {n(Math.min(FETCH, res.total - rows.length))} أكثر</Button>
-          </li>
-        ) : null}
-      </ul>
+      <ReviewList
+        rows={visibleListCohort}
+        shown={shown}
+        total={res.total}
+        query={query}
+        district={filters.district}
+        street={filters.street}
+        selected={selected}
+        disabled={busy || failedResultRefresh}
+        onOpen={(row) => {
+          recordMapInteraction('map_profile_open')
+          recordMapInteraction('map_result_profile_open')
+          recordMapInteraction(mapResultProfileOpenEvent(objective))
+          setProfile(row.poi_key)
+        }}
+        onToggle={toggle}
+        onShowMore={() => setShown((value) => value + PAGE)}
+        onLoadMore={truncated ? () => void loadMore() : undefined}
+        hasMore={truncated}
+      />
     </div>
   )
   const unlocatedPanel = res && (unlocatedRows.length || (res.located_total != null && res.total > res.located_total)) ? (
