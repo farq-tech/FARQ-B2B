@@ -13,6 +13,7 @@ import {
 } from '../../api/constructionClient'
 import { Badge, Bubble as MessageBubble, BubbleContent, Button, ChannelBadge, Chip, Icon, MobileAppBar, channelFromApi, useIsMobile, type BadgeTone } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
+import { listMarketingInteractions, type MarketingInteraction } from '../../api/marketingClient'
 
 /*
  * «06 · صندوق الوارد» — Figma 50:988 (desktop) / M06 58:431 (phone), on the inbox
@@ -33,7 +34,7 @@ import { FOCUS_RING } from '../../ui/cx'
 
 const POLL_MS = 15_000
 
-type Filter = 'all' | 'needs_reply' | 'quoted'
+type Filter = 'all' | 'needs_reply' | 'quoted' | 'marketing'
 
 export type InboxPageProps = {
   /** Opens the request file (screen 03) for a thread's request. */
@@ -117,6 +118,20 @@ function ThreadRow({ t, selected, onOpen }: { t: ConstructionInboxThread; select
   )
 }
 
+function MarketingRow({ interaction }: { interaction: MarketingInteraction }) {
+  const interested = interaction.outcome === 'INTERESTED'
+  return (
+    <li className="flex min-h-16 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-5 py-3">
+      <span aria-hidden className={`flex size-10 shrink-0 items-center justify-center rounded-full ${interested ? 'bg-[var(--color-bg-success)] text-[var(--color-text-success)]' : 'bg-[var(--color-bg-danger)] text-[var(--color-text-danger)]'}`}><Icon name="whatsapp" size={18} /></span>
+      <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+        <span className="max-w-full truncate text-[16px] leading-[26px] font-medium">{interaction.campaign_name}</span>
+        <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{interested ? 'تفاعل تسويقي · متابعة يدوية' : 'تفاعل تسويقي · أوقف التسويق'} · {timeAgo(interaction.occurred_at)}</span>
+      </span>
+      <Badge tone={interested ? 'Success' : 'Danger'} label={interested ? 'مهتم' : 'غير مهتم'} showDot={false} className="shrink-0" />
+    </li>
+  )
+}
+
 function Bubble({ m }: { m: ConstructionInboxThreadMessage }) {
   const inbound = m.direction === 'INBOUND'
   const kind = inbound && m.reply_kind ? REPLY_KIND[m.reply_kind] : null
@@ -191,6 +206,7 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
   const mobile = useIsMobile()
   const [status, setStatus] = useState<ConstructionInboxStatus | null>(null)
   const [threads, setThreads] = useState<ConstructionInboxThread[] | null>(null)
+  const [marketing, setMarketing] = useState<MarketingInteraction[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
@@ -205,8 +221,13 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
 
   const loadList = useCallback(async () => {
     try {
-      const r = await listConstructionInboxThreads({ filter: filter === 'needs_reply' ? 'needs_reply' : 'all' })
-      setThreads(r.threads || [])
+      const [inboxResult, marketingResult] = await Promise.allSettled([
+        listConstructionInboxThreads({ filter: filter === 'needs_reply' ? 'needs_reply' : 'all' }),
+        listMarketingInteractions(),
+      ])
+      if (inboxResult.status === 'rejected') throw inboxResult.reason
+      setThreads(inboxResult.value.threads || [])
+      if (marketingResult.status === 'fulfilled') setMarketing(marketingResult.value)
       setListError(null)
       setRefreshedAt(Date.now())
     } catch (e) {
@@ -258,22 +279,26 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
     if (mobile) window.setTimeout(() => (id ? convHeading.current : listHeading.current)?.focus(), 0)
   }
 
-  const { visible, hiddenSent } = useMemo(() => {
+  const { visible, visibleMarketing, hiddenSent } = useMemo(() => {
     const q = query.trim()
     let rows = threads || []
     const sent = rows.filter(isOutboundInviteSnapshot)
     if (!showSent) rows = rows.filter((t) => !isOutboundInviteSnapshot(t))
     if (filter === 'quoted') rows = rows.filter((t) => t.response_status === 'QUOTED')
+    if (filter === 'marketing') rows = []
     if (q) rows = rows.filter((t) => [inboxThreadSupplierLabel(t), t.request_context?.reference, t.preview, t.subject].some((v) => String(v || '').includes(q)))
-    return { visible: rows, hiddenSent: showSent ? 0 : sent.length }
-  }, [threads, filter, query, showSent])
+    let marketingRows = marketing || []
+    if (filter !== 'all' && filter !== 'marketing') marketingRows = []
+    if (q) marketingRows = marketingRows.filter((row) => row.campaign_name.includes(q))
+    return { visible: rows, visibleMarketing: marketingRows, hiddenSent: showSent ? 0 : sent.length }
+  }, [threads, marketing, filter, query, showSent])
 
   // Counts for the chips come from the loaded list; with «يحتاج رد» selected the server returns only those.
   const counts = useMemo(() => {
     if (!threads || filter !== 'all') return null
     const rows = threads.filter((t) => showSent || !isOutboundInviteSnapshot(t))
-    return { all: rows.length, needs: rows.filter((t) => t.needs_reply).length, quoted: rows.filter((t) => t.response_status === 'QUOTED').length }
-  }, [threads, filter, showSent])
+    return { all: rows.length + (marketing?.length || 0), needs: rows.filter((t) => t.needs_reply).length, quoted: rows.filter((t) => t.response_status === 'QUOTED').length, marketing: marketing?.length || 0 }
+  }, [threads, marketing, filter, showSent])
 
   const disabledReason = status && (status.enabled === false || status.allowed === false) ? 'صندوق الوارد غير مفعّل لهذا الحساب.' : null
 
@@ -293,21 +318,25 @@ export default function InboxPage({ onOpenRequest, initialInviteId = null, onSel
           <Chip label={`الكل${counts ? ` ${counts.all}` : ''}`} selected={filter === 'all'} onClick={() => setFilter('all')} />
           <Chip label={`يحتاج رد${counts ? ` ${counts.needs}` : ''}`} selected={filter === 'needs_reply'} onClick={() => setFilter('needs_reply')} />
           <Chip label={`أرسل سعر${counts ? ` ${counts.quoted}` : ''}`} selected={filter === 'quoted'} onClick={() => setFilter('quoted')} />
+          <Chip label={`التسويق${counts ? ` ${counts.marketing}` : ''}`} selected={filter === 'marketing'} onClick={() => setFilter('marketing')} />
         </div>
         <p aria-live="polite" className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">
-          {refreshedAt ? `${visible.length} محادثات · يتحدث تلقائياً · آخر تحديث ${clock(new Date(refreshedAt).toISOString())}` : 'جارٍ التحميل…'}
+          {refreshedAt ? `${visible.length + visibleMarketing.length} عناصر · يتحدث تلقائياً · آخر تحديث ${clock(new Date(refreshedAt).toISOString())}` : 'جارٍ التحميل…'}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {disabledReason ? <StateBox title={disabledReason} body="تفعيله من إعدادات الشركة في فرق بناء." /> : null}
         {listError ? <StateBox tone="danger" title="تعذر تحميل المحادثات" body={listError} action={<Button variant="Secondary" size="M" icon="refresh" onClick={() => void loadList()}>أعد المحاولة</Button>} /> : null}
         {!listError && threads === null ? <StateBox title="جارٍ تحميل المحادثات…" /> : null}
-        {!listError && threads !== null && visible.length === 0 ? (
-          <StateBox title={query ? 'لا توجد محادثة تطابق البحث' : filter === 'all' ? 'ما وصلت ردود من الموردين بعد' : 'لا توجد محادثات في هذا التصنيف'} body={filter === 'all' && !query ? 'أول ما يرد مورد على طلب تسعير تظهر رسالته هنا.' : undefined} />
+        {!listError && threads !== null && visible.length === 0 && visibleMarketing.length === 0 ? (
+          <StateBox title={query ? 'لا يوجد عنصر يطابق البحث' : filter === 'all' ? 'ما وصل أي رد أو تفاعل بعد' : 'لا توجد عناصر في هذا التصنيف'} body={filter === 'all' && !query ? 'تظهر هنا ردود الموردين وتفاعلات التسويق عند وصولها.' : undefined} />
         ) : null}
-        <ul aria-label="المحادثات">
+        {visible.length ? <><p className="px-5 pt-3 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">طلبات عروض السعر</p><ul aria-label="محادثات طلبات عروض السعر">
           {visible.map((t) => <ThreadRow key={t.invite_id} t={t} selected={t.invite_id === selected} onOpen={() => t.invite_id && open(t.invite_id)} />)}
-        </ul>
+        </ul></> : null}
+        {visibleMarketing.length ? <><p className="px-5 pt-3 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">تفاعلات التسويق</p><ul aria-label="تفاعلات التسويق">
+          {visibleMarketing.map((interaction) => <MarketingRow key={interaction.id} interaction={interaction} />)}
+        </ul></> : null}
         {hiddenSent ? (
           <button type="button" onClick={() => setShowSent(true)} className={`w-full p-4 text-center text-[14px] leading-[22px] font-medium text-[var(--color-text-link)] ${FOCUS_RING} focus-visible:-outline-offset-2`}>
             إظهار {hiddenSent} دعوة مرسلة بدون رد

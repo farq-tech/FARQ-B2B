@@ -3,15 +3,15 @@ import { ProcurementProvider, useProcurement, type View } from './procurementCon
 import { useFarqSession } from './api/useFarqSession'
 import { farqSession } from './api/farqSession'
 import { LoginV2 } from './views/LoginV2'
-import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MessageTemplatesIcon, MobileBottomNav, NavItem, NewRequestIcon, OccasionBanner, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
+import { AccountIcon, Button, MarketIcon, type IconComponent, InboxIcon, MobileBottomNav, NavItem, OccasionBanner, OpportunityMapIcon, PricingRequestsIcon, Sidebar, useIsMobile } from './ui'
 import { handoff, HANDOFF } from './lib/handoff'
 import MapAnalyticsConsent from './components/MapAnalyticsConsent'
 import './b2b/b2b.css'
 
 /*
  * Shell = Figma «✦ Farq B2B: Screens» (file gxlY4uu8hzkUNrcN61uQZt): web W00 sidebar 18371:99,
- * mobile Tab Bars (4): الطلبات · طلب جديد · الوارد · خريطة الفرص. «خريطة الفرص» (was «حملات الموردين») opens the
- * targeting map → message → Meta approval → review & cost. «طلب جديد» opens خريطة الفرص with its start sheet
+ * mobile tabs: الطلبات · الوارد · خريطة الفرص. «خريطة الفرص» opens the
+ * targeting map → message → Meta approval → review & cost. Its contextual «طلب جديد» opens the start sheet
  * (booklet / catalog / free search); the buyer RFQ wizard (/new) stays, linked from that sheet. Explore (/explore), opportunities and
  * account stay reachable (landing entry, saved opportunities, «حسابي» under the account row).
  */
@@ -95,13 +95,10 @@ function Routes() {
           onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
           nav={<>
             <SectionLabel collapsed={sidebarCollapsed}>التسعير</SectionLabel>
-            <NavItem collapsed={sidebarCollapsed} icon={PricingRequestsIcon} label="طلبات التسعير" active={onRequests} onClick={() => navigate('rfq-list')} />
-            <NavItem collapsed={sidebarCollapsed} icon={NewRequestIcon} label="طلب جديد" active={view === 'targeting-new'} onClick={() => navigate('targeting-new')} />
+            <NavItem collapsed={sidebarCollapsed} icon={PricingRequestsIcon} label="الطلبات" active={onRequests} onClick={() => navigate('rfq-list')} />
             <SectionLabel collapsed={sidebarCollapsed} icon={MarketIcon}>السوق</SectionLabel>
             <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
             <NavItem collapsed={sidebarCollapsed} icon={OpportunityMapIcon} label="خريطة الفرص" active={view === 'targeting'} onClick={() => navigate('targeting')} />
-            <NavItem collapsed={sidebarCollapsed} icon={MessageTemplatesIcon} label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
-            <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="الفرص" active={view === 'whatsapp-leads'} onClick={() => navigate('whatsapp-leads')} />
           </>}
           footerNav={<NavItem collapsed={sidebarCollapsed} icon={AccountIcon} label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
           account={{ name: email || 'المالك', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
@@ -128,7 +125,6 @@ function Routes() {
       {mobile && !mapFocus ? (
         <MobileBottomNav tabs={[
           { label: 'الطلبات', icon: PricingRequestsIcon, active: onRequests, onClick: () => navigate('rfq-list') },
-          { label: 'طلب جديد', icon: NewRequestIcon, active: view === 'targeting-new', onClick: () => navigate('targeting-new') },
           { label: 'الوارد', icon: InboxIcon, active: view === 'inbox', onClick: () => navigate('inbox') },
           { label: 'خريطة الفرص', icon: OpportunityMapIcon, active: onCampaign && view !== 'targeting-new', onClick: () => navigate('targeting') },
         ]} />

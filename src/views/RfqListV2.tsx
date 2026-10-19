@@ -4,25 +4,28 @@ import { useProcurement } from '../procurementContext'
 import { listBuyerRfqs, formatRfqTitle, type ConstructionRfqSummary } from '../api/constructionClient'
 import { rfqProjectName } from '../lib/rfqIdentity'
 import { farqSession } from '../api/farqSession'
-import { Button, DualDate, Greeting, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
+import { Button, Greeting, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
+import { gregorianLabel } from '../lib/saudi'
 
 /*
  * Figma M02 `18371:22940` / W02 `18371:288`: requests grouped by what the owner has to do next
- * («يحتاج قرارك · بانتظار العروض · منتهية · مسودات»), one Row Entity Badge per request.
+ * («يحتاج قرارك · قيد الإرسال · بانتظار العروض · منتهية · مسودات»), one Row Entity Badge per request.
  * Empty M02 `18402:2300` (three ways in + «طلب جديد»), loading = skeleton rows `18402:2397`.
  */
-type Group = 'decide' | 'waiting' | 'done' | 'draft'
+type Group = 'decide' | 'sending' | 'waiting' | 'done' | 'draft'
 const GROUPS: { key: Group; title: string }[] = [
   { key: 'decide', title: 'يحتاج قرارك' },
-  { key: 'waiting', title: 'بانتظار العروض' },
+  { key: 'sending', title: 'قيد الإرسال' },
+  { key: 'waiting', title: 'بانتظار الردود' },
   { key: 'done', title: 'منتهية' },
   { key: 'draft', title: 'مسودات' },
 ]
 
-/** Gregorian date with the Umm al-Qura Hijri date beside it, or null. */
+/** Saudi-local Gregorian date only. */
 const day = (iso?: string | null) => {
   if (!iso) return null
-  return Number.isNaN(new Date(iso).getTime()) ? null : <DualDate value={iso} />
+  const label = gregorianLabel(iso)
+  return label || null
 }
 const n = (v: number | null | undefined) => <bdi dir="ltr">{v ?? 0}</bdi>
 
@@ -30,7 +33,7 @@ function classify(r: ConstructionRfqSummary): { group: Group; tone: BadgeTone; l
   if (r.award_status === 'APPROVED') return { group: 'done', tone: 'Success', label: 'تمت الترسية' }
   switch (r.status) {
     case 'DRAFT_NOT_SENT': return { group: 'draft', tone: 'Info', label: 'مسودة' }
-    case 'PARTIALLY_SENT': return { group: 'decide', tone: 'Warning', label: 'أُرسل جزئياً' }
+    case 'PARTIALLY_SENT': return { group: 'sending', tone: 'Warning', label: 'أُرسل جزئياً' }
     case 'CANCELLED': return { group: 'done', tone: 'Danger', label: 'ملغي' }
     case 'SENT': return r.response_count > 0 ? { group: 'decide', tone: 'Warning', label: 'عرض جديد · قرّر' } : { group: 'waiting', tone: 'Info', label: 'يستقبل العروض' }
     case 'CLOSED': return r.response_count > 0 ? { group: 'decide', tone: 'Warning', label: 'أُغلق · قرّر' } : { group: 'done', tone: 'Neutral', label: 'أُغلق الاستلام' }
@@ -42,7 +45,7 @@ function caption(r: ConstructionRfqSummary, group: Group) {
   const date = day(r.created_at)
   const deadline = day(r.quote_deadline)
   const offers = <>{n(r.response_count)} عروض من {n(r.supplier_count)}</>
-  if (r.status === 'PARTIALLY_SENT') return <>أُرسل لـ {n(r.sent_count)} من {n(r.supplier_count)} · كمّل الإرسال</>
+  if (r.status === 'PARTIALLY_SENT') return <>أُرسل لـ {n(r.sent_count)} من {n(r.supplier_count)} جهة · كمّل الإرسال</>
   if (group === 'draft') return <>{n(r.line_count)} بنود · لم يُرسل{date ? <> · {date}</> : null}</>
   if (group === 'waiting') return <>{offers}{deadline ? <> · آخر موعد {deadline}</> : null}</>
   if (group === 'done') return <>{r.award_status === 'APPROVED' ? 'تمت الترسية · ' : ''}{n(r.response_count)} عروض{date ? <> · {date}</> : null}</>
@@ -119,8 +122,8 @@ export function RfqListV2({ navigate }: NavProps) {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <Greeting name={firstName} className="text-[13px] leading-[20px]" />
-          <h1 className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold sm:text-[28px] sm:leading-[44px]">طلبات التسعير</h1>
-          {rows && rows.length ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{n(rows.length)} طلبات{decide ? <> · {n(decide)} تحتاج قرارك</> : null} · المرتبة حسب ما يحتاج قرارك</p> : null}
+          <h1 className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold sm:text-[28px] sm:leading-[44px]">الطلبات</h1>
+          {rows && rows.length ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{n(rows.length)} طلبات{decide ? <> · {n(decide)} تحتاج قرارك</> : null} · مرتبة حسب الإجراء المطلوب</p> : null}
         </div>
         {rows && rows.length ? <Button variant="Primary" size="M" onClick={onNew}>طلب جديد</Button> : null}
       </header>
