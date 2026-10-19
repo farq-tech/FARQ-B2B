@@ -24,6 +24,7 @@ const Inbox = lazy(() => import('./pages/inbox'))
 const Targeting = lazy(() => import('./pages/targeting'))
 const Templates = lazy(() => import('./pages/targeting/Templates'))
 const TemplateEditor = lazy(() => import('./pages/targeting/TemplateEditor'))
+const WhatsAppLeads = lazy(() => import('./pages/targeting/WhatsAppLeads'))
 const Explore = lazy(() => import('./b2b/Explore'))
 const Account = lazy(() => import('./b2b/Account'))
 const Opportunities = lazy(() => import('./b2b/Opportunities'))
@@ -31,7 +32,7 @@ const Loading = () => <p role="status" className="farq-loading">جارٍ الت�
 const ALLOWED = String(import.meta.env.VITE_ALLOWED_EMAILS || 'abdulrhman@farq.sa').toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
 
 const REQUESTS: View[] = ['rfq-list', 'rfq-detail', 'comparison', 'award', 'login']
-const CAMPAIGN: View[] = ['targeting', 'targeting-new', 'templates', 'template-new']
+const CAMPAIGN: View[] = ['targeting', 'targeting-new', 'templates', 'template-new', 'whatsapp-leads']
 
 /*
  * The landing's «حدد هدفك وابدأ» links to /requests?goal=marketing|purchase (a full page load, so memory cannot carry it).
@@ -100,6 +101,7 @@ function Routes() {
             <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="صندوق الوارد" active={view === 'inbox'} onClick={() => navigate('inbox')} />
             <NavItem collapsed={sidebarCollapsed} icon={OpportunityMapIcon} label="خريطة الفرص" active={view === 'targeting'} onClick={() => navigate('targeting')} />
             <NavItem collapsed={sidebarCollapsed} icon={MessageTemplatesIcon} label="قوالب واتساب" active={view === 'templates' || view === 'template-new'} onClick={() => navigate('templates')} />
+            <NavItem collapsed={sidebarCollapsed} icon={InboxIcon} label="فرص واتساب" active={view === 'whatsapp-leads'} onClick={() => navigate('whatsapp-leads')} />
           </>}
           footerNav={<NavItem collapsed={sidebarCollapsed} icon={AccountIcon} label="حسابي" active={view === 'account'} onClick={() => navigate('account')} />}
           account={{ name: email || 'المالك', detail: 'تسجيل الخروج', onSignOut: () => void farqSession.signOut() }}
@@ -117,6 +119,7 @@ function Routes() {
           {(view === 'targeting' || view === 'targeting-new') && <Targeting onTemplates={() => navigate('templates')} startNew={view === 'targeting-new'} onStartClosed={() => navigate('targeting')} onRfq={() => navigate('create-upload')} onMapFocusChange={setMapFocus} />}
           {view === 'templates' && <Templates onBack={() => navigate('targeting')} onNew={() => navigate('template-new')} />}
           {view === 'template-new' && <TemplateEditor onBack={() => navigate('templates')} />}
+          {view === 'whatsapp-leads' && <WhatsAppLeads onBack={() => navigate('targeting')} />}
           {view === 'account' && <Account />}
           {view === 'opportunities' && <Opportunities />}
           {(view === 'rfq-list' || view === 'login' || (view === 'award' && !selectedRfqId)) && <RfqList navigate={navigate} />}
