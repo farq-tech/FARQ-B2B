@@ -313,6 +313,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // the city: Riyadh by default (nothing is remembered on the device)
   const [cities, setCities] = useState<City[]>([])
   const [city, setCity] = useState('Riyadh')
+  const [draftOpenRequest, setDraftOpenRequest] = useState(0)
   const lastSearchRows = useRef<TargetRow[]>([])
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewStats, setCityOverviewStats] = useState<MarketSummary['summary'] | null>(null)
@@ -2500,7 +2501,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const tray = chosen.length ? (
     <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage}
       template={template} onTemplate={setTemplate} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
-      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onPrepare={objective === 'marketing' ? () => void prepareWhatsAppCampaign() : undefined} onOpenLeads={onLeads} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} />
+      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onPrepare={objective === 'marketing' ? () => void prepareWhatsAppCampaign() : undefined} onOpenLeads={onLeads} openRequest={draftOpenRequest} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} />
   ) : null
   const confirmSheet = confirming && holder ? (
     <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price} city={city}
@@ -2668,7 +2669,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           {fileField}
         </div>
         {searchWithScope}
-        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onPrepare={prepareAssistantDraft} onOpenDraft={onLeads} />
+        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onPrepare={prepareAssistantDraft} onOpenDraft={() => { setDraftOpenRequest((value) => value + 1); requestAnimationFrame(() => document.querySelector('[data-testid=campaign-tray]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })) }} />
         {searchStatus}
         {understood}
         {suggestBar}
