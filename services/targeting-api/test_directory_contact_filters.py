@@ -89,6 +89,12 @@ class DirectoryContactFilterTests(unittest.TestCase):
             specialty_result = tiles.browse("Riyadh", {"specialty": "حديد"})
             self.assertEqual([row["poi_key"] for row in specialty_result["rows"]], ["wholesale"])
             self.assertEqual(specialty_result["rows"][0]["specialties"], ["حديد", "إسمنت"])
+            tiles.context = lambda _key: (9999999999, None, "Riyadh", {})
+            tiles.branch_counts = {}
+            profile = tiles.profile("map-key", "wholesale")
+            self.assertEqual(profile["role_badges"], ["مصنع", "جملة"])
+            self.assertEqual(profile["specialties"], ["حديد", "إسمنت"])
+            self.assertTrue(profile["is_wholesale"])
             db.close()
 
     def test_browse_applies_normalized_district_and_street_filters(self):

@@ -269,6 +269,14 @@ class DirectoryTiles:
             cursor=self.db.execute('select p.* '+base+' and poi_key=? limit 1',params+[poi_key]);names=[d[0] for d in cursor.description];values=cursor.fetchone()
             if not values:return None
             row=dict(zip(names,values));row['phone']=row.pop('phone_norm',None);row['status_class']=status_policy.normalize(row.pop('company_status',None),row.pop('lifecycle_state',None))['status_normalized'];row['registered_location_count']=self.branch_counts.get((row.get('brand_name') or '').strip().lower(),0)
+            # Profile rows can be opened directly from vector tiles, bypassing the
+            # browse response. Keep their client contract identical to browse rows.
+            row.setdefault('location_precision','point')
+            row.setdefault('district_reliable',True)
+            row.setdefault('street_ar',None)
+            row['is_wholesale']=bool(row.get('is_wholesale'))
+            row['role_badges']=[x for x in (row.get('role_badges') or '').split('|') if x]
+            row['specialties']=[x for x in (row.get('specialty_concepts_ar') or '').split('، ') if x]
             row.update(category_main=main_category(row['category']),subcategories=subcategories(row['secondary_category'],row['category_l3']),entity_type=entity_kind(row.get('legal_name'),row.get('name_ar') or row.get('name_en')))
             return row
     def tile(self,key,z,x,y):
