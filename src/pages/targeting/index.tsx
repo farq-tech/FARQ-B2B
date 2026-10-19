@@ -2178,7 +2178,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           <p className="m-0 text-[13px] leading-[20px]">
             الأكثر ظهوراً: <strong>{district.dominant_activity?.main_ar || 'لا توجد بيانات مصنّفة'}</strong>{district.dominant_activity ? ` · ${n(district.dominant_activity.n)} سجل${district.classified > 0 ? ` (${n(Math.round(district.dominant_activity.n / district.classified * 100))}٪ من السجلات المصنّفة)` : ''}` : ''}
           </p>
-          {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">أبرز الأنشطة الفرعية: {district.dominant_activity.top_subactivities.map((item) => `${item.sub_ar} (${n(item.n)})`).join('، ')}</p> : null}
+          {district.dominant_activity?.top_subactivities?.length ? <div role="group" aria-label={`أبرز الأنشطة الفرعية في حي ${district.district_ar}`} className="flex flex-wrap items-center gap-1.5 text-[12px] leading-[19px] text-[var(--color-text-secondary)]"><span>أبرز الأنشطة الفرعية:</span>{district.dominant_activity.top_subactivities.map((item) => <button key={item.sub_id} type="button" aria-label={`تصفية خريطة حي ${district.district_ar} حسب ${item.sub_ar}، ${n(item.n)} سجل مصنف`} onClick={() => { recordMapInteraction('map_district_subactivity_select'); selectSubFromDistrictInsight(district.dominant_activity!.main_id, String(item.sub_id)) }} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2 py-0.5 text-[11px] transition-colors hover:bg-[var(--color-bg-primary-subtle)] hover:text-[var(--color-text-info)] ${FOCUS_RING}`}>{item.sub_ar} · {n(item.n)}</button>)}</div> : null}
           {district.least_activity ? <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">الأقل بين الأنشطة المسجلة: {district.least_activity.main_ar} · {n(district.least_activity.n)} سجل</p> : null}
           {district.activities.length > 1 ? (() => {
             const districtKey = `${city}:${district.district_ar}`
@@ -2318,7 +2318,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
               {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${formatNumber(densest.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
               {scopeMetric(scopedMatchLabel, scopedMatchCount, scopedMatchNote, true)}
             </dl>
-            {district.dominant_activity?.top_subactivities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أبرز الأنشطة الفرعية: {district.dominant_activity.top_subactivities.slice(0, 3).map((item) => `${item.sub_ar} (${n(item.n)})`).join(' · ')}</p> : null}
+            {district.dominant_activity?.top_subactivities?.length ? <div role="group" aria-label={`أبرز الأنشطة الفرعية في حي ${district.district_ar}`} className="flex flex-wrap items-center gap-1.5 text-[11px] leading-[17px] text-[var(--color-text-secondary)]"><span>أبرز الأنشطة الفرعية:</span>{district.dominant_activity.top_subactivities.slice(0, 3).map((item) => <button key={item.sub_id} type="button" aria-label={`تصفية خريطة حي ${district.district_ar} حسب ${item.sub_ar}، ${n(item.n)} سجل مصنف`} onClick={() => { recordMapInteraction('map_district_subactivity_select'); selectSubFromDistrictInsight(district.dominant_activity!.main_id, String(item.sub_id)) }} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2 py-0.5 text-[10px] transition-colors hover:bg-[var(--color-bg-primary-subtle)] hover:text-[var(--color-text-info)] ${FOCUS_RING}`}>{item.sub_ar} · {n(item.n)}</button>)}</div> : null}
             {district.activities.length ? <div className="flex flex-wrap gap-1.5" aria-label={`توزيع الأنشطة في حي ${district.district_ar}`}>{district.activities.slice(0, 6).map((activity) => <button key={activity.main_id} type="button" aria-label={`تصفية خريطة حي ${district.district_ar} حسب ${activity.main_ar}، ${n(activity.n)} سجل مصنف`} onClick={() => { recordMapInteraction('map_district_activity_select'); selectMainFromCounter(activity.main_id) }} className={`rounded-full bg-[var(--color-bg-surface-2)] px-2.5 py-1 text-[10px] transition-colors hover:bg-[var(--color-bg-primary-subtle)] hover:text-[var(--color-text-info)] ${FOCUS_RING}`}>{activity.main_ar} · {n(activity.n)}</button>)}</div> : null}
             {district.least_activity ? <p className="m-0 text-[11px] text-[var(--color-text-secondary)]">الأقل بين المسجل: {district.least_activity.main_ar} · {n(district.least_activity.n)}</p> : null}
             {district.absent_from_directory.length ? <p className="m-0 text-[10px] leading-[15px] text-[var(--color-text-tertiary)]">لا تظهر سجلات مصنفة لـ: {district.absent_from_directory.slice(0, 3).join('، ')}. غياب السجل لا يثبت غياب النشاط فعلياً.</p> : null}
@@ -2362,6 +2362,26 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setClusters(null)
     void loadBrowse(city, scopeFilters, true)
     pickFocus({ level: 'main', id: mainId })
+    setTab('guide')
+  }
+  const selectSubFromDistrictInsight = (mainId: string, subId: string) => {
+    // The insight belongs to the selected district. Keep that geography while
+    // carrying the chosen subactivity through to the map density and scope totals.
+    const current = areaFiltersRef.current
+    const scopeFilters: AreaFilters = {
+      ...(current.district ? { district: current.district } : {}),
+      ...(current.street ? { street: current.street } : {}),
+    }
+    setQ('')
+    setQuery('')
+    setLens('market')
+    setAreaFilters(scopeFilters)
+    setStreetPick({ kind: 'sub', ids: [subId], main: mainId })
+    setActiveStreet(mapScope === 'street' ? activeStreet : null)
+    clusterGen.current++
+    setClusters(null)
+    void loadBrowse(city, scopeFilters, true)
+    pickFocus({ level: 'sub', id: subId })
     setTab('guide')
   }
   const selectedSummaryCounterKey = filters.contact === 'whatsapp' ? 'market-whatsapp' : filters.wholesale ? 'market-wholesale' : null
