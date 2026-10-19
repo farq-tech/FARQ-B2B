@@ -2557,7 +2557,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     </div>
   ) : null
   const mapBlock = (
-    <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'flex-1'}`} overflow-hidden bg-[var(--map-land)]`}>
+    <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'h-[clamp(22rem,48dvh,32rem)] shrink-0'}`} overflow-hidden bg-[var(--map-land)]`}>
       <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}
@@ -2829,7 +2829,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
 
   return (
-    <div className="flex min-h-dvh min-w-0 flex-col bg-[var(--color-bg-canvas)]">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--color-bg-canvas)]">
       <header className="flex flex-col gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
@@ -2851,7 +2851,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         {errorLine}
         {linesPanel}
       </header>
-      <div className="flex min-h-[42rem] flex-1 flex-row">
+      <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
         <>
           <aside id="targeting-results-panel" hidden={!resultsPanelOpen} aria-label="النتائج والدليل" style={{ width: `${resultsPanelWidth}px` }} className="relative flex shrink-0 flex-col border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)] transition-[width] duration-150">
             <div className="flex items-center justify-end px-3 pt-2">
@@ -2880,7 +2880,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             <span aria-hidden className="h-10 w-1 rounded-full bg-[var(--color-border-strong)]" />
           </div>
         </>
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4">
           {!resultsPanelOpen ? <div className="flex items-center justify-start">
             <Button type="button" variant="Secondary" size="S" aria-expanded="false" aria-controls="targeting-results-panel" onClick={() => { setResultsPanelOpen(true); recordMapInteraction('map_results_panel_show') }}>عرض النتائج والدليل</Button>
           </div> : null}
