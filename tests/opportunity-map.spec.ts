@@ -406,6 +406,9 @@ test.describe('desktop 1440', () => {
       return Boolean(filters) && filters!.district === 'الملك فيصل' && filters!.street === 'شارع خالد بن الوليد'
     })).toBe(true)
 
+    // Selecting a street takes the user to supplier results; return to the market lens
+    // before interacting with the market activity counters.
+    await page.getByRole('tab', { name: 'افهم السوق' }).click()
     await page.getByRole('button', { name: /تفصيل التصنيفات الرئيسية/ }).click()
     await page.locator('[data-counter="market-main-build"]').click()
 
