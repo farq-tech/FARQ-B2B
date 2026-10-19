@@ -300,7 +300,10 @@ test.describe('mobile 390', () => {
   test('vocabulary chips, popular name in the list, prayer note in the campaign tray', async ({ page }) => {
     const { searches } = await setup(page, { at: ksa(2026, 10, 16, 12, 0) }) // Friday prayer
     await page.goto('/opportunity-map')
-    await expect(page.getByText('نظرة عامة على السوق')).toBeVisible()
+    await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: 'إغلاق' }).click()
+    await expect(page.getByRole('tab', { name: 'ابدأ البحث' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByText('ابدأ بالبحث عن مورد')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'أكثر الشوارع كثافة في الرياض' })).toHaveCount(0)
     await page.screenshot({ path: `${SHOTS}/mobile-1-start.png` })
     await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()

@@ -254,7 +254,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [layer, setLayer] = useState<Layer>('main')
   const [focus, setFocus] = useState<Focus>(null)
   const [profile, setProfile] = useState<string | null>(null)
-  const [tab, setTab] = useState<'streets' | 'results' | 'guide'>(() => (mobile ? 'streets' : 'results'))
+  // The first panel must advance the chosen task. Street density stays available as an explicit exploration tool.
+  const [tab, setTab] = useState<'streets' | 'results' | 'guide'>('results')
   const resultsPanelRef = useRef<HTMLElement | null>(null)
   const searchPromptRef = useRef<HTMLElement | null>(null)
   const resultsShortcutSeen = useRef(false)
