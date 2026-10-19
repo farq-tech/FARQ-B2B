@@ -21,11 +21,11 @@ export default function WhatsAppLeads({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex min-w-0 flex-col">
-      <TopBar parent="خريطة الفرص" onParent={onBack} title="فرص واتساب" />
+      <TopBar parent="خريطة الفرص" onParent={onBack} title="الفرص" />
       <div className={mobile ? 'flex min-w-0 flex-col gap-3 px-3 py-3' : 'flex flex-col gap-6 px-8 py-8'}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className={`font-[family-name:var(--font-display)] font-semibold ${mobile ? 'text-[24px] leading-[32px]' : 'text-[32px] leading-[44px]'}`}>فرص واتساب</h1>
+            <h1 className={`font-[family-name:var(--font-display)] font-semibold ${mobile ? 'text-[24px] leading-[32px]' : 'text-[32px] leading-[44px]'}`}>الفرص</h1>
             <p className="mt-1 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">التفاعلات الموثقة من قوالب الحملة. لا تظهر أرقام المستلمين هنا.</p>
           </div>
           <Button variant="Secondary" size={mobile ? 'S' : 'M'} icon="refresh" onClick={refresh}>تحديث</Button>
@@ -37,7 +37,7 @@ export default function WhatsAppLeads({ onBack }: { onBack: () => void }) {
           <Summary label="موقوف" value={count('NOT_INTERESTED')} tone="Danger" />
         </div>
 
-        <div className="flex flex-wrap gap-2" role="group" aria-label="تصفية فرص واتساب">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="تصفية الفرص">
           {([{ key: 'ALL', label: 'الكل' }, { key: 'INTERESTED', label: 'مهتم' }, { key: 'NOT_INTERESTED', label: 'غير مهتم' }] as { key: Filter; label: string }[]).map((item) => (
             <Chip key={item.key} label={`${item.label} ${count(item.key)}`} selected={filter === item.key} onClick={() => setFilter(item.key)} />
           ))}
@@ -45,7 +45,7 @@ export default function WhatsAppLeads({ onBack }: { onBack: () => void }) {
 
         <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]">
           {rows === null ? <p role="status" className="px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">جارٍ تحميل التفاعلات…</p> : null}
-          {failed ? <p role="alert" className="flex items-center gap-2 px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><Icon name="alert" size={18} />تعذّر جلب فرص واتساب. تأكد من صلاحية حسابك ثم حاول مجددًا.</p> : null}
+          {failed ? <p role="alert" className="flex items-center gap-2 px-5 py-4 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><Icon name="alert" size={18} />تعذّر جلب الفرص. تأكد من صلاحية حسابك ثم حاول مجددًا.</p> : null}
           {shown.map((row) => <InteractionRow key={row.id} row={row} mobile={mobile} />)}
           {rows && !failed && !shown.length ? <p className="px-5 py-5 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">ما وصل أي تفاعل يطابق هذه الحالة بعد.</p> : null}
         </div>
