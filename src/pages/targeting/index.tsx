@@ -1870,20 +1870,42 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     return 'التعرّف على فرق وبدء متابعة يدوية للمهتمين'
   }
 
-  const understandAssistantPrompt = async (prompt: string): Promise<{ target: string; purpose: string; prompt: string }> => {
+  const assistantFallbackTarget = (text: string) => {
+    const groups: Array<[RegExp, string]> = [
+      [/مقاول|بناء|تشطيب|حديد|سباك|كهربائ/, 'شركات المقاولات والبناء والتشطيب'],
+      [/مطعم|مقهى|كافيه|أغذية|تموين/, 'المطاعم والمقاهي ومنشآت الأغذية'],
+      [/بقال|تجزئة|متجر|سوبر/, 'تجار التجزئة والبقالات'],
+      [/مصنع|صناع/, 'المصانع والمنشآت الصناعية'],
+      [/عياد|طبي|صحة/, 'العيادات والمنشآت الصحية'],
+      [/عقار|مكتب عقار/, 'مكاتب وشركات العقار'],
+    ]
+    return groups.find(([pattern]) => pattern.test(text))?.[1]
+      || text.replace(/(?:ابي|أبي|ابغى|أبغى|استهدف|استهداف|الشريحة|العملاء|المنشآت|الشركات|الغاية|الهدف|الحملة|واتساب|في الرياض|في جدة|في الدمام)/g, ' ').replace(/\s+/g, ' ').trim()
+      || 'منشآت أعمال مناسبة'
+  }
+
+  const understandAssistantPrompt = async (prompt: string): Promise<{ target: string; purpose: string; prompt: string; source?: 'directory' | 'fallback' }> => {
     // Uses the live directory analyzer. When ANTHROPIC_API_KEY is present in the targeting service,
     // this invokes its model parser; otherwise the service states its deterministic fallback in `parsed`.
     // Keep this request on the same production-safe page size as the map search.
     // The targeting service validates the range before invoking its analyzer.
-    const analysis = await searchTargets(prompt.slice(0, 120), city, 30, 'marketing')
-    const parsed = analysis.parsed || {}
-    const target = parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ') || prompt
-    return { target, purpose: assistantPurpose(prompt), prompt }
+    try {
+      const analysis = await searchTargets(prompt.slice(0, 120), city, 30, 'marketing')
+      const parsed = analysis.parsed || {}
+      const target = parsed.seller_label || (parsed.keywords || []).filter(Boolean).slice(0, 3).join('، ') || assistantFallbackTarget(prompt)
+      return { target, purpose: assistantPurpose(prompt), prompt, source: 'directory' }
+    } catch {
+      // The draft search below remains the authority. This path lets a temporary
+      // analyzer outage never strand a user before reviewing a draft.
+      return { target: assistantFallbackTarget(prompt), purpose: assistantPurpose(prompt), prompt, source: 'fallback' }
+    }
   }
 
   const prepareAssistantDraft = async (plan: { target: string; purpose: string; prompt: string }) => {
     if (preparingMarketing) throw new Error('BUSY')
     setObjective('marketing'); setLens('buyers'); setQ(plan.target)
+    // Never leave a prior audience on screen when this new draft cannot be refreshed.
+    setRes(null); lastSearchRows.current = []; setSelected(new Set()); setSelectedRows(new Map())
     const total = await runSearchIn(plan.target, city, undefined, 'marketing')
     if (total === null) throw new Error('SEARCH_FAILED')
     const rows = lastSearchRows.current.filter((row) => Boolean(waNumber(row))).slice(0, 50)
