@@ -1375,6 +1375,36 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
 
   /** A dense street (line, its label or the list): zoom to it, choose its district, narrow the results to it, show its card. */
+  const pickStreetFromScope = (value: string) => {
+    const selected = streetScopeOptions.find((street) => street.value === value)
+    if (!selected) return
+    const denseMatch = dense?.list.find((street) =>
+      normalizeActivityText(street.props.street_ar) === normalizeActivityText(selected.name)
+      && (!selected.district || normalizeActivityText(street.props.district_ar || '') === normalizeActivityText(selected.district)))
+    if (denseMatch) { pickStreet(denseMatch.id); return }
+
+    recordMapInteraction('map_street_select')
+    setMapScope('street')
+    setActiveStreet(null)
+    const matchingDistricts = selected.district ? districtScopeGroups.get(normalizeActivityText(selected.district)) : undefined
+    if (matchingDistricts?.length) {
+      setChosenD(new Set(matchingDistricts.map((district) => district.id)))
+      fitDistrictSelection(matchingDistricts)
+    }
+    const streetRows = rows.filter((row) =>
+      normalizeActivityText(safeLocationName(row.street_ar) || '') === normalizeActivityText(selected.name)
+      && (!selected.district || normalizeActivityText(safeLocationName(row.district_ar) || '') === normalizeActivityText(selected.district))
+      && hasPoint(row))
+    if (streetRows.length) {
+      const lons = streetRows.map((row) => row.longitude!)
+      const lats = streetRows.map((row) => row.latitude!)
+      const pad = 0.002
+      fitTo([Math.min(...lons) - pad, Math.min(...lats) - pad, Math.max(...lons) + pad, Math.max(...lats) + pad])
+    }
+    const streetFilters = { ...keep(filters, ['district', 'street']), ...(selected.district ? { district: selected.district } : {}), street: selected.name }
+    applyFilters(streetFilters)
+  }
+
   const pickStreet = (id: string) => {
     const st = dense?.list.find((x) => x.id === id)
     if (!st) return
@@ -1458,6 +1488,23 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // «جملة فقط» · «الحي» · «الشارع» · «الدور» · «التخصص»; an active filter is a chip with ×
   const areas = res?.areas
   const streets = useMemo(() => (areas?.streets || []).filter((x) => !filters.district || x.district === filters.district), [areas, filters.district])
+  // The scope picker is a directory filter, so it must offer every discovered
+  // street in the current city or district. Density lines remain a separate,
+  // analytical layer and are only used for exact geometry when available.
+  const streetScopeOptions = useMemo(() => {
+    const unique = new Map<string, { name: string; district: string; n: number }>()
+    for (const street of streets) {
+      const name = safeLocationName(street.name)
+      if (!name) continue
+      const district = safeLocationName(street.district) || ''
+      const key = `${normalizeActivityText(name)}\u0000${normalizeActivityText(district)}`
+      const current = unique.get(key)
+      unique.set(key, { name, district, n: Math.max(current?.n || 0, street.n || 0) })
+    }
+    return [...unique.values()]
+      .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'ar'))
+      .map((street, index) => ({ ...street, value: `directory:${index}`, text: `${street.name}${street.district ? ` · ${street.district}` : ''} (${n(street.n)})` }))
+  }, [streets])
   const picker = (id: string, label: string, icon: typeof DistrictIcon, options: { value: string; text: string }[], onPick: (v: string) => void) => options.length ? (
     <FilterPill id={id} label={label} icon={icon} analyticsKey={id === 'targeting-district' ? 'district' : id === 'targeting-street' ? 'street' : id === 'targeting-role' ? 'role' : 'specialty'} options={options} disabled={busy} mobile={mobile} onPick={onPick} />
   ) : null
@@ -2606,7 +2653,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     <div role="group" aria-label="اختر مدينة أو حياً أو شارعاً للخريطة" className={`grid min-w-0 grid-cols-3 rounded-full bg-[var(--color-bg-surface-2)] p-1 ${mobile ? 'w-full' : 'w-[330px] shrink-0'}`}>
       <FilterPill id="map-scope-city" label={cityName(city) || 'المدينة'} icon={CityIcon} analyticsKey="city" options={cities.map((item) => ({ value: item.en, text: item.ar || item.en }))} emptyText={cities.length ? 'ما لقينا مدينة بهذا الاسم.' : 'جار تحميل قائمة المدن…'} disabled={busy} mobile={mobile} portalMenu={focusMode} active={mapScope === 'city'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('city')} onPick={(value) => { pickCity(value); setMapScope('city') }} />
       <FilterPill id="map-scope-district" label={chosenList[0]?.ar || filters.district || 'الحي'} icon={DistrictIcon} analyticsKey="district" options={districtScopeOptions} emptyText={districts.length ? 'ما لقينا حياً بهذا الاسم.' : polys === null ? 'جار تحميل أحياء المدينة…' : 'لا تتوفر أحياء للاختيار في هذه المدينة حالياً.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} openRequest={districtPickerOpenRequest} active={mapScope === 'district'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('district')} onPick={selectDistrictFromScope} />
-      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={denseList.map((item) => ({ value: item.id, text: `${item.props.street_ar} · ${item.props.district_ar || cityName(city)}` }))} emptyText={dense?.list.length ? 'ما لقينا شارعاً بهذا الاسم.' : denseLoadError ? 'تعذر تحميل قائمة الشوارع. حاول مرة أخرى بعد قليل.' : dense === null ? 'جار تحميل الشوارع…' : 'لا توجد شوارع كثيفة متاحة ضمن النطاق الحالي.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreet} />
+      <FilterPill id="map-scope-street" label={pickedStreet?.props.street_ar || filters.street || 'الشارع'} icon={StreetIcon} analyticsKey="street" options={streetScopeOptions} emptyText={areas?.streets?.length ? 'ما لقينا شارعاً بهذا الاسم.' : res === null ? 'جار تحميل قائمة الشوارع…' : 'لا توجد شوارع متاحة ضمن النطاق الحالي.'} disabled={busy || !city} mobile={mobile} portalMenu={focusMode} active={mapScope === 'street'} buttonClassName="min-h-10 w-full min-w-0 justify-center border-transparent bg-transparent px-1.5 text-[12px] shadow-none hover:bg-[var(--color-bg-surface)]/70 md:text-[13px]" onOpen={() => chooseMapScope('street')} onPick={pickStreetFromScope} />
     </div>
   )
   const searchWithScope = <div className={`flex ${mobile ? 'flex-col items-stretch gap-2' : 'items-center gap-3'}`}>
