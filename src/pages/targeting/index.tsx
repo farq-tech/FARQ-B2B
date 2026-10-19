@@ -14,7 +14,7 @@ import { BUY_EXAMPLES, BUY_PLACEHOLDER, BUY_PLACEHOLDER_SHORT, cityCoords, marke
 import { formatNumber } from '../../lib/formatNumber'
 import { readBooklet, type BookletLine } from '../../lib/readBooklet'
 import { handoff, HANDOFF } from '../../lib/handoff'
-import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapSearchContactAvailabilityEvent, mapSearchFailedEvent, mapSearchFailureEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
+import { mapAnalyticsConsent, mapResultProfileOpenEvent, mapSearchContactAvailabilityEvent, mapSearchFailedEvent, mapSearchFailureEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
@@ -860,6 +860,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setObjective(nextObjective)
     if (q.trim() && city) {
       // Keep the user's current phrase in sync with the direction they just chose.
+      // oxlint-disable-next-line react/immutability -- function declaration is safely hoisted.
       void runSearchIn(q.trim(), city, undefined, nextObjective)
     } else {
       resetAll(); setQuery(''); setQ(''); setLens(value); setTab('results')
@@ -956,6 +957,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         return index < 0 ? line : { ...line, found: responses[index].total }
       }))
       setShown(FETCH); setActiveLine(null); setTab('results'); setMessage(defaultMessage(null, cityName(inCity)))
+      // oxlint-disable-next-line react/immutability -- function declaration is safely hoisted.
       loadClusters('', inCity, false, 'marketing', true)
     } catch (err) {
       if (version === generation.current) {
@@ -1491,6 +1493,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // The scope picker is a directory filter, so it must offer every discovered
   // street in the current city or district. Density lines remain a separate,
   // analytical layer and are only used for exact geometry when available.
+  // oxlint-disable-next-line react/preserve-manual-memoization -- normalizing every street is intentionally memoized for large cities.
   const streetScopeOptions = useMemo(() => {
     const unique = new Map<string, { name: string; district: string; n: number }>()
     for (const street of streets) {
@@ -1754,9 +1757,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
               <button type="button" aria-label="إغلاق قائمة الأنشطة" onClick={closeActivityMenu} className={`flex h-11 shrink-0 touch-none items-center justify-center ${FOCUS_RING}`}><span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--color-border-strong)]" /></button>
               <h3 id="street-activity-title" className="px-5 pb-2 text-[16px] font-semibold">اختر نشاط الشوارع</h3>
               <Command label="فلتر أنشطة الشوارع" shouldFilter={false} loop>
-                <label className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
+                <label htmlFor="activity-search-mobile" className="mx-4 mb-2 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
                   <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
-                  <Command.Input ref={activitySearchRef} value={activitySearch} onValueChange={setActivitySearch} aria-label="ابحث عن نشاط أو تخصص" placeholder="ابحث عن تصنيف أو نشاط فرعي أو تخصص" className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[15px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+                  <Command.Input id="activity-search-mobile" ref={activitySearchRef} value={activitySearch} onValueChange={setActivitySearch} aria-label="ابحث عن نشاط أو تخصص" placeholder="ابحث عن تصنيف أو نشاط فرعي أو تخصص" className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[15px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
                 </label>
                 <Command.List className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
                   {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
@@ -1768,9 +1771,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         ) : createPortal(
           <div ref={activityOptionsRef} id="street-activity-options" role="dialog" aria-label="نشاط الشوارع وعدد الشوارع لكل نشاط" style={{ position: 'fixed', top: activityMenuPosition?.top ?? 0, right: activityMenuPosition?.right ?? 12 }} className="z-[160] max-h-[min(55dvh,28rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/95 p-2 shadow-2xl backdrop-blur-xl">
             <Command label="فلتر أنشطة الشوارع" shouldFilter={false} loop>
-              <label className="mb-1 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
+              <label htmlFor="activity-search-desktop" className="mb-1 flex min-h-11 items-center gap-2 rounded-xl border border-[var(--color-border-default)] px-3">
                 <SearchIcon size={16} className="shrink-0 text-[var(--color-icon-secondary)]" />
-                <Command.Input ref={activitySearchRef} value={activitySearch} onValueChange={setActivitySearch} aria-label="ابحث عن نشاط أو تخصص" placeholder="ابحث عن تصنيف أو نشاط فرعي أو تخصص" className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
+                <Command.Input id="activity-search-desktop" ref={activitySearchRef} value={activitySearch} onValueChange={setActivitySearch} aria-label="ابحث عن نشاط أو تخصص" placeholder="ابحث عن تصنيف أو نشاط فرعي أو تخصص" className="!min-h-0 min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !p-0 text-[14px] outline-none placeholder:text-[var(--color-text-tertiary)]" />
               </label>
               <Command.List>
                 {renderActivityOptions(filteredActivities, pickedMain, clearActivitySelection, selectActivity)}
