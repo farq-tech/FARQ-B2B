@@ -1,13 +1,14 @@
 import { useState } from 'react'
+import type { TargetSearch } from '../../api/targetingClient'
 import { Button, Icon } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 
-type Plan = { target: string; purpose: string; prompt: string; source?: 'directory' | 'fallback' }
+export type TargetingAssistantPlan = { target: string; purpose: string; prompt: string; source?: 'directory' | 'fallback'; seed?: TargetSearch }
 type Props = {
   city: string
   cityLabel: string
-  onUnderstand: (prompt: string) => Promise<Plan>
-  onPrepare: (plan: Plan) => Promise<{ count: number; campaignId: string }>
+  onUnderstand: (prompt: string) => Promise<TargetingAssistantPlan>
+  onPrepare: (plan: TargetingAssistantPlan) => Promise<{ count: number; campaignId: string }>
   onOpenDraft?: () => void
   mobile: boolean
 }
@@ -16,7 +17,7 @@ type Props = {
 
 export default function TargetingAssistant({ city, cityLabel, onUnderstand, onPrepare, onOpenDraft, mobile }: Props) {
   const [prompt, setPrompt] = useState('')
-  const [plan, setPlan] = useState<Plan | null>(null)
+  const [plan, setPlan] = useState<TargetingAssistantPlan | null>(null)
   const [understanding, setUnderstanding] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [ready, setReady] = useState<{ count: number; campaignId: string } | null>(null)
