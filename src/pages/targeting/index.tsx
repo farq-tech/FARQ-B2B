@@ -1971,6 +1971,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     const requestedCount = plan.requestedCount || 30
     const version = ++generation.current
     setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
+    // The templates endpoint can become available a moment after the map. Refresh
+    // it here so a newly prepared marketing draft never exposes only the fallback
+    // template because the first background lookup raced the session bootstrap.
+    try {
+      const listed = await listTemplates()
+      if (listed.ok) setTemplates(listed.data || [])
+    } catch { /* keep the fallback template available; campaign preparation is still independent */ }
     setRes(null); lastSearchRows.current = []; setSelected(new Set()); setSelectedRows(new Map())
     setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([])
     setChosenD(new Set()); setMapScope('city'); setFocus(null); setShowUnlocated(false)
