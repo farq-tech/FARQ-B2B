@@ -54,6 +54,7 @@ export type TargetRow = {
   longitude: number | null
   phone: string | null
   phone_kind: string | null
+  /** Source-provided WhatsApp marker; not independent verification that the number is active. */
   has_whatsapp: boolean
   /** Explicit contact verification state when the targeting API returns one. A source flag alone is not verification. */
   whatsapp_verification_state?: 'verified' | 'unverified' | 'unknown' | null
@@ -309,11 +310,12 @@ export const templateFits = (t: MetaTemplate) => {
   const vars = [...new Set((templateBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => m.replace(/\D/g, '')))].sort()
   return vars.join(',') === '1,2'
 }
-/** Product assumption: a valid Saudi mobile is treated as a WhatsApp channel. */
-/** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaigns: open or temporarily closed with a verified WhatsApp (owner 2026-10-15). */
+/** Normalize a valid Saudi mobile only when the directory source flags it as WhatsApp. The flag is not independent verification. */
+/** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaign eligibility is rechecked by the send API. */
 export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في هدهد' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
 export const hasUnconfirmedStatus = (r: Pick<TargetRow, 'status_class'>): boolean => ['hidden', 'unknown_empty', 'unknown_invalid'].includes(r.status_class || '')
 export const waNumber = (r: TargetRow) => {
+  if (r.has_whatsapp !== true) return null
   let n = String(r.phone || '').replace(/[^0-9]/g, '')
   if (n.startsWith('00')) n = n.slice(2)
   if (n.length === 10 && n.startsWith('05')) n = `966${n.slice(1)}`

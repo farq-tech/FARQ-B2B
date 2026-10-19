@@ -49,9 +49,10 @@ export function EvidenceBadge({ level, label, className }: { level: EvidenceLeve
  * Channel Badge — Figma (18:73). Channel: WhatsApp · Email · Unreachable.
  * «Haraj» is not in Figma; it is a real channel in the API, so it renders in the neutral style.
  */
-export type Channel = 'WhatsApp' | 'Email' | 'Unreachable' | 'Haraj'
+export type Channel = 'WhatsApp' | 'WhatsAppSource' | 'Email' | 'Unreachable' | 'Haraj'
 const CHANNEL: Record<Channel, { bg: string; fg: string; icon: IconSource | null; label: string }> = {
   WhatsApp: { bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)', icon: WhatsAppGenericIcon, label: 'واتساب' },
+  WhatsAppSource: { bg: 'var(--color-bg-success)', fg: 'var(--color-text-success)', icon: WhatsAppGenericIcon, label: 'واتساب بحسب المصدر' },
   Email: { bg: 'var(--color-bg-info)', fg: 'var(--color-text-info)', icon: 'mail', label: 'إيميل' },
   Unreachable: { bg: 'var(--color-bg-neutral)', fg: 'var(--color-text-tertiary)', icon: CancelIcon, label: 'لا يمكن الإرسال' },
   Haraj: { bg: 'var(--color-bg-neutral)', fg: 'var(--color-text-secondary)', icon: null, label: 'حراج' },
