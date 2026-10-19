@@ -1420,7 +1420,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const areaBar = res && areas ? (
     <fieldset aria-label="تضييق النتائج" className={`m-0 min-w-0 border-0 ${mobile ? '-mx-4 flex flex-wrap items-center gap-2 px-4 pt-0 pb-1' : 'flex flex-wrap items-center gap-2 p-0'}`}>
       <FiltersIcon size={18} className="shrink-0 text-[var(--color-icon-secondary)]" />
-      {filters.contact === 'whatsapp' ? <Chip className="shrink-0" icon="whatsapp" label="رقم واتساب متاح" selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['contact']))} /> : null}
+      {filters.contact === 'whatsapp' ? <Chip className="shrink-0" icon="whatsapp" label="إشارة واتساب برقم صالح" selected disabled={busy} onRemove={() => applyFilters(keep(filters, ['contact']))} /> : null}
       {areas.wholesale || filters.wholesale ? (
         <Chip className="shrink-0" icon={WholesaleIcon} label={`جملة فقط · ${n(areas.wholesale)}`} selected={Boolean(filters.wholesale)} disabled={busy}
           onClick={() => {
@@ -1781,7 +1781,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     if (!selectableWholesaleRows.length) return
     setSelected((current) => new Set([...current, ...selectableWholesaleRows.map((row) => row.poi_key)]))
     setSelectedRows((current) => new Map([...current, ...selectableWholesaleRows.map((row) => [row.poi_key, row] as const)]))
-    setNotice(`تم تحديد ${n(selectableWholesaleRows.length)} مورداً موسوماً بالجملة من النتائج المحمّلة ولديه واتساب. راجع قائمة الحملة قبل أي إرسال.`)
+    setNotice(`تم تحديد ${n(selectableWholesaleRows.length)} مورداً موسوماً بالجملة من النتائج المحمّلة ولديه إشارة واتساب برقم صالح. راجع قائمة الحملة قبل أي إرسال.`)
   }
   const selectLoadedContactableCandidates = () => {
     if (!selectableLoadedContactableRows.length) return
@@ -1818,7 +1818,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     return (
       <li key={r.poi_key} data-key={r.poi_key} onPointerEnter={(event) => { if (event.pointerType === 'mouse' && hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} onFocusCapture={() => { if (hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
-          <input type="checkbox" checked={on} disabled={!can || busy || failedResultRefresh} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : failedResultRefresh ? 'أعد تحديث النتائج قبل اختيار المنشآت' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'ما عنده قناة واتساب بعد'}
+          <input type="checkbox" checked={on} disabled={!can || busy || failedResultRefresh} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : failedResultRefresh ? 'أعد تحديث النتائج قبل اختيار المنشآت' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'لا توجد إشارة واتساب برقم صالح'}
             className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
           <button type="button" disabled={busy || failedResultRefresh} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); recordMapInteraction(mapResultProfileOpenEvent(objective)); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
@@ -1909,7 +1909,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       </section> : null}
       {objective === 'purchase' && isWholesaleRequest(query) ? (
         <div className="mx-3 mt-3 flex flex-col gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] p-3">
-          <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">نتائج البحث مرشحون بحسب النشاط، وليست تأكيداً أن المنشأة تبيع بالجملة. قناة واتساب من سجل الدليل ولا تؤكد استقبال الرقم. اختر الموسومين بالجملة فقط لفلترة أدق، أو أضف نتائج الدفعة المطابقة للمرشحات الحالية وذات واتساب للمراجعة. {res.has_more ? `الاختيار يقتصر على الدفعة الحالية (${n(rows.length)} من ${n(res.total)})؛ حمّل المزيد ثم أعد الاختيار لبقية النتائج.` : 'تم تحميل جميع النتائج.'} لا يحدث إرسال أو جدولة عند الاختيار.</p>
+          <p className="m-0 text-[12px] leading-[19px] text-[var(--color-text-secondary)]">نتائج البحث مرشحون بحسب النشاط، وليست تأكيداً أن المنشأة تبيع بالجملة. إشارة واتساب من سجل الدليل مع رقم صالح، ولا تؤكد أن الرقم نشط. اختر الموسومين بالجملة فقط لفلترة أدق، أو أضف نتائج الدفعة المطابقة للمرشحات الحالية وذات الإشارة للمراجعة. {res.has_more ? `الاختيار يقتصر على الدفعة الحالية (${n(rows.length)} من ${n(res.total)})؛ حمّل المزيد ثم أعد الاختيار لبقية النتائج.` : 'تم تحميل جميع النتائج.'} لا يحدث إرسال أو جدولة عند الاختيار.</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableWholesaleRows.length} onClick={selectLoadedWholesaleCandidates}>اختر الموسومين بالجملة · {n(selectableWholesaleRows.length)}</Button>
             <Button variant="Secondary" size="S" disabled={busy || failedResultRefresh || !selectableLoadedContactableRows.length} onClick={selectLoadedContactableCandidates}>أضف المرشحين المحمّلين للمراجعة · {n(selectableLoadedContactableRows.length)}</Button>
