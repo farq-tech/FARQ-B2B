@@ -527,6 +527,40 @@ def _send_template(body):
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
 
+def test_mobile(value):
+    """Normalize a Saudi mobile supplied only for an owner test message."""
+    digits = re.sub(r'\D', '', str(value or ''))
+    if digits.startswith('00'): digits = digits[2:]
+    if len(digits) == 10 and digits.startswith('05'): digits = '966' + digits[1:]
+    elif len(digits) == 9 and digits.startswith('5'): digits = '966' + digits
+    return digits if re.fullmatch(r'9665\d{8}', digits) else None
+
+def send_test_template(body):
+    """Deliver one approved two-variable template to a manually entered Saudi test number.
+
+    This deliberately bypasses directory lookup and RFQ creation. It is exposed
+    only behind the Farq owner proxy and keeps the number out of the directory.
+    """
+    to = test_mobile(body.get('to'))
+    if not to: return {'ok': False, 'error': 'TEST_PHONE_INVALID'}
+    template = str(body.get('template') or 'farq_outreach_ar').strip()
+    if template != 'farq_outreach_ar': return {'ok': False, 'error': 'TEST_TEMPLATE_UNSUPPORTED'}
+    message = re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(body.get('message') or ''))).strip()[:1024]
+    if not message: return {'ok': False, 'error': 'EMPTY_MESSAGE'}
+    name = re.sub(r'\s{2,}', ' ', re.sub(r'[\r\n\t]+', ' ', str(body.get('name') or 'اختبار فرق'))).strip()[:300]
+    if not (WA_TOKEN and WA_PHONE_ID): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}
+    status = template_status(template)
+    if status.get('status') != 'APPROVED': return {'ok': False, 'error': f"TEMPLATE_{status.get('status')}", 'template': status}
+    payload = {'messaging_product': 'whatsapp', 'to': to, 'type': 'template',
+               'template': {'name': template, 'language': {'code': 'ar'}, 'components': [{'type': 'body', 'parameters': [
+                   {'type': 'text', 'text': name}, {'type': 'text', 'text': message},
+               ]}]}}
+    response = provider_send(payload)
+    ok = bool(response.get('messages'))
+    with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
+        f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'test': True, 'template': template, 'ok': ok, 'error_code': (response.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
+    return {'ok': ok, 'message_id': (response.get('messages') or [{}])[0].get('id'), 'error': (response.get('error') or {}).get('message') if not ok else None, 'code': (response.get('error') or {}).get('code')}
+
 LOGIN_HTML = '''<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فرق تسعير — دخول</title>
 <body style="font-family:-apple-system,Tahoma;background:#0f1115;color:#e8eaf0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <form method="post" action="/login" style="background:#171a21;padding:28px;border-radius:12px;border:1px solid #2a2f3a;min-width:300px"><h2 style="margin:0 0 14px">فرق تسعير — الاستهداف</h2>
@@ -785,6 +819,9 @@ class H(BaseHTTPRequestHandler):
             except Exception as e: self._json({'ok': False, 'error': str(e)[:200]}, 500)
         elif self.path == '/send-template':
             try: self._json(send_template(body))
+            except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/send-test-template':
+            try: self._json(send_test_template(body))
             except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
         elif self.path == '/send-farq':
             try: self._json(send_farq(body))

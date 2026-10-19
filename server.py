@@ -55,7 +55,10 @@ TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
 TARGETING_SERVICE = os.environ.get('TARGETING_SERVICE_TOKEN') or (hmac.new(TARGETING_PW.encode(), b'farq-proxy-v1', hashlib.sha256).hexdigest() if TARGETING_PW else None)
 T_READ = {('GET', '/status'), ('GET', '/template-status'), ('GET', '/templates'), ('GET', '/cities'), ('POST', '/search'), ('GET', '/facets'), ('POST', '/map-query'), ('POST', '/map-profile'), ('POST', '/map-focus'), ('POST', '/clusters'), ('POST', '/suggest-specialties'), ('GET', '/districts'), ('POST', '/street-density'), ('POST', '/street-density/catalog'), ('POST', '/district-counts'), ('POST', '/district-insights'), ('POST', '/who-buys'), ('POST', '/market-summary')}
 T_SUBMIT = {('POST', '/templates')}  # submits a template to Meta for review — sends nothing to anyone
-T_SEND = {('POST', '/send-farq')}
+# A test send follows the same production gate as a campaign, but does not need a
+# directory record or create an RFQ invite. It is for the signed-in owner to
+# verify an already-approved template against a supplied Saudi mobile number.
+T_SEND = {('POST', '/send-farq'), ('POST', '/send-test-template')}
 
 def targeting_call(method, path, body=None, *, retry_transient=False):
     """One call to the targeting service with the server's service header: (status, data, content-type).
