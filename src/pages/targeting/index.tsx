@@ -2829,7 +2829,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
 
   return (
-    <div className="flex h-dvh min-w-0 flex-col bg-[var(--color-bg-canvas)]">
+    <div className="flex min-h-dvh min-w-0 flex-col bg-[var(--color-bg-canvas)]">
       <header className="flex flex-col gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
@@ -2851,7 +2851,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         {errorLine}
         {linesPanel}
       </header>
-      <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+      <div className="flex min-h-[42rem] flex-1 flex-row">
         <>
           <aside id="targeting-results-panel" hidden={!resultsPanelOpen} aria-label="النتائج والدليل" style={{ width: `${resultsPanelWidth}px` }} className="relative flex shrink-0 flex-col border-e border-[var(--color-border-default)] bg-[var(--color-bg-surface)] transition-[width] duration-150">
             <div className="flex items-center justify-end px-3 pt-2">

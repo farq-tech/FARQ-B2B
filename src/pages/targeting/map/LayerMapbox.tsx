@@ -46,6 +46,9 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
       style: 'mapbox://styles/mapbox/light-v11',
       bounds: KSA,
       attributionControl: false,
+      // The map stays draggable and keeps its zoom buttons, while the mouse
+      // wheel remains available for navigating the surrounding results page.
+      scrollZoom: false,
       language: 'ar',
       // Mapbox controls use their own locale strings; keep their accessible labels
       // consistent with the Arabic controls around the map.
