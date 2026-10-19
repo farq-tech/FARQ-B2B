@@ -50,11 +50,6 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
   const matchReason = row.match === 'product' ? 'اسم المنشأة يذكر المنتج'
     : row.match === 'seller' ? 'نشاط المنشأة يبيع هذا المنتج غالباً'
     : 'ظهرت ضمن نتائج النشاط المختار'
-  const fitLabel = row.ai === 'L' ? 'ملاءمة مرجّحة'
-    : row.ai === 'M' ? 'ملاءمة محتملة'
-    : row.ai === 'N' ? 'ملاءمة منخفضة'
-    : 'لا يوجد تقدير نموذجي'
-  const fitBasis = row.match_confidence?.basis?.trim()
   const district = safeLocationName(row.district_ar)
   const dd = (k: string, v: string | null | undefined) => (v ? <><dt className="text-[var(--color-text-secondary)]">{k}</dt><dd className="m-0 font-medium">{v}</dd></> : null)
 
@@ -76,7 +71,7 @@ export default function ProfileDrawer({ row, onClose, chosen, onChoose, mobile, 
         <section aria-label="سبب ظهور المنشأة" className="flex flex-col gap-1 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2.5">
           <h4 className="m-0 text-[12px] leading-[18px] font-semibold">سبب ظهورها</h4>
           <p className="m-0 font-medium">{matchReason}</p>
-          <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تقدير الملاءمة: {fitLabel}. {fitBasis || 'المطابقة إشارة من النشاط والبيانات، وليست تأكيداً لتوفر المنتج أو قبول المورد للطلب.'}</p>
+          <p className="m-0 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">المطابقة مبنية على النشاط والبيانات المسجلة، وليست تأكيداً لتوفر المنتج أو قبول الجهة للطلب.</p>
         </section>
         {sourceActivity ? <p className="rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[12px] leading-[20px] text-[var(--color-text-secondary)]">النشاط الوارد في الدليل: <span className="font-medium text-[var(--color-text-primary)]">{sourceActivity}</span>. لم يُربط هذا الوصف بتصنيف فرق بعد، ولا يؤكد صحته.</p> : null}
         {roles.length ? (
