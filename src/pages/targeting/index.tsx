@@ -2684,10 +2684,22 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     <div className="min-w-0 flex-1">{searchForm}</div>
     {mapScopeControl}
   </div>
+  const cancelActiveSearch = () => {
+    if (busyKind !== 'search') return
+    // Ignore the in-flight response and give control back immediately. The
+    // directory request may still complete server-side, but it can no longer
+    // overwrite this page or leave its controls disabled.
+    generation.current += 1
+    setBusyKind(null)
+    setFailedResultRefresh(false)
+    setError('أوقفنا البحث الجاري. عدّل النطاق ثم ابحث مرة أخرى.')
+  }
+
   const searchStatus = busy ? (
     <p role="status" aria-live="polite" aria-atomic="true" className="flex items-center justify-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/90 px-3 py-1.5 text-[12px] leading-[18px] text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md">
       <span aria-hidden className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
-      {busyKind === 'browse' ? 'جارٍ تحميل منشآت السوق على الخريطة…' : busyKind === 'more' ? 'جارٍ تحميل نتائج إضافية…' : buyerProductProgress ? `نبحث عن المشترين لـ ${n(buyerProductProgress.completed)} من ${n(buyerProductProgress.total)} منتج…` : 'جارٍ تحديث نتائج البحث على الخريطة…'}
+      <span>{busyKind === 'browse' ? 'جارٍ تحميل منشآت السوق على الخريطة…' : busyKind === 'more' ? 'جارٍ تحميل نتائج إضافية…' : buyerProductProgress ? `نبحث عن المشترين لـ ${n(buyerProductProgress.completed)} من ${n(buyerProductProgress.total)} منتج…` : 'جارٍ تحديث نتائج البحث على الخريطة…'}</span>
+      {busyKind === 'search' ? <button type="button" onClick={cancelActiveSearch} className={`shrink-0 underline ${FOCUS_RING}`}>إيقاف البحث</button> : null}
     </p>
   ) : null
 
