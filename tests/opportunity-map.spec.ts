@@ -352,7 +352,7 @@ test.describe('desktop 1440', () => {
     await expect(page.getByRole('tab', { name: 'افهم السوق' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('heading', { name: 'ملخص سوق الرياض' })).toBeVisible()
     await expect(page.locator('[data-counter="market-size"]')).toContainText('منشآت مرصودة')
-    await expect(page.locator('[data-counter="market-whatsapp"]')).toContainText('إشارة واتساب من المصدر')
+    await expect(page.locator('[data-counter="market-whatsapp"]')).toContainText('إشارة واتساب برقم صالح')
     await expect(page.locator('[data-counter="market-wholesale"]')).toContainText('منشآت موسومة جملة')
     await expect(page.getByRole('region', { name: 'تحليل السوق: المدينة' }).getByText('إجمالي المنشآت')).toBeVisible()
     await page.getByRole('button', { name: 'توسيع الخريطة' }).click()

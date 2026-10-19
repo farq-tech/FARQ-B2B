@@ -653,7 +653,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
       return [
         { key: 'market-size', label: scopeLabel, value: marketStats?.total ?? null, lead: true },
         ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null }]),
-        { key: 'market-whatsapp', label: 'إشارة واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
+        { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
         { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null },
         ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n })),
       ]
@@ -677,7 +677,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
       { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true },
-      { key: 'city-whatsapp', label: 'إشارة واتساب من المصدر', value: marketStats?.n_whatsapp ?? null },
+      { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null },
       { key: 'city-districts', label: 'أحياء مغطاة', value: marketStats?.districts_count ?? null },
     ]
   }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, filters.district, densityDistrictNames])
