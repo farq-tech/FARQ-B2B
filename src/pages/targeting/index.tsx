@@ -20,6 +20,7 @@ import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
+import TargetingAssistant from './TargetingAssistant'
 import StartSheet from './StartSheet'
 import MyRequests from './MyRequests'
 import Counters, { type CounterItem } from './map/Counters'
@@ -312,6 +313,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // the city: Riyadh by default (nothing is remembered on the device)
   const [cities, setCities] = useState<City[]>([])
   const [city, setCity] = useState('Riyadh')
+  const lastSearchRows = useRef<TargetRow[]>([])
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewStats, setCityOverviewStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewLoading, setCityOverviewLoading] = useState(true)
@@ -1242,6 +1244,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       })
       if (version !== generation.current) return null
       recordSearchContactAvailability(r.rows)
+      lastSearchRows.current = r.rows
       setFailedResultRefresh(false)
       lastSuccessfulQueryObjective.current = obj
       if (!fresh && use.wholesale === true && filters.wholesale !== true) recordMapInteraction(mapWholesaleFilterOutcomeEvent(r.total))
@@ -1845,6 +1848,31 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const saveDraft = () => {
     setConfirming(false)
     setNotice(`أبشر، الحملة محفوظة كمسودة في هذه الصفحة (${n(chosen.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال؛ تحديث الصفحة يمسحها.`)
+  }
+
+  const prepareAssistantDraft = async (plan: { target: string; purpose: string; prompt: string }) => {
+    if (preparingMarketing) throw new Error('BUSY')
+    setObjective('marketing'); setLens('buyers'); setQ(plan.target)
+    const total = await runSearchIn(plan.target, city, undefined, 'marketing')
+    if (total === null) throw new Error('SEARCH_FAILED')
+    const rows = lastSearchRows.current.filter((row) => Boolean(waNumber(row))).slice(0, 50)
+    if (!rows.length) throw new Error('NO_WHATSAPP_RESULTS')
+    const phones = rows.map(waNumber).filter((phone): phone is string => Boolean(phone))
+    setSelected(new Set(rows.map((row) => row.poi_key)))
+    setSelectedRows(new Map(rows.map((row) => [row.poi_key, row] as const)))
+    setPreparingMarketing(true)
+    try {
+      const campaign = await prepareMarketingCampaign({
+        name: `حملة فرق · ${cityName(city)} · ${plan.target}`.slice(0, 160),
+        segment: 'B2B_MARKETING',
+        phones,
+        consentRecordedAt: new Date().toISOString(),
+        consentSource: 'موافقة مسبقة أعلنها مالك الحملة عند إعداد الدفعة',
+      })
+      setPreparedCampaignId(campaign.id)
+      setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. راجعها قبل الإرسال.`)
+      return { count: phones.length, campaignId: campaign.id }
+    } finally { setPreparingMarketing(false) }
   }
 
   const prepareWhatsAppCampaign = async () => {
@@ -2640,6 +2668,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           {fileField}
         </div>
         {searchWithScope}
+        <TargetingAssistant city={city} cityLabel={cityName(city)} mobile={mobile} onPrepare={prepareAssistantDraft} onOpenDraft={onLeads} />
         {searchStatus}
         {understood}
         {suggestBar}
