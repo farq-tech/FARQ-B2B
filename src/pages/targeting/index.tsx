@@ -1870,6 +1870,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const toggle = (r: TargetRow) => {
     if (busy || failedResultRefresh || !waNumber(r)) return
     recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
+    setPreparedCampaignId(null)
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
     setSelectedRows((current) => { const next = new Map(current); if (next.has(r.poi_key)) next.delete(r.poi_key); else next.set(r.poi_key, r); return next })
   }
@@ -1879,12 +1880,14 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const selectableLoadedContactableRows = loadedContactableRows.filter((row) => !selected.has(row.poi_key))
   const selectLoadedWholesaleCandidates = () => {
     if (!selectableWholesaleRows.length) return
+    setPreparedCampaignId(null)
     setSelected((current) => new Set([...current, ...selectableWholesaleRows.map((row) => row.poi_key)]))
     setSelectedRows((current) => new Map([...current, ...selectableWholesaleRows.map((row) => [row.poi_key, row] as const)]))
     setNotice(`تم تحديد ${n(selectableWholesaleRows.length)} مورداً موسوماً بالجملة من النتائج المحمّلة ولديه إشارة واتساب برقم صالح. راجع قائمة الحملة قبل أي إرسال.`)
   }
   const selectLoadedContactableCandidates = () => {
     if (!selectableLoadedContactableRows.length) return
+    setPreparedCampaignId(null)
     setSelected((current) => new Set([...current, ...selectableLoadedContactableRows.map((row) => row.poi_key)]))
     setSelectedRows((current) => new Map([...current, ...selectableLoadedContactableRows.map((row) => [row.poi_key, row] as const)]))
     recordMapInteraction('map_supplier_candidate_batch_add')
@@ -1892,6 +1895,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   const commitMultiSelection = () => {
     if (!multiPending.size) return
+    setPreparedCampaignId(null)
     setSelected((current) => new Set([...current, ...multiPending.keys()]))
     setSelectedRows((current) => new Map([...current, ...multiPending]))
     setMultiPending(new Map())
