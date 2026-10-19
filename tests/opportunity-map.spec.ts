@@ -124,9 +124,9 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
       if (opts.districtsDelayMs) await new Promise((resolve) => setTimeout(resolve, opts.districtsDelayMs))
       return opts.districts === 'none' ? route.fulfill({ status: 404, json: { error: 'not_found' } }) : route.fulfill({ json: DISTRICTS })
     }
-    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
+    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_discover_ar_20261019', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [
-      { name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] },
+      { name: 'farq_discover_ar_20261019', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] },
       { name: 'monthly_offer', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'هلا {{1}}، عندنا عرض الشهر: {{2}}' }] },
       { name: 'order_update', status: 'APPROVED', category: 'UTILITY', language: 'ar', components: [{ type: 'BODY', text: 'طلبك {{1}} وصل' }] },
       { name: 'logo_offer', status: 'APPROVED', category: 'UTILITY', language: 'ar', components: [{ type: 'HEADER', format: 'IMAGE' }, { type: 'BODY', text: 'هلا {{1}}، {{2}}' }] },

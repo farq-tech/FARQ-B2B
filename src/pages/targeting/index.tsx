@@ -21,6 +21,7 @@ import { createOpportunityRequest, type OpportunityRequestKind } from '../../api
 import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
 import StartSheet from './StartSheet'
+import { categoryCampaignTemplate } from './categoryCampaignTemplates'
 import MyRequests from './MyRequests'
 import Counters, { type CounterItem } from './map/Counters'
 import DrawnLayerMap from './map/DrawnLayerMap'
@@ -367,6 +368,12 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [template, setTemplate] = useState(OUTREACH_TEMPLATE)
   const [templates, setTemplates] = useState<MetaTemplate[]>([])
   useEffect(() => { listTemplates().then((r) => setTemplates(r?.ok ? (r.data || []) : []), () => setTemplates([])) }, [])
+  const applyCategoryCampaignPreset = (mainId: string) => {
+    const preset = categoryCampaignTemplate(mainId, templates)
+    setTemplate(preset.template)
+    setMessage(defaultMessage(preset.context || preset.category?.label || null, cityName(city)))
+    setPreparedCampaignId(null)
+  }
   // Opening the page starts with one decision. The map tools appear only after the user picks a goal.
   const [startOpen, setStartOpen] = useState(true)
   const [startSeen, setStartSeen] = useState(startNew)
@@ -1481,8 +1488,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     resetAll(); setQ(''); setQuery(''); setObjective('purchase'); setLens('sellers'); setTab('results')
     if (browse) void loadBrowse(city)
   }
+  const setStartDirection = (direction: 'buy' | 'sell') => {
+    resetAll(); setQ(''); setQuery(''); setObjective(direction === 'sell' ? 'marketing' : 'purchase'); setLens(direction === 'sell' ? 'buyers' : 'sellers'); setTab('results')
+    void loadBrowse(city)
+  }
   const startSheet = startOpen ? (
     <StartSheet mobile={mobile} initialDirection={objective === 'marketing' ? 'sell' : 'buy'} onClose={closeStart} onRfq={onRfq}
+      onDirectionChange={setStartDirection}
       onBooklet={() => { beginBuyerFlow(false); fileInput.current?.click(); closeStart() }}
       onBuySearch={() => { beginBuyerFlow(true); closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
       onExplore={() => { closeStart(); if (lens !== 'market') chooseLens('market') }}
@@ -1671,6 +1683,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     const clear = pickedMain === mainId
     recordMapInteraction(clear ? 'map_activity_clear' : 'map_activity_main_select')
     setStreetPick(clear ? { kind: 'all' } : { kind: 'main', id: mainId })
+    if (!clear) applyCategoryCampaignPreset(mainId)
     pickFocus(clear ? null : { level: 'main', id: mainId })
     closeActivityMenu()
   }
@@ -1678,6 +1691,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     const selectedAlready = streetPick.kind === 'sub' && streetPick.ids.map(String).includes(String(subId))
     recordMapInteraction(selectedAlready ? 'map_activity_clear' : 'map_activity_sub_select')
     setStreetPick(selectedAlready ? { kind: 'main', id: mainId } : { kind: 'sub', ids: [String(subId)], main: mainId })
+    applyCategoryCampaignPreset(mainId)
     pickFocus(selectedAlready ? { level: 'main', id: mainId } : { level: 'sub', id: String(subId) })
     closeActivityMenu()
   }
@@ -1691,6 +1705,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setStreetPick(alreadySelected
       ? { kind: 'all' }
       : { kind: 'spec', id, specialtyId, name: item.specialty_ar, subId, mainAr: item.main_ar || item.sub_ar || 'نشاط فرعي' })
+    if (!alreadySelected) applyCategoryCampaignPreset(subId.split('.')[0])
     pickFocus(alreadySelected ? null : { level: 'spec', id, sub_id: subId })
     closeActivityMenu()
   }
@@ -2532,6 +2547,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     }
     setQ('')
     setQuery('')
+    applyCategoryCampaignPreset(mainId)
     setLens('market')
     setAreaFilters(scopeFilters)
     setActiveStreet(mapScope === 'street' ? activeStreet : null)
@@ -2553,6 +2569,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     }
     setQ('')
     setQuery('')
+    applyCategoryCampaignPreset(mainId)
     setLens('market')
     setAreaFilters(scopeFilters)
     setStreetPick({ kind: 'sub', ids: [subId], main: mainId })

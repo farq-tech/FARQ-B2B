@@ -22,8 +22,8 @@ async function setup(page: Page) {
     if (path.endsWith('/who-buys')) return route.fulfill({ json: { ok: true, buyers: [], subject: { sub_ids: [], label_ar: '' }, basis: 'اختبار' } })
     if (path.includes('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], mains: [] } })
     if (path.endsWith('/districts')) return route.fulfill({ status: 404, json: { error: 'not_found' } })
-    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
-    if (path.endsWith('/templates') && route.request().method() === 'GET') return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar' }, { name: 'monthly_prices', status: 'REJECTED', category: 'UTILITY', language: 'ar', rejected_reason: 'INCORRECT_CATEGORY', components: [{ type: 'BODY', text: 'تحديث الأسعار الشهري' }] }] } })
+    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_discover_ar_20261019', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
+    if (path.endsWith('/templates') && route.request().method() === 'GET') return route.fulfill({ json: { ok: true, data: [{ name: 'farq_discover_ar_20261019', status: 'APPROVED', category: 'MARKETING', language: 'ar' }, { name: 'monthly_prices', status: 'REJECTED', category: 'UTILITY', language: 'ar', rejected_reason: 'INCORRECT_CATEGORY', components: [{ type: 'BODY', text: 'تحديث الأسعار الشهري' }] }] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: false } })
     if (path.endsWith('/search')) return route.fulfill({ json: { total: 3, rows: [row('1', 'مؤسسة الأنابيب الحديثة'), row('2', 'مستودع الصناعية'), row('3', 'سباكة الخليج')], parsed: { keywords: ['سباكة'] } } })
     // reads (POST only because of the body): trade clusters and specialty suggestions
@@ -54,7 +54,7 @@ test('campaign: preview the approved template before review; no message is sent'
   const tray = page.getByTestId('campaign-tray')
   await expect(tray.getByText('اخترت 3 منشأة')).toBeVisible()
   await tray.getByRole('button', { name: 'اكتب الرسالة' }).click()
-  await expect(tray.getByLabel('القالب (المعتمدة من ميتا)')).toHaveValue('farq_outreach_ar')
+  await expect(tray.getByLabel('القالب (المعتمدة من ميتا)')).toHaveValue('farq_discover_ar_20261019')
 
   const preview = tray.getByTestId('campaign-message-preview')
   await expect(preview).toContainText('معاينة الرسالة قبل الإرسال')

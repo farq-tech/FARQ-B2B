@@ -32,8 +32,8 @@ async function setup(page: Page, opts: { send?: boolean; at: Date; prayerBlock?:
     if (path.endsWith('/who-buys')) return route.fulfill({ json: { ok: true, buyers: [], subject: { sub_ids: [], label_ar: '' }, basis: 'اختبار' } })
     if (path.includes('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], mains: [] } })
     if (path.endsWith('/districts')) return route.fulfill({ status: 404, json: { error: 'not_found' } }) // no polygons: district chips
-    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_outreach_ar', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
-    if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [{ name: 'farq_outreach_ar', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] }] } })
+    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'farq_discover_ar_20261019', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
+    if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [{ name: 'farq_discover_ar_20261019', status: 'APPROVED', category: 'MARKETING', language: 'ar', components: [{ type: 'BODY', text: 'السلام عليكم {{1}}،\n{{2}}' }] }] } })
     if (path.endsWith('/send-status')) return route.fulfill({ json: { send: Boolean(opts.send) } })
     if (path.endsWith('/search')) { const body = route.request().postDataJSON(); searches.push(body); return route.fulfill({ json: { total: ROWS.length, rows: ROWS, parsed: { keywords: ['أقمشة'] }, areas: { districts: [{ name: 'الديرة', n: 3 }], streets: [], wholesale: 0 } } }) }
     if (path.endsWith('/clusters')) return route.fulfill({ json: { clusters: CLUSTERS, wholesale: 0, basis: 'تجمّع النشاط مقارنة بباقي المدينة' } })

@@ -20,6 +20,8 @@ type Props = {
   onClose: () => void
   onBooklet: () => void
   onBuySearch: () => void
+  /** Keep the underlying search question aligned with the selected goal. */
+  onDirectionChange?: (direction: 'buy' | 'sell') => void
   onExplore: () => void
   /** confirmed specialties; files = names of the catalog files read (none when typed) */
   onSellLines: (names: string[], files: string[]) => void
@@ -40,7 +42,7 @@ function Row({ icon, title, hint, onClick }: { icon: IconSource; title: string; 
   )
 }
 
-export default function StartSheet({ mobile, initialDirection = 'buy', onClose, onBooklet, onBuySearch, onExplore, onSellLines, onRfq }: Props) {
+export default function StartSheet({ mobile, initialDirection = 'buy', onClose, onBooklet, onBuySearch, onExplore, onSellLines, onRfq, onDirectionChange }: Props) {
   const [step, setStep] = useState<'pick' | 'sell'>('pick')
   const [direction, setDirection] = useState<'buy' | 'sell'>(initialDirection)
   const [text, setText] = useState('')
@@ -122,11 +124,11 @@ export default function StartSheet({ mobile, initialDirection = 'buy', onClose, 
           <>
             <div role="group" aria-label="اتجاه البحث" className="relative isolate grid grid-cols-2 rounded-full bg-[var(--color-bg-surface-2)]/90 p-1 backdrop-blur-md">
               <span aria-hidden className={`pointer-events-none absolute inset-y-1 start-1 w-[calc(50%-4px)] rounded-full bg-[var(--color-bg-surface)] shadow-[var(--farq-button-shadow)] transition-transform duration-300 motion-reduce:transition-none ${direction === 'sell' ? '-translate-x-full' : ''}`} />
-              <button type="button" aria-pressed={direction === 'buy'} onClick={() => { if (direction !== 'buy') recordMapInteraction('start_mode_buyer'); setDirection('buy') }}
+              <button type="button" aria-pressed={direction === 'buy'} onClick={() => { if (direction !== 'buy') { recordMapInteraction('start_mode_buyer'); setDirection('buy'); onDirectionChange?.('buy') } }}
                 className={`relative z-10 min-h-11 rounded-full px-3 py-2 text-[14px] font-semibold transition-colors ${direction === 'buy' ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
                 أبحث عن مورد
               </button>
-              <button type="button" aria-pressed={direction === 'sell'} onClick={() => { if (direction !== 'sell') recordMapInteraction('start_mode_seller'); setDirection('sell') }}
+              <button type="button" aria-pressed={direction === 'sell'} onClick={() => { if (direction !== 'sell') { recordMapInteraction('start_mode_seller'); setDirection('sell'); onDirectionChange?.('sell') } }}
                 className={`relative z-10 min-h-11 rounded-full px-3 py-2 text-[14px] font-semibold transition-colors ${direction === 'sell' ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'} ${FOCUS_RING}`}>
                 أبحث عن مشتري
               </button>

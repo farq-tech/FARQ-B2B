@@ -198,8 +198,8 @@ export type TemplateStatus = {
 
 export type SendResult = { ok: boolean; error?: string; fatal?: string; sent?: { poi_key: string }[]; failed?: { poi_key: string; error: string }[] }
 
-/** The approved Meta template and its two body variables: {{1}} the place's name, {{2}} the campaign text. */
-export const OUTREACH_TEMPLATE = 'farq_outreach_ar'
+/** The approved default Meta template and its two body variables: {{1}} the place's name, {{2}} the campaign context. */
+export const OUTREACH_TEMPLATE = 'farq_discover_ar_20261019'
 
 export class TargetingError extends Error {
   constructor(public code: string, message: string, public status: number) { super(message) }
