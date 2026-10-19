@@ -119,12 +119,20 @@ class DirectoryTiles:
     def __init__(self,path):
         self.path=path;self.lock=threading.RLock();self.contexts=collections.OrderedDict();self.tiles=collections.OrderedDict();self.facets_cache={};self.fingerprints={}
         self.db=duckdb.connect();self.db.execute("SET threads=2; SET memory_limit='512MB'")
+        # Directory assets are refreshed independently from this service.  Optional
+        # enrichment columns must degrade to empty values when an older asset is live.
+        self.columns={row[0] for row in self.db.execute("describe select * from read_parquet(?)", [path]).fetchall()}
         self.db.execute("""create table branches as select lower(trim(brand_name)) brand,
             count(distinct concat(city_en,':',round(latitude,4),':',round(longitude,4))) n
             from read_parquet(?) where length(trim(brand_name))>2 and latitude is not null and longitude is not null
             group by 1""",[path])
         self.branch_counts=dict(self.db.execute('select * from branches').fetchall())
         self.search_sql=status_policy.search_sql(self.db,path)
+    def column(self,name,fallback):
+        # Unit-level SQL contract tests build a lightweight instance without a schema.
+        # Treat that as the current full schema; real instances populate `columns` above.
+        columns=getattr(self, 'columns', None)
+        return 'p.'+name if columns is None or name in columns else fallback
     def facets(self,city):
         with self.lock:
             if city in self.facets_cache: return self.facets_cache[city]
@@ -188,11 +196,13 @@ class DirectoryTiles:
         if city and city!='*':clauses.append('city_en=?');params.append(city)
         if f.get('category'):clauses.append("coalesce(nullif(trim(split_part(coalesce(category,''),'|',1)),''),'غير مصنف')=?");params.append(f['category'])
         if f.get('subcategory'):clauses.append("(regexp_matches(coalesce(secondary_category,''),?) or regexp_matches(coalesce(category_l3,''),?))");params.extend([r'''(^|[|,\[{])\s*["']?'''+re.escape(f['subcategory'])+r'''["']?\s*($|[|,\]}])''']*2)
-        if f.get('taxonomy_main_id')=='unc':clauses.append("(p.sub_id is null or p.sub_id='unc' or starts_with(p.sub_id,'unc.'))")
-        elif f.get('taxonomy_main_id'):clauses.append("split_part(coalesce(p.sub_id,''),'.',1)=?");params.append(f['taxonomy_main_id'])
-        if f.get('taxonomy_sub_id'):clauses.append('p.sub_id=?');params.append(f['taxonomy_sub_id'])
+        sub_id=self.column('sub_id', "''")
+        specialty_ids=self.column('specialty_ids', "''")
+        if f.get('taxonomy_main_id')=='unc':clauses.append("("+sub_id+" is null or "+sub_id+"='unc' or starts_with("+sub_id+",'unc.'))")
+        elif f.get('taxonomy_main_id'):clauses.append("split_part(coalesce("+sub_id+",''),'.',1)=?");params.append(f['taxonomy_main_id'])
+        if f.get('taxonomy_sub_id'):clauses.append(sub_id+'=?');params.append(f['taxonomy_sub_id'])
         if f.get('taxonomy_specialty_id'):
-            clauses.append("list_contains(string_split(coalesce(p.specialty_ids,''),'|'),?)")
+            clauses.append("list_contains(string_split(coalesce("+specialty_ids+",''),'|'),?)")
             params.append(f['taxonomy_specialty_id'])
         identity="translate(lower(coalesce(nullif(legal_name,''),name_ar,name_en,'')),'أإآةىؤئ','اااهيوي')"
         company="regexp_matches("+identity+",'(^|[^[:alnum:]؀-ۿ])(شركه|شركات|company|corporation|llc)($|[^[:alnum:]؀-ۿ])')"
@@ -205,20 +215,25 @@ class DirectoryTiles:
             if not keyword:raise ValueError('name filter needs keyword')
             clauses.append("contains(regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en)),'أإآةىؤئ','اااهيوي'),'[ً-ْـ]','','g'),?)");params.append(keyword)
         if f.get('branches_only'):clauses.append('coalesce(b.n,0)>=2')
-        if f.get('wholesale'):clauses.append('coalesce(is_wholesale,false)')
+        wholesale=self.column('is_wholesale','false')
+        district_ok=self.column('district_reliable','true')
+        street=self.column('street_ar',"''")
+        roles=self.column('role_badges',"''")
+        specialties=self.column('specialty_concepts_ar',"''")
+        if f.get('wholesale'):clauses.append('coalesce('+wholesale+',false)')
         def sql_area_key(column):
             return "regexp_replace(regexp_replace(translate(lower(coalesce(" + column + ",'')),'أإآةى','اااهي'),'^(حي|شارع|طريق)\\s+',''),'\\s+',' ','g')"
         if f.get('district'):
-            clauses.append("coalesce(district_reliable,true) and " + sql_area_key('district_ar') + "=?")
+            clauses.append("coalesce("+district_ok+",true) and " + sql_area_key('district_ar') + "=?")
             params.append(area_key(f['district']))
         if f.get('street'):
-            clauses.append("contains(" + sql_area_key('street_ar') + ",?)")
+            clauses.append("contains(" + sql_area_key(street) + ",?)")
             params.append(area_key(f['street']))
         if f.get('role'):
-            clauses.append("(list_contains(string_split(coalesce(role_badges,''),'|'),?)" + (" or coalesce(is_wholesale,false)" if f['role'] == 'جملة' else "") + ")")
+            clauses.append("(list_contains(string_split(coalesce("+roles+",''),'|'),?)" + (" or coalesce("+wholesale+",false)" if f['role'] == 'جملة' else "") + ")")
             params.append(f['role'])
         if f.get('specialty'):
-            clauses.append("list_contains(string_split(coalesce(specialty_concepts_ar,''),'، '),?)")
+            clauses.append("list_contains(string_split(coalesce("+specialties+",''),'، '),?)")
             params.append(f['specialty'])
         if f.get('contact')=='whatsapp':
             clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'), '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$')")
@@ -232,8 +247,14 @@ class DirectoryTiles:
         if type(limit) is not int or not 1<=limit<=200 or type(offset) is not int or offset<0:raise ValueError('invalid pagination')
         f=valid_filters(filters);base,params=self.sql(city,f)
         with self.lock:
-            total,located=self.db.execute("select count(*),count(*) filter(where coalesce(location_precision,'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) "+base,params).fetchone()
-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,street_ar,coalesce(district_reliable,true) district_reliable,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,is_wholesale,role_badges,specialty_concepts_ar,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+            location_precision=self.column('location_precision', "'point'")
+            street=self.column('street_ar', "null")
+            district_ok=self.column('district_reliable', 'true')
+            wholesale=self.column('is_wholesale', 'false')
+            roles=self.column('role_badges', "''")
+            specialties=self.column('specialty_concepts_ar', "''")
+            total,located=self.db.execute("select count(*),count(*) filter(where coalesce("+location_precision+",'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) "+base,params).fetchone()
+            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,"+street+" street_ar,coalesce("+district_ok+",true) district_reliable,latitude,longitude,coalesce("+location_precision+",'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,"+wholesale+" is_wholesale,"+roles+" role_badges,"+specialties+" specialty_concepts_ar,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
         for row in rows:
             row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
