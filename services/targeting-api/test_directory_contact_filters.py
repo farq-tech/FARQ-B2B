@@ -59,13 +59,13 @@ class DirectoryContactFilterTests(unittest.TestCase):
                 district_ar varchar, district_en varchar, latitude double, longitude double, location_precision varchar,
                 phone_norm varchar, phone_kind varchar, has_whatsapp boolean, is_wholesale boolean, email varchar,
                 sources varchar, source_count integer, legal_name varchar, company_status varchar, lifecycle_state varchar,
-                brand_name varchar, completeness_pct double, district_reliable boolean, street_ar varchar
+                brand_name varchar, completeness_pct double, district_reliable boolean, street_ar varchar, role_badges varchar
             )""")
             db.execute("""insert into places values
                 ('wholesale', 'مورد جملة', 'Wholesale supplier', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
-                 'حي الملز', '', 24.6, 46.7, 'point', null, null, false, true, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد'),
+                 'حي الملز', '', 24.6, 46.7, 'point', null, null, false, true, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد', 'مصنع|جملة'),
                 ('retail', 'متجر تجزئة', 'Retail shop', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
-                 'حي الملز', '', 24.61, 46.71, 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا')
+                 'حي الملز', '', 24.61, 46.71, 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا', 'متجر')
             """)
             db.execute("copy places to ? (format parquet)", [str(path)])
             db.execute("create table branches(brand varchar, n integer)")
@@ -83,6 +83,9 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertIs(result["rows"][0]["is_wholesale"], True)
             self.assertEqual(result["rows"][0]["street_ar"], "طريق الملك فهد")
             self.assertIs(result["rows"][0]["district_reliable"], True)
+            self.assertEqual(result["rows"][0]["role_badges"], ["مصنع", "جملة"])
+            role_result = tiles.browse("Riyadh", {"role": "مصنع"})
+            self.assertEqual([row["poi_key"] for row in role_result["rows"]], ["wholesale"])
             db.close()
 
     def test_browse_applies_normalized_district_and_street_filters(self):
@@ -95,15 +98,15 @@ class DirectoryContactFilterTests(unittest.TestCase):
                 district_ar varchar, district_en varchar, latitude double, longitude double, location_precision varchar,
                 phone_norm varchar, phone_kind varchar, has_whatsapp boolean, is_wholesale boolean, email varchar,
                 sources varchar, source_count integer, legal_name varchar, company_status varchar, lifecycle_state varchar,
-                brand_name varchar, completeness_pct double, district_reliable boolean, street_ar varchar
+                brand_name varchar, completeness_pct double, district_reliable boolean, street_ar varchar, role_badges varchar
             )""")
             db.execute("""insert into places values
                 ('target', 'منشأة الهدف', '', '', '', '', '', 'Riyadh', '', '', 'حي الملز', '', 24.6, 46.7,
-                 'point', null, null, false, false, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد'),
+                 'point', null, null, false, false, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد', 'مصنع|جملة'),
                 ('other-street', 'منشأة أخرى', '', '', '', '', '', 'Riyadh', '', '', 'حي الملز', '', 24.61, 46.71,
-                 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا'),
+                 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا', 'متجر'),
                 ('other-district', 'منشأة حي آخر', '', '', '', '', '', 'Riyadh', '', '', 'حي النخيل', '', 24.62, 46.72,
-                 'point', null, null, false, false, null, '', 1, '', null, null, '', 70, true, 'طريق الملك فهد')
+                 'point', null, null, false, false, null, '', 1, '', null, null, '', 70, true, 'طريق الملك فهد', 'مصنع|جملة')
             """)
             db.execute("copy places to ? (format parquet)", [str(path)])
             db.execute("create table branches(brand varchar, n integer)")
