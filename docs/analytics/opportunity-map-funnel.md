@@ -889,13 +889,15 @@ These events require map analytics consent and indicate a disclosure interaction
 
 ## Map layer visibility controls
 
-The controls `pricing_map_map_filter_layer_places_on/off`, `pricing_map_map_filter_layer_streets_on/off`, `pricing_map_map_filter_layer_density_on/off`, and `pricing_map_map_filter_layer_districts_on/off` record when a consenting user shows or hides establishment and trade-cluster markers, dense street overlays, district density shading, or district outlines and labels. These controls change map presentation only; search results, filters, selections, and campaign recipients are unchanged. Count actions and consenting sessions by control and state:
+The controls `pricing_map_map_filter_layer_places_on/off`, `pricing_map_map_filter_layer_streets_on/off`, `pricing_map_map_filter_layer_city_on/off`, `pricing_map_map_filter_layer_density_on/off`, and `pricing_map_map_filter_layer_districts_on/off` record when a consenting user shows or hides establishment markers, dense street overlays, city-level activity clusters, district density shading, or district outlines and labels. These controls change map presentation only; search results, filters, selections, and campaign recipients are unchanged. Count actions and consenting sessions by control and state:
 
 ```sql
 SELECT
   date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
   CASE
-    WHEN element_label LIKE '%_places_%' THEN 'establishment and trade-cluster markers'
+    WHEN element_label LIKE '%_places_%' THEN 'establishment markers'
+    WHEN element_label LIKE '%_streets_%' THEN 'dense street overlays'
+    WHEN element_label LIKE '%_city_%' THEN 'city activity clusters'
     WHEN element_label LIKE '%_density_%' THEN 'district density shading'
     WHEN element_label LIKE '%_districts_%' THEN 'district outlines and labels'
   END AS control,
@@ -912,6 +914,8 @@ WHERE occurred_at >= now() - interval '56 days'
     'pricing_map_map_filter_layer_places_off',
     'pricing_map_map_filter_layer_streets_on',
     'pricing_map_map_filter_layer_streets_off',
+    'pricing_map_map_filter_layer_city_on',
+    'pricing_map_map_filter_layer_city_off',
     'pricing_map_map_filter_layer_density_on',
     'pricing_map_map_filter_layer_density_off',
     'pricing_map_map_filter_layer_districts_on',
