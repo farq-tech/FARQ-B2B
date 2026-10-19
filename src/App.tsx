@@ -124,7 +124,7 @@ function Routes() {
         <MobileBottomNav tabs={[
           { label: 'الطلبات', icon: PricingRequestsIcon, active: onRequests, onClick: () => navigate('rfq-list') },
           { label: 'الوارد', icon: InboxIcon, active: view === 'inbox', onClick: () => navigate('inbox') },
-          { label: 'خريطة الفرص', icon: OpportunityMapIcon, active: onCampaign && view !== 'targeting-new', onClick: () => navigate('targeting') },
+          { label: 'خريطة الفرص', icon: OpportunityMapIcon, active: view === 'targeting' || view === 'targeting-new' || onCampaign, onClick: () => navigate('targeting') },
         ]} />
       ) : null}
       <MapAnalyticsConsent active={view === 'targeting' || view === 'targeting-new'} />
