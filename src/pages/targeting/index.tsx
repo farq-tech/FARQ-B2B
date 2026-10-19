@@ -1253,6 +1253,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
         obj,
         err instanceof TargetingError ? err.status : undefined,
         err instanceof TypeError,
+        fresh ? 'fresh_search' : 'filter_refresh',
       ))
       if (!fresh && use.wholesale === true && filters.wholesale !== true) recordMapInteraction('map_filter_wholesale_results_failed')
       if (fresh) {

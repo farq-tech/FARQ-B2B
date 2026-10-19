@@ -1801,17 +1801,21 @@ ORDER BY week_utc DESC, interaction;
 
 These counts describe interaction, not supplier relevance, purchase intent, campaign completion, or successful contact. Individual selection is temporary on the page, and bulk selection does not send messages. Review at least two complete weeks and 30 consenting sessions for the interaction family before interpreting a pattern; when volume is lower, treat the result as instrumentation confirmation only.
 
-## Search-request failures by cause
+## Search-request failures by cause and scope
 
-Failure events identify the buyer or supplier role and distinguish server responses, client responses, network failures, and unclassified failures without recording the search phrase, location, response body, or business data. The same failure-class events are emitted for fresh searches and filter-triggered result refreshes; the event labels do not distinguish those request scopes. Superseded requests are ignored. Read these as failed request counts, not as failures of newly typed searches alone. This query reports aggregate event counts and consenting sessions only.
+Failure events identify the buyer or supplier role, whether the request was a fresh search or a filter-triggered result refresh, and a coarse failure class. They do not record the search phrase, location, response body, or business data. Superseded requests are ignored. This query uses the scope-specific labels introduced in the latest instrumentation; older generic failure labels are intentionally excluded because they mixed both request scopes. It reports aggregate event counts and consenting sessions only.
 
 ```sql
 SELECT
   date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week_utc,
   CASE
-    WHEN element_label LIKE 'pricing_map_map_supplier_search_failure_%' THEN 'supplier request'
-    ELSE 'buyer request'
-  END AS request_role,
+    WHEN element_label LIKE 'pricing_map_map_supplier_%' THEN 'supplier'
+    ELSE 'buyer'
+  END AS search_role,
+  CASE
+    WHEN element_label LIKE 'pricing_map_map_%_fresh_search_failure_%' THEN 'fresh search'
+    ELSE 'filter refresh'
+  END AS request_scope,
   split_part(element_label, '_failure_', 2) AS failure_cause,
   count(*) AS failed_requests,
   count(DISTINCT session_id) AS consenting_sessions
@@ -1821,24 +1825,32 @@ WHERE occurred_at >= now() - interval '56 days'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
   AND element_label IN (
-    'pricing_map_map_supplier_search_failure_server',
-    'pricing_map_map_supplier_search_failure_client',
-    'pricing_map_map_supplier_search_failure_network',
-    'pricing_map_map_supplier_search_failure_other',
-    'pricing_map_map_buyer_search_failure_server',
-    'pricing_map_map_buyer_search_failure_client',
-    'pricing_map_map_buyer_search_failure_network',
-    'pricing_map_map_buyer_search_failure_other'
+    'pricing_map_map_supplier_fresh_search_failure_server',
+    'pricing_map_map_supplier_fresh_search_failure_client',
+    'pricing_map_map_supplier_fresh_search_failure_network',
+    'pricing_map_map_supplier_fresh_search_failure_other',
+    'pricing_map_map_buyer_fresh_search_failure_server',
+    'pricing_map_map_buyer_fresh_search_failure_client',
+    'pricing_map_map_buyer_fresh_search_failure_network',
+    'pricing_map_map_buyer_fresh_search_failure_other',
+    'pricing_map_map_supplier_filter_refresh_failure_server',
+    'pricing_map_map_supplier_filter_refresh_failure_client',
+    'pricing_map_map_supplier_filter_refresh_failure_network',
+    'pricing_map_map_supplier_filter_refresh_failure_other',
+    'pricing_map_map_buyer_filter_refresh_failure_server',
+    'pricing_map_map_buyer_filter_refresh_failure_client',
+    'pricing_map_map_buyer_filter_refresh_failure_network',
+    'pricing_map_map_buyer_filter_refresh_failure_other'
   )
-GROUP BY 1, 2, 3
-ORDER BY week_utc DESC, request_role, failure_cause;
+GROUP BY 1, 2, 3, 4
+ORDER BY week_utc DESC, search_role, request_scope, failure_cause;
 ```
 
-The cause is a coarse diagnostic, not proof of the upstream root cause: for example, a server response can originate from a gateway or a dependency. This report cannot separate fresh searches from filter refreshes; do not use it as a fresh-search failure rate. Compare aggregate counts with service-side logs for the same period. Consent is required, so this does not represent all requests or all users; keep internal QA separate from customer usage.
+The cause is a coarse diagnostic, not proof of the upstream root cause: for example, a server response can originate from a gateway or a dependency. Compare aggregate counts with service-side logs for the same period. Consent is required, so this does not represent all requests or all users; keep internal QA separate from customer usage.
 
 ## Search outcomes by attempt
 
-The session-level search funnel above counts a consenting tab session once. If the same session runs more than one search, it can associate later map actions with the first search. Use this attempt-level query when comparing buyer and supplier search outcomes. Each `search_started` event opens an attempt; its result and follow-up map actions are attributed only until the next search starts in the same tab session. Its `failed` result bucket is limited to fresh searches; use the request-failure report above only for broad diagnostic counts because that event family also includes filter refreshes. It returns aggregate counts and does not expose session IDs or search text.
+The session-level search funnel above counts a consenting tab session once. If the same session runs more than one search, it can associate later map actions with the first search. Use this attempt-level query when comparing buyer and supplier search outcomes. Each `search_started` event opens an attempt; its result and follow-up map actions are attributed only until the next search starts in the same tab session. Its `failed` result bucket is limited to fresh searches; the request-failure report above separately counts fresh-search and filter-refresh failures. It returns aggregate counts and does not expose session IDs or search text.
 
 ```sql
 WITH map_events AS (
