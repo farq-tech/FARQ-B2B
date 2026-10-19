@@ -23,6 +23,11 @@ const KIND: Record<string, string> = { BOOKLET: 'كراسة', PURCHASE_REQUEST: 
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : `${d.toLocaleString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' })} · ${hijriLabel(d)}` }
 const small = `fi-host inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-2)] hover:text-[var(--color-text-primary)] disabled:opacity-50 ${FOCUS_RING}`
 const tag = (label: string, icon: IconComponent) => <Badge tone="Neutral" icon={icon} label={label} className="px-2 py-0 text-[12px] leading-[18px]" />
+const kindLabel = (r: OpportunityRequest) => {
+  if (r.payload?.filters?.review === true) return 'قائمة مراجعة'
+  if (r.payload?.filters?.source === 'WHATSAPP_CAMPAIGN') return 'مسودة حملة واتساب'
+  return KIND[r.kind] || r.kind
+}
 
 export default function MyRequests({ mobile = false, refresh = 0 }: { mobile?: boolean; /** bump to reload (a request was just saved) */ refresh?: number }) {
   const [filter, setFilter] = useState<OpportunityRequestFilter>('all')
@@ -101,7 +106,7 @@ export default function MyRequests({ mobile = false, refresh = 0 }: { mobile?: b
                     {r.hidden ? tag('مخفي', HideIcon) : null}
                     {r.status === 'ARCHIVED' ? tag('مؤرشف', ArchiveIcon) : null}
                   </div>
-                  <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{[KIND[r.kind] || r.kind, r.payload?.city, when(r.createdAt)].filter(Boolean).join(' · ')}</span>
+                  <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)]">{[kindLabel(r), r.payload?.city, when(r.createdAt)].filter(Boolean).join(' · ')}</span>
                   {cancelling === r.id ? (
                     <div className="flex flex-col gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] p-3">
                       <p className="text-[14px] leading-[22px] font-medium">تلغي «{r.title}»؟</p>
