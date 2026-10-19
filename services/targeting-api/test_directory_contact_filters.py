@@ -139,6 +139,39 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual([row["poi_key"] for row in result["rows"]], ["target"])
             db.close()
 
+    def test_area_picker_includes_streets_beyond_the_density_preview_limit(self):
+        """Selecting a street must use geography, never the top-60 density preview."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = pathlib.Path(temp_dir) / "directory.parquet"
+            seed = duckdb.connect()
+            seed.execute("create table places(city_en varchar, district_ar varchar, street_ar varchar, is_wholesale boolean)")
+            seed.executemany(
+                "insert into places values (?, ?, ?, ?)",
+                [("Riyadh", "حي الملز", f"شارع {index}", False) for index in range(61)],
+            )
+            seed.execute("copy places to ? (format parquet)", [str(path)])
+            seed.close()
+
+            tiles = DirectoryTiles.__new__(DirectoryTiles)
+            tiles.db = duckdb.connect()
+            tiles.lock = threading.RLock()
+            tiles.path = str(path)
+            tiles.area_options_cache = {}
+            tiles.column = lambda name, _fallback: name
+
+            def scoped_sql(city, filters):
+                self.assertEqual(city, "Riyadh")
+                self.assertEqual(filters["district"], "حي الملز")
+                self.assertEqual(filters["street"], "")
+                return "from read_parquet(?) p where city_en=? and district_ar=?", [str(path), city, filters["district"]]
+
+            tiles.sql = scoped_sql
+            areas = tiles.area_options("Riyadh", {"district": "حي الملز", "street": "شارع 0"})
+
+            self.assertEqual(len(areas["streets"]), 61)
+            self.assertIn({"name": "شارع 60", "district": "حي الملز", "n": 1}, areas["streets"])
+            tiles.db.close()
+
     def test_browse_degrades_safely_for_legacy_directory_assets(self):
         """A delayed enrichment refresh must not take the map endpoint down."""
         with tempfile.TemporaryDirectory() as temp_dir:
