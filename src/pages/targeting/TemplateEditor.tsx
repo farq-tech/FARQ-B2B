@@ -15,7 +15,7 @@ import { CATEGORY_LABEL, removeDraft, saveDraft, submitBlock, toMetaComponents, 
 
 const BODY_MAX = 1024, HEADER_MAX = 60
 const RISKY = ['مجاني', 'مجانا', 'مجانًا', 'عرض محدود', 'خصم', 'اربح']
-const VAR_HINT = ['اسم المحل', 'الفئة', 'المدينة', 'متغير 4', 'متغير 5']
+const VAR_HINT = ['اسم المنشأة', 'نص الحملة']
 
 const field = `w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3 text-[16px] leading-[26px] text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] ${FOCUS_RING}`
 
@@ -37,7 +37,7 @@ const Label = ({ children, hint }: { children: string; hint?: string }) => (
 export default function TemplateEditor({ onBack }: { onBack: () => void }) {
   const mobile = useIsMobile()
   const [d, setD] = useState<Omit<TemplateDraft, 'savedAt'>>({
-    name: '', label: '', language: 'ar', category: 'MARKETING', header: 'TEXT', headerText: '', body: '', examples: {}, footer: 'للإيقاف أرسل: إيقاف', buttons: [{ text: 'مهتم', kind: 'QUICK_REPLY' }, { text: 'إيقاف الرسائل', kind: 'OPT_OUT' }],
+    name: '', label: '', language: 'ar', category: 'MARKETING', header: 'TEXT', headerText: '', body: 'السلام عليكم {{1}}،\n{{2}}', examples: { '1': 'مؤسسة الخليج للمقاولات', '2': 'اكتشف فرق وقارن عروض الأسعار في مكان واحد.' }, footer: 'للإيقاف أرسل: إيقاف', buttons: [{ text: 'مهتم', kind: 'QUICK_REPLY' }, { text: 'إيقاف الرسائل', kind: 'OPT_OUT' }],
   })
   const [saved, setSaved] = useState<string | null>(null)
   const [tab, setTab] = useState<'edit' | 'preview'>('edit')
@@ -49,21 +49,14 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
 
   const vars = useMemo(() => [...new Set([...d.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]))].sort((a, b) => +a - +b), [d.body])
   const nameOk = /^[a-z0-9_]{1,512}$/.test(d.name)
-  const sequential = vars.every((v, i) => +v === i + 1)
+  const hasCampaignVariables = vars.join(',') === '1,2'
   const checks = [
     { ok: /إيقاف|stop/i.test(`${d.footer} ${d.body} ${d.buttons.map((b) => b.text).join(' ')}`), label: 'فيه خيار إيقاف واضح' },
-    { ok: vars.length > 0 ? vars.every((v) => (d.examples[v] || '').trim()) && sequential : true, label: vars.length && !sequential ? 'المتغيرات مرقمة بالترتيب ({{1}} ثم {{2}}…)' : 'كل متغير له مثال' },
+    { ok: hasCampaignVariables && vars.every((v) => (d.examples[v] || '').trim()), label: hasCampaignVariables ? 'للقالب متغيران فقط: اسم المنشأة ونص الحملة' : 'استخدم المتغيرين {{1}} و{{2}} فقط' },
     { ok: d.category !== 'AUTHENTICATION', label: 'الفئة مناسبة لنوع الرسالة' },
     { ok: !RISKY.some((w) => `${d.headerText} ${d.body}`.includes(w)), label: 'تجنّب كلمات مثل «مجاني» و«عرض محدود» — ترفع احتمال الرفض' },
   ]
   const fill = (s: string) => s.replace(/\{\{(\d+)\}\}/g, (_, n) => d.examples[n] || `{{${n}}}`)
-  const insertVar = () => {
-    const el = body.current
-    const next = `{{${vars.length + 1}}}`
-    const at = el ? el.selectionStart : d.body.length
-    set('body', (d.body.slice(0, at) + next + d.body.slice(at)).slice(0, BODY_MAX))
-    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(at + next.length, at + next.length) })
-  }
   const bold = () => {
     const el = body.current
     if (!el) return
@@ -170,17 +163,16 @@ export default function TemplateEditor({ onBack }: { onBack: () => void }) {
               <div className="flex items-center justify-between gap-2">
                 <Label>نص الرسالة</Label>
                 <div className="flex gap-2">
-                  <Button variant="Secondary" size="S" icon="plus" onClick={insertVar}>متغير</Button>
                   <Button variant="Secondary" size="S" onClick={bold}>غامق</Button>
                 </div>
               </div>
               <textarea ref={body} value={d.body} maxLength={BODY_MAX} rows={5} onChange={(e) => set('body', e.target.value)} aria-label="نص الرسالة"
-                placeholder={'هلا {{1}}، معك أحمد من فرق.\nيوصلنا طلبات تسعير {{2}} من مقاولين وشركات في {{3}}.'} className={`${field} min-h-[120px] resize-y border-2 border-[var(--color-border-primary)]`} />
+                placeholder={'هلا {{1}}،\n{{2}}'} className={`${field} min-h-[120px] resize-y border-2 border-[var(--color-border-primary)]`} />
               <span className="text-[12px] leading-[18px] text-[var(--color-text-tertiary)] tabular-nums">{d.body.length} / {BODY_MAX}</span>
             </div>
             {vars.length ? (
               <div className="flex flex-col gap-2">
-                <Label hint="(Meta تطلب مثال لكل متغير)">المتغيرات وأمثلتها</Label>
+                <Label hint="(هذه هي القيم الوحيدة التي تتبدل عند الإرسال)">المتغيرات وأمثلتها</Label>
                 {vars.map((v) => (
                   <label key={v} className="flex items-center gap-3 rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-4 py-2">
                     <span dir="ltr" className="shrink-0 font-medium text-[var(--color-text-info)]">{`{{${v}}}`}</span>

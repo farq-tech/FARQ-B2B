@@ -44,7 +44,7 @@ export function submitBlock(d: Omit<TemplateDraft, 'savedAt'>): string | null {
   if (d.header === 'IMAGE' || d.header === 'DOCUMENT') return 'رأس الصورة أو الملف يحتاج رفع مثال لـMeta — اختر «نص» أو «بدون»'
   if (d.header === 'TEXT' && !d.headerText.trim()) return 'اكتب نص الرأس أو اختر «بدون»'
   const vars = varsOf(d.body)
-  if (!vars.every((v, i) => +v === i + 1)) return 'رقّم المتغيرات بالترتيب: {{1}} ثم {{2}}…'
+  if (vars.join(',') !== '1,2') return 'كل قالب حملة يحتاج المتغيرين {{1}} لاسم المنشأة و{{2}} لنص الحملة'
   if (vars.some((v) => !(d.examples[v] || '').trim())) return 'اكتب مثال لكل متغير'
   return null
 }

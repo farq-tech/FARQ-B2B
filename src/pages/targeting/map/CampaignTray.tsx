@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { templateBody, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
+import { templateBody, templateFits, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
 import { scheduleCampaign } from '../../../api/scheduleClient'
 import { Badge, Button, Icon, Money } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
@@ -59,6 +59,7 @@ export default function CampaignTray(p: Props) {
   const hardStop = !at || (warn !== null && (warn.startsWith('اختر') || warn.startsWith('هذا الوقت وقت صلاة')))
   const body = templateBody(p.templates.find((t) => t.name === p.template) || { name: '', status: '' })
   const preview = previewOf(body || DEFAULT_TEMPLATE_BODY, p.message)
+  const compatibleTemplates = p.templates.filter((t) => t.name === OUTREACH_TEMPLATE || templateFits(t))
 
   async function schedule() {
     if (!at || busy) return
@@ -97,14 +98,20 @@ export default function CampaignTray(p: Props) {
             </div>
             <select id="campaign-template" value={p.template} onChange={(e) => p.onTemplate(e.target.value)} className={`rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] ${FOCUS_RING}`}>
               {p.templates.some((t) => t.name === OUTREACH_TEMPLATE) ? null : <option value={OUTREACH_TEMPLATE}>{OUTREACH_TEMPLATE}</option>}
-              {p.templates.map((t) => <option key={t.name} value={t.name}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{t.status === 'APPROVED' ? '' : ` — ${t.status}`}</option>)}
+              {compatibleTemplates.map((t) => <option key={t.name} value={t.name}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{t.status === 'APPROVED' ? '' : ` — ${t.status}`}</option>)}
             </select>
             {p.onPrepare ? <p className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر كل القوالب هنا. يمكن حفظ المسودة بأي قالب؛ لا يتاح الإرسال إلا بعد اعتماد القالب من ميتا.</p> : <>
-              <label className="flex flex-col rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
-                <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المنشأة}'}،</span>
-                <span className="sr-only">نص الرسالة</span>
+              <div className="flex flex-col gap-2 rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{'{{1}}'} اسم المنشأة</span>
+                  <input value="يتغير تلقائياً لكل مستلم" readOnly aria-label="اسم المنشأة يتغير تلقائياً" className="w-full bg-transparent text-[14px] leading-[22px] text-[var(--color-text-secondary)] outline-none" />
+                </label>
+                <label className="flex flex-col gap-1 border-t border-[var(--color-border-default)] pt-2 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
+                  <span className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">{'{{2}}'} نص الحملة</span>
+                  <span className="sr-only">نص الحملة</span>
                 <textarea value={p.message} onChange={(e) => p.onMessage(e.target.value)} rows={3} maxLength={900} className="w-full resize-none bg-transparent text-[15px] leading-[24px] outline-none" />
-              </label>
+                </label>
+              </div>
               <section data-testid="campaign-message-preview" aria-label="معاينة الرسالة قبل الإرسال" className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5">
                 <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">معاينة الرسالة قبل الإرسال</p>
                 <p className="mt-1 whitespace-pre-line text-[14px] leading-[22px]">{preview}</p>
