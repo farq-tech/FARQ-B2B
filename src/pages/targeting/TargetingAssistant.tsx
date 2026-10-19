@@ -33,7 +33,7 @@ export default function TargetingAssistant({ city, cityLabel, onUnderstand, onPr
     if (!text || understanding) return
     setUnderstanding(true); setReady(null); setError(null)
     try { setPlan(await onUnderstand(text)) }
-    catch { setPlan(null); setError('تعذّر تحليل الطلب الآن. تأكد من الاتصال ثم حاول مرة ثانية.') }
+    catch { setPlan(null); setError('تعذّر تحليل الطلب من دليل السوق الآن. حاول مرة ثانية.') }
     finally { setUnderstanding(false) }
   }
   const prepare = async () => {
