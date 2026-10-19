@@ -143,14 +143,18 @@ export const districtsFromNames = (names: { name: string }[]): District[] => nam
 })
 
 const norm = (s: string | null | undefined) => (s || '').replace(/^(حي|حى)\s+/, '').replace(/[ةه]$/, 'ه').replace(/[أإآ]/g, 'ا').trim()
-/** Is the row inside one of the chosen districts? A point uses its polygon; a row without a point (or a polygon) its district name. */
+/** Is the row inside a chosen district? Precise points use valid polygons; district names cover rows or districts without usable geometry. */
 export function inDistricts(r: TargetRow, chosen: District[]): boolean {
   if (!chosen.length) return false
-  if (hasPoint(r)) {
-    const poly = chosen.filter((d) => d.feature)
-    if (poly.length && poly.some((d) => inFeature(r.longitude!, r.latitude!, d))) return true
-  }
   const name = norm(safeLocationName(r.district_ar))
+  if (hasPoint(r)) {
+    const polygons = chosen.filter((d) => d.feature && d.bbox)
+    if (polygons.length && polygons.some((d) => inFeature(r.longitude!, r.latitude!, d))) return true
+    // A precise point outside a selected polygon must not be brought back by a stale district label.
+    // Name matching remains available only for selected districts without usable geometry.
+    const nameOnlyDistricts = polygons.length ? chosen.filter((d) => !d.feature || !d.bbox) : chosen
+    return Boolean(name) && nameOnlyDistricts.some((d) => norm(d.ar) === name)
+  }
   return Boolean(name) && chosen.some((d) => norm(d.ar) === name)
 }
 
