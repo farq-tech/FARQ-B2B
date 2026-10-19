@@ -81,6 +81,8 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual(result["total"], 1)
             self.assertEqual(result["rows"][0]["poi_key"], "wholesale")
             self.assertIs(result["rows"][0]["is_wholesale"], True)
+            self.assertEqual(result["rows"][0]["street_ar"], "طريق الملك فهد")
+            self.assertIs(result["rows"][0]["district_reliable"], True)
             db.close()
 
     def test_browse_applies_normalized_district_and_street_filters(self):
