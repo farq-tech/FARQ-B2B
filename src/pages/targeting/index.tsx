@@ -2273,13 +2273,16 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     : res && (buyerProductMode || Boolean(focus || site || chosenD.size))
       ? 'من النتائج المحمّلة بعد تضييق النطاق'
       : res ? 'إجمالي النتائج المطابقة للبحث والفلاتر' : 'ابدأ بحثاً لعرض المطابقات'
-  const scopeMetric = (label: string, value: string | number | null | undefined, note?: string, wide = false) => (
-    <div key={label} className={`min-w-0 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5 ${wide ? 'col-span-2' : ''}`}>
-      <dt className="text-[11px] leading-[17px] text-[var(--color-text-secondary)]">{label}</dt>
-      <dd className="m-0 mt-1 break-words text-[15px] leading-[21px] font-semibold tabular-nums">{value == null || value === '' ? '—' : typeof value === 'number' ? n(value) : value}</dd>
-      {note ? <p className="m-0 mt-1 text-[10px] leading-[15px] text-[var(--color-text-tertiary)]">{note}</p> : null}
-    </div>
-  )
+  const scopeMetric = (label: string, value: string | number | null | undefined, note?: string, wide = false, action?: { label: string; onClick: () => void }) => {
+    const content = <>
+      <span className="block text-[11px] leading-[17px] text-[var(--color-text-secondary)]">{label}</span>
+      <strong className="mt-1 block break-words text-[15px] leading-[21px] tabular-nums">{value == null || value === '' ? '—' : typeof value === 'number' ? n(value) : value}</strong>
+      {note ? <span className="mt-1 block text-[10px] leading-[15px] text-[var(--color-text-tertiary)]">{note}</span> : null}
+    </>
+    const shell = `min-w-0 rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5 ${wide ? 'col-span-2' : ''}`
+    return action ? <button key={label} type="button" aria-label={action.label} onClick={action.onClick} className={`${shell} text-right transition-colors hover:border-[var(--map-green)] hover:bg-[var(--color-bg-surface-2)] ${FOCUS_RING}`}>{content}</button>
+      : <div key={label} className={shell}>{content}</div>
+  }
   const mapScopePanel = (
     <section data-testid="map-scope-insights" className="flex flex-col gap-3 border-b border-[var(--color-border-default)] px-4 py-3" aria-label={`تحليل السوق: ${scopeLabel}`}>
       <div className="flex items-start justify-between gap-2">
@@ -2296,8 +2299,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           <dl className="m-0 grid grid-cols-2 gap-2">
             {scopeMetric('إجمالي المنشآت', cityOverviewStats.total, 'حجم الدليل في المدينة')}
             {scopeMetric('الأحياء المغطاة', displayedDistrictCount(cityOverviewStats), 'أحياء لها سجلات موثوقة')}
-            {scopeMetric('التصنيف الأكثر انتشاراً', cityOverviewStats.main_activities?.[0]?.main_ar || 'غير متاح حالياً', cityOverviewStats.main_activities?.[0] ? `${n(cityOverviewStats.main_activities[0].n)} سجل مصنّف` : 'لم يصل توزيع أنشطة المدينة', true)}
-            {scopeMetric('أكبر حي', cityOverviewStats.top_districts?.[0]?.district_ar || null, cityOverviewStats.top_districts?.[0] ? `${n(cityOverviewStats.top_districts[0].n)} منشأة مسجلة` : 'لا تتوفر بيانات أحياء', true)}
+            {scopeMetric('التصنيف الأكثر انتشاراً', cityOverviewStats.main_activities?.[0]?.main_ar || 'غير متاح حالياً', cityOverviewStats.main_activities?.[0] ? `${n(cityOverviewStats.main_activities[0].n)} سجل مصنّف` : 'لم يصل توزيع أنشطة المدينة', true, cityOverviewStats.main_activities?.[0] ? { label: `تصفية الخريطة حسب ${cityOverviewStats.main_activities[0].main_ar}` , onClick: () => { recordMapInteraction('map_city_summary_activity_select'); selectMainFromCounter(cityOverviewStats.main_activities![0].main_id) } } : undefined)}
+            {scopeMetric('أكبر حي', cityOverviewStats.top_districts?.[0]?.district_ar || null, cityOverviewStats.top_districts?.[0] ? `${n(cityOverviewStats.top_districts[0].n)} منشأة مسجلة` : 'لا تتوفر بيانات أحياء', true, cityOverviewStats.top_districts?.[0] ? { label: `اختيار حي ${cityOverviewStats.top_districts[0].district_ar} على الخريطة`, onClick: () => { const district = cityOverviewStats.top_districts![0]; const id = districts.find((item) => normalizeActivityText(item.ar) === normalizeActivityText(district.district_ar))?.id || `name:${district.district_ar}`; selectDistrictFromScope(id) } } : undefined)}
             {scopeMetric('ضمن الفلاتر الحالية', scopedMatchCount, scopedMatchNote, true)}
           </dl>
           {cityOverviewStats.main_activities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أنشطة بارزة: {cityOverviewStats.main_activities.slice(0, 3).map((activity) => `${activity.main_ar} (${n(activity.n)})`).join(' · ')}</p> : <p role="status" className="m-0 flex flex-wrap items-center gap-2 text-[11px] leading-[17px] text-[var(--color-text-secondary)]"><span>تعذّر عرض توزيع أنشطة المدينة حالياً.</span><button type="button" onClick={() => { recordMapInteraction('market_summary_retry'); setCityOverviewRetry((retry) => retry + 1) }} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></p>}
@@ -2314,7 +2317,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
                 ? scopeMetric('إجمالي المنشآت في الحي', district.total, `${n(district.classified)} مصنّف · تغطية ${n(district.classification_pct)}٪`)
                 : scopeMetric('السجلات المصنفة في الحي', district.classified, 'إجمالي الدليل قيد التحقق؛ لا نعرض نسبة تغطية غير مؤكدة')}
               {scopeMetric('الشوارع الظاهرة بالكثافة', new Set(streetPool.map((street) => street.props.street_ar)).size, 'حسب طبقة النشاط الحالية')}
-              {scopeMetric('التصنيف الأكثر انتشاراً', district.dominant_activity?.main_ar || null, district.dominant_activity ? `${n(district.dominant_activity.n)} سجل` : 'لا توجد بيانات مصنّفة', true)}
+              {scopeMetric('التصنيف الأكثر انتشاراً', district.dominant_activity?.main_ar || null, district.dominant_activity ? `${n(district.dominant_activity.n)} سجل` : 'لا توجد بيانات مصنّفة', true, district.dominant_activity ? { label: `تصفية خريطة حي ${district.district_ar} حسب ${district.dominant_activity.main_ar}`, onClick: () => { recordMapInteraction('map_district_activity_select'); selectMainFromCounter(district.dominant_activity!.main_id) } } : undefined)}
               {scopeMetric('أكثف شارع بهذا النشاط', densest?.props.street_ar || null, densest ? `${formatNumber(densest.props.per_100m, { maximumFractionDigits: 1 })} منشأة لكل 100 م` : 'اختر نشاطاً لعرض كثافة الشوارع', true)}
               {scopeMetric(scopedMatchLabel, scopedMatchCount, scopedMatchNote, true)}
             </dl>
