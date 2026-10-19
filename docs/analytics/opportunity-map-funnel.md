@@ -1835,3 +1835,130 @@ ORDER BY week_utc DESC, search_type, failure_cause;
 ```
 
 The cause is a coarse diagnostic, not proof of the upstream root cause: for example, a server response can originate from a gateway or a dependency. Compare aggregate counts with service-side logs for the same period. Consent is required, so this does not represent all attempts or all users; keep internal QA separate from customer usage.
+
+## Search outcomes by attempt
+
+The session-level search funnel above counts a consenting tab session once. If the same session runs more than one search, it can associate later map actions with the first search. Use this attempt-level query when comparing buyer and supplier search outcomes. Each `search_started` event opens an attempt; its result and follow-up map actions are attributed only until the next search starts in the same tab session. It returns aggregate counts and does not expose session IDs or search text.
+
+```sql
+WITH map_events AS (
+  SELECT id, session_id, occurred_at, element_label
+  FROM public.analytics_events
+  WHERE occurred_at >= now() - interval '56 days'
+    AND event_type = 'click'
+    AND path = '/opportunity-map'
+    AND session_id IS NOT NULL
+    AND element_label IN (
+      'pricing_map_map_supplier_search_started',
+      'pricing_map_map_buyer_search_started',
+      'pricing_map_map_supplier_search_results_empty',
+      'pricing_map_map_supplier_search_results_1_4',
+      'pricing_map_map_supplier_search_results_5_plus',
+      'pricing_map_map_supplier_search_failed',
+      'pricing_map_map_buyer_search_results_empty',
+      'pricing_map_map_buyer_search_results_1_4',
+      'pricing_map_map_buyer_search_results_5_plus',
+      'pricing_map_map_buyer_search_failed',
+      'pricing_map_map_results_shortcut_seen',
+      'pricing_map_map_results_jump',
+      'pricing_map_map_profile_open',
+      'pricing_map_map_result_profile_open',
+      'pricing_map_map_profile_quote_start'
+    )
+), search_starts AS (
+  SELECT
+    id AS attempt_id,
+    session_id,
+    occurred_at AS started_at,
+    CASE element_label
+      WHEN 'pricing_map_map_supplier_search_started' THEN 'supplier'
+      ELSE 'buyer'
+    END AS search_type,
+    lead(id) OVER (PARTITION BY session_id ORDER BY id) AS next_attempt_id
+  FROM map_events
+  WHERE element_label IN (
+    'pricing_map_map_supplier_search_started',
+    'pricing_map_map_buyer_search_started'
+  )
+), attempts AS (
+  SELECT
+    s.attempt_id,
+    s.session_id,
+    s.started_at,
+    s.search_type,
+    (array_agg(e.element_label ORDER BY e.id) FILTER (
+      WHERE e.element_label IN (
+        'pricing_map_map_supplier_search_results_empty',
+        'pricing_map_map_supplier_search_results_1_4',
+        'pricing_map_map_supplier_search_results_5_plus',
+        'pricing_map_map_supplier_search_failed',
+        'pricing_map_map_buyer_search_results_empty',
+        'pricing_map_map_buyer_search_results_1_4',
+        'pricing_map_map_buyer_search_results_5_plus',
+        'pricing_map_map_buyer_search_failed'
+      )
+    ))[1] AS outcome_label,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_results_shortcut_seen'
+    ) AS shortcut_seen_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_results_jump'
+    ) AS results_jump_id,
+    min(e.id) FILTER (
+      WHERE e.element_label IN (
+        'pricing_map_map_profile_open',
+        'pricing_map_map_result_profile_open'
+      )
+    ) AS profile_open_id,
+    min(e.id) FILTER (
+      WHERE e.element_label = 'pricing_map_map_profile_quote_start'
+    ) AS quote_start_id
+  FROM search_starts s
+  LEFT JOIN map_events e
+    ON e.session_id = s.session_id
+    AND e.id > s.attempt_id
+    AND (s.next_attempt_id IS NULL OR e.id < s.next_attempt_id)
+  GROUP BY s.attempt_id, s.session_id, s.started_at, s.search_type
+), labeled_attempts AS (
+  SELECT
+    date_trunc('week', started_at AT TIME ZONE 'UTC') AS week_utc,
+    session_id,
+    search_type,
+    CASE outcome_label
+      WHEN 'pricing_map_map_supplier_search_results_empty' THEN 'zero'
+      WHEN 'pricing_map_map_buyer_search_results_empty' THEN 'zero'
+      WHEN 'pricing_map_map_supplier_search_results_1_4' THEN '1–4'
+      WHEN 'pricing_map_map_buyer_search_results_1_4' THEN '1–4'
+      WHEN 'pricing_map_map_supplier_search_results_5_plus' THEN '5+'
+      WHEN 'pricing_map_map_buyer_search_results_5_plus' THEN '5+'
+      WHEN 'pricing_map_map_supplier_search_failed' THEN 'failed'
+      WHEN 'pricing_map_map_buyer_search_failed' THEN 'failed'
+      ELSE 'no recorded outcome'
+    END AS result_bucket,
+    shortcut_seen_id,
+    results_jump_id,
+    profile_open_id,
+    (quote_start_id IS NOT NULL AND profile_open_id IS NOT NULL
+      AND quote_start_id > profile_open_id) AS quote_after_profile
+  FROM attempts
+)
+SELECT
+  week_utc,
+  search_type,
+  result_bucket,
+  count(*) AS search_attempts,
+  count(DISTINCT session_id) AS consenting_sessions,
+  count(*) FILTER (WHERE shortcut_seen_id IS NOT NULL) AS attempts_with_results_shortcut,
+  count(*) FILTER (WHERE results_jump_id IS NOT NULL) AS attempts_with_results_jump,
+  count(*) FILTER (WHERE profile_open_id IS NOT NULL) AS attempts_with_profile_open,
+  count(*) FILTER (WHERE quote_after_profile) AS attempts_with_quote_start_after_profile,
+  round(100.0 * count(*) FILTER (WHERE profile_open_id IS NOT NULL)
+    / nullif(count(*), 0), 1) AS attempt_to_profile_pct,
+  round(100.0 * count(*) FILTER (WHERE quote_after_profile)
+    / nullif(count(*) FILTER (WHERE profile_open_id IS NOT NULL), 0), 1) AS profile_to_quote_start_pct
+FROM labeled_attempts
+GROUP BY 1, 2, 3
+ORDER BY week_utc DESC, search_type, result_bucket;
+```
+
+The per-attempt boundary uses event IDs within the consenting session; search requests superseded by a newer request do not emit a result outcome. These are navigation counts, not proof that results were relevant, a profile was accurate, or a quote was sent. Wait for two complete weeks and at least 30 consenting sessions for each search type, with attempts spread across sessions, before treating the rates as directional. Keep internal QA separate from customer behavior.
