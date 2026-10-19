@@ -157,7 +157,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   // hand-offs from «هدف جديد» pages (memory only); the default is «بائعون»
   const [objective, setObjective] = useState<'purchase' | 'marketing'>(() => (handoff.take(HANDOFF.targetDirection) === 'marketing' ? 'marketing' : 'purchase'))
-  const [lens, setLens] = useState<'market' | 'sellers' | 'buyers'>(() => (objective === 'marketing' ? 'buyers' : 'market'))
+  const [lens, setLens] = useState<'market' | 'sellers' | 'buyers'>(() => (objective === 'marketing' ? 'buyers' : 'sellers'))
   const lensTabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [q, setQ] = useState(() => handoff.take(HANDOFF.targetQuery) || '')
   const generation = useRef(0)
@@ -381,6 +381,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   // Opening the page starts with one decision. The map tools appear only after the user picks a goal.
   const [startOpen, setStartOpen] = useState(true)
+  // City totals are useful only when the user explicitly opens market exploration.
+  // A buying or selling task starts with its own query, not a city-wide dashboard.
+  const [marketExploration, setMarketExploration] = useState(false)
   const [startSeen, setStartSeen] = useState(startNew)
   if (startNew !== startSeen) { setStartSeen(startNew); if (startNew) setStartOpen(true) }
   const closeStart = () => { setStartOpen(false); if (startNew) onStartClosed?.() }
@@ -856,16 +859,20 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
 
   const chooseLens = (value: 'market' | 'sellers' | 'buyers') => {
-    if (value === lens) return
+    if (value === lens) {
+      if (value === 'market') setMarketExploration(true)
+      return
+    }
     recordMapInteraction(`map_lens_${value}`)
     if (value === 'market') {
       const geographicFilters = { ...areaFiltersRef.current }
       const selectedStreet = activeStreet
-      resetAll(); setAreaFilters(geographicFilters); setActiveStreet(selectedStreet); setQuery(''); setQ(''); setLens('market'); setTab('guide')
+      resetAll(); setAreaFilters(geographicFilters); setActiveStreet(selectedStreet); setQuery(''); setQ(''); setMarketExploration(true); setLens('market'); setTab('guide')
       void loadBrowse(city, geographicFilters)
       return
     }
     const nextObjective = value === 'buyers' ? 'marketing' : 'purchase'
+    setMarketExploration(false)
     setObjective(nextObjective)
     if (q.trim() && city) {
       // Keep the user's current phrase in sync with the direction they just chose.
@@ -1315,6 +1322,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
    */
   async function runSearchIn(text: string, inCity: string, next?: AreaFilters, obj: typeof objective = objective, initial?: AreaFilters, keepStreets = false): Promise<number | null> {
     if (!text || !inCity) return null
+    setMarketExploration(false)
     setLens(obj === 'marketing' ? 'buyers' : 'sellers')
     setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
     const version = ++generation.current
@@ -1402,8 +1410,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     specialtyFocusResolution.current++
     setQ(''); setQuery(''); setAreaFilters({}); setChosenD(new Set()); setMapScope('city'); setStreetPick({ kind: 'all' })
     setActiveStreet(null); setFocus(null); setLayer('main'); setSite(null); setPlacingSite(false); setShowUnlocated(false)
-    setLens(objective === 'marketing' ? 'buyers' : 'market')
-    setTab(objective === 'marketing' ? 'results' : 'guide')
+    const exploreCity = objective !== 'marketing'
+    setMarketExploration(exploreCity)
+    setLens(exploreCity ? 'market' : 'buyers')
+    setTab(exploreCity ? 'guide' : 'results')
     setLayersOpen(false); setError(null); setFailedResultRefresh(false)
     fitCity()
     void loadBrowse(city, {})
@@ -1508,6 +1518,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   /** «أبي أبيع منتجاتي»: confirmed specialties become search lines on the buyers' side; the first one runs now. */
   const startSelling = (names: string[], files: string[] = []) => {
     closeStart()
+    setMarketExploration(false)
     saveRequest(files.length ? 'SELLER_CATALOG' : 'SELLER_PRODUCTS', `أبيع: ${names.slice(0, 3).join('، ')}${names.length > 3 ? '…' : ''}`, names, files)
     resetAll()
     setObjective('marketing')
@@ -1518,11 +1529,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   const beginBuyerFlow = (browse: boolean) => {
     if (lens === 'sellers' && objective === 'purchase') return
-    resetAll(); setQ(''); setQuery(''); setObjective('purchase'); setLens('sellers'); setTab('results')
+    resetAll(); setQ(''); setQuery(''); setMarketExploration(false); setObjective('purchase'); setLens('sellers'); setTab('results')
     if (browse) void loadBrowse(city)
   }
   const setStartDirection = (direction: 'buy' | 'sell') => {
-    resetAll(); setQ(''); setQuery(''); setObjective(direction === 'sell' ? 'marketing' : 'purchase'); setLens(direction === 'sell' ? 'buyers' : 'sellers'); setTab('results')
+    resetAll(); setQ(''); setQuery(''); setMarketExploration(false); setObjective(direction === 'sell' ? 'marketing' : 'purchase'); setLens(direction === 'sell' ? 'buyers' : 'sellers'); setTab('results')
     void loadBrowse(city)
   }
   const startSheet = startOpen ? (
@@ -1530,8 +1541,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       onDirectionChange={setStartDirection}
       onBooklet={() => { beginBuyerFlow(false); fileInput.current?.click(); closeStart() }}
       onBuySearch={() => { beginBuyerFlow(true); closeStart(); requestAnimationFrame(() => input.current?.focus()) }}
-      onExplore={() => { closeStart(); if (lens !== 'market') chooseLens('market') }}
-      onTarget={() => { closeStart(); setObjective('marketing'); setLens('buyers'); setAssistantOpen(true) }}
+      onExplore={() => {
+        closeStart()
+        setMarketExploration(true)
+        if (lens !== 'market') chooseLens('market')
+        else { setTab('guide'); void loadBrowse(city, areaFiltersRef.current) }
+      }}
+      onTarget={() => { closeStart(); setMarketExploration(false); setObjective('marketing'); setLens('buyers'); setAssistantOpen(true) }}
       onSellLines={startSelling} />
   ) : null
   const fileField = (
@@ -2604,6 +2620,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     }
     setQ('')
     setQuery('')
+    setMarketExploration(true)
     applyCategoryCampaignPreset(mainId)
     setLens('market')
     setAreaFilters(scopeFilters)
@@ -2626,6 +2643,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     }
     setQ('')
     setQuery('')
+    setMarketExploration(true)
     applyCategoryCampaignPreset(mainId)
     setLens('market')
     setAreaFilters(scopeFilters)
@@ -2663,6 +2681,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     }
     setQ('')
     setQuery('')
+    setMarketExploration(true)
     setLens('market')
     setFocus(null)
     setStreetPick({ kind: 'all' })
@@ -2676,6 +2695,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     void loadBrowse(city, scopeFilters, true)
     setTab('guide')
   }
+  const showMarketContext = marketExploration && lens === 'market' && !hasTargetQuery
   const marketGuide = <GuideTree guide={res ? guide : []} focus={focus} onFocus={pickFocus} empty={res ? 'ما فيه أنشطة هنا. اختر حياً فيه منشآت.' : 'اختر نشاطاً من قائمة الشوارع أو ابحث عن منشآت، ثم تصفّح الأنشطة والتخصصات هنا.'} mobile={mobile} />
   const panelContent = lens === 'market'
     ? tab === 'guide' ? marketGuide : mobile && tab === 'results' ? resultsBody : marketPanel
@@ -2685,7 +2705,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{targetResultsPanel}</>
     ) : marketGuide}
   </>
-  const panelBody = <>{mapScopePanel}{fitLegend}{mapScope === 'district' ? null : districtInsightPanel}{panelContent}</>
+  const panelBody = <>{showMarketContext ? <>{mapScopePanel}{fitLegend}{mapScope === 'district' ? null : districtInsightPanel}</> : null}{panelContent}</>
 
   // ---------- the map with its floating controls
   const fallbackChips = !hasPolys && polys !== null && districts.length ? (
@@ -2953,7 +2973,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         {linesPanel}
         {fileField}
         {lens !== 'market' ? <StepStrip current={step} mobile /> : null}
-        <Counters items={displayCounters} compact selectedMainId={selectedMainId} selectedCounterKey={selectedSummaryCounterKey} onActivitySelect={selectMainFromCounter} onCounterSelect={selectSummaryCounter} />
+        {showMarketContext ? <Counters items={displayCounters} compact selectedMainId={selectedMainId} selectedCounterKey={selectedSummaryCounterKey} onActivitySelect={selectMainFromCounter} onCounterSelect={selectSummaryCounter} /> : null}
         {tray}
         {noticeLine}
         <section ref={resultsPanelRef} aria-label="النتائج والدليل" className={`${mobile ? 'map-compact-results-panel ' : ''}-mx-4 flex flex-col bg-[var(--color-bg-surface)] scroll-mt-3`}>
@@ -3020,7 +3040,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             <Button type="button" variant="Secondary" size="S" aria-expanded="false" aria-controls="targeting-results-panel" onClick={() => { setResultsPanelOpen(true); recordMapInteraction('map_results_panel_show') }}>عرض النتائج والدليل</Button>
           </div> : null}
           {lens !== 'market' ? <StepStrip current={step} mobile={false} /> : null}
-          <Counters items={displayCounters} selectedMainId={selectedMainId} selectedCounterKey={selectedSummaryCounterKey} onActivitySelect={selectMainFromCounter} onCounterSelect={selectSummaryCounter} />
+          {showMarketContext ? <Counters items={displayCounters} selectedMainId={selectedMainId} selectedCounterKey={selectedSummaryCounterKey} onActivitySelect={selectMainFromCounter} onCounterSelect={selectSummaryCounter} /> : null}
           {mapBlock}
           {noticeLine}
           {tray}
