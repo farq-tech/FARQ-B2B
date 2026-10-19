@@ -79,6 +79,44 @@ async function companyProfileApi(page: Page, mode: 'on' | 'off') {
 test.describe('desktop 1440', () => {
   test.use({ viewport: { width: 1440, height: 1000 } })
 
+  test('selection becomes a saved review list before any commercial action', async ({ page }) => {
+    const { writes } = await setup(page, { at: ksa(2026, 10, 15, 10) })
+    const created: Record<string, unknown>[] = []
+    await page.route('**/_api/api/business/context', (route) => route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } }))
+    await page.route('**/_api/api/business/opportunity-requests**', (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as Record<string, unknown>
+        created.push(body)
+        return route.fulfill({ json: { ok: true, data: { request: { id: 'review-1', ...body, organizationId: 'org-1', createdBy: 'qa-user', status: 'ACTIVE', hidden: false, createdAt: new Date().toISOString() } } } })
+      }
+      return route.fulfill({ json: { ok: true, data: { requests: [] } } })
+    })
+    await page.goto('/opportunity-map')
+    await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: 'إغلاق' }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'قائمة مراجعة الجهات' })).toBeVisible()
+    await page.getByRole('checkbox', { name: /أضف محلات الزل للأقمشة إلى قائمة المراجعة/ }).check()
+    const tray = page.getByLabel('قائمة المراجعة المختارة')
+    await expect(tray).toContainText('الحفظ لا يرسل شيئاً')
+    await tray.getByRole('button', { name: 'حفظ القائمة' }).click()
+    await expect.poll(() => created.length).toBe(1)
+    expect(created[0]).toMatchObject({ kind: 'SEARCH', payload: { filters: { review: true, source: 'OPPORTUNITY_MAP', objective: 'purchase', selectedCount: 1 } } })
+    expect(writes).toEqual([])
+  })
+
+  test('targeting assistant is available from the task chooser and does not send while analysing', async ({ page }) => {
+    const { writes } = await setup(page, { at: ksa(2026, 10, 15, 10) })
+    await page.goto('/opportunity-map')
+    await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: 'استهدف جهات' }).click()
+    const dialog = page.getByRole('dialog', { name: 'استهداف ذكي' })
+    await expect(dialog).toBeVisible()
+    await dialog.getByLabel('طلب الاستهداف').fill('استهدف 30 شركة مقاولات في الرياض للتعريف بفرق')
+    await dialog.getByRole('button', { name: 'حلّل طلبي' }).click()
+    await expect(dialog.getByText(/سأستهدف شركات المقاولات/)).toBeVisible()
+    expect(writes).toEqual([])
+  })
+
   test('vocabulary, market suggestion, popular cluster name, Saudi badge, riyal, prayer note', async ({ page }) => {
     // Thursday 15 Oct 2026, 15:05 Riyadh: inside Asr's window (Asr ≈ 2:58 م + 25 min)
     const { searches, writes } = await setup(page, { at: ksa(2026, 10, 15, 15, 5) })
