@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { waNumber, type TargetRow } from '../../api/targetingClient'
+import type { TargetRow } from '../../api/targetingClient'
 import { Badge, Button } from '../../ui'
 import { FOCUS_RING } from '../../ui/cx'
 import { completenessOf, hasPoint, safeName } from './map/model'
@@ -75,11 +75,13 @@ export default function ReviewList({ rows, shown, total, query, district, street
         {visible.map(({ row }) => {
           const state = dataState(row)
           const selectedNow = selected.has(row.poi_key)
-          const canChoose = Boolean(waNumber(row))
+          // A review list is useful before we know whether a contact channel is
+          // available. WhatsApp eligibility is checked only when making a campaign.
+          const canChoose = true
           const completion = completenessOf(row)
           return <li key={row.poi_key} className="border-b border-[var(--color-border-default)] px-4 py-3">
             <div className="flex items-start gap-3">
-              <input type="checkbox" checked={selectedNow} disabled={disabled || !canChoose} onChange={() => onToggle(row)} aria-label={`أضف ${safeName(row)} إلى قائمة المراجعة`} title={canChoose ? undefined : 'لا توجد إشارة واتساب برقم صالح'} className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
+              <input type="checkbox" checked={selectedNow} disabled={disabled || !canChoose} onChange={() => onToggle(row)} aria-label={`أضف ${safeName(row)} إلى قائمة المراجعة`} className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
               <button type="button" disabled={disabled} onClick={() => onOpen(row)} className={`min-w-0 flex-1 text-start disabled:opacity-60 ${FOCUS_RING}`}>
                 <span className="block truncate text-[15px] leading-[24px] font-semibold">{safeName(row)}</span>
                 <span className="mt-0.5 block text-[12px] leading-[19px] text-[var(--color-text-secondary)]">لماذا ظهرت: {reasonFor(row, query, district, street)}</span>

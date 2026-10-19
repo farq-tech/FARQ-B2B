@@ -30,6 +30,7 @@ import GuideTree from './map/GuideTree'
 import ProfileDrawer from './map/ProfileDrawer'
 import CampaignTray from './map/CampaignTray'
 import ReviewList from './ReviewList'
+import ReviewSelectionTray from './ReviewSelectionTray'
 import StepStrip from './map/StepStrip'
 import MapLegend from './map/MapLegend'
 import { fitOf, type PinFit } from './map/model'
@@ -769,6 +770,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     return c ? [c.lon - 0.15, c.lat - 0.12, c.lon + 0.15, c.lat + 0.12] : null
   }, [rows, city])
   const chosen = useMemo(() => [...selected].map((key) => selectedRows.get(key)).filter((row): row is TargetRow => Boolean(row)), [selected, selectedRows])
+  const campaignChosen = useMemo(() => chosen.filter((row) => Boolean(waNumber(row))), [chosen])
   const truncated = res ? rows.length < res.total : false
   const hasAiInVisibleCohort = visibleCohort.some((row) => Boolean(row.ai))
   const waInCohort = counters.whatsapp
@@ -1161,6 +1163,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   // «طلباتي»: a start that read something is saved as a request (references only, never file contents)
   const [savedTick, setSavedTick] = useState(0)
+  const [savingReviewList, setSavingReviewList] = useState(false)
   function saveRequest(kind: OpportunityRequestKind, title: string, products: string[], fileRefs: string[]) {
     const cityAr = cities.find((c) => c.en === city)?.ar || city || undefined
     createOpportunityRequest({ kind, title, payload: { city: cityAr, products: products.slice(0, 60).map((p) => p.slice(0, 200)), ...(fileRefs.length ? { fileRefs: fileRefs.slice(0, 20).map((f) => f.slice(0, 200)) } : {}) } })
@@ -1182,6 +1185,36 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     })
     setSavedTick((tick) => tick + 1)
     return draft
+  }
+  async function saveReviewList() {
+    if (!chosen.length || savingReviewList) return
+    setSavingReviewList(true)
+    try {
+      const draft = await createOpportunityRequest({
+        kind: 'SEARCH',
+        title: `قائمة مراجعة · ${query.trim() || `سوق ${cityName(city)}`}`,
+        payload: {
+          city: cityName(city),
+          query: query.trim(),
+          products: chosen.map((row) => safeName(row)).filter(Boolean).slice(0, 60),
+          filters: { review: true, source: 'OPPORTUNITY_MAP', objective, selectedCount: chosen.length, selectedKeys: chosen.map((row) => row.poi_key).filter(Boolean).slice(0, 300) },
+        },
+      })
+      setSavedTick((tick) => tick + 1)
+      setNotice(`حُفظت قائمة المراجعة لـ ${n(chosen.length)} جهة. تلقاها في «طلباتي».`)
+      window.history.replaceState(null, '', `/opportunity-map#review=${encodeURIComponent(draft.id)}`)
+    } catch (err) {
+      setNotice(err instanceof Error && err.message ? err.message : 'تعذّر حفظ قائمة المراجعة. حاول بعد شوي.')
+    } finally { setSavingReviewList(false) }
+  }
+  function prepareQuoteFromReviewList() {
+    if (!chosen.length || !onRfq || busy || failedResultRefresh) return
+    writeLocal('purchase-seed', {
+      lines: query.trim() ? [{ name: query.trim(), qty: '', unit: '' }] : [],
+      city: cityName(city),
+      targets: chosen,
+    })
+    onRfq()
   }
 
   async function onBooklet(files: File[]) {
@@ -1915,7 +1948,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   ) : null
 
   const toggle = (r: TargetRow) => {
-    if (busy || failedResultRefresh || !waNumber(r)) return
+    if (busy || failedResultRefresh) return
     recordMapInteraction(selected.has(r.poi_key) ? 'map_supplier_remove' : 'map_supplier_add')
     setPreparedCampaignId(null)
     setSelected((s) => { const x = new Set(s); if (x.has(r.poi_key)) x.delete(r.poi_key); else x.add(r.poi_key); return x })
@@ -1956,16 +1989,14 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : selectedTemplate && !templateFits(selectedTemplate) ? 'اختر قالباً معتمداً ومهيأ للإرسال' : missingTemplateValue ? `أدخل ${missingTemplateValue === 3 ? 'الكمية' : missingTemplateValue === 4 ? 'موقع أو موعد التوريد' : `المتغير ${missingTemplateValue}`}` : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && t.status === 'APPROVED') ? 'القالب غير معتمد من Meta' : null
   const marketingBlock = null
   const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
-  const sendBlock = objective === 'marketing'
-    ? refreshBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
-    : refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
-  const scheduleBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
-  const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
+  const sendBlock = refreshBlock || (!campaignChosen.length ? 'اختر جهة واحدة لديها رقم واتساب صالح أولاً.' : templateBlock)
+  const scheduleBlock = refreshBlock || marketingBlock || (!campaignChosen.length ? 'اختر جهة واحدة لديها رقم واتساب صالح أولاً.' : templateBlock)
+  const cost = price != null ? (campaignChosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
   const templateBadge = approved || template !== OUTREACH_TEMPLATE ? { tone: 'Success' as const, label: 'قالب واتساب معتمد' } : tpl ? { tone: 'Warning' as const, label: `القالب: ${tpl.status}` } : tplError ? { tone: 'Danger' as const, label: 'حالة القالب غير معروفة' } : null
   const saveDraft = async () => {
-    const draft = await saveMarketingDraft('manual-review', chosen, `حملة واتساب · ${query.trim() || 'استهداف منشآت'}`)
+    const draft = await saveMarketingDraft('manual-review', campaignChosen, `حملة واتساب · ${query.trim() || 'استهداف منشآت'}`)
     setConfirming(false)
-    setNotice(`حُفظت المسودة لـ ${n(chosen.length)} جهة. تلقاها في الطلبات ضمن «مسودات».`)
+    setNotice(`حُفظت المسودة لـ ${n(campaignChosen.length)} جهة. تلقاها في الطلبات ضمن «مسودات».`)
     window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
   }
 
@@ -2076,8 +2107,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
 
   const prepareWhatsAppCampaign = async () => {
-    if (preparingMarketing || !chosen.length) return
-    const phones = chosen.map(waNumber).filter((phone): phone is string => Boolean(phone))
+    if (preparingMarketing || !campaignChosen.length) return
+    const phones = campaignChosen.map(waNumber).filter((phone): phone is string => Boolean(phone))
     if (!phones.length) return
     setPreparingMarketing(true)
     try {
@@ -2088,7 +2119,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         consentRecordedAt: new Date().toISOString(),
         consentSource: 'موافقة مسبقة أعلنها مالك الحملة عند إعداد الدفعة',
       })
-      const draft = await saveMarketingDraft(campaign.id, chosen, `حملة واتساب · ${query || 'استهداف السوق'}`)
+      const draft = await saveMarketingDraft(campaign.id, campaignChosen, `حملة واتساب · ${query || 'استهداف السوق'}`)
       setPreparedCampaignId(campaign.id)
       setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. تلقاها في الطلبات ضمن «مسودات».`)
       window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
@@ -2098,12 +2129,12 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
 
   const resultCard = (r: TargetRow) => {
-    const ch = channelOf(r), can = ch === 'WhatsAppSource', on = selected.has(r.poi_key), name = safeName(r)
+    const ch = channelOf(r), can = true, on = selected.has(r.poi_key), name = safeName(r)
     const locationNotes = [!hasPoint(r) ? (site ? 'موقع تقريبي · المسافة غير معروفة' : 'موقع تقريبي') : null, r.district_reliable === false ? 'الحي غير مؤكد' : null].filter(Boolean)
     return (
       <li key={r.poi_key} data-key={r.poi_key} onPointerEnter={(event) => { if (event.pointerType === 'mouse' && hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} onFocusCapture={() => { if (hasPoint(r)) setHighlightedPinKey(r.poi_key) }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHighlightedPinKey((key) => key === r.poi_key ? null : key) }} className="border-b border-[var(--color-border-default)]">
         <div className={`flex flex-row items-start gap-3 px-4 py-3 ${profile === r.poi_key ? 'bg-[var(--color-bg-surface-2)]' : 'hover:bg-[var(--color-bg-surface-2)]'}`}>
-          <input type="checkbox" checked={on} disabled={!can || busy || failedResultRefresh} onChange={() => toggle(r)} aria-label={`اختر ${name} للحملة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : failedResultRefresh ? 'أعد تحديث النتائج قبل اختيار المنشآت' : can ? undefined : ch === 'Email' ? 'الحملة على واتساب فقط' : 'لا توجد إشارة واتساب برقم صالح'}
+          <input type="checkbox" checked={on} disabled={!can || busy || failedResultRefresh} onChange={() => toggle(r)} aria-label={`أضف ${name} إلى قائمة المراجعة`} title={busy ? 'انتظر اكتمال تحديث النتائج' : failedResultRefresh ? 'أعد تحديث النتائج قبل اختيار المنشآت' : undefined}
             className={`mt-1 size-5 shrink-0 accent-[var(--map-ink)] disabled:opacity-50 ${FOCUS_RING}`} />
           <button type="button" disabled={busy || failedResultRefresh} onClick={() => { recordMapInteraction('map_profile_open'); recordMapInteraction('map_result_profile_open'); recordMapInteraction(mapResultProfileOpenEvent(objective)); setProfile(r.poi_key) }} className={`flex min-w-0 flex-1 flex-col gap-1 text-start disabled:cursor-wait disabled:opacity-60 ${FOCUS_RING}`}>
             <span className={`truncate text-[15px] leading-[24px] font-semibold ${ch === 'Unreachable' ? 'text-[var(--color-text-secondary)]' : ''}`}>{name}</span>
@@ -2756,12 +2787,15 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   )
 
   const tray = chosen.length ? (
-    <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage} templateValues={templateValues} onTemplateValues={(values) => { setTemplateValues(values); setPreparedCampaignId(null) }}
+    <div className="flex flex-col gap-3">
+      <ReviewSelectionTray mobile={mobile} count={chosen.length} objective={objective} saving={savingReviewList} onSave={() => void saveReviewList()} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onCreateRfq={objective === 'purchase' ? prepareQuoteFromReviewList : undefined} />
+      {objective === 'marketing' && campaignChosen.length ? <CampaignTray mobile={mobile} count={campaignChosen.length} keys={campaignChosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage} templateValues={templateValues} onTemplateValues={(values) => { setTemplateValues(values); setPreparedCampaignId(null) }}
       template={template} onTemplate={(next) => { setTemplate(next); setPreparedCampaignId(null) }} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
-      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onPrepare={objective === 'marketing' ? () => void prepareWhatsAppCampaign() : undefined} onOpenLeads={onLeads} openRequest={draftOpenRequest} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} />
+      city={city} showTiming={false} onSend={() => setConfirming(true)} onPrepare={() => void prepareWhatsAppCampaign()} onOpenLeads={onLeads} openRequest={draftOpenRequest} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} /> : null}
+    </div>
   ) : null
   const confirmSheet = confirming && holder ? (
-    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} templateValues={templateValues} query={query} price={price} city={city}
+    <CampaignConfirmSheet template={template} holderRfqId={holder} rows={campaignChosen} message={message.trim()} templateValues={templateValues} query={query} price={price} city={city}
       onClose={() => setConfirming(false)} onSaveDraft={saveDraft}
       onDone={(sent, failed) => { setConfirming(false); setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
