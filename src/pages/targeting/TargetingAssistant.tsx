@@ -7,7 +7,7 @@ type Props = {
   city: string
   cityLabel: string
   onPrepare: (plan: Plan) => Promise<{ count: number; campaignId: string }>
-  onOpenDraft: () => void
+  onOpenDraft?: () => void
   mobile: boolean
 }
 
@@ -69,7 +69,7 @@ export default function TargetingAssistant({ city, cityLabel, onPrepare, onOpenD
       {plan ? <div aria-live="polite" className="mt-3 rounded-[12px] bg-[var(--color-bg-surface-2)] p-3 text-[14px] leading-[22px]">
         <p className="font-medium">فهمت طلبك.</p>
         <p className="mt-1 text-[var(--color-text-secondary)]">سأستهدف <b>{plan.target}</b> في <b>{cityLabel || city}</b> بهدف <b>{plan.purpose}</b>. سأختار فقط المنشآت التي لديها إشارة واتساب برقم صالح.</p>
-        {!ready ? <Button type="button" variant="Primary" size="S" icon="check" loading={preparing} loadingLabel="نجهز المسودة…" className="mt-3" onClick={() => void prepare()}>جهّز مسودة الحملة</Button> : <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-[13px] text-[var(--color-text-success)]">تم تجهيز مسودة لـ {ready.count.toLocaleString('ar-SA')} منشأة. لم تُرسل أي رسالة.</span><Button type="button" variant="Primary" size="S" icon="arrow-forward" onClick={onOpenDraft}>فتح المسودة</Button></div>}
+        {!ready ? <Button type="button" variant="Primary" size="S" icon="check" loading={preparing} loadingLabel="نجهز المسودة…" className="mt-3" onClick={() => void prepare()}>جهّز مسودة الحملة</Button> : <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-[13px] text-[var(--color-text-success)]">تم تجهيز مسودة لـ {ready.count.toLocaleString('ar-SA')} منشأة. لم تُرسل أي رسالة.</span>{onOpenDraft ? <Button type="button" variant="Primary" size="S" icon="arrow-forward" onClick={onOpenDraft}>فتح المسودة</Button> : null}</div>}
       </div> : null}
       {error ? <p role="alert" className="mt-2 text-[13px] leading-[20px] text-[var(--color-text-danger)]">{error}</p> : null}
     </section>
