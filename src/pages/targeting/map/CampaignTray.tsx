@@ -91,30 +91,24 @@ export default function CampaignTray(p: Props) {
       {open ? (
         <div id="campaign-body" className={`grid min-h-0 flex-1 touch-pan-y gap-4 overflow-y-auto overscroll-contain border-t border-[var(--color-border-default)] px-4 py-3 ${p.mobile ? 'grid-cols-1' : 'grid-cols-[1.2fr_1fr]'}`}>
           <div className="flex flex-col gap-2.5">
-            {p.onPrepare ? (
-              <div className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[14px] leading-[22px]">
-                <p className="font-semibold">قالب فرق التسويقي</p>
-                <p className="mt-1 text-[var(--color-text-secondary)]">يدعو المنشأة لاكتشاف السوق ومقارنة خيارات الشراء، ويعرض زري «مهتم» و«غير مهتم».</p>
-                <p className="mt-2 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">إضافة القائمة هنا لا ترسل شيئاً. الإرسال يظل خطوة مستقلة بعد اعتماد قالب ميتا ومراجعتك.</p>
-              </div>
-            ) : <>
             <div className="flex items-center justify-between gap-2">
-              <label htmlFor="campaign-template" className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">القالب (المعتمدة من ميتا)</label>
+              <label htmlFor="campaign-template" className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">قالب واتساب</label>
               {p.templateBadge ? <Badge tone={p.templateBadge.tone} showDot={false} label={p.templateBadge.label} /> : null}
             </div>
             <select id="campaign-template" value={p.template} onChange={(e) => p.onTemplate(e.target.value)} className={`rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] ${FOCUS_RING}`}>
               {p.templates.some((t) => t.name === OUTREACH_TEMPLATE) ? null : <option value={OUTREACH_TEMPLATE}>{OUTREACH_TEMPLATE}</option>}
-              {p.templates.map((t) => <option key={t.name} value={t.name} disabled={t.status !== 'APPROVED'}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{t.status === 'APPROVED' ? '' : ` — ${t.status}`}</option>)}
+              {p.templates.map((t) => <option key={t.name} value={t.name}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{t.status === 'APPROVED' ? '' : ` — ${t.status}`}</option>)}
             </select>
-            <label className="flex flex-col rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
-              <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المنشأة}'}،</span>
-              <span className="sr-only">نص الرسالة</span>
-              <textarea value={p.message} onChange={(e) => p.onMessage(e.target.value)} rows={3} maxLength={900} className="w-full resize-none bg-transparent text-[15px] leading-[24px] outline-none" />
-            </label>
-            <section data-testid="campaign-message-preview" aria-label="معاينة الرسالة قبل الإرسال" className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5">
-              <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">معاينة الرسالة قبل الإرسال</p>
-              <p className="mt-1 whitespace-pre-line text-[14px] leading-[22px]">{preview}</p>
-            </section>
+            {p.onPrepare ? <p className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر كل القوالب هنا. يمكن حفظ المسودة بأي قالب؛ لا يتاح الإرسال إلا بعد اعتماد القالب من ميتا.</p> : <>
+              <label className="flex flex-col rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
+                <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المنشأة}'}،</span>
+                <span className="sr-only">نص الرسالة</span>
+                <textarea value={p.message} onChange={(e) => p.onMessage(e.target.value)} rows={3} maxLength={900} className="w-full resize-none bg-transparent text-[15px] leading-[24px] outline-none" />
+              </label>
+              <section data-testid="campaign-message-preview" aria-label="معاينة الرسالة قبل الإرسال" className="rounded-[12px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2.5">
+                <p className="text-[12px] leading-[18px] font-medium text-[var(--color-text-secondary)]">معاينة الرسالة قبل الإرسال</p>
+                <p className="mt-1 whitespace-pre-line text-[14px] leading-[22px]">{preview}</p>
+              </section>
             </>}
           </div>
           <div className="flex flex-col gap-2.5">
