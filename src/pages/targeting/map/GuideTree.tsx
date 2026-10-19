@@ -45,7 +45,10 @@ export default function GuideTree({ guide, focus, onFocus, empty, mobile = false
   const hit = (t: string) => !normalizedQuery || normalizeSearchText(t).includes(normalizedQuery)
   const pick = (f: NonNullable<Focus>) => {
     const clear = Boolean(focus && focus.level === f.level && focus.id === f.id && (f.level !== 'spec' || focus.level === 'spec' && focus.sub_id === f.sub_id))
-    recordMapInteraction(clear ? 'map_guide_focus_clear' : 'map_guide_focus_select')
+    const selectionEvent = f.level === 'main'
+      ? 'map_guide_main_select'
+      : f.level === 'sub' ? 'map_guide_sub_select' : 'map_guide_spec_select'
+    recordMapInteraction(clear ? 'map_guide_focus_clear' : selectionEvent)
     onFocus(clear ? null : f)
   }
   const on = (level: NonNullable<Focus>['level'], id: string, subId?: string) => Boolean(focus && focus.level === level && focus.id === id && (level !== 'spec' || focus.level === 'spec' && focus.sub_id === subId))
