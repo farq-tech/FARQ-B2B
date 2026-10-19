@@ -18,6 +18,7 @@ import { mapAnalyticsConsent, mapReadinessEvent, mapResultProfileOpenEvent, mapS
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
 import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
+import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
 import StartSheet from './StartSheet'
 import MyRequests from './MyRequests'
@@ -121,8 +122,9 @@ function defaultMessage(cat: string | null, area: string | null) {
 }
 const boxAround = (lat: number, lon: number, d = 0.012): [number, number, number, number] => [lon - d, lat - d, lon + d, lat + d]
 
-export default function TargetingPage({ onTemplates, onMapFocusChange, startNew = false, onStartClosed, onRfq }: {
+export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, startNew = false, onStartClosed, onRfq }: {
   onTemplates: () => void
+  onLeads?: () => void
   onMapFocusChange?: (focused: boolean) => void
   /** «طلب جديد» (sidebar / tab bar): open the start sheet */
   startNew?: boolean
@@ -193,6 +195,8 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const [tpl, setTpl] = useState<TemplateStatus | null>(null)
   const [tplError, setTplError] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [preparingMarketing, setPreparingMarketing] = useState(false)
+  const [preparedCampaignId, setPreparedCampaignId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -1800,9 +1804,11 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
   const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && templateFits(t)) ? 'القالب ما يناسب الحملة' : null
-  const marketingBlock = objective === 'marketing' ? 'اكتشاف المشترين فقط؛ الإرسال غير مفعّل لهذا المسار' : null
+  const marketingBlock = null
   const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
-  const sendBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
+  const sendBlock = objective === 'marketing'
+    ? refreshBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : null)
+    : refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock || (!holder ? 'ما فيه طلب حاضن للردود' : null))
   const scheduleBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
   const templateBadge = approved || template !== OUTREACH_TEMPLATE ? { tone: 'Success' as const, label: 'قالب واتساب معتمد' } : tpl ? { tone: 'Warning' as const, label: `القالب: ${tpl.status}` } : tplError ? { tone: 'Danger' as const, label: 'حالة القالب غير معروفة' } : null
@@ -1810,6 +1816,26 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const saveDraft = () => {
     setConfirming(false)
     setNotice(`أبشر، الحملة محفوظة كمسودة في هذه الصفحة (${n(chosen.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال؛ تحديث الصفحة يمسحها.`)
+  }
+
+  const prepareWhatsAppCampaign = async () => {
+    if (preparingMarketing || !chosen.length) return
+    const phones = chosen.map(waNumber).filter((phone): phone is string => Boolean(phone))
+    if (!phones.length) return
+    setPreparingMarketing(true)
+    try {
+      const campaign = await prepareMarketingCampaign({
+        name: `حملة فرق · ${cityName(city)} · ${query || 'استهداف السوق'}`.slice(0, 160),
+        segment: 'B2B_MARKETING',
+        phones,
+        consentRecordedAt: new Date().toISOString(),
+        consentSource: 'موافقة مسبقة أعلنها مالك الحملة عند إعداد الدفعة',
+      })
+      setPreparedCampaignId(campaign.id)
+      setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. راجعها قبل الإرسال.`)
+    } catch {
+      setNotice('تعذّر حفظ مسودة حملة واتساب. تأكد من صلاحية الحساب ثم أعد المحاولة.')
+    } finally { setPreparingMarketing(false) }
   }
 
   const resultCard = (r: TargetRow) => {
@@ -2417,7 +2443,7 @@ export default function TargetingPage({ onTemplates, onMapFocusChange, startNew 
   const tray = chosen.length ? (
     <CampaignTray mobile={mobile} count={chosen.length} keys={chosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage}
       template={template} onTemplate={setTemplate} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
-      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()) }} onNotice={setNotice} />
+      city={city} showTiming={objective === 'purchase'} onSend={() => setConfirming(true)} onPrepare={objective === 'marketing' ? () => void prepareWhatsAppCampaign() : undefined} onOpenLeads={onLeads} preparing={preparingMarketing} prepared={Boolean(preparedCampaignId)} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onNotice={setNotice} />
   ) : null
   const confirmSheet = confirming && holder ? (
     <CampaignConfirmSheet template={template} holderRfqId={holder} rows={chosen} message={message.trim()} query={query} price={price} city={city}
