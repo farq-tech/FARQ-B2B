@@ -1145,6 +1145,24 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     createOpportunityRequest({ kind, title, payload: { city: cityAr, products: products.slice(0, 60).map((p) => p.slice(0, 200)), ...(fileRefs.length ? { fileRefs: fileRefs.slice(0, 20).map((f) => f.slice(0, 200)) } : {}) } })
       .then(() => setSavedTick((t) => t + 1), () => { /* off, read-only or no permission: nothing to show */ })
   }
+  async function saveMarketingDraft(campaignId: string, rows: TargetRow[], title: string) {
+    const recipientKeys = rows.map((row) => row.poi_key).filter(Boolean).slice(0, 300)
+    const recipientNames = rows.map((row) => safeName(row)).filter(Boolean).slice(0, 60)
+    const draft = await createOpportunityRequest({
+      kind: 'SEARCH',
+      title,
+      payload: {
+        city,
+        query: query.trim(),
+        templateName: template,
+        products: recipientNames,
+        filters: { draft: true, source: 'WHATSAPP_CAMPAIGN', campaignId, recipientCount: recipientKeys.length, recipientKeys, objective: 'marketing' },
+      },
+    })
+    setSavedTick((tick) => tick + 1)
+    return draft
+  }
+
   async function onBooklet(files: File[]) {
     if (!files.length) return
     setReadErr(null); setReading('بدأنا القراءة…')
@@ -1912,10 +1930,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const scheduleBlock = refreshBlock || marketingBlock || (!chosen.length ? 'حدد جهة وحدة على الأقل' : templateBlock)
   const cost = price != null ? (chosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
   const templateBadge = approved || template !== OUTREACH_TEMPLATE ? { tone: 'Success' as const, label: 'قالب واتساب معتمد' } : tpl ? { tone: 'Warning' as const, label: `القالب: ${tpl.status}` } : tplError ? { tone: 'Danger' as const, label: 'حالة القالب غير معروفة' } : null
-  // drafts live in this page only (owner: nothing on the device); a reload clears them
-  const saveDraft = () => {
+  const saveDraft = async () => {
+    const draft = await saveMarketingDraft('manual-review', chosen, `حملة واتساب · ${query.trim() || 'استهداف منشآت'}`)
     setConfirming(false)
-    setNotice(`أبشر، الحملة محفوظة كمسودة في هذه الصفحة (${n(chosen.length)} موردين). ترسلها بضغطة لما يتفعّل الإرسال؛ تحديث الصفحة يمسحها.`)
+    setNotice(`حُفظت المسودة لـ ${n(chosen.length)} جهة. تلقاها في الطلبات ضمن «مسودات».`)
+    window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
   }
 
   const assistantPurpose = (text: string) => {
@@ -2016,8 +2035,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         consentRecordedAt: new Date().toISOString(),
         consentSource: 'موافقة مسبقة أعلنها مالك الحملة عند إعداد الدفعة',
       })
+      const draft = await saveMarketingDraft(campaign.id, rows, `حملة واتساب · ${plan.target}`)
       setPreparedCampaignId(campaign.id)
-      setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. راجعها قبل الإرسال.`)
+      setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. تلقاها في الطلبات ضمن «مسودات».`)
+      window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
       return { count: phones.length, campaignId: campaign.id }
     } finally { setPreparingMarketing(false) }
   }
@@ -2035,8 +2056,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         consentRecordedAt: new Date().toISOString(),
         consentSource: 'موافقة مسبقة أعلنها مالك الحملة عند إعداد الدفعة',
       })
+      const draft = await saveMarketingDraft(campaign.id, chosen, `حملة واتساب · ${query || 'استهداف السوق'}`)
       setPreparedCampaignId(campaign.id)
-      setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. راجعها قبل الإرسال.`)
+      setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. تلقاها في الطلبات ضمن «مسودات».`)
+      window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
     } catch {
       setNotice('تعذّر حفظ مسودة حملة واتساب. تأكد من صلاحية الحساب ثم أعد المحاولة.')
     } finally { setPreparingMarketing(false) }

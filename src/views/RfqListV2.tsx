@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { NavProps } from '../types'
 import { useProcurement } from '../procurementContext'
 import { listBuyerRfqs, formatRfqTitle, type ConstructionRfqSummary } from '../api/constructionClient'
+import { listOpportunityRequests, type OpportunityRequest } from '../api/opportunityRequestsClient'
 import { rfqProjectName } from '../lib/rfqIdentity'
 import { farqSession } from '../api/farqSession'
 import { Button, Greeting, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
@@ -28,6 +29,9 @@ const day = (iso?: string | null) => {
   return label || null
 }
 const n = (v: number | null | undefined) => <bdi dir="ltr">{v ?? 0}</bdi>
+const isDraft = (r: OpportunityRequest) => r.payload?.filters?.draft === true
+const draftCount = (r: OpportunityRequest) => { const value = r.payload?.filters?.recipientCount; return typeof value === 'number' && Number.isFinite(value) ? value : null }
+const marketCaption = (r: OpportunityRequest) => [isDraft(r) ? 'حملة واتساب محفوظة' : 'طلب سوق', draftCount(r) != null ? `${draftCount(r)!.toLocaleString('en-US')} جهة` : null, r.payload?.city].filter(Boolean).join(' · ')
 
 function classify(r: ConstructionRfqSummary): { group: Group; tone: BadgeTone; label: string } {
   if (r.award_status === 'APPROVED') return { group: 'done', tone: 'Success', label: 'تمت الترسية' }
@@ -99,6 +103,7 @@ function Skeleton() {
 export function RfqListV2({ navigate }: NavProps) {
   const { setSelectedRfqId, navigate: go } = useProcurement()
   const [rows, setRows] = useState<ConstructionRfqSummary[] | null>(null)
+  const [marketRows, setMarketRows] = useState<OpportunityRequest[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [reload, setReload] = useState(0)
@@ -106,15 +111,22 @@ export function RfqListV2({ navigate }: NavProps) {
     let active = true
     setError(null)
     listBuyerRfqs().then((o) => { if (active) setRows(o.rfqs || []) }).catch((e) => { if (active) setError(e instanceof Error ? e.message : 'تعذر تحميل الطلبات') })
+    listOpportunityRequests('active').then((items) => { if (active) setMarketRows(items) }).catch(() => { if (active) setMarketRows([]) })
     return () => { active = false }
   }, [reload])
   const titleOf = (r: ConstructionRfqSummary) => rfqProjectName({ delivery: r.delivery }) || formatRfqTitle(r)
   const q = query.trim().toLocaleLowerCase('ar')
   const shown = (rows || []).filter((r) => titleOf(r).toLocaleLowerCase('ar').includes(q))
-  const grouped = GROUPS.map((g) => ({ ...g, rows: shown.map((r) => ({ r, c: classify(r) })).filter((x) => x.c.group === g.key) })).filter((g) => g.rows.length)
+  const shownMarket = (marketRows || []).filter((r) => r.title.toLocaleLowerCase('ar').includes(q))
+  const rfqDrafts = shown.map((r) => ({ r, c: classify(r) })).filter((x) => x.c.group === 'draft')
+  const marketingDrafts = shownMarket.filter(isDraft)
+  const marketRequests = shownMarket.filter((r) => !isDraft(r))
+  const grouped = GROUPS.filter((g) => g.key !== 'draft').map((g) => ({ ...g, rows: shown.map((r) => ({ r, c: classify(r) })).filter((x) => x.c.group === g.key) })).filter((g) => g.rows.length)
   const decide = grouped.find((g) => g.key === 'decide')?.rows.length ?? 0
+  const total = (rows?.length || 0) + (marketRows?.length || 0)
   const open = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
   const onNew = () => navigate('create-upload')
+  const openMarketDraft = (id: string) => { window.location.assign(`/opportunity-map#draft=${encodeURIComponent(id)}`) }
   // «صباح الخير، سارة» — only a real display name, never the e-mail.
   const firstName = (farqSession.getUser()?.displayName || '').trim().split(/\s+/)[0] || null
   return (
@@ -123,22 +135,29 @@ export function RfqListV2({ navigate }: NavProps) {
         <div className="flex flex-col gap-1">
           <Greeting name={firstName} className="text-[13px] leading-[20px]" />
           <h1 className="font-[family-name:var(--font-display)] text-[24px] leading-[36px] font-semibold sm:text-[28px] sm:leading-[44px]">الطلبات</h1>
-          {rows && rows.length ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{n(rows.length)} طلبات{decide ? <> · {n(decide)} تحتاج قرارك</> : null} · مرتبة حسب الإجراء المطلوب</p> : null}
+          {rows && marketRows && total ? <p className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">{n(total)} طلبات{decide ? <> · {n(decide)} تحتاج قرارك</> : null} · تسعير وسوق ومسودات في مكان واحد</p> : null}
         </div>
-        {rows && rows.length ? <Button variant="Primary" size="M" onClick={onNew}>طلب جديد</Button> : null}
+        {rows && marketRows && total ? <Button variant="Primary" size="M" onClick={onNew}>طلب جديد</Button> : null}
       </header>
-      {rows && rows.length > 3 ? (
+      {rows && marketRows && total > 3 ? (
         <div><label htmlFor="request-search" className="sr-only">ابحث عن طلب</label><input id="request-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم الطلب" className="min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3" /></div>
       ) : null}
       {error ? <div role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-4 py-3 text-[var(--color-text-danger)]"><p>ما قدرنا نجيب طلباتك الحين. {error}</p><button type="button" onClick={() => setReload((x) => x + 1)} className="mt-2 min-h-11 underline">حاول مرة ثانية</button></div> : null}
-      {!rows && !error ? <Skeleton /> : null}
-      {rows && rows.length === 0 ? <Empty onNew={onNew} /> : null}
+      {(!rows || !marketRows) && !error ? <Skeleton /> : null}
+      {rows && marketRows && total === 0 ? <Empty onNew={onNew} /> : null}
       {grouped.map((g) => (
         <ListSection key={g.key} title={g.title} count={g.rows.length}>
           {g.rows.map(({ r, c }) => <ListRow key={r.id} title={titleOf(r)} caption={caption(r, c.group)} status={{ tone: c.tone, label: c.label }} onClick={() => open(r.id)} />)}
         </ListSection>
       ))}
-      {rows && rows.length > 0 && shown.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما لقينا طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
+      {(rfqDrafts.length || marketingDrafts.length) ? <ListSection title="مسودات" count={rfqDrafts.length + marketingDrafts.length}>
+        {rfqDrafts.map(({ r, c }) => <ListRow key={r.id} title={titleOf(r)} caption={caption(r, c.group)} status={{ tone: c.tone, label: c.label }} onClick={() => open(r.id)} />)}
+        {marketingDrafts.map((r) => <ListRow key={`market-${r.id}`} title={r.title} caption={marketCaption(r)} status={{ tone: 'Info', label: 'مسودة' }} onClick={() => openMarketDraft(r.id)} />)}
+      </ListSection> : null}
+      {marketRequests.length ? <ListSection title="طلبات السوق" count={marketRequests.length}>
+        {marketRequests.map((r) => <ListRow key={`market-${r.id}`} title={r.title} caption={marketCaption(r)} status={{ tone: 'Neutral', label: 'قيد المتابعة' }} onClick={() => go('targeting')} />)}
+      </ListSection> : null}
+      {rows && marketRows && total > 0 && shown.length + shownMarket.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما لقينا طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
       {rows ? <p className="text-[14px] text-[var(--color-text-secondary)]">تدوّر على موردين أو مشترين بدون طلب؟ <button type="button" onClick={() => go('targeting')} className="min-h-11 text-[var(--color-text-link)] underline">افتح خريطة الفرص</button></p> : null}
     </div>
   )
