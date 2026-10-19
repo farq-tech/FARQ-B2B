@@ -6,7 +6,7 @@ Run this query against the **main application database used by `api.farq.sa`** (
 
 ## Weekly interaction event inventory
 
-Use this query as a coverage check alongside the focused funnels below. It groups all consented map click labels by complete UTC week and event name, so newly added controls or interactions remain visible even before a dedicated outcome funnel is written. It returns aggregate counts only; it does not return session identifiers, search text, location choices, or establishment identifiers.
+Use this query as a coverage check alongside the focused funnels below. All report queries below use the same rolling window of eight complete UTC weeks, excluding the current partial week. It groups all consented map click labels by UTC week and event name, so newly added controls or interactions remain visible even before a dedicated outcome funnel is written. It returns aggregate counts only; it does not return session identifiers, search text, location choices, or establishment identifiers.
 
 ```sql
 SELECT
@@ -15,7 +15,7 @@ SELECT
   count(*) AS actions,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
   AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
@@ -37,7 +37,8 @@ SELECT
   count(*) AS map_page_entries,
   count(DISTINCT session_id) AS consenting_map_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'pageview'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -45,7 +46,7 @@ GROUP BY 1
 ORDER BY 1 DESC;
 ```
 
-Compare page-entry sessions with sessions carrying map interaction events in the same weekly window. Do not interpret a missing pageview as a bounce: analytics requires consent, and browser/network failures can prevent delivery. Wait for at least two complete weeks and 30 consenting page-entry sessions before treating changes as directional.
+The upper bound excludes the current partial UTC week so the latest row is comparable with other complete-week reports. Compare page-entry sessions with sessions carrying map interaction events in the same weekly window. Do not interpret a missing pageview as a bounce: analytics requires consent, and browser/network failures can prevent delivery. Wait for at least two complete weeks and 30 consenting page-entry sessions before treating changes as directional.
 
 ```sql
 WITH map_events AS (
@@ -55,7 +56,8 @@ WITH map_events AS (
     occurred_at,
     element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -318,7 +320,8 @@ SELECT
   count(*) FILTER (WHERE element_label = 'pricing_map_market_summary_retry') AS market_summary_retry_clicks,
   count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_market_summary_retry') AS sessions_with_market_summary_retry
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND element_label IN (
@@ -368,7 +371,8 @@ WITH contact_batches AS (
     session_id,
     element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -403,7 +407,8 @@ Run it against the same authorized, read-only main application database:
 WITH map_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -604,7 +609,8 @@ Run it only against the same authorized, read-only main application database des
 WITH map_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -695,7 +701,8 @@ SELECT
     1
   ) AS browse_page_failure_pct
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND element_label IN (
@@ -718,7 +725,8 @@ The following aggregate query reports the session funnel by task direction: prom
 WITH map_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -829,7 +837,8 @@ Run against the same authorized, read-only main application database described a
 WITH map_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -900,7 +909,8 @@ SELECT
   count(*) AS actions,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND element_label IN ('pricing_map_map_legend_show', 'pricing_map_map_legend_hide')
@@ -928,7 +938,8 @@ SELECT
   count(*) AS actions,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -960,7 +971,8 @@ The query below counts the first filter-enable interval per consenting session. 
 WITH map_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1077,7 +1089,8 @@ SELECT
   count(*) AS successful_map_initializations,
   count(DISTINCT session_id) AS consenting_tab_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1104,7 +1117,8 @@ SELECT
   count(*) FILTER (WHERE element_label = 'pricing_map_site_unlocated_batch_failed') AS failed_batches,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND element_label IN (
@@ -1126,7 +1140,8 @@ The map emits `pricing_map_map_data_quality_notice_seen` when the first matching
 WITH notice_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1190,7 +1205,8 @@ WITH latency_events AS (
       ELSE 'over 3 seconds'
     END AS latency_bucket
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1246,7 +1262,8 @@ SELECT
     WHERE element_label = 'pricing_map_map_street_density_failed'
   ) AS sessions_with_failure
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1304,7 +1321,8 @@ SELECT
     'pricing_map_map_buyer_search_auto_retry_failed'
   )), 0), 1) AS completed_retry_recovery_pct
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1332,7 +1350,8 @@ Run this aggregate query against the main application database described above. 
 WITH district_events AS (
   SELECT id, session_id, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1375,7 +1394,8 @@ SELECT
   count(*) AS candidate_batch_actions,
   count(DISTINCT session_id) AS consenting_tab_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND element_label = 'pricing_map_map_supplier_candidate_batch_add'
@@ -1393,7 +1413,8 @@ For filter lists with eight or more choices, the map offers an inline search. Wi
 WITH filter_events AS (
   SELECT id, session_id, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1443,7 +1464,8 @@ The activity guide records `map_guide_search_used` once per mounted guide after 
 WITH guide_events AS (
   SELECT id, session_id, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1495,7 +1517,8 @@ SELECT
   count(*) AS multi_intent_search_events,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1533,7 +1556,8 @@ WITH selector_events AS (
       ELSE 'select'
     END AS action
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1594,7 +1618,8 @@ SELECT
   count(*) AS event_count,
   count(DISTINCT session_id) AS sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1623,7 +1648,8 @@ Use this aggregate to review whether subsequent pages load successfully. The fai
 WITH page_events AS (
   SELECT occurred_at, session_id, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1662,7 +1688,8 @@ This funnel measures whether consenting sessions that opened the main-category c
 WITH category_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
@@ -1710,7 +1737,7 @@ WITH category_selections AS (
     session_id,
     substr(element_label, length('pricing_map_map_activity_counter_select_') + 1) AS main_category_id
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
     AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
@@ -1740,7 +1767,7 @@ SELECT
   count(*) AS actions,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
   AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
@@ -1771,7 +1798,8 @@ SELECT
   count(*) FILTER (WHERE element_label = 'pricing_map_map_results_panel_show') AS show_events,
   count(DISTINCT session_id) FILTER (WHERE element_label = 'pricing_map_map_results_panel_show') AS sessions_showing_panel
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1809,7 +1837,8 @@ SELECT
   count(*) AS actions,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1851,7 +1880,8 @@ SELECT
   count(*) AS failed_requests,
   count(DISTINCT session_id) AS consenting_sessions
 FROM public.analytics_events
-WHERE occurred_at >= now() - interval '56 days'
+WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+  AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
   AND event_type = 'click'
   AND path = '/opportunity-map'
   AND session_id IS NOT NULL
@@ -1887,7 +1917,8 @@ The session-level search funnel above counts a consenting tab session once. If t
 WITH map_events AS (
   SELECT id, session_id, occurred_at, element_label
   FROM public.analytics_events
-  WHERE occurred_at >= now() - interval '56 days'
+  WHERE occurred_at >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '56 days') AT TIME ZONE 'UTC'
+    AND occurred_at < date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
     AND event_type = 'click'
     AND path = '/opportunity-map'
     AND session_id IS NOT NULL
