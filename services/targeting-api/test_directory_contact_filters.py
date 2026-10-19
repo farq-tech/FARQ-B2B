@@ -11,21 +11,25 @@ from directory_tiles import DirectoryTiles, filter_rows, valid_filters  # noqa: 
 class DirectoryContactFilterTests(unittest.TestCase):
     def setUp(self):
         self.rows = [
-            {"poi_key": "wa", "has_whatsapp": True, "email": None},
+            {"poi_key": "wa", "has_whatsapp": True, "phone": "+966 50 123 4567", "email": None},
+            {"poi_key": "flag-without-mobile", "has_whatsapp": True, "phone": "011 123 4567", "email": None},
             {"poi_key": "email", "has_whatsapp": False, "email": "info@example.test"},
             {"poi_key": "none", "has_whatsapp": False, "email": None},
         ]
 
     def test_omitted_contact_keeps_all_directory_rows(self):
-        self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {})], ["wa", "email", "none"])
+        self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {})], ["wa", "flag-without-mobile", "email", "none"])
 
     def test_all_contact_filter_keeps_all_directory_rows(self):
         self.assertEqual(valid_filters({"contact": "all"})["contact"], "all")
-        self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {"contact": "all"})], ["wa", "email", "none"])
+        self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {"contact": "all"})], ["wa", "flag-without-mobile", "email", "none"])
 
     def test_explicit_whatsapp_and_email_filters_remain_available(self):
         self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {"contact": "whatsapp"})], ["wa"])
         self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {"contact": "email"})], ["email"])
+
+    def test_whatsapp_filter_excludes_source_markers_without_a_deliverable_mobile(self):
+        self.assertEqual([row["poi_key"] for row in filter_rows(self.rows, {"contact": "whatsapp"})], ["wa"])
 
     def test_map_sql_restricts_contact_only_when_explicitly_requested(self):
         tiles = DirectoryTiles.__new__(DirectoryTiles)
@@ -38,6 +42,7 @@ class DirectoryContactFilterTests(unittest.TestCase):
 
         self.assertNotIn("has_whatsapp=true", broad_sql)
         self.assertIn("has_whatsapp=true", whatsapp_sql)
+        self.assertIn("regexp_matches", whatsapp_sql)
         self.assertIn("email", email_sql)
 
 

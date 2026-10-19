@@ -86,6 +86,9 @@ DEFAULT_RADIUS_KM=40   # rows without a taxonomy radius (old search path): a sho
 def is_precise_point(row):
     lat,lon=row.get('latitude'),row.get('longitude')
     return row.get('location_precision')=='point' and isinstance(lat,(int,float)) and isinstance(lon,(int,float)) and -85.05112878<=lat<=85.05112878 and -180<=lon<=180
+def has_usable_whatsapp(row):
+    """A source marker needs a deliverable Saudi mobile before it is a WhatsApp contact."""
+    return bool(row.get('has_whatsapp')) and bool(status_policy.mobile_of({'phone_norm': row.get('phone_norm') or row.get('phone')}))
 def filter_rows(rows,filters):
     f=valid_filters(filters)
     out=[]
@@ -95,7 +98,7 @@ def filter_rows(rows,filters):
         if f.get('entity_type') and row.get('entity_type')!=f['entity_type']: continue
         if f.get('branches_only') and row.get('registered_location_count',0)<2: continue
         if f.get('name_only') and not row.get('keyword_name_match'): continue
-        if f.get('contact')=='whatsapp' and not row.get('has_whatsapp'): continue
+        if f.get('contact')=='whatsapp' and not has_usable_whatsapp(row): continue
         if f.get('wholesale') and not row.get('is_wholesale'): continue
         if f.get('district') and (row.get('district_reliable') is False or area_key(row.get('district_ar'))!=area_key(f['district'])): continue
         if f.get('role') and f['role'] not in (row.get('role_badges') or []) and not (f['role']=='جملة' and row.get('is_wholesale')): continue
@@ -202,7 +205,8 @@ class DirectoryTiles:
             if not keyword:raise ValueError('name filter needs keyword')
             clauses.append("contains(regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en)),'أإآةىؤئ','اااهيوي'),'[ً-ْـ]','','g'),?)");params.append(keyword)
         if f.get('branches_only'):clauses.append('coalesce(b.n,0)>=2')
-        if f.get('contact')=='whatsapp':clauses.append('has_whatsapp=true')
+        if f.get('contact')=='whatsapp':
+            clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'),'^9665[0-9]{8}$')")
         if f.get('contact')=='email':clauses.append("length(trim(coalesce(email,'')))>0")
         for bound in [f.get('bounds'),bounds]:
             if bound:
@@ -219,7 +223,7 @@ class DirectoryTiles:
         for row in rows:
             row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
             row.update(category_main=main_category(row['category']),subcategories=subcategories(row['secondary_category'],row['category_l3']),entity_type=entity_kind(row.get('legal_name'),row.get('name_ar') or row.get('name_en')),reason='نتيجة من التصنيف المسجل؛ ليست توصية شراء أو طلبًا مؤكدًا')
-        return {'rows':rows,'total':total,'located_total':located,'offset':offset,'has_more':offset+len(rows)<total,'next_offset':offset+len(rows) if offset+len(rows)<total else None,'map_query':self.register(city=city,filters=f),'parsed':{'city':city},'with_whatsapp':sum(bool(r.get('has_whatsapp')) for r in rows),'with_email':sum(bool(r.get('email')) for r in rows),'by_region':[]}
+        return {'rows':rows,'total':total,'located_total':located,'offset':offset,'has_more':offset+len(rows)<total,'next_offset':offset+len(rows) if offset+len(rows)<total else None,'map_query':self.register(city=city,filters=f),'parsed':{'city':city},'with_whatsapp':sum(has_usable_whatsapp(r) for r in rows),'with_email':sum(bool(r.get('email')) for r in rows),'by_region':[]}
     def profile(self,key,poi_key):
         with self.lock:
             _,rows,city,f=self.context(key)

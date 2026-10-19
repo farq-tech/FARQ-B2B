@@ -22,6 +22,6 @@ Unexpected failures in map read endpoints keep the existing `503 UNAVAILABLE` re
 
 ## Directory contact filters
 
-For `/search` (including `objective: "browse"`), `/map-query`, and the resulting map tiles, an omitted or `all` `filters.contact` means **no contact-channel restriction**. This keeps the full eligible directory available for discovery and map analysis. `contact: "whatsapp"` and `contact: "email"` explicitly restrict results to those channels. Browse and search remain paginated; map tiles aggregate locations at lower zoom levels.
+For `/search` (including `objective: "browse"`), `/map-query`, and the resulting map tiles, an omitted or `all` `filters.contact` means **no contact-channel restriction**. This keeps the full eligible directory available for discovery and map analysis. `contact: "whatsapp"` requires both the source WhatsApp marker and a valid Saudi mobile number; `contact: "email"` restricts results to email. Browse and search remain paginated; map tiles aggregate locations at lower zoom levels.
 
 Showing a directory record does not make it eligible for a WhatsApp campaign. The Pricing UI disables campaign selection when no WhatsApp channel is available; the send endpoint re-resolves each selected `poi_key` against the directory, applies status eligibility, and requires WhatsApp eligibility for template sends. The `has_whatsapp` source flag is not independent verification that a number is active on WhatsApp.
