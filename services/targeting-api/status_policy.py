@@ -100,6 +100,12 @@ def whatsapp_state(row):
 
 def mobile_of(row):
     n = re.sub(r'[^0-9]', '', str(row.get('phone_norm') or ''))
+    if n.startswith('00'):
+        n = n[2:]
+    if len(n) == 10 and n.startswith('05'):
+        n = '966' + n[1:]
+    elif len(n) == 9 and n.startswith('5'):
+        n = '966' + n
     return n if MOBILE.match(n) else None
 
 def send_reasons(row):

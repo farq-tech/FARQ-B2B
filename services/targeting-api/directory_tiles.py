@@ -206,7 +206,7 @@ class DirectoryTiles:
             clauses.append("contains(regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en)),'أإآةىؤئ','اااهيوي'),'[ً-ْـ]','','g'),?)");params.append(keyword)
         if f.get('branches_only'):clauses.append('coalesce(b.n,0)>=2')
         if f.get('contact')=='whatsapp':
-            clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'),'^9665[0-9]{8}$')")
+            clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'), '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$')")
         if f.get('contact')=='email':clauses.append("length(trim(coalesce(email,'')))>0")
         for bound in [f.get('bounds'),bounds]:
             if bound:
