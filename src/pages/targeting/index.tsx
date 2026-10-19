@@ -1380,9 +1380,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     setActiveStreet(id)
     const d = hasPolys ? districtAt(st.mid[0], st.mid[1], districts) : null
     if (d) setChosenD(new Set([d.id]))
-    // results for this street: the current request narrowed to it, or (before any search) the street's own trade
+    // A street is a geographic scope in market view. Keep the chosen map
+    // activity and lens intact instead of turning the street's category into a
+    // new supplier search. In a dedicated supplier/buyer journey, retain the
+    // existing shortcut of searching from the street's own activity.
     const streetFilters = { ...keep(filters, ['district', 'street']), ...(st.props.district_ar ? { district: st.props.district_ar } : {}), street: st.props.street_ar }
     if (query) applyFilters(streetFilters)
+    else if (lens === 'market') applyFilters(streetFilters)
     else { const term = st.props.sub_ar || st.props.main_ar; if (term) { setQ(term); void runSearchIn(term, city, undefined, objective, streetFilters, true) } }
   }
 
