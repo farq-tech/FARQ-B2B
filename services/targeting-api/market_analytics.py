@@ -19,13 +19,20 @@ MAX_DISTRICTS = 30
 MAX_SPECIALTY_IDS = 20
 MAX_TEXT = 120
 
+# Keep aggregate counts aligned with directory_tiles contact=whatsapp. A record needs
+# both the source marker and a mobile number in a supported Saudi representation.
+USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
+    regexp_replace(coalesce(p.phone_norm, ''), '[^0-9]', '', 'g'),
+    '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$'
+)"""
+
 MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
-    "وجود قناة واتساب مستمد من علامة المصدر ولا يعني تحققاً مستقلاً من الرقم أو نية الشراء."
+    "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام، ولا يعني نية الشراء."
 )
 BUYER_BASIS = (
     "الشراء المتوقع مستنتج من علاقات التصنيف (يشتري عادةً)، وليس سجلاً لطلب أو شراء فعلي. "
-    "الأعداد من دليل المنشآت، وعلامة واتساب غير متحقق منها مستقلاً."
+    "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام."
 )
 
 
@@ -155,7 +162,7 @@ class MarketAnalytics:
         city, _, where, params, specialty_available = self._where(body)
         query = f"""
             select p.district_ar, count(*) n,
-                   count(*) filter (where coalesce(p.has_whatsapp, false)) n_whatsapp,
+                   count(*) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
                    count(*) filter (where coalesce(p.is_wholesale, false)) n_wholesale
             from read_parquet(?) p
             where {where} and p.district_reliable is true
@@ -301,7 +308,7 @@ class MarketAnalytics:
         city, subs, where, params, specialty_available = self._where(body)
         aggregate = f"""
             select count(*) total,
-                   count(*) filter (where coalesce(p.has_whatsapp, false)) n_whatsapp,
+                   count(*) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
                    count(*) filter (where coalesce(p.is_wholesale, false)) n_wholesale,
                    count(*) filter (where not (
                        coalesce(
@@ -459,7 +466,7 @@ class MarketAnalytics:
                 rows = self.db.execute(
                     """
                     select c.sub_id, count(distinct p.poi_key) n,
-                           count(distinct p.poi_key) filter (where coalesce(p.has_whatsapp, false)) n_whatsapp
+                           count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp
                     from read_parquet(?) p join read_parquet(?) c using (poi_key)
                     where p.city_en = ? and """ + self.tiles.search_sql + """
                       and coalesce(nullif(p.name_ar, ''), p.name_en) is not null
