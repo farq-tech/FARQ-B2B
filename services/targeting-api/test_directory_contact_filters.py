@@ -126,6 +126,40 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual([row["poi_key"] for row in result["rows"]], ["target"])
             db.close()
 
+    def test_browse_degrades_safely_for_legacy_directory_assets(self):
+        """A delayed enrichment refresh must not take the map endpoint down."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = pathlib.Path(temp_dir) / "legacy-directory.parquet"
+            db = duckdb.connect()
+            db.execute("""create table places(
+                poi_key varchar, name_ar varchar, name_en varchar, category varchar, category_ar varchar,
+                secondary_category varchar, category_l3 varchar, city_en varchar, region_en varchar, region_ar varchar,
+                district_ar varchar, district_en varchar, latitude double, longitude double, phone_norm varchar,
+                phone_kind varchar, has_whatsapp boolean, email varchar, sources varchar, source_count integer,
+                legal_name varchar, company_status varchar, lifecycle_state varchar, brand_name varchar, completeness_pct double
+            )""")
+            db.execute("""insert into places values
+                ('legacy', 'منشأة قديمة', '', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
+                 'حي الملز', '', 24.6, 46.7, null, null, false, null, '', 1, '', null, null, '', 90)
+            """)
+            db.execute("copy places to ? (format parquet)", [str(path)])
+            db.execute("create table branches(brand varchar, n integer)")
+            tiles = DirectoryTiles.__new__(DirectoryTiles)
+            tiles.db = db
+            tiles.lock = threading.RLock()
+            tiles.path = str(path)
+            tiles.columns = {row[0] for row in db.execute("describe places").fetchall()}
+            tiles.search_sql = "true"
+            tiles.register = lambda **_kwargs: "map-key"
+
+            broad = tiles.browse("Riyadh", {})
+            self.assertEqual([row["poi_key"] for row in broad["rows"]], ["legacy"])
+            self.assertEqual(broad["rows"][0]["role_badges"], [])
+            self.assertEqual(broad["rows"][0]["specialties"], [])
+            self.assertEqual(tiles.browse("Riyadh", {"wholesale": True})["total"], 0)
+            self.assertEqual(tiles.browse("Riyadh", {"specialty": "حديد"})["total"], 0)
+            db.close()
+
     def test_map_sql_restricts_contact_only_when_explicitly_requested(self):
         tiles = DirectoryTiles.__new__(DirectoryTiles)
         tiles.path = "/directory.parquet"
