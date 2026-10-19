@@ -107,6 +107,21 @@ test.describe('desktop 1440', () => {
 
   test('targeting assistant is available from the task chooser and does not send while analysing', async ({ page }) => {
     const { writes } = await setup(page, { at: ksa(2026, 10, 15, 10) })
+    const marketingWrites: string[] = []
+    await page.route('**/_api/admin/marketing/**', (route) => {
+      const path = new URL(route.request().url()).pathname
+      marketingWrites.push(path)
+      if (path.endsWith('/campaigns')) return route.fulfill({ json: { ok: true, data: { id: 'campaign-1' } } })
+      return route.fulfill({ json: { ok: true, data: {} } })
+    })
+    await page.route('**/_api/api/business/context', (route) => route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } }))
+    await page.route('**/_api/api/business/opportunity-requests**', (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as Record<string, unknown>
+        return route.fulfill({ json: { ok: true, data: { request: { id: 'draft-1', ...body, organizationId: 'org-1', createdBy: 'qa-user', status: 'ACTIVE', hidden: false, createdAt: new Date().toISOString() } } } })
+      }
+      return route.fulfill({ json: { ok: true, data: { requests: [] } } })
+    })
     await page.goto('/opportunity-map')
     await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: 'استهدف جهات' }).click()
     const dialog = page.getByRole('dialog', { name: 'استهداف ذكي' })
@@ -114,6 +129,22 @@ test.describe('desktop 1440', () => {
     await dialog.getByLabel('طلب الاستهداف').fill('استهدف 30 شركة مقاولات في الرياض للتعريف بفرق')
     await dialog.getByRole('button', { name: 'حلّل طلبي' }).click()
     await expect(dialog.getByText(/سأستهدف شركات المقاولات/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'جهّز مسودة الحملة' }).click()
+    await expect(dialog.getByText(/تم تجهيز مسودة لـ/)).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'فتح المسودة' })).toBeVisible()
+    expect(marketingWrites).toEqual(['/_api/admin/marketing/campaigns', '/_api/admin/marketing/campaigns/campaign-1/recipients/batch'])
+    expect(writes).toEqual([])
+  })
+
+  test('a saved selection can move to the RFQ wizard without sending', async ({ page }) => {
+    const { writes } = await setup(page, { at: ksa(2026, 10, 15, 10) })
+    await page.goto('/opportunity-map')
+    await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: 'إغلاق' }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await page.getByRole('checkbox', { name: /أضف محلات الزل للأقمشة إلى قائمة المراجعة/ }).check()
+    await page.getByLabel('قائمة المراجعة المختارة').getByRole('button', { name: 'إنشاء طلب تسعير' }).click()
+    await expect(page.getByRole('heading', { name: 'وش تبي تسعّر؟' })).toBeVisible()
     expect(writes).toEqual([])
   })
 
