@@ -79,6 +79,17 @@ async function companyProfileApi(page: Page, mode: 'on' | 'off') {
 test.describe('desktop 1440', () => {
   test.use({ viewport: { width: 1440, height: 1000 } })
 
+  test('task chooser exposes buying, selling, exploration, and targeting starts', async ({ page }) => {
+    const { writes } = await setup(page, { at: ksa(2026, 10, 15, 10) })
+    await page.goto('/opportunity-map')
+    const chooser = page.getByRole('dialog', { name: 'وش هدفك؟' })
+    await expect(chooser.getByRole('button', { name: /بحث حر عن مورد/ })).toBeVisible()
+    await expect(chooser.getByRole('button', { name: 'أبحث عن مشتري' })).toBeVisible()
+    await expect(chooser.getByRole('button', { name: /استكشف السوق/ })).toBeVisible()
+    await expect(chooser.getByRole('button', { name: /استهدف جهات/ })).toBeVisible()
+    expect(writes).toEqual([])
+  })
+
   test('selection becomes a saved review list before any commercial action', async ({ page }) => {
     const { writes } = await setup(page, { at: ksa(2026, 10, 15, 10) })
     const created: Record<string, unknown>[] = []
@@ -96,6 +107,9 @@ test.describe('desktop 1440', () => {
     await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'قائمة مراجعة الجهات' })).toBeVisible()
+    await expect(page.getByText(/لماذا ظهرت:/).first()).toBeVisible()
+    await expect(page.getByText(/الموقع يحتاج تحقق|مصدر واحد|بيانات كافية للمراجعة/).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'الأقرب للطلب' })).toHaveAttribute('aria-pressed', 'true')
     await page.getByRole('checkbox', { name: /أضف محلات الزل للأقمشة إلى قائمة المراجعة/ }).check()
     const tray = page.getByLabel('قائمة المراجعة المختارة')
     await expect(tray).toContainText('الحفظ لا يرسل شيئاً')
