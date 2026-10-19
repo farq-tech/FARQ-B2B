@@ -85,7 +85,7 @@ async function setup(page: Page, opts: { requestsOff?: boolean; role?: string; d
   await page.addInitScript((analyticsConsent: 'accepted' | 'rejected') => {
     (window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = { accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token', expiresAt: Math.floor(Date.now() / 1000) + 7200, user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' } }
     // Keep map telemetry declined by default; tests may opt in explicitly to verify the consent-gated stream.
-    localStorage.setItem('farq:pricing-map-analytics-consent-v1', analyticsConsent)
+    localStorage.setItem('farq:pricing-map-analytics-consent-v2', analyticsConsent)
   }, opts.analyticsConsent || 'rejected')
   await page.route('**/_targeting/**', async (route) => {
     const url = new URL(route.request().url()); const path = url.pathname
@@ -215,7 +215,7 @@ async function clearStreetActivity(page: Page) {
   await page.locator('#street-activity-options').getByRole('option', { name: 'كل الأنشطة' }).click()
 }
 async function nothingStored(page: Page) {
-  const stored = await page.evaluate(async () => ({ local: localStorage.length - Number(localStorage.getItem('farq:pricing-map-analytics-consent-v1') !== null), session: sessionStorage.length, idb: (await indexedDB.databases?.() || []).length }))
+  const stored = await page.evaluate(async () => ({ local: localStorage.length - Number(localStorage.getItem('farq:pricing-map-analytics-consent-v2') !== null), session: sessionStorage.length, idb: (await indexedDB.databases?.() || []).length }))
   expect(stored).toEqual({ local: 0, session: 0, idb: 0 })
 }
 
@@ -271,7 +271,7 @@ test.describe('desktop 1440', () => {
     const lenses = page.getByRole('tablist', { name: 'عدسات خريطة السوق' })
     await lenses.getByRole('tab', { name: 'ابحث عن موردين' }).click()
     expect(batches).toEqual([])
-    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v1', 'accepted'))
+    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v2', 'accepted'))
     await lenses.getByRole('tab', { name: 'ابحث عن مشترين' }).click()
     await lenses.getByRole('tab', { name: 'افهم السوق' }).click()
 
@@ -301,7 +301,7 @@ test.describe('desktop 1440', () => {
     await main.click()
     expect(batches).toEqual([])
 
-    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v1', 'accepted'))
+    await page.evaluate(() => localStorage.setItem('farq:pricing-map-analytics-consent-v2', 'accepted'))
     const sub = page.getByRole('button', { name: 'أدوات صحية وسباكة 5', exact: true })
     await sub.click()
     await sub.click()
