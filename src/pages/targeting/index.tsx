@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, t
 import { createPortal } from 'react-dom'
 import { Command } from 'cmdk'
 import {
-  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapFocusQuery, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, suggestSpecialties, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type SpecialtySuggestion, type StreetCatalog, type StreetDensityQuery, templateFits, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
+  districtCounts, districtInsights, hasUnconfirmedStatus, listCities, listDistricts, listTemplates, mapFocusQuery, mapProfile, marketSummary, searchTargets, streetCatalog, streetDensity, suggestSpecialties, whoBuys, type DistrictCount, type DistrictInsight, type MarketSummary, type WhoBuys, type SpecialtySuggestion, type StreetCatalog, type StreetDensityQuery, templateStatus, tradeClusters, waNumber, statusLabel, TargetingError, OUTREACH_TEMPLATE,
   type City, type MetaTemplate, type SearchFilters, type TargetRow, type TargetSearch, type TemplateStatus, type TradeCluster,
 } from '../../api/targetingClient'
 import {
@@ -1803,7 +1803,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   const approved = tpl?.status === 'APPROVED'
   const holder = tpl?.holder?.holder_rfq_id || null
-  const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && templateFits(t)) ? 'القالب ما يناسب الحملة' : null
+  const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && t.status === 'APPROVED') ? 'القالب غير معتمد من Meta' : null
   const marketingBlock = null
   const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
   const sendBlock = objective === 'marketing'

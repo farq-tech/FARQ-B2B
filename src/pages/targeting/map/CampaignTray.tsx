@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { templateBody, templateFits, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
+import { templateBody, OUTREACH_TEMPLATE, type MetaTemplate } from '../../../api/targetingClient'
 import { scheduleCampaign } from '../../../api/scheduleClient'
 import { Badge, Button, Icon, Money } from '../../../ui'
 import { FOCUS_RING } from '../../../ui/cx'
@@ -97,10 +97,7 @@ export default function CampaignTray(p: Props) {
             </div>
             <select id="campaign-template" value={p.template} onChange={(e) => p.onTemplate(e.target.value)} className={`rounded-[10px] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-[14px] ${FOCUS_RING}`}>
               {p.templates.some((t) => t.name === OUTREACH_TEMPLATE) ? null : <option value={OUTREACH_TEMPLATE}>{OUTREACH_TEMPLATE}</option>}
-              {p.templates.map((t) => {
-                const fits = templateFits(t) || (t.name === OUTREACH_TEMPLATE && !templateBody(t))
-                return <option key={t.name} value={t.name} disabled={!fits}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{fits ? '' : ' — متغيراته ما تناسب الحملة'}</option>
-              })}
+              {p.templates.map((t) => <option key={t.name} value={t.name} disabled={t.status !== 'APPROVED'}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}{t.status === 'APPROVED' ? '' : ` — ${t.status}`}</option>)}
             </select>
             <label className="flex flex-col rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
               <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">السلام عليكم {'{اسم المنشأة}'}،</span>

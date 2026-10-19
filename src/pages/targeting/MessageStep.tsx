@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { listTemplates, templateStatus, templateBody, templateFits, OUTREACH_TEMPLATE, type MetaTemplate } from '../../api/targetingClient'
+import { listTemplates, templateStatus, templateBody, OUTREACH_TEMPLATE, type MetaTemplate } from '../../api/targetingClient'
 import { Badge, Button, Icon, MobileAppBar, Money, type BadgeTone } from '../../ui'
 import SendTiming from './SendTiming'
 import { FOCUS_RING } from '../../ui/cx'
@@ -8,8 +8,8 @@ import { metaReasonAr } from './metaReason'
 /*
  * «الرسالة» — Figma B2B M08 `18375:467`: choose a Meta-approved template, see the message as each supplier
  * gets it, «قالب جديد», and the summary bar (template · recipients · cost) with «التالي» → review (M11).
- * Any approved Arabic template whose body takes exactly {{1}} (the place's name) and {{2}} (the campaign text edited
- * here) can be chosen: that is what the send path fills. Others are listed with their real state and why not.
+ * Any Meta-approved template can be chosen. The campaign owner decides which
+ * approved wording fits the selected companies.
  */
 
 export const CAMPAIGN_STEPS = ['الشريحة المستهدفة', 'الرسالة', 'موافقة ميتا', 'المراجعة والإرسال'] as const
@@ -36,10 +36,7 @@ const titleOf = (t: MetaTemplate) => (t.name === OUTREACH_TEMPLATE ? 'دعوة �
 function choiceOf(t: MetaTemplate): Choice {
   const reason = t.status === 'REJECTED' ? metaReasonAr(t.rejected_reason) : null
   const body = templateBody(t)
-  // the status endpoint gives no body for the invitation template: it is known to take {{1}} and {{2}}
-  const fits = templateFits(t) || (t.status === 'APPROVED' && t.name === OUTREACH_TEMPLATE && !body)
-  if (fits) return { name: t.name, title: titleOf(t), detail: [t.name, categoryAr(t.category)].filter(Boolean).join(' · '), tone: 'Success', badge: 'معتمد', usable: true, body }
-  if (t.status === 'APPROVED') return { name: t.name, title: titleOf(t), detail: 'معتمد، لكن متغيراته ما تناسب الحملة ({{1}} الاسم و{{2}} النص)', tone: 'Success', badge: 'معتمد', usable: false, body }
+  if (t.status === 'APPROVED') return { name: t.name, title: titleOf(t), detail: [t.name, categoryAr(t.category)].filter(Boolean).join(' · '), tone: 'Success', badge: 'معتمد', usable: true, body }
   if (t.status === 'REJECTED') return { name: t.name, title: titleOf(t), detail: 'ما ينفع للإرسال · عدّله', tone: 'Danger', badge: 'مرفوض', usable: false, reason, body }
   return { name: t.name, title: titleOf(t), detail: 'ما ينفع للإرسال الآن', tone: 'Warning', badge: 'قيد المراجعة', usable: false, body }
 }
