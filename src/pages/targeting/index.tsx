@@ -675,6 +675,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     // district, keep this indicator scoped to the visible result set.
     const areas = filters.district ? 1 : chosenNames.length || res?.areas?.districts.length || 0
     if (lens === 'market') {
+      // A previous analytics request can settle during a new selection. Until
+      // the new summary exists (or reports an error), keep counters in the
+      // pending state rather than presenting a dash as if data were missing.
+      const marketCountersLoading = marketLoading || (!marketStats && !marketError)
       const scopeLabel = densityDistrictNames.length === 1
         ? `منشآت حي ${densityDistrictNames[0]}`
         : densityDistrictNames.length > 1 ? 'منشآت الأحياء المحددة' : 'منشآت مرصودة'
@@ -685,11 +689,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
           ? marketStats?.n_wholesale ?? null
           : marketStats?.total ?? null
       return [
-        { key: 'market-size', label: scopeLabel, value: filteredScopeTotal, lead: true, loading: marketLoading },
-        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats), loading: marketLoading }]),
-        { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null, loading: marketLoading },
-        { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null, loading: marketLoading },
-        ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n, loading: marketLoading })),
+        { key: 'market-size', label: scopeLabel, value: filteredScopeTotal, lead: true, loading: marketCountersLoading },
+        ...(densityDistrictNames.length ? [] : [{ key: 'market-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats), loading: marketCountersLoading }]),
+        { key: 'market-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null, loading: marketCountersLoading },
+        { key: 'market-wholesale', label: 'منشآت موسومة جملة', value: marketStats?.n_wholesale ?? null, loading: marketCountersLoading },
+        ...activities.map((activity) => ({ key: `market-main-${activity.main_id}`, label: activity.main_ar, value: activity.n, loading: marketCountersLoading })),
       ]
     }
     if ((query || buyerProductMode) && res) return buyerProductMode ? [
@@ -710,11 +714,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     ]
     // Before a specific product/activity is selected, show honest city-wide context instead of invented matches.
     return [
-      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true, loading: marketLoading },
-      { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null, loading: marketLoading },
-      { key: 'city-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats), loading: marketLoading },
+      { key: 'city-places', label: 'منشآت مرصودة', value: marketStats?.total ?? null, lead: true, loading: marketLoading || (!marketStats && !marketError) },
+      { key: 'city-whatsapp', label: 'إشارة واتساب برقم صالح', value: marketStats?.n_whatsapp ?? null, loading: marketLoading || (!marketStats && !marketError) },
+      { key: 'city-districts', label: 'أحياء مغطاة', value: displayedDistrictCount(marketStats), loading: marketLoading || (!marketStats && !marketError) },
     ]
-  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.contact, filters.wholesale, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length, marketLoading])
+  }, [lens, marketStats, catalog, res, query, currentBuyerData, chosenD, chosenNames, filters.contact, filters.wholesale, filters.district, densityDistrictNames, districts.length, districtScopeOptions.length, marketLoading, marketError])
   const guide = useMemo(() => guideOf(areaRows), [areaRows])
   const focusedSpecialty = focus?.level === 'spec' && streetPick.kind === 'spec' && streetPick.id === focus.id && (!focus.sub_id || streetPick.subId === focus.sub_id) ? streetPick : null
   const focusedTileKey = focus && res?.map_query
