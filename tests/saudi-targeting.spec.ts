@@ -162,15 +162,19 @@ test.describe('desktop 1440', () => {
     expect(writes).toEqual([])
   })
 
-  test('vocabulary, market suggestion, popular cluster name, Saudi badge, riyal, prayer note', async ({ page }) => {
+  test('task start hides city-wide statistics until market exploration is chosen', async ({ page }) => {
     // Thursday 15 Oct 2026, 15:05 Riyadh: inside Asr's window (Asr ≈ 2:58 م + 25 min)
     const { searches, writes } = await setup(page, { at: ksa(2026, 10, 15, 15, 5) })
     await page.goto('/opportunity-map')
     await expect(page.getByLabel('وش تبي توصل له؟')).toHaveAttribute('placeholder', 'وش تبي تسعّر؟ مثل: حدايد وبويات، بلاط، مليس')
-    await expect(page.getByText('نظرة عامة على السوق')).toBeVisible()
-    await expect(page.getByText('منشآت في السوق')).toBeVisible()
+    await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: 'إغلاق' }).click()
+    await expect(page.getByText('ابدأ بالبحث عن مورد')).toBeVisible()
+    await expect(page.getByText('سوق الرياض')).toHaveCount(0)
+    await page.getByRole('button', { name: 'غيّر الهدف' }).click()
+    await page.getByRole('dialog', { name: 'وش هدفك؟' }).getByRole('button', { name: /استكشف السوق/ }).click()
+    await expect(page.getByText('سوق الرياض')).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/desktop-1-start.png` })
-    // Search from the map-first overview; no example click is required to populate the market.
+    // Search from the supplier task; no example click is required to populate the results.
     await page.getByLabel('وش تبي توصل له؟').fill('أقمشة')
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await expect.poll(() => searches.at(-1)?.q).toBe('أقمشة')
