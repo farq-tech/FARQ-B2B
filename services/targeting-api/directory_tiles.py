@@ -227,7 +227,7 @@ class DirectoryTiles:
         f=valid_filters(filters);base,params=self.sql(city,f)
         with self.lock:
             total,located=self.db.execute("select count(*),count(*) filter(where coalesce(location_precision,'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) "+base,params).fetchone()
-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,is_wholesale,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,street_ar,coalesce(district_reliable,true) district_reliable,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,is_wholesale,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
         for row in rows:
             row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
