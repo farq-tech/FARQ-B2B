@@ -217,6 +217,9 @@ class DirectoryTiles:
         if f.get('role'):
             clauses.append("(list_contains(string_split(coalesce(role_badges,''),'|'),?)" + (" or coalesce(is_wholesale,false)" if f['role'] == 'جملة' else "") + ")")
             params.append(f['role'])
+        if f.get('specialty'):
+            clauses.append("list_contains(string_split(coalesce(specialty_concepts_ar,''),'، '),?)")
+            params.append(f['specialty'])
         if f.get('contact')=='whatsapp':
             clauses.append("has_whatsapp=true and regexp_matches(regexp_replace(coalesce(phone_norm,''),'[^0-9]','','g'), '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$')")
         if f.get('contact')=='email':clauses.append("length(trim(coalesce(email,'')))>0")
@@ -230,11 +233,11 @@ class DirectoryTiles:
         f=valid_filters(filters);base,params=self.sql(city,f)
         with self.lock:
             total,located=self.db.execute("select count(*),count(*) filter(where coalesce(location_precision,'point')='point' and longitude between -180 and 180 and latitude between -85.05112878 and 85.05112878) "+base,params).fetchone()
-            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,street_ar,coalesce(district_reliable,true) district_reliable,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,is_wholesale,role_badges,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
+            cursor=self.db.execute("select poi_key,name_ar,name_en,category,category_ar,secondary_category,category_l3,city_en,region_en,region_ar,district_ar,district_en,street_ar,coalesce(district_reliable,true) district_reliable,latitude,longitude,coalesce(location_precision,'point') location_precision,phone_norm as phone,phone_kind,has_whatsapp,is_wholesale,role_badges,specialty_concepts_ar,email,sources,source_count,legal_name,company_status,lifecycle_state,coalesce(b.n,0) registered_location_count "+base+' order by completeness_pct desc,poi_key limit ? offset ?',params+[limit,offset])
             names=[d[0] for d in cursor.description];rows=[dict(zip(names,row)) for row in cursor.fetchall()]
         for row in rows:
             row['status_class']=status_policy.normalize(row.pop('company_status'),row.pop('lifecycle_state'))['status_normalized']
-            row.update(category_main=main_category(row['category']),subcategories=subcategories(row['secondary_category'],row['category_l3']),role_badges=[x for x in (row.get('role_badges') or '').split('|') if x],entity_type=entity_kind(row.get('legal_name'),row.get('name_ar') or row.get('name_en')),reason='نتيجة من التصنيف المسجل؛ ليست توصية شراء أو طلبًا مؤكدًا')
+            row.update(category_main=main_category(row['category']),subcategories=subcategories(row['secondary_category'],row['category_l3']),role_badges=[x for x in (row.get('role_badges') or '').split('|') if x],specialties=[x for x in (row.get('specialty_concepts_ar') or '').split('، ') if x],entity_type=entity_kind(row.get('legal_name'),row.get('name_ar') or row.get('name_en')),reason='نتيجة من التصنيف المسجل؛ ليست توصية شراء أو طلبًا مؤكدًا')
         return {'rows':rows,'total':total,'located_total':located,'offset':offset,'has_more':offset+len(rows)<total,'next_offset':offset+len(rows) if offset+len(rows)<total else None,'map_query':self.register(city=city,filters=f),'parsed':{'city':city},'with_whatsapp':sum(has_usable_whatsapp(r) for r in rows),'with_email':sum(bool(r.get('email')) for r in rows),'by_region':[]}
     def profile(self,key,poi_key):
         with self.lock:
