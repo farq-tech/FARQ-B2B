@@ -1199,8 +1199,10 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       setSavedTick((tick) => tick + 1)
       setNotice(`حُفظت قائمة المراجعة لـ ${n(chosen.length)} جهة. تلقاها في «طلباتي».`)
       window.history.replaceState(null, '', `/opportunity-map#review=${encodeURIComponent(draft.id)}`)
+      recordMapInteraction('map_review_list_saved')
       return true
     } catch (err) {
+      recordMapInteraction('map_review_list_save_failed')
       setNotice(err instanceof Error && err.message ? err.message : 'تعذّر حفظ قائمة المراجعة. حاول بعد شوي.')
       return false
     } finally { setSavingReviewList(false) }
@@ -1212,6 +1214,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       city: cityName(city),
       targets: chosen,
     })
+    recordMapInteraction('map_review_to_rfq')
     onRfq()
   }
 
@@ -2004,6 +2007,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const saveDraft = async () => {
     const draft = await saveMarketingDraft('manual-review', campaignChosen, `حملة واتساب · ${query.trim() || 'استهداف منشآت'}`)
     setConfirming(false)
+    recordMapInteraction('map_campaign_draft_saved')
     setNotice(`حُفظت المسودة لـ ${n(campaignChosen.length)} جهة. تلقاها في الطلبات ضمن «مسودات».`)
     window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
   }
@@ -2108,9 +2112,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       })
       const draft = await saveMarketingDraft(campaign.id, rows, `حملة واتساب · ${plan.target}`)
       setPreparedCampaignId(campaign.id)
+      recordMapInteraction('map_campaign_draft_saved')
       setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. تلقاها في الطلبات ضمن «مسودات».`)
       window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
       return { count: phones.length, campaignId: campaign.id }
+    } catch (error) {
+      recordMapInteraction('map_campaign_draft_save_failed')
+      throw error
     } finally { setPreparingMarketing(false) }
   }
 
@@ -2129,9 +2137,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       })
       const draft = await saveMarketingDraft(campaign.id, campaignChosen, `حملة واتساب · ${query || 'استهداف السوق'}`)
       setPreparedCampaignId(campaign.id)
+      recordMapInteraction('map_campaign_draft_saved')
       setNotice(`أُضيفت ${n(phones.length)} منشأة إلى مسودة حملة واتساب. تلقاها في الطلبات ضمن «مسودات».`)
       window.history.replaceState(null, '', `/opportunity-map#draft=${encodeURIComponent(draft.id)}`)
     } catch {
+      recordMapInteraction('map_campaign_draft_save_failed')
       setNotice('تعذّر حفظ مسودة حملة واتساب. تأكد من صلاحية الحساب ثم أعد المحاولة.')
     } finally { setPreparingMarketing(false) }
   }
