@@ -113,6 +113,22 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     })).toBe(true)
   })
 
+  test('اختيار مورد يحفظ قائمة مراجعة أو ينشئ طلب تسعير، من دون حملة', async ({ page }) => {
+    const { apiPosts } = await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
+    await page.getByRole('checkbox', { name: /أضف مؤسسة الأنابيب الحديثة إلى قائمة المراجعة/ }).check()
+    const review = page.getByRole('region', { name: 'قائمة المراجعة المختارة' })
+    await expect(review.getByRole('button', { name: 'حفظ القائمة', exact: true })).toBeVisible()
+    await expect(review.getByRole('button', { name: 'إنشاء طلب تسعير', exact: true })).toBeVisible()
+    await review.getByRole('button', { name: 'حفظ القائمة', exact: true }).click()
+    await expect(page).toHaveURL(/#review=draft-1/)
+    expect(apiPosts.some((path) => path.includes('/send-farq'))).toBe(false)
+  })
+
   test('الاستهداف الذكي يحفظ مسودة قابلة للمراجعة من دون إرسال', async ({ page }) => {
     const { apiPosts } = await installMapFixtures(page)
     await page.goto('/opportunity-map')
