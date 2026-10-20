@@ -475,6 +475,14 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         lastSuccessfulQueryObjective.current = savedObjective
         setRes({ ...first, rows, total: rows.length, has_more: false, next_offset: null })
         setShown(rows.length); setSelected(new Set(rows.map((row) => row.poi_key))); setSelectedRows(new Map(rows.map((row) => [row.poi_key, row] as const)))
+        // Opening a saved list is a map action: expose its actual members immediately,
+        // keep each point editable, and frame their coordinates instead of a blank city map.
+        setShowMapPins(true)
+        const points = rows.filter(hasPoint)
+        if (points.length) setFit((current) => ({
+          bounds: [Math.min(...points.map((row) => row.longitude!)), Math.min(...points.map((row) => row.latitude!)), Math.max(...points.map((row) => row.longitude!)), Math.max(...points.map((row) => row.latitude!))],
+          at: (current?.at || 0) + 1,
+        }))
         setPreparedCampaignId(draft && typeof storedFilters.campaignId === 'string' ? storedFilters.campaignId : null)
         if (draft) setDraftOpenRequest((value) => value + 1)
         if (rows.length !== keys.length) setRestoredPartial(`استعدنا ${n(rows.length)} من ${n(keys.length)} جهة من القائمة المحفوظة. الجهات غير المتاحة لم تُضف.`)
@@ -843,9 +851,19 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const activeTileQuery = focus
     ? focusedTile?.key === focusedTileKey ? focusedTile.query : undefined
     : res?.map_query
-  // Keep the city uncluttered until the user chooses an area or an activity; either choice
-  // gives the map a useful, bounded cohort to pin even before they pick a district.
-  const pins = useMemo(() => ((query || buyerProductMode) && (chosenList.length || focus || filters.district || filters.street || filters.role || filters.specialty || buyerProductMode) ? pinsOf(visibleCohort, layer, selected, focus) : []), [query, buyerProductMode, chosenList, visibleCohort, layer, selected, focus, filters.district, filters.street, filters.role, filters.specialty])
+  // Saved and manually selected businesses are always a concrete map scope. This makes
+  // search, filters, draft restoration, and selection tell the same story on the map.
+  const selectedMapRows = useMemo(() => [...selectedRows.values()], [selectedRows])
+  const mapRows = useMemo(() => {
+    if (!selectedMapRows.length) return visibleCohort
+    const merged = new Map(visibleCohort.map((row) => [row.poi_key, row] as const))
+    selectedMapRows.forEach((row) => merged.set(row.poi_key, row))
+    return [...merged.values()]
+  }, [visibleCohort, selectedMapRows])
+  // A submitted search is itself an explicit scope. Keep its loaded points on the
+  // map even after the last selection is removed, so the user can select it again.
+  const hasExplicitMapScope = Boolean(query || buyerProductMode)
+  const pins = useMemo(() => (selectedMapRows.length || hasExplicitMapScope ? pinsOf(mapRows, layer, selected, focus) : []), [selectedMapRows.length, hasExplicitMapScope, mapRows, layer, selected, focus])
   const approxCount = useMemo(() => visibleCohort.filter((r) => !hasPoint(r)).length, [visibleCohort])
   const extent = useMemo<[number, number, number, number] | null>(() => {
     const pts = rows.filter(hasPoint)
@@ -1062,6 +1080,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       const first = responses[0]
       setBuyerProductGroups(groups)
       setRes({ ...first, rows, total: rows.length, with_whatsapp: rows.filter((row) => Boolean(waNumber(row))).length, with_email: rows.filter((row) => Boolean(row.email)).length, has_more: groups.some((group) => group.nextOffset != null), next_offset: null })
+      setShowMapPins(true)
       setLines((current) => current.map((line) => {
         const index = products.indexOf(line.name.trim())
         return index < 0 ? line : { ...line, found: responses[index].total }
@@ -1184,7 +1203,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         map_query: first.map_query,
         has_more: false,
       })
-      setQuery(text); setQ(text); setShown(PAGE); setAreaFilters({}); setBuyerProductGroups([]); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false)
+      setQuery(text); setQ(text); setShown(PAGE); setAreaFilters({}); setBuyerProductGroups([]); setMultiIntents(groups); setMultiPending(new Map()); setTab('results'); setFocus(null); setShowUnlocated(false); setShowMapPins(true)
       if (!selected.size) setMessage(defaultMessage(null, cityName(city)))
       const districtIds = intents.map((intent) => polys?.find((district) => normalizeActivityText(district.ar) === normalizeActivityText(intent.district))?.id || `name:${intent.district}`)
       setChosenD(new Set(districtIds))
@@ -1371,6 +1390,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       // complete first batch so the initial empty-search state does not hide
       // 50 already-loaded establishments behind an extra click.
       setRes(r); setQuery(''); setAreaFilters(browseFilters); setShown(FETCH)
+      if (Object.values(browseFilters).some(Boolean)) setShowMapPins(true)
       setBuyerProductGroups([])
       if (!preserveSelection) {
         setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map())
@@ -1448,7 +1468,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         })
       }
       setTab('results')
-      setRes(r); setQuery(text); setShown(PAGE); setAreaFilters(use)
+      setRes(r); setQuery(text); setShown(PAGE); setAreaFilters(use); setShowMapPins(true)
       if (fresh) {
         setSelected(new Set()); setSelectedRows(new Map()); setMultiIntents([]); setMultiPending(new Map()); setBuyerProductGroups([])
         const scopedDistrictId = use.district
@@ -2195,7 +2215,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     const result = { ...page, rows: loadedRows, has_more: nextOffset != null, next_offset: nextOffset }
     lastSearchRows.current = loadedRows
     lastSuccessfulQueryObjective.current = 'marketing'
-    setTab('results'); setRes(result); setQuery(plan.target); setShown(Math.max(PAGE, loadedRows.length)); setAreaFilters({})
+    setTab('results'); setRes(result); setQuery(plan.target); setShown(Math.max(PAGE, loadedRows.length)); setAreaFilters({}); setShowMapPins(true)
     const rows = loadedRows.filter((row) => Boolean(waNumber(row))).slice(0, requestedCount)
     if (!rows.length) throw new Error('NO_WHATSAPP_RESULTS')
     const phones = rows.map(waNumber).filter((phone): phone is string => Boolean(phone))
@@ -2798,7 +2818,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(280px,40dvh,360px)] shrink-0' : 'h-[clamp(22rem,48dvh,32rem)] shrink-0'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
+      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => { const row = byKey.get(k) || selectedRows.get(k); if (row) toggle(row) }} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}
         showDensity={showDensity} showDistricts={showDistricts} showClusters={showMarketClusters} showPlaces={showMapPins} showStreets={showStreets}
@@ -2827,7 +2847,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             </section>
             <section aria-labelledby="map-layer-places" className="rounded-xl bg-[var(--color-bg-surface-2)]/70 p-2">
               <h3 id="map-layer-places" className="m-0 px-2 pb-1 text-[11px] font-semibold text-[var(--color-text-secondary)]">التفاصيل</h3>
-              <Switch className="w-full justify-between" label="نقاط المنشآت" description="المواقع الفردية وملفاتها" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} />
+              <Switch className="w-full justify-between" label="نقاط المنشآت" description="اضغط نقطة لإضافتها أو إزالتها من المراجعة" checked={showMapPins} onChange={(event) => { const on = event.currentTarget.checked; setShowMapPins(on); recordMapInteraction(on ? 'map_filter_layer_places_on' : 'map_filter_layer_places_off'); if (!on) setProfile(null) }} />
             </section>
           </div>
         </div> : null}

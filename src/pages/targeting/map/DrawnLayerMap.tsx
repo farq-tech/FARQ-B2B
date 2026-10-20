@@ -206,8 +206,8 @@ export default function DrawnLayerMap({ districts, chosen, onDistrict, pins, hig
             const x = sx(p.lon), y = sy(p.lat)
             const highlighted = p.key === highlightedPinKey
             const name = nameOf(p.key)
-            const pinLabel = name
-            const common = { role: 'button', tabIndex: 0, 'aria-label': pinLabel, className: `cursor-pointer ${FOCUS_RING}`, 'data-pin': p.layer, 'data-pin-key': p.key, 'data-highlighted': highlighted ? 'true' : undefined,
+            const pinLabel = `${name} — ${p.chosen ? 'محدد للمراجعة؛ اضغط لإزالته' : 'اضغط لإضافته إلى المراجعة'}`
+            const common = { role: 'button', tabIndex: 0, 'aria-label': pinLabel, 'aria-pressed': p.chosen, className: `cursor-pointer ${FOCUS_RING}`, 'data-pin': p.layer, 'data-pin-key': p.key, 'data-highlighted': highlighted ? 'true' : undefined,
               onClick: (e: React.MouseEvent) => { e.stopPropagation(); if (!wasDrag()) onPin(p.key) }, onKeyDown: enter(() => onPin(p.key)) } as const
             const halo = highlighted ? <circle cx={x} cy={y - (p.layer === 'main' ? 8 : p.layer === 'spec' ? 18 : 0)} r={18} fill={P.green} fillOpacity={0.18} stroke={P.green} strokeOpacity={0.8} strokeWidth={2} pointerEvents="none" /> : null
             if (p.layer === 'main') return (
