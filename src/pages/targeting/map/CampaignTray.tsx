@@ -169,8 +169,10 @@ export default function CampaignTray(p: Props) {
             {error ? <p role="alert" className="text-[12px] leading-[18px] text-[var(--color-text-danger)]">{error}</p> : null}
             {p.onPrepare ? (
               <>
-                <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock) || p.preparing || p.prepared} loading={p.preparing} loadingLabel="نضيف القائمة…" title={p.sendBlock || undefined} onClick={p.onPrepare}>{p.prepared ? 'المسودة محفوظة' : 'أضف إلى حملة واتساب'}</Button>
-                <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">هذه الخطوة تحفظ قائمتك كمسودة في واتساب ولا ترسل رسالة. الإرسال يبقى إجراءً يدويًا منفصلًا.</p>
+                {p.prepared
+                  ? <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock)} title={p.sendBlock || undefined} onClick={p.onSend}>راجع الإرسال</Button>
+                  : <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock) || p.preparing} loading={p.preparing} loadingLabel="نضيف القائمة…" title={p.sendBlock || undefined} onClick={p.onPrepare}>أضف إلى حملة واتساب</Button>}
+                <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{p.prepared ? 'المسودة جاهزة للمراجعة. زر «راجع الإرسال» لا يرسل شيئاً؛ الإرسال يبقى خطوة يدوية منفصلة.' : 'هذه الخطوة تحفظ قائمتك كمسودة في واتساب ولا ترسل رسالة. الإرسال يبقى إجراءً يدويًا منفصلًا.'}</p>
                 {p.sendBlock ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{p.sendBlock}</p> : null}
               </>
             ) : mode === 'now' ? (
