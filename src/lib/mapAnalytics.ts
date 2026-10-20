@@ -106,6 +106,7 @@ const MAP_EVENTS = [
   'map_review_to_rfq',
   'map_campaign_draft_saved',
   'map_campaign_draft_save_failed',
+  'map_campaign_review_open',
   'map_seller_add_products',
   'fit_filter_all',
   'fit_filter_likely',
