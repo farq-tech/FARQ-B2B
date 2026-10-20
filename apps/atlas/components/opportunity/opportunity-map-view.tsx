@@ -16,6 +16,7 @@ import type { Filters, GoalId, RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
+import { LiveEntityResults } from './live-entity-results'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -244,6 +245,7 @@ export function OpportunityMapView() {
                 </ul>
               </div>
             ) : null}
+            <LiveEntityResults query={query} cityId={cityId} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
