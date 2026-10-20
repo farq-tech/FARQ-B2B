@@ -12,6 +12,7 @@ const rows = [
 ]
 
 async function installMapFixtures(page: Page) {
+  const apiPosts: string[] = []
   await page.addInitScript(() => {
     ;(window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = {
       accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token',
@@ -35,10 +36,15 @@ async function installMapFixtures(page: Page) {
   })
   await page.route('**/_api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
+    if (route.request().method() === 'POST') apiPosts.push(path)
     if (path.endsWith('/whatsapp/pricing')) return route.fulfill({ json: { ok: true, data: { enabled: true, price_sar: 0.17, currency: 'SAR' } } })
     if (path.endsWith('/api/business/context')) return route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } })
+    if (path.endsWith('/admin/marketing/campaigns')) return route.fulfill({ json: { ok: true, data: { id: 'campaign-1' } } })
+    if (path.includes('/admin/marketing/campaigns/campaign-1/recipients/batch')) return route.fulfill({ json: { ok: true, data: { accepted: 1 } } })
+    if (path.endsWith('/api/business/opportunity-requests')) return route.fulfill({ json: { ok: true, data: { request: { id: 'draft-1' } } } })
     return route.fulfill({ json: { ok: true, data: {} } })
   })
+  return { apiPosts }
 }
 
 test.describe('خريطة الفرص: التدفق الحالي', () => {
@@ -53,6 +59,22 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /حدد اللي عندهم واتساب/ })).toBeVisible()
+  })
+
+  test('الاستهداف الذكي يحفظ مسودة قابلة للمراجعة من دون إرسال', async ({ page }) => {
+    const { apiPosts } = await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^استهدف جهات/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'استهداف ذكي', exact: true })
+    await dialog.getByLabel('طلب الاستهداف').fill('استهدف شركات المقاولات في الرياض للتعريف بخدمة فرق')
+    await dialog.getByRole('button', { name: 'حلّل طلبي', exact: true }).click()
+    await expect(dialog.getByRole('button', { name: 'جهّز مسودة الحملة', exact: true })).toBeVisible()
+    await dialog.getByRole('button', { name: 'جهّز مسودة الحملة', exact: true }).click()
+    await expect(dialog.getByText(/لم تُرسل أي رسالة/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'فتح المسودة', exact: true }).click()
+    await expect(page.getByTestId('campaign-tray')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'راجع الإرسال', exact: true })).toBeVisible()
+    expect(apiPosts.some((path) => path.includes('/send-farq'))).toBe(false)
   })
 
   test('استكشاف السوق يغلق اختيار الهدف ويبقي عناصر الخريطة قابلة للاستخدام', async ({ page }) => {
