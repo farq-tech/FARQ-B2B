@@ -396,7 +396,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       if (!active) return
       setCities(values)
       setCity((c) => (values.some((v) => v.en === c) ? c : values.some((v) => v.en === 'Riyadh') ? 'Riyadh' : ''))
-    }, () => { if (active) setCities([]) })
+    }, (reason) => {
+      if (!active) return
+      setCities([])
+      setError(reason instanceof TargetingError ? reason.message : 'تعذّر تحميل المدن. حاول مرة أخرى.')
+    })
     return () => { active = false }
   }, [])
   // district polygons of the city (GET /districts); 404 or none → the search answer's district names
@@ -2672,7 +2676,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             {scopeMetric('ضمن الفلاتر الحالية', scopedMatchCount, scopedMatchNote, true)}
           </dl>
           {cityOverviewStats.main_activities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أنشطة بارزة: {cityOverviewStats.main_activities.slice(0, 3).map((activity) => `${activity.main_ar} (${n(activity.n)})`).join(' · ')}</p> : <p role="status" className="m-0 flex flex-wrap items-center gap-2 text-[11px] leading-[17px] text-[var(--color-text-secondary)]"><span>تعذّر عرض توزيع أنشطة المدينة حالياً.</span><button type="button" onClick={() => { recordMapInteraction('market_summary_retry'); setCityOverviewRetry((retry) => retry + 1) }} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></p>}
-        </> : cityOverviewLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص المدينة…</p> : cityOverviewError ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"><span>{cityOverviewErrorMessage || 'تعذّر تحميل إجمالي المدينة.'}</span><button type="button" onClick={() => setCityOverviewRetry((retry) => retry + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></div> : null
+        </> : !city ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">اختر مدينة لعرض تحليل السوق.</p> : cityOverviewLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص المدينة…</p> : cityOverviewError ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"><span>{cityOverviewErrorMessage || 'تعذّر تحميل إجمالي المدينة.'}</span><button type="button" onClick={() => setCityOverviewRetry((retry) => retry + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></div> : null
       ) : null}
       {mapScope === 'district' ? (
         scopeDistricts.length ? scopeDistricts.map((district) => {
