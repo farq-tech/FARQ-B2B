@@ -3,7 +3,7 @@
 import { ChevronDown, Search, Sparkles } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { CITIES, DISTRICTS, STREETS } from '@/lib/mock-data'
+import { CITIES } from '@/lib/mock-data'
 import type { GoalDef } from '@/lib/goals'
 import type { Filters } from '@/lib/types'
 
@@ -12,8 +12,6 @@ interface SearchToolbarProps {
   onChangeGoal: () => void
   cityId: string
   onCityChange: (id: string) => void
-  filters: Filters
-  onFiltersChange: (f: Filters) => void
   initialQuery: string
   onSearch: (text: string) => void
   onOpenAssistant: () => void
@@ -24,15 +22,12 @@ export function SearchToolbar({
   onChangeGoal,
   cityId,
   onCityChange,
-  filters,
-  onFiltersChange,
   initialQuery,
   onSearch,
   onOpenAssistant,
 }: SearchToolbarProps) {
   const [text, setText] = useState(initialQuery)
-  const districts = DISTRICTS.filter((d) => d.cityId === cityId)
-  const streets = STREETS.filter((s) => s.cityId === cityId && (filters.districts.length === 0 || filters.districts.includes(s.districtId)))
+
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -77,37 +72,11 @@ export function SearchToolbar({
         </Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="max-w-xs">
         <NativeSelect label="المدينة" value={cityId} onChange={onCityChange}>
           {CITIES.map((c) => (
             <option key={c.id} value={c.id}>
               {c.available ? c.name : `${c.name} (غير متاحة)`}
-            </option>
-          ))}
-        </NativeSelect>
-        <NativeSelect
-          label="الحي"
-          value={filters.districts.length === 1 ? filters.districts[0] : ''}
-          onChange={(v) => onFiltersChange({ ...filters, districts: v ? [v] : [], streets: [] })}
-          disabled={!districts.length}
-        >
-          <option value="">{filters.districts.length > 1 ? `${filters.districts.length} أحياء` : 'كل الأحياء'}</option>
-          {districts.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </NativeSelect>
-        <NativeSelect
-          label="الشارع"
-          value={filters.streets.length === 1 ? filters.streets[0] : ''}
-          onChange={(v) => onFiltersChange({ ...filters, streets: v ? [v] : [] })}
-          disabled={!streets.length}
-        >
-          <option value="">{filters.streets.length > 1 ? `${filters.streets.length} شوارع` : 'كل الشوارع'}</option>
-          {streets.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
             </option>
           ))}
         </NativeSelect>
