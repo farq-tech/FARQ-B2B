@@ -45,6 +45,14 @@ async function installMapFixtures(page: Page, options: { searchFailures?: number
     if (route.request().method() === 'POST') apiPosts.push(path)
     if (path.endsWith('/whatsapp/pricing')) return route.fulfill({ json: { ok: true, data: { enabled: true, price_sar: 0.17, currency: 'SAR' } } })
     if (path.endsWith('/api/business/context')) return route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } })
+    if (path.endsWith('/api/construction/rfqs')) return route.fulfill({ json: { ok: true, data: { rfqs: [] } } })
+    if (path.endsWith('/api/construction/reports/overview')) return route.fulfill({ json: { ok: true, data: {
+      generated_at: '2026-10-20T10:00:00Z', filters: { days: 90, rfq_id: null },
+      totals: { projects: 0, lines: 0, priced_lines: 0, single_offer_lines: 0, strong_lines: 0, line_offers_total: 0, invited: 0, reached: 0, opened: 0, replied: 0, quoted: 0, complete_quotes: 0, coverage_percent: null, avg_offers_per_line: null, suppliers_participating: 0, reply_rate: null, quote_rate: null, spread_value: 0, lowest_value: 0 },
+      savings: { basis: 'اختبار', potential: 0, potential_percent: null, realized: 0, awarded_projects: 0, note: '' },
+      funnel: { lines: 0, lines_with_suppliers: 0, rfq_sent: 0, one_offer: 0, two_offers: 0, three_offers: 0, awarded_projects: 0 }, response_buckets: [], competition: [], categories: [],
+      attention: { lines_no_offer_48h: 0, lines_single_offer: 0, rfqs_closing_today: 0, suppliers_silent: 0, quotes_last_24h: 0 }, projects: [], suppliers: [],
+    } } })
     if (path.endsWith('/admin/marketing/campaigns')) return route.fulfill({ json: { ok: true, data: { id: 'campaign-1' } } })
     if (path.includes('/admin/marketing/campaigns/campaign-1/recipients/batch')) return route.fulfill({ json: { ok: true, data: { accepted: 1 } } })
     if (path.endsWith('/api/business/opportunity-requests')) return route.fulfill({ json: { ok: true, data: { request: { id: 'draft-1' } } } })
@@ -65,6 +73,10 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /حدد اللي عندهم واتساب/ })).toBeVisible()
+    const mapRequests = page.locator('#farq-main').getByRole('button', { name: 'الطلبات', exact: true })
+    await expect(mapRequests).toBeVisible()
+    await mapRequests.click()
+    await expect(page.getByRole('heading', { name: 'الطلبات', exact: true })).toBeVisible()
   })
 
   test('فشل البحث لا يجمّد الخريطة ويتيح إعادة المحاولة', async ({ page }) => {
