@@ -323,6 +323,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [marketStats, setMarketStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewStats, setCityOverviewStats] = useState<MarketSummary['summary'] | null>(null)
   const [cityOverviewLoading, setCityOverviewLoading] = useState(true)
+  const [cityOverviewErrorMessage, setCityOverviewErrorMessage] = useState<string | null>(null)
   const cityOverviewError = !cityOverviewLoading && cityOverviewStats == null
   const [cityOverviewRetry, setCityOverviewRetry] = useState(0)
   const [marketDistrictCounts, setMarketDistrictCounts] = useState<DistrictCount[]>([])
@@ -582,17 +583,20 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     if (!city) {
       setCityOverviewStats(null)
       setCityOverviewLoading(false)
+      setCityOverviewErrorMessage(null)
       return
     }
     let active = true
     setCityOverviewLoading(true)
+    setCityOverviewErrorMessage(null)
     marketSummary({ city }).then((result) => {
       if (!active) return
       const summary = result?.ok ? result.summary : null
       setCityOverviewStats(summary || null)
-    }, () => {
+    }, (reason) => {
       if (!active) return
       setCityOverviewStats(null)
+      setCityOverviewErrorMessage(reason instanceof TargetingError ? reason.message : null)
     }).finally(() => { if (active) setCityOverviewLoading(false) })
     return () => { active = false }
   }, [city, cityOverviewRetry])
@@ -2668,7 +2672,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
             {scopeMetric('ضمن الفلاتر الحالية', scopedMatchCount, scopedMatchNote, true)}
           </dl>
           {cityOverviewStats.main_activities?.length ? <p className="m-0 text-[11px] leading-[17px] text-[var(--color-text-secondary)]">أنشطة بارزة: {cityOverviewStats.main_activities.slice(0, 3).map((activity) => `${activity.main_ar} (${n(activity.n)})`).join(' · ')}</p> : <p role="status" className="m-0 flex flex-wrap items-center gap-2 text-[11px] leading-[17px] text-[var(--color-text-secondary)]"><span>تعذّر عرض توزيع أنشطة المدينة حالياً.</span><button type="button" onClick={() => { recordMapInteraction('market_summary_retry'); setCityOverviewRetry((retry) => retry + 1) }} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></p>}
-        </> : cityOverviewLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص المدينة…</p> : cityOverviewError ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"><span>تعذّر تحميل إجمالي المدينة.</span><button type="button" onClick={() => setCityOverviewRetry((retry) => retry + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></div> : null
+        </> : cityOverviewLoading ? <p role="status" className="m-0 text-[13px] text-[var(--color-text-secondary)]">نحمّل ملخص المدينة…</p> : cityOverviewError ? <div role="status" className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"><span>{cityOverviewErrorMessage || 'تعذّر تحميل إجمالي المدينة.'}</span><button type="button" onClick={() => setCityOverviewRetry((retry) => retry + 1)} className={`font-medium text-[var(--color-text-info)] underline ${FOCUS_RING}`}>أعد المحاولة</button></div> : null
       ) : null}
       {mapScope === 'district' ? (
         scopeDistricts.length ? scopeDistricts.map((district) => {
