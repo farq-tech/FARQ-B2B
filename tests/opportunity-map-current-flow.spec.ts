@@ -73,6 +73,27 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await expect.poll(() => searches.some((body) => body.city === 'Jeddah' && body.q === 'مواسير')).toBe(true)
   })
 
+  test('اختيار الحي ثم الشارع يقيّد المطابقة بالنطاقين', async ({ page }) => {
+    const { searches } = await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
+
+    const scope = page.getByRole('group', { name: 'اختر مدينة أو حياً أو شارعاً للخريطة' })
+    await scope.getByRole('button', { name: 'الحي', exact: true }).click()
+    await page.getByRole('option', { name: 'العليا', exact: true }).click()
+    await expect.poll(() => searches.some((body) => (body.filters as { district?: string })?.district === 'العليا')).toBe(true)
+
+    await scope.getByRole('button', { name: 'الشارع', exact: true }).click()
+    await page.getByRole('option', { name: /طريق العليا العام · العليا/ }).click()
+    await expect.poll(() => searches.some((body) => {
+      const filters = body.filters as { district?: string; street?: string } | undefined
+      return filters?.district === 'العليا' && filters.street === 'طريق العليا العام'
+    })).toBe(true)
+  })
+
   test('الاستهداف الذكي يحفظ مسودة قابلة للمراجعة من دون إرسال', async ({ page }) => {
     const { apiPosts } = await installMapFixtures(page)
     await page.goto('/opportunity-map')
