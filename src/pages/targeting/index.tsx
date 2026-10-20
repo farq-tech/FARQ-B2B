@@ -457,12 +457,13 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         const first = await searchTargets(text, savedCity, FETCH, savedObjective)
         if (!active || version !== generation.current) return
         if (!first.map_query) throw new Error('تعذّر استعادة هذه القائمة من الدليل الآن. حاول مرة أخرى.')
+        const mapQuery = first.map_query
         const restored = new Map(first.rows.filter((row) => keys.includes(row.poi_key)).map((row) => [row.poi_key, row] as const))
         const missing = keys.filter((key) => !restored.has(key))
         for (let start = 0; start < missing.length; start += 6) {
           const batch = missing.slice(start, start + 6)
           const rows = await Promise.all(batch.map(async (key) => {
-            try { return (await mapProfile(first.map_query, key)).row } catch { return null }
+            try { return (await mapProfile(mapQuery, key)).row } catch { return null }
           }))
           if (!active || version !== generation.current) return
           rows.forEach((row) => { if (row) restored.set(row.poi_key, row) })
@@ -2328,7 +2329,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     </div>
   ) : !visibleCohort.length ? (
     <div className="px-5 py-6 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">
-      <p>{cohort.length ? 'ما فيه منشآت بهذا التقدير ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty || filters.contact ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
+      <p>{cohort.length ? 'ما فيه منشآت ضمن النتائج الحالية.' : rows.length ? 'ما فيه منشآت هنا مع الأحياء أو التضييق المختار. وسّع الاختيار أو شِل أحد المرشحات.' : filters.district || filters.street || filters.wholesale || filters.role || filters.specialty || filters.contact ? 'ما فيه جهات بهذا الوصف مع التضييق المختار. شِل أحد المرشحات فوق.' : 'ما لقينا جهات بهذا الوصف. جرّب كلمة ثانية أو مدينة أوسع.'}</p>
     </div>
   ) : (
     <div aria-busy={busy}>

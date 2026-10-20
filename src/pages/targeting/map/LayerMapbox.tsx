@@ -6,7 +6,7 @@ import { mapReadinessEvent, recordMapInteraction } from '../../../lib/mapAnalyti
 import { formatNumber } from '../../../lib/formatNumber'
 import { chipImage, circleSvg, palette, pinSvg, svgImage } from './glyphs'
 import type { LayerMapProps } from './types'
-import { densityStep, streetLine, type PinFit } from './model'
+import { densityStep, streetLine } from './model'
 
 /*
  * خريطة الفرص v2 on Mapbox (light-v11 tuned at runtime to the Farq light grey): district outlines (dashed, a chosen one
@@ -228,16 +228,14 @@ export default function LayerMapbox(props: LayerMapProps & { mapStartedAt: numbe
     const m = map.current
     if (!loaded || !m) return
     let alive = true
-    const fitCode = (fit: PinFit) => fit === 'likely' ? 'L' : fit === 'maybe' ? 'M' : fit === 'low' ? 'N' : 'U'
-    const imgOf = (p: typeof pins[number]) => `${p.layer === 'spec' ? 'x' : p.layer === 'main' ? 'm' : 's'}:${p.chosen ? 1 : 0}:${fitCode(p.fit)}:${p.layer === 'spec' ? p.text : p.icon}`
+    const imgOf = (p: typeof pins[number]) => `${p.layer === 'spec' ? 'x' : p.layer === 'main' ? 'm' : 's'}:${p.chosen ? 1 : 0}:${p.layer === 'spec' ? p.text : p.icon}`
     const need = [...new Set(pins.map(imgOf))].filter((id) => !m.hasImage(id))
     void Promise.all(need.map(async (id) => {
-      const [kind, chosenCode, fitValue, ...restParts] = id.split(':')
+      const [kind, chosenCode, ...restParts] = id.split(':')
       const on = chosenCode === '1'
-      const fit: PinFit = fitValue === 'L' ? 'likely' : fitValue === 'M' ? 'maybe' : fitValue === 'N' ? 'low' : 'unknown'
       const rest = restParts.join(':')
-      if (kind === 'x') { if (!m.hasImage(id)) m.addImage(id, chipImage(rest, on, fit), { pixelRatio: 2 }); return }
-      const im = await svgImage(kind === 'm' ? pinSvg(rest, on, fit) : circleSvg(rest, on, fit))
+      if (kind === 'x') { if (!m.hasImage(id)) m.addImage(id, chipImage(rest, on), { pixelRatio: 2 }); return }
+      const im = await svgImage(kind === 'm' ? pinSvg(rest, on) : circleSvg(rest, on))
       if (alive && !m.hasImage(id)) m.addImage(id, im)
     })).then(() => {
       if (!alive) return

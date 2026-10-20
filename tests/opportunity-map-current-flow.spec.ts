@@ -113,6 +113,19 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     })).toBe(true)
   })
 
+  test('النتائج تعتمد النشاط والموقع والتصنيف من دون تقدير ملاءمة آلي', async ({ page }) => {
+    await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
+    await expect(page.getByText('دليل الخريطة وتقدير الملاءمة', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('ملاءمة مرجّحة آلياً', { exact: true })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'التصنيفات', exact: true }).click()
+    await expect(page.getByText('مواد بناء وتشطيب (بيع)', { exact: true })).toBeVisible()
+  })
+
   test('اختيار مورد يحفظ قائمة مراجعة أو ينشئ طلب تسعير، من دون حملة', async ({ page }) => {
     const { apiPosts } = await installMapFixtures(page)
     await page.goto('/opportunity-map')
