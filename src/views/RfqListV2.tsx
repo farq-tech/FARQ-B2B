@@ -140,7 +140,7 @@ export function RfqListV2({ navigate }: NavProps) {
         </div>
         {rows && marketRows && total ? <Button variant="Primary" size="M" onClick={onNew}>طلب جديد</Button> : null}
       </header>
-      <CommercialImpact />
+      <CommercialImpact onOpenRfq={(id) => { setSelectedRfqId(id); navigate('rfq-detail') }} />
       {rows && marketRows && total > 3 ? (
         <div><label htmlFor="request-search" className="sr-only">ابحث عن طلب</label><input id="request-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم الطلب" className="min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3" /></div>
       ) : null}

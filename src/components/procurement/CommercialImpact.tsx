@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getConstructionReports, type ConstructionReports } from '../../api/constructionClient'
+import { getConstructionReportLines, getConstructionReports, type ConstructionReportLine, type ConstructionReports } from '../../api/constructionClient'
+import { Button } from '../../ui'
 
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 const percent = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
@@ -19,13 +20,21 @@ type State =
   | { state: 'loading' }
   | { state: 'ready'; report: ConstructionReports }
   | { state: 'unavailable' }
+type PriorityLines =
+  | { state: 'idle' }
+  | { state: 'loading' }
+  | { state: 'ready'; lines: ConstructionReportLine[] }
+  | { state: 'unavailable' }
+
+type Props = { onOpenRfq?: (rfqId: string) => void }
 
 /**
  * Company-recorded commercial outcomes, deliberately separate from map clicks.
  * It lets the owner see whether discovery is reaching quotes, awards, and savings.
  */
-export function CommercialImpact() {
+export function CommercialImpact({ onOpenRfq }: Props) {
   const [state, setState] = useState<State>({ state: 'loading' })
+  const [priorityLines, setPriorityLines] = useState<PriorityLines>({ state: 'idle' })
 
   useEffect(() => {
     let active = true
@@ -60,7 +69,28 @@ export function CommercialImpact() {
     attention.rfqs_closing_today > 0 ? `${number.format(attention.rfqs_closing_today)} طلبات يغلق استقبال عروضها اليوم` : null,
     attention.suppliers_silent > 0 ? `${number.format(attention.suppliers_silent)} جهات لم ترد بعد` : null,
   ].filter((priority): priority is string => Boolean(priority))
+  const canReviewLines = attention.lines_no_offer_48h > 0 || attention.lines_single_offer > 0
   const savingsNote = report.savings.note?.trim()
+
+  const loadPriorityLines = async () => {
+    setPriorityLines({ state: 'loading' })
+    try {
+      const groups = await Promise.all([
+        attention.lines_no_offer_48h > 0 ? getConstructionReportLines('no_offer') : Promise.resolve({ lines: [] as ConstructionReportLine[] }),
+        attention.lines_single_offer > 0 ? getConstructionReportLines('single_offer') : Promise.resolve({ lines: [] as ConstructionReportLine[] }),
+      ])
+      const seen = new Set<string>()
+      const lines = groups.flatMap((group) => group.lines || []).filter((line) => {
+        const key = `${line.rfq_id}:${line.line_id}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }).slice(0, 6)
+      setPriorityLines({ state: 'ready', lines })
+    } catch {
+      setPriorityLines({ state: 'unavailable' })
+    }
+  }
 
   return (
     <section aria-labelledby="commercial-impact-title" className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 sm:p-5">
@@ -80,7 +110,13 @@ export function CommercialImpact() {
           </div>
         ))}
       </div>
-      {priorities.length ? <div className="mt-4 rounded-[var(--radius-md)] bg-[var(--color-bg-warning)] px-3 py-2" role="status"><p className="m-0 text-[13px] font-medium">أولوية اليوم</p><ul className="m-1 mt-2 list-disc space-y-1 pr-4 text-[13px] text-[var(--color-text-secondary)]">{priorities.map((priority) => <li key={priority}>{priority}</li>)}</ul></div> : null}
+      {priorities.length ? <div className="mt-4 rounded-[var(--radius-md)] bg-[var(--color-bg-warning)] px-3 py-2" aria-live="polite"><p className="m-0 text-[13px] font-medium">أولوية اليوم</p><ul className="m-1 mt-2 list-disc space-y-1 pr-4 text-[13px] text-[var(--color-text-secondary)]">{priorities.map((priority) => <li key={priority}>{priority}</li>)}</ul>
+        {canReviewLines && priorityLines.state === 'idle' ? <Button variant="Ghost" size="S" onClick={() => void loadPriorityLines()}>راجع البنود ذات الأولوية</Button> : null}
+        {priorityLines.state === 'loading' ? <p className="mt-2 text-[12px] text-[var(--color-text-secondary)]">نجهّز البنود التي تحتاج متابعة…</p> : null}
+        {priorityLines.state === 'unavailable' ? <p className="mt-2 text-[12px] text-[var(--color-text-secondary)]">تعذّر جلب البنود الآن. افتح الطلبات لمتابعتها.</p> : null}
+        {priorityLines.state === 'ready' && priorityLines.lines.length ? <ul className="mt-2 divide-y divide-[var(--color-border-default)] rounded-[var(--radius-sm)] bg-[var(--color-bg-surface)] px-2">{priorityLines.lines.map((line) => <li key={`${line.rfq_id}:${line.line_id}`} className="flex items-center justify-between gap-2 py-2"><span className="min-w-0 truncate text-[12px] text-[var(--color-text-primary)]">{line.item_name || 'بند تسعير'}</span>{onOpenRfq ? <button type="button" onClick={() => onOpenRfq(line.rfq_id)} className="shrink-0 text-[12px] font-medium text-[var(--color-text-link)] underline">افتح الطلب</button> : null}</li>)}</ul> : null}
+        {priorityLines.state === 'ready' && !priorityLines.lines.length ? <p className="mt-2 text-[12px] text-[var(--color-text-secondary)]">لا توجد بنود مفتوحة تحتاج متابعة الآن.</p> : null}
+      </div> : null}
       {savingsNote ? <p className="mb-0 mt-3 text-[12px] text-[var(--color-text-secondary)]">طريقة القياس: {savingsNote}</p> : null}
     </section>
   )
