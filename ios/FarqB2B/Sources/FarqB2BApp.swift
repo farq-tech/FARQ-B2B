@@ -29,7 +29,7 @@ private struct FarqWebView: UIViewRepresentable {
 
     func updateUIView(_ view: WKWebView, context: Context) { }
 
-    private static let appURL = URL(string: "https://farq-pricing-production.up.railway.app/opportunity-map")!
+    private static let appURL = URL(string: "https://pricing.farq.sa/opportunity-map")!
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
