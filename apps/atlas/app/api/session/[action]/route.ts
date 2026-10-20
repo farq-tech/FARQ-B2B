@@ -5,8 +5,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get('origin') || request.headers.get('referer') || ''
-  return origin.startsWith(request.nextUrl.origin)
+  const source = request.headers.get('origin') || request.headers.get('referer')
+  if (!source) return false
+  try { return new URL(source).origin === request.nextUrl.origin } catch { return false }
 }
 
 function responseError(message: string, status: number) {

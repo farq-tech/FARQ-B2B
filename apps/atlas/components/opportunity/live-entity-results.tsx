@@ -4,12 +4,14 @@ import Link from 'next/link'
 import { Building2, Loader2, MapPin, MessageCircle, Search, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-type Entity = {
+export type LiveEntity = {
   id: string
   name: string
   category: string
   district: string
   street: string
+  latitude: number | null
+  longitude: number | null
   wholesale: boolean
   whatsapp: boolean
   verification: 'verified' | 'unverified' | 'unknown' | null
@@ -20,11 +22,11 @@ type Entity = {
   status: string | null
 }
 
-type Result = { total: number; withWhatsapp: number; rows: Entity[] }
+type Result = { total: number; withWhatsapp: number; rows: LiveEntity[] }
 
 type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId }: { query: string; cityId: string }) {
+export function LiveEntityResults({ query, cityId, onResults }: { query: string; cityId: string; onResults?: (rows: LiveEntity[]) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
 
   useEffect(() => {
@@ -43,6 +45,8 @@ export function LiveEntityResults({ query, cityId }: { query: string; cityId: st
       .catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
     return () => controller.abort()
   }, [query, cityId])
+
+  useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
 
   if (state.kind === 'idle') return <EmptySearch />
   if (state.kind === 'loading') return <Loading />
@@ -74,7 +78,7 @@ function SignInPrompt() {
 function Notice({ tone, text }: { tone: 'warning' | 'error'; text: string }) {
   return <section className={`rounded-xl border p-4 text-sm ${tone === 'error' ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-amber-500/30 bg-amber-50 text-amber-900'}`}>{text}</section>
 }
-function EntityRow({ entity }: { entity: Entity }) {
+function EntityRow({ entity }: { entity: LiveEntity }) {
   const fit = entity.fit === 'L' ? 'مطابقة قوية' : entity.fit === 'M' ? 'مطابقة محتملة' : null
   return <li className="py-3 first:pt-0 last:pb-0"><div className="flex gap-2.5"><span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Building2 className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-medium">{entity.name}</p>{fit ? <span className="shrink-0 text-[11px] font-medium text-primary">{fit}</span> : null}</div><p className="mt-0.5 truncate text-xs text-muted-foreground">{entity.category}</p><div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">{entity.district ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{entity.district}</span> : null}{entity.whatsapp ? <span className="inline-flex items-center gap-1 text-foreground/75"><MessageCircle className="size-3 text-primary" />إشارة واتساب</span> : null}</div>{entity.reason ? <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{entity.reason}</p> : null}</div></div></li>
 }

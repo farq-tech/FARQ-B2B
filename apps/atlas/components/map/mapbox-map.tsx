@@ -54,6 +54,8 @@ export interface MapboxMapProps extends MockMapProps {
   liveDistricts?: FeatureCollection
   liveCounts?: DistrictCount[]
   liveSummary?: MarketSummary['summary']
+  /** Authenticated directory matches. These are only rendered at entity zoom. */
+  liveEntityPins?: readonly { id: string; latitude: number | null; longitude: number | null }[]
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -106,7 +108,7 @@ function businessesFC(cityId: string, items: Business[], selected: Set<string>, 
 }
 
 function addLayers(map: MapboxMap) {
-  for (const id of ['districts', 'district-points', 'streets', 'ghosts', 'biz-flat', 'selected', 'area']) {
+  for (const id of ['districts', 'district-points', 'streets', 'ghosts', 'biz-flat', 'selected', 'area', 'live-entities']) {
     map.addSource(id, { type: 'geojson', data: EMPTY })
   }
   map.addSource('biz-clustered', {
@@ -239,6 +241,21 @@ function addLayers(map: MapboxMap) {
     source: 'selected',
     maxzoom: DISTRICT_MAX_ZOOM,
     paint: { 'circle-radius': 4.5, 'circle-color': COLORS.primary, 'circle-stroke-color': COLORS.card, 'circle-stroke-width': 2 },
+  })
+
+  map.addLayer({
+    id: 'live-entity-halo',
+    type: 'circle',
+    source: 'live-entities',
+    minzoom: ENTITY_MIN_ZOOM,
+    paint: { 'circle-radius': 9, 'circle-color': COLORS.primary, 'circle-opacity': 0.14 },
+  })
+  map.addLayer({
+    id: 'live-entity-pin',
+    type: 'circle',
+    source: 'live-entities',
+    minzoom: ENTITY_MIN_ZOOM,
+    paint: { 'circle-radius': 5, 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
   })
 
   map.addLayer({
@@ -375,6 +392,7 @@ export function MapboxBusinessMap({
   liveDistricts,
   liveCounts = [],
   liveSummary,
+  liveEntityPins = [],
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -609,6 +627,15 @@ export function MapboxBusinessMap({
     [cityId, businesses, selectedSet],
   )
 
+  const liveEntityData = useMemo<FeatureCollection>(() => ({
+    type: 'FeatureCollection',
+    features: liveEntityPins.flatMap((entity) => entity.latitude != null && entity.longitude != null ? [{
+      type: 'Feature' as const,
+      properties: { id: entity.id },
+      geometry: { type: 'Point' as const, coordinates: [entity.longitude, entity.latitude] },
+    }] : []),
+  }), [liveEntityPins])
+
   const districtStats = useMemo(() => {
     const counts = new Map<string, number>()
     if (useLiveDistricts) {
@@ -681,7 +708,8 @@ export function MapboxBusinessMap({
     for (const src of BIZ_SOURCES) (m.getSource(src) as GeoJSONSource).setData(bizData)
     ;(m.getSource('ghosts') as GeoJSONSource).setData(ghostData)
     ;(m.getSource('selected') as GeoJSONSource).setData(selectedData)
-  }, [ready, bizData, ghostData, selectedData])
+    ;(m.getSource('live-entities') as GeoJSONSource).setData(liveEntityData)
+  }, [ready, bizData, ghostData, selectedData, liveEntityData])
 
   useEffect(() => {
     const m = mapRef.current
