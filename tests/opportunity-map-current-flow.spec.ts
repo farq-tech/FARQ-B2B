@@ -13,6 +13,7 @@ const rows = [
 
 async function installMapFixtures(page: Page, options: { searchFailures?: number; malformedReport?: boolean } = {}) {
   let remainingSearchFailures = options.searchFailures || 0
+  const opportunityRequests: Array<Record<string, unknown>> = []
   const apiPosts: string[] = []
   const searches: Array<Record<string, unknown>> = []
   await page.addInitScript(() => {
@@ -37,7 +38,7 @@ async function installMapFixtures(page: Page, options: { searchFailures?: number
       const body = route.request().postDataJSON() as Record<string, unknown>
       searches.push(body)
       if (remainingSearchFailures > 0 && String(body.q || '').trim()) { remainingSearchFailures -= 1; return route.fulfill({ status: 503, json: { error: 'QA_SEARCH_UNAVAILABLE' } }) }
-      return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } }) }
+      return route.fulfill({ json: { total: rows.length, rows, map_query: 'qa-map-query', parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } }) }
     return route.fulfill({ json: { ok: true } })
   })
   await page.route('**/_api/**', async (route) => {
@@ -55,7 +56,18 @@ async function installMapFixtures(page: Page, options: { searchFailures?: number
     } } })
     if (path.endsWith('/admin/marketing/campaigns')) return route.fulfill({ json: { ok: true, data: { id: 'campaign-1' } } })
     if (path.includes('/admin/marketing/campaigns/campaign-1/recipients/batch')) return route.fulfill({ json: { ok: true, data: { accepted: 1 } } })
-    if (path.endsWith('/api/business/opportunity-requests')) return route.fulfill({ json: { ok: true, data: { request: { id: 'draft-1' } } } })
+    if (path.includes('/api/business/opportunity-requests/')) {
+      const id = path.split('/').filter(Boolean).at(-1)
+      const request = opportunityRequests.find((item) => item.id === id)
+      return route.fulfill(request ? { json: { ok: true, data: { request } } } : { status: 404, json: { error: 'NOT_FOUND' } })
+    }
+    if (path.endsWith('/api/business/opportunity-requests')) {
+      if (route.request().method() === 'GET') return route.fulfill({ json: { ok: true, data: { requests: opportunityRequests } } })
+      const body = route.request().postDataJSON() as { kind?: string; title?: string; payload?: Record<string, unknown> }
+      const request = { id: `draft-${opportunityRequests.length + 1}`, organizationId: 'org-1', createdBy: 'qa-user', kind: body.kind || 'SEARCH', title: body.title || 'مسودة', payload: body.payload || {}, status: 'ACTIVE', hidden: false, createdAt: '2026-10-20T10:00:00Z' }
+      opportunityRequests.unshift(request)
+      return route.fulfill({ json: { ok: true, data: { request } } })
+    }
     return route.fulfill({ json: { ok: true, data: {} } })
   })
   return { apiPosts, searches }
@@ -178,6 +190,39 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await dialog.getByRole('button', { name: 'فتح المسودة', exact: true }).click()
     await expect(page.getByTestId('campaign-tray')).toBeVisible()
     await expect(page.getByRole('button', { name: 'راجع الإرسال', exact: true })).toBeVisible()
+    expect(apiPosts.some((path) => path.includes('/send-farq'))).toBe(false)
+  })
+
+  test('فتح رابط المسودة يعرض الجهات المحفوظة كنقاط قابلة للاختيار والإلغاء', async ({ page }) => {
+    await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^استهدف جهات/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'استهداف ذكي', exact: true })
+    await dialog.getByLabel('طلب الاستهداف').fill('استهدف شركات المقاولات في الرياض للتعريف بخدمة فرق')
+    await dialog.getByRole('button', { name: 'حلّل طلبي', exact: true }).click()
+    await dialog.getByRole('button', { name: 'جهّز مسودة الحملة', exact: true }).click()
+    await expect(dialog.getByText(/لم تُرسل أي رسالة/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await page.goto('/opportunity-map#draft=draft-1')
+    const pin = page.locator('[data-pin-key="supplier-1"]')
+    await expect(pin).toBeVisible({ timeout: 12_000 })
+    await expect(pin).toHaveAttribute('aria-pressed', 'true')
+    await pin.click()
+    await expect(pin).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  test('مسودة الحملة تظهر في الطلبات ضمن المسودات قبل أي إرسال', async ({ page }) => {
+    const { apiPosts } = await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^استهدف جهات/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'استهداف ذكي', exact: true })
+    await dialog.getByLabel('طلب الاستهداف').fill('استهدف شركات المقاولات في الرياض للتعريف بخدمة فرق')
+    await dialog.getByRole('button', { name: 'حلّل طلبي', exact: true }).click()
+    await dialog.getByRole('button', { name: 'جهّز مسودة الحملة', exact: true }).click()
+    await dialog.getByRole('button', { name: 'فتح المسودة', exact: true }).click()
+    await page.locator('#farq-main').getByRole('button', { name: 'الطلبات', exact: true }).click()
+    await expect(page.getByRole('heading', { name: /^مسودات/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /حملة واتساب/ })).toBeVisible()
     expect(apiPosts.some((path) => path.includes('/send-farq'))).toBe(false)
   })
 
