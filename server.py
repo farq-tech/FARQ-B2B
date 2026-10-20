@@ -50,6 +50,7 @@ def public_files():
 TARGETING = os.environ.get('TARGETING_ORIGIN', 'https://farq-targeting-production-4687.up.railway.app').rstrip('/')
 TARGETING_PW = os.environ.get('TARGETING_PASSWORD', '')
 TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
+LOCAL_RUNTIME = os.environ.get('FARQ_LOCAL_RUNTIME') == '1'
 # Service-to-service header for the targeting service: its own token when set, else a value derived from the password
 # (never equal to a browser cookie). Must match the targeting service's service_token().
 TARGETING_SERVICE = os.environ.get('TARGETING_SERVICE_TOKEN') or (hmac.new(TARGETING_PW.encode(), b'farq-proxy-v1', hashlib.sha256).hexdigest() if TARGETING_PW else None)
@@ -233,6 +234,11 @@ class H(BaseHTTPRequestHandler):
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
         try: status, data, ctype = send_farq(body) if key in T_SEND else targeting_call(self.command, path + (("?"+parsed.query) if parsed.query else ""), body, retry_transient=key in T_READ)
         except Exception as e: return self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json')
+        # A local clone may deliberately omit the production service credential.
+        # Name that setup requirement instead of making the client mistake it for
+        # an expired user session. Production forwards the upstream status intact.
+        if LOCAL_RUNTIME and status == 401:
+            return self._send(503, json.dumps({'error': 'LOCAL_TARGETING_AUTH_REQUIRED', 'message_ar': 'أضف اعتماد خدمة الاستهداف إلى ملف البيئة المحلي ثم أعد تشغيل التطبيق.'}, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
         self._send(status, data, ctype)
     def _origin(self): return SITE_URL or ('https://' + (self.headers.get('Host') or 'localhost'))
     def _file(self, f):

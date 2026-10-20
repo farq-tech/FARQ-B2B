@@ -28,6 +28,7 @@ docker compose --env-file .env.production.local -f docker-compose.local-producti
 
 - يعتمد البناء على `Dockerfile` نفسه، بما فيه إصدار Node وPython وخط التجميع والخادم.
 - `FARQ_API_ORIGIN` و`TARGETING_ORIGIN` يحددان خدمات القراءة التي تستخدمها النسخة. احتفظ ببيانات الاعتماد في `.env.production.local` فقط؛ الملف مستثنى من Git.
+- لإظهار بيانات السوق الفعلية، أضف `TARGETING_PASSWORD` أو `TARGETING_SERVICE_TOKEN` المحليين. عند غيابهما يوضح التطبيق هذا المتطلب بدل أن يعرضه كجلسة منتهية.
 - `VITE_MAPBOX_TOKEN` اختياري، ويجعل الخريطة مماثلة لخريطة الإنتاج عند توفير مفتاح Mapbox العام المستخدم حاليًا.
 - الإرسال الفوري والجدولة مقفلان داخل ملف Compose بقيم ثابتة: `TARGETING_SEND=0` و`TARGETING_SCHEDULE_ENABLED=0`. لا يمكن أن ترسل النسخة المحلية إلى أي مستلم.
 - ينشئ أمر التشغيل `FARQ_SESSION_SECRET` محليًا عند غيابه، ويحتفظ به في الملف المحلي فقط. كما يستخدم Cookie غير Secure داخل `127.0.0.1` كي يعمل تسجيل الدخول عبر HTTP؛ الإنتاج يبقى على إعداد Secure الافتراضي.
