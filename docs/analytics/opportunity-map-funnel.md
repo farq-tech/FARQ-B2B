@@ -2036,3 +2036,54 @@ ORDER BY week_utc DESC, search_type, result_bucket;
 ```
 
 The per-attempt boundary uses event IDs within the consenting session; search requests superseded by a newer request do not emit a result outcome. These are navigation counts, not proof that results were relevant, a profile was accurate, or a quote was sent. Wait for two complete weeks and at least 30 consenting sessions for each search type, with attempts spread across sessions, before treating the rates as directional. Keep internal QA separate from customer behavior.
+
+## Decision-to-action funnel
+
+The map records the following milestones only after the owner has accepted map analytics:
+
+- `map_review_list_saved` — a selected list was saved for later review.
+- `map_review_to_rfq` — the owner chose to start a pricing request from that list.
+- `map_campaign_draft_saved` — a WhatsApp campaign draft was saved; this does not send a message.
+- `map_review_list_save_failed` and `map_campaign_draft_save_failed` — the corresponding save did not complete.
+
+The events contain only the anonymous session key and a fixed label. They do not contain a search phrase, selected business, phone number, recipient count, campaign text, or request contents. Run the aggregate query below against the authorized main application database. It deliberately returns no session identifiers.
+
+```sql
+WITH window AS (
+  SELECT date_trunc('week', now() AT TIME ZONE 'UTC') - interval '8 weeks' AS start_at,
+         date_trunc('week', now() AT TIME ZONE 'UTC') AS end_at
+), sessions AS (
+  SELECT
+    date_trunc('week', occurred_at AT TIME ZONE 'UTC') AS week,
+    session_id,
+    bool_or(element_label = 'pricing_map_map_review_list_saved') AS saved_review,
+    bool_or(element_label = 'pricing_map_map_review_to_rfq') AS started_rfq,
+    bool_or(element_label = 'pricing_map_map_campaign_draft_saved') AS saved_campaign_draft,
+    bool_or(element_label = 'pricing_map_map_review_list_save_failed') AS review_save_failed,
+    bool_or(element_label = 'pricing_map_map_campaign_draft_save_failed') AS campaign_draft_save_failed
+  FROM public.analytics_events, window
+  WHERE occurred_at >= window.start_at
+    AND occurred_at < window.end_at
+    AND path = '/opportunity-map'
+    AND element_label IN (
+      'pricing_map_map_review_list_saved',
+      'pricing_map_map_review_to_rfq',
+      'pricing_map_map_campaign_draft_saved',
+      'pricing_map_map_review_list_save_failed',
+      'pricing_map_map_campaign_draft_save_failed'
+    )
+  GROUP BY 1, 2
+)
+SELECT
+  week,
+  count(*) FILTER (WHERE saved_review) AS sessions_saved_review,
+  count(*) FILTER (WHERE started_rfq) AS sessions_started_rfq,
+  count(*) FILTER (WHERE saved_campaign_draft) AS sessions_saved_campaign_draft,
+  count(*) FILTER (WHERE review_save_failed) AS sessions_review_save_failed,
+  count(*) FILTER (WHERE campaign_draft_save_failed) AS sessions_campaign_draft_save_failed
+FROM sessions
+GROUP BY 1
+ORDER BY 1;
+```
+
+A saved review list is evidence that a user preserved a selection. Starting an RFQ is evidence of navigation into the pricing-request flow. A saved campaign draft is evidence of preparation for later manual review, not evidence that a recipient was contacted, that a message was approved, or that it converted. Failures indicate an incomplete save attempt; they do not establish the cause. Wait for at least two complete weeks and 30 consenting sessions with the relevant milestone before treating any rate as directional, then compare it with actual request, quote, and award records.
