@@ -11,7 +11,8 @@ const rows = [
   },
 ]
 
-async function installMapFixtures(page: Page) {
+async function installMapFixtures(page: Page, options: { searchFailures?: number } = {}) {
+  let remainingSearchFailures = options.searchFailures || 0
   const apiPosts: string[] = []
   const searches: Array<Record<string, unknown>> = []
   await page.addInitScript(() => {
@@ -32,7 +33,11 @@ async function installMapFixtures(page: Page) {
     if (path.endsWith('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], basis: 'اختبار' } })
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'qa_template', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [] } })
-    if (path.endsWith('/search')) { searches.push(route.request().postDataJSON() as Record<string, unknown>); return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } }) }
+    if (path.endsWith('/search')) {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      searches.push(body)
+      if (remainingSearchFailures > 0 && String(body.q || '').trim()) { remainingSearchFailures -= 1; return route.fulfill({ status: 503, json: { error: 'QA_SEARCH_UNAVAILABLE' } }) }
+      return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } }) }
     return route.fulfill({ json: { ok: true } })
   })
   await page.route('**/_api/**', async (route) => {
@@ -60,6 +65,20 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /حدد اللي عندهم واتساب/ })).toBeVisible()
+  })
+
+  test('فشل البحث لا يجمّد الخريطة ويتيح إعادة المحاولة', async ({ page }) => {
+    await installMapFixtures(page, { searchFailures: 2 })
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    const input = page.getByLabel('وش تبي توصل له؟')
+    await input.fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('خدمة الاستهداف ما ردّت')
+    await expect(input).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'ابحث', exact: true })).toBeEnabled()
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
   })
 
   test('تغيير المدينة يقيّد البحث بالمدينة المختارة', async ({ page }) => {
