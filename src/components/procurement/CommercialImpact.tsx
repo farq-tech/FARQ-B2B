@@ -28,6 +28,19 @@ type PriorityLines =
 
 type Props = { onOpenRfq?: (rfqId: string) => void }
 
+// The reports endpoint may be temporarily behind the web deployment. Treat an
+// incomplete 200 response as unavailable instead of letting one optional card
+// stop the unified requests page from rendering.
+const isReport = (value: unknown): value is ConstructionReports => {
+  if (!value || typeof value !== 'object') return false
+  const report = value as Partial<ConstructionReports>
+  return Boolean(
+    report.totals && typeof report.totals.projects === 'number'
+    && report.savings && typeof report.savings.realized === 'number'
+    && report.attention && typeof report.attention.lines_no_offer_48h === 'number',
+  )
+}
+
 /**
  * Company-recorded commercial outcomes, deliberately separate from map clicks.
  * It lets the owner see whether discovery is reaching quotes, awards, and savings.
@@ -39,7 +52,7 @@ export function CommercialImpact({ onOpenRfq }: Props) {
   useEffect(() => {
     let active = true
     getConstructionReports({ days: 90 })
-      .then((report) => { if (active) setState({ state: 'ready', report }) })
+      .then((report) => { if (active) setState(isReport(report) ? { state: 'ready', report } : { state: 'unavailable' }) })
       .catch(() => { if (active) setState({ state: 'unavailable' }) })
     return () => { active = false }
   }, [])

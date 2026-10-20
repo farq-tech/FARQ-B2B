@@ -11,7 +11,7 @@ const rows = [
   },
 ]
 
-async function installMapFixtures(page: Page, options: { searchFailures?: number } = {}) {
+async function installMapFixtures(page: Page, options: { searchFailures?: number; malformedReport?: boolean } = {}) {
   let remainingSearchFailures = options.searchFailures || 0
   const apiPosts: string[] = []
   const searches: Array<Record<string, unknown>> = []
@@ -46,7 +46,7 @@ async function installMapFixtures(page: Page, options: { searchFailures?: number
     if (path.endsWith('/whatsapp/pricing')) return route.fulfill({ json: { ok: true, data: { enabled: true, price_sar: 0.17, currency: 'SAR' } } })
     if (path.endsWith('/api/business/context')) return route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } })
     if (path.endsWith('/api/construction/rfqs')) return route.fulfill({ json: { ok: true, data: { rfqs: [] } } })
-    if (path.endsWith('/api/construction/reports/overview')) return route.fulfill({ json: { ok: true, data: {
+    if (path.endsWith('/api/construction/reports/overview')) return route.fulfill({ json: { ok: true, data: options.malformedReport ? {} : {
       generated_at: '2026-10-20T10:00:00Z', filters: { days: 90, rfq_id: null },
       totals: { projects: 0, lines: 0, priced_lines: 0, single_offer_lines: 0, strong_lines: 0, line_offers_total: 0, invited: 0, reached: 0, opened: 0, replied: 0, quoted: 0, complete_quotes: 0, coverage_percent: null, avg_offers_per_line: null, suppliers_participating: 0, reply_rate: null, quote_rate: null, spread_value: 0, lowest_value: 0 },
       savings: { basis: 'اختبار', potential: 0, potential_percent: null, realized: 0, awarded_projects: 0, note: '' },
@@ -77,6 +77,17 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await expect(mapRequests).toBeVisible()
     await mapRequests.click()
     await expect(page.getByRole('heading', { name: 'الطلبات', exact: true })).toBeVisible()
+  })
+
+  test('استجابة التقارير الناقصة لا تعطل صفحة الطلبات', async ({ page }) => {
+    await installMapFixtures(page, { malformedReport: true })
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await page.locator('#farq-main').getByRole('button', { name: 'الطلبات', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'الطلبات', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'تعذّر تحميل الصفحة', exact: true })).toHaveCount(0)
   })
 
   test('فشل البحث لا يجمّد الخريطة ويتيح إعادة المحاولة', async ({ page }) => {
