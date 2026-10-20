@@ -1,7 +1,7 @@
 'use client'
 
 import 'mapbox-gl/dist/mapbox-gl.css'
-import type { FeatureCollection, Point as GeoPoint } from 'geojson'
+import type { Feature, FeatureCollection, Geometry, Point as GeoPoint, Position } from 'geojson'
 import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
 import { Loader2, MapPinOff, Minus, Plus, Scan, SearchX } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -10,6 +10,7 @@ import { formatNumber } from '@/lib/format'
 import { areaKey, areaRing, boundsOf, cityBounds, isInArea, toLngLat, type LngLatBounds, type MapArea } from '@/lib/geo'
 import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, summarize, type MapLevel } from '@/lib/map-summary'
 import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
+import type { DistrictCount, MarketSummary } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
@@ -49,12 +50,48 @@ type Card =
 export interface MapboxMapProps extends MockMapProps {
   token: string
   onFailure: () => void
+  /** Server-proxied aggregate market data. Never contains contacts or send actions. */
+  liveDistricts?: FeatureCollection
+  liveCounts?: DistrictCount[]
+  liveSummary?: MarketSummary['summary']
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
   if (progressive && layers.districts && zoom < DISTRICT_MAX_ZOOM) return 'districts'
   if (layers.clusters && zoom < ENTITY_MIN_ZOOM) return 'clusters'
   return 'entities'
+}
+
+function districtId(feature: Feature): string | null {
+  const properties = feature.properties ?? {}
+  const value = properties.id ?? properties.district_id ?? properties.district_en ?? feature.id
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : null
+}
+
+function districtName(feature: Feature): string {
+  const properties = feature.properties ?? {}
+  const value = properties.ar ?? properties.name_ar ?? properties.district_ar ?? properties.name ?? districtId(feature)
+  return typeof value === 'string' ? value : 'حي'
+}
+
+function polygonCenter(geometry: Geometry | null): [number, number] | null {
+  if (!geometry || geometry.type === 'GeometryCollection') return null
+  const positions: Position[] = []
+  const collect = (value: unknown): void => {
+    if (!Array.isArray(value)) return
+    if (typeof value[0] === 'number' && typeof value[1] === 'number') positions.push(value as Position)
+    else value.forEach(collect)
+  }
+  collect(geometry.coordinates)
+  if (!positions.length) return null
+  return [positions.reduce((sum, p) => sum + p[0], 0) / positions.length, positions.reduce((sum, p) => sum + p[1], 0) / positions.length]
+}
+
+function outerRing(geometry: Geometry | null): [number, number][] {
+  if (!geometry) return []
+  if (geometry.type === 'Polygon') return geometry.coordinates[0]?.map(([lng, lat]) => [lng, lat]) ?? []
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates[0]?.[0]?.map(([lng, lat]) => [lng, lat]) ?? []
+  return []
 }
 
 function businessesFC(cityId: string, items: Business[], selected: Set<string>, area?: MapArea | null): FeatureCollection {
@@ -322,6 +359,9 @@ export function MapboxBusinessMap({
   onAreaChange,
   onSelectMany,
   onShowList,
+  liveDistricts,
+  liveCounts = [],
+  liveSummary,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -343,6 +383,10 @@ export function MapboxBusinessMap({
 
   const level = levelFor(zoom, progressive, layers)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const liveDistrictFeatures = useMemo(() => (liveDistricts?.features ?? []).filter((feature): feature is Feature<Geometry> => Boolean(feature?.geometry && districtId(feature))), [liveDistricts])
+  const liveDistrictById = useMemo(() => new Map(liveDistrictFeatures.map((feature) => [districtId(feature) as string, feature])), [liveDistrictFeatures])
+  const liveCountByName = useMemo(() => new Map(liveCounts.map((count) => [count.district_ar.trim(), count])), [liveCounts])
+  const useLiveDistricts = liveDistrictFeatures.length > 0
 
   const handlersRef = useRef({
     onTogglePin,
@@ -424,7 +468,8 @@ export function MapboxBusinessMap({
               const d = hit(['district-heat'], e.point)
               const id = d?.properties?.id
               if (typeof id === 'string') {
-                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${districtById.get(id)?.name ?? ''}` })
+                const label = typeof d?.properties?.name === 'string' ? d.properties.name : typeof d?.properties?.ar === 'string' ? d.properties.ar : districtById.get(id)?.name ?? ''
+                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${label}` })
                 setAreaMode(false)
               }
               return
@@ -553,41 +598,51 @@ export function MapboxBusinessMap({
 
   const districtStats = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const b of businesses) counts.set(b.districtId, (counts.get(b.districtId) ?? 0) + 1)
+    if (useLiveDistricts) {
+      for (const feature of liveDistrictFeatures) {
+        const id = districtId(feature)
+        if (!id) continue
+        counts.set(id, liveCountByName.get(districtName(feature).trim())?.n ?? 0)
+      }
+    } else {
+      for (const b of businesses) counts.set(b.districtId, (counts.get(b.districtId) ?? 0) + 1)
+    }
     const max = Math.max(1, ...counts.values())
     return { counts, max }
-  }, [businesses])
+  }, [businesses, liveCountByName, liveDistrictFeatures, useLiveDistricts])
 
   const overlayData = useMemo(() => {
     const hlDistricts = new Set(districtsKey ? districtsKey.split(',') : [])
     const hlStreets = new Set(streetsKey ? streetsKey.split(',') : [])
     const streetCounts = new Map<string, number>()
     for (const b of businesses) streetCounts.set(b.streetId, (streetCounts.get(b.streetId) ?? 0) + 1)
-    const districts = DISTRICTS.filter((d) => d.cityId === cityId)
+    const syntheticDistricts = DISTRICTS.filter((d) => d.cityId === cityId)
     const streets = STREETS.filter((s) => s.cityId === cityId && ((streetCounts.get(s.id) ?? 0) >= 3 || hlStreets.has(s.id)))
     const props = (id: string) => {
       const count = districtStats.counts.get(id) ?? 0
       return { id, hl: hlDistricts.has(id) ? 1 : 0, count, t: count / districtStats.max }
     }
-    return {
-      districts: {
-        type: 'FeatureCollection',
-        features: districts.map((d) => {
-          const ring = d.polygon.map((p) => toLngLat(cityId, p))
-          return { type: 'Feature', properties: props(d.id), geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] } }
-        }),
-      } satisfies FeatureCollection,
-      points: {
-        type: 'FeatureCollection',
-        features: districts.map((d) => {
+    const districts = useLiveDistricts
+      ? liveDistrictFeatures.map((feature) => ({ ...feature, properties: { ...(feature.properties ?? {}), ...props(districtId(feature) as string) } }))
+      : syntheticDistricts.map((d) => {
+          const ring = d.polygon.map((point) => toLngLat(cityId, point))
+          return { type: 'Feature' as const, properties: props(d.id), geometry: { type: 'Polygon' as const, coordinates: [[...ring, ring[0]]] } }
+        })
+    const points = useLiveDistricts
+      ? liveDistrictFeatures.flatMap((feature) => {
+          const id = districtId(feature)
+          const center = polygonCenter(feature.geometry)
+          if (!id || !center) return []
+          const p = props(id)
+          return [{ type: 'Feature' as const, properties: { ...p, name: districtName(feature), countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: center } }]
+        })
+      : syntheticDistricts.map((d) => {
           const p = props(d.id)
-          return {
-            type: 'Feature',
-            properties: { ...p, name: d.name, countLabel: `${formatNumber(p.count)} منشأة` },
-            geometry: { type: 'Point', coordinates: toLngLat(cityId, d.center) },
-          }
-        }),
-      } satisfies FeatureCollection,
+          return { type: 'Feature' as const, properties: { ...p, name: d.name, countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: toLngLat(cityId, d.center) } }
+        })
+    return {
+      districts: { type: 'FeatureCollection', features: districts } satisfies FeatureCollection,
+      points: { type: 'FeatureCollection', features: points } satisfies FeatureCollection,
       streets: {
         type: 'FeatureCollection',
         features: streets.map((s) => ({
@@ -597,14 +652,15 @@ export function MapboxBusinessMap({
         })),
       } satisfies FeatureCollection,
     }
-  }, [cityId, businesses, districtsKey, streetsKey, districtStats])
+  }, [cityId, businesses, districtsKey, streetsKey, districtStats, liveDistrictFeatures, useLiveDistricts])
 
   const areaData = useMemo<FeatureCollection>(() => {
     if (!area) return EMPTY
-    const ring = areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
+    const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
+    const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
     if (ring.length < 3) return EMPTY
     return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] } }] }
-  }, [cityId, area])
+  }, [cityId, area, liveDistrictById])
 
   useEffect(() => {
     const m = mapRef.current
@@ -676,20 +732,22 @@ export function MapboxBusinessMap({
   useEffect(() => {
     if (!ready) return
     const points = (compact ? [...businesses, ...ghostBusinesses] : businesses).map((b) => toLngLat(cityId, [b.x, b.y]))
-    fitTo(boundsOf(points) ?? cityBounds(cityId))
+    const liveBounds = boundsOf(liveDistrictFeatures.flatMap((feature) => outerRing(feature.geometry)))
+    fitTo(liveBounds ?? boundsOf(points) ?? cityBounds(cityId))
     // Only refit when the result set, city, or visible size changes — not on selection toggles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, compactFitKey, sizeEpoch])
+  }, [ready, compactFitKey, sizeEpoch, liveDistrictFeatures])
 
   const currentAreaKey = areaKey(area)
   useEffect(() => {
     if (!ready || !area) return
-    const ring = areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
+    const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
+    const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
     const b = boundsOf(ring)
     if (b) fitTo(b, true, 15.5)
     setCard(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, currentAreaKey])
+  }, [ready, currentAreaKey, liveDistrictById])
 
   useEffect(() => {
     setCard(null)
@@ -735,21 +793,26 @@ export function MapboxBusinessMap({
       return <BusinessCard business={b} selected={selectedSet.has(b.id)} onClose={() => setCard(null)} onToggle={() => onTogglePin(b.id)} />
     }
     if (card?.kind === 'district') {
+      const live = liveDistrictById.get(card.id)
       const d = districtById.get(card.id)
-      if (!d) return null
-      const items = businesses.filter((b) => b.districtId === d.id)
+      if (!live && !d) return null
+      const name = live ? districtName(live) : d!.name
+      const items = d ? businesses.filter((b) => b.districtId === d.id) : []
+      const count = districtStats.counts.get(card.id) ?? items.length
+      const summary = live ? { count, selected: 0, reachable: liveCountByName.get(name)?.n_whatsapp ?? 0, wholesale: liveCountByName.get(name)?.n_wholesale ?? 0, topCategories: [] } : summarize(items, selectedSet)
+      const ring = live ? outerRing(live.geometry) : d!.polygon.map((point) => toLngLat(cityId, point))
       return (
         <DistrictCard
-          name={d.name}
-          summary={summarize(items, selectedSet)}
-          intensity={(districtStats.counts.get(d.id) ?? 0) / districtStats.max}
+          name={name}
+          summary={summary}
+          intensity={count / districtStats.max}
           onClose={() => setCard(null)}
           onZoom={() => {
-            const b = boundsOf(d.polygon.map((p) => toLngLat(cityId, p)))
+            const b = boundsOf(ring)
             if (b) fitTo(b, true, 13.6, DISTRICT_MAX_ZOOM + 0.4)
             setCard(null)
           }}
-          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: d.id, label: `حي ${d.name}` })}
+          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: card.id, label: `حي ${name}` })}
         />
       )
     }
@@ -815,8 +878,8 @@ export function MapboxBusinessMap({
             cityName={cityName}
             level={level}
             progressive={progressive}
-            inView={inView}
-            total={businesses.length}
+            inView={liveSummary?.total ?? inView}
+            total={liveSummary?.total ?? businesses.length}
             selected={selectedIds.length}
             areaMode={areaMode}
             areaLabel={area?.label}
@@ -838,7 +901,8 @@ export function MapboxBusinessMap({
             type="button"
             onClick={() => {
               const points = businesses.map((b) => toLngLat(cityId, [b.x, b.y]))
-              fitTo(boundsOf(points) ?? cityBounds(cityId))
+              const liveBounds = boundsOf(liveDistrictFeatures.flatMap((feature) => outerRing(feature.geometry)))
+              fitTo(liveBounds ?? boundsOf(points) ?? cityBounds(cityId))
               setCard(null)
             }}
             className="border-t p-2 hover:bg-muted"
