@@ -7,6 +7,7 @@ import { rfqProjectName } from '../lib/rfqIdentity'
 import { farqSession } from '../api/farqSession'
 import { Button, Greeting, Icon, ListRow, ListSection, type BadgeTone, type IconName } from '../ui'
 import { gregorianLabel } from '../lib/saudi'
+import { CommercialImpact } from '../components/procurement/CommercialImpact'
 
 /*
  * Figma M02 `18371:22940` / W02 `18371:288`: requests grouped by what the owner has to do next
@@ -139,6 +140,7 @@ export function RfqListV2({ navigate }: NavProps) {
         </div>
         {rows && marketRows && total ? <Button variant="Primary" size="M" onClick={onNew}>طلب جديد</Button> : null}
       </header>
+      <CommercialImpact />
       {rows && marketRows && total > 3 ? (
         <div><label htmlFor="request-search" className="sr-only">ابحث عن طلب</label><input id="request-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث باسم الطلب" className="min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3" /></div>
       ) : null}
