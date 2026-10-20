@@ -231,6 +231,11 @@ class H(BaseHTTPRequestHandler):
         if key == ('GET', '/send-status'): return self._send(200, json.dumps({'send': TARGETING_SEND}).encode(), 'application/json')
         if not tile and key not in T_READ and key not in T_SEND and key not in T_SUBMIT: return self._send(404, b'{"error":"not_found"}', 'application/json')
         if key in T_SEND and not TARGETING_SEND: return self._send(403, b'{"ok":false,"error":"SEND_DISABLED"}', 'application/json')
+        # A production-like local runtime must not wait for an upstream 401 (or
+        # its read retry) when its service credential was deliberately omitted.
+        # The page receives one precise, actionable setup result instead.
+        if LOCAL_RUNTIME and not TARGETING_SERVICE:
+            return self._send(503, json.dumps({'error': 'LOCAL_TARGETING_AUTH_REQUIRED', 'message_ar': 'أضف اعتماد خدمة الاستهداف إلى ملف البيئة المحلي ثم أعد تشغيل التطبيق.'}, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
         n = int(self.headers.get('Content-Length') or 0); body = self.rfile.read(n) if n else None
         try: status, data, ctype = send_farq(body) if key in T_SEND else targeting_call(self.command, path + (("?"+parsed.query) if parsed.query else ""), body, retry_transient=key in T_READ)
         except Exception as e: return self._send(502, json.dumps({'error': 'UPSTREAM', 'detail': str(e)[:200]}).encode(), 'application/json')
