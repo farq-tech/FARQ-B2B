@@ -1,0 +1,200 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7B952822BF287C27179A5E7B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 937F94B97A4DAFBDE943B887 /* Assets.xcassets */; };
+		BAD85BE6A09062B91DB9CE3B /* FarqB2BApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C412647D95590E1B176A7A9 /* FarqB2BApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		12B40E18B9C44E84D4541351 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5C412647D95590E1B176A7A9 /* FarqB2BApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FarqB2BApp.swift; sourceTree = "<group>"; };
+		937F94B97A4DAFBDE943B887 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CB7F5E7FDF9D1AA7E651C01C /* FarqB2B.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FarqB2B.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		80749EB817AE5179BEF8BBCD = {
+			isa = PBXGroup;
+			children = (
+				F1922FFB217894EC6FA6EFD6 /* Sources */,
+				F96A2411D0203E3B2D9F2F15 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F1922FFB217894EC6FA6EFD6 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				937F94B97A4DAFBDE943B887 /* Assets.xcassets */,
+				5C412647D95590E1B176A7A9 /* FarqB2BApp.swift */,
+				12B40E18B9C44E84D4541351 /* Info.plist */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F96A2411D0203E3B2D9F2F15 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CB7F5E7FDF9D1AA7E651C01C /* FarqB2B.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		EAC3FF5A0515CBF73A2DB361 /* FarqB2B */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EC86818299CB6EFCF340F51A /* Build configuration list for PBXNativeTarget "FarqB2B" */;
+			buildPhases = (
+				A4FE4967A61AEF9C4046D4E0 /* Sources */,
+				7744A80EBCF093CBF13F1887 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FarqB2B;
+			packageProductDependencies = (
+			);
+			productName = FarqB2B;
+			productReference = CB7F5E7FDF9D1AA7E651C01C /* FarqB2B.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5B5F88A51A93BFCD3883862F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					EAC3FF5A0515CBF73A2DB361 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 717C65E52AA4BE45B9D54F6B /* Build configuration list for PBXProject "FarqB2B" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 80749EB817AE5179BEF8BBCD;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F96A2411D0203E3B2D9F2F15 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				EAC3FF5A0515CBF73A2DB361 /* FarqB2B */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7744A80EBCF093CBF13F1887 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B952822BF287C27179A5E7B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A4FE4967A61AEF9C4046D4E0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BAD85BE6A09062B91DB9CE3B /* FarqB2BApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		25CBCAFE4F3359D32289A2A3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		4C275599E6837C9C22A9C06C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = FarqB2B/Sources/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = sa.farq.b2b;
+				PRODUCT_NAME = "FARQ B2B";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		8088F77D9442FA5A2EFBB773 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = FarqB2B/Sources/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = sa.farq.b2b;
+				PRODUCT_NAME = "FARQ B2B";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		E34F7EFC6152F4C7E350300C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		717C65E52AA4BE45B9D54F6B /* Build configuration list for PBXProject "FarqB2B" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				25CBCAFE4F3359D32289A2A3 /* Debug */,
+				E34F7EFC6152F4C7E350300C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EC86818299CB6EFCF340F51A /* Build configuration list for PBXNativeTarget "FarqB2B" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C275599E6837C9C22A9C06C /* Debug */,
+				8088F77D9442FA5A2EFBB773 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5B5F88A51A93BFCD3883862F /* Project object */;
+}
