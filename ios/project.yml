@@ -1,0 +1,29 @@
+name: FarqB2B
+options:
+  bundleIdPrefix: sa.farq
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""
+targets:
+  FarqB2B:
+    type: application
+    platform: iOS
+    sources:
+      - path: FarqB2B/Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sa.farq.b2b
+        PRODUCT_NAME: "FARQ B2B"
+        INFOPLIST_FILE: FarqB2B/Sources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+    scheme:
+      testTargets: []
+      gatherCoverageData: false
