@@ -121,6 +121,31 @@ export type TargetSearch = {
 
 export type SearchAreas = { districts: { name: string; n: number }[]; streets: { name: string; district: string; n: number }[]; wholesale: number; /** role badges with counts (before the role filter) */ roles?: { name: string; n: number }[]; /** specialties with counts (before the specialty filter) */ specialties?: { name: string; n: number }[] }
 
+/** The targeting data is assembled from several directory sources. Keep an incomplete
+ * row from taking down the map when an optional list arrives as null or another shape. */
+const stringList = (value: unknown): string[] => Array.isArray(value)
+  ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+  : []
+const normalizeTargetRow = (value: TargetRow): TargetRow => ({
+  ...value,
+  subcategories: stringList(value.subcategories),
+  sources: stringList(value.sources),
+  role_badges: stringList(value.role_badges),
+  specialties: stringList(value.specialties),
+})
+const normalizeTargetSearch = (value: TargetSearch): TargetSearch => ({
+  ...value,
+  rows: Array.isArray(value?.rows) ? value.rows.filter((row): row is TargetRow => Boolean(row && typeof row === 'object')).map(normalizeTargetRow) : [],
+  by_region: Array.isArray(value?.by_region) ? value.by_region : [],
+  areas: value?.areas && typeof value.areas === 'object' ? {
+    ...value.areas,
+    districts: Array.isArray(value.areas.districts) ? value.areas.districts : [],
+    streets: Array.isArray(value.areas.streets) ? value.areas.streets : [],
+    roles: Array.isArray(value.areas.roles) ? value.areas.roles : [],
+    specialties: Array.isArray(value.areas.specialties) ? value.areas.specialties : [],
+  } : undefined,
+})
+
 /** A place where one trade concentrates (POST /clusters), e.g. «أدوات صحية وسباكة — شارع خالد بن الوليد، الملك فيصل», 37 shops. */
 export type TradeCluster = {
   level: 'street' | 'district' | 'cell'
@@ -292,9 +317,9 @@ export const templateStatus = () => call<TemplateStatus>('GET', '/template-statu
 export type SearchFilters = {keyword?:string; category?:string; subcategory?:string; entity_type?:string; branches_only?:boolean; sort?:string; name_only?:boolean; contact?:string; bounds?:[number,number,number,number]; /** exact district, e.g. «الفيصلية» */ district?:string; /** part of the street name */ street?:string; /** only businesses that say they sell wholesale */ wholesale?:boolean; /** one role badge, e.g. «مصنع» */ role?:string; /** one specialty name */ specialty?:string}
 export type DirectoryFacets = {categories:{value:string;label:string;count:number;subcategories:{value:string;label:string;count:number}[]}[]; size_available:boolean}
 export const directoryFacets = (city:string) => call<DirectoryFacets>('GET', '/facets?city='+encodeURIComponent(city))
-export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters})
+export const mapQuery = (city:string,filters:SearchFilters) => call<TargetSearch>('POST','/map-query',{city,filters}).then(normalizeTargetSearch)
 export const mapFocusQuery = (query:string, focus:{level:'main'|'sub'|'spec'; id:string; sub_id?:string; specialty_id?:string}) => call<{map_query:string}>('POST','/map-focus',{query,...focus})
-export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key})
+export const mapProfile = (query:string,poi_key:string) => call<{row:TargetRow}>('POST','/map-profile',{query,poi_key}).then((value) => ({ ...value, row: normalizeTargetRow(value.row) }))
 export const searchTargets = (
   q: string,
   city: string,
@@ -304,7 +329,7 @@ export const searchTargets = (
   filters: SearchFilters = {},
   retryTransient = objective === 'browse',
   onTransientRetryOutcome?: (outcome: 'retrying' | 'recovered' | 'failed') => void,
-) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false }, retryTransient, onTransientRetryOutcome)
+) => call<TargetSearch>('POST', '/search', { q, city, limit, objective, offset, filters, only_sendable: false }, retryTransient, onTransientRetryOutcome).then(normalizeTargetSearch)
 export const tradeClusters = (body: { city: string; q?: string; objective?: string; sub_ids?: (string | number)[]; wholesale?: boolean; bounds?: [number, number, number, number] }) => call<TradeClusters>('POST', '/clusters', body)
 export type SpecialtySuggestion = { specialty_id: string | number; specialty_ar: string; sub_id?: string | number | null; sub_ar?: string | null; main_ar?: string | null }
 export const suggestSpecialties = (text: string, mainId?: string) => call<{ suggestions: SpecialtySuggestion[] }>('POST', '/suggest-specialties', { text, ...(mainId ? { main_id: mainId } : {}) })
