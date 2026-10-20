@@ -181,6 +181,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [restoredPartial, setRestoredPartial] = useState<string | null>(null)
   const restoredHash = useRef<string | null>(null)
   const restoringSavedRequestRef = useRef(false)
+  const activeRestoreVersion = useRef(0)
   const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null; excludedCount: number }[]>([])
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
@@ -423,6 +424,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       restoredHash.current = window.location.hash
       restoringSavedRequestRef.current = true
       const version = ++generation.current
+      activeRestoreVersion.current = version
       try {
         const saved = await getOpportunityRequest(id)
         if (!active || version !== generation.current) return
@@ -479,9 +481,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       } catch (error) {
         if (active && version === generation.current) setError(error instanceof Error ? error.message : 'تعذّر فتح القائمة المحفوظة.')
       } finally {
-        if (active && version === generation.current) {
+        if (active && activeRestoreVersion.current === version) {
           restoringSavedRequestRef.current = false
-          setRestoringSavedRequest(null)
+          if (version === generation.current) setRestoringSavedRequest(null)
         }
       }
     }
@@ -1358,7 +1360,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     areaFiltersRef.current = browseFilters
     const version = ++generation.current
     const hadResults = Boolean(res)
-    setBuyerProductGroups([]); setBuyerProductProgress(null); setRestoredPartial(null)
+    setBuyerProductGroups([]); setBuyerProductProgress(null); setRestoredPartial(null); setRestoringSavedRequest(null)
     setBusyKind('browse'); setError(null); setFailedResultRefresh(false); setProfile(null)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
@@ -1412,7 +1414,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     if (!text || !inCity) return null
     setMarketExploration(false)
     setLens(obj === 'marketing' ? 'buyers' : 'sellers')
-    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setRestoredPartial(null); setProfile(null)
+    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setRestoredPartial(null); setRestoringSavedRequest(null); setProfile(null)
     const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
@@ -1494,6 +1496,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   const clearMapToCity = () => {
     generation.current++
+    restoringSavedRequestRef.current = false
+    setRestoringSavedRequest(null)
     clusterGen.current++
     specialtyFocusResolution.current++
     setQ(''); setQuery(''); setAreaFilters({}); setChosenD(new Set()); setMapScope('city'); setStreetPick({ kind: 'all' })
