@@ -17,7 +17,7 @@ import { handoff, HANDOFF } from '../../lib/handoff'
 import { mapAnalyticsConsent, mapResultProfileOpenEvent, mapSearchContactAvailabilityEvent, mapSearchFailedEvent, mapSearchFailureEvent, mapSearchLatencyEvent, mapSearchOutcomeEvent, mapSearchResultEvent, mapSearchRetryEvent, mapSearchStartedEvent, mapWholesaleFilterOutcomeEvent, recordMapInteraction } from '../../lib/mapAnalytics'
 import { writeLocal } from '../../b2b/storage'
 import { fetchConstructionWhatsAppPricing } from '../../api/constructionClient'
-import { createOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
+import { createOpportunityRequest, getOpportunityRequest, type OpportunityRequestKind } from '../../api/opportunityRequestsClient'
 import { prepareMarketingCampaign } from '../../api/marketingClient'
 import CampaignConfirmSheet from './CampaignConfirmSheet'
 import TargetingAssistant, { type TargetingAssistantPlan } from './TargetingAssistant'
@@ -175,6 +175,11 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const [failedResultRefresh, setFailedResultRefresh] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedRows, setSelectedRows] = useState<Map<string, TargetRow>>(new Map())
+  // A saved review list keeps durable directory keys rather than browser-only state.
+  // Restore those keys only when the user asks to open that saved list.
+  const [restoringSavedRequest, setRestoringSavedRequest] = useState<{ title: string; loaded: number; total: number } | null>(null)
+  const restoredHash = useRef<string | null>(null)
+  const restoringSavedRequestRef = useRef(false)
   const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null; excludedCount: number }[]>([])
   const [multiPending, setMultiPending] = useState<Map<string, TargetRow>>(new Map())
   const [highlightedPinKey, setHighlightedPinKey] = useState<string | null>(null)
@@ -401,6 +406,83 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     return () => { on = false }
   }, [city])
   const cityName = (en: string) => cities.find((c) => c.en === en)?.ar || en
+  // «الطلبات» links here with #review=<id> or #draft=<id>. The request stores
+  // directory keys, so rehydrate the exact saved cohort before showing the next
+  // action. Six profile reads at a time keeps a 300-company list responsive.
+  useEffect(() => {
+    if (!cities.length || !city) return
+    let active = true
+    const openSavedRequest = async () => {
+      const match = window.location.hash.match(/^#(review|draft)=([^&]+)$/)
+      if (!match || restoredHash.current === window.location.hash) return
+      const [, kind, encodedId] = match
+      let id = ''
+      try { id = decodeURIComponent(encodedId) } catch { return }
+      if (!id) return
+      restoredHash.current = window.location.hash
+      restoringSavedRequestRef.current = true
+      const version = ++generation.current
+      try {
+        const saved = await getOpportunityRequest(id)
+        if (!active || version !== generation.current) return
+        const storedFilters = saved.payload?.filters || {}
+        const review = storedFilters.review === true
+        const draft = storedFilters.draft === true && storedFilters.source === 'WHATSAPP_CAMPAIGN'
+        if ((kind === 'review' && !review) || (kind === 'draft' && !draft)) throw new Error('لا يمكن فتح هذا الطلب من الخريطة.')
+        const fromKeys = kind === 'review' ? storedFilters.selectedKeys : storedFilters.recipientKeys
+        const keys = Array.isArray(fromKeys)
+          ? [...new Set(fromKeys.filter((value): value is string => typeof value === 'string' && value.length > 0))].slice(0, 300)
+          : []
+        const text = saved.payload?.query?.trim() || ''
+        if (!keys.length || !text) throw new Error('هذه القائمة لا تحتوي بيانات كافية لاستعادتها.')
+        const rawCity = saved.payload?.city?.trim()
+        const savedCity = cities.find((value) => value.en === rawCity || value.ar === rawCity)?.en || city
+        const savedObjective = storedFilters.objective === 'marketing' ? 'marketing' : 'purchase'
+        setRestoringSavedRequest({ title: saved.title, loaded: 0, total: keys.length })
+        setError(null); setNotice(null); setPreparedCampaignId(null)
+        setObjective(savedObjective); setLens(savedObjective === 'marketing' ? 'buyers' : 'sellers')
+        setCity(savedCity); setQ(text); setQuery(text); setTab('results'); setAreaFilters({}); setChosenD(new Set())
+
+        const first = await searchTargets(text, savedCity, FETCH, savedObjective)
+        if (!active || version !== generation.current) return
+        if (!first.map_query) throw new Error('تعذّر استعادة هذه القائمة من الدليل الآن. حاول مرة أخرى.')
+        const restored = new Map(first.rows.filter((row) => keys.includes(row.poi_key)).map((row) => [row.poi_key, row] as const))
+        const missing = keys.filter((key) => !restored.has(key))
+        for (let start = 0; start < missing.length; start += 6) {
+          const batch = missing.slice(start, start + 6)
+          const rows = await Promise.all(batch.map(async (key) => {
+            try { return (await mapProfile(first.map_query, key)).row } catch { return null }
+          }))
+          if (!active || version !== generation.current) return
+          rows.forEach((row) => { if (row) restored.set(row.poi_key, row) })
+          setRestoringSavedRequest({ title: saved.title, loaded: restored.size, total: keys.length })
+        }
+        if (!active || version !== generation.current) return
+        const rows = keys.map((key) => restored.get(key)).filter((row): row is TargetRow => Boolean(row))
+        if (!rows.length) throw new Error('تعذّر استعادة الجهات المحفوظة. جرّب فتح القائمة مرة أخرى.')
+        lastSearchRows.current = rows
+        lastSuccessfulQueryObjective.current = savedObjective
+        setRes({ ...first, rows, total: rows.length, has_more: false, next_offset: null })
+        setShown(rows.length); setSelected(new Set(rows.map((row) => row.poi_key))); setSelectedRows(new Map(rows.map((row) => [row.poi_key, row] as const)))
+        setPreparedCampaignId(draft && typeof storedFilters.campaignId === 'string' ? storedFilters.campaignId : null)
+        if (draft) setDraftOpenRequest((value) => value + 1)
+        setNotice(rows.length === keys.length
+          ? `استعدنا قائمة «${saved.title}» كاملة (${n(rows.length)} جهة). لم يُرسل شيء.`
+          : `استعدنا ${n(rows.length)} من ${n(keys.length)} جهة من «${saved.title}». لم يُرسل شيء.`)
+      } catch (error) {
+        if (active && version === generation.current) setError(error instanceof Error ? error.message : 'تعذّر فتح القائمة المحفوظة.')
+      } finally {
+        if (active && version === generation.current) {
+          restoringSavedRequestRef.current = false
+          setRestoringSavedRequest(null)
+        }
+      }
+    }
+    void openSavedRequest()
+    const onHashChange = () => { void openSavedRequest() }
+    window.addEventListener('hashchange', onHashChange)
+    return () => { active = false; window.removeEventListener('hashchange', onHashChange) }
+  }, [cities]) // eslint-disable-line react-hooks/exhaustive-deps
   // chosen district names narrow the dense streets and the activity catalog
   const chosenNames = useMemo(() => {
     const polygonNames = (polys && polys.length ? polys : []).filter((district) => chosenD.has(district.id)).map((district) => district.ar)
@@ -1293,6 +1375,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // Preserve the active search when the user changes cities. A city-wide browse
   // under the old phrase made the input and map disagree about what was searched.
   useEffect(() => {
+    if (restoringSavedRequestRef.current) return
     const text = query.trim()
     if (text) void runSearchIn(text, city)
     else if (lens === 'buyers' && lines.some((line) => line.name.trim())) void searchSavedBuyerProducts(city)
@@ -2813,7 +2896,9 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
       onClose={() => setConfirming(false)} onSaveDraft={saveDraft}
       onDone={(sent, failed) => { setConfirming(false); setNotice(`تم بحمد الله، أرسلنا ${n(sent)} رسالة${failed ? ` · ما وصلت ${n(failed)}` : ''}. الردود توصلك في صندوق الوارد.`) }} />
   ) : null
-  const noticeLine = notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null
+  const noticeLine = restoringSavedRequest
+    ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-surface-2)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-secondary)]">نستعيد «{restoringSavedRequest.title}» · {n(restoringSavedRequest.loaded)} من {n(restoringSavedRequest.total)} جهة…</p>
+    : notice ? <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-bg-success)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-success)]">{notice}</p> : null
   const errorLine = error ? <div role="alert" className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-bg-danger)] px-3 py-2 text-[14px] leading-[22px] text-[var(--color-text-danger)]"><WarningIcon size={18} /><span className="min-w-0 flex-1">{error}{failedResultRefresh ? ' النتائج المعروضة لم تتحدّث وتخص النطاق السابق.' : ''}</span>{failedResultRefresh && query ? <button type="button" onClick={() => { const previousObjective = lastSuccessfulQueryObjective.current; setQ(query); setObjective(previousObjective); void runSearchIn(query, city, undefined, previousObjective, filters) }} className={`shrink-0 underline ${FOCUS_RING}`}>إعادة البحث السابق</button> : null}{!failedResultRefresh && !hasTargetQuery && city ? <button type="button" disabled={busy} onClick={() => void loadBrowse(city, filters)} className={`shrink-0 underline disabled:opacity-60 ${FOCUS_RING}`}>إعادة تحميل السوق</button> : null}</div> : null
   const understood = chips.length ? (
     <div className={mobile ? '-mx-4 flex gap-2 overflow-x-auto px-4 pb-1' : 'flex flex-wrap items-center gap-2'}>

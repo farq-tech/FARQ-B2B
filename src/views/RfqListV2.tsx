@@ -128,6 +128,7 @@ export function RfqListV2({ navigate }: NavProps) {
   const open = (id: string) => { setSelectedRfqId(id); navigate('rfq-detail') }
   const onNew = () => navigate('create-upload')
   const openMarketDraft = (id: string) => { window.location.assign(`/opportunity-map#draft=${encodeURIComponent(id)}`) }
+  const openMarketReview = (id: string) => { window.location.assign(`/opportunity-map#review=${encodeURIComponent(id)}`) }
   // «صباح الخير، سارة» — only a real display name, never the e-mail.
   const firstName = (farqSession.getUser()?.displayName || '').trim().split(/\s+/)[0] || null
   return (
@@ -157,7 +158,7 @@ export function RfqListV2({ navigate }: NavProps) {
         {marketingDrafts.map((r) => <ListRow key={`market-${r.id}`} title={r.title} caption={marketCaption(r)} status={{ tone: 'Info', label: 'مسودة' }} onClick={() => openMarketDraft(r.id)} />)}
       </ListSection> : null}
       {marketRequests.length ? <ListSection title="طلبات السوق" count={marketRequests.length}>
-        {marketRequests.map((r) => <ListRow key={`market-${r.id}`} title={r.title} caption={marketCaption(r)} status={{ tone: 'Neutral', label: 'قيد المتابعة' }} onClick={() => go('targeting')} />)}
+        {marketRequests.map((r) => <ListRow key={`market-${r.id}`} title={r.title} caption={marketCaption(r)} status={{ tone: 'Neutral', label: 'قيد المتابعة' }} onClick={() => openMarketReview(r.id)} />)}
       </ListSection> : null}
       {rows && marketRows && total > 0 && shown.length + shownMarket.length === 0 ? <div className="flex flex-col items-start gap-2"><p>ما لقينا طلب بهذا الاسم.</p><button type="button" onClick={() => setQuery('')} className="min-h-11 text-[var(--color-text-link)] underline">امسح البحث</button></div> : null}
       {rows ? <p className="text-[14px] text-[var(--color-text-secondary)]">تدوّر على موردين أو مشترين بدون طلب؟ <button type="button" onClick={() => go('targeting')} className="min-h-11 text-[var(--color-text-link)] underline">افتح خريطة الفرص</button></p> : null}
