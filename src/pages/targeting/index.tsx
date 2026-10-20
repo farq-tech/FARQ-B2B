@@ -64,10 +64,12 @@ function MapLoadingState() {
     </div>
   )
 }
-function LayerMap(props: LayerMapProps) {
+function LayerMap({ deferInteractive = false, ...props }: LayerMapProps & { deferInteractive?: boolean }) {
   const mapStartedAt = useRef<number | null>(null)
   if (mapStartedAt.current === null) mapStartedAt.current = performance.now()
-  if (!HAS_MAPBOX) return <DrawnLayerMap {...props} />
+  // The start sheet is a decision step, not a map interaction. Loading Mapbox
+  // beneath it can freeze a low-memory phone before the user even chooses a goal.
+  if (!HAS_MAPBOX || deferInteractive) return <DrawnLayerMap {...props} />
   return <Suspense fallback={<MapLoadingState />}><LayerMapbox {...props} mapStartedAt={mapStartedAt.current} /></Suspense>
 }
 
@@ -2826,7 +2828,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   ) : null
   const mapBlock = (
     <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(280px,40dvh,360px)] shrink-0' : 'h-[clamp(22rem,48dvh,32rem)] shrink-0'}`} overflow-hidden bg-[var(--map-land)]`}>
-      <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => { const row = byKey.get(k) || selectedRows.get(k); if (row) toggle(row) }} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
+      <LayerMap deferInteractive={startOpen} city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => { const row = byKey.get(k) || selectedRows.get(k); if (row) toggle(row) }} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}
         showDensity={showDensity} showDistricts={showDistricts} showClusters={showMarketClusters} showPlaces={showMapPins} showStreets={showStreets}
