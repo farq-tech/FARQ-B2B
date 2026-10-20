@@ -190,18 +190,23 @@ function addLayers(map: MapboxMap) {
     paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
   })
 
+  // District density belongs to the polygon, not a wall of text. Labels appear only
+  // once the user zooms in, and Mapbox collision detection keeps them readable.
   map.addLayer({
     id: 'district-summary',
     type: 'symbol',
     source: 'district-points',
+    minzoom: 11.6,
     maxzoom: DISTRICT_MAX_ZOOM,
     filter: filter(['>', ['get', 'count'], 0]),
     layout: {
-      'text-field': expr(['format', ['get', 'name'], { 'font-scale': 1 }, '\n', {}, ['get', 'countLabel'], { 'font-scale': 0.82, 'text-color': COLORS.primary }]),
+      'text-field': ['get', 'name'],
       'text-font': FONT_BOLD,
-      'text-size': 13,
-      'text-line-height': 1.3,
-      'text-allow-overlap': true,
+      'text-size': 12,
+      'text-max-width': 7,
+      'text-allow-overlap': false,
+      'text-ignore-placement': false,
+      'symbol-sort-key': ['get', 'count'],
     },
     paint: { 'text-color': COLORS.foreground, 'text-halo-color': COLORS.card, 'text-halo-width': 2 },
   })
@@ -211,12 +216,20 @@ function addLayers(map: MapboxMap) {
     source: 'district-points',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: 15,
-    layout: { 'text-field': ['get', 'name'], 'text-font': FONT_BOLD, 'text-size': 12 },
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': FONT_BOLD,
+      'text-size': 12,
+      'text-max-width': 7,
+      'text-allow-overlap': false,
+      'text-ignore-placement': false,
+      'symbol-sort-key': ['get', 'count'],
+    },
     paint: {
       'text-color': expr(['case', isOn('hl'), COLORS.primary, COLORS.foreground]),
-      'text-opacity': 0.55,
+      'text-opacity': 0.6,
       'text-halo-color': COLORS.card,
-      'text-halo-width': 1.5,
+      'text-halo-width': 1.75,
     },
   })
 
