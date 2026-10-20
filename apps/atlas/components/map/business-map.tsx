@@ -8,7 +8,7 @@ import type { MockMapProps } from './mock-map'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
-export function BusinessMap(props: MockMapProps & { liveDistricts?: import('geojson').FeatureCollection; liveCounts?: import('@/lib/live-market').DistrictCount[]; liveSummary?: import('@/lib/live-market').MarketSummary['summary']; liveError?: boolean }) {
+export function BusinessMap(props: MockMapProps & { liveDistricts?: import('geojson').FeatureCollection; liveCounts?: import('@/lib/live-market').DistrictCount[]; liveSummary?: import('@/lib/live-market').MarketSummary['summary']; liveEntityPins?: readonly { id: string; latitude: number | null; longitude: number | null }[]; liveError?: boolean }) {
   const [failed, setFailed] = useState(false)
   const handleFailure = useCallback(() => setFailed(true), [])
 

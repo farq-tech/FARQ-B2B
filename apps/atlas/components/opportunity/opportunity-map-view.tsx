@@ -16,7 +16,7 @@ import type { Filters, GoalId, RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
-import { LiveEntityResults } from './live-entity-results'
+import { LiveEntityResults, type LiveEntity } from './live-entity-results'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -44,6 +44,7 @@ export function OpportunityMapView() {
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [area, setArea] = useState<MapArea | null>(null)
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
+  const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const simulateLoad = (ms = 650) => {
@@ -245,7 +246,7 @@ export function OpportunityMapView() {
                 </ul>
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} />
+            <LiveEntityResults query={query} cityId={cityId} onResults={setLiveEntities} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
@@ -263,6 +264,7 @@ export function OpportunityMapView() {
             liveDistricts={market.data?.districts}
             liveCounts={market.data?.counts}
             liveSummary={market.data?.summary}
+            liveEntityPins={liveEntities}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}
