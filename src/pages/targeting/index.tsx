@@ -178,6 +178,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   // A saved review list keeps durable directory keys rather than browser-only state.
   // Restore those keys only when the user asks to open that saved list.
   const [restoringSavedRequest, setRestoringSavedRequest] = useState<{ title: string; loaded: number; total: number } | null>(null)
+  const [restoredPartial, setRestoredPartial] = useState<string | null>(null)
   const restoredHash = useRef<string | null>(null)
   const restoringSavedRequestRef = useRef(false)
   const [multiIntents, setMultiIntents] = useState<{ intent: MapIntent; rows: TargetRow[]; total: number; nextOffset: number | null; excludedCount: number }[]>([])
@@ -439,7 +440,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         const savedCity = cities.find((value) => value.en === rawCity || value.ar === rawCity)?.en || city
         const savedObjective = storedFilters.objective === 'marketing' ? 'marketing' : 'purchase'
         setRestoringSavedRequest({ title: saved.title, loaded: 0, total: keys.length })
-        setError(null); setNotice(null); setPreparedCampaignId(null)
+        setError(null); setNotice(null); setRestoredPartial(null); setPreparedCampaignId(null)
         setObjective(savedObjective); setLens(savedObjective === 'marketing' ? 'buyers' : 'sellers')
         setCity(savedCity); setQ(text); setQuery(text); setTab('results'); setAreaFilters({}); setChosenD(new Set())
 
@@ -466,9 +467,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         setShown(rows.length); setSelected(new Set(rows.map((row) => row.poi_key))); setSelectedRows(new Map(rows.map((row) => [row.poi_key, row] as const)))
         setPreparedCampaignId(draft && typeof storedFilters.campaignId === 'string' ? storedFilters.campaignId : null)
         if (draft) setDraftOpenRequest((value) => value + 1)
-        setNotice(rows.length === keys.length
-          ? `استعدنا قائمة «${saved.title}» كاملة (${n(rows.length)} جهة). لم يُرسل شيء.`
-          : `استعدنا ${n(rows.length)} من ${n(keys.length)} جهة من «${saved.title}». لم يُرسل شيء.`)
+        if (rows.length !== keys.length) setRestoredPartial(`استعدنا ${n(rows.length)} من ${n(keys.length)} جهة من القائمة المحفوظة. الجهات غير المتاحة لم تُضف.`)
       } catch (error) {
         if (active && version === generation.current) setError(error instanceof Error ? error.message : 'تعذّر فتح القائمة المحفوظة.')
       } finally {
@@ -1346,7 +1345,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     areaFiltersRef.current = browseFilters
     const version = ++generation.current
     const hadResults = Boolean(res)
-    setBuyerProductGroups([]); setBuyerProductProgress(null)
+    setBuyerProductGroups([]); setBuyerProductProgress(null); setRestoredPartial(null)
     setBusyKind('browse'); setError(null); setFailedResultRefresh(false); setProfile(null)
     try {
       const r = await searchTargets('', inCity, FETCH, 'browse', 0, browseFilters)
@@ -1400,7 +1399,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     if (!text || !inCity) return null
     setMarketExploration(false)
     setLens(obj === 'marketing' ? 'buyers' : 'sellers')
-    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setProfile(null)
+    setBusyKind('search'); setError(null); setFailedResultRefresh(false); setNotice(null); setRestoredPartial(null); setProfile(null)
     const version = ++generation.current
     const fresh = next === undefined
     const use: AreaFilters = fresh ? (initial ?? {}) : next
@@ -2885,6 +2884,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
 
   const tray = chosen.length ? (
     <div className="flex flex-col gap-3">
+      {restoredPartial ? <p role="status" className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] leading-[20px] text-[var(--color-text-secondary)]">{restoredPartial}</p> : null}
       <ReviewSelectionTray mobile={mobile} count={chosen.length} objective={objective} saving={savingReviewList} onSave={saveReviewList} onOpenRequests={onRequests} onClear={() => { setSelected(new Set()); setSelectedRows(new Map()); setPreparedCampaignId(null) }} onCreateRfq={objective === 'purchase' ? prepareQuoteFromReviewList : undefined} />
       {objective === 'marketing' && campaignChosen.length ? <CampaignTray mobile={mobile} count={campaignChosen.length} keys={campaignChosen.map((r) => r.poi_key)} cost={cost} message={message} onMessage={setMessage} templateValues={templateValues} onTemplateValues={(values) => { setTemplateValues(values); setPreparedCampaignId(null) }}
       template={template} onTemplate={(next) => { setTemplate(next); setPreparedCampaignId(null) }} templates={templates} sendBlock={sendBlock} scheduleBlock={scheduleBlock} templateBadge={templateBadge}
