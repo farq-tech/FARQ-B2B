@@ -2,21 +2,20 @@
 
 import { BoxSelect, List, Map as MapIcon, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BusinessMap } from '@/components/map/business-map'
 import type { MapState } from '@/components/map/mock-map'
 import { Button } from '@/components/ui/button'
-import { isInArea, type MapArea } from '@/lib/geo'
+import { type MapArea } from '@/lib/geo'
 import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
-import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, runSearch, type ParsedQuery } from '@/lib/search'
+import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
+import { loadLiveMarket, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
-import { FilterBar } from './filter-bar'
 import { GoalPicker } from './goal-picker'
-import { ResultsPanel } from './results-panel'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -43,6 +42,7 @@ export function OpportunityMapView() {
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map')
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [area, setArea] = useState<MapArea | null>(null)
+  const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const simulateLoad = (ms = 650) => {
@@ -52,11 +52,24 @@ export function OpportunityMapView() {
   }
 
   const city = cityById.get(cityId)
-  const { results, duplicatesMerged, scope } = useMemo(
-    () => runSearch({ cityId, goal, filters, freeText }),
-    [cityId, goal, filters, freeText],
-  )
-  const listResults = useMemo(() => (area ? results.filter((b) => isInArea(cityId, b, area)) : results), [area, results, cityId])
+
+  useEffect(() => {
+    if (!goal) return
+    const controller = new AbortController()
+    setMarket({ status: 'loading', data: null })
+    loadLiveMarket(cityId, query)
+      .then((data) => {
+        if (!controller.signal.aborted) setMarket({ status: 'ready', data })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
+      })
+    return () => controller.abort()
+  }, [cityId, goal, query])
+
+
+  const liveDistricts = market.data?.counts.slice().sort((a, b) => b.n - a.n).slice(0, 12) ?? []
+
 
   const resetSearch = () => {
     setArea(null)
@@ -91,24 +104,11 @@ export function OpportunityMapView() {
     applyQuery(text, parsed, goal ?? inferGoal(parsed))
   }
 
-  const handlePrepareDraft = (text: string, parsed: ParsedQuery, type: RequestType) => {
-    const nextGoal = goal ?? inferGoal(parsed)
-    const nextFilters = mergeParsedIntoFilters(EMPTY_FILTERS, parsed)
-    const { results: matched } = runSearch({ cityId, goal: nextGoal, filters: nextFilters, freeText: parsed.freeText })
-    const top = matched.slice(0, 8).map((b) => b.id)
-    if (top.length === 0) return null
-    applyQuery(text, parsed, nextGoal)
-    const id = createDraft({
-      type,
-      businessIds: top,
-      cityId,
-      goal: nextGoal,
-      query: text,
-      categoryHint: nextFilters.categories[0],
-      districtHint: nextFilters.districts.length === 1 ? districtById.get(nextFilters.districts[0])?.name : undefined,
-    })
-    return { id, count: top.length }
+  const handlePrepareDraft = (_text: string, _parsed: ParsedQuery, _type: RequestType) => {
+    // Real entities are intentionally unavailable until Atlas has an authenticated directory session.
+    return null
   }
+
 
   const assistant = (
     <AssistantPanel
@@ -169,7 +169,9 @@ export function OpportunityMapView() {
     )
   }
 
-  const mapState: MapState = !city?.available ? 'unavailable' : loading ? 'loading' : results.length === 0 ? 'empty' : 'ready'
+  const mapState: MapState = !city?.available || market.status === 'error' ? 'unavailable' : loading || market.status === 'loading' ? 'loading' : market.status === 'ready' ? 'ready' : 'unavailable'
+  // The prototype's seeded establishments must never appear as real marketplace results.
+  const visibleResults: never[] = []
   const primary = intent ?? goalDef.primaryAction
 
   return (
@@ -188,7 +190,10 @@ export function OpportunityMapView() {
           onSearch={handleSearch}
           onOpenAssistant={() => setAssistantOpen(true)}
         />
-        <FilterBar cityId={cityId} filters={filters} onChange={setFilters} scope={scope} />
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">بيانات سوق حية</span>
+          <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اختر نشاطاً لتحديث كثافة الأحياء.'}</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 px-4 pt-3 lg:hidden">
@@ -196,7 +201,7 @@ export function OpportunityMapView() {
           {(
             [
               ['map', 'الخريطة', MapIcon],
-              ['list', `القائمة (${listResults.length})`, List],
+              ['list', 'ملخص السوق', List],
             ] as const
           ).map(([v, label, Icon]) => (
             <button
@@ -222,48 +227,44 @@ export function OpportunityMapView() {
           aria-label="النتائج"
           className={cn('min-h-0 overflow-y-auto border-l px-4 py-4 lg:block', mobileView === 'list' ? 'block flex-1 pb-40' : 'hidden', 'lg:pb-28')}
         >
-          {area ? (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-primary/30 bg-accent px-3 py-2 text-sm">
-              <BoxSelect className="size-4 shrink-0 text-primary" aria-hidden />
-              <p className="min-w-0 flex-1 truncate">
-                محصورة في <span className="font-semibold">{area.label}</span> · {listResults.length} من {results.length}
-              </p>
-              <Button size="xs" variant="ghost" onClick={() => setArea(null)}>
-                <X data-icon="inline-start" />
-                مسح
-              </Button>
+          <section className="flex flex-col gap-3" aria-label="ملخص السوق الحي">
+            <div className="rounded-xl border bg-card p-4">
+              <p className="font-semibold">{query ? `نتائج نشاط «${query}»` : 'سوق المدينة'}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">تتغير خريطة الأحياء والإحصاءات بحسب البحث. لا نعرض جهات أو بيانات اتصال تجريبية.</p>
+              {market.status === 'ready' ? (
+                <dl className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">منشآت ضمن النطاق</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.total?.toLocaleString('en-US') ?? '—'}</dd></div>
+                  <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">إشارات واتساب</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_whatsapp?.toLocaleString('en-US') ?? '—'}</dd></div>
+                </dl>
+              ) : null}
             </div>
-          ) : null}
-          <ResultsPanel
-            results={city?.available ? listResults : []}
-            scope={scope}
-            duplicatesMerged={duplicatesMerged}
-            interpretation={interpretation}
-            filters={filters}
-            onFiltersChange={setFilters}
-            selectedIds={selection}
-            focusedId={focus?.id ?? null}
-            onToggle={toggleSelect}
-            onFocus={focusBusiness}
-            onSelectAll={(ids, select) =>
-              setSelection(select ? Array.from(new Set([...selection, ...ids])) : selection.filter((id) => !ids.includes(id)))
-            }
-            loading={loading}
-          />
+            {market.status === 'ready' ? (
+              <div className="rounded-xl border bg-card p-4">
+                <p className="text-sm font-semibold">الأحياء الأعلى نشاطاً</p>
+                <ul className="mt-3 flex flex-col divide-y">
+                  {liveDistricts.map((district) => <li key={district.district_ar} className="flex items-center justify-between gap-3 py-2 text-sm"><span>{district.district_ar}</span><span className="font-semibold tabular-nums">{district.n.toLocaleString('en-US')}</span></li>)}
+                </ul>
+              </div>
+            ) : null}
+            {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
+          </section>
         </section>
 
         <section aria-label="الخريطة" className={cn('relative min-h-0 p-3 lg:block lg:p-4', mobileView === 'map' ? 'block flex-1' : 'hidden')}>
           <BusinessMap
             cityId={cityId}
-            businesses={results}
+            businesses={visibleResults}
             selectedIds={selection}
             onTogglePin={toggleSelect}
             focusRequest={focus}
             highlightDistricts={filters.districts}
             highlightStreets={filters.streets}
             state={mapState}
+            liveDistricts={market.data?.districts}
+            liveCounts={market.data?.counts}
+            liveSummary={market.data?.summary}
             onResetFilters={resetSearch}
-            onRetry={() => changeCity('riyadh')}
+            onRetry={() => window.location.reload()}
             area={area}
             onAreaChange={setArea}
             onSelectMany={(ids) => setSelection(Array.from(new Set([...selection, ...ids])))}
