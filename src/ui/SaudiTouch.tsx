@@ -2,21 +2,16 @@ import { useEffect, useState } from 'react'
 import { cx, FOCUS_RING } from './cx'
 import { Badge } from './Badge'
 import { Icon } from './Icon'
-import { gregorianLabel, hijriLabel, greeting, occasionOn, isSaudiEstablishment, type LocalEvidence } from '../lib/saudi'
+import { gregorianLabel, greeting, occasionOn, isSaudiEstablishment, type LocalEvidence } from '../lib/saudi'
 
-/* Small Saudi touches shared by the screens: dual dates, the «منشأة سعودية» badge, greeting, occasions banner. */
+/* Small Saudi touches shared by the screens: Gregorian dates, the «منشأة سعودية» badge, greeting, occasions banner. */
 
-/** Gregorian date with the Hijri date beside it (Umm al-Qura). `stack` puts the Hijri date on its own line. */
+/** Gregorian date with Western numerals. `stack` remains for API compatibility. */
 export function DualDate({ value, stack = false, className }: { value: Date | string | number | null | undefined; stack?: boolean; className?: string }) {
   if (value == null || value === '') return null
   const g = gregorianLabel(value)
   if (!g) return null
-  return (
-    <span className={cx(stack ? 'inline-flex flex-col' : 'inline', className)}>
-      <span>{g}</span>
-      <span className="text-[var(--color-text-tertiary)]">{stack ? '' : ' · '}{hijriLabel(value)}</span>
-    </span>
-  )
+  return <span className={cx(stack ? 'inline-flex flex-col' : 'inline', className)}>{g}</span>
 }
 
 /** «منشأة سعودية» — only when the record carries a CR, a Saudi trade licence or a registry source. */
