@@ -29,10 +29,9 @@ export function gregorianLabel(at: Date | string | number): string {
   return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { timeZone: TZ, year: 'numeric', month: 'long', day: 'numeric' }).format(d)
 }
 
-/** Gregorian with the Hijri date beside it: «16 أكتوبر 2026 · 4 ربيع الآخر 1448 هـ». */
+/** Gregorian date with Western numerals, using the Saudi day. Kept under its existing name for callers. */
 export function dualDateLabel(at: Date | string | number): string {
-  const g = gregorianLabel(at)
-  return g ? `${g} · ${hijriLabel(at)}` : ''
+  return gregorianLabel(at)
 }
 
 /** Ramadan = Hijri month 9 on the Umm al-Qura calendar, Saudi day. */

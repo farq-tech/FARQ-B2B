@@ -29,7 +29,7 @@ import { shrinkImage } from '../lib/imageShrink'
 import { scanPurchaseRequest } from '../lib/purchaseRequests'
 import type { BOQItem, Supplier } from '../types'
 import { Badge, Button, Chip, Dropzone, EvidenceBadge, FlowFooter, FlowHeader, Icon, Input, OptionCard, RiyalSign, Tabs, useIsMobile, type EvidenceLevel } from '../ui'
-import { addDaysToBusinessDay, dualDateLabel, hijriLabel, ksaToday, toBusinessDay, weekendNote } from '../lib/saudi'
+import { addDaysToBusinessDay, dualDateLabel, gregorianLabel, ksaToday, toBusinessDay, weekendNote } from '../lib/saudi'
 
 /*
  * «01 طلب جديد ← 02 مراجعة البنود ← التوصيل ← الإرسال» — Figma 38:2 and 42:44.
@@ -50,8 +50,8 @@ const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 /** `days` calendar days from today (Saudi day), moved to the next working day when it lands on Friday/Saturday. */
 const isoIn = (days: number): string => addDaysToBusinessDay(ksaToday(), days)
-/** «4 ربيع الآخر 1448 هـ» for a «YYYY-MM-DD» picker value, or ''. */
-const hijriOf = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? hijriLabel(iso) : '')
+/** Gregorian label for a `YYYY-MM-DD` picker value, or empty. */
+const dateOf = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? gregorianLabel(iso) : '')
 
 /** Every supplier the item knows about, de-duplicated (same order as the source flow). */
 function candidatesFor(item: BOQItem): Supplier[] {
@@ -663,8 +663,8 @@ export function NewRequestV2({ navigate }: NavProps) {
             <div className={`grid gap-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] ${mobile ? 'grid-cols-1 p-4' : 'grid-cols-2 p-6'}`}>
               <Input label="اسم المشروع" placeholder="مثال: تجهيز العيادة" value={project} onChange={(e) => setProject(e.target.value)} helper="يظهر للموردين مع المدينة" />
               <Input label="مدينة التسليم" value={city} onChange={(e) => setCity(e.target.value)} error={!city.trim() ? 'اكتب مدينة التسليم.' : undefined} />
-              <Input label="موعد التوريد" type="date" lang="en" dir="ltr" value={requiredDate} onChange={(e) => pickWorkingDay(e.target.value, setRequiredDate, setRequiredNote)} helper={requiredNote || hijriOf(requiredDate) || undefined} />
-              <Input label="آخر موعد للعروض" type="date" lang="en" dir="ltr" value={quoteDeadline} onChange={(e) => pickWorkingDay(e.target.value, setQuoteDeadline, setDeadlineNote)} helper={deadlineNote || ['الساعة 5:00 م', hijriOf(quoteDeadline)].filter(Boolean).join(' · ')} error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
+              <Input label="موعد التوريد" type="date" lang="en" dir="ltr" value={requiredDate} onChange={(e) => pickWorkingDay(e.target.value, setRequiredDate, setRequiredNote)} helper={requiredNote || dateOf(requiredDate) || undefined} />
+              <Input label="آخر موعد للعروض" type="date" lang="en" dir="ltr" value={quoteDeadline} onChange={(e) => pickWorkingDay(e.target.value, setQuoteDeadline, setDeadlineNote)} helper={deadlineNote || ['الساعة 5:00 م', dateOf(quoteDeadline)].filter(Boolean).join(' · ')} error={quoteDeadline && requiredDate && quoteDeadline >= requiredDate ? 'آخر موعد للعروض يجب أن يسبق موعد التوريد.' : undefined} />
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 text-[14px] leading-[22px] font-medium">نوع الطلب</legend>
                 <div className="flex gap-2">
