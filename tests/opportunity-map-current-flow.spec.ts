@@ -13,6 +13,7 @@ const rows = [
 
 async function installMapFixtures(page: Page) {
   const apiPosts: string[] = []
+  const searches: Array<Record<string, unknown>> = []
   await page.addInitScript(() => {
     ;(window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = {
       accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token',
@@ -23,7 +24,7 @@ async function installMapFixtures(page: Page) {
   })
   await page.route('**/_targeting/**', async (route) => {
     const path = new URL(route.request().url()).pathname
-    if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 1 }] })
+    if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 1 }, { en: 'Jeddah', ar: 'جدة', n: 1 }] })
     if (path.endsWith('/market-summary')) return route.fulfill({ json: { ok: true, summary: { total: 1, districts_count: 1, top_districts: [{ district_ar: 'العليا', n: 1 }], main_activities: [{ main_id: 'build', main_ar: 'مواد بناء', n: 1 }], n_wholesale: 0, n_whatsapp: 1, n_specialties: 1, n_approx: 0, n_cr: 1, basis: 'اختبار' } } })
     if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', total: 1, districts: [{ district_ar: 'العليا', n: 1, n_wholesale: 0, n_whatsapp: 1 }], basis: 'اختبار' } })
     if (path.endsWith('/districts')) return route.fulfill({ json: { type: 'FeatureCollection', features: [] } })
@@ -31,7 +32,7 @@ async function installMapFixtures(page: Page) {
     if (path.endsWith('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], basis: 'اختبار' } })
     if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'qa_template', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
     if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [] } })
-    if (path.endsWith('/search')) return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } })
+    if (path.endsWith('/search')) { searches.push(route.request().postDataJSON() as Record<string, unknown>); return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } }) }
     return route.fulfill({ json: { ok: true } })
   })
   await page.route('**/_api/**', async (route) => {
@@ -44,7 +45,7 @@ async function installMapFixtures(page: Page) {
     if (path.endsWith('/api/business/opportunity-requests')) return route.fulfill({ json: { ok: true, data: { request: { id: 'draft-1' } } } })
     return route.fulfill({ json: { ok: true, data: {} } })
   })
-  return { apiPosts }
+  return { apiPosts, searches }
 }
 
 test.describe('خريطة الفرص: التدفق الحالي', () => {
@@ -59,6 +60,17 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     await page.getByRole('button', { name: 'ابحث', exact: true }).click()
     await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /حدد اللي عندهم واتساب/ })).toBeVisible()
+  })
+
+  test('تغيير المدينة يقيّد البحث بالمدينة المختارة', async ({ page }) => {
+    const { searches } = await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await page.getByRole('button', { name: 'الرياض', exact: true }).click()
+    await page.getByRole('option', { name: 'جدة', exact: true }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect.poll(() => searches.some((body) => body.city === 'Jeddah' && body.q === 'مواسير')).toBe(true)
   })
 
   test('الاستهداف الذكي يحفظ مسودة قابلة للمراجعة من دون إرسال', async ({ page }) => {
