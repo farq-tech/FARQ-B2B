@@ -42,15 +42,15 @@ async function setup(page: Page, at: Date) {
   return refused
 }
 
-test('home: morning greeting, Hijri beside the Gregorian date on each request', async ({ page }) => {
+test('home: morning greeting and Gregorian dates on each request', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 })
   await setup(page, MORNING)
   await page.goto('/requests')
-  await expect(page.getByRole('heading', { name: 'طلبات التسعير' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'الطلبات', exact: true })).toBeVisible()
   await expect(page.getByText('صباح الخير، سارة')).toBeVisible()
-  // quote deadline 22 Oct 2026 = 11 Jumada al-Ula 1448 (Umm al-Qura); the draft's 8 Oct = 27 Rabi al-Akhir 1448
-  await expect(page.getByRole('button', { name: /توريد كهرباء/ })).toContainText('آخر موعد 22 أكتوبر 2026 · 11 جمادى الأولى 1448 هـ')
-  await expect(page.getByRole('button', { name: /مستودع جدة/ })).toContainText('8 أكتوبر 2026 · 27 ربيع الآخر 1448 هـ')
+  await expect(page.getByRole('button', { name: /توريد كهرباء/ })).toContainText('آخر موعد 22 أكتوبر 2026')
+  await expect(page.getByRole('button', { name: /مستودع جدة/ })).toContainText('8 أكتوبر 2026')
+  await expect(page.getByText(/1448 هـ/)).toHaveCount(0)
   await page.screenshot({ path: `${SHOTS}/views-desktop-requests.png`, fullPage: true })
 })
 
@@ -60,11 +60,12 @@ test('home: evening greeting after 12:00 Saudi time', async ({ page }) => {
   await expect(page.getByText('مساء النور، سارة')).toBeVisible()
 })
 
-test('tracking: delivery date and creation date carry the Hijri date', async ({ page }) => {
+test('tracking: delivery date and creation date are Gregorian', async ({ page }) => {
   await setup(page, MORNING)
   await page.goto(`/requests/${RFQ_ID}`)
   await expect(page.getByText(/قبل 20 أكتوبر 2026/)).toBeVisible()
-  await expect(page.getByText(/أُنشئ الطلب .*1448 هـ/)).toBeVisible()
+  await expect(page.getByText(/أُنشئ الطلب 8 أكتوبر 2026/)).toBeVisible()
+  await expect(page.getByText(/1448 هـ/)).toHaveCount(0)
 })
 
 for (const [width, height, name] of [[1440, 1000, 'desktop'], [390, 844, 'mobile']] as const) {
@@ -78,7 +79,8 @@ for (const [width, height, name] of [[1440, 1000, 'desktop'], [390, 844, 'mobile
     await expect(best.getByRole('img', { name: 'ريال' }).first()).toBeVisible()
     await expect(best).toContainText('67,942') // l1 … l5 of s1, all tax-inclusive
     await expect(best).toContainText('شامل الضريبة 15%')
-    await expect(best).toContainText('1448 هـ') // when the quote was submitted, with its Hijri date
+    await expect(best).toContainText('8 أكتوبر 2026')
+    await expect(best).not.toContainText('هـ')
     await expect(page.getByText('ر.س')).toHaveCount(0)
     await page.screenshot({ path: `${SHOTS}/views-${name}-comparison.png`, fullPage: true })
     await page.getByRole('button', { name: 'قارن البنود بنداً بنداً' }).click()
@@ -122,7 +124,7 @@ test.describe('new request: the Saudi working week', () => {
       await deadline.fill('2026-10-30')
       await expect(deadline).toHaveValue('2026-11-01')
       await expect(page.getByText('الجمعة إجازة نهاية الأسبوع، وأقرب يوم عمل الأحد 1 نوفمبر 2026.')).toBeVisible()
-      await expect(page.getByText(/1448 هـ/).first()).toBeVisible()
+      await expect(page.getByText(/1448 هـ/)).toHaveCount(0)
       await page.screenshot({ path: `${SHOTS}/views-${name}-new-request-delivery.png`, fullPage: true })
     })
   }
