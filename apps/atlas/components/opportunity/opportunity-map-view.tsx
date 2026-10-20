@@ -184,8 +184,6 @@ export function OpportunityMapView() {
           onChangeGoal={() => setGoal(null)}
           cityId={cityId}
           onCityChange={changeCity}
-          filters={filters}
-          onFiltersChange={setFilters}
           initialQuery={query}
           onSearch={handleSearch}
           onOpenAssistant={() => setAssistantOpen(true)}
