@@ -21,6 +21,7 @@ COOKIE = 'farq_session'
 MAX_AGE = 60 * 60 * 24 * 30          # = the API's refresh-token TTL
 REFRESH_MARGIN = 5 * 60              # renew this long before the access token expires (same as the old client)
 SUCCESSOR_TTL = 120                  # how long a rotation is shared with requests still holding the old cookie
+COOKIE_SECURE = os.environ.get('FARQ_SESSION_COOKIE_SECURE', '1') != '0'
 
 _secret = os.environ.get('FARQ_SESSION_SECRET', '').encode()
 if len(_secret) < 32:
@@ -73,11 +74,13 @@ def public(s):
 
 
 def set_cookie(s):
-    return ('Set-Cookie', f'{COOKIE}={seal(s)}; Path=/; Max-Age={MAX_AGE}; HttpOnly; Secure; SameSite=Lax')
+    secure = '; Secure' if COOKIE_SECURE else ''
+    return ('Set-Cookie', f'{COOKIE}={seal(s)}; Path=/; Max-Age={MAX_AGE}; HttpOnly{secure}; SameSite=Lax')
 
 
 def clear_cookie():
-    return ('Set-Cookie', f'{COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax')
+    secure = '; Secure' if COOKIE_SECURE else ''
+    return ('Set-Cookie', f'{COOKIE}=; Path=/; Max-Age=0; HttpOnly{secure}; SameSite=Lax')
 
 
 def read(cookie_header):

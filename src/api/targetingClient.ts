@@ -155,7 +155,14 @@ export const streetDensity = (body: StreetDensityQuery) => call<StreetDensity>('
 })
 /** Which activities have dense streets in this city (optionally inside these districts): mains with their subs, counts. */
 export type StreetCatalog = { mains: { main_id: string; main_ar: string; streets: number; shops: number; subs: { sub_id: string | number; sub_ar: string; streets: number; shops: number }[] }[] }
-export const streetCatalog = (body: { city: string; districts?: string[] }) => call<StreetCatalog>('POST', '/street-density/catalog', body)
+export const streetCatalog = (body: { city: string; districts?: string[] }) => call<StreetCatalog>('POST', '/street-density/catalog', body).then((value) => ({
+  mains: Array.isArray(value?.mains)
+    ? value.mains.filter((main): main is StreetCatalog['mains'][number] => Boolean(main && typeof main === 'object')).map((main) => ({
+      ...main,
+      subs: Array.isArray(main.subs) ? main.subs : [],
+    }))
+    : [],
+}))
 
 export type DistrictCount = { district_ar: string; n: number; n_wholesale: number; n_whatsapp: number }
 export type DistrictCounts = { ok: boolean; city: string; districts: DistrictCount[]; total: number; specialty_available?: boolean; basis: string }
@@ -305,7 +312,7 @@ export type City = { en: string; ar: string | null; n: number }
 /** District polygons of one city (GET /districts?city=Riyadh): properties ar, en, city_en, id. 404 or empty = no polygons for this city. */
 export type DistrictFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, { ar: string; en?: string | null; city_en?: string | null; id: string | number }>
 export const listDistricts = (city: string) => call<GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, DistrictFeature['properties']>>('GET', '/districts?city=' + encodeURIComponent(city))
-export const listCities = () => call<City[]>('GET', '/cities')
+export const listCities = () => call<City[]>('GET', '/cities').then((value) => Array.isArray(value) ? value : [])
 
 /** Body text of a Meta template. */
 export const templateBody = (t: MetaTemplate) => (t.components || []).find((c) => c.type === 'BODY')?.text || ''

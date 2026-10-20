@@ -17,6 +17,8 @@ services:
       TARGETING_PASSWORD: ${TARGETING_PASSWORD:-}
       TARGETING_SERVICE_TOKEN: ${TARGETING_SERVICE_TOKEN:-}
       FARQ_SESSION_SECRET: ${FARQ_SESSION_SECRET:-}
+      # 127.0.0.1 is served over HTTP. Production keeps the default Secure cookie.
+      FARQ_SESSION_COOKIE_SECURE: "0"
       # Local replicas must never contact recipients or run scheduled campaigns.
       TARGETING_SEND: "0"
       TARGETING_SCHEDULE_ENABLED: "0"
