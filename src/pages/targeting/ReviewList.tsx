@@ -23,7 +23,6 @@ type Props = {
 }
 
 const statusRank = (row: TargetRow) => row.status_class === 'open' ? 0 : row.status_class?.startsWith('closed') || row.hudhud_deleted ? 2 : 1
-const fitRank = (row: TargetRow) => row.ai === 'L' ? 0 : row.ai === 'M' ? 1 : row.ai === 'N' ? 3 : 2
 const sourceRank = (row: TargetRow) => row.source_count || 0
 
 function reasonFor(row: TargetRow, query: string, district?: string, street?: string) {
@@ -47,7 +46,7 @@ export default function ReviewList({ rows, shown, total, query, district, street
   const ordered = useMemo(() => rows.map((row, index) => ({ row, index })).sort((a, b) => {
     if (sort === 'data') return (completenessOf(b.row) || 0) - (completenessOf(a.row) || 0) || sourceRank(b.row) - sourceRank(a.row) || a.index - b.index
     if (sort === 'location') return Number(hasPoint(b.row)) - Number(hasPoint(a.row)) || Number(b.row.district_reliable !== false) - Number(a.row.district_reliable !== false) || a.index - b.index
-    return statusRank(a.row) - statusRank(b.row) || fitRank(a.row) - fitRank(b.row) || (completenessOf(b.row) || 0) - (completenessOf(a.row) || 0) || a.index - b.index
+    return statusRank(a.row) - statusRank(b.row) || (completenessOf(b.row) || 0) - (completenessOf(a.row) || 0) || sourceRank(b.row) - sourceRank(a.row) || a.index - b.index
   }), [rows, sort])
   const visible = ordered.slice(0, shown)
   const scope = street || district
