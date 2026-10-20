@@ -6,7 +6,7 @@
 
 ```sh
 cp .env.production.local.example .env.production.local
-# ضع القيم المحلية الخاصة بك في .env.production.local
+# ضع قيم خدمات القراءة الخاصة بك في .env.production.local
 npm run production:local
 ```
 
@@ -30,4 +30,4 @@ docker compose --env-file .env.production.local -f docker-compose.local-producti
 - `FARQ_API_ORIGIN` و`TARGETING_ORIGIN` يحددان خدمات القراءة التي تستخدمها النسخة. احتفظ ببيانات الاعتماد في `.env.production.local` فقط؛ الملف مستثنى من Git.
 - `VITE_MAPBOX_TOKEN` اختياري، ويجعل الخريطة مماثلة لخريطة الإنتاج عند توفير مفتاح Mapbox العام المستخدم حاليًا.
 - الإرسال الفوري والجدولة مقفلان داخل ملف Compose بقيم ثابتة: `TARGETING_SEND=0` و`TARGETING_SCHEDULE_ENABLED=0`. لا يمكن أن ترسل النسخة المحلية إلى أي مستلم.
-- استخدم `FARQ_SESSION_SECRET` جديدًا محليًا وطوله 32 حرفًا أو أكثر كي لا تشترك جلسات المتصفح مع الإنتاج.
+- ينشئ أمر التشغيل `FARQ_SESSION_SECRET` محليًا عند غيابه، ويحتفظ به في الملف المحلي فقط. كما يستخدم Cookie غير Secure داخل `127.0.0.1` كي يعمل تسجيل الدخول عبر HTTP؛ الإنتاج يبقى على إعداد Secure الافتراضي.
