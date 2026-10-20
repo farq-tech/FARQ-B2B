@@ -1,0 +1,23 @@
+services:
+  farq-pricing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_ALLOWED_EMAILS: ${VITE_ALLOWED_EMAILS:-abdulrhman@farq.sa}
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
+    ports:
+      - "${FARQ_LOCAL_PORT:-8080}:8080"
+    environment:
+      PORT: "8080"
+      SITE_URL: http://127.0.0.1:${FARQ_LOCAL_PORT:-8080}
+      ALLOWED_EMAILS: ${ALLOWED_EMAILS:-abdulrhman@farq.sa}
+      FARQ_API_ORIGIN: ${FARQ_API_ORIGIN:-https://api.farq.sa}
+      TARGETING_ORIGIN: ${TARGETING_ORIGIN:-https://farq-targeting-production-4687.up.railway.app}
+      TARGETING_PASSWORD: ${TARGETING_PASSWORD:-}
+      TARGETING_SERVICE_TOKEN: ${TARGETING_SERVICE_TOKEN:-}
+      FARQ_SESSION_SECRET: ${FARQ_SESSION_SECRET:-}
+      # Local replicas must never contact recipients or run scheduled campaigns.
+      TARGETING_SEND: "0"
+      TARGETING_SCHEDULE_ENABLED: "0"
+    init: true

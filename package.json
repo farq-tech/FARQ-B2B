@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "node scripts/lint-tokens.mjs && oxlint -c .oxlintrc.json src",
-    "test:keyboard": "playwright test"
+    "test:keyboard": "playwright test",
+    "production:local": "sh scripts/run-local-production.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
