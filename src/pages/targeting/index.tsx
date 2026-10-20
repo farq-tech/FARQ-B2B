@@ -443,7 +443,14 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         setError(null); setNotice(null); setRestoredPartial(null); setPreparedCampaignId(null)
         setObjective(savedObjective); setLens(savedObjective === 'marketing' ? 'buyers' : 'sellers')
         setCity(savedCity); setQ(text); setQuery(text); setTab('results'); setAreaFilters({}); setChosenD(new Set())
-        if (draft && typeof saved.payload?.templateName === 'string' && saved.payload.templateName.trim()) setTemplate(saved.payload.templateName)
+        if (draft) {
+          if (typeof saved.payload?.templateName === 'string' && saved.payload.templateName.trim()) setTemplate(saved.payload.templateName)
+          setMessage(typeof storedFilters.message === 'string' && storedFilters.message.trim() ? storedFilters.message.slice(0, 900) : defaultMessage(null, cityName(savedCity)))
+          const storedValues = storedFilters.templateValues
+          setTemplateValues(storedValues && typeof storedValues === 'object' && !Array.isArray(storedValues)
+            ? Object.fromEntries(Object.entries(storedValues).filter(([key, value]) => /^\d+$/.test(key) && typeof value === 'string').slice(0, 12).map(([key, value]) => [key, String(value).slice(0, 300)]))
+            : {})
+        }
 
         const first = await searchTargets(text, savedCity, FETCH, savedObjective)
         if (!active || version !== generation.current) return
@@ -1249,17 +1256,22 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   }
   async function saveMarketingDraft(campaignId: string, rows: TargetRow[], title: string) {
     const recipientKeys = rows.map((row) => row.poi_key).filter(Boolean).slice(0, 300)
-    const recipientNames = rows.map((row) => safeName(row)).filter(Boolean).slice(0, 60)
+    let recipientNames = rows.map((row) => safeName(row).slice(0, 160)).filter(Boolean).slice(0, 60)
+    const baseFilters = { draft: true, source: 'WHATSAPP_CAMPAIGN', campaignId, recipientCount: recipientKeys.length, recipientKeys, objective: 'marketing' as const }
+    const draftPayload = () => ({ city, query: query.trim(), templateName: template, products: recipientNames, filters: baseFilters })
+    const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength
+    // Names are only a readable preview. Preserve every recipient key and make
+    // room for the actual message before the API's 16 KB request limit.
+    while (recipientNames.length && bytes(draftPayload()) > 14 * 1024) recipientNames = recipientNames.slice(0, -1)
+    const savedValues = Object.fromEntries(Object.entries(templateValues)
+      .filter(([key, value]) => /^\d+$/.test(key) && typeof value === 'string' && value.trim())
+      .slice(0, 12).map(([key, value]) => [key, value.trim().slice(0, 300)]))
+    const withMessage = { ...draftPayload(), filters: { ...baseFilters, message: message.trim().slice(0, 900), templateValues: savedValues } }
+    const payload = bytes(withMessage) <= 14 * 1024 ? withMessage : draftPayload()
     const draft = await createOpportunityRequest({
       kind: 'SEARCH',
       title,
-      payload: {
-        city,
-        query: query.trim(),
-        templateName: template,
-        products: recipientNames,
-        filters: { draft: true, source: 'WHATSAPP_CAMPAIGN', campaignId, recipientCount: recipientKeys.length, recipientKeys, objective: 'marketing' },
-      },
+      payload,
     })
     setSavedTick((tick) => tick + 1)
     return draft
