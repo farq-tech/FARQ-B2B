@@ -32,10 +32,12 @@ function asFeatureCollection(value: unknown): FeatureCollection<Geometry, GeoJso
 }
 
 export async function loadLiveMarket(city: string, q?: string): Promise<LiveMarket> {
+  const apiCity = ({ riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' } as Record<string, string>)[city.toLowerCase()] ?? city
+  const query = { city: apiCity, ...(q?.trim() ? { q: q.trim() } : {}) }
   const [districtsRaw, countsRaw, summaryRaw] = await Promise.all([
-    request<unknown>(`districts?city=${encodeURIComponent(city)}`),
-    request<{ districts?: unknown }>('district-counts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ city, ...(q?.trim() ? { q: q.trim() } : {}) }) }),
-    request<MarketSummary>('market-summary', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ city, ...(q?.trim() ? { q: q.trim() } : {}) }) }),
+    request<unknown>(`districts?city=${encodeURIComponent(apiCity)}`),
+    request<{ districts?: unknown }>('district-counts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(query) }),
+    request<MarketSummary>('market-summary', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(query) }),
   ])
   return {
     districts: asFeatureCollection(districtsRaw),
