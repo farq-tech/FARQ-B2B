@@ -2044,6 +2044,7 @@ The map records the following milestones only after the owner has accepted map a
 - `map_review_list_saved` — a selected list was saved for later review.
 - `map_review_to_rfq` — the owner chose to start a pricing request from that list.
 - `map_campaign_draft_saved` — a WhatsApp campaign draft was saved; this does not send a message.
+- `map_campaign_review_open` — the owner opened the separate manual send-review step; this does not send a message.
 - `map_review_list_save_failed` and `map_campaign_draft_save_failed` — the corresponding save did not complete.
 
 The events contain only the anonymous session key and a fixed label. They do not contain a search phrase, selected business, phone number, recipient count, campaign text, or request contents. Run the aggregate query below against the authorized main application database. It deliberately returns no session identifiers.
@@ -2059,6 +2060,7 @@ WITH window AS (
     bool_or(element_label = 'pricing_map_map_review_list_saved') AS saved_review,
     bool_or(element_label = 'pricing_map_map_review_to_rfq') AS started_rfq,
     bool_or(element_label = 'pricing_map_map_campaign_draft_saved') AS saved_campaign_draft,
+    bool_or(element_label = 'pricing_map_map_campaign_review_open') AS opened_campaign_review,
     bool_or(element_label = 'pricing_map_map_review_list_save_failed') AS review_save_failed,
     bool_or(element_label = 'pricing_map_map_campaign_draft_save_failed') AS campaign_draft_save_failed
   FROM public.analytics_events, window
@@ -2069,6 +2071,7 @@ WITH window AS (
       'pricing_map_map_review_list_saved',
       'pricing_map_map_review_to_rfq',
       'pricing_map_map_campaign_draft_saved',
+      'pricing_map_map_campaign_review_open',
       'pricing_map_map_review_list_save_failed',
       'pricing_map_map_campaign_draft_save_failed'
     )
@@ -2079,6 +2082,7 @@ SELECT
   count(*) FILTER (WHERE saved_review) AS sessions_saved_review,
   count(*) FILTER (WHERE started_rfq) AS sessions_started_rfq,
   count(*) FILTER (WHERE saved_campaign_draft) AS sessions_saved_campaign_draft,
+  count(*) FILTER (WHERE opened_campaign_review) AS sessions_opened_campaign_review,
   count(*) FILTER (WHERE review_save_failed) AS sessions_review_save_failed,
   count(*) FILTER (WHERE campaign_draft_save_failed) AS sessions_campaign_draft_save_failed
 FROM sessions
@@ -2086,4 +2090,4 @@ GROUP BY 1
 ORDER BY 1;
 ```
 
-A saved review list is evidence that a user preserved a selection. Starting an RFQ is evidence of navigation into the pricing-request flow. A saved campaign draft is evidence of preparation for later manual review, not evidence that a recipient was contacted, that a message was approved, or that it converted. Failures indicate an incomplete save attempt; they do not establish the cause. Wait for at least two complete weeks and 30 consenting sessions with the relevant milestone before treating any rate as directional, then compare it with actual request, quote, and award records.
+A saved review list is evidence that a user preserved a selection. Starting an RFQ is evidence of navigation into the pricing-request flow. A saved campaign draft is evidence of preparation for later manual review; opening that review proves only that the owner reached the confirmation step. Neither event proves that a recipient was contacted, that a message was approved, or that it converted. Failures indicate an incomplete save attempt; they do not establish the cause. Wait for at least two complete weeks and 30 consenting sessions with the relevant milestone before treating any rate as directional, then compare it with actual request, quote, and award records.
