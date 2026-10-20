@@ -124,7 +124,7 @@ export default function CampaignTray(p: Props) {
               {sendableTemplates.map((t) => <option key={t.name} value={t.name}>{[t.name, categoryAr(t.category)].filter(Boolean).join(' · ')}</option>)}
             </select>
             {!sendableTemplates.length ? <p role="alert" className="text-[12px] leading-[18px] text-[var(--color-text-danger)]">لا يوجد قالب معتمد ومهيأ للإرسال الآن.</p> : null}
-            {p.onPrepare ? <p className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر القوالب المعتمدة والمهيأة للإرسال فقط. القوالب قيد المراجعة تظهر هنا بعد اعتمادها من ميتا.</p> : <>
+            {p.onPrepare && !p.prepared ? <p className="rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-3 text-[12px] leading-[18px] text-[var(--color-text-secondary)]">تظهر القوالب المعتمدة والمهيأة للإرسال فقط. القوالب قيد المراجعة تظهر هنا بعد اعتمادها من ميتا.</p> : <>
               <label className="flex flex-col rounded-[12px] bg-[var(--color-bg-surface-2)] px-3 py-2.5 focus-within:outline-2 focus-within:outline-solid focus-within:outline-[var(--color-border-primary)]">
                 <span className="text-[14px] leading-[22px] text-[var(--color-text-secondary)]">نص الرسالة · المتغير 2</span>
                 <span className="sr-only">نص الرسالة</span>
@@ -171,9 +171,9 @@ export default function CampaignTray(p: Props) {
               <>
                 {p.prepared
                   ? <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock)} title={p.sendBlock || undefined} onClick={p.onSend}>راجع الإرسال</Button>
-                  : <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.sendBlock) || p.preparing} loading={p.preparing} loadingLabel="نضيف القائمة…" title={p.sendBlock || undefined} onClick={p.onPrepare}>أضف إلى حملة واتساب</Button>}
+                  : <Button variant="Primary" size="M" icon="whatsapp" disabled={Boolean(p.scheduleBlock) || p.preparing} loading={p.preparing} loadingLabel="نضيف القائمة…" title={p.scheduleBlock || undefined} onClick={p.onPrepare}>أضف إلى حملة واتساب</Button>}
                 <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{p.prepared ? 'المسودة جاهزة للمراجعة. زر «راجع الإرسال» لا يرسل شيئاً؛ الإرسال يبقى خطوة يدوية منفصلة.' : 'هذه الخطوة تحفظ قائمتك كمسودة في واتساب ولا ترسل رسالة. الإرسال يبقى إجراءً يدويًا منفصلًا.'}</p>
-                {p.sendBlock ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{p.sendBlock}</p> : null}
+                {(p.prepared ? p.sendBlock : p.scheduleBlock) ? <p className="text-[12px] leading-[18px] text-[var(--color-text-secondary)]">{p.prepared ? p.sendBlock : p.scheduleBlock}</p> : null}
               </>
             ) : mode === 'now' ? (
               <>

@@ -443,6 +443,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
         setError(null); setNotice(null); setRestoredPartial(null); setPreparedCampaignId(null)
         setObjective(savedObjective); setLens(savedObjective === 'marketing' ? 'buyers' : 'sellers')
         setCity(savedCity); setQ(text); setQuery(text); setTab('results'); setAreaFilters({}); setChosenD(new Set())
+        if (draft && typeof saved.payload?.templateName === 'string' && saved.payload.templateName.trim()) setTemplate(saved.payload.templateName)
 
         const first = await searchTargets(text, savedCity, FETCH, savedObjective)
         if (!active || version !== generation.current) return
@@ -2082,7 +2083,8 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
   const templateBlock = !message.trim() ? 'اكتب نص الرسالة' : selectedTemplate && !templateFits(selectedTemplate) ? 'اختر قالباً معتمداً ومهيأ للإرسال' : missingTemplateValue ? `أدخل ${missingTemplateValue === 3 ? 'الكمية' : missingTemplateValue === 4 ? 'موقع أو موعد التوريد' : `المتغير ${missingTemplateValue}`}` : tplError ? 'تعذّر التحقق من حالة القالب' : !tpl ? 'جارٍ التحقق من القالب…' : template === OUTREACH_TEMPLATE && !approved ? `القالب ${OUTREACH_TEMPLATE} غير معتمد من Meta (${tpl.status})` : template !== OUTREACH_TEMPLATE && !templates.some((t) => t.name === template && t.status === 'APPROVED') ? 'القالب غير معتمد من Meta' : null
   const marketingBlock = null
   const refreshBlock = busy ? 'جارٍ تحديث النتائج؛ انتظر اكتمال البحث قبل اختيار المنشآت أو الإرسال.' : failedResultRefresh ? 'تعذّر تحديث النتائج؛ لا ترسل الاختيار الحالي حتى تعيد المحاولة أو ترجع إلى النتائج السابقة.' : null
-  const sendBlock = refreshBlock || (!campaignChosen.length ? 'اختر جهة واحدة لديها رقم واتساب صالح أولاً.' : templateBlock)
+  const holderBlock = !holder ? 'تعذّر تجهيز مراجعة الإرسال الآن. حدّث حالة قالب واتساب ثم حاول.' : null
+  const sendBlock = refreshBlock || (!campaignChosen.length ? 'اختر جهة واحدة لديها رقم واتساب صالح أولاً.' : templateBlock || holderBlock)
   const scheduleBlock = refreshBlock || marketingBlock || (!campaignChosen.length ? 'اختر جهة واحدة لديها رقم واتساب صالح أولاً.' : templateBlock)
   const cost = price != null ? (campaignChosen.length * price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
   const templateBadge = approved || template !== OUTREACH_TEMPLATE ? { tone: 'Success' as const, label: 'قالب واتساب معتمد' } : tpl ? { tone: 'Warning' as const, label: `القالب: ${tpl.status}` } : tplError ? { tone: 'Danger' as const, label: 'حالة القالب غير معروفة' } : null
