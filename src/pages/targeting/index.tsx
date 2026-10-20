@@ -23,7 +23,6 @@ import CampaignConfirmSheet from './CampaignConfirmSheet'
 import TargetingAssistant, { type TargetingAssistantPlan } from './TargetingAssistant'
 import StartSheet from './StartSheet'
 import { categoryCampaignTemplate } from './categoryCampaignTemplates'
-import MyRequests from './MyRequests'
 import Counters, { type CounterItem } from './map/Counters'
 import DrawnLayerMap from './map/DrawnLayerMap'
 import GuideTree from './map/GuideTree'
@@ -2783,7 +2782,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     : <>
     {buyerPanel}
     {mobile && tab === 'streets' ? densePanel || <p className="px-5 py-6 text-[14px] text-[var(--color-text-secondary)]">نحسب أكثف الشوارع…</p> : tab !== 'guide' ? (
-      <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}<MyRequests mobile={mobile} refresh={savedTick} />{targetResultsPanel}</>
+      <>{mobile ? null : densePanel}{denseList.length ? null : clusterList}{targetResultsPanel}</>
     ) : marketGuide}
   </>
   const panelBody = <>{showMarketContext ? <>{mapScopePanel}{mapScope === 'district' ? null : districtInsightPanel}</> : null}{panelContent}</>
@@ -2853,6 +2852,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
                 <Icon name="map-pin" size={14} />{placingSite ? 'اضغط على الخريطة' : 'موقع المشروع'}
               </button>
             )}
+            {onRequests ? <button type="button" onClick={onRequests} className={`min-h-11 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] md:min-h-8 ${FOCUS_RING}`}>الطلبات</button> : null}
             <button type="button" onClick={() => changeFocusMode(true)} className={`min-h-11 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5 text-[13px] font-medium shadow-[var(--farq-soft-shadow)] md:min-h-8 ${FOCUS_RING}`}>توسيع الخريطة</button>
           </div>
         </div>
@@ -2993,6 +2993,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
                   className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm md:min-h-8 ${FOCUS_RING}`}>
           {focusPanelOpen ? 'إخفاء اللوحة' : buyerProductMode ? `مرشحو منتجاتك · ${n(res?.total || 0)}` : hasTargetQuery ? `النتائج · ${resultCountSummary}` : hasAudienceBrowse ? `دليل المدينة · ${n(res?.total || 0)}` : 'ابدأ البحث'}
                 </button>
+                {onRequests ? <button type="button" onClick={onRequests} className={`min-h-11 shrink-0 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-2 text-[13px] font-medium shadow-sm md:min-h-8 ${FOCUS_RING}`}>الطلبات</button> : null}
                 <button type="button" onClick={() => changeFocusMode(false)} aria-label="العودة لتخطيط الصفحة"
                   className={`min-h-11 shrink-0 rounded-full bg-[var(--color-bg-surface-2)] px-3 py-2 text-[13px] font-medium md:min-h-8 ${FOCUS_RING}`}>
                   رجوع للتخطيط
