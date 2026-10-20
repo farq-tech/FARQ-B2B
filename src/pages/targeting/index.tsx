@@ -2798,7 +2798,7 @@ export default function TargetingPage({ onTemplates, onLeads, onMapFocusChange, 
     </div>
   ) : null
   const mapBlock = (
-    <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(340px,48dvh,420px)] shrink-0' : 'h-[clamp(22rem,48dvh,32rem)] shrink-0'}`} overflow-hidden bg-[var(--map-land)]`}>
+    <div className={`${focusMode ? 'absolute inset-0 rounded-none border-0' : `relative min-h-0 rounded-[18px] border border-[var(--color-border-default)] ${mobile ? 'map-compact-scroll-anchor h-[clamp(280px,40dvh,360px)] shrink-0' : 'h-[clamp(22rem,48dvh,32rem)] shrink-0'}`} overflow-hidden bg-[var(--map-land)]`}>
       <LayerMap city={city} focusMode={focusMode} districts={hasPolys ? districts : []} chosen={chosenD} onDistrict={toggleDistrict} pins={showMapPins ? pins : []} highlightedPinKey={highlightedPinKey} layer={layer} onPin={(k) => void openMapProfile(k)} tileQuery={showMapPins && !buyerProductMode ? activeTileQuery : undefined} onTileRefresh={() => { if (buyerProductMode) return; void (query ? runSearchIn(query, city, filters) : loadBrowse(city, filters)) }}
         nameOf={(k) => { const r = byKey.get(k); return r ? safeName(r) : 'منشأة' }} clusters={clusterTop} onCluster={pickCluster}
         streets={denseList} activeStreet={activeStreetId} onStreet={pickStreet} density={mapDensity} densityMax={densityMax}

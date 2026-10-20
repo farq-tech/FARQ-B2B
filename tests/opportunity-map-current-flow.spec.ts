@@ -158,6 +158,21 @@ test.describe('خريطة الفرص: التدفق الحالي', () => {
     expect(apiPosts.some((path) => path.includes('/send-farq'))).toBe(false)
   })
 
+  test('على الهاتف لا تتمدد الخريطة فوق النتائج وتبقى القائمة قابلة للتمرير', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
+    const mapHeight = await page.locator('[aria-label="خريطة الفرص"]').evaluate((map) => Math.round(map.getBoundingClientRect().height))
+    expect(mapHeight).toBeLessThanOrEqual(360)
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }))
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+    await expect(page.getByRole('tab', { name: 'التصنيفات', exact: true })).toBeVisible()
+  })
+
   test('استكشاف السوق يغلق اختيار الهدف ويبقي عناصر الخريطة قابلة للاستخدام', async ({ page }) => {
     await installMapFixtures(page)
     await page.goto('/opportunity-map')
