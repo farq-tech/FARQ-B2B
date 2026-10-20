@@ -240,6 +240,12 @@ class H(BaseHTTPRequestHandler):
         if LOCAL_RUNTIME and status == 401:
             return self._send(503, json.dumps({'error': 'LOCAL_TARGETING_AUTH_REQUIRED', 'message_ar': 'أضف اعتماد خدمة الاستهداف إلى ملف البيئة المحلي ثم أعد تشغيل التطبيق.'}, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
         self._send(status, data, ctype)
+    def _targeting_or_gate(self):
+        """Keep production's auth boundary, but make a stale local clone actionable."""
+        if self._authed(): return self._targeting()
+        if LOCAL_RUNTIME:
+            return self._send(503, json.dumps({'error': 'LOCAL_SESSION_REQUIRED', 'message_ar': 'انتهت جلسة النسخة المحلية. سجّل الدخول من جديد ثم أعد المحاولة.'}, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
+        return self._send(401, b'{"error":"gate"}', 'application/json')
     def _origin(self): return SITE_URL or ('https://' + (self.headers.get('Host') or 'localhost'))
     def _file(self, f):
         ctype = mimetypes.guess_type(f)[0] or 'application/octet-stream'
@@ -254,7 +260,7 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith('/_trial/'): return handle_trial(self, TARGETING, TARGETING_PW)
         if self.path.startswith('/_session/'): return self._session_route(urllib.parse.urlparse(self.path).path)
         if self.path.startswith('/_api/'): return self._proxy()
-        if self.path.startswith('/_targeting/'): return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+        if self.path.startswith('/_targeting/'): return self._targeting_or_gate()
         u = urllib.parse.urlparse(self.path); p = u.path
         # public: the landing, its own files, robots / sitemap / favicon
         if (p == '/' and 'rfq=' not in u.query) or p.rstrip('/') == '/landing': return self._landing()
@@ -285,7 +291,7 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith('/_api/'): return self._proxy()
         if self.path.startswith('/_targeting/'):
             if not self._csrf_ok(): return self._send(403, b'{"ok":false,"error":"CSRF"}', 'application/json')
-            return self._targeting() if self._authed() else self._send(401, b'{"error":"gate"}', 'application/json')
+            return self._targeting_or_gate()
         self._send(404, b'')
     do_PUT = do_PATCH = do_DELETE = do_POST
 

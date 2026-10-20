@@ -270,9 +270,9 @@ async function call<T>(
   if (!r.ok) {
     // A protected targeting response can arrive after an expired proxy cookie.
     // Re-read the session so the app returns to sign-in instead of leaving a stale map interactive.
-    if (r.status === 401) void farqSession.loadUser()
+    if (r.status === 401 || d.error === 'LOCAL_SESSION_REQUIRED') void farqSession.loadUser()
     if (retried) notifyRetry('failed')
-    throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : d.error === 'LOCAL_TARGETING_AUTH_REQUIRED' && d.message_ar ? d.message_ar : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.', r.status)
+    throw new TargetingError(String(d.error || r.status), d.error === 'SEND_DISABLED' ? 'الإرسال مقفل في هذه البيئة.' : (d.error === 'LOCAL_TARGETING_AUTH_REQUIRED' || d.error === 'LOCAL_SESSION_REQUIRED') && d.message_ar ? d.message_ar : d.error === 'PRAYER_WINDOW' && d.message_ar ? d.message_ar : r.status === 401 ? 'انتهت جلسة الصفحة. حدّث الصفحة وادخل من جديد.' : 'خدمة الاستهداف ما ردّت. حاول بعد شوي.', r.status)
   }
   if (retried) notifyRetry('recovered')
   return data as T
