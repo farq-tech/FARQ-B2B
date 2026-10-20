@@ -1,0 +1,67 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const rows = [
+  {
+    poi_key: 'supplier-1', name_ar: 'مؤسسة الأنابيب الحديثة', name_en: null,
+    category_ar: 'أدوات صحية', category: null, city_en: 'Riyadh', region_ar: 'الرياض',
+    district_ar: 'العليا', street_ar: 'طريق العليا العام', latitude: 24.71, longitude: 46.68,
+    location_precision: 'point', phone: '966500000001', has_whatsapp: true,
+    email: null, source_count: 1, sources: ['qa'], taxonomy_sub: 'build.plumbing_supply',
+    role_badges: ['يبيع'], specialties: [],
+  },
+]
+
+async function installMapFixtures(page: Page) {
+  await page.addInitScript(() => {
+    ;(window as unknown as Record<string, unknown>).__FARQ_QA_SESSION__ = {
+      accessToken: 'qa-no-real-token', refreshToken: 'qa-no-real-token',
+      expiresAt: Math.floor(Date.now() / 1000) + 7200,
+      user: { id: 'qa-user', email: 'abdulrhman@farq.sa', emailVerified: true, displayName: 'اختبار' },
+    }
+    localStorage.setItem('farq:pricing-map-analytics-consent-v2', 'rejected')
+  })
+  await page.route('**/_targeting/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/cities')) return route.fulfill({ json: [{ en: 'Riyadh', ar: 'الرياض', n: 1 }] })
+    if (path.endsWith('/market-summary')) return route.fulfill({ json: { ok: true, summary: { total: 1, districts_count: 1, top_districts: [{ district_ar: 'العليا', n: 1 }], main_activities: [{ main_id: 'build', main_ar: 'مواد بناء', n: 1 }], n_wholesale: 0, n_whatsapp: 1, n_specialties: 1, n_approx: 0, n_cr: 1, basis: 'اختبار' } } })
+    if (path.endsWith('/district-counts')) return route.fulfill({ json: { ok: true, city: 'Riyadh', total: 1, districts: [{ district_ar: 'العليا', n: 1, n_wholesale: 0, n_whatsapp: 1 }], basis: 'اختبار' } })
+    if (path.endsWith('/districts')) return route.fulfill({ json: { type: 'FeatureCollection', features: [] } })
+    if (path.endsWith('/street-density/catalog')) return route.fulfill({ json: { mains: [] } })
+    if (path.endsWith('/street-density')) return route.fulfill({ json: { type: 'FeatureCollection', features: [], basis: 'اختبار' } })
+    if (path.endsWith('/template-status')) return route.fulfill({ json: { name: 'qa_template', status: 'APPROVED', holder: { holder_rfq_id: 'qa-holder' } } })
+    if (path.endsWith('/templates')) return route.fulfill({ json: { ok: true, data: [] } })
+    if (path.endsWith('/search')) return route.fulfill({ json: { total: rows.length, rows, parsed: { keywords: ['مواسير'] }, areas: { districts: [{ name: 'العليا', n: 1 }], streets: [{ name: 'طريق العليا العام', district: 'العليا', n: 1 }], wholesale: 0, roles: [{ name: 'يبيع', n: 1 }], specialties: [] }, understood: {} } })
+    return route.fulfill({ json: { ok: true } })
+  })
+  await page.route('**/_api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/whatsapp/pricing')) return route.fulfill({ json: { ok: true, data: { enabled: true, price_sar: 0.17, currency: 'SAR' } } })
+    if (path.endsWith('/api/business/context')) return route.fulfill({ json: { ok: true, data: { organizations: [{ id: 'org-1', name: 'مؤسسة الاختبار', role: 'OWNER', subscriptions: [{ sectorCode: 'construction' }] }] } } })
+    return route.fulfill({ json: { ok: true, data: {} } })
+  })
+}
+
+test.describe('خريطة الفرص: التدفق الحالي', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
+
+  test('البحث الحر يبدأ من اختيار الهدف وينتج قائمة قابلة للمراجعة', async ({ page }) => {
+    await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^بحث حر عن مورد/ }).click()
+    await expect(page.getByRole('dialog', { name: 'وش هدفك؟', exact: true })).toBeHidden()
+    await page.getByLabel('وش تبي توصل له؟').fill('مواسير PPR')
+    await page.getByRole('button', { name: 'ابحث', exact: true }).click()
+    await expect(page.getByText('مؤسسة الأنابيب الحديثة', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /حدد اللي عندهم واتساب/ })).toBeVisible()
+  })
+
+  test('استكشاف السوق يغلق اختيار الهدف ويبقي عناصر الخريطة قابلة للاستخدام', async ({ page }) => {
+    await installMapFixtures(page)
+    await page.goto('/opportunity-map')
+    await page.getByRole('button', { name: /^استكشف السوق/ }).click()
+    await expect(page.getByRole('dialog', { name: 'وش هدفك؟', exact: true })).toBeHidden()
+    await expect(page.getByRole('heading', { name: 'سوق الرياض' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'توسيع الخريطة' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'الرياض', exact: true })).toBeVisible()
+  })
+})
