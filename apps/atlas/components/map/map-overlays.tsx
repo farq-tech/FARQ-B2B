@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils'
 
 const LEVEL_HINT: Record<MapLevel, string> = {
   districts: 'اللون الأغمق يعني تركّزاً أعلى للفرص. اضغط على حي لرؤية ملخصه.',
-  clusters: 'كل دائرة تجمع منشآت متقاربة. اضغط عليها لمعرفة محتواها والاقتراب.',
+  clusters: 'كل دائرة تجمع منشآت متقاربة. اضغط عليها لرؤية ملخصها ثم انتقل إلى الشوارع داخلها.',
+  streets: 'اضغط على شارع نشاط لعرض كثافته وموقعه. لا تظهر جهات أو بيانات اتصال قبل تسجيل الدخول.',
   entities: 'اضغط على منشأة لتحديدها أو إلغاء تحديدها.',
 }
 
@@ -275,8 +276,36 @@ export function MarketClusterCard({
       </div>
       <Button size="sm" className="w-full" onClick={onZoom}>
         <ZoomIn data-icon="inline-start" />
-        اقترب لعرض الجهات
+        استعرض شوارع التجمع
       </Button>
+    </CardShell>
+  )
+}
+
+export function MarketStreetCard({
+  label,
+  count,
+  wholesale,
+  district,
+  onClose,
+}: {
+  label: string
+  count: number
+  wholesale: number
+  district?: string
+  onClose: () => void
+}) {
+  return (
+    <CardShell onClose={onClose} label={`ملخص شارع ${label}`}>
+      <div className="flex flex-col gap-0.5 pl-7">
+        <p className="text-sm font-semibold">{label || 'شارع نشاط'}</p>
+        {district ? <p className="truncate text-xs text-muted-foreground">{district}</p> : null}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <Stat value={count} label="منشأة على الشارع" />
+        <Stat value={wholesale} label="منشأة بالجملة" accent={wholesale > 0} />
+      </div>
+      <p className="text-xs leading-5 text-muted-foreground">هذه قراءة مجمعة للسوق. سجّل الدخول لعرض الجهات المطابقة واختيارها للمراجعة.</p>
     </CardShell>
   )
 }
@@ -403,7 +432,7 @@ export function MapLegend({
   hasGhosts: boolean
   showStreets: boolean
 }) {
-  const title = level === 'districts' ? 'دليل: الأحياء' : level === 'clusters' ? 'دليل: التجمعات' : 'دليل: المنشآت'
+  const title = level === 'districts' ? 'دليل: الأحياء' : level === 'clusters' ? 'دليل: التجمعات' : level === 'streets' ? 'دليل: الشوارع' : 'دليل: المنشآت'
   return (
     <div className="rounded-xl border bg-card/95 text-xs shadow-sm backdrop-blur">
       <button
@@ -440,6 +469,12 @@ export function MapLegend({
               <LegendRow swatch={<span className="size-3 rounded-full border-[2.5px] border-primary bg-card" />} label="منشأة منفردة" />
             </>
           ) : null}
+          {level === 'streets' ? (
+            <>
+              <LegendRow swatch={<span className="h-1.5 w-5 rounded bg-primary" />} label="شارع نشاط" />
+              <LegendRow swatch={<span className="size-2.5 rounded-full border-2 border-primary bg-card" />} label="اضغط لعرض الملخص" />
+            </>
+          ) : null}
           {level === 'entities' ? (
             <>
               <LegendRow swatch={<span className="size-3 rounded-full border-[2.5px] border-primary bg-card" />} label="منشأة" />
@@ -447,7 +482,7 @@ export function MapLegend({
               {hasGhosts ? <LegendRow swatch={<span className="size-3 rounded-full border border-muted-foreground bg-card" />} label="مرشح للإضافة" /> : null}
             </>
           ) : null}
-          {showStreets && level !== 'districts' ? (
+          {showStreets && level === 'clusters' ? (
             <LegendRow swatch={<span className="h-1 w-4 rounded bg-primary/60" />} label="شارع نشاط (3+ منشآت)" />
           ) : null}
           {hasArea ? <LegendRow swatch={<span className="size-3 rounded-sm border-2 border-dashed border-primary bg-primary/10" />} label="المنطقة المحددة" /> : null}

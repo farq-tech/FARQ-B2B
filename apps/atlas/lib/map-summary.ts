@@ -1,14 +1,16 @@
 import type { Business } from './types'
 
-export type MapLevel = 'districts' | 'clusters' | 'entities'
+export type MapLevel = 'districts' | 'clusters' | 'streets' | 'entities'
 
 export const DISTRICT_MAX_ZOOM = 12.5
-export const ENTITY_MIN_ZOOM = 14
+export const STREET_MIN_ZOOM = 13.5
+export const ENTITY_MIN_ZOOM = 15
 
 export const LEVELS: { id: MapLevel; label: string; zoom: number }[] = [
   { id: 'districts', label: 'الأحياء', zoom: 11.9 },
-  { id: 'clusters', label: 'التجمعات', zoom: 13.2 },
-  { id: 'entities', label: 'المنشآت', zoom: 14.8 },
+  { id: 'clusters', label: 'التجمعات', zoom: 13.1 },
+  { id: 'streets', label: 'الشوارع', zoom: 13.8 },
+  { id: 'entities', label: 'المنشآت', zoom: 15.2 },
 ]
 
 export interface AreaSummary {
