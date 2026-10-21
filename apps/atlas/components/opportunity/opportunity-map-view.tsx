@@ -42,6 +42,7 @@ export function OpportunityMapView() {
   const [loading, setLoading] = useState(false)
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null)
   const [focusDistrict, setFocusDistrict] = useState<{ name: string; nonce: number } | null>(null)
+  const [focusStreet, setFocusStreet] = useState<{ street: string; district?: string; nonce: number } | null>(null)
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map')
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [area, setArea] = useState<MapArea | null>(null)
@@ -184,6 +185,11 @@ export function OpportunityMapView() {
     setMobileView('map')
   }
 
+  const focusStreetOnMap = (street: string, district?: string) => {
+    setFocusStreet({ street, district, nonce: Date.now() })
+    setMobileView('map')
+  }
+
   const liveSelection = selection.flatMap((id) => liveEntitySnapshots[id] ? [liveEntitySnapshots[id]] : [])
 
   const handleToggleSelect = (id: string) => {
@@ -295,9 +301,10 @@ export function OpportunityMapView() {
                           <p className="mt-0.5 text-xs text-muted-foreground">{[market.data.summary.densest_street.sub_ar, market.data.summary.densest_street.district_ar].filter(Boolean).join(' · ')}</p>
                         </div>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span><strong className="text-foreground tabular-nums">{market.data.summary.densest_street.n?.toLocaleString('en-US') ?? '—'}</strong> منشأة</span>
                         {market.data.summary.densest_street.per_100m ? <span><strong className="text-foreground tabular-nums">{market.data.summary.densest_street.per_100m.toLocaleString('en-US')}</strong> لكل 100 م</span> : null}
+                        <button type="button" onClick={() => focusStreetOnMap(market.data!.summary!.densest_street!.street_ar!, market.data!.summary!.densest_street!.district_ar)} className="font-medium text-primary underline-offset-4 hover:underline">عرضه على الخريطة</button>
                       </div>
                     </section>
                   ) : null}
@@ -342,6 +349,7 @@ export function OpportunityMapView() {
             onTogglePin={handleToggleSelect}
             focusRequest={focus}
             focusDistrictRequest={focusDistrict}
+            focusStreetRequest={focusStreet}
             highlightDistricts={filters.districts}
             highlightStreets={filters.streets}
             state={mapState}
