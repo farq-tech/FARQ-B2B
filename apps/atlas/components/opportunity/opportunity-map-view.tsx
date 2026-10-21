@@ -10,13 +10,14 @@ import { type MapArea } from '@/lib/geo'
 import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
 import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
-import { loadLiveMarket, type DistrictCount, type LiveMarket } from '@/lib/live-market'
+import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
 import { trackDraftPrepared, trackMapDetailLevel, trackMarketSearch, trackSelectionChange } from '@/lib/commercial-metrics'
 import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
+import { LiveActivityFilter } from './live-activity-filter'
 import { LiveEntityResults, type LiveEntity } from './live-entity-results'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
@@ -77,6 +78,8 @@ export function OpportunityMapView() {
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [area, setArea] = useState<MapArea | null>(null)
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
+  const [activityCatalog, setActivityCatalog] = useState<LiveActivityMain[]>([])
+  const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,7 +103,10 @@ export function OpportunityMapView() {
     if (!goal) return
     const controller = new AbortController()
     setMarket({ status: 'loading', data: null })
-    loadLiveMarket(cityId, query)
+    loadLiveMarket(cityId, activeActivity ? {
+      mainId: activeActivity.main_id,
+      subIds: activeActivity.subs.map((item) => item.sub_id),
+    } : { q: query })
       .then((data) => {
         if (!controller.signal.aborted) setMarket({ status: 'ready', data })
       })
@@ -108,7 +114,16 @@ export function OpportunityMapView() {
         if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
       })
     return () => controller.abort()
-  }, [cityId, goal, query])
+  }, [cityId, goal, query, activeActivity])
+
+  useEffect(() => {
+    if (!goal) return
+    let active = true
+    loadLiveActivityCatalog(cityId)
+      .then((items) => { if (active) setActivityCatalog(items) })
+      .catch(() => { if (active) setActivityCatalog([]) })
+    return () => { active = false }
+  }, [cityId, goal])
 
 
   const visibleDistrictNames = useMemo(() => new Set(
@@ -138,6 +153,7 @@ export function OpportunityMapView() {
 
   const resetSearch = () => {
     setArea(null)
+    setActiveActivity(null)
     setFilters(EMPTY_FILTERS)
     setFreeText([])
     setInterpretation([])
@@ -145,6 +161,7 @@ export function OpportunityMapView() {
   }
 
   const applyQuery = (text: string, parsed: ParsedQuery, nextGoal?: GoalId) => {
+    setActiveActivity(null)
     setQuery(text)
     setFilters((f) => mergeParsedIntoFilters(nextGoal ? EMPTY_FILTERS : f, parsed))
     setFreeText(parsed.freeText)
@@ -156,6 +173,7 @@ export function OpportunityMapView() {
 
   const handleSearch = (text: string) => {
     trackMarketSearch({ city: cityId, goal: goal ?? 'explore', query: text })
+    setActiveActivity(null)
     if (!text.trim()) {
       setQuery('')
       setFreeText([])
@@ -232,6 +250,26 @@ export function OpportunityMapView() {
     setArea(null)
     resetSearch()
     if (cityById.get(id)?.available) simulateLoad()
+  }
+
+  const selectLiveActivity = (activity: LiveActivityMain) => {
+    setArea(null)
+    setActiveActivity(activity)
+    setQuery(activity.main_ar)
+    setFilters(EMPTY_FILTERS)
+    setFreeText([])
+    setInterpretation([`التصنيف: ${activity.main_ar}`])
+    setIntent(null)
+    simulateLoad(450)
+  }
+
+  const clearLiveActivity = () => {
+    setActiveActivity(null)
+    setQuery('')
+    setFreeText([])
+    setInterpretation([])
+    setIntent(null)
+    simulateLoad(450)
   }
 
   const focusBusiness = (id: string) => {
@@ -384,6 +422,7 @@ export function OpportunityMapView() {
                 </>
               ) : null}
             </div>
+            <LiveActivityFilter activities={activityCatalog} activeId={activeActivity?.main_id} onSelect={selectLiveActivity} onClear={clearLiveActivity} />
             {market.status === 'ready' ? (
               <div className="rounded-xl border bg-card p-4">
                 <p className="text-sm font-semibold">أحياء أولى بالمراجعة</p>
