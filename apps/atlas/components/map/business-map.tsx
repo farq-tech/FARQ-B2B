@@ -22,7 +22,7 @@ export function BusinessMap(props: MockMapProps & { focusDistrictRequest?: { nam
       <div className="flex max-w-sm flex-col items-center gap-3">
         <MapPinOff className="size-7 text-muted-foreground" aria-hidden />
         <p className="font-semibold">الخريطة الحية غير متاحة حالياً</p>
-        <p className="text-sm leading-relaxed text-muted-foreground">لم نعرض بيانات تجريبية. أعد المحاولة بعد التحقق من اتصال خدمة السوق.</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">لن نعرض نتائج بديلة أو غير موثقة. أعد المحاولة بعد التحقق من اتصال خدمة السوق.</p>
         {props.onRetry ? <button type="button" onClick={props.onRetry} className="text-sm font-medium text-primary underline-offset-4 hover:underline">إعادة المحاولة</button> : null}
       </div>
     </div>
