@@ -19,7 +19,7 @@ export function GoalPicker({ onSelect, onOpenAssistant }: GoalPickerProps) {
           وش هدفك؟
         </h1>
         <p className="max-w-xl text-pretty leading-relaxed text-muted-foreground">
-          اختر هدفك لنجهّز الخريطة والفلاتر المناسبة. نعرض الموردين والمشترين وشوارع النشاط في مدينتك، ثم تحدد المنشآت وتجهّز طلباً للمراجعة.
+          اختر هدفك لنجهّز الخريطة والفلاتر المناسبة. ابدأ بالموردين أو العملاء أو فهم السوق، ثم حدّد الجهات وجهّز طلب تسعير أو قائمة تواصل للمراجعة.
         </p>
       </div>
 

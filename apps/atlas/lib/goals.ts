@@ -1,4 +1,4 @@
-import { Compass, Crosshair, Factory, FileText, Store, type LucideIcon } from 'lucide-react'
+import { Compass, Crosshair, Factory, type LucideIcon } from 'lucide-react'
 import type { GoalId, RequestType } from './types'
 
 export interface GoalDef {
@@ -20,14 +20,6 @@ export const GOALS: GoalDef[] = [
     placeholder: 'مثال: موردين كراتين بالجملة في السلي',
   },
   {
-    id: 'find-buyers',
-    label: 'ابحث عن مشترين',
-    description: 'متاجر ومنشآت مؤسسية تحتاج منتجاتك',
-    icon: Store,
-    primaryAction: 'list',
-    placeholder: 'مثال: مطاعم ومقاهي في العليا',
-  },
-  {
     id: 'explore',
     label: 'استكشف السوق',
     description: 'كثافة النشاط في الأحياء وشوارع النشاط',
@@ -37,19 +29,11 @@ export const GOALS: GoalDef[] = [
   },
   {
     id: 'target',
-    label: 'استهدف منشآت',
-    description: 'جهات ذات إشارة واتساب لتجهيز قائمة حملة للمراجعة',
+    label: 'ابحث عن عملاء',
+    description: 'منشآت مناسبة للبيع أو تجهيز قائمة تواصل للمراجعة',
     icon: Crosshair,
     primaryAction: 'campaign',
     placeholder: 'مثال: أسواق تموينية على شارع الستين',
-  },
-  {
-    id: 'rfq',
-    label: 'أنشئ طلب تسعير',
-    description: 'اختر موردين وجهّز طلب تسعير للمراجعة',
-    icon: FileText,
-    primaryAction: 'rfq',
-    placeholder: 'مثال: حديد تسليح في الصناعية الثانية',
   },
 ]
 
