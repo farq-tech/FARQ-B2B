@@ -1,0 +1,47 @@
+openapi: 3.1.0
+info:
+  title: Atlas opportunity requests proxy
+  version: 1.0.0
+  description: |
+    Same-origin Atlas proxy for Farq business opportunity requests. Atlas keeps
+    Farq access tokens in an HttpOnly session cookie; browsers never receive one.
+paths:
+  /api/requests:
+    get:
+      summary: List the signed-in organization's saved requests
+      parameters:
+        - in: query
+          name: hidden
+          schema: { type: string, enum: [exclude, include, only] }
+        - in: query
+          name: archived
+          schema: { type: string, enum: [exclude, include, only] }
+        - in: query
+          name: kind
+          schema: { type: string }
+      responses:
+        '200': { description: Requests returned from Farq }
+        '401': { description: Atlas session is missing or expired }
+        '403': { description: User has no business organization or permission }
+        '404': { description: Opportunity requests are not enabled upstream }
+    post:
+      summary: Save a draft request for the signed-in organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, title]
+              properties:
+                kind:
+                  type: string
+                  enum: [BOOKLET, PURCHASE_REQUEST, SELLER_CATALOG, SELLER_PRODUCTS, SEARCH]
+                title: { type: string, maxLength: 200 }
+                payload: { type: object }
+      responses:
+        '200': { description: Request saved; no recipient contact occurs }
+        '401': { description: Atlas session is missing or expired }
+        '403': { description: CSRF, organization, or permission rejection }
+        '404': { description: Opportunity requests are not enabled upstream }
+        '413': { description: Request payload exceeds 16 KiB }
