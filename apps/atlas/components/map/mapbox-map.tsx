@@ -28,7 +28,8 @@ const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const FONT = ['DIN Pro Medium', 'Arial Unicode MS Regular']
 const FONT_BOLD = ['DIN Pro Bold', 'Arial Unicode MS Bold']
 const LOAD_TIMEOUT_MS = 20000
-const MARKET_OVERVIEW_LIMIT = 18
+const MARKET_OVERVIEW_LIMIT = 16
+const MARKET_DISTRICT_LABEL_LIMIT = 10
 // POIs help orient a user only when they are close enough to make a local
 // decision. Keeping them off at wider levels preserves the market signal.
 const POI_MIN_ZOOM = ENTITY_MIN_ZOOM
@@ -214,7 +215,7 @@ function addLayers(map: MapboxMap) {
     id: 'street-label',
     type: 'symbol',
     source: 'streets',
-    minzoom: 14.5,
+    minzoom: ENTITY_MIN_ZOOM + 0.45,
     layout: { 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11 },
     paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
   })
@@ -245,21 +246,25 @@ function addLayers(map: MapboxMap) {
     id: 'market-street-label',
     type: 'symbol',
     source: 'market-streets',
-    minzoom: STREET_MIN_ZOOM,
+    minzoom: ENTITY_MIN_ZOOM + 0.45,
+    filter: filter(['>=', ['coalesce', ['get', 'n'], 0], 20]),
     layout: { 'symbol-placement': 'line', 'text-field': ['coalesce', ['get', 'street_ar'], ['get', 'label_ar']], 'text-font': FONT, 'text-size': 11 },
     paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
   })
 
-  const marketClustered = filter(['has', 'point_count'])
-  const marketClusterLeaf = filter(['!', ['has', 'point_count']])
+  // `market-clusters` already contains server-side aggregate opportunities.
+  // Treat each record as one truthful signal. Applying Mapbox clustering here
+  // would either hide it or produce a second aggregation layer.
+  const marketSignal = filter(['>', ['coalesce', ['get', 'n'], 0], 0])
+  const noMarketSignal = filter(['<', ['coalesce', ['get', 'n'], 0], 0])
   map.addLayer({
     id: 'market-cluster-halo',
     type: 'circle',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: ENTITY_MIN_ZOOM + 0.75,
-    filter: marketClustered,
-    paint: { 'circle-radius': expr(['+', ['interpolate', ['linear'], ['coalesce', ['get', 'opportunityCount'], 0], 1, 14, 100, 24, 1000, 32], 6]), 'circle-color': COLORS.primary, 'circle-opacity': 0.13 },
+    filter: marketSignal,
+    paint: { 'circle-radius': expr(['+', ['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 14, 100, 24, 1000, 32], 6]), 'circle-color': COLORS.primary, 'circle-opacity': 0.13 },
   })
   map.addLayer({
     id: 'market-cluster',
@@ -267,9 +272,9 @@ function addLayers(map: MapboxMap) {
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: ENTITY_MIN_ZOOM + 0.75,
-    filter: marketClustered,
+    filter: marketSignal,
     paint: {
-      'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'opportunityCount'], 0], 1, 14, 100, 24, 1000, 32]),
+      'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 14, 100, 24, 1000, 32]),
       'circle-color': COLORS.card,
       'circle-stroke-color': COLORS.primary,
       'circle-stroke-width': 2.25,
@@ -281,8 +286,8 @@ function addLayers(map: MapboxMap) {
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: ENTITY_MIN_ZOOM + 0.75,
-    filter: marketClustered,
-    layout: { 'text-field': ['to-string', ['coalesce', ['get', 'opportunityCount'], ['get', 'n'], 0]], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
+    filter: marketSignal,
+    layout: { 'text-field': ['to-string', ['coalesce', ['get', 'n'], 0]], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': false },
     paint: { 'text-color': COLORS.primary },
   })
   map.addLayer({
@@ -291,7 +296,7 @@ function addLayers(map: MapboxMap) {
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: ENTITY_MIN_ZOOM + 0.75,
-    filter: marketClusterLeaf,
+    filter: noMarketSignal,
     paint: {
       'circle-radius': 12,
       'circle-color': COLORS.card,
@@ -305,8 +310,8 @@ function addLayers(map: MapboxMap) {
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: ENTITY_MIN_ZOOM + 0.75,
-    filter: marketClusterLeaf,
-    layout: { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT_BOLD, 'text-size': 11, 'text-allow-overlap': true },
+    filter: noMarketSignal,
+    layout: { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT_BOLD, 'text-size': 11, 'text-allow-overlap': false },
     paint: { 'text-color': COLORS.primary },
   })
 
@@ -318,7 +323,7 @@ function addLayers(map: MapboxMap) {
     source: 'district-points',
     minzoom: 11.6,
     maxzoom: DISTRICT_MAX_ZOOM,
-    filter: filter(['>', ['get', 'count'], 0]),
+    filter: filter(['all', ['>', ['get', 'count'], 0], ['<=', ['get', 'labelRank'], MARKET_DISTRICT_LABEL_LIMIT]]),
     layout: {
       'text-field': ['get', 'name'],
       'text-font': FONT_BOLD,
@@ -336,6 +341,7 @@ function addLayers(map: MapboxMap) {
     source: 'district-points',
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: 15,
+    filter: filter(['all', ['>', ['get', 'count'], 0], ['<=', ['get', 'labelRank'], MARKET_DISTRICT_LABEL_LIMIT]]),
     layout: {
       'text-field': ['get', 'name'],
       'text-font': FONT_BOLD,
@@ -877,9 +883,21 @@ export function MapboxBusinessMap({
     for (const b of businesses) streetCounts.set(b.streetId, (streetCounts.get(b.streetId) ?? 0) + 1)
     const syntheticDistricts = DISTRICTS.filter((d) => d.cityId === cityId)
     const streets = STREETS.filter((s) => s.cityId === cityId && ((streetCounts.get(s.id) ?? 0) >= 3 || hlStreets.has(s.id)))
+    const rankedDistrictIds = [...districtStats.counts.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .map(([id]) => id)
+    const districtRank = new Map(rankedDistrictIds.map((id, index) => [id, index + 1]))
     const props = (id: string) => {
       const count = districtStats.counts.get(id) ?? 0
-      return { id, hl: hlDistricts.has(id) ? 1 : 0, count, t: count / districtStats.max }
+      return {
+        id,
+        hl: hlDistricts.has(id) ? 1 : 0,
+        count,
+        t: count / districtStats.max,
+        // A map can show hundreds of boundaries, but only the densest few
+        // need a label at overview zoom. Every other district stays clickable.
+        labelRank: districtRank.get(id) ?? Number.MAX_SAFE_INTEGER,
+      }
     }
     const districts = useLiveDistricts
       ? liveDistrictFeatures.map((feature) => ({ ...feature, properties: { ...(feature.properties ?? {}), ...props(districtId(feature) as string) } }))
