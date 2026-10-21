@@ -1033,6 +1033,9 @@ export function MapboxBusinessMap({
     const m = mapRef.current
     const target = LEVELS.find((x) => x.id === l)
     if (!m || !target) return
+    // A card describes a feature from the previous level. Clear it before the
+    // view changes so it cannot cover or misrepresent the new interaction.
+    setCard(null)
     onDetailLevelChange?.(l)
     if (l === 'districts' && !layers.districts) setLayers((s) => ({ ...s, districts: true }))
     if (l === 'clusters' && !layers.clusters) setLayers((s) => ({ ...s, clusters: true }))
