@@ -24,6 +24,7 @@ interface ContextBarProps {
   inView: number
   total: number
   selected: number
+  hasEntityPins: boolean
   areaMode: boolean
   areaLabel?: string
   pendingLevel?: MapLevel | null
@@ -38,6 +39,7 @@ export function MapContextBar({
   inView,
   total,
   selected,
+  hasEntityPins,
   areaMode,
   areaLabel,
   pendingLevel,
@@ -88,7 +90,9 @@ export function MapContextBar({
             ? 'اسحب على الخريطة لرسم منطقة، أو اضغط على حي لاختياره كاملاً.'
             : areaLabel
               ? `القائمة محصورة في: ${areaLabel}. امسح المنطقة لعرض كل النتائج.`
-              : LEVEL_HINT[level]}
+              : level === 'entities' && !hasEntityPins
+                ? 'سجّل الدخول لعرض الجهات المطابقة واختيارها. تظهر نقاط الاهتمام عند هذا التقريب للمساعدة في تحديد الموقع.'
+                : LEVEL_HINT[level]}
       </p>
     </div>
   )
