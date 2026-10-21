@@ -1263,6 +1263,7 @@ export function MapboxBusinessMap({
             total={liveSummary?.total ?? businesses.length}
             selected={selectedIds.length}
             hasEntityPins={liveEntityPins.length > 0}
+            marketSignalCount={liveClusters.length}
             areaMode={areaMode}
             areaLabel={area?.label}
             pendingLevel={pendingLevel}
