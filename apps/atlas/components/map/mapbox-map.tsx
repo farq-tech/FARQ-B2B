@@ -28,6 +28,7 @@ const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const FONT = ['DIN Pro Medium', 'Arial Unicode MS Regular']
 const FONT_BOLD = ['DIN Pro Bold', 'Arial Unicode MS Bold']
 const LOAD_TIMEOUT_MS = 20000
+const MARKET_OVERVIEW_LIMIT = 18
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 const BIZ_SOURCES = ['biz-flat', 'biz-clustered'] as const
@@ -131,7 +132,7 @@ function addLayers(map: MapboxMap) {
     cluster: true,
     // Keep the city overview readable: related activity is grouped before
     // individual streets become the next level of detail.
-    clusterRadius: 144,
+    clusterRadius: 88,
     clusterMaxZoom: Math.floor(STREET_MIN_ZOOM) - 1,
     clusterProperties: {
       opportunityCount: ['+', ['get', 'n']],
@@ -796,19 +797,29 @@ export function MapboxBusinessMap({
   }), [liveEntityPins, selectedSet])
 
   const liveStreetData = useMemo<FeatureCollection<Geometry, StreetDensityProperties>>(() => liveStreets ?? (EMPTY as FeatureCollection<Geometry, StreetDensityProperties>), [liveStreets])
-  const liveClusterData = useMemo<FeatureCollection>(() => ({
-    type: 'FeatureCollection',
-    features: liveClusters.flatMap((cluster) => typeof cluster.lon === 'number' && typeof cluster.lat === 'number' ? [{
-      type: 'Feature' as const,
-      properties: {
-        label_ar: cluster.label_ar ?? cluster.street_ar ?? cluster.district_ar ?? 'تجمع فرص',
-        n: cluster.n ?? 0,
-        n_wholesale: cluster.n_wholesale ?? 0,
-        ...(cluster.district_ar ? { district_ar: cluster.district_ar } : {}),
-      },
-      geometry: { type: 'Point' as const, coordinates: [cluster.lon, cluster.lat] },
-    }] : []),
-  }), [liveClusters])
+  const liveClusterData = useMemo<FeatureCollection>(() => {
+    // The overview is a decision surface, not a full directory. Keep the most
+    // substantial groups visible here; smaller activity becomes available at
+    // the street level without turning the map into a wall of markers.
+    const prominentClusters = liveClusters
+      .filter((cluster) => typeof cluster.lon === 'number' && typeof cluster.lat === 'number')
+      .sort((a, b) => (b.n ?? 0) - (a.n ?? 0))
+      .slice(0, MARKET_OVERVIEW_LIMIT)
+
+    return {
+      type: 'FeatureCollection',
+      features: prominentClusters.map((cluster) => ({
+        type: 'Feature' as const,
+        properties: {
+          label_ar: cluster.label_ar ?? cluster.street_ar ?? cluster.district_ar ?? 'تجمع فرص',
+          n: cluster.n ?? 0,
+          n_wholesale: cluster.n_wholesale ?? 0,
+          ...(cluster.district_ar ? { district_ar: cluster.district_ar } : {}),
+        },
+        geometry: { type: 'Point' as const, coordinates: [cluster.lon!, cluster.lat!] },
+      })),
+    }
+  }, [liveClusters])
 
   const districtStats = useMemo(() => {
     const counts = new Map<string, number>()
