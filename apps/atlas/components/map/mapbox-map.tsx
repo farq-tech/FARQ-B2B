@@ -12,6 +12,7 @@ import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, STREET_MIN_ZOOM, summarize,
 import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
 import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
+import { normalizeArabic } from '@/lib/search'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
 import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard, MarketStreetCard } from './map-overlays'
@@ -1105,6 +1106,30 @@ export function MapboxBusinessMap({
   }, [viewBounds, businesses, cityId])
 
   const areaItems = useMemo(() => (area ? businesses.filter((b) => isInArea(cityId, b, area)) : []), [area, businesses, cityId])
+  const areaLiveEntities = useMemo(() => {
+    if (!area) return []
+    if (area.kind === 'district') {
+      const liveFeature = liveDistrictById.get(area.districtId)
+      const district = liveFeature ? districtName(liveFeature) : area.label.replace(/^حي\s+/, '')
+      const key = normalizeArabic(district)
+      return liveEntityPins.filter((entity) => normalizeArabic(entity.district) === key)
+    }
+    const [[west, south], [east, north]] = area.bounds
+    return liveEntityPins.filter((entity) => entity.latitude != null && entity.longitude != null && entity.longitude >= west && entity.longitude <= east && entity.latitude >= south && entity.latitude <= north)
+  }, [area, liveDistrictById, liveEntityPins])
+  const areaSummary = useMemo(() => {
+    if (areaItems.length) return summarize(areaItems, selectedSet)
+    const categories = new Map<string, number>()
+    for (const entity of areaLiveEntities) categories.set(entity.category, (categories.get(entity.category) ?? 0) + 1)
+    return {
+      count: areaLiveEntities.length,
+      selected: areaLiveEntities.filter((entity) => selectedSet.has(entity.id)).length,
+      whatsappSignals: areaLiveEntities.filter((entity) => entity.whatsapp).length,
+      wholesale: 0,
+      topCategories: [...categories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => ({ name, count })),
+    }
+  }, [areaItems, areaLiveEntities, selectedSet])
+  const areaSelectableIds = areaItems.length ? areaItems.map((item) => item.id) : areaLiveEntities.map((item) => item.id)
 
   const goToLevel = (l: MapLevel) => {
     const m = mapRef.current
@@ -1241,10 +1266,10 @@ export function MapboxBusinessMap({
       return (
         <AreaCard
           label={area.label}
-          summary={summarize(areaItems, selectedSet)}
+          summary={areaSummary}
           onClose={() => setDismissedArea(area)}
           onClear={() => onAreaChange?.(null)}
-          onSelectAll={() => onSelectMany?.(areaItems.map((b) => b.id))}
+          onSelectAll={() => onSelectMany?.(areaSelectableIds)}
           onShowList={onShowList}
         />
       )
