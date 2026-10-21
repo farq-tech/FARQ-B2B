@@ -9,6 +9,8 @@ import type { RequestType } from '@/lib/types'
 import { TYPE_LABEL } from '@/lib/format'
 import { Modal } from '@/components/shared/modal'
 
+const DRAFT_TYPES: RequestType[] = ['list', 'rfq', 'campaign']
+
 const EXAMPLES = [
   'أبي موردين كراتين بالجملة في السلي',
   'مصانع حديد في الصناعية الثانية عندهم واتساب',
@@ -31,18 +33,21 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
   const [preview, setPreview] = useState<{ text: string; parsed: ParsedQuery } | null>(null)
   const [prepared, setPrepared] = useState<{ id: string; count: number; type: RequestType; message?: string; login?: boolean } | null>(null)
   const [preparing, setPreparing] = useState(false)
-  const draftType: RequestType = preview?.parsed.intent ?? defaultType
+  const [selectedType, setSelectedType] = useState<RequestType | null>(null)
+  const draftType: RequestType = selectedType ?? preview?.parsed.intent ?? defaultType
 
   const reset = () => {
     setPreview(null)
     setPrepared(null)
     setText('')
+    setSelectedType(null)
   }
 
   const interpret = (value: string) => {
     const trimmed = value.trim()
     if (!trimmed) return
     setPrepared(null)
+    setSelectedType(null)
     setPreview({ text: trimmed, parsed: parseQuery(trimmed, cityId) })
   }
 
@@ -85,10 +90,26 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
             ) : (
               <p className="text-sm text-muted-foreground">لم أتعرف على تصنيف أو موقع محدد. سأبحث بالكلمات كما هي.</p>
             )}
-            <p className="text-sm text-muted-foreground">
-              الإجراء المقترح: <span className="font-medium text-foreground">{TYPE_LABEL[draftType]}</span>
-              {preview.parsed.intent ? null : ' (افتراضي حسب هدفك)'}
-            </p>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-medium text-muted-foreground">نوع المسودة</p>
+              <div role="radiogroup" aria-label="نوع الإجراء" className="grid grid-cols-3 gap-1.5">
+                {DRAFT_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    role="radio"
+                    aria-checked={draftType === type}
+                    onClick={() => setSelectedType(type)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${draftType === type ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:border-primary/40'}`}
+                  >
+                    {TYPE_LABEL[type]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {preview.parsed.intent ? 'استنتجت هذا الخيار من طلبك، ويمكنك تغييره.' : 'اختر الإجراء المناسب قبل تجهيز المسودة.'}
+              </p>
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 className="sm:flex-1"
