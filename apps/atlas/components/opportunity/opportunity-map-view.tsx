@@ -10,7 +10,7 @@ import { type MapArea } from '@/lib/geo'
 import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
 import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
-import { loadLiveMarket, type LiveMarket } from '@/lib/live-market'
+import { loadLiveMarket, type DistrictCount, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
 import { trackDraftPrepared, trackMapDetailLevel, trackMarketSearch, trackSelectionChange } from '@/lib/commercial-metrics'
@@ -27,6 +27,26 @@ function inferGoal(parsed: ParsedQuery): GoalId {
   if (parsed.roles.some((r) => BUYER_ROLES.includes(r))) return 'find-buyers'
   if (parsed.roles.some((r) => SUPPLIER_ROLES.includes(r)) || parsed.categories.length) return 'find-supplier'
   return 'explore'
+}
+
+type RankedDistrict = DistrictCount & { reviewScore: number }
+
+function rankDistricts(districts: DistrictCount[], goal: GoalId | null): RankedDistrict[] {
+  const maxCount = Math.max(1, ...districts.map((district) => district.n))
+  const weights = goal === 'target'
+    ? { volume: 0.45, whatsapp: 0.45, wholesale: 0.10 }
+    : goal === 'rfq' || goal === 'find-supplier'
+      ? { volume: 0.55, whatsapp: 0.10, wholesale: 0.35 }
+      : { volume: 0.70, whatsapp: 0.20, wholesale: 0.10 }
+  return districts
+    .map((district) => {
+      const volume = district.n / maxCount
+      const whatsapp = Math.min(1, (district.n_whatsapp ?? 0) / Math.max(1, district.n))
+      const wholesale = Math.min(1, (district.n_wholesale ?? 0) / Math.max(1, district.n))
+      return { ...district, reviewScore: Math.round(100 * (volume * weights.volume + whatsapp * weights.whatsapp + wholesale * weights.wholesale)) }
+    })
+    .sort((a, b) => b.reviewScore - a.reviewScore || b.n - a.n)
+    .slice(0, 12)
 }
 
 export function OpportunityMapView() {
@@ -74,7 +94,7 @@ export function OpportunityMapView() {
   }, [cityId, goal, query])
 
 
-  const liveDistricts = market.data?.counts.slice().sort((a, b) => b.n - a.n).slice(0, 12) ?? []
+  const liveDistricts = useMemo(() => rankDistricts(market.data?.counts ?? [], goal), [market.data?.counts, goal])
   const strongestStreet = useMemo(() => {
     const summaryStreet = market.data?.summary?.densest_street
     if (summaryStreet?.street_ar) return summaryStreet
@@ -342,18 +362,19 @@ export function OpportunityMapView() {
             </div>
             {market.status === 'ready' ? (
               <div className="rounded-xl border bg-card p-4">
-                <p className="text-sm font-semibold">الأحياء الأعلى نشاطاً</p>
+                <p className="text-sm font-semibold">أحياء أولى بالمراجعة</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">يختلف الترتيب حسب هدفك الحالي، وليس توقعاً لفرصة مؤكدة أو موافقة تواصل.</p>
                 <ul className="mt-3 flex flex-col divide-y">
                   {liveDistricts.map((district) => (
                     <li key={district.district_ar}>
                       <button type="button" onClick={() => focusDistrictOnMap(district.district_ar)} className="flex w-full items-center justify-between gap-3 py-2 text-right text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                        <span>{district.district_ar}</span>
-                        <span className="font-semibold tabular-nums">{district.n.toLocaleString('en-US')}</span>
+                        <span className="min-w-0 flex-1 truncate">{district.district_ar}</span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground tabular-nums">{district.n.toLocaleString('en-US')}</span><span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-semibold text-primary tabular-nums">{district.reviewScore}/100</span></span>
                       </button>
                     </li>
                   ))}
                 </ul>
-                {liveDistricts.length ? <p className="mt-2 text-[11px] text-muted-foreground">اضغط على حي لتحديد موقعه وقراءة ملخصه على الخريطة.</p> : null}
+                {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
             <LiveEntityResults query={query} cityId={cityId} onResults={(rows) => {
