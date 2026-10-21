@@ -287,7 +287,9 @@ function addLayers(map: MapboxMap) {
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: ENTITY_MIN_ZOOM + 0.75,
     filter: marketSignal,
-    layout: { 'text-field': ['to-string', ['coalesce', ['get', 'n'], 0]], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': false },
+    // The overview contains a deliberately capped number of signal markers,
+    // so the count can safely remain inside every visible circle.
+    layout: { 'text-field': ['to-string', ['coalesce', ['get', 'n'], 0]], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
     paint: { 'text-color': COLORS.primary },
   })
   map.addLayer({
