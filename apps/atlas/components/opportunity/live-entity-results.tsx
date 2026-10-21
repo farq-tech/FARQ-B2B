@@ -18,7 +18,7 @@ type Result = { total: number; withWhatsapp: number; rows: LiveEntity[] }
 
 type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, objective, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
+export function LiveEntityResults({ query, cityId, objective, district, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export function LiveEntityResults({ query, cityId, objective, onResults, selecte
     if (!q) { setState({ kind: 'idle', data: null }); return }
     const controller = new AbortController()
     setState({ kind: 'loading', data: null })
-    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, objective, limit: 30 }), signal: controller.signal })
+    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, objective, limit: 30, ...(district ? { district } : {}) }), signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
         if (response.status === 401) return setState({ kind: 'auth', data: null, message: payload?.error })
@@ -36,7 +36,7 @@ export function LiveEntityResults({ query, cityId, objective, onResults, selecte
       })
       .catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
     return () => controller.abort()
-  }, [query, cityId, objective])
+  }, [query, cityId, objective, district])
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
 
@@ -50,7 +50,7 @@ export function LiveEntityResults({ query, cityId, objective, onResults, selecte
   return (
     <section className="rounded-xl border bg-card p-4" aria-label="الجهات المطابقة">
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-sm font-semibold">الجهات المطابقة</h2><p className="mt-1 text-xs text-muted-foreground">نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.</p></div>
+        <div><h2 className="text-sm font-semibold">الجهات المطابقة</h2><p className="mt-1 text-xs text-muted-foreground">{district ? `نتائج حية داخل ${district}؛ لا نعرض أرقام الاتصال في هذه المرحلة.` : 'نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.'}</p></div>
         <span className="rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground tabular-nums">{data.total.toLocaleString('en-US')}</span>
       </div>
       {data.rows.length ? <ul className="mt-3 flex flex-col divide-y">{data.rows.map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
