@@ -369,18 +369,21 @@ function addLayers(map: MapboxMap) {
     paint: { 'circle-radius': 4.5, 'circle-color': COLORS.primary, 'circle-stroke-color': COLORS.card, 'circle-stroke-width': 2 },
   })
 
+  // A semantic directory query yields at most 30 candidates. Show those
+  // exact matches immediately alongside the district boundaries so the user
+  // can compare their spread before choosing campaign recipients.
   map.addLayer({
     id: 'live-entity-halo',
     type: 'circle',
     source: 'live-entities',
-    minzoom: ENTITY_MIN_ZOOM,
+    minzoom: 10,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 11, 9]), 'circle-color': COLORS.primary, 'circle-opacity': expr(['case', isOn('selected'), 0.25, 0.14]) },
   })
   map.addLayer({
     id: 'live-entity-pin',
     type: 'circle',
     source: 'live-entities',
-    minzoom: ENTITY_MIN_ZOOM,
+    minzoom: 10,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 6.5, 5]), 'circle-color': expr(['case', isOn('selected'), COLORS.primary, COLORS.card]), 'circle-stroke-color': expr(['case', isOn('selected'), COLORS.card, COLORS.primary]), 'circle-stroke-width': 2.5 },
   })
 

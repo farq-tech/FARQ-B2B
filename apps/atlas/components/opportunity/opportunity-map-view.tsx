@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
 import { LiveActivityFilter } from './live-activity-filter'
-import { LiveEntityResults, type LiveEntity } from './live-entity-results'
+import { LiveEntityResults, type DirectoryObjective, type LiveEntity } from './live-entity-results'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -28,6 +28,16 @@ function inferGoal(parsed: ParsedQuery): GoalId {
   if (parsed.roles.some((r) => BUYER_ROLES.includes(r))) return 'find-buyers'
   if (parsed.roles.some((r) => SUPPLIER_ROLES.includes(r)) || parsed.categories.length) return 'find-supplier'
   return 'explore'
+}
+
+/**
+ * Directory rows must always come from the semantic endpoint. `browse` is only
+ * for map tiles and intentionally ignores a free-text query. Marketing flips
+ * the relationship to likely buyers; every other Atlas goal looks for the
+ * named trade itself or its suppliers.
+ */
+function directoryObjective(goal: GoalId | null, intent: RequestType | null): DirectoryObjective {
+  return goal === 'target' || intent === 'campaign' ? 'marketing' : 'purchase'
 }
 
 type RankedDistrict = DistrictCount & { reviewScore: number }
@@ -149,7 +159,8 @@ export function OpportunityMapView() {
       mainId: activeActivity.main_id,
       subIds: activeActivity.subs.map((item) => item.sub_id),
       districts: liveDistrictScope,
-    } : { q: query, districts: liveDistrictScope })
+      objective: directoryObjective(goal, intent),
+    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent) })
       .then((data) => {
         if (!controller.signal.aborted) setMarket({ status: 'ready', data })
       })
@@ -241,6 +252,9 @@ export function OpportunityMapView() {
     setActivityScopeWasInferred(Boolean(inferredActivity))
     if (inferredActivity) trackLiveActivityScopeApplied({ city: cityId, shops: inferredActivity.shops })
     setQuery(text)
+    // A new intent defines a new candidate cohort. Retaining entities from a
+    // prior search can silently carry unrelated businesses into a campaign.
+    setSelection([])
     setFilters((f) => mergeParsedIntoFilters(nextGoal ? EMPTY_FILTERS : f, parsed))
     setFreeText(parsed.freeText)
     setInterpretation(parsed.chips)
@@ -274,7 +288,7 @@ export function OpportunityMapView() {
       const response = await fetch('/api/market/entities', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ q: text.trim(), city: cityId, limit: 12 }),
+        body: JSON.stringify({ q: text.trim(), city: cityId, objective: type === 'campaign' ? 'marketing' : 'purchase', limit: 12 }),
       })
       const payload = await response.json().catch(() => null) as { rows?: unknown } | null
       const rows = Array.isArray(payload?.rows) ? payload.rows.filter((row): row is LiveEntity => Boolean(row && typeof row === 'object' && typeof (row as LiveEntity).id === 'string')).slice(0, 12) : []
@@ -351,6 +365,7 @@ export function OpportunityMapView() {
   const selectLiveActivity = (activity: LiveActivityMain, label = activity.main_ar) => {
     trackLiveActivityScopeApplied({ city: cityId, shops: activity.shops })
     setArea(null)
+    setSelection([])
     setActiveActivity(activity)
     setActivityScopeWasInferred(false)
     setQuery(label)
@@ -543,7 +558,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} onResults={handleLiveResults} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} onResults={handleLiveResults} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>

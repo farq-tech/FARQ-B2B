@@ -5,6 +5,8 @@ import { Building2, Loader2, MapPin, MessageCircle, Search, ShieldCheck } from '
 import { useEffect, useState } from 'react'
 import type { LiveBusinessSnapshot } from '@/lib/types'
 
+export type DirectoryObjective = 'purchase' | 'marketing'
+
 export type LiveEntity = LiveBusinessSnapshot & {
   verification: 'verified' | 'unverified' | 'unknown' | null
   roles: string[]
@@ -16,7 +18,7 @@ type Result = { total: number; withWhatsapp: number; rows: LiveEntity[] }
 
 type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
+export function LiveEntityResults({ query, cityId, objective, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export function LiveEntityResults({ query, cityId, onResults, selectedIds = [], 
     if (!q) { setState({ kind: 'idle', data: null }); return }
     const controller = new AbortController()
     setState({ kind: 'loading', data: null })
-    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, limit: 30 }), signal: controller.signal })
+    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, objective, limit: 30 }), signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
         if (response.status === 401) return setState({ kind: 'auth', data: null, message: payload?.error })
@@ -34,7 +36,7 @@ export function LiveEntityResults({ query, cityId, onResults, selectedIds = [], 
       })
       .catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
     return () => controller.abort()
-  }, [query, cityId])
+  }, [query, cityId, objective])
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
 
