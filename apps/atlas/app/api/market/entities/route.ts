@@ -43,12 +43,13 @@ export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return NextResponse.json({ error: 'سجّل الدخول لعرض الجهات المطابقة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض دليل الجهات.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown }
+  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; district?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب البحث غير صالح.' }, { status: 400 }) }
   const q = asText(input.q, 200)
   const city = cityNames[asText(input.city, 32).toLowerCase()] || asText(input.city, 64)
   const objective = input.objective === 'marketing' || input.objective === 'purchase' ? input.objective : null
   const limit = Math.min(50, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 30))
+  const district = asText(input.district, 100)
   if (!q || !city) return NextResponse.json({ error: 'اكتب النشاط واختر المدينة.' }, { status: 400 })
   if (!objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   try {
     const upstream = await fetch(`${origin}/search`, {
       method: 'POST', headers,
-      body: JSON.stringify({ q, city, limit, objective, only_sendable: false }),
+      body: JSON.stringify({ q, city, limit, objective, only_sendable: false, ...(district ? { filters: { district } } : {}) }),
       cache: 'no-store', signal: controller.signal,
     })
     const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown } | null
