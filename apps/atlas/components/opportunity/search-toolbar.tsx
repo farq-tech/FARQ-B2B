@@ -81,7 +81,7 @@ export function SearchToolbar({
       <div className="max-w-xs">
         <NativeSelect label="المدينة" value={cityId} onChange={onCityChange}>
           {CITIES.map((c) => (
-            <option key={c.id} value={c.id}>
+            <option key={c.id} value={c.id} disabled={!c.available}>
               {c.available ? c.name : `${c.name} (غير متاحة)`}
             </option>
           ))}

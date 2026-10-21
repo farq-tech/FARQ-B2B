@@ -315,10 +315,13 @@ export function OpportunityMapView() {
   }
 
   const changeCity = (id: string) => {
+    // The selector can include planned cities. Do not replace a working market
+    // view with an unavailable scope until its data coverage is ready.
+    if (!cityById.get(id)?.available) return
     setCityId(id)
     setArea(null)
     resetSearch()
-    if (cityById.get(id)?.available) simulateLoad()
+    simulateLoad()
   }
 
   const selectLiveActivity = (activity: LiveActivityMain, label = activity.main_ar) => {
