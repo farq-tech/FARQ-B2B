@@ -14,7 +14,7 @@ import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperti
 import type { Business } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
-import { AreaCard, BusinessCard, ClusterCard, DistrictCard, MapContextBar, MapLegend, MarketClusterCard } from './map-overlays'
+import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard } from './map-overlays'
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
@@ -47,6 +47,7 @@ type Card =
   | { kind: 'district'; id: string }
   | { kind: 'cluster'; ids: string[]; center: [number, number]; zoom: number }
   | { kind: 'market-cluster'; label: string; count: number; wholesale: number; district?: string; center: [number, number] }
+  | { kind: 'live-entity'; id: string }
   | null
 
 export interface MapboxMapProps extends MockMapProps {
@@ -61,7 +62,7 @@ export interface MapboxMapProps extends MockMapProps {
   /** Read-only geographically aggregated opportunities. */
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
-  liveEntityPins?: readonly { id: string; latitude: number | null; longitude: number | null }[]
+  liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -306,14 +307,14 @@ function addLayers(map: MapboxMap) {
     type: 'circle',
     source: 'live-entities',
     minzoom: ENTITY_MIN_ZOOM,
-    paint: { 'circle-radius': 9, 'circle-color': COLORS.primary, 'circle-opacity': 0.14 },
+    paint: { 'circle-radius': expr(['case', isOn('selected'), 11, 9]), 'circle-color': COLORS.primary, 'circle-opacity': expr(['case', isOn('selected'), 0.25, 0.14]) },
   })
   map.addLayer({
     id: 'live-entity-pin',
     type: 'circle',
     source: 'live-entities',
     minzoom: ENTITY_MIN_ZOOM,
-    paint: { 'circle-radius': 5, 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+    paint: { 'circle-radius': expr(['case', isOn('selected'), 6.5, 5]), 'circle-color': expr(['case', isOn('selected'), COLORS.primary, COLORS.card]), 'circle-stroke-color': expr(['case', isOn('selected'), COLORS.card, COLORS.primary]), 'circle-stroke-width': 2.5 },
   })
 
   map.addLayer({
@@ -566,6 +567,13 @@ export function MapboxBusinessMap({
               return
             }
             setLayersOpen(false)
+            const livePin = hit(['live-entity-pin'], e.point)
+            const liveId = livePin?.properties?.id
+            if (typeof liveId === 'string') {
+              h.onTogglePin(liveId)
+              setCard({ kind: 'live-entity', id: liveId })
+              return
+            }
             const pin = hit(['biz-clustered-pin', 'biz-flat-pin', 'ghost'], e.point)
             const pinId = pin?.properties?.id
             if (typeof pinId === 'string') {
@@ -610,7 +618,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'ghost', 'cluster', 'market-cluster']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
@@ -705,10 +713,10 @@ export function MapboxBusinessMap({
     type: 'FeatureCollection',
     features: liveEntityPins.flatMap((entity) => entity.latitude != null && entity.longitude != null ? [{
       type: 'Feature' as const,
-      properties: { id: entity.id },
+      properties: { id: entity.id, name: entity.name, category: entity.category, district: entity.district, street: entity.street, whatsapp: entity.whatsapp ? 1 : 0, reason: entity.reason, selected: selectedSet.has(entity.id) ? 1 : 0 },
       geometry: { type: 'Point' as const, coordinates: [entity.longitude, entity.latitude] },
     }] : []),
-  }), [liveEntityPins])
+  }), [liveEntityPins, selectedSet])
 
   const liveStreetData = useMemo<FeatureCollection<Geometry, StreetDensityProperties>>(() => liveStreets ?? (EMPTY as FeatureCollection<Geometry, StreetDensityProperties>), [liveStreets])
   const liveClusterData = useMemo<FeatureCollection>(() => ({
@@ -962,6 +970,18 @@ export function MapboxBusinessMap({
             setCard(null)
           }}
           onSelectAll={() => onSelectMany?.(items.map((b) => b.id))}
+        />
+      )
+    }
+    if (card?.kind === 'live-entity') {
+      const entity = liveEntityPins.find((item) => item.id === card.id)
+      if (!entity) return null
+      return (
+        <LiveEntityCard
+          entity={entity}
+          selected={selectedSet.has(entity.id)}
+          onClose={() => setCard(null)}
+          onToggle={() => onTogglePin(entity.id)}
         />
       )
     }

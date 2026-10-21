@@ -114,13 +114,14 @@ export function RequestDetailView({ id }: { id: string }) {
 
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
       {request.campaign ? (
-        <CampaignEditor value={request.campaign} businessIds={request.businessIds} editable={editable} onChange={(campaign) => patch({ campaign })} />
+        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} />
       ) : null}
 
       <BusinessListEditor
         title={request.type === 'rfq' ? 'الموردون المدعوون' : request.type === 'campaign' ? 'المنشآت المستهدفة' : 'المنشآت في القائمة'}
         cityId={request.cityId}
         businessIds={request.businessIds}
+        liveBusinesses={request.liveBusinesses}
         editable={editable}
         onChange={changeBusinesses}
       />

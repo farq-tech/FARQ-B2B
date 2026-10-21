@@ -217,6 +217,37 @@ export function ClusterCard({
   )
 }
 
+export function LiveEntityCard({
+  entity,
+  selected,
+  onClose,
+  onToggle,
+}: {
+  entity: { name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string }
+  selected: boolean
+  onClose: () => void
+  onToggle: () => void
+}) {
+  return (
+    <CardShell onClose={onClose} label={`تفاصيل ${entity.name}`}>
+      <div className="flex flex-col gap-0.5 pl-7">
+        <p className="truncate text-sm font-semibold">{entity.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{entity.category}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">{[entity.district, entity.street].filter(Boolean).join('، ')}</p>
+      {entity.reason ? <p className="text-xs leading-5 text-muted-foreground">{entity.reason}</p> : null}
+      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span>{entity.whatsapp ? 'إشارة واتساب متاحة' : 'لم تُتحقق قناة واتساب'}</span>
+        <span>لا تظهر بيانات الاتصال هنا</span>
+      </div>
+      <Button size="sm" className="w-full" variant={selected ? 'outline' : 'default'} onClick={onToggle}>
+        <CircleCheck data-icon="inline-start" />
+        {selected ? 'إلغاء التحديد' : 'تحديد للمراجعة'}
+      </Button>
+    </CardShell>
+  )
+}
+
 export function MarketClusterCard({
   label,
   count,

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_VARIABLES, SEED_INBOX, SEED_REQUESTS, businessById, cityById } from './mock-data'
 import { makeId } from './format'
-import type { GoalId, InboxMessage, RequestItem, RequestType } from './types'
+import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 
 interface State {
   requests: RequestItem[]
@@ -57,14 +57,16 @@ export interface DraftInput {
   query?: string
   categoryHint?: string
   districtHint?: string
+  liveBusinesses?: LiveBusinessSnapshot[]
 }
 
 function buildDraft(input: DraftInput): RequestItem {
   const now = new Date().toISOString()
   const ids = input.businessIds
+  const firstLiveBusiness = input.liveBusinesses?.find((business) => ids.includes(business.id))
   const firstCategory =
-    input.categoryHint ?? (ids.length ? businessById.get(ids[0])?.category : undefined) ?? 'منشآت'
-  const place = input.districtHint ?? cityById.get(input.cityId)?.name ?? ''
+    input.categoryHint ?? firstLiveBusiness?.category ?? (ids.length ? businessById.get(ids[0])?.category : undefined) ?? 'منشآت'
+  const place = input.districtHint ?? firstLiveBusiness?.district ?? cityById.get(input.cityId)?.name ?? ''
   const cat = CATEGORIES.find((c) => c.name === firstCategory)
   const base: RequestItem = {
     id: makeId(input.type === 'rfq' ? 'rfq' : input.type === 'campaign' ? 'cmp' : 'lst'),
@@ -75,6 +77,7 @@ function buildDraft(input: DraftInput): RequestItem {
     updatedAt: now,
     cityId: input.cityId,
     businessIds: ids,
+    liveBusinesses: input.liveBusinesses?.filter((business) => ids.includes(business.id)),
     goal: input.goal ?? undefined,
     query: input.query,
   }
