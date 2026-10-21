@@ -54,6 +54,8 @@ type Card =
 export interface MapboxMapProps extends MockMapProps {
   token: string
   onFailure: () => void
+  /** Brings a live district from the market summary into map focus. */
+  focusDistrictRequest?: { name: string; nonce: number } | null
   /** Aggregated interaction signal with no customer data. */
   onDetailLevelChange?: (level: MapLevel) => void
   /** Server-proxied aggregate market data. Never contains contacts or send actions. */
@@ -458,6 +460,7 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
+  focusDistrictRequest,
   onDetailLevelChange,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -910,6 +913,20 @@ export function MapboxBusinessMap({
     setCard(null)
     setAreaMode(false)
   }, [cityId])
+
+  const handledDistrictFocusRef = useRef<number | null>(null)
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m || !focusDistrictRequest || handledDistrictFocusRef.current === focusDistrictRequest.nonce) return
+    const wanted = focusDistrictRequest.name.trim()
+    const feature = liveDistrictFeatures.find((item) => districtName(item).trim() === wanted)
+    const id = feature ? districtId(feature) : null
+    if (!feature || !id) return
+    handledDistrictFocusRef.current = focusDistrictRequest.nonce
+    const bounds = boundsOf(outerRing(feature.geometry))
+    if (bounds) fitTo(bounds, true, 13.2, DISTRICT_MAX_ZOOM + 0.35)
+    setCard({ kind: 'district', id })
+  }, [ready, focusDistrictRequest, liveDistrictFeatures])
 
   const handledFocusRef = useRef<number | null>(null)
   useEffect(() => {

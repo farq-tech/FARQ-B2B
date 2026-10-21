@@ -41,6 +41,7 @@ export function OpportunityMapView() {
   const [intent, setIntent] = useState<RequestType | null>(null)
   const [loading, setLoading] = useState(false)
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null)
+  const [focusDistrict, setFocusDistrict] = useState<{ name: string; nonce: number } | null>(null)
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map')
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [area, setArea] = useState<MapArea | null>(null)
@@ -178,6 +179,11 @@ export function OpportunityMapView() {
     setMobileView('map')
   }
 
+  const focusDistrictOnMap = (name: string) => {
+    setFocusDistrict({ name, nonce: Date.now() })
+    setMobileView('map')
+  }
+
   const liveSelection = selection.flatMap((id) => liveEntitySnapshots[id] ? [liveEntitySnapshots[id]] : [])
 
   const handleToggleSelect = (id: string) => {
@@ -308,8 +314,16 @@ export function OpportunityMapView() {
               <div className="rounded-xl border bg-card p-4">
                 <p className="text-sm font-semibold">الأحياء الأعلى نشاطاً</p>
                 <ul className="mt-3 flex flex-col divide-y">
-                  {liveDistricts.map((district) => <li key={district.district_ar} className="flex items-center justify-between gap-3 py-2 text-sm"><span>{district.district_ar}</span><span className="font-semibold tabular-nums">{district.n.toLocaleString('en-US')}</span></li>)}
+                  {liveDistricts.map((district) => (
+                    <li key={district.district_ar}>
+                      <button type="button" onClick={() => focusDistrictOnMap(district.district_ar)} className="flex w-full items-center justify-between gap-3 py-2 text-right text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <span>{district.district_ar}</span>
+                        <span className="font-semibold tabular-nums">{district.n.toLocaleString('en-US')}</span>
+                      </button>
+                    </li>
+                  ))}
                 </ul>
+                {liveDistricts.length ? <p className="mt-2 text-[11px] text-muted-foreground">اضغط على حي لتحديد موقعه وقراءة ملخصه على الخريطة.</p> : null}
               </div>
             ) : null}
             <LiveEntityResults query={query} cityId={cityId} onResults={(rows) => {
@@ -327,6 +341,7 @@ export function OpportunityMapView() {
             selectedIds={selection}
             onTogglePin={handleToggleSelect}
             focusRequest={focus}
+            focusDistrictRequest={focusDistrict}
             highlightDistricts={filters.districts}
             highlightStreets={filters.streets}
             state={mapState}
