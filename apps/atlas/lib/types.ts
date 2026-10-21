@@ -110,6 +110,8 @@ export interface CampaignDetails {
 
 export interface RequestItem {
   id: string
+  /** Farq central request id after this draft is saved to the organization workspace. */
+  remoteId?: string
   type: RequestType
   title: string
   status: RequestStatus

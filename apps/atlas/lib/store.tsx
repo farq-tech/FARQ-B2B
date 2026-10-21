@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
@@ -13,6 +13,8 @@ interface State {
   inbox: InboxMessage[]
   selection: string[]
 }
+
+type CloudRequest = { id?: unknown; title?: unknown; payload?: unknown }
 
 type Action =
   | { type: 'toggle-select'; id: string }
@@ -118,6 +120,41 @@ function buildDraft(input: DraftInput): RequestItem {
   return { ...base, title: `قائمة ${firstCategory} - ${place}`, notes: '' }
 }
 
+function cloudKind(request: RequestItem) {
+  return request.type === 'rfq' ? 'PURCHASE_REQUEST' : request.type === 'campaign' ? 'SELLER_CATALOG' : 'SEARCH'
+}
+
+/** Store Atlas-owned fields under the Farq request payload; omit live contacts and coordinates. */
+function cloudPayload(request: RequestItem) {
+  const { remoteId: _remoteId, liveBusinesses: _liveBusinesses, ...atlasDraft } = request
+  return { atlasDraft, schema: 'atlas-request-v1' }
+}
+
+function cloudRequest(value: CloudRequest): RequestItem | null {
+  const payload = value.payload && typeof value.payload === 'object' ? value.payload as { atlasDraft?: unknown; schema?: unknown } : null
+  if (payload?.schema !== 'atlas-request-v1' || !isRequest(payload.atlasDraft) || typeof value.id !== 'string') return null
+  return { ...payload.atlasDraft, remoteId: value.id }
+}
+
+async function createCloudRequest(request: RequestItem) {
+  const response = await fetch('/api/requests', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: cloudKind(request), title: request.title, payload: cloudPayload(request) }),
+  })
+  if (!response.ok) return null
+  const body = await response.json().catch(() => null) as { data?: { request?: { id?: unknown } }; request?: { id?: unknown } } | null
+  const id = body?.data?.request?.id ?? body?.request?.id
+  return typeof id === 'string' ? id : null
+}
+
+async function updateCloudRequest(request: RequestItem) {
+  if (!request.remoteId) return
+  await fetch(`/api/requests/${encodeURIComponent(request.remoteId)}`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: request.title, payload: cloudPayload(request) }),
+  }).catch(() => undefined)
+}
+
 function isRequest(value: unknown): value is RequestItem {
   if (!value || typeof value !== 'object') return false
   const request = value as Partial<RequestItem>
@@ -165,11 +202,29 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     selection: [],
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)
+  const requestsRef = useRef<RequestItem[]>([])
+  const cloudUpdateTimers = useRef(new Map<string, number>())
+
+  useEffect(() => { requestsRef.current = state.requests }, [state.requests])
+  useEffect(() => () => { cloudUpdateTimers.current.forEach((timer) => clearTimeout(timer)) }, [])
 
   useEffect(() => {
     const saved = readWorkspace()
     if (saved) dispatch({ type: 'restore', state: saved })
-    setWorkspaceReady(true)
+    fetch('/api/requests?hidden=include&archived=include', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return [] as RequestItem[]
+        const body = await response.json().catch(() => null) as { data?: { requests?: CloudRequest[] }; requests?: CloudRequest[] } | null
+        return (body?.data?.requests ?? body?.requests ?? []).map(cloudRequest).filter((request): request is RequestItem => Boolean(request))
+      })
+      .then((cloud) => {
+        if (!cloud.length) return
+        const local = readWorkspace()?.requests ?? []
+        const localIds = new Set(local.map((request) => request.remoteId ?? request.id))
+        dispatch({ type: 'restore', state: { requests: [...local, ...cloud.filter((request) => !localIds.has(request.remoteId ?? request.id))], inbox: readWorkspace()?.inbox ?? [] } })
+      })
+      .catch(() => undefined)
+      .finally(() => setWorkspaceReady(true))
   }, [])
 
   useEffect(() => {
@@ -192,10 +247,33 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const createDraft = useCallback((input: DraftInput) => {
     const request = buildDraft(input)
     dispatch({ type: 'add-request', request })
+    // A draft is only saved to Farq after the user deliberately created it.
+    // This creates no recipient, campaign or external message.
+    void createCloudRequest(request).then((remoteId) => {
+      if (!remoteId) return
+      dispatch({ type: 'update-request', id: request.id, patch: { remoteId } })
+      // If the user edited while the initial save was in flight, send the latest draft next.
+      window.setTimeout(() => {
+        const latest = requestsRef.current.find((item) => item.id === request.id)
+        if (latest) void updateCloudRequest({ ...latest, remoteId })
+      }, 0)
+    })
     return request.id
   }, [])
   const updateRequest = useCallback(
-    (id: string, patch: Partial<RequestItem>) => dispatch({ type: 'update-request', id, patch }),
+    (id: string, patch: Partial<RequestItem>) => {
+      const current = requestsRef.current.find((request) => request.id === id)
+      const next = current ? { ...current, ...patch, updatedAt: new Date().toISOString() } : null
+      dispatch({ type: 'update-request', id, patch })
+      if (next?.remoteId) {
+        const existing = cloudUpdateTimers.current.get(next.id)
+        if (existing) clearTimeout(existing)
+        cloudUpdateTimers.current.set(next.id, window.setTimeout(() => {
+          cloudUpdateTimers.current.delete(next.id)
+          void updateCloudRequest(next)
+        }, 600))
+      }
+    },
     [],
   )
   const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])

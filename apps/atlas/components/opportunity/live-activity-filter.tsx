@@ -61,7 +61,7 @@ export function LiveActivityFilter({
           <p className="text-xs text-muted-foreground">النطاق الحالي: {isNarrowScope && active?.subs.length === 1 ? active.subs[0]?.sub_ar : activeMain.main_ar} · {formatNumber(active?.streets ?? activeMain.streets)} شارع نشاط.</p>
           <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{formatNumber(active?.shops ?? activeMain.shops)} منشأة موصوفة على شوارع النشاط. إجمالي الدليل أعلى الصفحة يشمل سجلات النشاط المصنفة وقد يكون أكبر.</p>
           {activeMain.subs.length ? (
-            <details className="mt-2" defaultOpen={isNarrowScope}>
+            <details className="mt-2" open={isNarrowScope || undefined}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-medium text-foreground marker:hidden">
                 <span>تحديد تخصص أدق</span>
                 <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
