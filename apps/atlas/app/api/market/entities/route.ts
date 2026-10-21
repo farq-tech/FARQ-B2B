@@ -8,6 +8,11 @@ export const dynamic = 'force-dynamic'
 const cityNames: Record<string, string> = { riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' }
 
 function targetingHeaders() {
+  // Production Railway services may use an explicit service token. Older
+  // deployments derive the token from TARGETING_PASSWORD, so keep that path
+  // only as a backwards-compatible fallback.
+  const serviceToken = process.env.TARGETING_SERVICE_TOKEN
+  if (serviceToken) return { 'content-type': 'application/json', 'x-farq-service': serviceToken }
   const password = process.env.TARGETING_PASSWORD
   if (!password) return null
   return { 'content-type': 'application/json', 'x-farq-service': createHmac('sha256', password).update('farq-proxy-v1').digest('hex') }
