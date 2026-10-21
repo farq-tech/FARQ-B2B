@@ -20,7 +20,7 @@ interface AssistantPanelProps {
   onClose: () => void
   cityId: string
   onApply: (text: string, parsed: ParsedQuery) => void
-  onPrepareDraft: (text: string, parsed: ParsedQuery, type: RequestType) => { id: string; count: number } | null
+  onPrepareDraft: (text: string, parsed: ParsedQuery, type: RequestType) => Promise<{ id: string; count: number; message?: string }>
   onOpenDraft: (id: string) => void
   defaultType: RequestType
 }
@@ -28,7 +28,8 @@ interface AssistantPanelProps {
 export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft, onOpenDraft, defaultType }: AssistantPanelProps) {
   const [text, setText] = useState('')
   const [preview, setPreview] = useState<{ text: string; parsed: ParsedQuery } | null>(null)
-  const [prepared, setPrepared] = useState<{ id: string; count: number; type: RequestType } | null>(null)
+  const [prepared, setPrepared] = useState<{ id: string; count: number; type: RequestType; message?: string } | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const draftType: RequestType = preview?.parsed.intent ?? defaultType
 
   const reset = () => {
@@ -90,13 +91,19 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 className="sm:flex-1"
-                onClick={() => {
-                  const result = onPrepareDraft(preview.text, preview.parsed, draftType)
-                  setPrepared(result ? { ...result, type: draftType } : { id: '', count: 0, type: draftType })
+                disabled={preparing}
+                onClick={async () => {
+                  setPreparing(true)
+                  try {
+                    const result = await onPrepareDraft(preview.text, preview.parsed, draftType)
+                    setPrepared({ ...result, type: draftType })
+                  } finally {
+                    setPreparing(false)
+                  }
                 }}
               >
                 <FilePen data-icon="inline-start" />
-                تجهيز {TYPE_LABEL[draftType]}
+                {preparing ? 'جارٍ تجهيز المسودة…' : `تجهيز ${TYPE_LABEL[draftType]}`}
               </Button>
               <Button
                 variant="outline"
@@ -118,7 +125,7 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
               <>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <CheckCircle2 className="size-4 text-primary" aria-hidden />
-                  جهّزت {TYPE_LABEL[prepared.type]} من أفضل {prepared.count} نتائج مطابقة
+                  جهّزت {TYPE_LABEL[prepared.type]} من {prepared.count} جهة مطابقة للمراجعة
                 </p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   المسودة محفوظة ولم يُرسل أي شيء. راجع المنشآت والتفاصيل قبل أي خطوة.
@@ -135,7 +142,7 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                لم أجد منشآت مطابقة لتجهيز مسودة. جرّب صياغة أوسع أو طبّق المعايير على الخريطة وعدّلها.
+                {prepared.message || 'لم أجد منشآت مطابقة لتجهيز مسودة. جرّب صياغة أوسع أو طبّق المعايير على الخريطة وعدّلها.'}
               </p>
             )}
           </div>

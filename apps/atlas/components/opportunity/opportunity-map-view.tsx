@@ -107,9 +107,37 @@ export function OpportunityMapView() {
     applyQuery(text, parsed, goal ?? inferGoal(parsed))
   }
 
-  const handlePrepareDraft = (_text: string, _parsed: ParsedQuery, _type: RequestType) => {
-    // Real entities are intentionally unavailable until Atlas has an authenticated directory session.
-    return null
+  const handlePrepareDraft = async (text: string, parsed: ParsedQuery, type: RequestType) => {
+    const draftGoal = goal ?? inferGoal(parsed)
+    applyQuery(text, parsed, draftGoal)
+    try {
+      const response = await fetch('/api/market/entities', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ q: text.trim(), city: cityId, limit: 12 }),
+      })
+      const payload = await response.json().catch(() => null) as { rows?: unknown } | null
+      const rows = Array.isArray(payload?.rows) ? payload.rows.filter((row): row is LiveEntity => Boolean(row && typeof row === 'object' && typeof (row as LiveEntity).id === 'string')).slice(0, 12) : []
+      if (!response.ok) return { id: '', count: 0, message: response.status === 401 ? 'سجّل الدخول أولاً لعرض الجهات الحية وتجهيز المسودة.' : 'تعذر تحميل الجهات الآن. بقي البحث مطبقاً على الخريطة.' }
+      if (rows.length === 0) return { id: '', count: 0, message: 'لم نجد جهات مطابقة لتجهيز مسودة. جرّب صياغة أوسع.' }
+      setLiveEntities(rows)
+      setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
+      const ids = rows.map((entity) => entity.id)
+      setSelection(ids)
+      const id = createDraft({
+        type,
+        businessIds: ids,
+        liveBusinesses: rows,
+        cityId,
+        goal: draftGoal,
+        query: text,
+        categoryHint: parsed.categories[0],
+        districtHint: parsed.districts.length === 1 ? districtById.get(parsed.districts[0])?.name : undefined,
+      })
+      return { id, count: rows.length }
+    } catch {
+      return { id: '', count: 0, message: 'تعذر الاتصال بخدمة الجهات. بقي البحث مطبقاً على الخريطة.' }
+    }
   }
 
 
