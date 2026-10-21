@@ -9,7 +9,7 @@ import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
 import { formatDate, formatDateTime } from '@/lib/format'
-import { trackDraftReviewed } from '@/lib/commercial-metrics'
+import { trackDraftReviewed, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
@@ -113,7 +113,10 @@ export function RequestDetailView({ id }: { id: string }) {
           quotes={quotes}
           acceptedId={request.acceptedQuoteId}
           canDecide={request.status === 'needs_decision' || request.status === 'awaiting'}
-          onAccept={(mid) => patch({ acceptedQuoteId: mid, status: 'completed' })}
+          onAccept={(mid) => {
+            patch({ acceptedQuoteId: mid, status: 'completed' })
+            trackQuoteAccepted({ city: request.cityId, quoteCount: quotes.length })
+          }}
         />
       ) : null}
 

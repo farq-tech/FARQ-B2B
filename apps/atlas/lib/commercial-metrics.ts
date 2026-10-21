@@ -58,3 +58,11 @@ export function trackDraftPrepared({ city, type, source, count }: { city: string
 export function trackDraftReviewed({ city, type, count }: { city: string; type: RequestType; count: number }) {
   track('atlas_draft_reviewed', { city, type, selection_size: countBucket(count) })
 }
+
+/**
+ * Captures the commercial decision point without reporting supplier identity,
+ * price, quote contents, or the request identifier.
+ */
+export function trackQuoteAccepted({ city, quoteCount }: { city: string; quoteCount: number }) {
+  track('atlas_rfq_quote_accepted', { city, quote_count: countBucket(quoteCount) })
+}
