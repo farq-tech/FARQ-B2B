@@ -10,11 +10,11 @@ import { formatNumber } from '@/lib/format'
 import { areaKey, areaRing, boundsOf, cityBounds, isInArea, toLngLat, type LngLatBounds, type MapArea } from '@/lib/geo'
 import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, summarize, type MapLevel } from '@/lib/map-summary'
 import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
-import type { DistrictCount, MarketSummary } from '@/lib/live-market'
+import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
-import { AreaCard, BusinessCard, ClusterCard, DistrictCard, MapContextBar, MapLegend } from './map-overlays'
+import { AreaCard, BusinessCard, ClusterCard, DistrictCard, MapContextBar, MapLegend, MarketClusterCard } from './map-overlays'
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
@@ -32,7 +32,8 @@ const LOAD_TIMEOUT_MS = 20000
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 const BIZ_SOURCES = ['biz-flat', 'biz-clustered'] as const
 const PIN_SUFFIXES = ['focus', 'pin', 'dot'] as const
-const CLUSTER_LAYERS = ['cluster-halo', 'cluster', 'cluster-count', 'cluster-badge', 'cluster-badge-count']
+const CLUSTER_LAYERS = ['cluster-halo', 'cluster', 'cluster-count', 'cluster-badge', 'cluster-badge-count', 'market-cluster-halo', 'market-cluster', 'market-cluster-count']
+const MARKET_STREET_LAYERS = ['market-street-line', 'market-street-label']
 const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
 
 const expr = (x: unknown) => x as ExpressionSpecification
@@ -45,6 +46,7 @@ type Card =
   | { kind: 'business'; id: string }
   | { kind: 'district'; id: string }
   | { kind: 'cluster'; ids: string[]; center: [number, number]; zoom: number }
+  | { kind: 'market-cluster'; label: string; count: number; wholesale: number; district?: string; center: [number, number] }
   | null
 
 export interface MapboxMapProps extends MockMapProps {
@@ -54,6 +56,10 @@ export interface MapboxMapProps extends MockMapProps {
   liveDistricts?: FeatureCollection
   liveCounts?: DistrictCount[]
   liveSummary?: MarketSummary['summary']
+  /** Read-only aggregate street geometry. */
+  liveStreets?: FeatureCollection<Geometry, StreetDensityProperties>
+  /** Read-only geographically aggregated opportunities. */
+  liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
   liveEntityPins?: readonly { id: string; latitude: number | null; longitude: number | null }[]
 }
@@ -108,7 +114,7 @@ function businessesFC(cityId: string, items: Business[], selected: Set<string>, 
 }
 
 function addLayers(map: MapboxMap) {
-  for (const id of ['districts', 'district-points', 'streets', 'ghosts', 'biz-flat', 'selected', 'area', 'live-entities']) {
+  for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'market-clusters', 'ghosts', 'biz-flat', 'selected', 'area', 'live-entities']) {
     map.addSource(id, { type: 'geojson', data: EMPTY })
   }
   map.addSource('biz-clustered', {
@@ -190,6 +196,58 @@ function addLayers(map: MapboxMap) {
     minzoom: 14.5,
     layout: { 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11 },
     paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
+  })
+
+  map.addLayer({
+    id: 'market-street-line',
+    type: 'line',
+    source: 'market-streets',
+    minzoom: DISTRICT_MAX_ZOOM,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': COLORS.primary,
+      'line-opacity': expr(['interpolate', ['linear'], ['coalesce', ['get', 'lift'], 0], 0, 0.28, 1, 0.86]),
+      'line-width': expr(['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 1.75, 80, 5.5]),
+    },
+  })
+  map.addLayer({
+    id: 'market-street-label',
+    type: 'symbol',
+    source: 'market-streets',
+    minzoom: 14.5,
+    layout: { 'symbol-placement': 'line', 'text-field': ['coalesce', ['get', 'label_ar'], ['get', 'street_ar']], 'text-font': FONT, 'text-size': 11 },
+    paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
+  })
+
+  map.addLayer({
+    id: 'market-cluster-halo',
+    type: 'circle',
+    source: 'market-clusters',
+    minzoom: DISTRICT_MAX_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM,
+    paint: { 'circle-radius': expr(['+', ['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 12, 100, 23, 1000, 31], 6]), 'circle-color': COLORS.primary, 'circle-opacity': 0.13 },
+  })
+  map.addLayer({
+    id: 'market-cluster',
+    type: 'circle',
+    source: 'market-clusters',
+    minzoom: DISTRICT_MAX_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM,
+    paint: {
+      'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 12, 100, 23, 1000, 31]),
+      'circle-color': COLORS.card,
+      'circle-stroke-color': COLORS.primary,
+      'circle-stroke-width': 2.25,
+    },
+  })
+  map.addLayer({
+    id: 'market-cluster-count',
+    type: 'symbol',
+    source: 'market-clusters',
+    minzoom: DISTRICT_MAX_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM,
+    layout: { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
+    paint: { 'text-color': COLORS.primary },
   })
 
   // District density belongs to the polygon, not a wall of text. Labels appear only
@@ -392,6 +450,8 @@ export function MapboxBusinessMap({
   liveDistricts,
   liveCounts = [],
   liveSummary,
+  liveStreets,
+  liveClusters = [],
   liveEntityPins = [],
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -513,6 +573,20 @@ export function MapboxBusinessMap({
               setCard({ kind: 'business', id: pinId })
               return
             }
+            const marketCluster = hit(['market-cluster'], e.point)
+            if (marketCluster) {
+              const properties = marketCluster.properties ?? {}
+              const center = (marketCluster.geometry as GeoPoint).coordinates as [number, number]
+              setCard({
+                kind: 'market-cluster',
+                label: typeof properties.label_ar === 'string' ? properties.label_ar : 'تجمع فرص',
+                count: typeof properties.n === 'number' ? properties.n : 0,
+                wholesale: typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
+                district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
+                center,
+              })
+              return
+            }
             const cl = hit(['cluster'], e.point)
             const clusterId = cl?.properties?.cluster_id
             if (cl && typeof clusterId === 'number') {
@@ -536,7 +610,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'ghost', 'cluster']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'ghost', 'cluster', 'market-cluster']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
@@ -636,6 +710,21 @@ export function MapboxBusinessMap({
     }] : []),
   }), [liveEntityPins])
 
+  const liveStreetData = useMemo<FeatureCollection<Geometry, StreetDensityProperties>>(() => liveStreets ?? (EMPTY as FeatureCollection<Geometry, StreetDensityProperties>), [liveStreets])
+  const liveClusterData = useMemo<FeatureCollection>(() => ({
+    type: 'FeatureCollection',
+    features: liveClusters.flatMap((cluster) => typeof cluster.lon === 'number' && typeof cluster.lat === 'number' ? [{
+      type: 'Feature' as const,
+      properties: {
+        label_ar: cluster.label_ar ?? cluster.street_ar ?? cluster.district_ar ?? 'تجمع فرص',
+        district_ar: cluster.district_ar,
+        n: cluster.n ?? 0,
+        n_wholesale: cluster.n_wholesale ?? 0,
+      },
+      geometry: { type: 'Point' as const, coordinates: [cluster.lon, cluster.lat] },
+    }] : []),
+  }), [liveClusters])
+
   const districtStats = useMemo(() => {
     const counts = new Map<string, number>()
     if (useLiveDistricts) {
@@ -709,7 +798,9 @@ export function MapboxBusinessMap({
     ;(m.getSource('ghosts') as GeoJSONSource).setData(ghostData)
     ;(m.getSource('selected') as GeoJSONSource).setData(selectedData)
     ;(m.getSource('live-entities') as GeoJSONSource).setData(liveEntityData)
-  }, [ready, bizData, ghostData, selectedData, liveEntityData])
+    ;(m.getSource('market-streets') as GeoJSONSource).setData(liveStreetData)
+    ;(m.getSource('market-clusters') as GeoJSONSource).setData(liveClusterData)
+  }, [ready, bizData, ghostData, selectedData, liveEntityData, liveStreetData, liveClusterData])
 
   useEffect(() => {
     const m = mapRef.current
@@ -733,7 +824,7 @@ export function MapboxBusinessMap({
     for (const id of DISTRICT_LAYERS) m.setLayoutProperty(id, 'visibility', vis(layers.districts))
     m.setLayoutProperty('district-summary', 'visibility', vis(tiered))
     m.setLayoutProperty('selected-dot', 'visibility', vis(tiered))
-    for (const id of ['street-active', 'street-label']) m.setLayoutProperty(id, 'visibility', vis(layers.streets))
+    for (const id of ['street-active', 'street-label', ...MARKET_STREET_LAYERS]) m.setLayoutProperty(id, 'visibility', vis(layers.streets))
     const pinMin = tiered ? DISTRICT_MAX_ZOOM : 0
     for (const suffix of PIN_SUFFIXES) {
       m.setLayoutProperty(`biz-flat-${suffix}`, 'visibility', vis(!layers.clusters))
@@ -745,7 +836,7 @@ export function MapboxBusinessMap({
       m.setLayoutProperty(id, 'visibility', vis(layers.clusters))
       m.setLayerZoomRange(id, pinMin, 24)
     }
-    m.setLayerZoomRange('street-active', tiered ? DISTRICT_MAX_ZOOM : 0, 24)
+    for (const id of ['street-active', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
   }, [ready, layers, progressive])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
@@ -871,6 +962,21 @@ export function MapboxBusinessMap({
             setCard(null)
           }}
           onSelectAll={() => onSelectMany?.(items.map((b) => b.id))}
+        />
+      )
+    }
+    if (card?.kind === 'market-cluster') {
+      return (
+        <MarketClusterCard
+          label={card.label}
+          count={card.count}
+          wholesale={card.wholesale}
+          district={card.district}
+          onClose={() => setCard(null)}
+          onZoom={() => {
+            mapRef.current?.easeTo({ center: card.center, zoom: ENTITY_MIN_ZOOM + 0.3, duration: 600 })
+            setCard(null)
+          }}
         />
       )
     }

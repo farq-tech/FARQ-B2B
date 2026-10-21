@@ -264,6 +264,8 @@ export function OpportunityMapView() {
             liveDistricts={market.data?.districts}
             liveCounts={market.data?.counts}
             liveSummary={market.data?.summary}
+            liveStreets={market.data?.streets}
+            liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
