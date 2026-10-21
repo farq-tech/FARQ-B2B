@@ -306,15 +306,16 @@ function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBa
 
 function ManualSendPanel({ request, onBackToDraft }: { request: RequestItem; onBackToDraft: () => void }) {
   const [copied, setCopied] = useState(false)
-  if (!request.campaign) return null
-  const t = TEMPLATES.find((x) => x.id === request.campaign?.templateId)
-  const text = t ? renderTemplate(t.body, request.campaign.variables) : ''
+  const campaign = request.campaign
+  if (!campaign) return null
+  const t = TEMPLATES.find((x) => x.id === campaign.templateId)
+  const text = t ? renderTemplate(t.body, campaign.variables) : ''
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      trackManualHandoffCopied({ city: request.cityId, type: 'campaign', count: request.campaign.included.length })
+      trackManualHandoffCopied({ city: request.cityId, type: 'campaign', count: campaign.included.length })
       setTimeout(() => setCopied(false), 2000)
     } catch {
       setCopied(false)
@@ -331,7 +332,7 @@ function ManualSendPanel({ request, onBackToDraft }: { request: RequestItem; onB
           </h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
             راجعتَ الحملة واعتمدتها{request.reviewedAt ? ` في ${formatDateTime(request.reviewedAt)}` : ''}. لم يُرسل أي شيء ولن يُرسل تلقائياً.
-            أرسلها بنفسك من حساب واتساب للأعمال إلى {request.campaign.included.length} مستلم مؤهل، ثم سجّل المتابعة في الوارد.
+            أرسلها بنفسك من حساب واتساب للأعمال إلى {campaign.included.length} مستلم مؤهل، ثم سجّل المتابعة في الوارد.
           </p>
         </div>
       </div>
