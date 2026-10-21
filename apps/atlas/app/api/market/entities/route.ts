@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
   const objective = input.objective === 'marketing' || input.objective === 'purchase' ? input.objective : null
   const limit = Math.min(50, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 30))
   const district = asText(input.district, 100)
-  if (!q || !city) return NextResponse.json({ error: 'اكتب النشاط واختر المدينة.' }, { status: 400 })
-  if (!objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
+  if ((!q && !district) || !city) return NextResponse.json({ error: 'اكتب النشاط أو اختر حياً، ثم اختر المدينة.' }, { status: 400 })
+  if (q && !objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
   if (!origin || !headers) return NextResponse.json({ error: 'خدمة الدليل غير مهيأة حالياً.' }, { status: 503 })
@@ -60,7 +60,9 @@ export async function POST(request: NextRequest) {
   try {
     const upstream = await fetch(`${origin}/search`, {
       method: 'POST', headers,
-      body: JSON.stringify({ q, city, limit, objective, only_sendable: false, ...(district ? { filters: { district } } : {}) }),
+      body: JSON.stringify(q
+        ? { q, city, limit, objective, only_sendable: false, ...(district ? { filters: { district } } : {}) }
+        : { city, limit, objective: 'browse', filters: { district } }),
       cache: 'no-store', signal: controller.signal,
     })
     const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown } | null

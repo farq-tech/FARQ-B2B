@@ -23,10 +23,10 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
 
   useEffect(() => {
     const q = query.trim()
-    if (!q) { setState({ kind: 'idle', data: null }); return }
+    if (!q && !district) { setState({ kind: 'idle', data: null }); return }
     const controller = new AbortController()
     setState({ kind: 'loading', data: null })
-    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, objective, limit: 30, ...(district ? { district } : {}) }), signal: controller.signal })
+    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, objective, limit: 50, ...(district ? { district } : {}) }), signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
         if (response.status === 401) return setState({ kind: 'auth', data: null, message: payload?.error })
@@ -50,7 +50,7 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
   return (
     <section className="rounded-xl border bg-card p-4" aria-label="الجهات المطابقة">
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-sm font-semibold">الجهات المطابقة</h2><p className="mt-1 text-xs text-muted-foreground">{district ? `نتائج حية داخل ${district}؛ لا نعرض أرقام الاتصال في هذه المرحلة.` : 'نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.'}</p></div>
+        <div><h2 className="text-sm font-semibold">{district && !query.trim() ? 'جهات الحي' : 'الجهات المطابقة'}</h2><p className="mt-1 text-xs text-muted-foreground">{district ? `نتائج حية داخل ${district}؛ لا نعرض أرقام الاتصال في هذه المرحلة.` : 'نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.'}</p></div>
         <span className="rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground tabular-nums">{data.total.toLocaleString('en-US')}</span>
       </div>
       {data.rows.length ? <ul className="mt-3 flex flex-col divide-y">{data.rows.map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
