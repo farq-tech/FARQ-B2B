@@ -801,9 +801,9 @@ export function MapboxBusinessMap({
       type: 'Feature' as const,
       properties: {
         label_ar: cluster.label_ar ?? cluster.street_ar ?? cluster.district_ar ?? 'تجمع فرص',
-        district_ar: cluster.district_ar,
         n: cluster.n ?? 0,
         n_wholesale: cluster.n_wholesale ?? 0,
+        ...(cluster.district_ar ? { district_ar: cluster.district_ar } : {}),
       },
       geometry: { type: 'Point' as const, coordinates: [cluster.lon, cluster.lat] },
     }] : []),
