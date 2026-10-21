@@ -43,12 +43,13 @@ export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return NextResponse.json({ error: 'سجّل الدخول لعرض الجهات المطابقة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض دليل الجهات.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; district?: unknown }
+  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; offset?: unknown; district?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب البحث غير صالح.' }, { status: 400 }) }
   const q = asText(input.q, 200)
   const city = cityNames[asText(input.city, 32).toLowerCase()] || asText(input.city, 64)
   const objective = input.objective === 'marketing' || input.objective === 'purchase' ? input.objective : null
-  const limit = Math.min(50, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 30))
+  const limit = Math.min(200, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 100))
+  const offset = Math.min(10_000, Math.max(0, Number.isInteger(input.offset) ? Number(input.offset) : 0))
   const district = asText(input.district, 100)
   if ((!q && !district) || !city) return NextResponse.json({ error: 'اكتب النشاط أو اختر حياً، ثم اختر المدينة.' }, { status: 400 })
   if (q && !objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
@@ -61,14 +62,14 @@ export async function POST(request: NextRequest) {
     const upstream = await fetch(`${origin}/search`, {
       method: 'POST', headers,
       body: JSON.stringify(q
-        ? { q, city, limit, objective, only_sendable: false, ...(district ? { filters: { district } } : {}) }
-        : { city, limit, objective: 'browse', filters: { district } }),
+        ? { q, city, limit, offset, objective, only_sendable: false, ...(district ? { filters: { district } } : {}) }
+        : { city, limit, offset, objective: 'browse', filters: { district } }),
       cache: 'no-store', signal: controller.signal,
     })
-    const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown } | null
+    const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown; has_more?: unknown; next_offset?: unknown } | null
     if (!upstream.ok || !payload) return NextResponse.json({ error: 'تعذر تحميل الجهات الآن.' }, { status: 502 })
     const rows = Array.isArray(payload.rows) ? payload.rows.filter((row): row is Record<string, unknown> => Boolean(row && typeof row === 'object')).map(sanitize).filter((row) => row.id) : []
-    const response = NextResponse.json({ total: typeof payload.total === 'number' ? payload.total : rows.length, withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0, rows }, { headers: { 'cache-control': 'no-store' } })
+    const response = NextResponse.json({ total: typeof payload.total === 'number' ? payload.total : rows.length, withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0, hasMore: payload.has_more === true, nextOffset: typeof payload.next_offset === 'number' ? payload.next_offset : null, rows }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(response, session)
     return response
   } catch {

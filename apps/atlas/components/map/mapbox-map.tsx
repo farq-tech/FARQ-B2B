@@ -48,6 +48,7 @@ const expr = (x: unknown) => x as ExpressionSpecification
 const filter = (x: unknown) => x as FilterSpecification
 const isOn = (key: string) => expr(['==', ['get', key], 1])
 const UNCLUSTERED = filter(['!', ['has', 'point_count']])
+const CLUSTERED = filter(['has', 'point_count'])
 const FADED = (on: number, off: number) => expr(['case', isOn('out'), off, on])
 
 type Card =
@@ -132,9 +133,10 @@ function businessesFC(cityId: string, items: Business[], selected: Set<string>, 
 }
 
 function addLayers(map: MapboxMap) {
-  for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'ghosts', 'biz-flat', 'selected', 'area', 'live-entities']) {
+  for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'ghosts', 'biz-flat', 'selected', 'area']) {
     map.addSource(id, { type: 'geojson', data: EMPTY })
   }
+  map.addSource('live-entities', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 54, clusterMaxZoom: ENTITY_MIN_ZOOM })
   // The targeting service already returns geographically aggregated street
   // opportunities. Rendering those records directly keeps each visible point
   // truthful and clickable; clustering them again can hide all activity at
@@ -370,21 +372,40 @@ function addLayers(map: MapboxMap) {
     paint: { 'circle-radius': 4.5, 'circle-color': COLORS.primary, 'circle-stroke-color': COLORS.card, 'circle-stroke-width': 2 },
   })
 
-  // A semantic directory query yields at most 30 candidates. Show those
-  // exact matches immediately alongside the district boundaries so the user
-  // can compare their spread before choosing campaign recipients.
+  // Directory points follow the same progressive disclosure as Google Maps:
+  // a count cluster when zoomed out, then individual searchable establishments
+  // only when the user is close enough to act on a specific location.
+  map.addLayer({
+    id: 'live-entity-cluster',
+    type: 'circle',
+    source: 'live-entities',
+    minzoom: 10,
+    filter: CLUSTERED,
+    paint: { 'circle-radius': expr(['interpolate', ['linear'], ['get', 'point_count'], 2, 15, 50, 23, 500, 31]), 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+  })
+  map.addLayer({
+    id: 'live-entity-cluster-count',
+    type: 'symbol',
+    source: 'live-entities',
+    minzoom: 10,
+    filter: CLUSTERED,
+    layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT_BOLD, 'text-size': 12 },
+    paint: { 'text-color': COLORS.primary },
+  })
   map.addLayer({
     id: 'live-entity-halo',
     type: 'circle',
     source: 'live-entities',
-    minzoom: 10,
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: UNCLUSTERED,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 11, 9]), 'circle-color': COLORS.primary, 'circle-opacity': expr(['case', isOn('selected'), 0.25, 0.14]) },
   })
   map.addLayer({
     id: 'live-entity-pin',
     type: 'circle',
     source: 'live-entities',
-    minzoom: 10,
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: UNCLUSTERED,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 6.5, 5]), 'circle-color': expr(['case', isOn('selected'), COLORS.primary, COLORS.card]), 'circle-stroke-color': expr(['case', isOn('selected'), COLORS.card, COLORS.primary]), 'circle-stroke-width': 2.5 },
   })
 
@@ -669,6 +690,16 @@ export function MapboxBusinessMap({
               return
             }
             setLayersOpen(false)
+            const liveCluster = hit(['live-entity-cluster-count', 'live-entity-cluster'], e.point, 20)
+            const liveClusterId = liveCluster?.properties?.cluster_id
+            if (liveCluster && typeof liveClusterId === 'number') {
+              const source = m.getSource('live-entities') as GeoJSONSource
+              const center = (liveCluster.geometry as GeoPoint).coordinates as [number, number]
+              source.getClusterExpansionZoom(liveClusterId, (error, nextZoom) => {
+                if (!error && nextZoom != null) m.easeTo({ center, zoom: Math.max(nextZoom, m.getZoom() + 0.8), duration: 500 })
+              })
+              return
+            }
             const livePin = hit(['live-entity-pin'], e.point)
             const liveId = livePin?.properties?.id
             if (typeof liveId === 'string') {
@@ -742,7 +773,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-cluster', 'live-entity-cluster-count', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
