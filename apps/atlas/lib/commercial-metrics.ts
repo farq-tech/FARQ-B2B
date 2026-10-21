@@ -36,6 +36,16 @@ export function trackMapDetailLevel({ city, level }: { city: string; level: MapL
   track('atlas_map_detail_opened', { city, level })
 }
 
+/** Measures commercial investigation steps without sending map coordinates or names. */
+export function trackMarketInsightOpened({ city, kind, count }: { city: string; kind: 'cluster' | 'street'; count: number }) {
+  track('atlas_market_insight_opened', { city, kind, opportunity_size: countBucket(count) })
+}
+
+/** Records taxonomy use as an aggregate size bucket, never the chosen category label. */
+export function trackLiveActivityScopeApplied({ city, shops }: { city: string; shops: number }) {
+  track('atlas_live_activity_scope_applied', { city, scope_size: countBucket(shops) })
+}
+
 export function trackSelectionChange({ city, selected, selectedCount, source }: { city: string; selected: boolean; selectedCount: number; source: 'map_pin' | 'directory' | 'group' }) {
   track('atlas_selection_changed', { city, action: selected ? 'selected' : 'removed', source, selection_size: countBucket(selectedCount) })
 }

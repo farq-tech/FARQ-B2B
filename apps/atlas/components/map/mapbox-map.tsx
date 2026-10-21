@@ -60,6 +60,8 @@ export interface MapboxMapProps extends MockMapProps {
   focusStreetRequest?: { street: string; district?: string; nonce: number } | null
   /** Aggregated interaction signal with no customer data. */
   onDetailLevelChange?: (level: MapLevel) => void
+  /** Measures exploration of aggregate market insight, without names or coordinates. */
+  onMarketInsightOpened?: (insight: { kind: 'cluster' | 'street'; count: number }) => void
   /** Server-proxied aggregate market data. Never contains contacts or send actions. */
   liveDistricts?: FeatureCollection
   liveCounts?: DistrictCount[]
@@ -517,6 +519,7 @@ export function MapboxBusinessMap({
   focusDistrictRequest,
   focusStreetRequest,
   onDetailLevelChange,
+  onMarketInsightOpened,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -550,9 +553,10 @@ export function MapboxBusinessMap({
     cityId,
     areaMode,
     progressive,
+    onMarketInsightOpened,
   })
   useEffect(() => {
-    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive }
+    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive, onMarketInsightOpened }
   })
   const initialCityRef = useRef(cityId)
 
@@ -651,10 +655,12 @@ export function MapboxBusinessMap({
             if (marketCluster) {
               const properties = marketCluster.properties ?? {}
               const center = (marketCluster.geometry as GeoPoint).coordinates as [number, number]
+              const count = typeof properties.opportunityCount === 'number' ? properties.opportunityCount : typeof properties.n === 'number' ? properties.n : 0
+              h.onMarketInsightOpened?.({ kind: 'cluster', count })
               setCard({
                 kind: 'market-cluster',
                 label: typeof properties.label_ar === 'string' ? properties.label_ar : 'تجمع فرص في هذه المنطقة',
-                count: typeof properties.opportunityCount === 'number' ? properties.opportunityCount : typeof properties.n === 'number' ? properties.n : 0,
+                count,
                 wholesale: typeof properties.wholesaleCount === 'number' ? properties.wholesaleCount : typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
                 district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
                 center,
@@ -664,10 +670,12 @@ export function MapboxBusinessMap({
             const marketStreet = hit(['market-street-hit', 'market-street-line'], e.point)
             if (marketStreet) {
               const properties = marketStreet.properties ?? {}
+              const count = typeof properties.n === 'number' ? properties.n : 0
+              h.onMarketInsightOpened?.({ kind: 'street', count })
               setCard({
                 kind: 'market-street',
                 label: typeof properties.street_ar === 'string' ? properties.street_ar : typeof properties.label_ar === 'string' ? properties.label_ar : 'شارع نشاط',
-                count: typeof properties.n === 'number' ? properties.n : 0,
+                count,
                 wholesale: typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
                 district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
               })
