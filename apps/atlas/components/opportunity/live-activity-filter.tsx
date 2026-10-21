@@ -27,7 +27,7 @@ export function LiveActivityFilter({
           <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><Tags className="size-4" aria-hidden /></span>
           <div>
             <p className="text-sm font-semibold">التصنيفات الحية</p>
-            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">اختَر تصنيفاً لتحديث الأحياء والشوارع والتجمعات على الخريطة.</p>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">اختَر تصنيفاً لتحديث الأحياء والشوارع والتجمعات. الرقم يخص المنشآت الموصوفة على شوارع النشاط؛ إجمالي الخريطة يظهر في الأعلى.</p>
           </div>
         </div>
         {active ? (
@@ -49,7 +49,7 @@ export function LiveActivityFilter({
               className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors ${selected ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:border-primary/40 hover:text-primary'}`}
             >
               <span className="truncate">{activity.main_ar}</span>
-              <span className={selected ? 'text-primary-foreground/80 tabular-nums' : 'text-muted-foreground tabular-nums'}>{formatNumber(activity.shops)}</span>
+              <span className={selected ? 'text-primary-foreground/80 tabular-nums' : 'text-muted-foreground tabular-nums'} title={`${formatNumber(activity.shops)} منشأة موصوفة على شوارع النشاط`}>{formatNumber(activity.shops)} في الشوارع</span>
             </button>
           )
         })}
