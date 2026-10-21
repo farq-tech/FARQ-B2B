@@ -1261,6 +1261,7 @@ export function MapboxBusinessMap({
             inView={liveSummary?.total ?? inView}
             total={liveSummary?.total ?? businesses.length}
             selected={selectedIds.length}
+            hasEntityPins={liveEntityPins.length > 0}
             areaMode={areaMode}
             areaLabel={area?.label}
             pendingLevel={pendingLevel}
