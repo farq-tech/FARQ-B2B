@@ -79,7 +79,7 @@ export function MapContextBar({
               <span className="font-semibold text-primary tabular-nums">{formatNumber(selected)}</span> محددة
             </>
           ) : null}
-          {(level === 'clusters' || level === 'entities') && marketSignalCount ? (
+          {level === 'clusters' && marketSignalCount ? (
             <>
               {' · '}
               <span className="font-semibold text-primary tabular-nums">{formatNumber(marketSignalCount)}</span> تجمع نشاط حي
@@ -99,7 +99,7 @@ export function MapContextBar({
             : areaLabel
               ? `القائمة محصورة في: ${areaLabel}. امسح المنطقة لعرض كل النتائج.`
               : level === 'entities' && !hasEntityPins
-                ? 'سجّل الدخول لعرض الجهات المطابقة واختيارها. تظهر نقاط الاهتمام عند هذا التقريب للمساعدة في تحديد الموقع.'
+                ? 'سجّل الدخول لعرض الجهات المطابقة واختيارها. تظهر إشارات النشاط المجمّعة ومعالم المكان المتاحة عند هذا التقريب.'
                 : LEVEL_HINT[level]}
       </p>
     </div>
