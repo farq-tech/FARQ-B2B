@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { type MapArea } from '@/lib/geo'
 import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
-import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
+import { EMPTY_FILTERS, mergeParsedIntoFilters, normalizeArabic, parseQuery, type ParsedQuery } from '@/lib/search'
 import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
@@ -60,6 +60,38 @@ function rankDistricts(districts: DistrictCount[], goal: GoalId | null, visibleD
     .slice(0, 12)
 }
 
+/**
+ * A natural-language search can name a broad commercial category while also
+ * containing a precise specialty. Prefer an unambiguous catalog scope over
+ * leaving the aggregate service to infer the phrase alone. The query remains
+ * visible in the UI; this only determines which aggregate market geometry is
+ * loaded for the map.
+ */
+function resolveLiveActivityScope(parsed: ParsedQuery, catalog: LiveActivityMain[]) {
+  if (!parsed.categories.length || !catalog.length) return null
+  const candidates = catalog.filter((activity) => parsed.categories.some((category) => {
+    const categoryKey = normalizeArabic(category)
+    const activityKey = normalizeArabic(activity.main_ar)
+    return activityKey.includes(categoryKey) || categoryKey.includes(activityKey)
+  }))
+  if (candidates.length !== 1) return null
+
+  const activity = candidates[0]
+  const matchedSubs = activity.subs.filter((sub) => parsed.specialties.some((specialty) => {
+    const specialtyKey = normalizeArabic(specialty)
+    const subKey = normalizeArabic(sub.sub_ar)
+    return subKey.includes(specialtyKey) || specialtyKey.includes(subKey)
+  }))
+  if (!matchedSubs.length) return activity
+
+  return {
+    ...activity,
+    subs: matchedSubs,
+    streets: matchedSubs.reduce((total, sub) => total + sub.streets, 0),
+    shops: matchedSubs.reduce((total, sub) => total + sub.shops, 0),
+  }
+}
+
 export function OpportunityMapView() {
   const router = useRouter()
   const { selection, toggleSelect, setSelection, createDraft } = useAppStore()
@@ -80,6 +112,7 @@ export function OpportunityMapView() {
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
   const [activityCatalog, setActivityCatalog] = useState<LiveActivityMain[]>([])
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
+  const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -125,6 +158,29 @@ export function OpportunityMapView() {
     return () => { active = false }
   }, [cityId, goal])
 
+  // Search can happen before the catalog reaches the client. Apply the same
+  // deterministic scope once it is available instead of keeping a broad,
+  // potentially misleading free-text aggregate.
+  useEffect(() => {
+    if (activeActivity || !query || !activityCatalog.length || !filters.categories.length) return
+    const inferred = resolveLiveActivityScope({
+      categories: filters.categories,
+      specialties: filters.specialties,
+      districts: [],
+      streets: [],
+      roles: [],
+      channels: [],
+      wholesale: false,
+      intent: null,
+      freeText: [],
+      chips: [],
+    }, activityCatalog)
+    if (!inferred) return
+    setActiveActivity(inferred)
+    setActivityScopeWasInferred(true)
+    trackLiveActivityScopeApplied({ city: cityId, shops: inferred.shops })
+  }, [activeActivity, activityCatalog, cityId, filters.categories, filters.specialties, query])
+
 
   const visibleDistrictNames = useMemo(() => new Set(
     (market.data?.districts.features ?? []).flatMap((feature) => {
@@ -162,6 +218,7 @@ export function OpportunityMapView() {
   const resetSearch = () => {
     setArea(null)
     setActiveActivity(null)
+    setActivityScopeWasInferred(false)
     setFilters(EMPTY_FILTERS)
     setFreeText([])
     setInterpretation([])
@@ -169,7 +226,10 @@ export function OpportunityMapView() {
   }
 
   const applyQuery = (text: string, parsed: ParsedQuery, nextGoal?: GoalId) => {
-    setActiveActivity(null)
+    const inferredActivity = resolveLiveActivityScope(parsed, activityCatalog)
+    setActiveActivity(inferredActivity)
+    setActivityScopeWasInferred(Boolean(inferredActivity))
+    if (inferredActivity) trackLiveActivityScopeApplied({ city: cityId, shops: inferredActivity.shops })
     setQuery(text)
     setFilters((f) => mergeParsedIntoFilters(nextGoal ? EMPTY_FILTERS : f, parsed))
     setFreeText(parsed.freeText)
@@ -182,6 +242,7 @@ export function OpportunityMapView() {
   const handleSearch = (text: string) => {
     trackMarketSearch({ city: cityId, goal: goal ?? 'explore', query: text })
     setActiveActivity(null)
+    setActivityScopeWasInferred(false)
     if (!text.trim()) {
       setQuery('')
       setFreeText([])
@@ -264,6 +325,7 @@ export function OpportunityMapView() {
     trackLiveActivityScopeApplied({ city: cityId, shops: activity.shops })
     setArea(null)
     setActiveActivity(activity)
+    setActivityScopeWasInferred(false)
     setQuery(activity.main_ar)
     setFilters(EMPTY_FILTERS)
     setFreeText([])
@@ -274,7 +336,9 @@ export function OpportunityMapView() {
 
   const clearLiveActivity = () => {
     setActiveActivity(null)
+    setActivityScopeWasInferred(false)
     setQuery('')
+    setFilters(EMPTY_FILTERS)
     setFreeText([])
     setInterpretation([])
     setIntent(null)
@@ -361,6 +425,7 @@ export function OpportunityMapView() {
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">قراءة سوق حية</span>
           <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اكتب نشاطاً لتخصيص قراءة السوق حسب حاجتك.'}</span>
+          {activityScopeWasInferred && activeActivity ? <span className="text-muted-foreground/80">فُسّرت ضمن: {activeActivity.subs.length === 1 ? activeActivity.subs[0]?.sub_ar : activeActivity.main_ar}</span> : null}
           {marketReadAt ? <span className="text-muted-foreground/80">قُرئت في أطلس: {marketReadAt}</span> : null}
         </div>
       </div>
