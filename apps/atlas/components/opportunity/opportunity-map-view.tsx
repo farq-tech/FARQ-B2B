@@ -207,10 +207,18 @@ export function OpportunityMapView() {
 
   const liveSelection = selection.flatMap((id) => liveEntitySnapshots[id] ? [liveEntitySnapshots[id]] : [])
 
-  const handleToggleSelect = (id: string) => {
+  const handleToggleSelect = (id: string, source: 'map_pin' | 'directory' = 'map_pin') => {
     const selected = !selection.includes(id)
     toggleSelect(id)
-    trackSelectionChange({ city: cityId, selected, selectedCount: selection.length + (selected ? 1 : -1) })
+    trackSelectionChange({ city: cityId, selected, source, selectedCount: selection.length + (selected ? 1 : -1) })
+  }
+
+  const handleSelectMany = (ids: string[]) => {
+    const next = Array.from(new Set([...selection, ...ids]))
+    if (next.length === selection.length) return
+    setSelection(next)
+    // Aggregate selection is measured without sending entity IDs or locations.
+    trackSelectionChange({ city: cityId, selected: true, source: 'group', selectedCount: next.length })
   }
 
   const handleAction = (type: RequestType) => {
@@ -351,7 +359,7 @@ export function OpportunityMapView() {
             <LiveEntityResults query={query} cityId={cityId} onResults={(rows) => {
               setLiveEntities(rows)
               setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
-            }} selectedIds={selection} onToggle={toggleSelect} />
+            }} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
@@ -361,7 +369,7 @@ export function OpportunityMapView() {
             cityId={cityId}
             businesses={visibleResults}
             selectedIds={selection}
-            onTogglePin={handleToggleSelect}
+            onTogglePin={(id) => handleToggleSelect(id, 'map_pin')}
             focusRequest={focus}
             focusDistrictRequest={focusDistrict}
             focusStreetRequest={focusStreet}
@@ -379,7 +387,7 @@ export function OpportunityMapView() {
             onRetry={() => window.location.reload()}
             area={area}
             onAreaChange={setArea}
-            onSelectMany={(ids) => setSelection(Array.from(new Set([...selection, ...ids])))}
+            onSelectMany={handleSelectMany}
             onShowList={() => setMobileView('list')}
             reserveBottom={selection.length > 0}
             className="h-full"

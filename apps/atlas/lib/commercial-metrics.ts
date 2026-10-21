@@ -36,8 +36,8 @@ export function trackMapDetailLevel({ city, level }: { city: string; level: MapL
   track('atlas_map_detail_opened', { city, level })
 }
 
-export function trackSelectionChange({ city, selected, selectedCount }: { city: string; selected: boolean; selectedCount: number }) {
-  track('atlas_selection_changed', { city, action: selected ? 'selected' : 'removed', selection_size: countBucket(selectedCount) })
+export function trackSelectionChange({ city, selected, selectedCount, source }: { city: string; selected: boolean; selectedCount: number; source: 'map_pin' | 'directory' | 'group' }) {
+  track('atlas_selection_changed', { city, action: selected ? 'selected' : 'removed', source, selection_size: countBucket(selectedCount) })
 }
 
 export function trackDraftPrepared({ city, type, source, count }: { city: string; type: RequestType; source: 'assistant' | 'selection'; count: number }) {
