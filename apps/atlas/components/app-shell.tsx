@@ -66,6 +66,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const workspaceBadge = <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">محفوظة على هذا الجهاز</span>
   const shellBadge = pathname === '/' ? null : pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
 
+  // The landing page owns its own header and calls to action. Rendering the
+  // workspace shell here duplicates the brand on small screens and adds an
+  // unrelated bottom navigation before the visitor starts a workspace.
+  if (pathname === '/') return <>{children}</>
+
   return (
     <div className="min-h-dvh lg:flex">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-l bg-sidebar lg:flex">
