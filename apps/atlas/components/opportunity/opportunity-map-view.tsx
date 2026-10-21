@@ -168,7 +168,7 @@ export function OpportunityMapView() {
         if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
       })
     return () => controller.abort()
-  }, [cityId, goal, query, activeActivity, liveDistrictScope])
+  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope])
 
   useEffect(() => {
     if (!goal) return
@@ -177,7 +177,7 @@ export function OpportunityMapView() {
       .then((items) => { if (active) setActivityCatalog(items) })
       .catch(() => { if (active) setActivityCatalog([]) })
     return () => { active = false }
-  }, [cityId, goal, intent, liveDistrictScope])
+  }, [cityId, goal, liveDistrictScope])
 
   // Search can happen before the catalog reaches the client. Apply the same
   // deterministic scope once it is available instead of keeping a broad,
