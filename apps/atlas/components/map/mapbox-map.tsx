@@ -1170,8 +1170,15 @@ export function MapboxBusinessMap({
           district={card.district}
           onClose={() => setCard(null)}
           onZoom={() => {
-            mapRef.current?.easeTo({ center: card.center, zoom: STREET_MIN_ZOOM + 0.35, duration: 600 })
+            // Change the visible level before the camera animation completes. Without
+            // this, the action could look inert for the duration of the animation even
+            // though Mapbox was already moving to the street view.
+            const streetZoom = STREET_MIN_ZOOM + 0.35
             setCard(null)
+            onDetailLevelChange?.('streets')
+            if (!layers.streets) setLayers((current) => ({ ...current, streets: true }))
+            setZoom(streetZoom)
+            mapRef.current?.easeTo({ center: card.center, zoom: streetZoom, duration: 600 })
           }}
         />
       )
