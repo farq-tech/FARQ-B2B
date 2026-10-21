@@ -162,6 +162,16 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
             "district_ar": "حي النخيل", "n": 1, "n_whatsapp": 0, "n_wholesale": 0,
         }])
 
+        summary = self.analytics.market_summary({
+            "city": "Riyadh",
+            "q": "استهدف شركات مقاولات",
+            "objective": "marketing",
+        })["summary"]
+        # The headline statistics must describe the same contractor cohort as
+        # the map district layer. A generic city total would be misleading.
+        self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["n_whatsapp"], 0)
+
     def test_missing_specialty_column_fails_closed(self):
         missing_column = self.root / "targets-without-specialties.parquet"
         self._write_targets(missing_column, include_specialty=False)
