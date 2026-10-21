@@ -1,7 +1,7 @@
 'use client'
 
 import { BoxSelect, Gauge, List, Map as MapIcon, X } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BusinessMap } from '@/components/map/business-map'
 import type { MapState } from '@/components/map/mock-map'
@@ -94,6 +94,7 @@ function resolveLiveActivityScope(parsed: ParsedQuery, catalog: LiveActivityMain
 
 export function OpportunityMapView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { selection, toggleSelect, setSelection, createDraft } = useAppStore()
   const [goal, setGoal] = useState<GoalId | null>(null)
   const [cityId, setCityId] = useState('riyadh')
@@ -116,6 +117,7 @@ export function OpportunityMapView() {
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handledEntryGoal = useRef(false)
 
   // LiveEntityResults publishes once per response. Keeping this callback stable
   // prevents its effect from re-publishing the same rows after every map render.
@@ -313,6 +315,20 @@ export function OpportunityMapView() {
     setQuery('')
     simulateLoad()
   }
+
+  useEffect(() => {
+    if (handledEntryGoal.current) return
+    const value = searchParams.get('goal')
+    if (!value || !goalById.has(value as GoalId)) return
+    handledEntryGoal.current = true
+    setGoal(value as GoalId)
+    resetSearch()
+    setQuery('')
+    simulateLoad()
+  // The landing-page parameters initialize the map once; subsequent state
+  // changes must stay under the visitor's control.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const changeCity = (id: string) => {
     // The selector can include planned cities. Do not replace a working market
