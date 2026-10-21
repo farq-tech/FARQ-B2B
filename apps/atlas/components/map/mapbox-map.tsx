@@ -36,7 +36,9 @@ const POI_MIN_ZOOM = ENTITY_MIN_ZOOM
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 const BIZ_SOURCES = ['biz-flat', 'biz-clustered'] as const
 const PIN_SUFFIXES = ['focus', 'pin', 'dot'] as const
-const CLUSTER_LAYERS = ['cluster-halo', 'cluster', 'cluster-count', 'cluster-badge', 'cluster-badge-count', 'market-cluster-halo', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count']
+const BUSINESS_CLUSTER_LAYERS = ['cluster-halo', 'cluster', 'cluster-count', 'cluster-badge', 'cluster-badge-count']
+const MARKET_CLUSTER_LAYERS = ['market-cluster-halo', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count']
+const CLUSTER_LAYERS = [...BUSINESS_CLUSTER_LAYERS, ...MARKET_CLUSTER_LAYERS]
 const MARKET_STREET_LAYERS = ['market-street-hit', 'market-street-line', 'market-street-label']
 const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
 
@@ -138,7 +140,9 @@ function addLayers(map: MapboxMap) {
     // Keep the city overview readable: related activity is grouped before
     // individual streets become the next level of detail.
     clusterRadius: 88,
-    clusterMaxZoom: Math.floor(STREET_MIN_ZOOM) - 1,
+    // Keep aggregate market activity visible while the user reaches the
+    // entity level. These are real aggregate records, never invented POIs.
+    clusterMaxZoom: Math.floor(ENTITY_MIN_ZOOM),
     clusterProperties: {
       opportunityCount: ['+', ['get', 'n']],
       wholesaleCount: ['+', ['get', 'n_wholesale']],
@@ -263,7 +267,7 @@ function addLayers(map: MapboxMap) {
     type: 'circle',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: STREET_MIN_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM + 0.75,
     filter: marketClustered,
     paint: { 'circle-radius': expr(['+', ['interpolate', ['linear'], ['coalesce', ['get', 'opportunityCount'], 0], 1, 14, 100, 24, 1000, 32], 6]), 'circle-color': COLORS.primary, 'circle-opacity': 0.13 },
   })
@@ -272,7 +276,7 @@ function addLayers(map: MapboxMap) {
     type: 'circle',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: STREET_MIN_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM + 0.75,
     filter: marketClustered,
     paint: {
       'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'opportunityCount'], 0], 1, 14, 100, 24, 1000, 32]),
@@ -286,7 +290,7 @@ function addLayers(map: MapboxMap) {
     type: 'symbol',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: STREET_MIN_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM + 0.75,
     filter: marketClustered,
     layout: { 'text-field': ['to-string', ['coalesce', ['get', 'opportunityCount'], ['get', 'n'], 0]], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
     paint: { 'text-color': COLORS.primary },
@@ -296,7 +300,7 @@ function addLayers(map: MapboxMap) {
     type: 'circle',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: STREET_MIN_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM + 0.75,
     filter: marketClusterLeaf,
     paint: {
       'circle-radius': 12,
@@ -310,7 +314,7 @@ function addLayers(map: MapboxMap) {
     type: 'symbol',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: STREET_MIN_ZOOM,
+    maxzoom: ENTITY_MIN_ZOOM + 0.75,
     filter: marketClusterLeaf,
     layout: { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT_BOLD, 'text-size': 11, 'text-allow-overlap': true },
     paint: { 'text-color': COLORS.primary },
@@ -968,8 +972,15 @@ export function MapboxBusinessMap({
       m.setLayerZoomRange(`biz-flat-${suffix}`, pinMin, 24)
       m.setLayerZoomRange(`biz-clustered-${suffix}`, pinMin, 24)
     }
-    for (const id of CLUSTER_LAYERS) {
+    for (const id of BUSINESS_CLUSTER_LAYERS) {
       m.setLayoutProperty(id, 'visibility', vis(layers.clusters && level === 'clusters'))
+      m.setLayerZoomRange(id, pinMin, 24)
+    }
+    // Aggregate market activity must remain visible at entity zoom when the
+    // authenticated directory has no matching pins yet. It gives the user a
+    // truthful, clickable market signal rather than an empty map.
+    for (const id of MARKET_CLUSTER_LAYERS) {
+      m.setLayoutProperty(id, 'visibility', vis(layers.clusters && (level === 'clusters' || level === 'entities')))
       m.setLayerZoomRange(id, pinMin, 24)
     }
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
