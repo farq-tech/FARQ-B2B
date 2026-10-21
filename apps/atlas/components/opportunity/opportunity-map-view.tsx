@@ -321,15 +321,15 @@ export function OpportunityMapView() {
     if (cityById.get(id)?.available) simulateLoad()
   }
 
-  const selectLiveActivity = (activity: LiveActivityMain) => {
+  const selectLiveActivity = (activity: LiveActivityMain, label = activity.main_ar) => {
     trackLiveActivityScopeApplied({ city: cityId, shops: activity.shops })
     setArea(null)
     setActiveActivity(activity)
     setActivityScopeWasInferred(false)
-    setQuery(activity.main_ar)
+    setQuery(label)
     setFilters(EMPTY_FILTERS)
     setFreeText([])
-    setInterpretation([`التصنيف: ${activity.main_ar}`])
+    setInterpretation([`التصنيف: ${label}`])
     setIntent(null)
     simulateLoad(450)
   }
@@ -497,7 +497,7 @@ export function OpportunityMapView() {
                 </>
               ) : null}
             </div>
-            <LiveActivityFilter activities={activityCatalog} activeId={activeActivity?.main_id} onSelect={selectLiveActivity} onClear={clearLiveActivity} />
+            <LiveActivityFilter activities={activityCatalog} active={activeActivity} onSelect={selectLiveActivity} onClear={clearLiveActivity} />
             {market.status === 'ready' ? (
               <div className="rounded-xl border bg-card p-4">
                 <p className="text-sm font-semibold">أحياء أولى بالمراجعة</p>
