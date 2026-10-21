@@ -1,6 +1,6 @@
 'use client'
 
-import { BoxSelect, List, Map as MapIcon, X } from 'lucide-react'
+import { BoxSelect, Gauge, List, Map as MapIcon, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BusinessMap } from '@/components/map/business-map'
@@ -234,7 +234,7 @@ export function OpportunityMapView() {
         />
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">بيانات سوق حية</span>
-          <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اختر نشاطاً لتحديث كثافة الأحياء.'}</span>
+          <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اكتب نشاطاً لتخصيص قراءة السوق حسب حاجتك.'}</span>
         </div>
       </div>
 
@@ -274,10 +274,34 @@ export function OpportunityMapView() {
               <p className="font-semibold">{query ? `نتائج نشاط «${query}»` : 'سوق المدينة'}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">تتغير خريطة الأحياء والإحصاءات بحسب البحث. لا نعرض جهات أو بيانات اتصال تجريبية.</p>
               {market.status === 'ready' ? (
-                <dl className="mt-4 grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">منشآت ضمن النطاق</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.total?.toLocaleString('en-US') ?? '—'}</dd></div>
-                  <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">إشارات واتساب</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_whatsapp?.toLocaleString('en-US') ?? '—'}</dd></div>
-                </dl>
+                <>
+                  <dl className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">منشآت ضمن النطاق</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.total?.toLocaleString('en-US') ?? '—'}</dd></div>
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">إشارات واتساب قابلة للفحص</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_whatsapp?.toLocaleString('en-US') ?? '—'}</dd></div>
+                  </dl>
+                  {market.data?.summary?.densest_street?.street_ar ? (
+                    <section className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3" aria-label="أقوى إشارة سوق">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><Gauge className="size-4" aria-hidden /></span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold">أعلى كثافة في النتائج</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold">{market.data.summary.densest_street.street_ar}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{[market.data.summary.densest_street.sub_ar, market.data.summary.densest_street.district_ar].filter(Boolean).join(' · ')}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span><strong className="text-foreground tabular-nums">{market.data.summary.densest_street.n?.toLocaleString('en-US') ?? '—'}</strong> منشأة</span>
+                        {market.data.summary.densest_street.per_100m ? <span><strong className="text-foreground tabular-nums">{market.data.summary.densest_street.per_100m.toLocaleString('en-US')}</strong> لكل 100 م</span> : null}
+                      </div>
+                    </section>
+                  ) : null}
+                  {market.data?.summary?.basis ? (
+                    <details className="mt-3 text-xs leading-5 text-muted-foreground">
+                      <summary className="cursor-pointer font-medium text-foreground">كيف حُسبت هذه النتائج؟</summary>
+                      <p className="mt-1.5">{market.data.summary.basis}</p>
+                    </details>
+                  ) : null}
+                </>
               ) : null}
             </div>
             {market.status === 'ready' ? (

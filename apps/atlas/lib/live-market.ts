@@ -9,6 +9,14 @@ export type MarketSummary = {
     n_whatsapp?: number
     n_wholesale?: number
     basis?: string
+    densest_street?: {
+      street_ar?: string
+      district_ar?: string
+      n?: number
+      length_m?: number
+      per_100m?: number
+      sub_ar?: string
+    }
   }
 }
 
