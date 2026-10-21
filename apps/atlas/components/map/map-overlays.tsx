@@ -217,6 +217,39 @@ export function ClusterCard({
   )
 }
 
+export function MarketClusterCard({
+  label,
+  count,
+  wholesale,
+  district,
+  onClose,
+  onZoom,
+}: {
+  label: string
+  count: number
+  wholesale: number
+  district?: string
+  onClose: () => void
+  onZoom: () => void
+}) {
+  return (
+    <CardShell onClose={onClose} label={`ملخص تجمع ${label}`}>
+      <div className="flex flex-col gap-0.5 pl-7">
+        <p className="text-sm font-semibold">{label || 'تجمع فرص'}</p>
+        {district ? <p className="truncate text-xs text-muted-foreground">{district}</p> : null}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <Stat value={count} label="منشأة ضمن التجمع" />
+        <Stat value={wholesale} label="منشأة بالجملة" accent={wholesale > 0} />
+      </div>
+      <Button size="sm" className="w-full" onClick={onZoom}>
+        <ZoomIn data-icon="inline-start" />
+        اقترب لعرض الجهات
+      </Button>
+    </CardShell>
+  )
+}
+
 export function AreaCard({
   label,
   summary,
