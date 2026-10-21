@@ -54,6 +54,8 @@ type Card =
 export interface MapboxMapProps extends MockMapProps {
   token: string
   onFailure: () => void
+  /** Aggregated interaction signal with no customer data. */
+  onDetailLevelChange?: (level: MapLevel) => void
   /** Server-proxied aggregate market data. Never contains contacts or send actions. */
   liveDistricts?: FeatureCollection
   liveCounts?: DistrictCount[]
@@ -456,6 +458,7 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
+  onDetailLevelChange,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -934,6 +937,7 @@ export function MapboxBusinessMap({
     const m = mapRef.current
     const target = LEVELS.find((x) => x.id === l)
     if (!m || !target) return
+    onDetailLevelChange?.(l)
     if (l === 'districts' && !layers.districts) setLayers((s) => ({ ...s, districts: true }))
     if (l === 'clusters' && !layers.clusters) setLayers((s) => ({ ...s, clusters: true }))
     if (l === 'streets' && !layers.streets) setLayers((s) => ({ ...s, streets: true }))
