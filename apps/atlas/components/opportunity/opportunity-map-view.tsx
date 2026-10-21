@@ -177,7 +177,7 @@ export function OpportunityMapView() {
       .then((items) => { if (active) setActivityCatalog(items) })
       .catch(() => { if (active) setActivityCatalog([]) })
     return () => { active = false }
-  }, [cityId, goal, liveDistrictScope])
+  }, [cityId, goal, intent, liveDistrictScope])
 
   // Search can happen before the catalog reaches the client. Apply the same
   // deterministic scope once it is available instead of keeping a broad,
@@ -281,39 +281,6 @@ export function OpportunityMapView() {
     applyQuery(text, parsed, goal ?? inferGoal(parsed))
   }
 
-  const handlePrepareDraft = async (text: string, parsed: ParsedQuery, type: RequestType) => {
-    const draftGoal = goal ?? inferGoal(parsed)
-    applyQuery(text, parsed, draftGoal)
-    try {
-      const response = await fetch('/api/market/entities', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ q: text.trim(), city: cityId, objective: type === 'campaign' ? 'marketing' : 'purchase', limit: 12 }),
-      })
-      const payload = await response.json().catch(() => null) as { rows?: unknown } | null
-      const rows = Array.isArray(payload?.rows) ? payload.rows.filter((row): row is LiveEntity => Boolean(row && typeof row === 'object' && typeof (row as LiveEntity).id === 'string')).slice(0, 12) : []
-      if (!response.ok) return { id: '', count: 0, message: response.status === 401 ? 'سجّل الدخول أولاً لعرض الجهات الحية وتجهيز المسودة.' : 'تعذر تحميل الجهات الآن. بقي البحث مطبقاً على الخريطة.', login: response.status === 401 }
-      if (rows.length === 0) return { id: '', count: 0, message: 'لم نجد جهات مطابقة لتجهيز مسودة. جرّب صياغة أوسع.' }
-      setLiveEntities(rows)
-      setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
-      const ids = rows.map((entity) => entity.id)
-      setSelection(ids)
-      const id = createDraft({
-        type,
-        businessIds: ids,
-        liveBusinesses: rows,
-        cityId,
-        goal: draftGoal,
-        query: text,
-        categoryHint: parsed.categories[0],
-        districtHint: parsed.districts.length === 1 ? districtById.get(parsed.districts[0])?.name : undefined,
-      })
-      trackDraftPrepared({ city: cityId, type, source: 'assistant', count: rows.length })
-      return { id, count: rows.length }
-    } catch {
-      return { id: '', count: 0, message: 'تعذر الاتصال بخدمة الجهات. بقي البحث مطبقاً على الخريطة.' }
-    }
-  }
 
 
   const assistant = (
@@ -322,12 +289,6 @@ export function OpportunityMapView() {
       onClose={() => setAssistantOpen(false)}
       cityId={cityId}
       onApply={handleAssistantApply}
-      onPrepareDraft={handlePrepareDraft}
-      onOpenDraft={(id) => {
-        setAssistantOpen(false)
-        router.push(`/requests/${id}`)
-      }}
-      defaultType={goal ? (goalById.get(goal)?.primaryAction ?? 'list') : 'list'}
     />
   )
 

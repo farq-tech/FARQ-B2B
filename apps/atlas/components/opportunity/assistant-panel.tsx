@@ -1,15 +1,10 @@
 'use client'
 
-import { ArrowUp, CheckCircle2, FilePen, Sparkles } from 'lucide-react'
-import Link from 'next/link'
+import { ArrowUp, CheckCircle2, MapPinned, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { parseQuery, type ParsedQuery } from '@/lib/search'
-import type { RequestType } from '@/lib/types'
-import { TYPE_LABEL } from '@/lib/format'
 import { Modal } from '@/components/shared/modal'
-
-const DRAFT_TYPES: RequestType[] = ['list', 'rfq', 'campaign']
 
 const EXAMPLES = [
   'أبي موردين كراتين بالجملة في السلي',
@@ -23,31 +18,23 @@ interface AssistantPanelProps {
   onClose: () => void
   cityId: string
   onApply: (text: string, parsed: ParsedQuery) => void
-  onPrepareDraft: (text: string, parsed: ParsedQuery, type: RequestType) => Promise<{ id: string; count: number; message?: string; login?: boolean }>
-  onOpenDraft: (id: string) => void
-  defaultType: RequestType
 }
 
-export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft, onOpenDraft, defaultType }: AssistantPanelProps) {
+export function AssistantPanel({ open, onClose, cityId, onApply }: AssistantPanelProps) {
   const [text, setText] = useState('')
   const [preview, setPreview] = useState<{ text: string; parsed: ParsedQuery } | null>(null)
-  const [prepared, setPrepared] = useState<{ id: string; count: number; type: RequestType; message?: string; login?: boolean } | null>(null)
-  const [preparing, setPreparing] = useState(false)
-  const [selectedType, setSelectedType] = useState<RequestType | null>(null)
-  const draftType: RequestType = selectedType ?? preview?.parsed.intent ?? defaultType
+  const [applied, setApplied] = useState(false)
 
   const reset = () => {
     setPreview(null)
-    setPrepared(null)
+    setApplied(false)
     setText('')
-    setSelectedType(null)
   }
 
   const interpret = (value: string) => {
     const trimmed = value.trim()
     if (!trimmed) return
-    setPrepared(null)
-    setSelectedType(null)
+    setApplied(false)
     setPreview({ text: trimmed, parsed: parseQuery(trimmed, cityId) })
   }
 
@@ -90,42 +77,19 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
             ) : (
               <p className="text-sm text-muted-foreground">لم أتعرف على تصنيف أو موقع محدد. سأبحث بالكلمات كما هي.</p>
             )}
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs font-medium text-muted-foreground">نوع المسودة</p>
-              <div role="radiogroup" aria-label="نوع الإجراء" className="grid grid-cols-3 gap-1.5">
-                {DRAFT_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    role="radio"
-                    aria-checked={draftType === type}
-                    onClick={() => setSelectedType(type)}
-                    className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${draftType === type ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:border-primary/40'}`}
-                  >
-                    {TYPE_LABEL[type]}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {preview.parsed.intent ? 'استنتجت هذا الخيار من طلبك، ويمكنك تغييره.' : 'اختر الإجراء المناسب قبل تجهيز المسودة.'}
-              </p>
-            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              سنعرض الجهات المطابقة على الخريطة أولاً. اختر ما يناسبك، ثم حدّد الإجراء من شريط الاختيار.
+            </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 className="sm:flex-1"
-                disabled={preparing}
-                onClick={async () => {
-                  setPreparing(true)
-                  try {
-                    const result = await onPrepareDraft(preview.text, preview.parsed, draftType)
-                    setPrepared({ ...result, type: draftType })
-                  } finally {
-                    setPreparing(false)
-                  }
+                onClick={() => {
+                  onApply(preview.text, preview.parsed)
+                  setApplied(true)
                 }}
               >
-                <FilePen data-icon="inline-start" />
-                {preparing ? 'جارٍ تجهيز المسودة…' : `تجهيز ${TYPE_LABEL[draftType]}`}
+                <MapPinned data-icon="inline-start" />
+                عرض الجهات المطابقة
               </Button>
               <Button
                 variant="outline"
@@ -133,43 +97,24 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
                 onClick={() => {
                   onApply(preview.text, preview.parsed)
                   reset()
+                  onClose()
                 }}
               >
-                تطبيق على الخريطة فقط
+                طبّق وأغلق
               </Button>
             </div>
           </div>
         ) : null}
 
-        {prepared ? (
+        {applied ? (
           <div className="flex flex-col gap-2.5 rounded-xl border border-primary/30 bg-card p-3.5" aria-live="polite">
-            {prepared.id ? (
-              <>
-                <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  <CheckCircle2 className="size-4 text-primary" aria-hidden />
-                  جهّزت {TYPE_LABEL[prepared.type]} من {prepared.count} جهة مطابقة للمراجعة
-                </p>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  المسودة محفوظة ولم يُرسل أي شيء. راجع المنشآت والتفاصيل قبل أي خطوة.
-                </p>
-                <Button
-                  onClick={() => {
-                    const id = prepared.id
-                    reset()
-                    onOpenDraft(id)
-                  }}
-                >
-                  افتح المسودة للمراجعة
-                </Button>
-              </>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-muted-foreground">
-                  {prepared.message || 'لم أجد منشآت مطابقة لتجهيز مسودة. جرّب صياغة أوسع أو طبّق المعايير على الخريطة وعدّلها.'}
-                </p>
-                {prepared.login ? <Link href="/login?next=/opportunity-map" className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">تسجيل الدخول</Link> : null}
-              </div>
-            )}
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <CheckCircle2 className="size-4 text-primary" aria-hidden />
+              ظهرت الجهات المطابقة على الخريطة
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              لم نحدد أي جهة ولم ننشئ مسودة. اختر الجهات من النقاط أو القائمة، ثم استخدم شريط الاختيار لتجهيز قائمة أو طلب تسعير أو مسودة حملة.
+            </p>
           </div>
         ) : null}
 
