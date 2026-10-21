@@ -53,3 +53,8 @@ export function trackSelectionChange({ city, selected, selectedCount, source }: 
 export function trackDraftPrepared({ city, type, source, count }: { city: string; type: RequestType; source: 'assistant' | 'selection'; count: number }) {
   track('atlas_draft_prepared', { city, type, source, selection_size: countBucket(count) })
 }
+
+/** A reviewed draft is ready for a user-controlled commercial hand-off. */
+export function trackDraftReviewed({ city, type, count }: { city: string; type: RequestType; count: number }) {
+  track('atlas_draft_reviewed', { city, type, selection_size: countBucket(count) })
+}

@@ -9,6 +9,7 @@ import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
 import { formatDate, formatDateTime } from '@/lib/format'
+import { trackDraftReviewed } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
@@ -116,6 +117,10 @@ export function RequestDetailView({ id }: { id: string }) {
         />
       ) : null}
 
+      {request.rfq && request.status === 'ready_manual' ? (
+        <ManualRfqPanel request={request} onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })} />
+      ) : null}
+
       {request.campaign && request.status === 'ready_manual' ? (
         <ManualSendPanel request={request} onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })} />
       ) : null}
@@ -201,7 +206,7 @@ export function RequestDetailView({ id }: { id: string }) {
               </>
             ) : (
               <Button onClick={() => setReviewOpen(true)} disabled={issues.length > 0}>
-                {request.type === 'rfq' ? 'مراجعة وإرسال' : 'مراجعة الحملة'}
+                {request.type === 'rfq' ? 'مراجعة واعتماد' : 'مراجعة الحملة'}
               </Button>
             )}
           </div>
@@ -214,7 +219,7 @@ export function RequestDetailView({ id }: { id: string }) {
         title={request.type === 'rfq' ? 'مراجعة طلب التسعير' : 'مراجعة الحملة'}
         description={
           request.type === 'rfq'
-            ? 'تأكد من التفاصيل قبل الاعتماد. لن ينفذ هذا الإجراء إرسالاً تلقائياً.'
+            ? 'تأكد من التفاصيل قبل الاعتماد. بعدها يصبح الطلب جاهزاً للمشاركة اليدوية؛ لن يرسل أطلس طلباً تلقائياً.'
             : 'لن تُرسل أي رسالة تلقائياً. بعد الاعتماد تصبح الحملة «جاهزة للإرسال اليدوي» وتبقى في يدك.'
         }
         footer={
@@ -225,18 +230,19 @@ export function RequestDetailView({ id }: { id: string }) {
             <Button
               onClick={() => {
                 patch({
-                  status: request.type === 'rfq' ? 'awaiting' : 'ready_manual',
+                  status: 'ready_manual',
                   reviewedAt: new Date().toISOString(),
                 })
+                trackDraftReviewed({ city: request.cityId, type: request.type, count: request.businessIds.length })
                 setReviewOpen(false)
                 if (request.type === 'rfq') {
-                  toast.success('تم اعتماد طلب التسعير للمراجعة', { description: 'لم يُرسل أي شيء تلقائياً.' })
+                  toast.success('طلب التسعير جاهز للمشاركة اليدوية', { description: 'لم يُرسل أي شيء. شاركه بالطريقة التي تختارها ثم تابع الردود في الوارد.' })
                 } else {
                   toast.success('الحملة جاهزة للإرسال اليدوي', { description: 'لم يُرسل شيء. الإرسال يتم يدوياً من جهتك.' })
                 }
               }}
             >
-              {request.type === 'rfq' ? 'تأكيد الإرسال' : 'اعتماد كجاهزة للإرسال اليدوي'}
+              {request.type === 'rfq' ? 'اعتماد كجاهز للمشاركة اليدوية' : 'اعتماد كجاهزة للإرسال اليدوي'}
             </Button>
           </>
         }
@@ -244,6 +250,53 @@ export function RequestDetailView({ id }: { id: string }) {
         <ReviewSummary request={request} />
       </Modal>
     </main>
+  )
+}
+
+function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBackToDraft: () => void }) {
+  const [copied, setCopied] = useState(false)
+  if (!request.rfq) return null
+
+  const copy = async () => {
+    const lines = [
+      `طلب تسعير: ${request.title}`,
+      `المدينة: ${request.rfq?.deliveryCity ?? ''}`,
+      request.rfq?.deadline ? `آخر موعد للرد: ${formatDate(request.rfq.deadline)}` : '',
+      '',
+      'البنود المطلوبة:',
+      ...(request.rfq?.lineItems.map((item) => `- ${item.name}: ${item.qty} ${item.unit}`) ?? []),
+      request.rfq?.notes ? `\nملاحظات: ${request.rfq.notes}` : '',
+    ].filter(Boolean).join('\n')
+    try {
+      await navigator.clipboard.writeText(lines)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-accent/30 p-4" aria-labelledby="manual-rfq-title">
+      <div className="flex items-start gap-3">
+        <Hand className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+        <div className="flex flex-col gap-1">
+          <h2 id="manual-rfq-title" className="font-semibold">جاهز للمشاركة اليدوية</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            راجعتَ طلب التسعير{request.reviewedAt ? ` في ${formatDateTime(request.reviewedAt)}` : ''}. لم يرسل أطلس طلباً لأي مورد.
+            انسخ نص الطلب وشاركه بالقناة التي تختارها، ثم سجّل الردود في الوارد.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={copy}>
+          {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
+          {copied ? 'تم النسخ' : 'نسخ نص طلب التسعير'}
+        </Button>
+        <Button variant="ghost" onClick={onBackToDraft}>إعادة إلى مسودة للتعديل</Button>
+      </div>
+      <p className="sr-only" aria-live="polite">{copied ? 'تم نسخ نص طلب التسعير' : ''}</p>
+    </section>
   )
 }
 
