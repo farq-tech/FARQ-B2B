@@ -129,7 +129,9 @@ function addLayers(map: MapboxMap) {
     type: 'geojson',
     data: EMPTY,
     cluster: true,
-    clusterRadius: 64,
+    // Keep the city overview readable: related activity is grouped before
+    // individual streets become the next level of detail.
+    clusterRadius: 88,
     clusterMaxZoom: Math.floor(STREET_MIN_ZOOM) - 1,
     clusterProperties: {
       opportunityCount: ['+', ['get', 'n']],
