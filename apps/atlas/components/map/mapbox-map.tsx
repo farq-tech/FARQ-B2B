@@ -616,9 +616,18 @@ export function MapboxBusinessMap({
           m.on('moveend', syncView)
           syncView()
 
-          const hit = (ids: string[], point: { x: number; y: number }) => {
+          const hit = (ids: string[], point: { x: number; y: number }, hitRadius = 0) => {
             const visible = ids.filter((id) => m.getLayer(id) && m.getLayoutProperty(id, 'visibility') !== 'none')
-            return visible.length ? m.queryRenderedFeatures([point.x, point.y], { layers: visible })[0] : undefined
+            if (!visible.length) return undefined
+            const exact = m.queryRenderedFeatures([point.x, point.y], { layers: visible })[0]
+            if (exact || !hitRadius) return exact
+            // Mapbox symbol hitboxes can be narrower than the visible count badge,
+            // especially on touch screens. Use a small, cluster-only fallback area
+            // so the displayed circle always behaves like a usable control.
+            return m.queryRenderedFeatures([
+              [point.x - hitRadius, point.y - hitRadius],
+              [point.x + hitRadius, point.y + hitRadius],
+            ], { layers: visible })[0]
           }
 
           m.on('click', (e) => {
@@ -654,7 +663,7 @@ export function MapboxBusinessMap({
             // The visible count is rendered in its own symbol layer. Include it in
             // hit testing so clicking the number always opens the cluster summary,
             // even where a street line runs directly beneath the badge.
-            const marketCluster = hit(['market-cluster-count', 'market-cluster-leaf-count', 'market-cluster', 'market-cluster-leaf'], e.point)
+            const marketCluster = hit(['market-cluster-count', 'market-cluster-leaf-count', 'market-cluster', 'market-cluster-leaf'], e.point, 20)
             if (marketCluster) {
               const properties = marketCluster.properties ?? {}
               const center = (marketCluster.geometry as GeoPoint).coordinates as [number, number]
