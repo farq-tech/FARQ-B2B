@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowUp, CheckCircle2, FilePen, Sparkles } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { parseQuery, type ParsedQuery } from '@/lib/search'
@@ -20,7 +21,7 @@ interface AssistantPanelProps {
   onClose: () => void
   cityId: string
   onApply: (text: string, parsed: ParsedQuery) => void
-  onPrepareDraft: (text: string, parsed: ParsedQuery, type: RequestType) => Promise<{ id: string; count: number; message?: string }>
+  onPrepareDraft: (text: string, parsed: ParsedQuery, type: RequestType) => Promise<{ id: string; count: number; message?: string; login?: boolean }>
   onOpenDraft: (id: string) => void
   defaultType: RequestType
 }
@@ -28,7 +29,7 @@ interface AssistantPanelProps {
 export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft, onOpenDraft, defaultType }: AssistantPanelProps) {
   const [text, setText] = useState('')
   const [preview, setPreview] = useState<{ text: string; parsed: ParsedQuery } | null>(null)
-  const [prepared, setPrepared] = useState<{ id: string; count: number; type: RequestType; message?: string } | null>(null)
+  const [prepared, setPrepared] = useState<{ id: string; count: number; type: RequestType; message?: string; login?: boolean } | null>(null)
   const [preparing, setPreparing] = useState(false)
   const draftType: RequestType = preview?.parsed.intent ?? defaultType
 
@@ -141,9 +142,12 @@ export function AssistantPanel({ open, onClose, cityId, onApply, onPrepareDraft,
                 </Button>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                {prepared.message || 'لم أجد منشآت مطابقة لتجهيز مسودة. جرّب صياغة أوسع أو طبّق المعايير على الخريطة وعدّلها.'}
-              </p>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {prepared.message || 'لم أجد منشآت مطابقة لتجهيز مسودة. جرّب صياغة أوسع أو طبّق المعايير على الخريطة وعدّلها.'}
+                </p>
+                {prepared.login ? <Link href="/login?next=/opportunity-map" className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">تسجيل الدخول</Link> : null}
+              </div>
             )}
           </div>
         ) : null}
