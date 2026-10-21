@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronDown, Search, Sparkles } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { CITIES } from '@/lib/mock-data'
 import type { GoalDef } from '@/lib/goals'
@@ -28,6 +28,12 @@ export function SearchToolbar({
 }: SearchToolbarProps) {
   const [text, setText] = useState(initialQuery)
 
+  // Searches originating from the assistant or the live activity picker update
+  // the map state outside this input. Keep the visible query aligned with that
+  // applied state so the user can understand and refine the active scope.
+  useEffect(() => {
+    setText(initialQuery)
+  }, [initialQuery])
 
   return (
     <div className="flex flex-col gap-2.5">
