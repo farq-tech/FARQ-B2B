@@ -131,7 +131,7 @@ function addLayers(map: MapboxMap) {
     cluster: true,
     // Keep the city overview readable: related activity is grouped before
     // individual streets become the next level of detail.
-    clusterRadius: 88,
+    clusterRadius: 144,
     clusterMaxZoom: Math.floor(STREET_MIN_ZOOM) - 1,
     clusterProperties: {
       opportunityCount: ['+', ['get', 'n']],
