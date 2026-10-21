@@ -103,7 +103,7 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
           placeholder="اكتب ردك هنا لتحفظه كمسودة"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">لا يُرسل أي رد من هنا. المسودة تُحفظ في هذه الجلسة التجريبية فقط.</p>
+          <p className="text-xs text-muted-foreground">لا يُرسل أي رد من هنا. المسودة محفوظة على هذا الجهاز للمراجعة.</p>
           <Button type="submit" size="sm" disabled={!draft.trim() || saved}>
             {saved ? <Check data-icon="inline-start" /> : null}
             {saved ? 'تم حفظ المسودة' : 'حفظ مسودة الرد'}

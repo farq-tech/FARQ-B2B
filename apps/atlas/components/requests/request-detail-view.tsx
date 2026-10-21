@@ -27,7 +27,7 @@ export function RequestDetailView({ id }: { id: string }) {
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <h1 className="text-lg font-semibold">الطلب غير موجود</h1>
-        <p className="text-sm text-muted-foreground">ربما فُتحت هذه الوصلة خارج جلسة العمل التي حُفظت فيها المسودة.</p>
+        <p className="text-sm text-muted-foreground">ربما فُتحت هذه الوصلة من جهاز آخر، أو أزيل التخزين المحلي الذي حُفظت فيه المسودة.</p>
         <Button nativeButton={false} render={<Link href="/requests" />}>
           العودة إلى الطلبات
         </Button>

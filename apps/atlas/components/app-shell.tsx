@@ -43,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   ]
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const marketBadge = <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
-  const workspaceBadge = <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">مسودات الجلسة</span>
+  const workspaceBadge = <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">محفوظة على هذا الجهاز</span>
 
   return (
     <div className="min-h-dvh lg:flex">
