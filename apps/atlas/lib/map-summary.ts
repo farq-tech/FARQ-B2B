@@ -16,7 +16,7 @@ export const LEVELS: { id: MapLevel; label: string; zoom: number }[] = [
 export interface AreaSummary {
   count: number
   selected: number
-  reachable: number
+  whatsappSignals: number
   wholesale: number
   topCategories: { name: string; count: number }[]
 }
@@ -24,19 +24,19 @@ export interface AreaSummary {
 export function summarize(items: Business[], selected: Set<string>): AreaSummary {
   const cats = new Map<string, number>()
   let sel = 0
-  let reachable = 0
+  let whatsappSignals = 0
   let wholesale = 0
   for (const b of items) {
     cats.set(b.category, (cats.get(b.category) ?? 0) + 1)
     if (selected.has(b.id)) sel++
-    if (b.whatsapp && b.consent === 'granted') reachable++
+    if (b.whatsapp) whatsappSignals++
     if (b.wholesale) wholesale++
   }
   const topCategories = [...cats.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([name, count]) => ({ name, count }))
-  return { count: items.length, selected: sel, reachable, wholesale, topCategories }
+  return { count: items.length, selected: sel, whatsappSignals, wholesale, topCategories }
 }
 
 /** Relative concentration of matches in an area vs. the densest district in view. */

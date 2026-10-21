@@ -120,9 +120,10 @@ function SummaryBody({ s }: { s: AreaSummary }) {
     <>
       <div className="grid grid-cols-3 gap-1.5">
         <Stat value={s.count} label="منشأة" />
-        <Stat value={s.reachable} label="قابلة للتواصل" />
+        <Stat value={s.whatsappSignals} label="إشارة واتساب" />
         <Stat value={s.selected} label="محددة" accent={s.selected > 0} />
       </div>
+      <p className="text-[11px] leading-4 text-muted-foreground">إشارة واتساب لا تعني موافقة على التواصل.</p>
       {s.topCategories.length ? (
         <div className="flex flex-col gap-1">
           <p className="text-[11px] font-medium text-muted-foreground">أبرز التصنيفات</p>

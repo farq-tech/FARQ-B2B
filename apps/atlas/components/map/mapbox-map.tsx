@@ -1005,7 +1005,7 @@ export function MapboxBusinessMap({
       const name = live ? districtName(live) : d!.name
       const items = d ? businesses.filter((b) => b.districtId === d.id) : []
       const count = districtStats.counts.get(card.id) ?? items.length
-      const summary = live ? { count, selected: 0, reachable: liveCountByName.get(name)?.n_whatsapp ?? 0, wholesale: liveCountByName.get(name)?.n_wholesale ?? 0, topCategories: [] } : summarize(items, selectedSet)
+      const summary = live ? { count, selected: 0, whatsappSignals: liveCountByName.get(name)?.n_whatsapp ?? 0, wholesale: liveCountByName.get(name)?.n_wholesale ?? 0, topCategories: [] } : summarize(items, selectedSet)
       const ring = live ? outerRing(live.geometry) : d!.polygon.map((point) => toLngLat(cityId, point))
       return (
         <DistrictCard
