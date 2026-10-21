@@ -533,6 +533,7 @@ export function MapboxBusinessMap({
   const [card, setCard] = useState<Card>(null)
   const [legendOpen, setLegendOpen] = useState(!compact)
   const [zoom, setZoom] = useState(11)
+  const [pendingLevel, setPendingLevel] = useState<MapLevel | null>(null)
   const [viewBounds, setViewBounds] = useState<LngLatBounds | null>(null)
   const [areaMode, setAreaMode] = useState(false)
   const [dismissedArea, setDismissedArea] = useState<object | null>(null)
@@ -605,6 +606,7 @@ export function MapboxBusinessMap({
 
         const syncView = () => {
           setZoom(m.getZoom())
+          setPendingLevel(null)
           const b = m.getBounds()
           if (b) setViewBounds([b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]])
         }
@@ -1069,6 +1071,7 @@ export function MapboxBusinessMap({
     // A card describes a feature from the previous level. Clear it before the
     // view changes so it cannot cover or misrepresent the new interaction.
     setCard(null)
+    setPendingLevel(l)
     onDetailLevelChange?.(l)
     if (l === 'districts' && !layers.districts) setLayers((s) => ({ ...s, districts: true }))
     if (l === 'clusters' && !layers.clusters) setLayers((s) => ({ ...s, clusters: true }))
@@ -1242,6 +1245,7 @@ export function MapboxBusinessMap({
             selected={selectedIds.length}
             areaMode={areaMode}
             areaLabel={area?.label}
+            pendingLevel={pendingLevel}
             onLevel={goToLevel}
             onToggleAreaMode={() => setAreaMode((v) => !v)}
           />

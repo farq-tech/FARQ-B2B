@@ -26,6 +26,7 @@ interface ContextBarProps {
   selected: number
   areaMode: boolean
   areaLabel?: string
+  pendingLevel?: MapLevel | null
   onLevel: (level: MapLevel) => void
   onToggleAreaMode: () => void
 }
@@ -39,6 +40,7 @@ export function MapContextBar({
   selected,
   areaMode,
   areaLabel,
+  pendingLevel,
   onLevel,
   onToggleAreaMode,
 }: ContextBarProps) {
@@ -79,12 +81,14 @@ export function MapContextBar({
           {areaMode ? 'إلغاء التحديد' : 'تحديد منطقة'}
         </Button>
       </div>
-      <p className="px-1.5 pb-0.5 text-[11px] leading-relaxed text-muted-foreground">
-        {areaMode
-          ? 'اسحب على الخريطة لرسم منطقة، أو اضغط على حي لاختياره كاملاً.'
-          : areaLabel
-            ? `القائمة محصورة في: ${areaLabel}. امسح المنطقة لعرض كل النتائج.`
-            : LEVEL_HINT[level]}
+      <p className="px-1.5 pb-0.5 text-[11px] leading-relaxed text-muted-foreground" aria-live="polite">
+        {pendingLevel
+          ? `جارٍ إظهار ${LEVELS.find((item) => item.id === pendingLevel)?.label ?? 'النتائج'} على الخريطة…`
+          : areaMode
+            ? 'اسحب على الخريطة لرسم منطقة، أو اضغط على حي لاختياره كاملاً.'
+            : areaLabel
+              ? `القائمة محصورة في: ${areaLabel}. امسح المنطقة لعرض كل النتائج.`
+              : LEVEL_HINT[level]}
       </p>
     </div>
   )
