@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Inbox, MapPinned, type LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ClipboardList, Inbox, LogIn, MapPinned, type LucideIcon } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +12,12 @@ interface NavItem {
   label: string
   icon: LucideIcon
   count?: number
+}
+
+type SessionUser = { email: string | null; displayName: string | null }
+
+function userInitial(user: SessionUser) {
+  return (user.displayName || user.email || 'ح').trim().charAt(0).toUpperCase()
 }
 
 export function BrandMark({ className }: { className?: string }) {
@@ -33,6 +39,20 @@ export function BrandMark({ className }: { className?: string }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { requests, inbox } = useAppStore()
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [sessionChecked, setSessionChecked] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/session/me', { cache: 'no-store' })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null) as { data?: { user?: SessionUser } } | null
+        if (active && response.ok && payload?.data?.user) setUser(payload.data.user)
+      })
+      .catch(() => undefined)
+      .finally(() => { if (active) setSessionChecked(true) })
+    return () => { active = false }
+  }, [])
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
 
@@ -77,13 +97,20 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="mt-auto flex flex-col gap-3 border-t p-4">
           {pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge}
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">س</span>
-            <div className="flex flex-col text-sm leading-tight">
-              <span className="font-medium">سارة العتيبي</span>
-              <span className="text-xs text-muted-foreground">مديرة المشتريات</span>
+          {user ? (
+            <div className="flex items-center gap-3" aria-label="الحساب المسجل">
+              <span className="flex size-9 items-center justify-center rounded-full bg-muted text-sm font-semibold" aria-hidden>{userInitial(user)}</span>
+              <div className="flex min-w-0 flex-col text-sm leading-tight">
+                <span className="truncate font-medium">{user.displayName || user.email || 'الحساب المسجل'}</span>
+                {user.displayName && user.email ? <span className="truncate text-xs text-muted-foreground">{user.email}</span> : null}
+              </div>
             </div>
-          </div>
+          ) : sessionChecked ? (
+            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted">
+              <LogIn className="size-4" aria-hidden />
+              سجّل الدخول
+            </Link>
+          ) : null}
         </div>
       </aside>
 
