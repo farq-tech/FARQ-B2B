@@ -82,7 +82,7 @@ export function MapContextBar({
           {level === 'clusters' && marketSignalCount ? (
             <>
               {' · '}
-              <span className="font-semibold text-primary tabular-nums">{formatNumber(marketSignalCount)}</span> تجمع نشاط حي
+              <span className="font-semibold text-primary tabular-nums">{formatNumber(marketSignalCount)}</span> إشارة نشاط حي
             </>
           ) : null}
         </p>
@@ -480,10 +480,10 @@ export function MapLegend({
             <>
               <LegendRow
                 swatch={<span className="flex size-4 items-center justify-center rounded-full border-2 border-primary bg-card text-[8px] font-bold text-primary">9</span>}
-                label="تجمع منشآت (العدد)"
+                label="إشارة نشاط مجمعة (العدد)"
               />
-              <LegendRow swatch={<span className="size-2.5 rounded-full bg-foreground ring-2 ring-card" />} label="يحتوي منشآت محددة" />
-              <LegendRow swatch={<span className="size-3 rounded-full border-[2.5px] border-primary bg-card" />} label="منشأة منفردة" />
+              <LegendRow swatch={<span className="size-4 rounded-full border-2 border-primary/60 bg-primary/10" />} label="الدائرة الأكبر تعني تركّزًا أعلى" />
+              <LegendRow swatch={<span className="h-1.5 w-5 rounded bg-primary/70" />} label="شارع نشاط ضمن النطاق" />
             </>
           ) : null}
           {level === 'streets' ? (
