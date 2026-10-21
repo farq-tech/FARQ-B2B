@@ -25,6 +25,7 @@ interface ContextBarProps {
   total: number
   selected: number
   hasEntityPins: boolean
+  marketSignalCount: number
   areaMode: boolean
   areaLabel?: string
   pendingLevel?: MapLevel | null
@@ -40,6 +41,7 @@ export function MapContextBar({
   total,
   selected,
   hasEntityPins,
+  marketSignalCount,
   areaMode,
   areaLabel,
   pendingLevel,
@@ -75,6 +77,12 @@ export function MapContextBar({
             <>
               {' · '}
               <span className="font-semibold text-primary tabular-nums">{formatNumber(selected)}</span> محددة
+            </>
+          ) : null}
+          {(level === 'clusters' || level === 'entities') && marketSignalCount ? (
+            <>
+              {' · '}
+              <span className="font-semibold text-primary tabular-nums">{formatNumber(marketSignalCount)}</span> تجمع نشاط حي
             </>
           ) : null}
         </p>
