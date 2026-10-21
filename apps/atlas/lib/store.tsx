@@ -104,6 +104,7 @@ function buildDraft(input: DraftInput): RequestItem {
     }
   }
   if (input.type === 'campaign') {
+    const liveById = new Map(input.liveBusinesses?.map((business) => [business.id, business]))
     return {
       ...base,
       title: `حملة ${firstCategory} - ${place}`,
@@ -114,6 +115,8 @@ function buildDraft(input: DraftInput): RequestItem {
           const b = businessById.get(id)
           return b?.whatsapp && b.consent === 'granted'
         }),
+        // A WhatsApp signal is useful for review, but it never substitutes for a recorded marketing consent.
+        pendingVerification: ids.filter((id) => Boolean(liveById.get(id)?.whatsapp)),
       },
     }
   }

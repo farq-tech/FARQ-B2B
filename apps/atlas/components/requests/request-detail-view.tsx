@@ -48,9 +48,15 @@ export function RequestDetailView({ id }: { id: string }) {
         const b = businessById.get(x)
         return b && eligibility(b).ok
       })
+      const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
+      const pendingAdded = added.filter((id) => Boolean(liveById.get(id)?.whatsapp))
       patch({
         businessIds: ids,
-        campaign: { ...request.campaign, included: [...request.campaign.included.filter((x) => ids.includes(x)), ...eligibleAdded] },
+        campaign: {
+          ...request.campaign,
+          included: [...request.campaign.included.filter((x) => ids.includes(x)), ...eligibleAdded],
+          pendingVerification: [...new Set([...(request.campaign.pendingVerification ?? []).filter((x) => ids.includes(x)), ...pendingAdded])],
+        },
       })
     } else patch({ businessIds: ids })
   }
@@ -377,12 +383,14 @@ function ReviewSummary({ request }: { request: RequestItem }) {
   }
   if (request.campaign) {
     const t = TEMPLATES.find((x) => x.id === request.campaign?.templateId)
-    const skipped = request.businessIds.length - request.campaign.included.length
+    const pending = request.campaign.pendingVerification?.length ?? 0
+    const skipped = request.businessIds.length - request.campaign.included.length - pending
     return (
       <div className="flex flex-col gap-3 text-sm">
         <p>
-          <span className="font-semibold">{request.campaign.included.length}</span> مستلم عبر واتساب بقالب «{t?.name}».
-          {skipped > 0 ? ` سيتم استبعاد ${skipped} منشأة غير مؤهلة.` : ''}
+          <span className="font-semibold">{request.campaign.included.length}</span> مستلم مؤهل عبر واتساب بقالب «{t?.name}».
+          {pending > 0 ? ` و${pending} جهات ظاهرة للمراجعة بانتظار تحقق موافقة التواصل.` : ''}
+          {skipped > 0 ? ` سيتم استبعاد ${skipped} منشأة لا تستوفي الأهلية.` : ''}
         </p>
         {t ? (
           <div className="rounded-2xl rounded-tr-sm bg-accent px-3.5 py-2.5 leading-relaxed text-accent-foreground">
