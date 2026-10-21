@@ -103,6 +103,49 @@ function polygonCenter(geometry: Geometry | null): [number, number] | null {
   return [positions.reduce((sum, p) => sum + p[0], 0) / positions.length, positions.reduce((sum, p) => sum + p[1], 0) / positions.length]
 }
 
+/**
+ * The targeting service returns a useful but intentionally dense set of market
+ * clusters.  Drawing every one at the city view leaves overlapping targets,
+ * which makes a cluster appear unavailable even though it is present.  Keep
+ * the original aggregates at street proximity, and combine nearby clusters
+ * only while the user is viewing a broad area.  The result contains the same
+ * aggregate counts and remains read-only.
+ */
+function clustersForViewport(clusters: readonly MarketCluster[], zoom: number): MarketCluster[] {
+  if (clusters.length <= 36 || zoom >= STREET_MIN_ZOOM - 0.25) return [...clusters]
+
+  // Around 4–6 km per cell at the cluster level keeps the map actionable on
+  // a phone and naturally reveals the upstream street clusters as users zoom.
+  const cellSize = zoom < 12.5 ? 0.055 : 0.042
+  const buckets = new Map<string, { n: number; wholesale: number; lat: number; lon: number; items: number; districts: Set<string> }>()
+
+  for (const cluster of clusters) {
+    if (typeof cluster.lat !== 'number' || typeof cluster.lon !== 'number') continue
+    const key = `${Math.floor(cluster.lat / cellSize)}:${Math.floor(cluster.lon / cellSize)}`
+    const bucket = buckets.get(key) ?? { n: 0, wholesale: 0, lat: 0, lon: 0, items: 0, districts: new Set<string>() }
+    const weight = Math.max(1, cluster.n ?? 0)
+    bucket.n += cluster.n ?? 0
+    bucket.wholesale += cluster.n_wholesale ?? 0
+    bucket.lat += cluster.lat * weight
+    bucket.lon += cluster.lon * weight
+    bucket.items += weight
+    if (cluster.district_ar) bucket.districts.add(cluster.district_ar)
+    buckets.set(key, bucket)
+  }
+
+  return Array.from(buckets.values())
+    .map((bucket) => ({
+      level: 'cell' as const,
+      label_ar: bucket.districts.size === 1 ? `تجمع فرص — ${Array.from(bucket.districts)[0]}` : 'تجمع فرص في هذه المنطقة',
+      district_ar: bucket.districts.size === 1 ? Array.from(bucket.districts)[0] : undefined,
+      n: bucket.n,
+      n_wholesale: bucket.wholesale,
+      lat: bucket.lat / bucket.items,
+      lon: bucket.lon / bucket.items,
+    }))
+    .sort((a, b) => (b.n ?? 0) - (a.n ?? 0))
+}
+
 function outerRing(geometry: Geometry | null): [number, number][] {
   if (!geometry) return []
   if (geometry.type === 'Polygon') return geometry.coordinates[0]?.map(([lng, lat]) => [lng, lat]) ?? []
@@ -751,9 +794,10 @@ export function MapboxBusinessMap({
   }), [liveEntityPins, selectedSet])
 
   const liveStreetData = useMemo<FeatureCollection<Geometry, StreetDensityProperties>>(() => liveStreets ?? (EMPTY as FeatureCollection<Geometry, StreetDensityProperties>), [liveStreets])
+  const visibleMarketClusters = useMemo(() => clustersForViewport(liveClusters, zoom), [liveClusters, zoom])
   const liveClusterData = useMemo<FeatureCollection>(() => ({
     type: 'FeatureCollection',
-    features: liveClusters.flatMap((cluster) => typeof cluster.lon === 'number' && typeof cluster.lat === 'number' ? [{
+    features: visibleMarketClusters.flatMap((cluster) => typeof cluster.lon === 'number' && typeof cluster.lat === 'number' ? [{
       type: 'Feature' as const,
       properties: {
         label_ar: cluster.label_ar ?? cluster.street_ar ?? cluster.district_ar ?? 'تجمع فرص',
@@ -763,7 +807,7 @@ export function MapboxBusinessMap({
       },
       geometry: { type: 'Point' as const, coordinates: [cluster.lon, cluster.lat] },
     }] : []),
-  }), [liveClusters])
+  }), [visibleMarketClusters])
 
   const districtStats = useMemo(() => {
     const counts = new Map<string, number>()
@@ -1003,7 +1047,7 @@ export function MapboxBusinessMap({
     }
 
     if (l === 'clusters') {
-      const candidate = visibleFirst(liveClusters.flatMap((cluster) => (
+      const candidate = visibleFirst(visibleMarketClusters.flatMap((cluster) => (
         typeof cluster.lon === 'number' && typeof cluster.lat === 'number'
           ? [{ center: [cluster.lon, cluster.lat] as [number, number], weight: cluster.n ?? 0 }]
           : []
