@@ -2,7 +2,7 @@
 
 import { BoxSelect, Gauge, List, Map as MapIcon, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BusinessMap } from '@/components/map/business-map'
 import type { MapState } from '@/components/map/mock-map'
 import { Button } from '@/components/ui/button'
@@ -80,6 +80,13 @@ export function OpportunityMapView() {
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // LiveEntityResults publishes once per response. Keeping this callback stable
+  // prevents its effect from re-publishing the same rows after every map render.
+  const handleLiveResults = useCallback((rows: LiveEntity[]) => {
+    setLiveEntities(rows)
+    setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
+  }, [])
 
   const simulateLoad = (ms = 650) => {
     if (loadTimer.current) clearTimeout(loadTimer.current)
@@ -394,10 +401,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} onResults={(rows) => {
-              setLiveEntities(rows)
-              setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
-            }} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} onResults={handleLiveResults} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
