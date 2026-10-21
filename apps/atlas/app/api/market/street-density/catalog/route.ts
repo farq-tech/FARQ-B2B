@@ -1,5 +1,5 @@
 import { type NextRequest } from 'next/server'
-import { proxy } from '../../../[resource]/route'
+import { proxy } from '../../[resource]/route'
 
 // Next's single-segment dynamic route cannot match `/street-density/catalog`.
 // Keep this nested catalogue endpoint on the same read-only proxy and HMAC path
