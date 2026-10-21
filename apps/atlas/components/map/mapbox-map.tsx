@@ -33,7 +33,7 @@ const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 const BIZ_SOURCES = ['biz-flat', 'biz-clustered'] as const
 const PIN_SUFFIXES = ['focus', 'pin', 'dot'] as const
 const CLUSTER_LAYERS = ['cluster-halo', 'cluster', 'cluster-count', 'cluster-badge', 'cluster-badge-count', 'market-cluster-halo', 'market-cluster', 'market-cluster-count']
-const MARKET_STREET_LAYERS = ['market-street-line', 'market-street-label']
+const MARKET_STREET_LAYERS = ['market-street-hit', 'market-street-line', 'market-street-label']
 const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
 
 const expr = (x: unknown) => x as ExpressionSpecification
@@ -206,6 +206,16 @@ function addLayers(map: MapboxMap) {
     paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
   })
 
+  map.addLayer({
+    // Keep the visual line calm, while making the whole street easy to tap or click.
+    // A dense map should not require pixel-perfect interaction with a 2–5px line.
+    id: 'market-street-hit',
+    type: 'line',
+    source: 'market-streets',
+    minzoom: DISTRICT_MAX_ZOOM,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': COLORS.primary, 'line-opacity': 0.001, 'line-width': 22 },
+  })
   map.addLayer({
     id: 'market-street-line',
     type: 'line',
@@ -591,7 +601,7 @@ export function MapboxBusinessMap({
               setCard({ kind: 'business', id: pinId })
               return
             }
-            const marketStreet = hit(['market-street-line'], e.point)
+            const marketStreet = hit(['market-street-hit', 'market-street-line'], e.point)
             if (marketStreet) {
               const properties = marketStreet.properties ?? {}
               setCard({
@@ -640,7 +650,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-street-line']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-street-hit']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
@@ -866,7 +876,7 @@ export function MapboxBusinessMap({
       m.setLayoutProperty(id, 'visibility', vis(layers.clusters && level === 'clusters'))
       m.setLayerZoomRange(id, pinMin, 24)
     }
-    for (const id of ['street-active', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
+    for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
   }, [ready, layers, progressive, level])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
@@ -942,7 +952,9 @@ export function MapboxBusinessMap({
     const center = feature ? polygonCenter(feature.geometry) : null
     if (!feature || !center) return
     handledStreetFocusRef.current = focusStreetRequest.nonce
-    m.easeTo({ center, zoom: STREET_MIN_ZOOM + 0.45, duration: 650 })
+    const targetZoom = STREET_MIN_ZOOM + 0.45
+    setZoom(targetZoom)
+    m.easeTo({ center, zoom: targetZoom, duration: 650 })
     setCard({
       kind: 'market-street',
       label: feature.properties?.street_ar ?? street,
@@ -982,6 +994,7 @@ export function MapboxBusinessMap({
     if (l === 'districts' && !layers.districts) setLayers((s) => ({ ...s, districts: true }))
     if (l === 'clusters' && !layers.clusters) setLayers((s) => ({ ...s, clusters: true }))
     if (l === 'streets' && !layers.streets) setLayers((s) => ({ ...s, streets: true }))
+    setZoom(target.zoom)
 
     const currentBounds = m.getBounds()
     const visibleFirst = <T extends { center: [number, number]; weight: number }>(items: T[]) => {
