@@ -56,6 +56,7 @@ export interface MapboxMapProps extends MockMapProps {
   onFailure: () => void
   /** Brings a live district from the market summary into map focus. */
   focusDistrictRequest?: { name: string; nonce: number } | null
+  focusStreetRequest?: { street: string; district?: string; nonce: number } | null
   /** Aggregated interaction signal with no customer data. */
   onDetailLevelChange?: (level: MapLevel) => void
   /** Server-proxied aggregate market data. Never contains contacts or send actions. */
@@ -461,6 +462,7 @@ export function MapboxBusinessMap({
   liveClusters = [],
   liveEntityPins = [],
   focusDistrictRequest,
+  focusStreetRequest,
   onDetailLevelChange,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -927,6 +929,28 @@ export function MapboxBusinessMap({
     if (bounds) fitTo(bounds, true, 13.2, DISTRICT_MAX_ZOOM + 0.35)
     setCard({ kind: 'district', id })
   }, [ready, focusDistrictRequest, liveDistrictFeatures])
+
+  const handledStreetFocusRef = useRef<number | null>(null)
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m || !focusStreetRequest || handledStreetFocusRef.current === focusStreetRequest.nonce) return
+    const street = focusStreetRequest.street.trim()
+    const district = focusStreetRequest.district?.trim()
+    const feature = liveStreetData.features.find((item) =>
+      item.properties?.street_ar?.trim() === street && (!district || item.properties?.district_ar?.trim() === district),
+    )
+    const center = feature ? polygonCenter(feature.geometry) : null
+    if (!feature || !center) return
+    handledStreetFocusRef.current = focusStreetRequest.nonce
+    m.easeTo({ center, zoom: STREET_MIN_ZOOM + 0.45, duration: 650 })
+    setCard({
+      kind: 'market-street',
+      label: feature.properties?.street_ar ?? street,
+      count: feature.properties?.n ?? 0,
+      wholesale: feature.properties?.n_wholesale ?? 0,
+      district: feature.properties?.district_ar,
+    })
+  }, [ready, focusStreetRequest, liveStreetData])
 
   const handledFocusRef = useRef<number | null>(null)
   useEffect(() => {
