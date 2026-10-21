@@ -118,7 +118,7 @@ export function OpportunityMapView() {
       })
       const payload = await response.json().catch(() => null) as { rows?: unknown } | null
       const rows = Array.isArray(payload?.rows) ? payload.rows.filter((row): row is LiveEntity => Boolean(row && typeof row === 'object' && typeof (row as LiveEntity).id === 'string')).slice(0, 12) : []
-      if (!response.ok) return { id: '', count: 0, message: response.status === 401 ? 'سجّل الدخول أولاً لعرض الجهات الحية وتجهيز المسودة.' : 'تعذر تحميل الجهات الآن. بقي البحث مطبقاً على الخريطة.' }
+      if (!response.ok) return { id: '', count: 0, message: response.status === 401 ? 'سجّل الدخول أولاً لعرض الجهات الحية وتجهيز المسودة.' : 'تعذر تحميل الجهات الآن. بقي البحث مطبقاً على الخريطة.', login: response.status === 401 }
       if (rows.length === 0) return { id: '', count: 0, message: 'لم نجد جهات مطابقة لتجهيز مسودة. جرّب صياغة أوسع.' }
       setLiveEntities(rows)
       setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
