@@ -64,6 +64,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
   const marketBadge = <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
   const workspaceBadge = <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">محفوظة على هذا الجهاز</span>
+  const shellBadge = pathname === '/' ? null : pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
 
   return (
     <div className="min-h-dvh lg:flex">
@@ -96,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="mt-auto flex flex-col gap-3 border-t p-4">
-          {pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge}
+          {shellBadge}
           {user ? (
             <div className="flex items-center gap-3" aria-label="الحساب المسجل">
               <span className="flex size-9 items-center justify-center rounded-full bg-muted text-sm font-semibold" aria-hidden>{userInitial(user)}</span>
@@ -117,7 +118,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col pb-16 has-[[data-viewport-workspace]]:h-dvh lg:pb-0 lg:has-[[data-viewport-workspace]]:h-auto">
         <header className="flex items-center justify-between border-b bg-card px-4 py-3 lg:hidden">
           <BrandMark />
-          {pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge}
+          {shellBadge}
         </header>
         {children}
       </div>

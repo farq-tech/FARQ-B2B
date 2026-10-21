@@ -29,6 +29,9 @@ const FONT = ['DIN Pro Medium', 'Arial Unicode MS Regular']
 const FONT_BOLD = ['DIN Pro Bold', 'Arial Unicode MS Bold']
 const LOAD_TIMEOUT_MS = 20000
 const MARKET_OVERVIEW_LIMIT = 18
+// POIs help orient a user only when they are close enough to make a local
+// decision. Keeping them off at wider levels preserves the market signal.
+const POI_MIN_ZOOM = ENTITY_MIN_ZOOM
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 const BIZ_SOURCES = ['biz-flat', 'biz-clustered'] as const
@@ -490,6 +493,19 @@ function calmBasemap(map: MapboxMap) {
   }
 }
 
+/** Reveal Mapbox POIs only at the entity-detail level, never in market overview. */
+function syncPoiVisibility(map: MapboxMap, zoom: number) {
+  const visibility = zoom >= POI_MIN_ZOOM ? 'visible' : 'none'
+  for (const layer of map.getStyle()?.layers ?? []) {
+    if (!/poi/.test(layer.id)) continue
+    try {
+      map.setLayoutProperty(layer.id, 'visibility', visibility)
+    } catch {
+      // A basemap layer can disappear after a style update; it is safe to skip it.
+    }
+  }
+}
+
 export function MapboxBusinessMap({
   cityId,
   businesses,
@@ -605,7 +621,9 @@ export function MapboxBusinessMap({
         })
 
         const syncView = () => {
-          setZoom(m.getZoom())
+          const nextZoom = m.getZoom()
+          syncPoiVisibility(m, nextZoom)
+          setZoom(nextZoom)
           setPendingLevel(null)
           const b = m.getBounds()
           if (b) setViewBounds([b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]])
