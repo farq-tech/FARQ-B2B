@@ -3,17 +3,19 @@
 import { ShieldCheck } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
-import type { Business, CampaignDetails } from '@/lib/types'
+import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export function templateVariables(body: string) {
   return Array.from(new Set(Array.from(body.matchAll(/\{\{(.+?)\}\}/g), (m) => m[1])))
 }
 
-export function renderTemplate(body: string, vars: Record<string, string>, b?: Business) {
+type TemplateRecipient = Pick<Business, 'name'> & { districtId?: string; district?: string }
+
+export function renderTemplate(body: string, vars: Record<string, string>, b?: TemplateRecipient) {
   return body.replace(/\{\{(.+?)\}\}/g, (_, key: string) => {
     if (key === 'اسم_المنشأة') return b?.name ?? '[اسم المنشأة]'
-    if (key === 'الحي') return (b && districtById.get(b.districtId)?.name) ?? '[الحي]'
+    if (key === 'الحي') return b?.district ?? (b?.districtId ? districtById.get(b.districtId)?.name : undefined) ?? '[الحي]'
     return vars[key]?.trim() || `[${key.replace(/_/g, ' ')}]`
   })
 }
@@ -40,6 +42,7 @@ export function campaignIssues(c: CampaignDetails) {
 interface CampaignEditorProps {
   value: CampaignDetails
   businessIds: string[]
+  liveBusinesses?: LiveBusinessSnapshot[]
   editable: boolean
   onChange: (v: CampaignDetails) => void
 }
@@ -47,10 +50,12 @@ interface CampaignEditorProps {
 const fieldClass =
   'h-9 w-full rounded-lg border bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40'
 
-export function CampaignEditor({ value, businessIds, editable, onChange }: CampaignEditorProps) {
+export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange }: CampaignEditorProps) {
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
-  const sample = businessById.get(value.included.find((id) => businessIds.includes(id)) ?? businessIds[0])
+  const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
+  const sampleId = value.included.find((id) => businessIds.includes(id)) ?? businessIds[0]
+  const sample = businessById.get(sampleId) ?? liveById.get(sampleId)
 
   return (
     <>
@@ -125,9 +130,12 @@ export function CampaignEditor({ value, businessIds, editable, onChange }: Campa
         </div>
         <ul className="flex flex-col divide-y">
           {businessIds.map((id) => {
-            const b = businessById.get(id)
+            const mockBusiness = businessById.get(id)
+            const liveBusiness = liveById.get(id)
+            const b = mockBusiness ?? liveBusiness
             if (!b) return null
-            const e = eligibility(b)
+            // A live record's WhatsApp signal never proves marketing consent. Keep it out of a campaign until consent is verified.
+            const e = mockBusiness ? eligibility(mockBusiness) : { ok: false, reason: 'تحتاج موافقة تواصل مسجلة' }
             const checked = value.included.includes(id)
             return (
               <li key={id} className="flex items-center gap-3 py-2">
@@ -140,11 +148,7 @@ export function CampaignEditor({ value, businessIds, editable, onChange }: Campa
                   }
                 />
                 <span className={cn('min-w-0 flex-1 truncate text-sm', !e.ok && 'text-muted-foreground')}>{b.name}</span>
-                {e.ok ? (
-                  <span className="text-[11px] text-primary">مؤهل</span>
-                ) : (
-                  <span className="text-[11px] text-muted-foreground">{e.reason}</span>
-                )}
+                {e.ok ? <span className="text-[11px] text-primary">مؤهل</span> : <span className="text-[11px] text-muted-foreground">{e.reason}</span>}
               </li>
             )
           })}

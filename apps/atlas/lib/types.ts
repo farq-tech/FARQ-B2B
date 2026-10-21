@@ -68,6 +68,21 @@ export interface ScoredBusiness extends Business {
   reasons: string[]
 }
 
+/** A privacy-preserving snapshot of a live directory result selected by the user. */
+export interface LiveBusinessSnapshot {
+  id: string
+  name: string
+  category: string
+  district: string
+  street: string
+  latitude: number | null
+  longitude: number | null
+  wholesale: boolean
+  whatsapp: boolean
+  reason: string
+  fit: 'L' | 'M' | 'N' | null
+}
+
 export type RequestType = 'list' | 'rfq' | 'campaign'
 
 export type RequestStatus = 'draft' | 'needs_decision' | 'ready_manual' | 'awaiting' | 'completed'
@@ -102,6 +117,8 @@ export interface RequestItem {
   updatedAt: string
   cityId: string
   businessIds: string[]
+  /** Captures only decision fields from live search, never contact details. */
+  liveBusinesses?: LiveBusinessSnapshot[]
   notes?: string
   query?: string
   goal?: GoalId

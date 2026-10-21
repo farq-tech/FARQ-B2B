@@ -45,6 +45,7 @@ export function OpportunityMapView() {
   const [area, setArea] = useState<MapArea | null>(null)
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
+  const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const simulateLoad = (ms = 650) => {
@@ -146,6 +147,8 @@ export function OpportunityMapView() {
     setMobileView('map')
   }
 
+  const liveSelection = selection.flatMap((id) => liveEntitySnapshots[id] ? [liveEntitySnapshots[id]] : [])
+
   const handleAction = (type: RequestType) => {
     const id = createDraft({
       type,
@@ -155,6 +158,7 @@ export function OpportunityMapView() {
       query: query || undefined,
       categoryHint: filters.categories[0],
       districtHint: filters.districts.length === 1 ? districtById.get(filters.districts[0])?.name : undefined,
+      liveBusinesses: liveSelection,
     })
     setSelection([])
     router.push(`/requests/${id}`)
@@ -246,7 +250,10 @@ export function OpportunityMapView() {
                 </ul>
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} onResults={setLiveEntities} />
+            <LiveEntityResults query={query} cityId={cityId} onResults={(rows) => {
+              setLiveEntities(rows)
+              setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
+            }} selectedIds={selection} onToggle={toggleSelect} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>

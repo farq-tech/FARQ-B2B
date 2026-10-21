@@ -3,22 +3,12 @@
 import Link from 'next/link'
 import { Building2, Loader2, MapPin, MessageCircle, Search, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import type { LiveBusinessSnapshot } from '@/lib/types'
 
-export type LiveEntity = {
-  id: string
-  name: string
-  category: string
-  district: string
-  street: string
-  latitude: number | null
-  longitude: number | null
-  wholesale: boolean
-  whatsapp: boolean
+export type LiveEntity = LiveBusinessSnapshot & {
   verification: 'verified' | 'unverified' | 'unknown' | null
   roles: string[]
   specialties: string[]
-  reason: string
-  fit: 'L' | 'M' | 'N' | null
   status: string | null
 }
 
@@ -26,7 +16,7 @@ type Result = { total: number; withWhatsapp: number; rows: LiveEntity[] }
 
 type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, onResults }: { query: string; cityId: string; onResults?: (rows: LiveEntity[]) => void }) {
+export function LiveEntityResults({ query, cityId, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
 
   useEffect(() => {
@@ -61,7 +51,7 @@ export function LiveEntityResults({ query, cityId, onResults }: { query: string;
         <div><h2 className="text-sm font-semibold">الجهات المطابقة</h2><p className="mt-1 text-xs text-muted-foreground">نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.</p></div>
         <span className="rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground tabular-nums">{data.total.toLocaleString('en-US')}</span>
       </div>
-      {data.rows.length ? <ul className="mt-3 flex flex-col divide-y">{data.rows.map((entity) => <EntityRow key={entity.id} entity={entity} />)}</ul> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
+      {data.rows.length ? <ul className="mt-3 flex flex-col divide-y">{data.rows.map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
     </section>
   )
 }
@@ -78,7 +68,7 @@ function SignInPrompt() {
 function Notice({ tone, text }: { tone: 'warning' | 'error'; text: string }) {
   return <section className={`rounded-xl border p-4 text-sm ${tone === 'error' ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-amber-500/30 bg-amber-50 text-amber-900'}`}>{text}</section>
 }
-function EntityRow({ entity }: { entity: LiveEntity }) {
+function EntityRow({ entity, selected, onToggle }: { entity: LiveEntity; selected: boolean; onToggle?: (id: string) => void }) {
   const fit = entity.fit === 'L' ? 'مطابقة قوية' : entity.fit === 'M' ? 'مطابقة محتملة' : null
-  return <li className="py-3 first:pt-0 last:pb-0"><div className="flex gap-2.5"><span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Building2 className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-medium">{entity.name}</p>{fit ? <span className="shrink-0 text-[11px] font-medium text-primary">{fit}</span> : null}</div><p className="mt-0.5 truncate text-xs text-muted-foreground">{entity.category}</p><div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">{entity.district ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{entity.district}</span> : null}{entity.whatsapp ? <span className="inline-flex items-center gap-1 text-foreground/75"><MessageCircle className="size-3 text-primary" />إشارة واتساب</span> : null}</div>{entity.reason ? <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{entity.reason}</p> : null}</div></div></li>
+  return <li className="py-3 first:pt-0 last:pb-0"><div className="flex gap-2.5"><span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Building2 className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-medium">{entity.name}</p>{fit ? <span className="shrink-0 text-[11px] font-medium text-primary">{fit}</span> : null}</div><p className="mt-0.5 truncate text-xs text-muted-foreground">{entity.category}</p><div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">{entity.district ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{entity.district}</span> : null}{entity.whatsapp ? <span className="inline-flex items-center gap-1 text-foreground/75"><MessageCircle className="size-3 text-primary" />إشارة واتساب</span> : null}</div>{entity.reason ? <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{entity.reason}</p> : null}</div>{onToggle ? <button type="button" onClick={() => onToggle(entity.id)} className={`shrink-0 rounded-md border px-2 py-1 text-[11px] font-medium ${selected ? 'border-primary bg-primary text-primary-foreground' : 'text-primary hover:bg-accent'}`}>{selected ? 'محددة' : 'تحديد'}</button> : null}</div></li>
 }
