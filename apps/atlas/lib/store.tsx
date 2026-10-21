@@ -5,7 +5,8 @@ import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-da
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 
-const SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
+const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
+const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
 
 interface State {
   requests: RequestItem[]
@@ -131,7 +132,10 @@ function isInboxMessage(value: unknown): value is InboxMessage {
 
 function readWorkspace(): Pick<State, 'requests' | 'inbox'> | null {
   try {
-    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY)
+    // v2 used the browser session, so a carefully prepared draft disappeared
+    // as soon as the user closed the tab. Keep v2 readable for a one-time
+    // migration, then persist the same safe local workspace on this device.
+    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY) ?? window.sessionStorage.getItem(LEGACY_SESSION_STORAGE_KEY)
     if (!raw) return null
     const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown }
     if (!Array.isArray(value.requests) || !Array.isArray(value.inbox)) return null
@@ -171,9 +175,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!workspaceReady) return
     try {
-      window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox }))
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox }))
     } catch {
-      // The active workspace remains usable if this browser blocks session storage.
+      // Retain the current behavior on privacy-restricted browsers, even when
+      // durable local storage is unavailable.
+      try {
+        window.sessionStorage.setItem(LEGACY_SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox }))
+      } catch {
+        // The active workspace remains usable if this browser blocks storage.
+      }
     }
   }, [workspaceReady, state.requests, state.inbox])
 
