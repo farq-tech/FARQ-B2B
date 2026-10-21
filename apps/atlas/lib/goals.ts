@@ -38,7 +38,7 @@ export const GOALS: GoalDef[] = [
   {
     id: 'target',
     label: 'استهدف منشآت',
-    description: 'منشآت متاحة عبر واتساب لتجهيز مسودة حملة',
+    description: 'جهات ذات إشارة واتساب لتجهيز قائمة حملة للمراجعة',
     icon: Crosshair,
     primaryAction: 'campaign',
     placeholder: 'مثال: أسواق تموينية على شارع الستين',
