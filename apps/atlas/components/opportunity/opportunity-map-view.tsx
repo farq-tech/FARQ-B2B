@@ -31,14 +31,24 @@ function inferGoal(parsed: ParsedQuery): GoalId {
 
 type RankedDistrict = DistrictCount & { reviewScore: number }
 
-function rankDistricts(districts: DistrictCount[], goal: GoalId | null): RankedDistrict[] {
-  const maxCount = Math.max(1, ...districts.map((district) => district.n))
+function districtKey(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function rankDistricts(districts: DistrictCount[], goal: GoalId | null, visibleDistricts: Set<string>): RankedDistrict[] {
+  // The aggregate endpoint can include alternate spellings and tiny unmatched
+  // rows. An opportunity list must only promote districts that a user can
+  // actually open on this map.
+  const mapped = visibleDistricts.size ? districts.filter((district) => visibleDistricts.has(districtKey(district.district_ar))) : districts
+  const maxCount = Math.max(1, ...mapped.map((district) => district.n))
+  const meaningful = mapped.filter((district) => district.n >= Math.max(5, Math.ceil(maxCount * 0.002)))
+  const candidates = meaningful.length >= 3 ? meaningful : mapped
   const weights = goal === 'target'
     ? { volume: 0.45, whatsapp: 0.45, wholesale: 0.10 }
     : goal === 'rfq' || goal === 'find-supplier'
       ? { volume: 0.55, whatsapp: 0.10, wholesale: 0.35 }
       : { volume: 0.70, whatsapp: 0.20, wholesale: 0.10 }
-  return districts
+  return candidates
     .map((district) => {
       const volume = district.n / maxCount
       const whatsapp = Math.min(1, (district.n_whatsapp ?? 0) / Math.max(1, district.n))
@@ -94,7 +104,14 @@ export function OpportunityMapView() {
   }, [cityId, goal, query])
 
 
-  const liveDistricts = useMemo(() => rankDistricts(market.data?.counts ?? [], goal), [market.data?.counts, goal])
+  const visibleDistrictNames = useMemo(() => new Set(
+    (market.data?.districts.features ?? []).flatMap((feature) => {
+      const properties = feature.properties ?? {}
+      const value = properties.ar ?? properties.name_ar ?? properties.district_ar ?? properties.name
+      return typeof value === 'string' ? [districtKey(value)] : []
+    }),
+  ), [market.data?.districts])
+  const liveDistricts = useMemo(() => rankDistricts(market.data?.counts ?? [], goal, visibleDistrictNames), [market.data?.counts, goal, visibleDistrictNames])
   const strongestStreet = useMemo(() => {
     const summaryStreet = market.data?.summary?.densest_street
     if (summaryStreet?.street_ar) return summaryStreet
