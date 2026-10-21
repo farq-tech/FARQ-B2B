@@ -8,13 +8,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { formatNumber } from '@/lib/format'
 import { areaKey, areaRing, boundsOf, cityBounds, isInArea, toLngLat, type LngLatBounds, type MapArea } from '@/lib/geo'
-import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, summarize, type MapLevel } from '@/lib/map-summary'
+import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, STREET_MIN_ZOOM, summarize, type MapLevel } from '@/lib/map-summary'
 import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
 import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
-import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard } from './map-overlays'
+import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard, MarketStreetCard } from './map-overlays'
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
@@ -47,6 +47,7 @@ type Card =
   | { kind: 'district'; id: string }
   | { kind: 'cluster'; ids: string[]; center: [number, number]; zoom: number }
   | { kind: 'market-cluster'; label: string; count: number; wholesale: number; district?: string; center: [number, number] }
+  | { kind: 'market-street'; label: string; count: number; wholesale: number; district?: string }
   | { kind: 'live-entity'; id: string }
   | null
 
@@ -67,7 +68,8 @@ export interface MapboxMapProps extends MockMapProps {
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
   if (progressive && layers.districts && zoom < DISTRICT_MAX_ZOOM) return 'districts'
-  if (layers.clusters && zoom < ENTITY_MIN_ZOOM) return 'clusters'
+  if (layers.clusters && zoom < STREET_MIN_ZOOM) return 'clusters'
+  if (layers.streets && zoom < ENTITY_MIN_ZOOM) return 'streets'
   return 'entities'
 }
 
@@ -215,8 +217,8 @@ function addLayers(map: MapboxMap) {
     id: 'market-street-label',
     type: 'symbol',
     source: 'market-streets',
-    minzoom: 14.5,
-    layout: { 'symbol-placement': 'line', 'text-field': ['coalesce', ['get', 'label_ar'], ['get', 'street_ar']], 'text-font': FONT, 'text-size': 11 },
+    minzoom: STREET_MIN_ZOOM,
+    layout: { 'symbol-placement': 'line', 'text-field': ['coalesce', ['get', 'street_ar'], ['get', 'label_ar']], 'text-font': FONT, 'text-size': 11 },
     paint: { 'text-color': COLORS.primary, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
   })
 
@@ -225,7 +227,7 @@ function addLayers(map: MapboxMap) {
     type: 'circle',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: ENTITY_MIN_ZOOM,
+    maxzoom: STREET_MIN_ZOOM,
     paint: { 'circle-radius': expr(['+', ['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 12, 100, 23, 1000, 31], 6]), 'circle-color': COLORS.primary, 'circle-opacity': 0.13 },
   })
   map.addLayer({
@@ -233,7 +235,7 @@ function addLayers(map: MapboxMap) {
     type: 'circle',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: ENTITY_MIN_ZOOM,
+    maxzoom: STREET_MIN_ZOOM,
     paint: {
       'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'n'], 0], 1, 12, 100, 23, 1000, 31]),
       'circle-color': COLORS.card,
@@ -246,7 +248,7 @@ function addLayers(map: MapboxMap) {
     type: 'symbol',
     source: 'market-clusters',
     minzoom: DISTRICT_MAX_ZOOM,
-    maxzoom: ENTITY_MIN_ZOOM,
+    maxzoom: STREET_MIN_ZOOM,
     layout: { 'text-field': ['to-string', ['get', 'n']], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
     paint: { 'text-color': COLORS.primary },
   })
@@ -581,6 +583,18 @@ export function MapboxBusinessMap({
               setCard({ kind: 'business', id: pinId })
               return
             }
+            const marketStreet = hit(['market-street-line'], e.point)
+            if (marketStreet) {
+              const properties = marketStreet.properties ?? {}
+              setCard({
+                kind: 'market-street',
+                label: typeof properties.street_ar === 'string' ? properties.street_ar : typeof properties.label_ar === 'string' ? properties.label_ar : 'شارع نشاط',
+                count: typeof properties.n === 'number' ? properties.n : 0,
+                wholesale: typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
+                district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
+              })
+              return
+            }
             const marketCluster = hit(['market-cluster'], e.point)
             if (marketCluster) {
               const properties = marketCluster.properties ?? {}
@@ -618,7 +632,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-street-line']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
@@ -841,11 +855,11 @@ export function MapboxBusinessMap({
       m.setLayerZoomRange(`biz-clustered-${suffix}`, pinMin, 24)
     }
     for (const id of CLUSTER_LAYERS) {
-      m.setLayoutProperty(id, 'visibility', vis(layers.clusters))
+      m.setLayoutProperty(id, 'visibility', vis(layers.clusters && level === 'clusters'))
       m.setLayerZoomRange(id, pinMin, 24)
     }
     for (const id of ['street-active', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
-  }, [ready, layers, progressive])
+  }, [ready, layers, progressive, level])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
   const activeDistrict = card?.kind === 'district' ? card.id : ''
@@ -985,6 +999,9 @@ export function MapboxBusinessMap({
         />
       )
     }
+    if (card?.kind === 'market-street') {
+      return <MarketStreetCard label={card.label} count={card.count} wholesale={card.wholesale} district={card.district} onClose={() => setCard(null)} />
+    }
     if (card?.kind === 'market-cluster') {
       return (
         <MarketClusterCard
@@ -994,7 +1011,7 @@ export function MapboxBusinessMap({
           district={card.district}
           onClose={() => setCard(null)}
           onZoom={() => {
-            mapRef.current?.easeTo({ center: card.center, zoom: ENTITY_MIN_ZOOM + 0.3, duration: 600 })
+            mapRef.current?.easeTo({ center: card.center, zoom: STREET_MIN_ZOOM + 0.35, duration: 600 })
             setCard(null)
           }}
         />
