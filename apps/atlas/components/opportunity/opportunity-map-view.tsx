@@ -133,6 +133,13 @@ export function OpportunityMapView() {
   }
 
   const city = cityById.get(cityId)
+  // Atlas stores selected districts as stable local ids while the live market
+  // service accepts canonical Arabic names. Convert at the boundary so the
+  // map, summary, and street-density requests all share the same scope.
+  const liveDistrictScope = useMemo(
+    () => filters.districts.flatMap((id) => districtById.get(id)?.name ? [districtById.get(id)!.name] : []),
+    [filters.districts],
+  )
 
   useEffect(() => {
     if (!goal) return
@@ -141,7 +148,8 @@ export function OpportunityMapView() {
     loadLiveMarket(cityId, activeActivity ? {
       mainId: activeActivity.main_id,
       subIds: activeActivity.subs.map((item) => item.sub_id),
-    } : { q: query })
+      districts: liveDistrictScope,
+    } : { q: query, districts: liveDistrictScope })
       .then((data) => {
         if (!controller.signal.aborted) setMarket({ status: 'ready', data })
       })
@@ -149,16 +157,16 @@ export function OpportunityMapView() {
         if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
       })
     return () => controller.abort()
-  }, [cityId, goal, query, activeActivity])
+  }, [cityId, goal, query, activeActivity, liveDistrictScope])
 
   useEffect(() => {
     if (!goal) return
     let active = true
-    loadLiveActivityCatalog(cityId)
+    loadLiveActivityCatalog(cityId, { districts: liveDistrictScope })
       .then((items) => { if (active) setActivityCatalog(items) })
       .catch(() => { if (active) setActivityCatalog([]) })
     return () => { active = false }
-  }, [cityId, goal])
+  }, [cityId, goal, liveDistrictScope])
 
   // Search can happen before the catalog reaches the client. Apply the same
   // deterministic scope once it is available instead of keeping a broad,

@@ -57,6 +57,8 @@ export type LiveMarketScope = {
   q?: string
   mainId?: string
   subIds?: string[]
+  /** Canonical Arabic district names accepted by the aggregate market service. */
+  districts?: string[]
 }
 
 export type LiveMarket = {
@@ -115,12 +117,12 @@ function activityCatalog(value: unknown): LiveActivityMain[] {
   })
 }
 
-export async function loadLiveActivityCatalog(city: string): Promise<LiveActivityMain[]> {
+export async function loadLiveActivityCatalog(city: string, scope: Pick<LiveMarketScope, 'districts'> = {}): Promise<LiveActivityMain[]> {
   const apiCity = ({ riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' } as Record<string, string>)[city.toLowerCase()] ?? city
   const response = await request<unknown>('street-density/catalog', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ city: apiCity }),
+    body: JSON.stringify({ city: apiCity, ...(scope.districts?.length ? { districts: scope.districts.slice(0, 30) } : {}) }),
   })
   return activityCatalog(response)
 }
@@ -132,6 +134,7 @@ export async function loadLiveMarket(city: string, scope: LiveMarketScope = {}):
     ...(scope.q?.trim() ? { q: scope.q.trim() } : {}),
     ...(scope.mainId ? { main_id: scope.mainId } : {}),
     ...(scope.subIds?.length ? { sub_ids: scope.subIds.slice(0, 20) } : {}),
+    ...(scope.districts?.length ? { districts: scope.districts.slice(0, 30) } : {}),
   }
   const json = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(query) }
   // District geometry is the minimum viable market view. The other aggregate
@@ -154,7 +157,13 @@ export async function loadLiveMarket(city: string, scope: LiveMarketScope = {}):
   const streets = streetsResult.status === 'fulfilled'
     ? (() => { try { return asFeatureCollection<StreetDensityProperties>(streetsResult.value) } catch { unavailable.push('streets'); return EMPTY_STREETS } })()
     : EMPTY_STREETS
-  const marketClusters = clustersResult.status === 'fulfilled' ? clusters(clustersResult.value) : []
+  const scopedDistricts = new Set(scope.districts ?? [])
+  // The cluster feed is pre-aggregated. Keep only clusters whose district is
+  // explicitly in scope; unknown-location aggregates are hidden rather than
+  // appearing to belong to a selected district.
+  const marketClusters = clustersResult.status === 'fulfilled'
+    ? clusters(clustersResult.value).filter((cluster) => !scopedDistricts.size || (typeof cluster.district_ar === 'string' && scopedDistricts.has(cluster.district_ar)))
+    : []
   return {
     districts: asFeatureCollection(districtsResult.value),
     counts: countsResult.status === 'fulfilled' && Array.isArray(countsResult.value?.districts)
