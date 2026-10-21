@@ -13,7 +13,7 @@ import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } f
 import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
-import { trackDraftPrepared, trackMapDetailLevel, trackMarketSearch, trackSelectionChange } from '@/lib/commercial-metrics'
+import { trackDraftPrepared, trackLiveActivityScopeApplied, trackMapDetailLevel, trackMarketInsightOpened, trackMarketSearch, trackSelectionChange } from '@/lib/commercial-metrics'
 import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
@@ -253,6 +253,7 @@ export function OpportunityMapView() {
   }
 
   const selectLiveActivity = (activity: LiveActivityMain) => {
+    trackLiveActivityScopeApplied({ city: cityId, shops: activity.shops })
     setArea(null)
     setActiveActivity(activity)
     setQuery(activity.main_ar)
@@ -464,6 +465,7 @@ export function OpportunityMapView() {
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
+            onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}
