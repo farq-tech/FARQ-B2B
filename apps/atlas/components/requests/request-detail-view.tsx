@@ -9,7 +9,7 @@ import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
 import { formatDate, formatDateTime } from '@/lib/format'
-import { trackDraftReviewed, trackQuoteAccepted } from '@/lib/commercial-metrics'
+import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
@@ -273,6 +273,7 @@ function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBa
     try {
       await navigator.clipboard.writeText(lines)
       setCopied(true)
+      trackManualHandoffCopied({ city: request.cityId, type: 'rfq', count: request.businessIds.length })
       setTimeout(() => setCopied(false), 2000)
     } catch {
       setCopied(false)
@@ -313,6 +314,7 @@ function ManualSendPanel({ request, onBackToDraft }: { request: RequestItem; onB
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
+      trackManualHandoffCopied({ city: request.cityId, type: 'campaign', count: request.campaign.included.length })
       setTimeout(() => setCopied(false), 2000)
     } catch {
       setCopied(false)
