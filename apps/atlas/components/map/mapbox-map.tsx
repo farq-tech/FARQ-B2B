@@ -282,7 +282,7 @@ function addLayers(map: MapboxMap) {
     minzoom: DISTRICT_MAX_ZOOM,
     maxzoom: STREET_MIN_ZOOM,
     filter: marketClustered,
-    layout: { 'text-field': ['to-string', ['get', 'opportunityCount']], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
+    layout: { 'text-field': ['to-string', ['coalesce', ['get', 'opportunityCount'], ['get', 'n'], 0]], 'text-font': FONT_BOLD, 'text-size': 13, 'text-allow-overlap': true },
     paint: { 'text-color': COLORS.primary },
   })
   map.addLayer({
