@@ -26,6 +26,12 @@ class FakeTaxonomy:
     def subs_in(self, text):
         return (["plumbing.tools"], 10) if "أدوات" in text else ([], 0)
 
+    def understand(self, text, objective):
+        self.last_understanding = (text, objective)
+        if objective == "marketing":
+            return {"targets": ["plumbing.tools"]}
+        return {"targets": ["plumbing.fixtures"]}
+
 
 class MarketAnalyticsSpecialtyTests(unittest.TestCase):
     def setUp(self):
@@ -142,6 +148,19 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(subs, [])
         self.assertIn("false", where)
         self.assertEqual(self.db.execute(f"select count(*) from read_parquet(?) p where {where}", params).fetchone()[0], 0)
+
+    def test_marketing_query_uses_directional_taxonomy_targets(self):
+        result = self.analytics.district_counts({
+            "city": "Riyadh",
+            "q": "استهدف شركات مقاولات",
+            "objective": "marketing",
+        })
+
+        self.assertEqual(self.analytics._taxonomy.last_understanding, ("استهدف شركات مقاولات", "marketing"))
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["districts"], [{
+            "district_ar": "حي النخيل", "n": 1, "n_whatsapp": 0, "n_wholesale": 0,
+        }])
 
     def test_missing_specialty_column_fails_closed(self):
         missing_column = self.root / "targets-without-specialties.parquet"

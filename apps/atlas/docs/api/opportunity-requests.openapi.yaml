@@ -6,6 +6,32 @@ info:
     Same-origin Atlas proxy for Farq business opportunity requests. Atlas keeps
     Farq access tokens in an HttpOnly session cookie; browsers never receive one.
 paths:
+  /api/market/entities:
+    post:
+      summary: Search the live business directory for a named commercial activity
+      description: |
+        Private, same-origin directory proxy. `purchase` finds suppliers or the
+        named trade. `marketing` finds business types that may be relevant
+        buyers; it never asserts active demand or contact consent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [q, city, objective]
+              properties:
+                q: { type: string, minLength: 1, maxLength: 200 }
+                city: { type: string, enum: [riyadh, jeddah, dammam] }
+                objective: { type: string, enum: [purchase, marketing] }
+                limit: { type: integer, minimum: 1, maximum: 50, default: 30 }
+      responses:
+        '200': { description: Business rows whose activity matches the requested commercial direction }
+        '400': { description: Missing query, city, or recognised objective }
+        '401': { description: Atlas session is missing or expired }
+        '403': { description: User has no directory permission }
+        '502': { description: Directory service unavailable }
+        '503': { description: Directory proxy is not configured }
   /api/requests:
     get:
       summary: List the signed-in organization's saved requests

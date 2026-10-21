@@ -103,13 +103,21 @@ class MarketAnalytics:
             raise ValueError("unknown sub_id")
         resolved = None
         if q:
-            # Resolve free text locally, then intersect it with any explicit
-            # activity selection below. Silently ignoring either filter makes
-            # district totals disagree with what the user asked the map to show.
-            specialty_ids, _ = tx.spec_hits(q)
-            query_subs = list(dict.fromkeys(tx.specs[sid]["sub_id"] for sid in specialty_ids))
-            if not query_subs:
-                query_subs = tx.subs_in(q)[0]
+            # Use the same commercial-direction resolver as directory search.
+            # A marketing query for «شركات مقاولات» must count contractors,
+            # not generic city activity nor suppliers of construction inputs.
+            # This also makes aggregate map totals agree with the entity pins.
+            if hasattr(tx, "understand"):
+                understood = tx.understand(q, objective)
+                query_subs = list(understood.get("targets") or [])
+            else:
+                # Minimal legacy taxonomy fixtures expose only lexical lookup.
+                # Production taxonomy always has `understand`; this fallback
+                # preserves a safe, narrow answer for older read-only assets.
+                specialty_ids, _ = tx.spec_hits(q)
+                query_subs = list(dict.fromkeys(tx.specs[sid]["sub_id"] for sid in specialty_ids))
+                if not query_subs:
+                    query_subs = tx.subs_in(q)[0]
             if not query_subs:
                 return [], True
             resolved = set(query_subs)
