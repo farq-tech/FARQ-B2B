@@ -1,11 +1,11 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_VARIABLES, SEED_INBOX, SEED_REQUESTS, businessById, cityById } from './mock-data'
+import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 
-const SESSION_STORAGE_KEY = 'farq-atlas-workspace-v1'
+const SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
 
 interface State {
   requests: RequestItem[]
@@ -156,8 +156,8 @@ const StoreContext = createContext<StoreValue | null>(null)
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
-    requests: SEED_REQUESTS,
-    inbox: SEED_INBOX,
+    requests: [],
+    inbox: [],
     selection: [],
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)

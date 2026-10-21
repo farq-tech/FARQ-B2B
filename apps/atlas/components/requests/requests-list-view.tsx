@@ -16,7 +16,7 @@ const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'await
 
 export function RequestsListView() {
   const { requests, inbox } = useAppStore()
-  const [tab, setTab] = useState<RequestStatus>('needs_decision')
+  const [tab, setTab] = useState<RequestStatus>('draft')
   const [q, setQ] = useState('')
 
   const nq = normalizeArabic(q)

@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { DemoBadge } from '@/components/shared/demo-badge'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
@@ -79,7 +78,6 @@ export function RequestDetailView({ id }: { id: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <TypeLabel type={request.type} />
           <StatusBadge status={request.status} />
-          <DemoBadge />
         </div>
         {editable ? (
           <label>
@@ -206,7 +204,7 @@ export function RequestDetailView({ id }: { id: string }) {
         title={request.type === 'rfq' ? 'مراجعة طلب التسعير' : 'مراجعة الحملة'}
         description={
           request.type === 'rfq'
-            ? 'تأكد من التفاصيل قبل الاعتماد. هذا عرض تجريبي ولن تُرسل أي رسائل فعلية.'
+            ? 'تأكد من التفاصيل قبل الاعتماد. لن ينفذ هذا الإجراء إرسالاً تلقائياً.'
             : 'لن تُرسل أي رسالة تلقائياً. بعد الاعتماد تصبح الحملة «جاهزة للإرسال اليدوي» وتبقى في يدك.'
         }
         footer={
@@ -222,7 +220,7 @@ export function RequestDetailView({ id }: { id: string }) {
                 })
                 setReviewOpen(false)
                 if (request.type === 'rfq') {
-                  toast.success('تم اعتماد طلب التسعير', { description: 'عرض تجريبي — لم تُرسل أي رسائل فعلية.' })
+                  toast.success('تم اعتماد طلب التسعير للمراجعة', { description: 'لم يُرسل أي شيء تلقائياً.' })
                 } else {
                   toast.success('الحملة جاهزة للإرسال اليدوي', { description: 'لم يُرسل شيء. الإرسال يتم يدوياً من جهتك.' })
                 }
@@ -265,7 +263,7 @@ function ManualSendPanel({ request, onBackToDraft }: { request: RequestItem; onB
           </h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
             راجعتَ الحملة واعتمدتها{request.reviewedAt ? ` في ${formatDateTime(request.reviewedAt)}` : ''}. لم يُرسل أي شيء ولن يُرسل تلقائياً.
-            أرسلها بنفسك من حساب واتساب للأعمال إلى {request.campaign.included.length} مستلم مؤهل، والردود المسجلة تظهر في الوارد.
+            أرسلها بنفسك من حساب واتساب للأعمال إلى {request.campaign.included.length} مستلم مؤهل، ثم سجّل المتابعة في الوارد.
           </p>
         </div>
       </div>
