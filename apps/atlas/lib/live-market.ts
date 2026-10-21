@@ -44,6 +44,8 @@ export type LiveMarket = {
   clusters: MarketCluster[]
 }
 
+const EMPTY_STREETS: FeatureCollection<Geometry, StreetDensityProperties> = { type: 'FeatureCollection', features: [] }
+
 async function request<T>(resource: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, { cache: 'no-store', ...init })
   if (!response.ok) throw new Error('market-unavailable')
@@ -70,18 +72,26 @@ export async function loadLiveMarket(city: string, q?: string): Promise<LiveMark
   const apiCity = ({ riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' } as Record<string, string>)[city.toLowerCase()] ?? city
   const query = { city: apiCity, ...(q?.trim() ? { q: q.trim() } : {}) }
   const json = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(query) }
-  const [districtsRaw, countsRaw, summaryRaw, streetsRaw, clustersRaw] = await Promise.all([
+  // The base market view is required; the two visual overlays must not take it down
+  // when an upstream aggregation is temporarily unavailable.
+  const [districtsRaw, countsRaw, summaryRaw] = await Promise.all([
     request<unknown>(`districts?city=${encodeURIComponent(apiCity)}`),
     request<{ districts?: unknown }>('district-counts', json),
     request<MarketSummary>('market-summary', json),
+  ])
+  const [streetsResult, clustersResult] = await Promise.allSettled([
     request<unknown>('street-density', json),
     request<unknown>('clusters', json),
   ])
+  const streets = streetsResult.status === 'fulfilled'
+    ? (() => { try { return asFeatureCollection<StreetDensityProperties>(streetsResult.value) } catch { return EMPTY_STREETS } })()
+    : EMPTY_STREETS
+  const marketClusters = clustersResult.status === 'fulfilled' ? clusters(clustersResult.value) : []
   return {
     districts: asFeatureCollection(districtsRaw),
     counts: Array.isArray(countsRaw?.districts) ? countsRaw.districts.filter((item): item is DistrictCount => Boolean(item && typeof item === 'object' && typeof (item as DistrictCount).district_ar === 'string')) : [],
     summary: summaryRaw?.summary,
-    streets: asFeatureCollection<StreetDensityProperties>(streetsRaw),
-    clusters: clusters(clustersRaw),
+    streets,
+    clusters: marketClusters,
   }
 }
