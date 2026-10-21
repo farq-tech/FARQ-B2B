@@ -75,6 +75,21 @@ export function OpportunityMapView() {
 
 
   const liveDistricts = market.data?.counts.slice().sort((a, b) => b.n - a.n).slice(0, 12) ?? []
+  const strongestStreet = useMemo(() => {
+    const summaryStreet = market.data?.summary?.densest_street
+    if (summaryStreet?.street_ar) return summaryStreet
+    const feature = [...(market.data?.streets.features ?? [])]
+      .filter((item) => Boolean(item.properties?.street_ar || item.properties?.label_ar))
+      .sort((a, b) => (b.properties?.n ?? 0) - (a.properties?.n ?? 0))[0]
+    if (!feature?.properties) return null
+    return {
+      street_ar: feature.properties.street_ar ?? feature.properties.label_ar,
+      district_ar: feature.properties.district_ar,
+      n: feature.properties.n,
+      per_100m: undefined,
+      sub_ar: undefined,
+    }
+  }, [market.data])
 
 
   const resetSearch = () => {
@@ -291,20 +306,20 @@ export function OpportunityMapView() {
                     <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">منشآت ضمن النطاق</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.total?.toLocaleString('en-US') ?? '—'}</dd></div>
                     <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">إشارات واتساب قابلة للفحص</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_whatsapp?.toLocaleString('en-US') ?? '—'}</dd></div>
                   </dl>
-                  {market.data?.summary?.densest_street?.street_ar ? (
+                  {strongestStreet?.street_ar ? (
                     <section className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3" aria-label="أقوى إشارة سوق">
                       <div className="flex items-start gap-2">
                         <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><Gauge className="size-4" aria-hidden /></span>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold">أعلى كثافة في النتائج</p>
-                          <p className="mt-0.5 truncate text-sm font-semibold">{market.data.summary.densest_street.street_ar}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{[market.data.summary.densest_street.sub_ar, market.data.summary.densest_street.district_ar].filter(Boolean).join(' · ')}</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold">{strongestStreet.street_ar}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{[strongestStreet.sub_ar, strongestStreet.district_ar].filter(Boolean).join(' · ')}</p>
                         </div>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span><strong className="text-foreground tabular-nums">{market.data.summary.densest_street.n?.toLocaleString('en-US') ?? '—'}</strong> منشأة</span>
-                        {market.data.summary.densest_street.per_100m ? <span><strong className="text-foreground tabular-nums">{market.data.summary.densest_street.per_100m.toLocaleString('en-US')}</strong> لكل 100 م</span> : null}
-                        <button type="button" onClick={() => focusStreetOnMap(market.data!.summary!.densest_street!.street_ar!, market.data!.summary!.densest_street!.district_ar)} className="font-medium text-primary underline-offset-4 hover:underline">عرضه على الخريطة</button>
+                        <span><strong className="text-foreground tabular-nums">{strongestStreet.n?.toLocaleString('en-US') ?? '—'}</strong> منشأة</span>
+                        {strongestStreet.per_100m ? <span><strong className="text-foreground tabular-nums">{strongestStreet.per_100m.toLocaleString('en-US')}</strong> لكل 100 م</span> : null}
+                        <button type="button" onClick={() => focusStreetOnMap(strongestStreet.street_ar!, strongestStreet.district_ar)} className="font-medium text-primary underline-offset-4 hover:underline">عرضه على الخريطة</button>
                       </div>
                     </section>
                   ) : null}
