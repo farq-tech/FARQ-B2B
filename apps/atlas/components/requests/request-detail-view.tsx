@@ -55,7 +55,17 @@ export function RequestDetailView({ id }: { id: string }) {
   }
 
   const convert = (type: 'rfq' | 'campaign') => {
-    const newId = createDraft({ type, businessIds: request.businessIds, cityId: request.cityId, goal: request.goal, query: request.query })
+    const firstLiveBusiness = request.liveBusinesses?.find((business) => request.businessIds.includes(business.id))
+    const newId = createDraft({
+      type,
+      businessIds: request.businessIds,
+      cityId: request.cityId,
+      goal: request.goal,
+      query: request.query,
+      liveBusinesses: request.liveBusinesses,
+      categoryHint: firstLiveBusiness?.category,
+      districtHint: firstLiveBusiness?.district,
+    })
     router.push(`/requests/${newId}`)
   }
 
