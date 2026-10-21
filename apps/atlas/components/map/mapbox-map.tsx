@@ -936,6 +936,37 @@ export function MapboxBusinessMap({
     if (!m || !target) return
     if (l === 'districts' && !layers.districts) setLayers((s) => ({ ...s, districts: true }))
     if (l === 'clusters' && !layers.clusters) setLayers((s) => ({ ...s, clusters: true }))
+    if (l === 'streets' && !layers.streets) setLayers((s) => ({ ...s, streets: true }))
+
+    const currentBounds = m.getBounds()
+    const visibleFirst = <T extends { center: [number, number]; weight: number }>(items: T[]) => {
+      const inView = items.filter((item) => currentBounds.contains(item.center))
+      return [...(inView.length ? inView : items)].sort((a, b) => b.weight - a.weight)[0]
+    }
+
+    if (l === 'clusters') {
+      const candidate = visibleFirst(liveClusters.flatMap((cluster) => (
+        typeof cluster.lon === 'number' && typeof cluster.lat === 'number'
+          ? [{ center: [cluster.lon, cluster.lat] as [number, number], weight: cluster.n ?? 0 }]
+          : []
+      )))
+      if (candidate) {
+        m.easeTo({ center: candidate.center, zoom: target.zoom, duration: 550 })
+        return
+      }
+    }
+
+    if (l === 'streets') {
+      const candidate = visibleFirst(liveStreetData.features.flatMap((feature) => {
+        const center = polygonCenter(feature.geometry)
+        return center ? [{ center, weight: feature.properties?.n ?? 0 }] : []
+      }))
+      if (candidate) {
+        m.easeTo({ center: candidate.center, zoom: target.zoom, duration: 550 })
+        return
+      }
+    }
+
     m.easeTo({ zoom: target.zoom, duration: 550 })
   }
 
