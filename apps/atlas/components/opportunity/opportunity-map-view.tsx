@@ -446,6 +446,7 @@ export function OpportunityMapView() {
           <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اكتب نشاطاً لتخصيص قراءة السوق حسب حاجتك.'}</span>
           {activityScopeWasInferred && activeActivity ? <span className="text-muted-foreground/80">فُسّرت ضمن: {activeActivity.subs.length === 1 ? activeActivity.subs[0]?.sub_ar : activeActivity.main_ar}</span> : null}
           {marketReadAt ? <span className="text-muted-foreground/80">قُرئت في أطلس: {marketReadAt}</span> : null}
+          {market.data?.unavailable.length ? <span className="text-amber-700">تحديث جزئي: بقيت الخريطة متاحة، وتعذر تحديث بعض المؤشرات مؤقتًا.</span> : null}
         </div>
       </div>
 

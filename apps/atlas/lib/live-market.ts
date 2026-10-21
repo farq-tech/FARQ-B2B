@@ -65,6 +65,8 @@ export type LiveMarket = {
   summary: MarketSummary['summary']
   streets: FeatureCollection<Geometry, StreetDensityProperties>
   clusters: MarketCluster[]
+  /** Optional aggregate feeds that were unavailable for this read. The map remains usable when its geometry loaded. */
+  unavailable: Array<'districtCounts' | 'summary' | 'streets' | 'clusters'>
   /** Time the current aggregate response reached Atlas, not a claim about source-record freshness. */
   loadedAt: string
 }
@@ -132,27 +134,36 @@ export async function loadLiveMarket(city: string, scope: LiveMarketScope = {}):
     ...(scope.subIds?.length ? { sub_ids: scope.subIds.slice(0, 20) } : {}),
   }
   const json = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(query) }
-  // The base market view is required; the two visual overlays must not take it down
-  // when an upstream aggregation is temporarily unavailable.
-  const [districtsRaw, countsRaw, summaryRaw] = await Promise.all([
+  // District geometry is the minimum viable market view. The other aggregate
+  // reads enrich it, but a transient upstream failure must not blank the map.
+  const [districtsResult, countsResult, summaryResult, streetsResult, clustersResult] = await Promise.allSettled([
     request<unknown>(`districts?city=${encodeURIComponent(apiCity)}`),
     request<{ districts?: unknown }>('district-counts', json),
     request<MarketSummary>('market-summary', json),
-  ])
-  const [streetsResult, clustersResult] = await Promise.allSettled([
     request<unknown>('street-density', json),
     request<unknown>('clusters', json),
   ])
+  if (districtsResult.status !== 'fulfilled') throw new Error('districts-unavailable')
+
+  const unavailable: LiveMarket['unavailable'] = []
+  if (countsResult.status !== 'fulfilled') unavailable.push('districtCounts')
+  if (summaryResult.status !== 'fulfilled') unavailable.push('summary')
+  if (streetsResult.status !== 'fulfilled') unavailable.push('streets')
+  if (clustersResult.status !== 'fulfilled') unavailable.push('clusters')
+
   const streets = streetsResult.status === 'fulfilled'
-    ? (() => { try { return asFeatureCollection<StreetDensityProperties>(streetsResult.value) } catch { return EMPTY_STREETS } })()
+    ? (() => { try { return asFeatureCollection<StreetDensityProperties>(streetsResult.value) } catch { unavailable.push('streets'); return EMPTY_STREETS } })()
     : EMPTY_STREETS
   const marketClusters = clustersResult.status === 'fulfilled' ? clusters(clustersResult.value) : []
   return {
-    districts: asFeatureCollection(districtsRaw),
-    counts: Array.isArray(countsRaw?.districts) ? countsRaw.districts.filter((item): item is DistrictCount => Boolean(item && typeof item === 'object' && typeof (item as DistrictCount).district_ar === 'string')) : [],
-    summary: summaryRaw?.summary,
+    districts: asFeatureCollection(districtsResult.value),
+    counts: countsResult.status === 'fulfilled' && Array.isArray(countsResult.value?.districts)
+      ? countsResult.value.districts.filter((item): item is DistrictCount => Boolean(item && typeof item === 'object' && typeof (item as DistrictCount).district_ar === 'string'))
+      : [],
+    summary: summaryResult.status === 'fulfilled' ? summaryResult.value?.summary : undefined,
     streets,
     clusters: marketClusters,
+    unavailable,
     loadedAt: new Date().toISOString(),
   }
 }
