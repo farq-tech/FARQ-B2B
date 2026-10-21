@@ -65,6 +65,8 @@ export type LiveMarket = {
   summary: MarketSummary['summary']
   streets: FeatureCollection<Geometry, StreetDensityProperties>
   clusters: MarketCluster[]
+  /** Time the current aggregate response reached Atlas, not a claim about source-record freshness. */
+  loadedAt: string
 }
 
 const EMPTY_STREETS: FeatureCollection<Geometry, StreetDensityProperties> = { type: 'FeatureCollection', features: [] }
@@ -151,5 +153,6 @@ export async function loadLiveMarket(city: string, scope: LiveMarketScope = {}):
     summary: summaryRaw?.summary,
     streets,
     clusters: marketClusters,
+    loadedAt: new Date().toISOString(),
   }
 }

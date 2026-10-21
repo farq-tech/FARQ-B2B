@@ -149,6 +149,14 @@ export function OpportunityMapView() {
       sub_ar: undefined,
     }
   }, [market.data])
+  const marketReadAt = useMemo(() => {
+    if (!market.data?.loadedAt) return null
+    return new Intl.DateTimeFormat('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Riyadh',
+    }).format(new Date(market.data.loadedAt))
+  }, [market.data?.loadedAt])
 
 
   const resetSearch = () => {
@@ -351,8 +359,9 @@ export function OpportunityMapView() {
           onOpenAssistant={() => setAssistantOpen(true)}
         />
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">بيانات سوق حية</span>
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">قراءة سوق حية</span>
           <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اكتب نشاطاً لتخصيص قراءة السوق حسب حاجتك.'}</span>
+          {marketReadAt ? <span className="text-muted-foreground/80">قُرئت في أطلس: {marketReadAt}</span> : null}
         </div>
       </div>
 
