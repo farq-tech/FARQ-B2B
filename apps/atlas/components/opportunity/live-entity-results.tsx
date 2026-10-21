@@ -14,34 +14,58 @@ export type LiveEntity = LiveBusinessSnapshot & {
   status: string | null
 }
 
-type Result = { total: number; withWhatsapp: number; rows: LiveEntity[] }
+type Result = { total: number; withWhatsapp: number; hasMore?: boolean; nextOffset?: number | null; rows: LiveEntity[] }
 
 type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
 
 export function LiveEntityResults({ query, cityId, objective, district, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
+  const [visibleCount, setVisibleCount] = useState(100)
 
   useEffect(() => {
     const q = query.trim()
     if (!q && !district) { setState({ kind: 'idle', data: null }); return }
     const controller = new AbortController()
+    const exhaustiveDistrict = Boolean(district)
+    setVisibleCount(100)
     setState({ kind: 'loading', data: null })
-    fetch('/api/market/entities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q, city: cityId, objective, limit: 50, ...(district ? { district } : {}) }), signal: controller.signal })
-      .then(async (response) => {
+
+    const load = async () => {
+      const rows: LiveEntity[] = []
+      const seen = new Set<string>()
+      let offset = 0
+      let total = 0
+      let withWhatsapp = 0
+      let hasMore = true
+      while (hasMore && offset < 10_000 && !controller.signal.aborted) {
+        const response = await fetch('/api/market/entities', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ q, city: cityId, objective, limit: 200, offset, ...(district ? { district } : {}) }),
+          signal: controller.signal,
+        })
         const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
-        if (response.status === 401) return setState({ kind: 'auth', data: null, message: payload?.error })
-        if (response.status === 403) return setState({ kind: 'blocked', data: null, message: payload?.error })
-        if (!response.ok || !payload) return setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' })
-        setState({ kind: 'ready', data: payload })
-      })
-      .catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
+        if (response.status === 401) { setState({ kind: 'auth', data: null, message: payload?.error }); return }
+        if (response.status === 403) { setState({ kind: 'blocked', data: null, message: payload?.error }); return }
+        if (!response.ok || !payload) { setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' }); return }
+        total = payload.total
+        withWhatsapp += payload.withWhatsapp
+        for (const entity of payload.rows) if (!seen.has(entity.id)) { seen.add(entity.id); rows.push(entity) }
+        setState({ kind: payload.hasMore && exhaustiveDistrict ? 'loading' : 'ready', data: { ...payload, total, withWhatsapp, rows } })
+        const nextOffset = payload.nextOffset
+        hasMore = exhaustiveDistrict && payload.hasMore === true && typeof nextOffset === 'number' && nextOffset > offset
+        offset = nextOffset ?? rows.length
+      }
+      if (!controller.signal.aborted) setState((current) => current.data ? { kind: 'ready', data: current.data } : current)
+    }
+    load().catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
     return () => controller.abort()
   }, [query, cityId, objective, district])
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
 
   if (state.kind === 'idle') return <EmptySearch />
-  if (state.kind === 'loading') return <Loading />
+  if (state.kind === 'loading' && !state.data) return <Loading />
   if (state.kind === 'auth') return <SignInPrompt />
   if (state.kind === 'blocked') return <Notice tone="warning" text={state.message || 'لا يملك هذا الحساب صلاحية دليل الجهات.'} />
   if (state.kind === 'error') return <Notice tone="error" text={state.message || 'تعذر تحميل الجهات.'} />
@@ -53,7 +77,11 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
         <div><h2 className="text-sm font-semibold">{district && !query.trim() ? 'جهات الحي' : 'الجهات المطابقة'}</h2><p className="mt-1 text-xs text-muted-foreground">{district ? `نتائج حية داخل ${district}؛ لا نعرض أرقام الاتصال في هذه المرحلة.` : 'نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.'}</p></div>
         <span className="rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground tabular-nums">{data.total.toLocaleString('en-US')}</span>
       </div>
-      {data.rows.length ? <ul className="mt-3 flex flex-col divide-y">{data.rows.map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
+      {state.kind === 'loading' ? <p className="mt-2 text-xs text-muted-foreground">جارٍ تحميل النقاط داخل الحي: {data.rows.length.toLocaleString('en-US')} من {data.total.toLocaleString('en-US')}.</p> : null}
+      {data.rows.length ? <>
+        <ul className="mt-3 flex flex-col divide-y">{data.rows.slice(0, visibleCount).map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul>
+        {visibleCount < data.rows.length ? <button type="button" className="mt-3 w-full rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-accent" onClick={() => setVisibleCount((count) => Math.min(data.rows.length, count + 100))}>عرض 100 جهة إضافية</button> : null}
+      </> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
     </section>
   )
 }
