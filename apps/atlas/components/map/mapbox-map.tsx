@@ -133,21 +133,11 @@ function addLayers(map: MapboxMap) {
   for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'ghosts', 'biz-flat', 'selected', 'area', 'live-entities']) {
     map.addSource(id, { type: 'geojson', data: EMPTY })
   }
-  map.addSource('market-clusters', {
-    type: 'geojson',
-    data: EMPTY,
-    cluster: true,
-    // Keep the city overview readable: related activity is grouped before
-    // individual streets become the next level of detail.
-    clusterRadius: 88,
-    // Keep aggregate market activity visible while the user reaches the
-    // entity level. These are real aggregate records, never invented POIs.
-    clusterMaxZoom: Math.floor(ENTITY_MIN_ZOOM),
-    clusterProperties: {
-      opportunityCount: ['+', ['get', 'n']],
-      wholesaleCount: ['+', ['get', 'n_wholesale']],
-    },
-  })
+  // The targeting service already returns geographically aggregated street
+  // opportunities. Rendering those records directly keeps each visible point
+  // truthful and clickable; clustering them again can hide all activity at
+  // the exact zoom where users expect to inspect it.
+  map.addSource('market-clusters', { type: 'geojson', data: EMPTY })
   map.addSource('biz-clustered', {
     type: 'geojson',
     data: EMPTY,
