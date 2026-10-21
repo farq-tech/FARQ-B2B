@@ -651,7 +651,10 @@ export function MapboxBusinessMap({
             // Market streets remain visible as context at the cluster level.
             // Resolve a cluster first so an overlapping street cannot steal the
             // interaction intended to reveal that cluster.
-            const marketCluster = hit(['market-cluster', 'market-cluster-leaf'], e.point)
+            // The visible count is rendered in its own symbol layer. Include it in
+            // hit testing so clicking the number always opens the cluster summary,
+            // even where a street line runs directly beneath the badge.
+            const marketCluster = hit(['market-cluster-count', 'market-cluster-leaf-count', 'market-cluster', 'market-cluster-leaf'], e.point)
             if (marketCluster) {
               const properties = marketCluster.properties ?? {}
               const center = (marketCluster.geometry as GeoPoint).coordinates as [number, number]
@@ -704,7 +707,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-cluster-leaf', 'market-street-hit']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
