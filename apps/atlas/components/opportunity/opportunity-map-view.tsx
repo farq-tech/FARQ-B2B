@@ -13,6 +13,7 @@ import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } f
 import { loadLiveMarket, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
+import { trackDraftPrepared, trackMapDetailLevel, trackMarketSearch, trackSelectionChange } from '@/lib/commercial-metrics'
 import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
@@ -93,6 +94,7 @@ export function OpportunityMapView() {
   }
 
   const handleSearch = (text: string) => {
+    trackMarketSearch({ city: cityId, goal: goal ?? 'explore', query: text })
     if (!text.trim()) {
       setQuery('')
       setFreeText([])
@@ -134,6 +136,7 @@ export function OpportunityMapView() {
         categoryHint: parsed.categories[0],
         districtHint: parsed.districts.length === 1 ? districtById.get(parsed.districts[0])?.name : undefined,
       })
+      trackDraftPrepared({ city: cityId, type, source: 'assistant', count: rows.length })
       return { id, count: rows.length }
     } catch {
       return { id: '', count: 0, message: 'تعذر الاتصال بخدمة الجهات. بقي البحث مطبقاً على الخريطة.' }
@@ -177,6 +180,12 @@ export function OpportunityMapView() {
 
   const liveSelection = selection.flatMap((id) => liveEntitySnapshots[id] ? [liveEntitySnapshots[id]] : [])
 
+  const handleToggleSelect = (id: string) => {
+    const selected = !selection.includes(id)
+    toggleSelect(id)
+    trackSelectionChange({ city: cityId, selected, selectedCount: selection.length + (selected ? 1 : -1) })
+  }
+
   const handleAction = (type: RequestType) => {
     const id = createDraft({
       type,
@@ -188,6 +197,7 @@ export function OpportunityMapView() {
       districtHint: filters.districts.length === 1 ? districtById.get(filters.districts[0])?.name : undefined,
       liveBusinesses: liveSelection,
     })
+    trackDraftPrepared({ city: cityId, type, source: 'selection', count: selection.length })
     setSelection([])
     router.push(`/requests/${id}`)
   }
@@ -291,7 +301,7 @@ export function OpportunityMapView() {
             cityId={cityId}
             businesses={visibleResults}
             selectedIds={selection}
-            onTogglePin={toggleSelect}
+            onTogglePin={handleToggleSelect}
             focusRequest={focus}
             highlightDistricts={filters.districts}
             highlightStreets={filters.streets}
@@ -302,6 +312,7 @@ export function OpportunityMapView() {
             liveStreets={market.data?.streets}
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
+            onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}
