@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isTrustedAtlasRequest } from '@/lib/same-origin'
 import { sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
 
 export const runtime = 'nodejs'
@@ -11,18 +12,13 @@ type Organization = { id?: unknown; subscriptions?: { sectorCode?: unknown }[] }
 type Envelope<T> = { data?: T }
 
 function origin() { return (process.env.FARQ_API_ORIGIN || 'https://api.farq.sa').replace(/\/$/, '') }
-function sameOrigin(request: NextRequest) {
-  const source = request.headers.get('origin') || request.headers.get('referer')
-  if (!source) return false
-  try { return new URL(source).origin === request.nextUrl.origin } catch { return false }
-}
 function error(message: string, status: number) { return NextResponse.json({ error: message }, { status, headers: { 'cache-control': 'no-store' } }) }
 async function api(session: { accessToken: string }, path: string, init?: RequestInit) {
   return fetch(`${origin()}${path}`, { ...init, headers: { accept: 'application/json', authorization: `Bearer ${session.accessToken}`, ...(init?.headers || {}) }, cache: 'no-store' })
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!sameOrigin(request)) return error('طلب غير موثوق.', 403)
+  if (!isTrustedAtlasRequest(request)) return error('طلب غير موثوق.', 403)
   const { session, refreshed } = await sessionForRequest(request)
   if (!session || !(await verifySession(session))) return error('انتهت جلسة الدخول. سجّل الدخول من جديد.', 401)
   const contextResponse = await api(session, '/api/business/context')

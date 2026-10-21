@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isTrustedAtlasRequest } from '@/lib/same-origin'
 import { clearSession, publicSession, readSession, sessionForRequest, setSession, signIn } from '@/lib/atlas-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function sameOrigin(request: NextRequest) {
-  const source = request.headers.get('origin') || request.headers.get('referer')
-  if (!source) return false
-  try { return new URL(source).origin === request.nextUrl.origin } catch { return false }
-}
 
 function responseError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: { 'cache-control': 'no-store' } })
@@ -26,7 +22,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
 
 export async function POST(request: NextRequest, context: { params: Promise<{ action: string }> }) {
   const { action } = await context.params
-  if (!sameOrigin(request)) return responseError('طلب غير موثوق.', 403)
+  if (!isTrustedAtlasRequest(request)) return responseError('طلب غير موثوق.', 403)
   if (action === 'logout') {
     const response = NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } })
     clearSession(response)

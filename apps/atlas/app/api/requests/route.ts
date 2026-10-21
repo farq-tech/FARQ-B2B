@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isTrustedAtlasRequest } from '@/lib/same-origin'
 import { sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
 
 export const runtime = 'nodejs'
@@ -15,11 +16,6 @@ function origin() {
   return (process.env.FARQ_API_ORIGIN || 'https://api.farq.sa').replace(/\/$/, '')
 }
 
-function sameOrigin(request: NextRequest) {
-  const source = request.headers.get('origin') || request.headers.get('referer')
-  if (!source) return false
-  try { return new URL(source).origin === request.nextUrl.origin } catch { return false }
-}
 
 function error(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: { 'cache-control': 'no-store' } })
@@ -84,7 +80,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!sameOrigin(request)) return error('طلب غير موثوق.', 403)
+  if (!isTrustedAtlasRequest(request)) return error('طلب غير موثوق.', 403)
   const auth = await authenticated(request)
   if ('error' in auth) return auth.error
   let body: { kind?: unknown; title?: unknown; payload?: unknown }
