@@ -1,9 +1,11 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_VARIABLES, SEED_INBOX, SEED_REQUESTS, businessById, cityById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
+
+const SESSION_STORAGE_KEY = 'farq-atlas-workspace-v1'
 
 interface State {
   requests: RequestItem[]
@@ -18,9 +20,12 @@ type Action =
   | { type: 'update-request'; id: string; patch: Partial<RequestItem> }
   | { type: 'mark-read'; id: string; unread?: boolean }
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
+  | { type: 'restore'; state: Pick<State, 'requests' | 'inbox'> }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case 'restore':
+      return { ...state, requests: action.state.requests, inbox: action.state.inbox }
     case 'toggle-select':
       return {
         ...state,
@@ -112,6 +117,32 @@ function buildDraft(input: DraftInput): RequestItem {
   return { ...base, title: `قائمة ${firstCategory} - ${place}`, notes: '' }
 }
 
+function isRequest(value: unknown): value is RequestItem {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Partial<RequestItem>
+  return typeof request.id === 'string' && typeof request.title === 'string' && Array.isArray(request.businessIds) && typeof request.status === 'string' && typeof request.type === 'string'
+}
+
+function isInboxMessage(value: unknown): value is InboxMessage {
+  if (!value || typeof value !== 'object') return false
+  const message = value as Partial<InboxMessage>
+  return typeof message.id === 'string' && typeof message.requestId === 'string' && typeof message.body === 'string'
+}
+
+function readWorkspace(): Pick<State, 'requests' | 'inbox'> | null {
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY)
+    if (!raw) return null
+    const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown }
+    if (!Array.isArray(value.requests) || !Array.isArray(value.inbox)) return null
+    const requests = value.requests.filter(isRequest)
+    const inbox = value.inbox.filter(isInboxMessage)
+    return requests.length === value.requests.length && inbox.length === value.inbox.length ? { requests, inbox } : null
+  } catch {
+    return null
+  }
+}
+
 interface StoreValue extends State {
   toggleSelect: (id: string) => void
   setSelection: (ids: string[]) => void
@@ -129,6 +160,22 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     inbox: SEED_INBOX,
     selection: [],
   })
+  const [workspaceReady, setWorkspaceReady] = useState(false)
+
+  useEffect(() => {
+    const saved = readWorkspace()
+    if (saved) dispatch({ type: 'restore', state: saved })
+    setWorkspaceReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!workspaceReady) return
+    try {
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox }))
+    } catch {
+      // The active workspace remains usable if this browser blocks session storage.
+    }
+  }, [workspaceReady, state.requests, state.inbox])
 
   const toggleSelect = useCallback((id: string) => dispatch({ type: 'toggle-select', id }), [])
   const setSelection = useCallback((ids: string[]) => dispatch({ type: 'set-selection', ids }), [])
