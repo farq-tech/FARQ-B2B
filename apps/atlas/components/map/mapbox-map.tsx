@@ -641,18 +641,9 @@ export function MapboxBusinessMap({
               setCard({ kind: 'business', id: pinId })
               return
             }
-            const marketStreet = hit(['market-street-hit', 'market-street-line'], e.point)
-            if (marketStreet) {
-              const properties = marketStreet.properties ?? {}
-              setCard({
-                kind: 'market-street',
-                label: typeof properties.street_ar === 'string' ? properties.street_ar : typeof properties.label_ar === 'string' ? properties.label_ar : 'شارع نشاط',
-                count: typeof properties.n === 'number' ? properties.n : 0,
-                wholesale: typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
-                district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
-              })
-              return
-            }
+            // Market streets remain visible as context at the cluster level.
+            // Resolve a cluster first so an overlapping street cannot steal the
+            // interaction intended to reveal that cluster.
             const marketCluster = hit(['market-cluster', 'market-cluster-leaf'], e.point)
             if (marketCluster) {
               const properties = marketCluster.properties ?? {}
@@ -664,6 +655,18 @@ export function MapboxBusinessMap({
                 wholesale: typeof properties.wholesaleCount === 'number' ? properties.wholesaleCount : typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
                 district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
                 center,
+              })
+              return
+            }
+            const marketStreet = hit(['market-street-hit', 'market-street-line'], e.point)
+            if (marketStreet) {
+              const properties = marketStreet.properties ?? {}
+              setCard({
+                kind: 'market-street',
+                label: typeof properties.street_ar === 'string' ? properties.street_ar : typeof properties.label_ar === 'string' ? properties.label_ar : 'شارع نشاط',
+                count: typeof properties.n === 'number' ? properties.n : 0,
+                wholesale: typeof properties.n_wholesale === 'number' ? properties.n_wholesale : 0,
+                district: typeof properties.district_ar === 'string' ? properties.district_ar : undefined,
               })
               return
             }
