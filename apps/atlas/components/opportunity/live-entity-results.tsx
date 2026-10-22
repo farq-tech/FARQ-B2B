@@ -14,12 +14,12 @@ export type LiveEntity = LiveBusinessSnapshot & {
   status: string | null
 }
 
-type Result = { total: number; withWhatsapp: number; hasMore?: boolean; nextOffset?: number | null; rows: LiveEntity[] }
+type Result = { total: number; withWhatsapp: number; hasMore?: boolean; nextOffset?: number | null; mapQuery?: string | null; rows: LiveEntity[] }
 
 export type DirectoryLoadState = 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'
 type State = { kind: DirectoryLoadState; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, objective, district, onResults, onStateChange, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; onStateChange?: (state: DirectoryLoadState) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
+export function LiveEntityResults({ query, cityId, objective, district, onResults, onMapQuery, onStateChange, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; onMapQuery?: (mapQuery: string | null) => void; onStateChange?: (state: DirectoryLoadState) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
   const [visibleCount, setVisibleCount] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -50,6 +50,7 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
   }, [query, cityId, objective, district])
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
+  useEffect(() => { onMapQuery?.(state.data?.mapQuery ?? null) }, [onMapQuery, state.data])
   useEffect(() => { onStateChange?.(state.kind) }, [onStateChange, state.kind])
 
   async function loadMore() {

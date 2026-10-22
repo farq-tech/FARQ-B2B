@@ -2,7 +2,7 @@
 
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { Feature, FeatureCollection, Geometry, Point as GeoPoint, Position } from 'geojson'
-import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
+import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapboxMap, VectorTileSource } from 'mapbox-gl'
 import { Loader2, MapPinOff, Minus, Plus, Scan, SearchX } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,7 @@ const MARKET_CLUSTER_LAYERS = ['market-cluster-halo', 'market-cluster', 'market-
 const CLUSTER_LAYERS = [...BUSINESS_CLUSTER_LAYERS, ...MARKET_CLUSTER_LAYERS]
 const MARKET_STREET_LAYERS = ['market-street-hit', 'market-street-line', 'market-street-label']
 const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
+const DIRECTORY_TILE_LAYERS = ['directory-tile-cluster', 'directory-tile-cluster-count', 'directory-tile-pin', 'directory-tile-name']
 
 const expr = (x: unknown) => x as ExpressionSpecification
 const filter = (x: unknown) => x as FilterSpecification
@@ -59,6 +60,7 @@ type Card =
   | { kind: 'market-cluster'; label: string; count: number; wholesale: number; district?: string; center: [number, number] }
   | { kind: 'market-street'; label: string; count: number; wholesale: number; district?: string }
   | { kind: 'live-entity'; id: string }
+  | { kind: 'tile-entity'; id: string; name: string; nonce: number }
   | null
 
 export interface MapboxMapProps extends MockMapProps {
@@ -82,6 +84,9 @@ export interface MapboxMapProps extends MockMapProps {
   /** Authenticated directory matches. These are only rendered at entity zoom. */
   liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
   liveEntityState?: DirectoryLoadState
+  /** Opaque short-lived cohort returned by the authenticated directory endpoint. */
+  liveMapQuery?: string | null
+  onLiveEntityResolved?: (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => void
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -515,6 +520,37 @@ function addLayers(map: MapboxMap) {
 }
 
 /** Quiets the basemap so business data, not POIs, carries the visual weight. */
+function addDirectoryTileLayers(map: MapboxMap) {
+  const source = 'directory-tiles'
+  const vectorLayer = 'businesses'
+  map.addLayer({
+    id: 'directory-tile-cluster', type: 'circle', source, 'source-layer': vectorLayer, minzoom: 10, maxzoom: ENTITY_MIN_ZOOM + 0.5,
+    filter: filter(['>', ['coalesce', ['get', 'count'], 0], 1]),
+    paint: { 'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'count'], 1], 2, 15, 50, 23, 500, 31]), 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+  })
+  map.addLayer({
+    id: 'directory-tile-cluster-count', type: 'symbol', source, 'source-layer': vectorLayer, minzoom: 10, maxzoom: ENTITY_MIN_ZOOM + 0.5,
+    filter: filter(['>', ['coalesce', ['get', 'count'], 0], 1]),
+    layout: { 'text-field': ['to-string', ['get', 'count']], 'text-font': FONT_BOLD, 'text-size': 12 }, paint: { 'text-color': COLORS.primary },
+  })
+  map.addLayer({
+    id: 'directory-tile-pin', type: 'circle', source, 'source-layer': vectorLayer, minzoom: ENTITY_MIN_ZOOM,
+    filter: filter(['==', ['coalesce', ['get', 'count'], 0], 1]),
+    paint: { 'circle-radius': 5, 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+  })
+  map.addLayer({
+    id: 'directory-tile-name', type: 'symbol', source, 'source-layer': vectorLayer, minzoom: ENTITY_MIN_ZOOM + 0.65,
+    filter: filter(['==', ['coalesce', ['get', 'count'], 0], 1]),
+    layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-max-width': 12 },
+    paint: { 'text-color': COLORS.foreground, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
+  })
+}
+
+function removeDirectoryTileSource(map: MapboxMap) {
+  for (const id of DIRECTORY_TILE_LAYERS) if (map.getLayer(id)) map.removeLayer(id)
+  if (map.getSource('directory-tiles')) map.removeSource('directory-tiles')
+}
+
 function calmBasemap(map: MapboxMap) {
   for (const layer of map.getStyle()?.layers ?? []) {
     if (/poi|transit|airport|ferry|aerialway/.test(layer.id)) map.setLayoutProperty(layer.id, 'visibility', 'none')
@@ -562,6 +598,8 @@ export function MapboxBusinessMap({
   liveClusters = [],
   liveEntityPins = [],
   liveEntityState = 'idle',
+  liveMapQuery = null,
+  onLiveEntityResolved,
   focusDistrictRequest,
   focusStreetRequest,
   onDetailLevelChange,
@@ -585,6 +623,9 @@ export function MapboxBusinessMap({
   const [dismissedArea, setDismissedArea] = useState<object | null>(null)
   const [drawRect, setDrawRect] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const [wide, setWide] = useState(true)
+  const [tileProfiles, setTileProfiles] = useState<Record<string, import('@/components/opportunity/live-entity-results').LiveEntity>>({})
+  const [tileProfileError, setTileProfileError] = useState<string | null>(null)
+  const tileActionRef = useRef<number | null>(null)
 
   const level = levelFor(zoom, progressive, layers)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
@@ -693,6 +734,18 @@ export function MapboxBusinessMap({
               return
             }
             setLayersOpen(false)
+            const tileCluster = hit(['directory-tile-cluster-count', 'directory-tile-cluster'], e.point, 20)
+            if (tileCluster) {
+              const center = (tileCluster.geometry as GeoPoint).coordinates as [number, number]
+              m.easeTo({ center, zoom: Math.min(ENTITY_MIN_ZOOM + 0.8, m.getZoom() + 1.4), duration: 500 })
+              return
+            }
+            const tilePin = hit(['directory-tile-pin'], e.point, 12)
+            const tileId = tilePin?.properties?.key
+            if (typeof tileId === 'string' && tileId) {
+              setCard({ kind: 'tile-entity', id: tileId, name: typeof tilePin?.properties?.name === 'string' ? tilePin.properties.name : 'منشأة', nonce: Date.now() })
+              return
+            }
             const liveCluster = hit(['live-entity-cluster-count', 'live-entity-cluster'], e.point, 20)
             const liveClusterId = liveCluster?.properties?.cluster_id
             if (liveCluster && typeof liveClusterId === 'number') {
@@ -846,6 +899,47 @@ export function MapboxBusinessMap({
       setReady(false)
     }
   }, [token])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m) return
+    if (!liveMapQuery) {
+      removeDirectoryTileSource(m)
+      return
+    }
+    const tiles = [`/api/market/tiles/${liveMapQuery}/{z}/{x}/{y}.pbf`]
+    const source = m.getSource('directory-tiles') as VectorTileSource | undefined
+    if (source) source.setTiles(tiles)
+    else {
+      m.addSource('directory-tiles', { type: 'vector', tiles, minzoom: 0, maxzoom: 20 })
+      addDirectoryTileLayers(m)
+    }
+  }, [ready, liveMapQuery])
+
+  useEffect(() => {
+    if (card?.kind !== 'tile-entity' || !liveMapQuery || tileActionRef.current === card.nonce) return
+    tileActionRef.current = card.nonce
+    const cached = tileProfiles[card.id]
+    const controller = new AbortController()
+    setTileProfileError(null)
+    const resolve = (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => {
+      setTileProfiles((current) => ({ ...current, [entity.id]: entity }))
+      onLiveEntityResolved?.(entity)
+      onTogglePin(entity.id)
+    }
+    if (cached) { resolve(cached); return () => controller.abort() }
+    fetch('/api/market/map-profile', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
+      body: JSON.stringify({ query: liveMapQuery, poiKey: card.id }),
+    }).then(async (response) => {
+      const payload = await response.json().catch(() => null) as { entity?: import('@/components/opportunity/live-entity-results').LiveEntity; error?: string } | null
+      if (!response.ok || !payload?.entity) throw new Error(payload?.error || 'تعذر تحميل بيانات المنشأة.')
+      resolve(payload.entity)
+    }).catch((error) => {
+      if (!controller.signal.aborted) setTileProfileError(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنشأة.')
+    })
+    return () => controller.abort()
+  }, [card, liveMapQuery, onLiveEntityResolved, onTogglePin, tileProfiles])
 
   useEffect(() => {
     const m = mapRef.current
@@ -1032,7 +1126,8 @@ export function MapboxBusinessMap({
       m.setLayerZoomRange(id, pinMin, 24)
     }
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
-  }, [ready, layers, progressive, level])
+    for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin']) m.setLayoutProperty(id, 'visibility', vis(!liveMapQuery))
+  }, [ready, layers, progressive, level, liveMapQuery])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
   const activeDistrict = card?.kind === 'district' ? card.id : ''
@@ -1258,6 +1353,11 @@ export function MapboxBusinessMap({
           onSelectAll={() => onSelectMany?.(items.map((b) => b.id))}
         />
       )
+    }
+    if (card?.kind === 'tile-entity') {
+      const entity = tileProfiles[card.id]
+      if (entity) return <LiveEntityCard entity={entity} selected={selectedSet.has(entity.id)} onClose={() => setCard(null)} onToggle={() => onTogglePin(entity.id)} />
+      return <div className="absolute right-3 bottom-3 z-20 w-[min(22rem,calc(100%-1.5rem))] rounded-xl border bg-card p-4 shadow-lg"><p className="text-sm font-semibold">{card.name}</p><p className="mt-1 text-xs text-muted-foreground">{tileProfileError || 'جارٍ تحميل البيانات الأساسية للمنشأة…'}</p></div>
     }
     if (card?.kind === 'live-entity') {
       const entity = liveEntityPins.find((item) => item.id === card.id)

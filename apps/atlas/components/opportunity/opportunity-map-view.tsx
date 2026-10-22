@@ -102,6 +102,7 @@ export function OpportunityMapView() {
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
   const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
+  const [liveMapQuery, setLiveMapQuery] = useState<string | null>(null)
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>('idle')
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -544,7 +545,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} onResults={handleLiveResults} onStateChange={setDirectoryState} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} onResults={handleLiveResults} onMapQuery={setLiveMapQuery} onStateChange={setDirectoryState} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
@@ -567,6 +568,8 @@ export function OpportunityMapView() {
             liveStreets={market.data?.streets}
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
+            liveMapQuery={liveMapQuery}
+            onLiveEntityResolved={(entity) => setLiveEntitySnapshots((current) => ({ ...current, [entity.id]: entity }))}
             liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
