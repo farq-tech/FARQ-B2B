@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button'
 import { type MapArea } from '@/lib/geo'
 import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
-import { EMPTY_FILTERS, mergeParsedIntoFilters, normalizeArabic, parseQuery, type ParsedQuery } from '@/lib/search'
+import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
+import { resolveLiveActivityScope } from '@/lib/activity-scope'
+import { districtDisplayName, districtNameById, findDistrictByName, stableDistrictId } from '@/lib/live-district'
 import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
@@ -18,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
 import { LiveActivityFilter } from './live-activity-filter'
-import { LiveEntityResults, type DirectoryObjective, type LiveEntity } from './live-entity-results'
+import { LiveEntityResults, type DirectoryObjective, type LiveEntity, type DirectoryLoadState } from './live-entity-results'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -77,40 +79,6 @@ function rankDistricts(districts: DistrictCount[], goal: GoalId | null, visibleD
  * visible in the UI; this only determines which aggregate market geometry is
  * loaded for the map.
  */
-const LIVE_ACTIVITY_KEYWORDS: Record<string, string[]> = {
-  'مقاولات وخدمات انشائيه': ['مقاول', 'مقاولات', 'انشائي', 'انشائيه', 'تشطيب'],
-}
-
-function resolveLiveActivityScope(parsed: ParsedQuery, catalog: LiveActivityMain[], query = '') {
-  if (!catalog.length) return null
-  const queryKey = normalizeArabic(query)
-  const candidates = catalog.filter((activity) => {
-    const activityKey = normalizeArabic(activity.main_ar)
-    const categoryMatch = parsed.categories.some((category) => {
-      const categoryKey = normalizeArabic(category)
-      return activityKey.includes(categoryKey) || categoryKey.includes(activityKey)
-    })
-    const keywordMatch = (LIVE_ACTIVITY_KEYWORDS[activityKey] ?? []).some((keyword) => queryKey.includes(normalizeArabic(keyword)))
-    return categoryMatch || keywordMatch
-  })
-  if (candidates.length !== 1) return null
-
-  const activity = candidates[0]
-  const matchedSubs = activity.subs.filter((sub) => parsed.specialties.some((specialty) => {
-    const specialtyKey = normalizeArabic(specialty)
-    const subKey = normalizeArabic(sub.sub_ar)
-    return subKey.includes(specialtyKey) || specialtyKey.includes(subKey)
-  }))
-  if (!matchedSubs.length) return activity
-
-  return {
-    ...activity,
-    subs: matchedSubs,
-    streets: matchedSubs.reduce((total, sub) => total + sub.streets, 0),
-    shops: matchedSubs.reduce((total, sub) => total + sub.shops, 0),
-  }
-}
-
 export function OpportunityMapView() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -134,9 +102,11 @@ export function OpportunityMapView() {
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
   const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
+  const [directoryState, setDirectoryState] = useState<DirectoryLoadState>('idle')
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handledEntryGoal = useRef(false)
+  const handledEntryDistrict = useRef(false)
 
   // LiveEntityResults publishes once per response. Keeping this callback stable
   // prevents its effect from re-publishing the same rows after every map render.
@@ -155,14 +125,10 @@ export function OpportunityMapView() {
   // Atlas stores selected districts as stable local ids while the live market
   // service accepts canonical Arabic names. Convert at the boundary so the
   // map, summary, and street-density requests all share the same scope.
-  const liveDistrictNameById = useMemo(() => new Map(
-    (market.data?.districts.features ?? []).flatMap((feature) => {
-      const properties = feature.properties ?? {}
-      const id = properties.id
-      const name = properties.ar ?? properties.name_ar ?? properties.district_ar ?? properties.name
-      return typeof id === 'string' && typeof name === 'string' ? [[id, name.trim()] as const] : []
-    }),
-  ), [market.data?.districts])
+  const liveDistrictNameById = useMemo(
+    () => districtNameById(market.data?.districts.features ?? []),
+    [market.data?.districts],
+  )
   const selectedAreaDistrict = useMemo(() => {
     if (area?.kind !== 'district') return null
     const name = liveDistrictNameById.get(area.districtId) ?? districtById.get(area.districtId)?.name ?? area.label.replace(/^حي\s+/, '').trim()
@@ -175,6 +141,17 @@ export function OpportunityMapView() {
     ])),
     [filters.districts, selectedAreaDistrict],
   )
+
+  // Assistant parsing can finish before polygon geometry arrives. Reconcile
+  // the saved district name to the provider id once it is available so the
+  // same applied filter is also visible as a selected map boundary.
+  useEffect(() => {
+    if (area || filters.districts.length !== 1) return
+    const name = districtById.get(filters.districts[0])?.name
+    const feature = name ? findDistrictByName(market.data?.districts.features ?? [], name) : null
+    const id = feature ? stableDistrictId(feature) : null
+    if (id && name) setArea({ kind: 'district', districtId: id, label: `حي ${name}` })
+  }, [area, filters.districts, market.data?.districts])
 
   useEffect(() => {
     if (!goal) return
@@ -209,7 +186,8 @@ export function OpportunityMapView() {
   // potentially misleading free-text aggregate.
   useEffect(() => {
     if (activeActivity || !query || !activityCatalog.length) return
-    const inferred = resolveLiveActivityScope(parseQuery(query, cityId), activityCatalog, query)
+    const parsed = parseQuery(query, cityId)
+    const inferred = resolveLiveActivityScope(parsed.categories, parsed.specialties, activityCatalog, query)
     if (!inferred) return
     setActiveActivity(inferred)
     setActivityScopeWasInferred(true)
@@ -261,12 +239,17 @@ export function OpportunityMapView() {
   }
 
   const applyQuery = (text: string, parsed: ParsedQuery, nextGoal?: GoalId) => {
-    const inferredActivity = resolveLiveActivityScope(parsed, activityCatalog, text)
+    const inferredActivity = resolveLiveActivityScope(parsed.categories, parsed.specialties, activityCatalog, text)
     setActiveActivity(inferredActivity)
     setActivityScopeWasInferred(Boolean(inferredActivity))
     if (inferredActivity) trackLiveActivityScopeApplied({ city: cityId, shops: inferredActivity.shops })
     setQuery(text)
-    setArea(null)
+    const requestedDistrict = parsed.districts
+      .map((id) => districtById.get(id)?.name)
+      .find((name): name is string => Boolean(name))
+    const liveDistrict = requestedDistrict ? findDistrictByName(market.data?.districts.features ?? [], requestedDistrict) : null
+    const liveDistrictId = liveDistrict ? stableDistrictId(liveDistrict) : null
+    setArea(liveDistrictId && requestedDistrict ? { kind: 'district', districtId: liveDistrictId, label: `حي ${requestedDistrict}` } : null)
     // A new intent defines a new candidate cohort. Retaining entities from a
     // prior search can silently carry unrelated businesses into a campaign.
     setSelection([])
@@ -328,6 +311,27 @@ export function OpportunityMapView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
+  // The login gate returns users to the same district. Aggregates remain
+  // public, while this restores the polygon before the authenticated directory
+  // loads the matching pins and basic entity details.
+  useEffect(() => {
+    if (handledEntryDistrict.current) return
+    const name = searchParams.get('district')?.trim()
+    if (!name) return
+    if (!goal) {
+      setGoal('explore')
+      simulateLoad()
+      return
+    }
+    const feature = findDistrictByName(market.data?.districts.features ?? [], name)
+    const id = feature ? stableDistrictId(feature) : null
+    if (!id || !feature) return
+    handledEntryDistrict.current = true
+    const label = districtDisplayName(feature) ?? name
+    setArea({ kind: 'district', districtId: id, label: `حي ${label}` })
+    setFocusDistrict({ name: label, nonce: Date.now() })
+  }, [goal, market.data?.districts, searchParams])
+
   const changeCity = (id: string) => {
     // The selector can include planned cities. Do not replace a working market
     // view with an unavailable scope until its data coverage is ready.
@@ -369,12 +373,9 @@ export function OpportunityMapView() {
   }
 
   const focusDistrictOnMap = (name: string) => {
-    const feature = (market.data?.districts.features ?? []).find((item) => {
-      const properties = item.properties ?? {}
-      return (properties.ar ?? properties.name_ar ?? properties.district_ar ?? properties.name)?.trim() === name.trim()
-    })
-    const id = feature?.properties?.id
-    if (typeof id === 'string') setArea({ kind: 'district', districtId: id, label: `حي ${name}` })
+    const feature = findDistrictByName(market.data?.districts.features ?? [], name)
+    const id = feature ? stableDistrictId(feature) : null
+    if (id && feature) setArea({ kind: 'district', districtId: id, label: `حي ${districtDisplayName(feature) ?? name}` })
     setFocusDistrict({ name, nonce: Date.now() })
     setMobileView('map')
   }
@@ -544,7 +545,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} onResults={handleLiveResults} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} onResults={handleLiveResults} onStateChange={setDirectoryState} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
@@ -567,6 +568,7 @@ export function OpportunityMapView() {
             liveStreets={market.data?.streets}
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
+            liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
             onResetFilters={resetSearch}

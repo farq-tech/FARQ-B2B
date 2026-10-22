@@ -20,3 +20,7 @@
 !data/districts.geojson
 !data/taxonomy/
 !data/taxonomy/**
+!read_only_test.py
+!Dockerfile.readonly
+!test_fixture/
+!test_fixture/**

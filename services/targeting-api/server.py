@@ -13,6 +13,7 @@ from trial_search import Directory
 from directory_tiles import DirectoryTiles, has_usable_whatsapp, is_precise_point, valid_filters
 from market_analytics import MarketAnalytics
 import status_policy
+import read_only_test
 import contextvars
 _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
 import urllib.parse
@@ -364,6 +365,8 @@ def log_decision(kind, rfq_id, poi_key, decision, reason):
 
 def provider_send(payload):
     """The only function that hands a message to WhatsApp. Refuses inside a dry run, whatever the caller does."""
+    if not read_only_test.provider_calls_allowed():
+        raise RuntimeError('READ_ONLY_TEST_ENV')
     if _DRY.get(): raise RuntimeError('DRY_RUN_PROVIDER_CALL')
     return graph(f"{WA_PHONE_ID}/messages", payload)
 
@@ -477,6 +480,8 @@ def _send_farq(body):
 WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
 WA_GRAPH = 'https://graph.facebook.com/v23.0'
 def graph(path, body=None, method=None):
+    if not read_only_test.provider_calls_allowed():
+        return {'error': {'message': 'READ_ONLY_TEST_ENV'}}
     req = urllib.request.Request(f"{WA_GRAPH}/{path}", data=json.dumps(body).encode() if body is not None else None,
                                  headers={'Authorization': f'Bearer {WA_TOKEN}', 'content-type': 'application/json'}, method=method or ('POST' if body is not None else 'GET'))
     try:
@@ -696,6 +701,13 @@ class H(BaseHTTPRequestHandler):
             with AUTH_LOCK: SESSIONS.pop(sid, None)
             self.send_response(303); self.send_header('Location', '/'); self.send_header('Set-Cookie', "ft_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"); self.end_headers(); return
         if not self._authed(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+        if read_only_test.blocks_request(self.path):
+            self._json({
+                'ok': False,
+                'error': 'READ_ONLY_TEST_ENV',
+                'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
+            }, 403)
+            return
         body = json.loads(raw or b'{}')
         if self.path in ('/map-query','/map-profile','/map-focus'):
             try:

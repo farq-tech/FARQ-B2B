@@ -390,7 +390,10 @@ class Taxonomy:
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
                 extra = {'phone_source': o_src, 'phone_source_name': o_src_name, 'phone_lookup': 'found'}
-            identity = (norm(name), norm(district))
+            # `poi_key` is the directory's durable identity. Name + district
+            # merged distinct branches that happened to share a brand/name and
+            # made the directory disagree with map aggregates.
+            identity = key
             if identity in seen or re.fullmatch(r'ChIJ[\w-]{10,}', name or ''): continue   # Google place ids are not names
             seen.add(identity)
             sub_ar = self.subs[sub]['sub_ar']

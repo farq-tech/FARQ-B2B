@@ -19,14 +19,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [q, city, objective]
+              required: [city]
               properties:
-                q: { type: string, minLength: 1, maxLength: 200 }
+                q: { type: string, minLength: 1, maxLength: 200, description: Required unless `district` is supplied. }
                 city: { type: string, enum: [riyadh, jeddah, dammam] }
-                objective: { type: string, enum: [purchase, marketing] }
-                limit: { type: integer, minimum: 1, maximum: 50, default: 30 }
+                objective: { type: string, enum: [purchase, marketing], description: Required when `q` is supplied. }
+                district: { type: string, maxLength: 100, description: Canonical Arabic district name; scopes the directory and map pins. }
+                limit: { type: integer, minimum: 1, maximum: 200, default: 100 }
+                offset: { type: integer, minimum: 0, maximum: 10000, default: 0 }
       responses:
-        '200': { description: Business rows whose activity matches the requested commercial direction }
+        '200': { description: Paginated business rows whose activity matches the requested commercial direction. `total`, `hasMore`, and `nextOffset` describe the same filtered cohort. }
         '400': { description: Missing query, city, or recognised objective }
         '401': { description: Atlas session is missing or expired }
         '403': { description: User has no directory permission }

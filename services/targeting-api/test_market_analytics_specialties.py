@@ -188,6 +188,25 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(result["total"], 0)
         self.assertEqual(result["districts"], [])
 
+    def test_aggregate_counts_use_stable_poi_identity(self):
+        # An upstream extract can contain a repeated snapshot row. It must not
+        # make the map headline or district label exceed the directory count.
+        duplicate = self.root / "targets-duplicate.parquet"
+        db = duckdb.connect()
+        db.execute("create table source as select * from read_parquet(?)", [str(self.targets)])
+        db.execute("insert into source select * from source where poi_key = 'p1'")
+        db.execute("copy source to ? (format parquet)", [str(duplicate)])
+        db.close()
+        market_analytics.DATA = str(duplicate)
+        self.analytics._specialty_column = None
+
+        counts = self.analytics.district_counts({"city": "Riyadh"})
+        summary = self.analytics.market_summary({"city": "Riyadh"})["summary"]
+
+        self.assertEqual(counts["total"], 4)
+        self.assertEqual(next(row for row in counts["districts"] if row["district_ar"] == "حي النخيل")["n"], 2)
+        self.assertEqual(summary["total"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()
