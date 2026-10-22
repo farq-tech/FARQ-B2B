@@ -20,8 +20,9 @@ import urllib.parse
 FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(HERE, 'data', 'targets.parquet')
-LOG = os.path.join(HERE, 'data', 'send_log.csv')
+DATA_DIR = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(HERE, 'data'))
+DATA = os.path.join(DATA_DIR, 'targets.parquet')
+LOG = os.path.join(DATA_DIR, 'send_log.csv')
 PORT = int(os.environ.get('PORT', '8765'))
 API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 DB_URL = os.environ.get('CONSTRUCTION_DB_URL')
@@ -643,7 +644,7 @@ class H(BaseHTTPRequestHandler):
             global _DISTRICTS
             try: _DISTRICTS
             except NameError:
-                p=os.path.join(HERE,'data','districts.geojson'); _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
+                p=os.path.join(DATA_DIR,'districts.geojson'); _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
             self._json({'type':'FeatureCollection','features':[f for f in _DISTRICTS['features'] if f['properties'].get('city_en')==city]}); return
         if route.path.startswith("/tiles/") or route.path=="/facets":
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
