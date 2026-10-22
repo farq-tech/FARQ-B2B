@@ -69,8 +69,8 @@ def main(dest: str):
         ("Riyadh", "build", "البناء والتشييد", "build.contracting", "مقاولات", "شارع الاختبار", "السلي", 8, 0, 760, 1.1, 2.1, json.dumps({"type": "LineString", "coordinates": [[46.684, 24.709], [46.696, 24.721]]})),
     ]
     copy_parquet(db, out / "street_density.parquet", "density", ["city_en", "main_id", "main_ar", "sub_id", "sub_ar", "street_ar", "district_ar", "n", "n_wholesale", "length_m", "per_100m", "lift", "geojson"], density_rows, {"n":"integer", "n_wholesale":"integer", "length_m":"double", "per_100m":"double", "lift":"double"})
-    clusters = [("street", "شارع الاختبار", "build.contracting", "مقاولات", "العليا", "شارع الاختبار", 8, 0, 0.0, 2.4, 24.705, 46.680)]
-    copy_parquet(db, out / "trade_clusters.parquet", "clusters", ["level", "label_ar", "sub_id", "sub_ar", "district_ar", "street_ar", "n", "n_wholesale", "wholesale_pct", "lift", "lat", "lon"], clusters, {"n":"integer", "n_wholesale":"integer", "wholesale_pct":"double", "lift":"double", "lat":"double", "lon":"double"})
+    clusters = [("Riyadh", "street", "شارع الاختبار", "build.contracting", "مقاولات", "العليا", "شارع الاختبار", 8, 0, 0.0, 2.4, 24.705, 46.680)]
+    copy_parquet(db, out / "trade_clusters.parquet", "clusters", ["city_en", "level", "label_ar", "sub_id", "sub_ar", "district_ar", "street_ar", "n", "n_wholesale", "wholesale_pct", "lift", "lat", "lon"], clusters, {"n":"integer", "n_wholesale":"integer", "wholesale_pct":"double", "lift":"double", "lat":"double", "lon":"double"})
     polygons = []
     for ident, name, coords in [
         ("test-olaya", "العليا", [[46.670,24.695],[46.690,24.695],[46.690,24.715],[46.670,24.715],[46.670,24.695]]),
