@@ -22,41 +22,28 @@ type State = { kind: DirectoryLoadState; data: Result | null; message?: string }
 export function LiveEntityResults({ query, cityId, objective, district, onResults, onStateChange, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; onStateChange?: (state: DirectoryLoadState) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
   const [visibleCount, setVisibleCount] = useState(100)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     const q = query.trim()
     if (!q && !district) { setState({ kind: 'idle', data: null }); return }
     const controller = new AbortController()
-    const exhaustiveDistrict = Boolean(district)
     setVisibleCount(100)
+    setLoadingMore(false)
     setState({ kind: 'loading', data: null })
 
     const load = async () => {
-      const rows: LiveEntity[] = []
-      const seen = new Set<string>()
-      let offset = 0
-      let total = 0
-      let hasMore = true
-      while (hasMore && offset < 10_000 && !controller.signal.aborted) {
-        const response = await fetch('/api/market/entities', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ q, city: cityId, objective, limit: 200, offset, ...(district ? { district } : {}) }),
-          signal: controller.signal,
-        })
-        const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
-        if (response.status === 401) { setState({ kind: 'auth', data: null, message: payload?.error }); return }
-        if (response.status === 403) { setState({ kind: 'blocked', data: null, message: payload?.error }); return }
-        if (!response.ok || !payload) { setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' }); return }
-        total = payload.total
-        for (const entity of payload.rows) if (!seen.has(entity.id)) { seen.add(entity.id); rows.push(entity) }
-        const withWhatsapp = rows.filter((entity) => entity.whatsapp).length
-        setState({ kind: payload.hasMore && exhaustiveDistrict ? 'loading' : 'ready', data: { ...payload, total, withWhatsapp, rows } })
-        const nextOffset = payload.nextOffset
-        hasMore = exhaustiveDistrict && payload.hasMore === true && typeof nextOffset === 'number' && nextOffset > offset
-        offset = nextOffset ?? rows.length
-      }
-      if (!controller.signal.aborted) setState((current) => current.data ? { kind: 'ready', data: current.data } : current)
+      const response = await fetch('/api/market/entities', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ q, city: cityId, objective, limit: 200, offset: 0, ...(district ? { district } : {}) }),
+        signal: controller.signal,
+      })
+      const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
+      if (response.status === 401) { setState({ kind: 'auth', data: null, message: payload?.error }); return }
+      if (response.status === 403) { setState({ kind: 'blocked', data: null, message: payload?.error }); return }
+      if (!response.ok || !payload) { setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' }); return }
+      setState({ kind: 'ready', data: { ...payload, withWhatsapp: payload.rows.filter((entity) => entity.whatsapp).length } })
     }
     load().catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
     return () => controller.abort()
@@ -64,6 +51,30 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
   useEffect(() => { onStateChange?.(state.kind) }, [onStateChange, state.kind])
+
+  async function loadMore() {
+    const data = state.data
+    const offset = data?.nextOffset
+    if (!data?.hasMore || typeof offset !== 'number' || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const response = await fetch('/api/market/entities', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ q: query.trim(), city: cityId, objective, limit: 200, offset, ...(district ? { district } : {}) }),
+      })
+      const payload = await response.json().catch(() => null) as (Result & { error?: string }) | null
+      if (!response.ok || !payload) throw new Error(payload?.error || 'تعذر تحميل الدفعة التالية.')
+      setState((current) => {
+        if (!current.data) return current
+        const seen = new Set(current.data.rows.map((entity) => entity.id))
+        const rows = [...current.data.rows, ...payload.rows.filter((entity) => !seen.has(entity.id))]
+        return { kind: 'ready', data: { ...payload, total: payload.total, withWhatsapp: rows.filter((entity) => entity.whatsapp).length, rows } }
+      })
+    } catch (error) {
+      setState((current) => current.data ? { ...current, message: error instanceof Error ? error.message : 'تعذر تحميل الدفعة التالية.' } : current)
+    } finally { setLoadingMore(false) }
+  }
 
   if (state.kind === 'idle') return <EmptySearch />
   if (state.kind === 'loading' && !state.data) return <Loading />
@@ -78,10 +89,11 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
         <div><h2 className="text-sm font-semibold">{district && !query.trim() ? 'جهات الحي' : 'الجهات المطابقة'}</h2><p className="mt-1 text-xs text-muted-foreground">{district ? `نتائج حية داخل ${district}؛ لا نعرض أرقام الاتصال في هذه المرحلة.` : 'نتائج حية للاطلاع؛ لا نعرض أرقام الاتصال في هذه المرحلة.'}</p></div>
         <span className="rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground tabular-nums">{data.total.toLocaleString('en-US')}</span>
       </div>
-      {state.kind === 'loading' ? <p className="mt-2 text-xs text-muted-foreground">جارٍ تحميل النقاط داخل الحي: {data.rows.length.toLocaleString('en-US')} من {data.total.toLocaleString('en-US')}.</p> : null}
+      {state.message ? <p className="mt-2 text-xs text-destructive">{state.message}</p> : null}
       {data.rows.length ? <>
         <ul className="mt-3 flex flex-col divide-y">{data.rows.slice(0, visibleCount).map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul>
         {visibleCount < data.rows.length ? <button type="button" className="mt-3 w-full rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-accent" onClick={() => setVisibleCount((count) => Math.min(data.rows.length, count + 100))}>عرض 100 جهة إضافية</button> : null}
+        {data.hasMore ? <button type="button" className="mt-2 w-full rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-accent disabled:opacity-60" onClick={loadMore} disabled={loadingMore}>{loadingMore ? 'جارٍ تحميل جهات إضافية…' : 'تحميل 200 جهة إضافية'}</button> : null}
       </> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
     </section>
   )
