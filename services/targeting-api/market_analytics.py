@@ -10,9 +10,10 @@ import threading
 import taxonomy_search
 
 
-DATA = os.path.join(os.path.dirname(__file__), "data", "targets.parquet")
-POI_TAXONOMY = os.path.join(os.path.dirname(__file__), "data", "poi_taxonomy.parquet")
-STREET_DENSITY = os.path.join(os.path.dirname(__file__), "data", "street_density.parquet")
+DATA_DIR = os.environ.get("FARQ_TARGETING_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
+DATA = os.path.join(DATA_DIR, "targets.parquet")
+POI_TAXONOMY = os.path.join(DATA_DIR, "poi_taxonomy.parquet")
+STREET_DENSITY = os.path.join(DATA_DIR, "street_density.parquet")
 
 MAX_SUB_IDS = 50
 MAX_DISTRICTS = 30

@@ -527,8 +527,9 @@ def get(tax_dir=None, poi_taxonomy=None):
     global _instance
     with _lock:
         if _instance is None:
-            tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', os.path.join(os.path.dirname(__file__), 'data', 'taxonomy'))
-            poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', os.path.join(os.path.dirname(__file__), 'data', 'poi_taxonomy.parquet'))
+            data_dir = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(os.path.dirname(__file__), 'data'))
+            tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', os.path.join(data_dir, 'taxonomy'))
+            poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', os.path.join(data_dir, 'poi_taxonomy.parquet'))
             if not (os.path.isdir(tax_dir) and os.path.isfile(poi_taxonomy)): return None
             _instance = Taxonomy(tax_dir, poi_taxonomy, os.environ.get('CONTACTS_OVERLAY', os.path.join(os.path.dirname(__file__), 'data', 'contacts_overlay.parquet')))
         return _instance
