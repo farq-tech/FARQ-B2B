@@ -16,9 +16,10 @@ export type LiveEntity = LiveBusinessSnapshot & {
 
 type Result = { total: number; withWhatsapp: number; hasMore?: boolean; nextOffset?: number | null; rows: LiveEntity[] }
 
-type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
+export type DirectoryLoadState = 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'
+type State = { kind: DirectoryLoadState; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, objective, district, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
+export function LiveEntityResults({ query, cityId, objective, district, onResults, onStateChange, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; onStateChange?: (state: DirectoryLoadState) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
   const [visibleCount, setVisibleCount] = useState(100)
 
@@ -35,7 +36,6 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
       const seen = new Set<string>()
       let offset = 0
       let total = 0
-      let withWhatsapp = 0
       let hasMore = true
       while (hasMore && offset < 10_000 && !controller.signal.aborted) {
         const response = await fetch('/api/market/entities', {
@@ -49,8 +49,8 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
         if (response.status === 403) { setState({ kind: 'blocked', data: null, message: payload?.error }); return }
         if (!response.ok || !payload) { setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' }); return }
         total = payload.total
-        withWhatsapp += payload.withWhatsapp
         for (const entity of payload.rows) if (!seen.has(entity.id)) { seen.add(entity.id); rows.push(entity) }
+        const withWhatsapp = rows.filter((entity) => entity.whatsapp).length
         setState({ kind: payload.hasMore && exhaustiveDistrict ? 'loading' : 'ready', data: { ...payload, total, withWhatsapp, rows } })
         const nextOffset = payload.nextOffset
         hasMore = exhaustiveDistrict && payload.hasMore === true && typeof nextOffset === 'number' && nextOffset > offset
@@ -63,10 +63,11 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
   }, [query, cityId, objective, district])
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
+  useEffect(() => { onStateChange?.(state.kind) }, [onStateChange, state.kind])
 
   if (state.kind === 'idle') return <EmptySearch />
   if (state.kind === 'loading' && !state.data) return <Loading />
-  if (state.kind === 'auth') return <SignInPrompt />
+  if (state.kind === 'auth') return <SignInPrompt district={district} />
   if (state.kind === 'blocked') return <Notice tone="warning" text={state.message || 'لا يملك هذا الحساب صلاحية دليل الجهات.'} />
   if (state.kind === 'error') return <Notice tone="error" text={state.message || 'تعذر تحميل الجهات.'} />
   const data = state.data
@@ -92,8 +93,9 @@ function EmptySearch() {
 function Loading() {
   return <section className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin text-primary" />جارٍ تحميل الجهات المطابقة…</section>
 }
-function SignInPrompt() {
-  return <section className="rounded-xl border bg-card p-4"><div className="flex gap-3"><span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary"><ShieldCheck className="size-4" /></span><div><h2 className="text-sm font-semibold">سجّل الدخول لعرض الجهات</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">تظل بيانات السوق العامة ظاهرة، أما أسماء الجهات ومواقعها فتحتاج جلسة حسابك.</p><Link href="/login?next=/opportunity-map" className="mt-3 inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">تسجيل الدخول</Link></div></div></section>
+function SignInPrompt({ district }: { district?: string }) {
+  const next = district ? `/opportunity-map?goal=explore&district=${encodeURIComponent(district)}` : '/opportunity-map'
+  return <section className="rounded-xl border bg-card p-4"><div className="flex gap-3"><span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary"><ShieldCheck className="size-4" /></span><div><h2 className="text-sm font-semibold">سجّل الدخول لعرض الجهات</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">تظل بيانات السوق العامة ظاهرة، أما أسماء الجهات ومواقعها فتحتاج جلسة حسابك.</p><Link href={`/login?next=${encodeURIComponent(next)}`} className="mt-3 inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">تسجيل الدخول</Link></div></div></section>
 }
 function Notice({ tone, text }: { tone: 'warning' | 'error'; text: string }) {
   return <section className={`rounded-xl border p-4 text-sm ${tone === 'error' ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-amber-500/30 bg-amber-50 text-amber-900'}`}>{text}</section>

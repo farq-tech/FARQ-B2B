@@ -13,6 +13,7 @@ import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
 import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
 import { normalizeArabic } from '@/lib/search'
+import type { DirectoryLoadState } from '@/components/opportunity/live-entity-results'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
 import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard, MarketStreetCard } from './map-overlays'
@@ -80,6 +81,7 @@ export interface MapboxMapProps extends MockMapProps {
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
   liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
+  liveEntityState?: DirectoryLoadState
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -559,6 +561,7 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
+  liveEntityState = 'idle',
   focusDistrictRequest,
   focusStreetRequest,
   onDetailLevelChange,
@@ -1294,10 +1297,14 @@ export function MapboxBusinessMap({
       )
     }
     if (area && dismissedArea !== area) {
+      const district = area.kind === 'district' ? area.label.replace(/^حي\s+/, '').trim() : ''
+      const next = district ? `/opportunity-map?goal=explore&district=${encodeURIComponent(district)}` : '/opportunity-map'
       return (
         <AreaCard
           label={area.label}
           summary={areaSummary}
+          entityState={liveEntityState}
+          loginHref={`/login?next=${encodeURIComponent(next)}`}
           onClose={() => setDismissedArea(area)}
           onClear={() => onAreaChange?.(null)}
           onSelectAll={() => onSelectMany?.(areaSelectableIds)}
