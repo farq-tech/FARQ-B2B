@@ -11,7 +11,7 @@ import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
 import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
 import { resolveLiveActivityScope } from '@/lib/activity-scope'
-import { districtDisplayName, districtNameById, findDistrictByName, stableDistrictId } from '@/lib/live-district'
+import { districtAreaForQuery, districtDisplayName, districtNameById, findDistrictByName, stableDistrictId } from '@/lib/live-district'
 import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
@@ -102,6 +102,7 @@ export function OpportunityMapView() {
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
   const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
+  const [liveMapQuery, setLiveMapQuery] = useState<string | null>(null)
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>('idle')
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -248,8 +249,7 @@ export function OpportunityMapView() {
       .map((id) => districtById.get(id)?.name)
       .find((name): name is string => Boolean(name))
     const liveDistrict = requestedDistrict ? findDistrictByName(market.data?.districts.features ?? [], requestedDistrict) : null
-    const liveDistrictId = liveDistrict ? stableDistrictId(liveDistrict) : null
-    setArea(liveDistrictId && requestedDistrict ? { kind: 'district', districtId: liveDistrictId, label: `حي ${requestedDistrict}` } : null)
+    setArea((current) => districtAreaForQuery(current, requestedDistrict, liveDistrict))
     // A new intent defines a new candidate cohort. Retaining entities from a
     // prior search can silently carry unrelated businesses into a campaign.
     setSelection([])
@@ -545,7 +545,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} onResults={handleLiveResults} onStateChange={setDirectoryState} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} onResults={handleLiveResults} onMapQuery={setLiveMapQuery} onStateChange={setDirectoryState} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
@@ -568,6 +568,8 @@ export function OpportunityMapView() {
             liveStreets={market.data?.streets}
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
+            liveMapQuery={liveMapQuery}
+            onLiveEntityResolved={(entity) => setLiveEntitySnapshots((current) => ({ ...current, [entity.id]: entity }))}
             liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}

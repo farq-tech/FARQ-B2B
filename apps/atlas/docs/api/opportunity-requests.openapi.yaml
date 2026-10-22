@@ -28,7 +28,7 @@ paths:
                 limit: { type: integer, minimum: 1, maximum: 200, default: 100 }
                 offset: { type: integer, minimum: 0, maximum: 10000, default: 0 }
       responses:
-        '200': { description: Paginated business rows whose activity matches the requested commercial direction. `total`, `hasMore`, and `nextOffset` describe the same filtered cohort. }
+        '200': { description: Paginated business rows whose activity matches the requested commercial direction. `total`, `hasMore`, and `nextOffset` describe the same filtered cohort. `mapQuery` is an opaque, short-lived identifier for the matching read-only map tiles. }
         '400': { description: Missing query, city, or recognised objective }
         '401': { description: Atlas session is missing or expired }
         '403': { description: User has no directory permission }
@@ -73,3 +73,46 @@ paths:
         '403': { description: CSRF, organization, or permission rejection }
         '404': { description: Opportunity requests are not enabled upstream }
         '413': { description: Request payload exceeds 16 KiB }
+  /api/market/tiles/{query}/{z}/{x}/{y}.pbf:
+    get:
+      summary: Return an authenticated vector tile for the current directory cohort
+      description: |
+        A read-only Mapbox vector tile. The opaque `query` value is returned by
+        `/api/market/entities` as `mapQuery` and expires upstream. Tiles contain
+        only a point key, a display name at leaf zoom, and an aggregate count;
+        they never contain phone numbers, email, or contact consent.
+      parameters:
+        - { in: path, name: query, required: true, schema: { type: string, pattern: '^[a-f0-9]{32}$' } }
+        - { in: path, name: z, required: true, schema: { type: integer, minimum: 0, maximum: 20 } }
+        - { in: path, name: x, required: true, schema: { type: integer, minimum: 0 } }
+        - { in: path, name: y, required: true, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200': { description: Private Mapbox vector tile with clusters at broad zoom and individual points at detail zoom. }
+        '400': { description: Invalid tile coordinate or cohort identifier }
+        '401': { description: Atlas session is missing or not allowed for the directory }
+        '410': { description: The upstream cohort expired; obtain a fresh `mapQuery` through entities. }
+        '502': { description: Directory tile service unavailable }
+  /api/market/map-profile:
+    post:
+      summary: Return basic, non-contact detail for one point from a current map cohort
+      description: |
+        Requires an authenticated Atlas directory session. The response excludes
+        phone, email, raw source data, and any claim that a WhatsApp signal is
+        contact consent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query, poiKey]
+              properties:
+                query: { type: string, pattern: '^[a-f0-9]{32}$' }
+                poiKey: { type: string, maxLength: 180 }
+      responses:
+        '200': { description: Sanitized basic entity profile in the active map cohort. }
+        '400': { description: Invalid cohort identifier or point key }
+        '401': { description: Atlas session is missing or expired }
+        '403': { description: User has no directory permission }
+        '404': { description: Point is no longer in the cohort }
+        '502': { description: Directory service unavailable }
