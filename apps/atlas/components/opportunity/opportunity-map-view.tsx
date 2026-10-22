@@ -21,6 +21,7 @@ import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
 import { LiveActivityFilter } from './live-activity-filter'
 import { LiveEntityResults, type DirectoryObjective, type LiveEntity, type DirectoryLoadState } from './live-entity-results'
+import { MarketScope } from './market-scope'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -451,12 +452,11 @@ export function OpportunityMapView() {
           onSearch={handleSearch}
           onOpenAssistant={() => setAssistantOpen(true)}
         />
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">قراءة سوق حية</span>
-          <span>{query ? `مقيّدة بالنشاط: ${query}` : 'اكتب نشاطاً لتخصيص قراءة السوق حسب حاجتك.'}</span>
-          {activityScopeWasInferred && activeActivity ? <span className="text-muted-foreground/80">فُسّرت ضمن: {activeActivity.subs.length === 1 ? activeActivity.subs[0]?.sub_ar : activeActivity.main_ar}</span> : null}
-          {marketReadAt ? <span className="text-muted-foreground/80">قُرئت في أطلس: {marketReadAt}</span> : null}
-          {market.data?.unavailable.length ? <span className="text-amber-700">تحديث جزئي: بقيت الخريطة متاحة، وتعذر تحديث بعض المؤشرات مؤقتًا.</span> : null}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted-foreground">
+          <span className="font-medium text-primary">قراءة سوق حية</span>
+          {activityScopeWasInferred && activeActivity ? <span>التصنيف المطبق: {activeActivity.subs.length === 1 ? activeActivity.subs[0]?.sub_ar : activeActivity.main_ar}</span> : null}
+          {marketReadAt ? <span>آخر قراءة: {marketReadAt}</span> : null}
+          {market.data?.unavailable.length ? <span className="text-amber-700">تحديث جزئي للمؤشرات.</span> : null}
         </div>
       </div>
 
@@ -486,15 +486,16 @@ export function OpportunityMapView() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(22rem,26rem)_1fr]">
+      <div className="flex min-h-0 flex-1 flex-col gap-0 lg:grid lg:grid-cols-[minmax(21rem,25rem)_minmax(0,1fr)]">
         <section
           aria-label="النتائج"
-          className={cn('min-h-0 overflow-y-auto border-l px-4 py-4 lg:block', mobileView === 'list' ? 'block flex-1 pb-40' : 'hidden', 'lg:pb-28')}
+          className={cn('min-h-0 overflow-y-auto border-l bg-muted/[0.18] px-4 py-4 lg:block', mobileView === 'list' ? 'block flex-1 pb-40' : 'hidden', 'lg:pb-28')}
         >
           <section className="flex flex-col gap-3" aria-label="ملخص السوق الحي">
-            <div className="rounded-xl border bg-card p-4">
-              <p className="font-semibold">{selectedAreaDistrict ? `سوق ${selectedAreaDistrict}` : query ? `نتائج نشاط «${query}»` : 'سوق المدينة'}</p>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">تتغير خريطة الأحياء والإحصاءات بحسب البحث. لا نعرض جهات أو بيانات اتصال تجريبية.</p>
+            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} district={selectedAreaDistrict} total={market.status === 'ready' ? market.data?.summary?.total ?? null : null} onClearQuery={clearLiveActivity} onClearDistrict={() => setArea(null)} />
+            <div className="rounded-2xl border bg-card p-4">
+              <p className="font-semibold">{selectedAreaDistrict ? `ملخص حي ${selectedAreaDistrict}` : query ? `ملخص نشاط «${query}»` : 'ملخص سوق المدينة'}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">إحصاءات هذا النطاق فقط. لا نعرض أرقام الاتصال هنا؛ القرار يبنى على النشاط والموقع وسبب المطابقة.</p>
               {market.status === 'ready' ? (
                 <>
                   <dl className="mt-4 grid grid-cols-2 gap-2">
@@ -550,7 +551,7 @@ export function OpportunityMapView() {
           </section>
         </section>
 
-        <section aria-label="الخريطة" className={cn('relative min-h-0 p-3 lg:block lg:p-4', mobileView === 'map' ? 'block flex-1' : 'hidden')}>
+        <section aria-label="الخريطة" className={cn('relative min-h-0 bg-background p-3 lg:block lg:p-4', mobileView === 'map' ? 'block flex-1' : 'hidden')}>
           <BusinessMap
             cityId={cityId}
             businesses={visibleResults}
