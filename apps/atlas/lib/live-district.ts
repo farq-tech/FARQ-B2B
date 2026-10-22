@@ -1,3 +1,5 @@
+import type { MapArea } from './geo'
+
 /**
  * The aggregate service accepts the Arabic district name while map geometry
  * has a provider-specific identifier. Keep both values together at the UI
@@ -35,4 +37,19 @@ export function findDistrictByName<T extends DistrictFeatureLike>(features: read
     const candidate = districtDisplayName(feature)
     return candidate ? normalizeDistrictName(candidate) === wanted : false
   }) ?? null
+}
+
+/**
+ * A free-text activity search narrows the current map area. It must not
+ * silently expand a selected neighbourhood back to the whole city. An area is
+ * replaced only when the new query names a district explicitly.
+ */
+export function districtAreaForQuery<T extends DistrictFeatureLike>(
+  current: MapArea | null,
+  requestedDistrict: string | undefined,
+  feature: T | null,
+) {
+  if (!requestedDistrict) return current
+  const id = feature ? stableDistrictId(feature) : null
+  return id ? { kind: 'district' as const, districtId: id, label: `حي ${districtDisplayName(feature!) ?? requestedDistrict}` } : null
 }

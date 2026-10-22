@@ -11,7 +11,7 @@ import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
 import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
 import { resolveLiveActivityScope } from '@/lib/activity-scope'
-import { districtDisplayName, districtNameById, findDistrictByName, stableDistrictId } from '@/lib/live-district'
+import { districtAreaForQuery, districtDisplayName, districtNameById, findDistrictByName, stableDistrictId } from '@/lib/live-district'
 import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
@@ -248,8 +248,7 @@ export function OpportunityMapView() {
       .map((id) => districtById.get(id)?.name)
       .find((name): name is string => Boolean(name))
     const liveDistrict = requestedDistrict ? findDistrictByName(market.data?.districts.features ?? [], requestedDistrict) : null
-    const liveDistrictId = liveDistrict ? stableDistrictId(liveDistrict) : null
-    setArea(liveDistrictId && requestedDistrict ? { kind: 'district', districtId: liveDistrictId, label: `حي ${requestedDistrict}` } : null)
+    setArea((current) => districtAreaForQuery(current, requestedDistrict, liveDistrict))
     // A new intent defines a new candidate cohort. Retaining entities from a
     // prior search can silently carry unrelated businesses into a campaign.
     setSelection([])
