@@ -334,6 +334,7 @@ export function AreaCard({
   onClear,
   onSelectAll,
   onShowList,
+  entityState = 'ready',
 }: {
   label: string
   summary: AreaSummary
@@ -341,6 +342,7 @@ export function AreaCard({
   onClear: () => void
   onSelectAll: () => void
   onShowList?: () => void
+  entityState?: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'
 }) {
   const remaining = summary.count - summary.selected
   return (
@@ -351,17 +353,17 @@ export function AreaCard({
           {label}
         </p>
         <p className="text-xs text-muted-foreground">
-          {summary.count ? 'القائمة تعرض منشآت هذه المنطقة فقط.' : 'لا توجد نتائج مطابقة داخل المنطقة. جرّب رسم منطقة أوسع.'}
+          {summary.count ? 'القائمة تعرض منشآت هذه المنطقة فقط.' : entityState === 'auth' ? 'سجّل الدخول لعرض الجهات ونقاطها داخل المنطقة.' : entityState === 'loading' ? 'جارٍ تحميل الجهات داخل المنطقة.' : entityState === 'error' || entityState === 'blocked' ? 'تعذر تحميل الجهات داخل المنطقة حالياً.' : 'لا توجد نتائج مطابقة داخل المنطقة. جرّب رسم منطقة أوسع.'}
         </p>
       </div>
       {summary.count ? <SummaryBody s={summary} /> : null}
       <div className="flex gap-2">
-        <Button size="sm" className="flex-1" onClick={onSelectAll} disabled={remaining === 0}>
+        <Button size="sm" className="flex-1" onClick={onSelectAll} disabled={remaining === 0 || entityState !== 'ready'}>
           <CircleCheck data-icon="inline-start" />
           {summary.count === 0 ? 'لا نتائج' : remaining === 0 ? 'كلها محددة' : `تحديد ${formatNumber(remaining)}`}
         </Button>
         {onShowList ? (
-          <Button size="sm" variant="outline" className="flex-1 @2xl:hidden" onClick={onShowList} disabled={!summary.count}>
+          <Button size="sm" variant="outline" className="flex-1 @2xl:hidden" onClick={onShowList} disabled={!summary.count || entityState !== 'ready'}>
             <List data-icon="inline-start" />
             عرض القائمة
           </Button>

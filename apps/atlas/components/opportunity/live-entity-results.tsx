@@ -16,9 +16,10 @@ export type LiveEntity = LiveBusinessSnapshot & {
 
 type Result = { total: number; withWhatsapp: number; hasMore?: boolean; nextOffset?: number | null; rows: LiveEntity[] }
 
-type State = { kind: 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'; data: Result | null; message?: string }
+export type DirectoryLoadState = 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'
+type State = { kind: DirectoryLoadState; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, objective, district, onResults, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
+export function LiveEntityResults({ query, cityId, objective, district, onResults, onStateChange, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; onResults?: (rows: LiveEntity[]) => void; onStateChange?: (state: DirectoryLoadState) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
   const [visibleCount, setVisibleCount] = useState(100)
 
@@ -35,7 +36,6 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
       const seen = new Set<string>()
       let offset = 0
       let total = 0
-      let withWhatsapp = 0
       let hasMore = true
       while (hasMore && offset < 10_000 && !controller.signal.aborted) {
         const response = await fetch('/api/market/entities', {
@@ -49,8 +49,8 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
         if (response.status === 403) { setState({ kind: 'blocked', data: null, message: payload?.error }); return }
         if (!response.ok || !payload) { setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' }); return }
         total = payload.total
-        withWhatsapp += payload.withWhatsapp
         for (const entity of payload.rows) if (!seen.has(entity.id)) { seen.add(entity.id); rows.push(entity) }
+        const withWhatsapp = rows.filter((entity) => entity.whatsapp).length
         setState({ kind: payload.hasMore && exhaustiveDistrict ? 'loading' : 'ready', data: { ...payload, total, withWhatsapp, rows } })
         const nextOffset = payload.nextOffset
         hasMore = exhaustiveDistrict && payload.hasMore === true && typeof nextOffset === 'number' && nextOffset > offset
@@ -63,6 +63,7 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
   }, [query, cityId, objective, district])
 
   useEffect(() => { onResults?.(state.data?.rows ?? []) }, [onResults, state.data])
+  useEffect(() => { onStateChange?.(state.kind) }, [onStateChange, state.kind])
 
   if (state.kind === 'idle') return <EmptySearch />
   if (state.kind === 'loading' && !state.data) return <Loading />

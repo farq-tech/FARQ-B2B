@@ -169,9 +169,9 @@ class MarketAnalytics:
     def district_counts(self, body):
         city, _, where, params, specialty_available = self._where(body)
         query = f"""
-            select p.district_ar, count(*) n,
-                   count(*) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
-                   count(*) filter (where coalesce(p.is_wholesale, false)) n_wholesale
+            select p.district_ar, count(distinct p.poi_key) n,
+                   count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
+                   count(distinct p.poi_key) filter (where coalesce(p.is_wholesale, false)) n_wholesale
             from read_parquet(?) p
             where {where} and p.district_reliable is true
               and length(trim(coalesce(p.district_ar, ''))) > 0
@@ -180,7 +180,7 @@ class MarketAnalytics:
         with self.lock:
             rows = self.db.execute(query, params).fetchall()
             total = self.db.execute(
-                f"select count(*) from read_parquet(?) p where {where}", params
+                f"select count(distinct p.poi_key) from read_parquet(?) p where {where}", params
             ).fetchone()[0]
         return {
             "ok": True,
@@ -227,7 +227,7 @@ class MarketAnalytics:
         where_params = [DATA, city]
         with self.lock:
             district_rows = self.db.execute(
-                f"select p.district_ar, count(*) n {base} "
+                f"select p.district_ar, count(distinct p.poi_key) n {base} "
                 "and p.district_ar in (select unnest(?::varchar[])) group by 1",
                 where_params + [districts],
             ).fetchall()
@@ -315,10 +315,10 @@ class MarketAnalytics:
     def market_summary(self, body):
         city, subs, where, params, specialty_available = self._where(body)
         aggregate = f"""
-            select count(*) total,
-                   count(*) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
-                   count(*) filter (where coalesce(p.is_wholesale, false)) n_wholesale,
-                   count(*) filter (where not (
+            select count(distinct p.poi_key) total,
+                   count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
+                   count(distinct p.poi_key) filter (where coalesce(p.is_wholesale, false)) n_wholesale,
+                   count(distinct p.poi_key) filter (where not (
                        coalesce(
                            coalesce(p.location_precision, 'unknown') = 'point'
                            and p.longitude between -180 and 180
@@ -326,7 +326,7 @@ class MarketAnalytics:
                            false
                        )
                    )) n_approx,
-                   count(*) filter (where length(trim(coalesce(p.commercial_license, ''))) > 0) n_cr,
+                   count(distinct p.poi_key) filter (where length(trim(coalesce(p.commercial_license, ''))) > 0) n_cr,
                    count(distinct p.district_ar) filter (
                        where p.district_reliable is true and length(trim(coalesce(p.district_ar, ''))) > 0
                    ) districts_count
@@ -338,7 +338,7 @@ class MarketAnalytics:
             where {where} and c.confidence in ('high', 'medium')
         """
         district_sql = f"""
-            select p.district_ar, count(*) n
+            select p.district_ar, count(distinct p.poi_key) n
             from read_parquet(?) p where {where} and p.district_reliable is true
               and length(trim(coalesce(p.district_ar, ''))) > 0
             group by p.district_ar order by n desc, p.district_ar limit 5
