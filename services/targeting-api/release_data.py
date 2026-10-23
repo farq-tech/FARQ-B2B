@@ -122,7 +122,10 @@ def download_release(bucket: str, prefix: str, destination: Path) -> dict[str, A
 
 def bootstrap() -> None:
     data_dir = Path(os.environ.get("TARGETING_DATA_DIR", "/var/lib/farq-targeting/current")).expanduser()
-    bucket = os.environ.get("TARGETING_DATA_BUCKET", "").strip()
+    bucket = (
+        os.environ.get("TARGETING_DATA_BUCKET", "").strip()
+        or os.environ.get("AWS_S3_BUCKET_NAME", "").strip()
+    )
     prefix = os.environ.get("TARGETING_DATA_RELEASE", "").strip().strip("/")
     required = os.environ.get("TARGETING_DATA_REQUIRED", "").lower() in {"1", "true", "yes"}
 
