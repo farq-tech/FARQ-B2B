@@ -19,18 +19,68 @@ paths:
           application/json:
             schema:
               type: object
-              required: [q, city, objective]
+              required: [city, objective]
               properties:
                 q: { type: string, minLength: 1, maxLength: 200 }
                 city: { type: string, enum: [riyadh, jeddah, dammam] }
-                objective: { type: string, enum: [purchase, marketing] }
-                limit: { type: integer, minimum: 1, maximum: 50, default: 30 }
+                objective: { type: string, enum: [purchase, marketing, browse], description: browse is permitted only with district and has no semantic query. }
+                limit: { type: integer, minimum: 1, maximum: 200, default: 50 }
+                offset: { type: integer, minimum: 0, default: 0 }
+                district:
+                  type: string
+                  maxLength: 100
+                  description: Canonical Arabic district name. Restricts the list and the issued map context to that district.
       responses:
-        '200': { description: Business rows whose activity matches the requested commercial direction }
+        '200':
+          description: A page of named businesses plus an opaque, short-lived mapQuery for the identical cohort. Contact details are never returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, rows, offset, hasMore, mapQuery]
+                properties:
+                  total: { type: integer, minimum: 0 }
+                  withWhatsapp: { type: integer, minimum: 0, description: Source signal only; it is not contact consent. }
+                  rows: { type: array, items: { type: object } }
+                  offset: { type: integer, minimum: 0 }
+                  hasMore: { type: boolean }
+                  nextOffset: { type: [integer, 'null'], minimum: 0 }
+                  mapQuery: { type: [string, 'null'], description: Opaque context accepted only by the tile proxy. }
         '400': { description: Missing query, city, or recognised objective }
         '401': { description: Atlas session is missing or expired }
         '403': { description: User has no directory permission }
         '502': { description: Directory service unavailable }
+        '503': { description: Directory proxy is not configured }
+  /api/market/tiles/{query}/{z}/{x}/{y}.pbf:
+    get:
+      summary: Read a vector tile for the exact authenticated directory cohort
+      description: |
+        Private same-origin vector-tile proxy. The `query` context is opaque,
+        short-lived, and issued by `/api/market/entities`; a tile contains only
+        display geometry, a point key, label, and aggregate count.
+      parameters:
+        - in: path
+          name: query
+          required: true
+          schema: { type: string, pattern: '^[a-fA-F0-9]{32}$' }
+        - in: path
+          name: z
+          required: true
+          schema: { type: integer, minimum: 0, maximum: 20 }
+        - in: path
+          name: x
+          required: true
+          schema: { type: integer, minimum: 0 }
+        - in: path
+          name: y
+          required: true
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Mapbox Vector Tile, content: { application/vnd.mapbox-vector-tile: {} } }
+        '400': { description: Invalid tile coordinate or query context }
+        '401': { description: Atlas session is missing or is not eligible for directory access }
+        '410': { description: Map context expired; repeat the entity search }
+        '502': { description: Directory tile service unavailable }
         '503': { description: Directory proxy is not configured }
   /api/requests:
     get:

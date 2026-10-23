@@ -104,6 +104,26 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertTrue(profile["is_wholesale"])
             db.close()
 
+    def test_search_page_scopes_total_rows_and_tile_cohort_to_the_selected_district(self):
+        """The list total and the map query must describe the same district cohort."""
+        from trial_search import Directory
+
+        result = {
+            "rows": [
+                {"poi_key": "malaz-a", "district_ar": "حي الملز", "district_reliable": True, "match_confidence": {"score": 3}},
+                {"poi_key": "malaz-b", "district_ar": "الملز", "district_reliable": True, "match_confidence": {"score": 2}},
+                {"poi_key": "other", "district_ar": "حي النخيل", "district_reliable": True, "match_confidence": {"score": 9}},
+            ]
+        }
+
+        page = Directory.page(result, limit=1, offset=0, filters={"district": "حي الملز"})
+
+        self.assertEqual(page["total"], 2)
+        self.assertEqual([row["poi_key"] for row in page["rows"]], ["malaz-a"])
+        self.assertEqual([row["poi_key"] for row in page["_map_rows"]], ["malaz-a", "malaz-b"])
+        self.assertTrue(page["has_more"])
+        self.assertEqual(page["next_offset"], 1)
+
     def test_browse_applies_normalized_district_and_street_filters(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = pathlib.Path(temp_dir) / "directory.parquet"

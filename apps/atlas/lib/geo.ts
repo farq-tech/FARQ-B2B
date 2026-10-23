@@ -44,7 +44,7 @@ export function cityBounds(cityId: string): LngLatBounds {
 }
 
 export type MapArea =
-  | { kind: 'district'; districtId: string; label: string }
+  | { kind: 'district'; districtId: string; label: string; /** Canonical service district name when selected from a live polygon. */ districtName?: string }
   | { kind: 'rect'; bounds: LngLatBounds; label: string }
 
 export function areaKey(area: MapArea | null | undefined) {

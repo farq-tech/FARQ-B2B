@@ -17,6 +17,10 @@ function asText(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
+function asOffset(value: unknown) {
+  return Number.isInteger(value) && Number(value) >= 0 ? Math.min(Number(value), 1_000_000) : 0
+}
+
 function sanitize(row: Record<string, unknown>) {
   const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null
   const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 8) : []
@@ -43,14 +47,16 @@ export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return NextResponse.json({ error: 'سجّل الدخول لعرض الجهات المطابقة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض دليل الجهات.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown }
+  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; offset?: unknown; district?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب البحث غير صالح.' }, { status: 400 }) }
   const q = asText(input.q, 200)
   const city = cityNames[asText(input.city, 32).toLowerCase()] || asText(input.city, 64)
-  const objective = input.objective === 'marketing' || input.objective === 'purchase' ? input.objective : null
-  const limit = Math.min(50, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 30))
-  if (!q || !city) return NextResponse.json({ error: 'اكتب النشاط واختر المدينة.' }, { status: 400 })
-  if (!objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
+  const objective = input.objective === 'marketing' || input.objective === 'purchase' || input.objective === 'browse' ? input.objective : null
+  const limit = Math.min(200, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 50))
+  const offset = asOffset(input.offset)
+  const district = asText(input.district, 100)
+  if (!city || (objective !== 'browse' && !q)) return NextResponse.json({ error: 'اكتب النشاط واختر المدينة.' }, { status: 400 })
+  if (!objective || (objective === 'browse' && !district)) return NextResponse.json({ error: 'نوع البحث أو النطاق غير صالح.' }, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
   if (!origin || !headers) return NextResponse.json({ error: 'خدمة الدليل غير مهيأة حالياً.' }, { status: 503 })
@@ -59,13 +65,24 @@ export async function POST(request: NextRequest) {
   try {
     const upstream = await fetch(`${origin}/search`, {
       method: 'POST', headers,
-      body: JSON.stringify({ q, city, limit, objective, only_sendable: false }),
+      body: JSON.stringify({ q, city, limit, offset, objective, only_sendable: false, filters: district ? { district } : {} }),
       cache: 'no-store', signal: controller.signal,
     })
-    const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown } | null
+    const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown; has_more?: unknown; next_offset?: unknown; map_query?: unknown } | null
     if (!upstream.ok || !payload) return NextResponse.json({ error: 'تعذر تحميل الجهات الآن.' }, { status: 502 })
     const rows = Array.isArray(payload.rows) ? payload.rows.filter((row): row is Record<string, unknown> => Boolean(row && typeof row === 'object')).map(sanitize).filter((row) => row.id) : []
-    const response = NextResponse.json({ total: typeof payload.total === 'number' ? payload.total : rows.length, withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0, rows }, { headers: { 'cache-control': 'no-store' } })
+    // A query key is an opaque, expiring tile context. It gives the browser no
+    // directory data by itself; tiles remain behind the authenticated proxy.
+    const mapQuery = typeof payload.map_query === 'string' && /^[a-f0-9]{32}$/i.test(payload.map_query) ? payload.map_query : null
+    const response = NextResponse.json({
+      total: typeof payload.total === 'number' ? payload.total : rows.length,
+      withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0,
+      rows,
+      offset,
+      hasMore: payload.has_more === true,
+      nextOffset: typeof payload.next_offset === 'number' ? payload.next_offset : null,
+      mapQuery,
+    }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(response, session)
     return response
   } catch {

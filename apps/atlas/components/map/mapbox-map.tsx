@@ -42,6 +42,7 @@ const MARKET_CLUSTER_LAYERS = ['market-cluster-halo', 'market-cluster', 'market-
 const CLUSTER_LAYERS = [...BUSINESS_CLUSTER_LAYERS, ...MARKET_CLUSTER_LAYERS]
 const MARKET_STREET_LAYERS = ['market-street-hit', 'market-street-line', 'market-street-label']
 const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
+const DIRECTORY_TILE_LAYERS = ['directory-tile-cluster', 'directory-tile-count', 'directory-tile-point']
 
 const expr = (x: unknown) => x as ExpressionSpecification
 const filter = (x: unknown) => x as FilterSpecification
@@ -78,6 +79,8 @@ export interface MapboxMapProps extends MockMapProps {
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
   liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
+  /** Same-origin, short-lived vector-tile context for the complete live cohort. */
+  liveEntityTileUrl?: string
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -490,6 +493,26 @@ function addLayers(map: MapboxMap) {
   })
 }
 
+function ensureDirectoryTileLayers(map: MapboxMap, tileUrl: string) {
+  const existing = map.getSource('directory-tiles') as ({ setTiles?: (tiles: string[]) => void } | undefined)
+  if (existing?.setTiles) existing.setTiles([tileUrl])
+  else if (!existing) map.addSource('directory-tiles', { type: 'vector', tiles: [tileUrl], minzoom: 0, maxzoom: 20 })
+  if (map.getLayer('directory-tile-cluster')) return
+  const clustered = filter(['>', ['get', 'count'], 1])
+  map.addLayer({
+    id: 'directory-tile-cluster', type: 'circle', source: 'directory-tiles', 'source-layer': 'businesses', maxzoom: 16, filter: clustered,
+    paint: { 'circle-radius': expr(['step', ['get', 'count'], 13, 10, 16, 50, 21, 200, 26]), 'circle-color': COLORS.primary, 'circle-opacity': 0.92, 'circle-stroke-color': COLORS.card, 'circle-stroke-width': 2 },
+  })
+  map.addLayer({
+    id: 'directory-tile-count', type: 'symbol', source: 'directory-tiles', 'source-layer': 'businesses', maxzoom: 16, filter: clustered,
+    layout: { 'text-field': ['to-string', ['get', 'count']], 'text-font': FONT_BOLD, 'text-size': 12, 'text-allow-overlap': true }, paint: { 'text-color': '#ffffff' },
+  })
+  map.addLayer({
+    id: 'directory-tile-point', type: 'circle', source: 'directory-tiles', 'source-layer': 'businesses', minzoom: 16, filter: filter(['==', ['get', 'count'], 1]),
+    paint: { 'circle-radius': 5.5, 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+  })
+}
+
 /** Quiets the basemap so business data, not POIs, carries the visual weight. */
 function calmBasemap(map: MapboxMap) {
   for (const layer of map.getStyle()?.layers ?? []) {
@@ -537,6 +560,7 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
+  liveEntityTileUrl,
   focusDistrictRequest,
   focusStreetRequest,
   onDetailLevelChange,
@@ -662,7 +686,7 @@ export function MapboxBusinessMap({
               const id = d?.properties?.id
               if (typeof id === 'string') {
                 const label = typeof d?.properties?.name === 'string' ? d.properties.name : typeof d?.properties?.ar === 'string' ? d.properties.ar : districtById.get(id)?.name ?? ''
-                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${label}` })
+                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${label}`, districtName: label })
                 setAreaMode(false)
               }
               return
@@ -947,6 +971,19 @@ export function MapboxBusinessMap({
   useEffect(() => {
     const m = mapRef.current
     if (!ready || !m) return
+    if (liveEntityTileUrl) ensureDirectoryTileLayers(m, liveEntityTileUrl)
+    const staticVisibility = liveEntityTileUrl ? 'none' : 'visible'
+    for (const id of ['live-entity-halo', 'live-entity-pin']) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', staticVisibility)
+    }
+    for (const id of DIRECTORY_TILE_LAYERS) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', liveEntityTileUrl ? 'visible' : 'none')
+    }
+  }, [ready, liveEntityTileUrl])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m) return
     for (const src of BIZ_SOURCES) (m.getSource(src) as GeoJSONSource).setData(bizData)
     ;(m.getSource('ghosts') as GeoJSONSource).setData(ghostData)
     ;(m.getSource('selected') as GeoJSONSource).setData(selectedData)
@@ -1179,7 +1216,7 @@ export function MapboxBusinessMap({
             if (b) fitTo(b, true, 13.6, DISTRICT_MAX_ZOOM + 0.4)
             setCard(null)
           }}
-          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: card.id, label: `حي ${name}` })}
+          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: card.id, label: `حي ${name}`, districtName: name })}
         />
       )
     }

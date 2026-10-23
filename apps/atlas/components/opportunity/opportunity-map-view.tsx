@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { AssistantPanel } from './assistant-panel'
 import { GoalPicker } from './goal-picker'
 import { LiveActivityFilter } from './live-activity-filter'
-import { LiveEntityResults, type DirectoryObjective, type LiveEntity } from './live-entity-results'
+import { LiveEntityResults, type DirectoryObjective, type LiveEntity, type LiveEntityResult } from './live-entity-results'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
 
@@ -36,7 +36,7 @@ function inferGoal(parsed: ParsedQuery): GoalId {
  * the relationship to likely buyers; every other Atlas goal looks for the
  * named trade itself or its suppliers.
  */
-function directoryObjective(goal: GoalId | null, intent: RequestType | null): DirectoryObjective {
+function directoryObjective(goal: GoalId | null, intent: RequestType | null): Exclude<DirectoryObjective, 'browse'> {
   return goal === 'target' || intent === 'campaign' ? 'marketing' : 'purchase'
 }
 
@@ -126,13 +126,16 @@ export function OpportunityMapView() {
   const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
+  const [liveEntityMapQuery, setLiveEntityMapQuery] = useState<string | null>(null)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handledEntryGoal = useRef(false)
 
   // LiveEntityResults publishes once per response. Keeping this callback stable
   // prevents its effect from re-publishing the same rows after every map render.
-  const handleLiveResults = useCallback((rows: LiveEntity[]) => {
+  const handleLiveResults = useCallback((result: LiveEntityResult | null) => {
+    const rows = result?.rows ?? []
     setLiveEntities(rows)
+    setLiveEntityMapQuery(result?.mapQuery ?? null)
     setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
   }, [])
 
@@ -146,10 +149,15 @@ export function OpportunityMapView() {
   // Atlas stores selected districts as stable local ids while the live market
   // service accepts canonical Arabic names. Convert at the boundary so the
   // map, summary, and street-density requests all share the same scope.
-  const liveDistrictScope = useMemo(
-    () => filters.districts.flatMap((id) => districtById.get(id)?.name ? [districtById.get(id)!.name] : []),
-    [filters.districts],
-  )
+  const liveDistrictScope = useMemo(() => {
+    const fromFilters = filters.districts.flatMap((id) => districtById.get(id)?.name ? [districtById.get(id)!.name] : [])
+    // A live polygon may use an official district id that does not exist in the
+    // prototype fixture. Preserve its canonical service name at the boundary.
+    const fromArea = area?.kind === 'district' && area.districtName ? [area.districtName] : []
+    return Array.from(new Set([...fromArea, ...fromFilters]))
+  }, [area, filters.districts])
+  const liveDirectoryDistrict = liveDistrictScope[0]
+  const liveDirectoryObjective: DirectoryObjective = query.trim() ? directoryObjective(goal, intent) : liveDirectoryDistrict ? 'browse' : directoryObjective(goal, intent)
 
   useEffect(() => {
     if (!goal) return
@@ -288,13 +296,14 @@ export function OpportunityMapView() {
       const response = await fetch('/api/market/entities', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ q: text.trim(), city: cityId, objective: type === 'campaign' ? 'marketing' : 'purchase', limit: 12 }),
+        body: JSON.stringify({ q: text.trim(), city: cityId, objective: type === 'campaign' ? 'marketing' : 'purchase', district: liveDirectoryDistrict, limit: 12 }),
       })
-      const payload = await response.json().catch(() => null) as { rows?: unknown } | null
+      const payload = await response.json().catch(() => null) as { rows?: unknown; mapQuery?: unknown } | null
       const rows = Array.isArray(payload?.rows) ? payload.rows.filter((row): row is LiveEntity => Boolean(row && typeof row === 'object' && typeof (row as LiveEntity).id === 'string')).slice(0, 12) : []
       if (!response.ok) return { id: '', count: 0, message: response.status === 401 ? 'سجّل الدخول أولاً لعرض الجهات الحية وتجهيز المسودة.' : 'تعذر تحميل الجهات الآن. بقي البحث مطبقاً على الخريطة.', login: response.status === 401 }
       if (rows.length === 0) return { id: '', count: 0, message: 'لم نجد جهات مطابقة لتجهيز مسودة. جرّب صياغة أوسع.' }
       setLiveEntities(rows)
+      setLiveEntityMapQuery(typeof payload?.mapQuery === 'string' ? payload.mapQuery : null)
       setLiveEntitySnapshots((current) => ({ ...current, ...Object.fromEntries(rows.map((entity) => [entity.id, entity])) }))
       const ids = rows.map((entity) => entity.id)
       setSelection(ids)
@@ -558,7 +567,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} onResults={handleLiveResults} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} objective={liveDirectoryObjective} district={liveDirectoryDistrict} onResults={handleLiveResults} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>
@@ -581,6 +590,7 @@ export function OpportunityMapView() {
             liveStreets={market.data?.streets}
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
+            liveEntityTileUrl={liveEntityMapQuery ? `/api/market/tiles/${liveEntityMapQuery}/{z}/{x}/{y}.pbf` : undefined}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
             onResetFilters={resetSearch}
