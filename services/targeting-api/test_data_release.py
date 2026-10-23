@@ -5,7 +5,7 @@ from pathlib import Path
 
 import duckdb
 
-from data_release import validate_release
+from data_release import validate_release, verify_manifest
 
 
 class DataReleaseTests(unittest.TestCase):
@@ -44,6 +44,20 @@ class DataReleaseTests(unittest.TestCase):
             self.make_release(root, duplicate=True)
             with self.assertRaisesRegex(ValueError, "duplicate poi_key"):
                 validate_release(root)
+
+    def test_rejects_assets_that_do_not_match_the_approved_manifest(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.make_release(root)
+            report = validate_release(root)
+            manifest = root / "release.manifest.json"
+            manifest.write_text(json.dumps(report), encoding="utf-8")
+            verify_manifest(report, manifest)
+            altered = json.loads(manifest.read_text(encoding="utf-8"))
+            altered["assets"]["targets.parquet"]["sha256"] = "wrong"
+            manifest.write_text(json.dumps(altered), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "manifest mismatch"):
+                verify_manifest(report, manifest)
 
 
 if __name__ == "__main__":

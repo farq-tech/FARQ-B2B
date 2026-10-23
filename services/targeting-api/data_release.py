@@ -130,13 +130,37 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
     }
 
 
+def verify_manifest(report: dict[str, Any], manifest_path: Path) -> None:
+    """Reject a staged release whose immutable inputs differ from an approved manifest."""
+    try:
+        expected = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("invalid release manifest") from error
+    if expected.get("schema_version") != report.get("schema_version"):
+        raise ValueError("release manifest schema version mismatch")
+    expected_assets = expected.get("assets")
+    if not isinstance(expected_assets, dict):
+        raise ValueError("release manifest has no assets")
+    for name, actual in report["assets"].items():
+        candidate = expected_assets.get(name)
+        if not isinstance(candidate, dict) or candidate.get("sha256") != actual["sha256"] or candidate.get("bytes") != actual["bytes"]:
+            raise ValueError(f"release manifest mismatch for {name}")
+    if expected.get("targets", {}).get("rows") != report["targets"]["rows"]:
+        raise ValueError("release manifest target-row count mismatch")
+    if expected.get("districts", {}).get("features") != report["districts"]["features"]:
+        raise ValueError("release manifest district-count mismatch")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate an immutable Atlas targeting data release")
     parser.add_argument("data_dir", type=Path)
     parser.add_argument("--write-manifest", type=Path, help="write the verified-input manifest JSON to this path")
+    parser.add_argument("--verify-manifest", type=Path, help="require the data assets to exactly match this approved manifest")
     args = parser.parse_args()
     try:
         report = validate_release(args.data_dir)
+        if args.verify_manifest:
+            verify_manifest(report, args.verify_manifest)
     except ValueError as error:
         print(json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))
         return 2

@@ -11,4 +11,11 @@ for file in targets.parquet poi_taxonomy.parquet street_density.parquet trade_cl
   fi
 done
 
+# A release manifest is optional during migration. When supplied it makes
+# startup fail closed if mounted assets differ from the approved build.
+# The verifier only reads data; it never writes to the mounted volume.
+if [ -n "${FARQ_TARGETING_RELEASE_MANIFEST:-}" ]; then
+  python3 /app/data_release.py "$DATA_DIR" --verify-manifest "$FARQ_TARGETING_RELEASE_MANIFEST"
+fi
+
 exec python3 /app/server.py
