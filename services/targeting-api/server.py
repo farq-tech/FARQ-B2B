@@ -14,6 +14,7 @@ from directory_tiles import DirectoryTiles, has_usable_whatsapp, is_precise_poin
 from market_analytics import MarketAnalytics
 import status_policy
 import read_only_test
+from metrics import ServiceMetrics, route_label
 import contextvars
 _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
 import urllib.parse
@@ -31,6 +32,7 @@ HOLDER_ENV = os.environ.get('HOLDER_RFQ_ID')
 HOLDER_ACTOR = os.environ.get('HOLDER_ACTOR_USER_ID')
 MODEL = 'claude-haiku-4-5-20251001'
 LOGGER = logging.getLogger('farq.targeting')
+METRICS = ServiceMetrics()
 
 def log_map_api_failure(endpoint, error):
     """Log a safe failure location without request bodies, query text, or exception messages."""
@@ -619,6 +621,22 @@ def login_allowed(ip, now=None):
         return len(hits) <= LOGIN_MAX
 
 class H(BaseHTTPRequestHandler):
+    def handle_one_request(self):
+        """Record only fixed route labels, status, and duration for safe scraping."""
+        started = time.monotonic()
+        self._metric_route = "other"
+        self._metric_status = 500
+        self._metric_has_request = False
+        try:
+            super().handle_one_request()
+        finally:
+            if self._metric_has_request:
+                METRICS.observe(self._metric_route, self._metric_status, time.monotonic() - started)
+
+    def send_response(self, code, message=None):
+        self._metric_status = int(code)
+        return super().send_response(code, message)
+
     def _authed(self):
         if not AUTH_PASSWORD: return not os.environ.get('RAILWAY_ENVIRONMENT')   # local development only; never open in production
         svc, tok = service_token(), self.headers.get('X-Farq-Service') or ''
@@ -635,7 +653,13 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
         route=urllib.parse.urlparse(self.path)
+        self._metric_has_request = True
+        self._metric_route = route_label(route.path)
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
+        if route.path == '/metrics':
+            if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
+            body = METRICS.render_prometheus()
+            self.send_response(200); self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
@@ -685,6 +709,8 @@ class H(BaseHTTPRequestHandler):
         else:
             self.send_response(404); self.end_headers()
     def do_POST(self):
+        self._metric_has_request = True
+        self._metric_route = route_label(self.path)
         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
         if self.path == '/login':
             if not login_allowed(self._client_ip()): self._json({'error': 'TOO_MANY_ATTEMPTS'}, 429); return
