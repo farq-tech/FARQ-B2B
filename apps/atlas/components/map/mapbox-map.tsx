@@ -1,6 +1,7 @@
 'use client'
 
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { Feature, FeatureCollection, Geometry, Point as GeoPoint, Position } from 'geojson'
 import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapboxMap, VectorTileSource } from 'mapbox-gl'
 import { Loader2, MapPinOff, Minus, Plus, Scan, SearchX } from 'lucide-react'
@@ -659,6 +660,7 @@ export function MapboxBusinessMap({
   const [tileProfiles, setTileProfiles] = useState<Record<string, import('@/components/opportunity/live-entity-results').LiveEntity>>({})
   const [tileProfileError, setTileProfileError] = useState<string | null>(null)
   const tileActionRef = useRef<number | null>(null)
+  const reduceMotion = useReducedMotion()
 
   const level = levelFor(zoom, progressive, layers)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
@@ -1533,6 +1535,7 @@ export function MapboxBusinessMap({
   }
 
   const cardNode = renderCard()
+  const cardKey = card ? JSON.stringify(card) : 'empty'
   const showBootLoading = !ready
   const showRefreshing = ready && state === 'loading'
   const cityName = cityById.get(cityId)?.name ?? ''
@@ -1557,7 +1560,12 @@ export function MapboxBusinessMap({
       ) : null}
 
       {!compact && ready && state !== 'empty' ? (
-        <div className="absolute top-3 right-3 left-14 z-10 @2xl:left-auto @2xl:w-[min(34rem,calc(100%-5rem))]">
+        <motion.div
+          className="absolute top-3 right-3 left-14 z-10 @2xl:left-auto @2xl:w-[min(34rem,calc(100%-5rem))]"
+          initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
+        >
           <MapContextBar
             cityName={cityName}
             level={level}
@@ -1573,7 +1581,7 @@ export function MapboxBusinessMap({
             onLevel={goToLevel}
             onToggleAreaMode={() => setAreaMode((v) => !v)}
           />
-        </div>
+        </motion.div>
       ) : null}
 
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
@@ -1602,16 +1610,23 @@ export function MapboxBusinessMap({
         <LayersControl layers={layers} defaults={defaultLayers} onChange={setLayers} open={layersOpen} onOpenChange={setLayersOpen} />
       </div>
 
-      {cardNode ? (
-        <div
-          className={cn(
-            'absolute inset-x-3 z-10 transition-[bottom] duration-200 @2xl:right-3 @2xl:bottom-auto @2xl:left-auto @2xl:top-[6.75rem] @2xl:w-80',
-            reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-auto' : 'bottom-3',
-          )}
-        >
-          {cardNode}
-        </div>
-      ) : null}
+      <AnimatePresence initial={false} mode="wait">
+        {cardNode ? (
+          <motion.div
+            key={cardKey}
+            className={cn(
+              'absolute inset-x-3 z-10 transition-[bottom] duration-200 @2xl:right-3 @2xl:bottom-auto @2xl:left-auto @2xl:top-[6.75rem] @2xl:w-80',
+              reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-auto' : 'bottom-3',
+            )}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.98, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98, y: 6 }}
+            transition={{ duration: reduceMotion ? 0 : 0.16, ease: 'easeOut' }}
+          >
+            {cardNode}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {ready && state === 'ready' && (wide || !cardNode) ? (
         <div className={cn('absolute right-3 z-[5] w-48 transition-[bottom] duration-200', reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-[5.25rem]' : 'bottom-3')}>
