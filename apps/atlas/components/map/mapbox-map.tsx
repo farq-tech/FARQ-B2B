@@ -84,6 +84,8 @@ export interface MapboxMapProps extends MockMapProps {
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
   liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
+  /** A selected district has loaded every safe directory point client-side. */
+  liveEntityPinsComplete?: boolean
   /** Exact count of the authenticated directory cohort used by the tile source. */
   liveDirectorySummary?: DirectorySummary | null
   liveEntityState?: DirectoryLoadState
@@ -602,6 +604,7 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
+  liveEntityPinsComplete = false,
   liveDirectorySummary = null,
   liveEntityState = 'idle',
   liveMapQuery = null,
@@ -916,7 +919,10 @@ export function MapboxBusinessMap({
   useEffect(() => {
     const m = mapRef.current
     if (!ready || !m) return
-    if (!liveMapQuery) {
+    // For a chosen district, direct GeoJSON pins are deliberately used while
+    // they stream in. They keep the list and visible map cohort identical even
+    // if a browser worker refuses an otherwise valid private vector-tile URL.
+    if (!liveMapQuery || liveEntityPins.length > 0) {
       removeDirectoryTileSource(m)
       return
     }
@@ -928,7 +934,7 @@ export function MapboxBusinessMap({
       m.addSource('directory-tiles', { type: 'vector', tiles, minzoom: 0, maxzoom: 20 })
       addDirectoryTileLayers(m)
     }
-  }, [ready, liveMapQuery, liveTileAccess])
+  }, [ready, liveMapQuery, liveTileAccess, liveEntityPins.length])
 
   useEffect(() => {
     if (card?.kind !== 'tile-entity' || !liveMapQuery || tileActionRef.current === card.nonce) return
@@ -1140,8 +1146,9 @@ export function MapboxBusinessMap({
       m.setLayerZoomRange(id, pinMin, 24)
     }
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
-    for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin']) m.setLayoutProperty(id, 'visibility', vis(!liveMapQuery))
-  }, [ready, layers, progressive, level, liveMapQuery])
+    const hasDirectDirectoryPins = liveEntityPins.length > 0 && (liveEntityPinsComplete || Boolean(area))
+    for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin']) m.setLayoutProperty(id, 'visibility', vis(hasDirectDirectoryPins || !liveMapQuery))
+  }, [ready, layers, progressive, level, liveMapQuery, liveEntityPins.length, liveEntityPinsComplete, area])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
   const activeDistrict = card?.kind === 'district' ? card.id : ''
