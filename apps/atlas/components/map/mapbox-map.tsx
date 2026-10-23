@@ -13,6 +13,7 @@ import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
 import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
 import { normalizeArabic } from '@/lib/search'
+import { mapIconImageId, mapPinSvg, resolveMapIcon, svgToImage } from '@/lib/map-icons'
 import type { DirectoryLoadState } from '@/components/opportunity/live-entity-results'
 import type { DirectorySummary } from '@/components/opportunity/live-entity-results'
 import { cn } from '@/lib/utils'
@@ -83,7 +84,7 @@ export interface MapboxMapProps extends MockMapProps {
   /** Read-only geographically aggregated opportunities. */
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
-  liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
+  liveEntityPins?: readonly { id: string; name: string; category: string; specialties?: readonly string[]; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
   /** A selected district has loaded every safe directory point client-side. */
   liveEntityPinsComplete?: boolean
   /** Exact count of the authenticated directory cohort used by the tile source. */
@@ -421,6 +422,26 @@ function addLayers(map: MapboxMap) {
     minzoom: ENTITY_MIN_ZOOM,
     filter: UNCLUSTERED,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 6.5, 5]), 'circle-color': expr(['case', isOn('selected'), COLORS.primary, COLORS.card]), 'circle-stroke-color': expr(['case', isOn('selected'), COLORS.card, COLORS.primary]), 'circle-stroke-width': 2.5 },
+  })
+  // The point carries the icon chosen from Farq's commercial taxonomy. The
+  // artwork is registered lazily only for activities present in this view.
+  // Clustering remains responsible for dense areas; a person sees an actual
+  // activity marker only when zooming close enough to act on the location.
+  map.addLayer({
+    id: 'live-entity-icon',
+    type: 'symbol',
+    source: 'live-entities',
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: filter(['all', UNCLUSTERED, ['==', ['get', 'selected'], 0]]),
+    layout: { 'icon-image': ['get', 'icon'], 'icon-size': 0.9, 'icon-anchor': 'bottom', 'icon-allow-overlap': false, 'icon-ignore-placement': false },
+  })
+  map.addLayer({
+    id: 'live-entity-icon-selected',
+    type: 'symbol',
+    source: 'live-entities',
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: filter(['all', UNCLUSTERED, ['==', ['get', 'selected'], 1]]),
+    layout: { 'icon-image': ['get', 'icon_selected'], 'icon-size': 0.98, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
   })
 
   map.addLayer({
@@ -772,7 +793,7 @@ export function MapboxBusinessMap({
               })
               return
             }
-            const livePin = hit(['live-entity-pin'], e.point)
+            const livePin = hit(['live-entity-icon-selected', 'live-entity-icon', 'live-entity-pin'], e.point)
             const liveId = livePin?.properties?.id
             if (typeof liveId === 'string') {
               h.onTogglePin(liveId)
@@ -845,7 +866,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-cluster', 'live-entity-cluster-count', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-cluster', 'live-entity-cluster-count', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
@@ -985,10 +1006,55 @@ export function MapboxBusinessMap({
     type: 'FeatureCollection',
     features: liveEntityPins.flatMap((entity) => entity.latitude != null && entity.longitude != null ? [{
       type: 'Feature' as const,
-      properties: { id: entity.id, name: entity.name, category: entity.category, district: entity.district, street: entity.street, whatsapp: entity.whatsapp ? 1 : 0, reason: entity.reason, selected: selectedSet.has(entity.id) ? 1 : 0 },
+      properties: (() => {
+        const marker = resolveMapIcon({ category: entity.category, specialties: entity.specialties })
+        return {
+          id: entity.id,
+          name: entity.name,
+          category: entity.category,
+          district: entity.district,
+          street: entity.street,
+          whatsapp: entity.whatsapp ? 1 : 0,
+          reason: entity.reason,
+          selected: selectedSet.has(entity.id) ? 1 : 0,
+          icon: mapIconImageId(marker.icon),
+          icon_selected: mapIconImageId(marker.icon, true),
+        }
+      })(),
       geometry: { type: 'Point' as const, coordinates: [entity.longitude, entity.latitude] },
     }] : []),
   }), [liveEntityPins, selectedSet])
+
+  const liveMarkerIcons = useMemo(() => {
+    const icons = new Set<string>()
+    for (const entity of liveEntityPins) icons.add(resolveMapIcon({ category: entity.category, specialties: entity.specialties }).icon)
+    return [...icons]
+  }, [liveEntityPins])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m || !liveMarkerIcons.length) return
+    let cancelled = false
+    Promise.all(liveMarkerIcons.flatMap((icon) => [
+      svgToImage(mapPinSvg(icon)),
+      svgToImage(mapPinSvg(icon, true)),
+    ])).then((images) => {
+      if (cancelled || !m.isStyleLoaded()) return
+      for (let index = 0; index < liveMarkerIcons.length; index += 1) {
+        const icon = liveMarkerIcons[index]
+        const regularId = mapIconImageId(icon)
+        const selectedId = mapIconImageId(icon, true)
+        if (!m.hasImage(regularId)) m.addImage(regularId, images[index * 2])
+        if (!m.hasImage(selectedId)) m.addImage(selectedId, images[index * 2 + 1])
+      }
+      // Existing GeoJSON features are re-evaluated as soon as Mapbox receives
+      // their images, so no additional request or client data is needed here.
+    }).catch(() => {
+      // The underlying point layer remains interactive if an icon asset cannot
+      // be decoded; a rendering enhancement must never hide live entities.
+    })
+    return () => { cancelled = true }
+  }, [ready, liveMarkerIcons])
 
   const liveStreetData = useMemo<FeatureCollection<Geometry, StreetDensityProperties>>(() => liveStreets ?? (EMPTY as FeatureCollection<Geometry, StreetDensityProperties>), [liveStreets])
   const liveClusterData = useMemo<FeatureCollection>(() => {
@@ -1147,7 +1213,7 @@ export function MapboxBusinessMap({
     }
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
     const hasDirectDirectoryPins = liveEntityPins.length > 0 && (liveEntityPinsComplete || Boolean(area))
-    for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin']) m.setLayoutProperty(id, 'visibility', vis(hasDirectDirectoryPins || !liveMapQuery))
+    for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected']) m.setLayoutProperty(id, 'visibility', vis(hasDirectDirectoryPins || !liveMapQuery))
   }, [ready, layers, progressive, level, liveMapQuery, liveEntityPins.length, liveEntityPinsComplete, area])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
