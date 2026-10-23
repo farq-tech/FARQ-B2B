@@ -21,8 +21,8 @@ export default function AtlasLandingPage() {
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label="فرق أطلس، الرئيسية">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground" aria-hidden>أ</span>
-            <span><strong className="block leading-4">فرق أطلس</strong><small className="text-xs text-muted-foreground">منصة الفرص التجارية</small></span>
+            <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" /><strong className="text-[15px] text-[#303030]">أطلس</strong></span>
+            <span><strong className="sr-only">فرق أطلس</strong><small className="text-xs text-muted-foreground">منصة الفرص التجارية</small></span>
           </Link>
           <div className="flex items-center gap-2">
             <Link href="/login?next=%2Fopportunity-map" className="hidden rounded-lg px-3 py-2 text-sm font-medium sm:block">دخول</Link>
