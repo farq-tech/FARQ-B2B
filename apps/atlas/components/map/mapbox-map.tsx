@@ -1244,12 +1244,17 @@ export function MapboxBusinessMap({
   const compactFitKey = compact ? `${cityId}` : resultsKey
   useEffect(() => {
     if (!ready) return
+    // Loading a new page changes the live district collection. Do not let that
+    // background refresh pull a user who has selected an area back out to the
+    // whole city: the dedicated area effect below owns that camera.
+    if (area) return
     const points = (compact ? [...businesses, ...ghostBusinesses] : businesses).map((b) => toLngLat(cityId, [b.x, b.y]))
     const liveBounds = boundsOf(liveDistrictFeatures.flatMap((feature) => outerRing(feature.geometry)))
     fitTo(liveBounds ?? boundsOf(points) ?? cityBounds(cityId))
-    // Only refit when the result set, city, or visible size changes — not on selection toggles.
+    // Only refit when the result set, city, or visible size changes — never on
+    // selection toggles or subsequent directory pages.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, compactFitKey, sizeEpoch, liveDistrictFeatures])
+  }, [ready, compactFitKey, sizeEpoch, liveDistrictFeatures, area])
 
   const currentAreaKey = areaKey(area)
   useEffect(() => {
