@@ -679,6 +679,12 @@ export function MapboxBusinessMap({
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
+          // Vector tiles are served from the authenticated Atlas route. Mapbox
+          // fetches them from a worker, so make same-origin session delivery
+          // explicit instead of relying on the browser default.
+          transformRequest: (url, resourceType) => resourceType === 'Tile' && url.startsWith('/api/market/tiles/')
+            ? { url, credentials: 'include' }
+            : { url },
           minZoom: 9,
         })
         map = m
