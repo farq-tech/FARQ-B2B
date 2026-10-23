@@ -14,6 +14,7 @@ import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperti
 import type { Business } from '@/lib/types'
 import { normalizeArabic } from '@/lib/search'
 import { mapIconImageId, mapPinSvg, resolveMapIcon, svgToImage } from '@/lib/map-icons'
+import { directoryRenderMode } from '@/lib/directory-render-mode'
 import type { DirectoryLoadState } from '@/components/opportunity/live-entity-results'
 import type { DirectorySummary } from '@/components/opportunity/live-entity-results'
 import { cn } from '@/lib/utils'
@@ -661,6 +662,7 @@ export function MapboxBusinessMap({
 
   const level = levelFor(zoom, progressive, layers)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const liveDirectoryMode = directoryRenderMode({ mapQuery: liveMapQuery, pinCount: liveEntityPins.length, pinsComplete: liveEntityPinsComplete })
   const liveDistrictFeatures = useMemo(() => (liveDistricts?.features ?? []).filter((feature): feature is Feature<Geometry> => Boolean(feature?.geometry && districtId(feature))), [liveDistricts])
   const liveDistrictById = useMemo(() => new Map(liveDistrictFeatures.map((feature) => [districtId(feature) as string, feature])), [liveDistrictFeatures])
   const liveCountByName = useMemo(() => new Map(liveCounts.map((count) => [count.district_ar.trim(), count])), [liveCounts])
@@ -941,10 +943,11 @@ export function MapboxBusinessMap({
   useEffect(() => {
     const m = mapRef.current
     if (!ready || !m) return
-    // For a chosen district, direct GeoJSON pins are deliberately used while
-    // they stream in. They keep the list and visible map cohort identical even
-    // if a browser worker refuses an otherwise valid private vector-tile URL.
-    if (!liveMapQuery || liveEntityPins.length > 0) {
+    // A paged directory starts with only a small first page. Keep the private
+    // vector-tile cohort visible until all pages arrive, then switch once to
+    // the exact direct pins. Removing tiles on page one made large districts
+    // appear to load a few hundred points at a time.
+    if (liveDirectoryMode !== 'tiles' || !liveMapQuery) {
       removeDirectoryTileSource(m)
       return
     }
@@ -956,7 +959,7 @@ export function MapboxBusinessMap({
       m.addSource('directory-tiles', { type: 'vector', tiles, minzoom: 0, maxzoom: 20 })
       addDirectoryTileLayers(m)
     }
-  }, [ready, liveMapQuery, liveTileAccess, liveEntityPins.length])
+  }, [ready, liveDirectoryMode, liveMapQuery, liveTileAccess])
 
   useEffect(() => {
     if (card?.kind !== 'tile-entity' || !liveMapQuery || tileActionRef.current === card.nonce) return
@@ -1213,9 +1216,9 @@ export function MapboxBusinessMap({
       m.setLayerZoomRange(id, pinMin, 24)
     }
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
-    const hasDirectDirectoryPins = liveEntityPins.length > 0 && (liveEntityPinsComplete || Boolean(area))
+    const hasDirectDirectoryPins = liveDirectoryMode === 'direct'
     for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected']) m.setLayoutProperty(id, 'visibility', vis(hasDirectDirectoryPins || !liveMapQuery))
-  }, [ready, layers, progressive, level, liveMapQuery, liveEntityPins.length, liveEntityPinsComplete, area])
+  }, [ready, layers, progressive, level, liveMapQuery, liveDirectoryMode])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
   const activeDistrict = card?.kind === 'district' ? card.id : ''
