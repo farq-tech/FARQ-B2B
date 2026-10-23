@@ -10,6 +10,7 @@ relations, and the row-level classification `poi_taxonomy.parquet` (poi_key -> s
 Nothing here contacts anyone or reads contact details beyond what the existing search already returns.
 """
 import csv, json, os, re, threading, urllib.request
+from data_paths import data_file
 
 TR = str.maketrans('أإآةىؤئ', 'اااهيوي')
 PFX = ('وال', 'بال', 'لل', 'ال')          # multi-letter only: «بورد» must not become «ورد»
@@ -524,10 +525,10 @@ def get(tax_dir=None, poi_taxonomy=None):
     global _instance
     with _lock:
         if _instance is None:
-            tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', os.path.join(os.path.dirname(__file__), 'data', 'taxonomy'))
-            poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', os.path.join(os.path.dirname(__file__), 'data', 'poi_taxonomy.parquet'))
+            tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', data_file('taxonomy'))
+            poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', data_file('poi_taxonomy.parquet'))
             if not (os.path.isdir(tax_dir) and os.path.isfile(poi_taxonomy)): return None
-            _instance = Taxonomy(tax_dir, poi_taxonomy, os.environ.get('CONTACTS_OVERLAY', os.path.join(os.path.dirname(__file__), 'data', 'contacts_overlay.parquet')))
+            _instance = Taxonomy(tax_dir, poi_taxonomy, os.environ.get('CONTACTS_OVERLAY', data_file('contacts_overlay.parquet')))
         return _instance
 
 

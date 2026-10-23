@@ -47,7 +47,10 @@ def public_files():
     _PUBLIC.update(mtime=mt, files=out)
     return out
 
-TARGETING = os.environ.get('TARGETING_ORIGIN', 'https://farq-targeting-production-4687.up.railway.app').rstrip('/')
+# No external production fallback: every deployed caller must choose its approved
+# targeting service explicitly.  This prevents a new Railway project silently
+# reading data from an old project when a variable is omitted.
+TARGETING = os.environ.get('TARGETING_ORIGIN', '').rstrip('/')
 TARGETING_PW = os.environ.get('TARGETING_PASSWORD', '')
 TARGETING_SEND = os.environ.get('TARGETING_SEND') == '1'
 LOCAL_RUNTIME = os.environ.get('FARQ_LOCAL_RUNTIME') == '1'
@@ -65,6 +68,8 @@ def targeting_call(method, path, body=None, *, retry_transient=False):
     """One call to the targeting service with the server's service header: (status, data, content-type).
     The proxy and the scheduled-send runner (schedule.py) both go through here. Only callers that
     explicitly identify an idempotent read may retry a transient failure."""
+    if not TARGETING:
+        return 503, json.dumps({'error': 'TARGETING_NOT_CONFIGURED'}).encode(), 'application/json'
     attempts = 2 if retry_transient else 1
     log_path = urllib.parse.urlsplit(path).path
     for attempt in range(attempts):

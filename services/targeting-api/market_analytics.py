@@ -8,11 +8,12 @@ import os
 import threading
 
 import taxonomy_search
+from data_paths import data_file
 
 
-DATA = os.path.join(os.path.dirname(__file__), "data", "targets.parquet")
-POI_TAXONOMY = os.path.join(os.path.dirname(__file__), "data", "poi_taxonomy.parquet")
-STREET_DENSITY = os.path.join(os.path.dirname(__file__), "data", "street_density.parquet")
+DATA = data_file("targets.parquet")
+POI_TAXONOMY = data_file("poi_taxonomy.parquet")
+STREET_DENSITY = data_file("street_density.parquet")
 
 MAX_SUB_IDS = 50
 MAX_DISTRICTS = 30

@@ -12,7 +12,54 @@ This directory tracks the Python service source used by the opportunity map. It 
 
 `/market-summary` and `/district-counts` resolve `q` locally through the targeting taxonomy. If `q` is combined with `main_id` and/or `sub_ids`, the resolved text activities are intersected with the explicit activity filters; an unmatched intersection returns zero matches. `specialty_ids` further restricts the cohort to businesses whose directory row carries one of those exact specialty IDs. When the deployed target snapshot lacks the `specialty_ids` column, exact-specialty aggregates return zero rather than silently widening to the parent activity. District filters further narrow the same cohort. These endpoints return directory aggregates, not evidence of real-world demand or complete market coverage. `/street-density` accepts the same exact specialty IDs only when its asset has a `specialty_ids` field; otherwise it returns no lines with an explanation rather than presenting parent-subcategory lines as exact-specialty results.
 
-The deployment's business directory and taxonomy assets are intentionally excluded from Git. A deployment requires a separately maintained, access-controlled `data/` directory containing the exact production assets listed in the `Dockerfile`. Do not substitute older local data files: the map counts and supplier coverage depend on the deployed snapshot.
+The deployment's business directory and taxonomy assets are intentionally excluded from Git. They must come from one separately maintained, access-controlled data release. Do not substitute older local data files: the map counts and supplier coverage depend on the deployed snapshot.
+
+## Durable deployment inside Railway
+
+The service image no longer copies a developer's `data/` directory at build time.
+Its production source of truth is one immutable release in the **Railway Bucket
+belonging to the same Railway project**. The process downloads it only at start,
+checks every SHA-256 listed in `manifest.json`, and activates it atomically. A
+failed download or checksum leaves the previous release untouched and prevents a
+new unhealthy process from serving incomplete map results.
+
+Create a release under `releases/<release-id>/` in the Bucket. Its
+`manifest.json` must have schema version `1` and this shape:
+
+```json
+{
+  "schema_version": 1,
+  "release_id": "2026-10-23-example",
+  "files": [
+    {"path": "targets.parquet", "sha256": "<64 lowercase hex chars>", "size": 123}
+  ]
+}
+```
+
+The manifest must include the directory, district, aggregation, and taxonomy
+assets. The service rejects incomplete releases rather than presenting partial
+or sample results. Configure only the following values on the **targeting
+service**, using Railway variable references for credentials:
+
+| Variable | Purpose |
+| --- | --- |
+| `TARGETING_DATA_REQUIRED=1` | Fails closed when a release is not configured. |
+| `TARGETING_DATA_BUCKET` | Bucket name in this Railway project. |
+| `TARGETING_DATA_RELEASE` | Immutable prefix, such as `releases/2026-10-23-r1`. |
+| `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Railway Bucket S3 connection values; never commit or expose these. |
+| `TARGETING_DATA_DIR=/var/lib/farq-targeting/current` | Active verified release path. |
+| `TARGETING_RUNTIME_DIR=/var/lib/farq-targeting/runtime` | Mutable audit logs, separate from the data release. |
+
+Attach a Railway Volume at `/var/lib/farq-targeting` for the runtime cache and
+logs. The Bucket remains the canonical release store; the Volume is never the
+only copy. Railway health checks call the unauthenticated, minimal `GET
+/healthz`, which returns only `{ "ok": true }` after the full data release has
+loaded. The existing authenticated `/status` endpoint remains for operator
+diagnostics.
+
+The Atlas frontend and the legacy B2B proxy must use the new private service
+address (`TARGETING_ORIGIN` pointing to the targeting service's Railway private
+domain). They must not retain a public URL from a separate Railway project.
 
 Before connecting Railway deployments to this folder, verify the staged data asset versions and hashes against the approved production snapshot, then deploy a preview service and check its aggregate results against the current production directory. Never commit `.parquet`, `.geojson`, contact, evaluation, or operational log data here.
 

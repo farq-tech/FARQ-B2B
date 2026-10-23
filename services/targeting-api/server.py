@@ -13,14 +13,15 @@ from trial_search import Directory
 from directory_tiles import DirectoryTiles, has_usable_whatsapp, is_precise_point, valid_filters
 from market_analytics import MarketAnalytics
 import status_policy
+from data_paths import data_file, runtime_file
 import contextvars
 _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
 import urllib.parse
 FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(HERE, 'data', 'targets.parquet')
-LOG = os.path.join(HERE, 'data', 'send_log.csv')
+DATA = data_file('targets.parquet')
+LOG = runtime_file('send_log.csv')
 PORT = int(os.environ.get('PORT', '8765'))
 API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 DB_URL = os.environ.get('CONSTRUCTION_DB_URL')
@@ -319,7 +320,7 @@ def demo_search(body):
     return out
 
 def load_holder():
-    try: h = json.load(open(os.path.join(HERE, 'data', 'holder_rfq.json'), encoding='utf-8'))
+    try: h = json.load(open(data_file('holder_rfq.json'), encoding='utf-8'))
     except Exception: h = {}
     if HOLDER_ENV: h['holder_rfq_id'] = HOLDER_ENV
     if HOLDER_ACTOR: h['actor_user_id'] = HOLDER_ACTOR
@@ -358,7 +359,7 @@ def resolve_recipients(targets):
 def log_decision(kind, rfq_id, poi_key, decision, reason):
     """Decision trail without contact data: record id, decision and reason only."""
     try:
-        with open(os.path.join(HERE, 'data', 'send_decisions.jsonl'), 'a', encoding='utf-8') as f:
+        with open(runtime_file('send_decisions.jsonl'), 'a', encoding='utf-8') as f:
             f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'kind': kind, 'rfq_id': rfq_id, 'poi_key': poi_key, 'decision': decision, 'reason': reason}, ensure_ascii=False) + '\n')
     except OSError: pass
 
@@ -469,7 +470,7 @@ def _send_farq(body):
                 con_pg.commit(); out['ok'] = True
     except Exception as e:
         out['fatal'] = type(e).__name__
-    with open(os.path.join(HERE, 'data', 'farq_send_log.jsonl'), 'a', encoding='utf-8') as f:
+    with open(runtime_file('farq_send_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'rfq_id': rfq_id, 'mode': mode, 'n': len(targets),
                             'sent': len(out['sent']), 'failed': len(out['failed']), 'errors': len(out['errors']), 'added': out['added']}, ensure_ascii=False) + '\n')
     return out
@@ -508,7 +509,7 @@ def create_template(body):
     if not isinstance(comps, list) or not any(isinstance(c, dict) and c.get('type') == 'BODY' and str(c.get('text', '')).strip() for c in comps): return {'ok': False, 'error': 'BODY_REQUIRED'}
     payload = {'name': name, 'language': body['language'], 'category': body['category'], 'parameter_format': 'positional', 'components': comps}
     r = graph(f"{WA_WABA}/message_templates", payload)
-    with open(os.path.join(HERE, 'data', 'template_create_log.jsonl'), 'a', encoding='utf-8') as f:
+    with open(runtime_file('template_create_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'name': name, 'category': body['category'], 'resp': r}, ensure_ascii=False) + '\n')
     if r.get('id'): return {'ok': True, 'id': r.get('id'), 'status': r.get('status'), 'category': r.get('category')}
     e = r.get('error') or {}
@@ -542,7 +543,7 @@ def _send_template(body):
     log_decision('send_template', None, row['poi_key'], 'accept', why)
     r = provider_send(payload)
     ok = bool(r.get('messages'))
-    with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
+    with open(runtime_file('wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
 
@@ -576,7 +577,7 @@ def send_test_template(body):
                ]}]}}
     response = provider_send(payload)
     ok = bool(response.get('messages'))
-    with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
+    with open(runtime_file('wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'test': True, 'template': template, 'ok': ok, 'error_code': (response.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (response.get('messages') or [{}])[0].get('id'), 'error': (response.get('error') or {}).get('message') if not ok else None, 'code': (response.get('error') or {}).get('code')}
 
@@ -629,6 +630,10 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
         route=urllib.parse.urlparse(self.path)
+        if route.path == '/healthz':
+            # Railway needs a minimal readiness signal without exposing data.
+            self._json({'ok': True})
+            return
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)
@@ -638,7 +643,7 @@ class H(BaseHTTPRequestHandler):
             global _DISTRICTS
             try: _DISTRICTS
             except NameError:
-                p=os.path.join(HERE,'data','districts.geojson'); _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
+                p=data_file('districts.geojson'); _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
             self._json({'type':'FeatureCollection','features':[f for f in _DISTRICTS['features'] if f['properties'].get('city_en')==city]}); return
         if route.path.startswith("/tiles/") or route.path=="/facets":
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
@@ -766,7 +771,7 @@ class H(BaseHTTPRequestHandler):
                        or (main is not None and (not isinstance(main, str) or len(main) > 40))
                        or not isinstance(districts, list) or len(districts) > 30 or not all(isinstance(x, str) and len(x) <= 80 for x in districts))
                 if bad: self._json({'error': 'INPUT'}, 400); return
-                path = os.path.join(HERE, 'data', 'street_density.parquet')
+                path = data_file('street_density.parquet')
                 if not os.path.isfile(path): self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': not bool(specialties), 'basis': 'بيانات كثافة الشوارع غير متاحة.'}); return
                 db = duckdb.connect()
                 if specialties:
