@@ -35,8 +35,14 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _safe_count(db: duckdb.DuckDBPyConnection, path: Path, sql: str) -> int:
-    return int(db.execute(sql, [str(path)]).fetchone()[0])
+def _safe_count(db: duckdb.DuckDBPyConnection, path: Path, sql: str, *params: Any) -> int:
+    return int(db.execute(sql, [str(path), *params]).fetchone()[0])
+
+
+def _release_id(assets: dict[str, dict[str, Any]]) -> str:
+    """Return a deterministic identifier for the exact immutable asset set."""
+    canonical = json.dumps(assets, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def validate_release(data_dir: Path) -> dict[str, Any]:
@@ -89,17 +95,52 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
             db,
             target_path,
             """select count(*) from read_parquet(?)
-               where latitude is not null and (latitude < -90 or latitude > 90)
-                  or longitude is not null and (longitude < -180 or longitude > 180)""",
+               where (latitude is not null and (latitude < -90 or latitude > 90))
+                  or (longitude is not null and (longitude < -180 or longitude > 180))""",
         )
         if rows == 0 or null_keys or distinct_keys != rows:
             raise ValueError("targets parquet has empty or duplicate poi_key values")
         if invalid_coordinates:
             raise ValueError("targets parquet contains invalid coordinates")
 
-        taxonomy_rows = _safe_count(db, data_dir / "poi_taxonomy.parquet", "select count(*) from read_parquet(?)")
+        poi_taxonomy_path = data_dir / "poi_taxonomy.parquet"
+        taxonomy_columns = {row[0] for row in db.execute("describe select * from read_parquet(?)", [str(poi_taxonomy_path)]).fetchall()}
+        taxonomy_missing_columns = sorted({"poi_key", "sub_id"} - taxonomy_columns)
+        if taxonomy_missing_columns:
+            raise ValueError(f"poi taxonomy misses required columns: {', '.join(taxonomy_missing_columns)}")
+        taxonomy_rows = _safe_count(db, poi_taxonomy_path, "select count(*) from read_parquet(?)")
         if taxonomy_rows == 0:
             raise ValueError("poi taxonomy parquet is empty")
+        taxonomy_distinct_keys = _safe_count(
+            db,
+            poi_taxonomy_path,
+            "select count(distinct poi_key) from read_parquet(?) where poi_key is not null and trim(poi_key) <> ''",
+        )
+        taxonomy_invalid_keys = _safe_count(
+            db,
+            poi_taxonomy_path,
+            "select count(*) from read_parquet(?) where poi_key is null or trim(poi_key) = ''",
+        )
+        if taxonomy_invalid_keys or taxonomy_distinct_keys != taxonomy_rows:
+            raise ValueError("poi taxonomy has empty or duplicate poi_key values")
+        unknown_subcategories = _safe_count(
+            db,
+            poi_taxonomy_path,
+            "select count(*) from read_parquet(?) where sub_id is null or trim(sub_id) = '' or sub_id not in (select * from unnest(?))",
+            list(sub_ids),
+        )
+        if unknown_subcategories:
+            raise ValueError("poi taxonomy contains unknown subcategory ids")
+        orphan_taxonomy_rows = int(
+            db.execute(
+                """select count(*) from read_parquet(?) taxonomy
+                   left join read_parquet(?) target using (poi_key)
+                   where target.poi_key is null""",
+                [str(poi_taxonomy_path), str(target_path)],
+            ).fetchone()[0]
+        )
+        if orphan_taxonomy_rows:
+            raise ValueError("poi taxonomy contains poi_key values absent from targets")
         point_rows = _safe_count(
             db,
             target_path,
@@ -115,6 +156,7 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
     assets = {name: {"bytes": (data_dir / name).stat().st_size, "sha256": _sha256(data_dir / name)} for name in REQUIRED_ASSETS}
     return {
         "schema_version": 1,
+        "release_id": _release_id(assets),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "data_dir": str(data_dir),
         "assets": assets,
@@ -124,7 +166,7 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
             "precise_point_rows": point_rows,
             "columns": sorted(columns),
         },
-        "poi_taxonomy_rows": taxonomy_rows,
+        "poi_taxonomy": {"rows": taxonomy_rows, "distinct_poi_keys": taxonomy_distinct_keys},
         "districts": {"features": len(features), "labels": len(names)},
         "taxonomy": {"subcategories": len(sub_ids)},
     }
@@ -138,6 +180,8 @@ def verify_manifest(report: dict[str, Any], manifest_path: Path) -> None:
         raise ValueError("invalid release manifest") from error
     if expected.get("schema_version") != report.get("schema_version"):
         raise ValueError("release manifest schema version mismatch")
+    if expected.get("release_id") != report.get("release_id"):
+        raise ValueError("release manifest identifier mismatch")
     expected_assets = expected.get("assets")
     if not isinstance(expected_assets, dict):
         raise ValueError("release manifest has no assets")
