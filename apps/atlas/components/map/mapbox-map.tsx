@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { formatNumber } from '@/lib/format'
 import { areaKey, areaRing, boundsOf, cityBounds, isInArea, toLngLat, type LngLatBounds, type MapArea } from '@/lib/geo'
 import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, STREET_MIN_ZOOM, summarize, type MapLevel } from '@/lib/map-summary'
-import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
+import { cityById, districtById } from '@/lib/mock-data'
 import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
 import { normalizeArabic } from '@/lib/search'
@@ -98,6 +98,8 @@ export interface MapboxMapProps extends MockMapProps {
   /** Short-lived proof for map workers that cannot forward cookies. */
   liveTileAccess?: string | null
   onLiveEntityResolved?: (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => void
+  /** Map extent after a completed move; used to refresh aggregate analytics only. */
+  onViewportChange?: (bounds: [number, number, number, number]) => void
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -610,7 +612,6 @@ export function MapboxBusinessMap({
   onTogglePin,
   focusRequest,
   highlightDistricts = [],
-  highlightStreets = [],
   state = 'ready',
   onResetFilters,
   compact = false,
@@ -638,6 +639,7 @@ export function MapboxBusinessMap({
   focusStreetRequest,
   onDetailLevelChange,
   onMarketInsightOpened,
+  onViewportChange,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -678,14 +680,14 @@ export function MapboxBusinessMap({
     areaMode,
     progressive,
     onMarketInsightOpened,
+    onViewportChange,
   })
   useEffect(() => {
-    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive, onMarketInsightOpened }
+    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive, onMarketInsightOpened, onViewportChange }
   })
   const initialCityRef = useRef(cityId)
 
   const districtsKey = highlightDistricts.join(',')
-  const streetsKey = highlightStreets.join(',')
   const resultsKey = useMemo(() => `${cityId}|${businesses.map((b) => b.id).join(',')}`, [cityId, businesses])
 
   useEffect(() => {
@@ -739,7 +741,11 @@ export function MapboxBusinessMap({
           setZoom(nextZoom)
           setPendingLevel(null)
           const b = m.getBounds()
-          if (b) setViewBounds([b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]])
+          if (b) {
+            const nextBounds: LngLatBounds = [b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]]
+            setViewBounds(nextBounds)
+            handlersRef.current.onViewportChange?.([nextBounds[0][0], nextBounds[0][1], nextBounds[1][0], nextBounds[1][1]])
+          }
         }
 
         m.on('load', () => {
@@ -1104,11 +1110,6 @@ export function MapboxBusinessMap({
 
   const overlayData = useMemo(() => {
     const hlDistricts = new Set(districtsKey ? districtsKey.split(',') : [])
-    const hlStreets = new Set(streetsKey ? streetsKey.split(',') : [])
-    const streetCounts = new Map<string, number>()
-    for (const b of businesses) streetCounts.set(b.streetId, (streetCounts.get(b.streetId) ?? 0) + 1)
-    const syntheticDistricts = DISTRICTS.filter((d) => d.cityId === cityId)
-    const streets = STREETS.filter((s) => s.cityId === cityId && ((streetCounts.get(s.id) ?? 0) >= 3 || hlStreets.has(s.id)))
     const rankedDistrictIds = [...districtStats.counts.entries()]
       .sort(([, a], [, b]) => b - a)
       .map(([id]) => id)
@@ -1125,45 +1126,34 @@ export function MapboxBusinessMap({
         labelRank: districtRank.get(id) ?? Number.MAX_SAFE_INTEGER,
       }
     }
-    const districts = useLiveDistricts
-      ? liveDistrictFeatures.map((feature) => ({ ...feature, properties: { ...(feature.properties ?? {}), ...props(districtId(feature) as string) } }))
-      : syntheticDistricts.map((d) => {
-          const ring = d.polygon.map((point) => toLngLat(cityId, point))
-          return { type: 'Feature' as const, properties: props(d.id), geometry: { type: 'Polygon' as const, coordinates: [[...ring, ring[0]]] } }
-        })
-    const points = useLiveDistricts
-      ? liveDistrictFeatures.flatMap((feature) => {
-          const id = districtId(feature)
-          const center = polygonCenter(feature.geometry)
-          if (!id || !center) return []
-          const p = props(id)
-          return [{ type: 'Feature' as const, properties: { ...p, name: districtName(feature), countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: center } }]
-        })
-      : syntheticDistricts.map((d) => {
-          const p = props(d.id)
-          return { type: 'Feature' as const, properties: { ...p, name: d.name, countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: toLngLat(cityId, d.center) } }
-        })
+    // Never replace unavailable live boundaries with illustrative geometry:
+    // that would visually present invented areas as a real data layer.
+    const districts = liveDistrictFeatures.map((feature) => ({ ...feature, properties: { ...(feature.properties ?? {}), ...props(districtId(feature) as string) } }))
+    const points = liveDistrictFeatures.flatMap((feature) => {
+      const id = districtId(feature)
+      const center = polygonCenter(feature.geometry)
+      if (!id || !center) return []
+      const p = props(id)
+      return [{ type: 'Feature' as const, properties: { ...p, name: districtName(feature), countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: center } }]
+    })
     return {
       districts: { type: 'FeatureCollection', features: districts } satisfies FeatureCollection,
       points: { type: 'FeatureCollection', features: points } satisfies FeatureCollection,
       streets: {
         type: 'FeatureCollection',
-        features: streets.map((s) => ({
-          type: 'Feature',
-          properties: { name: s.name, strong: hlStreets.has(s.id) ? 1 : 0 },
-          geometry: { type: 'LineString', coordinates: [toLngLat(cityId, s.from), toLngLat(cityId, s.to)] },
-        })),
+        features: [],
       } satisfies FeatureCollection,
     }
-  }, [cityId, businesses, districtsKey, streetsKey, districtStats, liveDistrictFeatures, useLiveDistricts])
+  }, [districtsKey, districtStats, liveDistrictFeatures])
 
   const areaData = useMemo<FeatureCollection>(() => {
     if (!area) return EMPTY
-    const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
-    const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
+    const ring = area.kind === 'district'
+      ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null)
+      : areaRing(cityId, area)
     if (ring.length < 3) return EMPTY
     return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] } }] }
-  }, [cityId, area, liveDistrictById])
+  }, [area, liveDistrictById])
 
   useEffect(() => {
     const m = mapRef.current
@@ -1261,8 +1251,9 @@ export function MapboxBusinessMap({
   const currentAreaKey = areaKey(area)
   useEffect(() => {
     if (!ready || !area) return
-    const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
-    const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
+    const ring = area.kind === 'district'
+      ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null)
+      : areaRing(cityId, area)
     const b = boundsOf(ring)
     // A district is an explicit request to inspect its establishments. Keep
     // the camera at the entity threshold rather than fitting the whole

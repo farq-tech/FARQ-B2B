@@ -59,6 +59,8 @@ export type LiveMarketScope = {
   subIds?: string[]
   /** Canonical Arabic district names accepted by the aggregate market service. */
   districts?: string[]
+  /** Current visible map extent: west, south, east, north. */
+  bounds?: [number, number, number, number]
   /** Commercial direction used to resolve a natural-language market scope. */
   objective?: 'purchase' | 'marketing'
 }
@@ -137,6 +139,7 @@ export async function loadLiveMarket(city: string, scope: LiveMarketScope = {}):
     ...(scope.mainId ? { main_id: scope.mainId } : {}),
     ...(scope.subIds?.length ? { sub_ids: scope.subIds.slice(0, 20) } : {}),
     ...(scope.districts?.length ? { districts: scope.districts.slice(0, 30) } : {}),
+    ...(scope.bounds ? { bounds: scope.bounds } : {}),
     ...(scope.objective ? { objective: scope.objective } : {}),
   }
   const json = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(query) }
