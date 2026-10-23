@@ -27,11 +27,9 @@ interface ContextBarProps {
   selected: number
   hasEntityPins: boolean
   marketSignalCount: number
-  areaMode: boolean
   areaLabel?: string
   pendingLevel?: MapLevel | null
   onLevel: (level: MapLevel) => void
-  onToggleAreaMode: () => void
 }
 
 export function MapContextBar({
@@ -43,11 +41,9 @@ export function MapContextBar({
   selected,
   hasEntityPins,
   marketSignalCount,
-  areaMode,
   areaLabel,
   pendingLevel,
   onLevel,
-  onToggleAreaMode,
 }: ContextBarProps) {
   const levels = progressive ? LEVELS : LEVELS.slice(1)
   return (
@@ -87,18 +83,12 @@ export function MapContextBar({
             </>
           ) : null}
         </p>
-        <Button size="sm" variant={areaMode ? 'default' : 'outline'} onClick={onToggleAreaMode} aria-pressed={areaMode}>
-          <BoxSelect data-icon="inline-start" />
-          {areaMode ? 'إلغاء التحديد' : 'تحديد منطقة'}
-        </Button>
       </div>
       <p className="px-1.5 pb-0.5 text-[11px] leading-relaxed text-muted-foreground" aria-live="polite">
         {pendingLevel
           ? `جارٍ إظهار ${LEVELS.find((item) => item.id === pendingLevel)?.label ?? 'النتائج'} على الخريطة…`
-          : areaMode
-            ? 'اسحب على الخريطة لرسم منطقة، أو اضغط على حي لاختياره كاملاً.'
-            : areaLabel
-              ? `القائمة محصورة في: ${areaLabel}. امسح المنطقة لعرض كل النتائج.`
+          : areaLabel
+              ? `القائمة محصورة في: ${areaLabel}. امسح الحي لعرض كل النتائج.`
               : level === 'entities' && !hasEntityPins
                 ? 'سجّل الدخول لعرض الجهات المطابقة واختيارها. تظهر إشارات النشاط المجمّعة ومعالم المكان المتاحة عند هذا التقريب.'
                 : LEVEL_HINT[level]}
@@ -365,7 +355,7 @@ export function AreaCard({
           {label}
         </p>
         <p className="text-xs text-muted-foreground">
-          {summary.count ? 'القائمة تعرض منشآت هذه المنطقة فقط.' : entityState === 'auth' ? 'سجّل الدخول لعرض الجهات ونقاطها داخل المنطقة.' : entityState === 'loading' ? 'جارٍ تحميل الجهات داخل المنطقة.' : entityState === 'error' || entityState === 'blocked' ? 'تعذر تحميل الجهات داخل المنطقة حالياً.' : 'لا توجد نتائج مطابقة داخل المنطقة. جرّب رسم منطقة أوسع.'}
+          {summary.count ? 'القائمة تعرض منشآت هذا الحي فقط.' : entityState === 'auth' ? 'سجّل الدخول لعرض الجهات ونقاطها داخل الحي.' : entityState === 'loading' ? 'جارٍ تحميل الجهات داخل الحي.' : entityState === 'error' || entityState === 'blocked' ? 'تعذر تحميل الجهات داخل الحي حالياً.' : 'لا توجد نتائج مطابقة داخل الحي. جرّب حيًا آخر أو غيّر البحث.'}
         </p>
       </div>
       {summary.count ? <>

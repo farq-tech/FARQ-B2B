@@ -152,6 +152,12 @@ export function OpportunityMapView() {
   // Assistant parsing can finish before polygon geometry arrives. Reconcile
   // the saved district name to the provider id once it is available so the
   // same applied filter is also visible as a selected map boundary.
+  // A selected district is the explicit map scope. Do not keep replacing it
+  // with a camera viewport scope: fitting the district produces a
+  // moveend event, which otherwise starts a new aggregate request and leaves
+  // the map permanently in its refreshing state.
+  const effectiveViewportBounds = area ? null : viewportBounds
+
   useEffect(() => {
     if (area || filters.districts.length !== 1) return
     const name = districtById.get(filters.districts[0])?.name
@@ -169,8 +175,8 @@ export function OpportunityMapView() {
       subIds: activeActivity.subs.map((item) => item.sub_id),
       districts: liveDistrictScope,
       objective: directoryObjective(goal, intent),
-      ...(viewportBounds ? { bounds: viewportBounds } : {}),
-    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent), ...(viewportBounds ? { bounds: viewportBounds } : {}) })
+      ...(effectiveViewportBounds ? { bounds: effectiveViewportBounds } : {}),
+    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent), ...(effectiveViewportBounds ? { bounds: effectiveViewportBounds } : {}) })
       .then((data) => {
         if (!controller.signal.aborted) setMarket({ status: 'ready', data })
       })
@@ -178,7 +184,7 @@ export function OpportunityMapView() {
         if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
       })
     return () => controller.abort()
-  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope, viewportBounds])
+  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope, effectiveViewportBounds])
 
   useEffect(() => {
     if (!goal) return
@@ -389,7 +395,10 @@ export function OpportunityMapView() {
   }
 
   const handleAreaChange = (nextArea: MapArea | null) => {
-    setArea(nextArea)
+    setViewportBounds(null)
+    // Atlas scopes its map by official district boundaries only. Reject any
+    // legacy free-drawn area that may survive a client-side navigation.
+    setArea(nextArea?.kind === 'rect' ? null : nextArea)
   }
 
   const handleViewportChange = useCallback((next: [number, number, number, number]) => {
@@ -456,8 +465,8 @@ export function OpportunityMapView() {
   // The authenticated directory applies the stricter, documented WhatsApp
   // validity rule. When a district is selected it is the authoritative cohort
   // for the list, points, and contact-signal statistic together.
-  const scopeTotal = viewportBounds ? market.data?.summary?.total ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
-  const scopeWhatsapp = viewportBounds ? market.data?.summary?.n_whatsapp ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
+  const scopeTotal = effectiveViewportBounds ? market.data?.summary?.total ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
+  const scopeWhatsapp = effectiveViewportBounds ? market.data?.summary?.n_whatsapp ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
 
   return (
     <main data-viewport-workspace className="flex min-h-0 flex-1 flex-col lg:h-dvh lg:max-h-dvh lg:flex-none lg:overflow-hidden">
@@ -598,7 +607,7 @@ export function OpportunityMapView() {
             liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
-            onViewportChange={handleViewportChange}
+            onViewportChange={area ? undefined : handleViewportChange}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}

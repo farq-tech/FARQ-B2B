@@ -655,9 +655,7 @@ export function MapboxBusinessMap({
   const [zoom, setZoom] = useState(11)
   const [pendingLevel, setPendingLevel] = useState<MapLevel | null>(null)
   const [viewBounds, setViewBounds] = useState<LngLatBounds | null>(null)
-  const [areaMode, setAreaMode] = useState(false)
   const [dismissedArea, setDismissedArea] = useState<object | null>(null)
-  const [drawRect, setDrawRect] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const [wide, setWide] = useState(true)
   const [tileProfiles, setTileProfiles] = useState<Record<string, import('@/components/opportunity/live-entity-results').LiveEntity>>({})
   const [tileProfileError, setTileProfileError] = useState<string | null>(null)
@@ -685,13 +683,12 @@ export function MapboxBusinessMap({
     onFailure,
     onAreaChange,
     cityId,
-    areaMode,
     progressive,
     onMarketInsightOpened,
     onViewportChange,
   })
   useEffect(() => {
-    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive, onMarketInsightOpened, onViewportChange }
+    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, progressive, onMarketInsightOpened, onViewportChange }
   })
   const initialCityRef = useRef(cityId)
 
@@ -779,16 +776,6 @@ export function MapboxBusinessMap({
 
           m.on('click', (e) => {
             const h = handlersRef.current
-            if (h.areaMode) {
-              const d = hit(['district-heat'], e.point)
-              const id = d?.properties?.id
-              if (typeof id === 'string') {
-                const label = typeof d?.properties?.name === 'string' ? d.properties.name : typeof d?.properties?.ar === 'string' ? d.properties.ar : districtById.get(id)?.name ?? ''
-                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${label}` })
-                setAreaMode(false)
-              }
-              return
-            }
             setLayersOpen(false)
             const tileCluster = hit(['directory-tile-cluster-count', 'directory-tile-cluster'], e.point, 20)
             if (tileCluster) {
@@ -888,43 +875,12 @@ export function MapboxBusinessMap({
           const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-cluster', 'live-entity-cluster-count', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
-              if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
+              m.getCanvas().style.cursor = 'pointer'
             })
             m.on('mouseleave', layer, () => {
-              if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = ''
+              m.getCanvas().style.cursor = ''
             })
           }
-
-          let start: { x: number; y: number } | null = null
-          const begin = (p: { x: number; y: number }) => {
-            if (!handlersRef.current.areaMode) return
-            start = { x: p.x, y: p.y }
-          }
-          const move = (p: { x: number; y: number }) => {
-            if (!start) return
-            setDrawRect({ x0: start.x, y0: start.y, x1: p.x, y1: p.y })
-          }
-          const end = (p: { x: number; y: number }) => {
-            if (!start) return
-            const s = start
-            start = null
-            setDrawRect(null)
-            if (Math.abs(p.x - s.x) < 8 && Math.abs(p.y - s.y) < 8) return
-            const a = m.unproject([s.x, s.y]).toArray() as [number, number]
-            const b = m.unproject([p.x, p.y]).toArray() as [number, number]
-            const bounds: LngLatBounds = [
-              [Math.min(a[0], b[0]), Math.min(a[1], b[1])],
-              [Math.max(a[0], b[0]), Math.max(a[1], b[1])],
-            ]
-            handlersRef.current.onAreaChange?.({ kind: 'rect', bounds, label: 'منطقة مرسومة' })
-            setAreaMode(false)
-          }
-          m.on('mousedown', (e) => begin(e.point))
-          m.on('mousemove', (e) => move(e.point))
-          m.on('mouseup', (e) => end(e.point))
-          m.on('touchstart', (e) => begin(e.point))
-          m.on('touchmove', (e) => move(e.point))
-          m.on('touchend', (e) => end(e.point))
 
           setReady(true)
         })
@@ -1001,19 +957,6 @@ export function MapboxBusinessMap({
     })
     return () => controller.abort()
   }, [card, liveMapQuery, onLiveEntityResolved, onTogglePin, tileProfiles])
-
-  useEffect(() => {
-    const m = mapRef.current
-    if (!ready || !m) return
-    if (areaMode) {
-      m.dragPan.disable()
-      m.getCanvas().style.cursor = 'crosshair'
-      setCard(null)
-    } else {
-      m.dragPan.enable()
-      m.getCanvas().style.cursor = ''
-    }
-  }, [ready, areaMode])
 
   const bizData = useMemo(() => businessesFC(cityId, businesses, selectedSet, area), [cityId, businesses, selectedSet, area])
   const ghostData = useMemo(() => businessesFC(cityId, ghostBusinesses, new Set()), [cityId, ghostBusinesses])
@@ -1277,7 +1220,6 @@ export function MapboxBusinessMap({
 
   useEffect(() => {
     setCard(null)
-    setAreaMode(false)
   }, [cityId])
 
   const handledDistrictFocusRef = useRef<number | null>(null)
@@ -1427,7 +1369,7 @@ export function MapboxBusinessMap({
   }
 
   const renderCard = () => {
-    if (state !== 'ready' || layersOpen || areaMode) return null
+    if (state !== 'ready' || layersOpen) return null
     if (card?.kind === 'business') {
       const b = businesses.find((x) => x.id === card.id) ?? ghostBusinesses.find((x) => x.id === card.id)
       if (!b) return null
@@ -1549,19 +1491,6 @@ export function MapboxBusinessMap({
         <div ref={containerRef} className="size-full" role="application" aria-label="خريطة الفرص التفاعلية" />
       </div>
 
-      {drawRect ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute z-10 rounded-sm border-2 border-dashed border-primary bg-primary/10"
-          style={{
-            left: Math.min(drawRect.x0, drawRect.x1),
-            top: Math.min(drawRect.y0, drawRect.y1),
-            width: Math.abs(drawRect.x1 - drawRect.x0),
-            height: Math.abs(drawRect.y1 - drawRect.y0),
-          }}
-        />
-      ) : null}
-
       {!compact && ready && state !== 'empty' ? (
         <motion.div
           className="absolute top-3 right-3 left-14 z-10 @2xl:left-auto @2xl:w-[min(34rem,calc(100%-5rem))]"
@@ -1578,11 +1507,9 @@ export function MapboxBusinessMap({
             selected={selectedIds.length}
             hasEntityPins={liveEntityPins.length > 0}
             marketSignalCount={liveClusters.length}
-            areaMode={areaMode}
             areaLabel={area?.label}
             pendingLevel={pendingLevel}
             onLevel={goToLevel}
-            onToggleAreaMode={() => setAreaMode((v) => !v)}
           />
         </motion.div>
       ) : null}
