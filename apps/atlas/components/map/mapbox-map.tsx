@@ -1262,7 +1262,10 @@ export function MapboxBusinessMap({
     const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
     const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
     const b = boundsOf(ring)
-    if (b) fitTo(b, true, 15.5)
+    // A district is an explicit request to inspect its establishments. Keep
+    // the camera at the entity threshold rather than fitting the whole
+    // polygon at overview scale, where POIs would be hidden again.
+    if (b) fitTo(b, true, ENTITY_MIN_ZOOM + 0.35, ENTITY_MIN_ZOOM)
     setCard(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, currentAreaKey, liveDistrictById])
@@ -1282,7 +1285,10 @@ export function MapboxBusinessMap({
     if (!feature || !id) return
     handledDistrictFocusRef.current = focusDistrictRequest.nonce
     const bounds = boundsOf(outerRing(feature.geometry))
-    if (bounds) fitTo(bounds, true, 13.2, DISTRICT_MAX_ZOOM + 0.35)
+    // Opening a district from the URL, a card, or the ranked list has the
+    // same meaning: enter the district and reveal its POIs. Aggregation still
+    // handles density within the viewport, as on conventional map products.
+    if (bounds) fitTo(bounds, true, ENTITY_MIN_ZOOM + 0.35, ENTITY_MIN_ZOOM)
     setCard({ kind: 'district', id })
   }, [ready, focusDistrictRequest, liveDistrictFeatures])
 
