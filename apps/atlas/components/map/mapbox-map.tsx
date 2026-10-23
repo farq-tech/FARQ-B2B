@@ -1403,6 +1403,8 @@ export function MapboxBusinessMap({
         <AreaCard
           label={area.label}
           summary={areaSummary}
+          totalCount={area.kind === 'district' ? liveSummary?.total : undefined}
+          totalWhatsappSignals={area.kind === 'district' ? liveSummary?.n_whatsapp : undefined}
           entityState={liveEntityState}
           loginHref={`/login?next=${encodeURIComponent(next)}`}
           onClose={() => setDismissedArea(area)}
