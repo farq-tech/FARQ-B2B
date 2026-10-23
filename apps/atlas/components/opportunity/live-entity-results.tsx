@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Building2, Loader2, MapPin, MessageCircle, Search, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { LiveBusinessSnapshot } from '@/lib/types'
-import { appendUniqueDirectoryRows } from '@/lib/directory-pages'
+import { appendUniqueDirectoryRows, nextDirectoryOffset } from '@/lib/directory-pages'
 
 export type DirectoryObjective = 'purchase' | 'marketing'
 
@@ -56,14 +56,15 @@ export function LiveEntityResults({ query, cityId, objective, district, prefetch
       // Vector tiles serve city-scale exploration. Once the person explicitly
       // restricts to one district, retaining every safe point in the client is
       // a reliable fallback and lets the list and map represent the same cohort.
-      if (!prefetchAllForMap || !data.hasMore || typeof data.nextOffset !== 'number') return
+      const firstNextOffset = nextDirectoryOffset(data.total, data.rows.length, data.nextOffset)
+      if (!prefetchAllForMap || firstNextOffset == null) return
       setLoadingMore(true)
       try {
         // Four small, ordered requests balance perceived speed with protection
         // for the read-only directory. A 16k-record district no longer waits
         // for eighty strictly serial round trips before its map can be complete.
         const offsets: number[] = []
-        for (let offset = data.nextOffset; offset < data.total; offset += 200) offsets.push(offset)
+        for (let offset = firstNextOffset; offset < data.total; offset += 200) offsets.push(offset)
         while (!controller.signal.aborted && offsets.length) {
           const batch = offsets.splice(0, 4)
           const pages = await Promise.all(batch.map(requestPage))
@@ -102,8 +103,8 @@ export function LiveEntityResults({ query, cityId, objective, district, prefetch
 
   async function loadMore() {
     const data = state.data
-    const offset = data?.nextOffset
-    if (!data?.hasMore || typeof offset !== 'number' || loadingMore) return
+    const offset = data ? nextDirectoryOffset(data.total, data.rows.length, data.nextOffset) : null
+    if (!data || offset == null || loadingMore) return
     setLoadingMore(true)
     try {
       const response = await fetch('/api/market/entities', {
@@ -118,7 +119,8 @@ export function LiveEntityResults({ query, cityId, objective, district, prefetch
         const rows = appendUniqueDirectoryRows(current.data.rows, payload.rows)
         // `withWhatsapp` is a cohort aggregate. Recomputing it from a list
         // page makes the map card contradict the directory service.
-        return { kind: 'ready', data: { ...payload, total: current.data.total, withWhatsapp: current.data.withWhatsapp, rows } }
+        const nextOffset = nextDirectoryOffset(current.data.total, rows.length, payload.nextOffset)
+        return { kind: 'ready', data: { ...payload, total: current.data.total, withWhatsapp: current.data.withWhatsapp, hasMore: nextOffset != null, nextOffset, rows } }
       })
     } catch (error) {
       setState((current) => current.data ? { ...current, message: error instanceof Error ? error.message : 'تعذر تحميل الدفعة التالية.' } : current)
