@@ -1284,6 +1284,19 @@ export function MapboxBusinessMap({
       return [...(inView.length ? inView : items)].sort((a, b) => b.weight - a.weight)[0]
     }
 
+    // A chosen district is the user's geographic context. Entering the entity
+    // level must focus that district, rather than only magnifying the city centre.
+    // Tiles then stream every matching POI for the visible viewport just like a
+    // conventional map; the complete district remains available by panning.
+    if (l === 'entities' && area?.kind === 'district') {
+      const feature = liveDistrictById.get(area.districtId)
+      const center = feature ? polygonCenter(feature.geometry) : null
+      if (center) {
+        m.easeTo({ center, zoom: target.zoom, duration: 550 })
+        return
+      }
+    }
+
     if (l === 'clusters') {
       const candidate = visibleFirst(liveClusters.flatMap((cluster) => (
         typeof cluster.lon === 'number' && typeof cluster.lat === 'number'
@@ -1451,8 +1464,8 @@ export function MapboxBusinessMap({
             cityName={cityName}
             level={level}
             progressive={progressive}
-            inView={liveSummary?.total ?? inView}
-            total={liveSummary?.total ?? businesses.length}
+            inView={liveMapQuery && liveDirectorySummary ? liveDirectorySummary.total : liveSummary?.total ?? inView}
+            total={liveMapQuery && liveDirectorySummary ? liveDirectorySummary.total : liveSummary?.total ?? businesses.length}
             selected={selectedIds.length}
             hasEntityPins={liveEntityPins.length > 0}
             marketSignalCount={liveClusters.length}

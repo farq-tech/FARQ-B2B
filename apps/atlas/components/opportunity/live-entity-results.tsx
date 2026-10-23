@@ -44,7 +44,7 @@ export function LiveEntityResults({ query, cityId, objective, district, onResult
       if (response.status === 401) { setState({ kind: 'auth', data: null, message: payload?.error }); return }
       if (response.status === 403) { setState({ kind: 'blocked', data: null, message: payload?.error }); return }
       if (!response.ok || !payload) { setState({ kind: 'error', data: null, message: payload?.error || 'تعذر تحميل الجهات.' }); return }
-      setState({ kind: 'ready', data: { ...payload, withWhatsapp: payload.rows.filter((entity) => entity.whatsapp).length } })
+      setState({ kind: 'ready', data: { ...payload, withWhatsapp: Number.isFinite(payload.withWhatsapp) ? payload.withWhatsapp : payload.rows.filter((entity) => entity.whatsapp).length } })
     }
     load().catch((error) => { if (!controller.signal.aborted) setState({ kind: 'error', data: null, message: error instanceof Error && error.name === 'AbortError' ? undefined : 'تعذر الاتصال بخدمة الدليل.' }) })
     return () => controller.abort()
