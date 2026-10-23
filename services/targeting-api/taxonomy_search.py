@@ -10,7 +10,6 @@ relations, and the row-level classification `poi_taxonomy.parquet` (poi_key -> s
 Nothing here contacts anyone or reads contact details beyond what the existing search already returns.
 """
 import csv, json, os, re, threading, urllib.request
-from data_paths import data_file
 
 TR = str.maketrans('أإآةىؤئ', 'اااهيوي')
 PFX = ('وال', 'بال', 'لل', 'ال')          # multi-letter only: «بورد» must not become «ورد»
@@ -391,7 +390,10 @@ class Taxonomy:
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
                 extra = {'phone_source': o_src, 'phone_source_name': o_src_name, 'phone_lookup': 'found'}
-            identity = (norm(name), norm(district))
+            # `poi_key` is the directory's durable identity. Name + district
+            # merged distinct branches that happened to share a brand/name and
+            # made the directory disagree with map aggregates.
+            identity = key
             if identity in seen or re.fullmatch(r'ChIJ[\w-]{10,}', name or ''): continue   # Google place ids are not names
             seen.add(identity)
             sub_ar = self.subs[sub]['sub_ar']
@@ -525,10 +527,11 @@ def get(tax_dir=None, poi_taxonomy=None):
     global _instance
     with _lock:
         if _instance is None:
-            tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', data_file('taxonomy'))
-            poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', data_file('poi_taxonomy.parquet'))
+            data_dir = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(os.path.dirname(__file__), 'data'))
+            tax_dir = tax_dir or os.environ.get('TAXONOMY_DIR', os.path.join(data_dir, 'taxonomy'))
+            poi_taxonomy = poi_taxonomy or os.environ.get('POI_TAXONOMY', os.path.join(data_dir, 'poi_taxonomy.parquet'))
             if not (os.path.isdir(tax_dir) and os.path.isfile(poi_taxonomy)): return None
-            _instance = Taxonomy(tax_dir, poi_taxonomy, os.environ.get('CONTACTS_OVERLAY', data_file('contacts_overlay.parquet')))
+            _instance = Taxonomy(tax_dir, poi_taxonomy, os.environ.get('CONTACTS_OVERLAY', os.path.join(os.path.dirname(__file__), 'data', 'contacts_overlay.parquet')))
         return _instance
 
 

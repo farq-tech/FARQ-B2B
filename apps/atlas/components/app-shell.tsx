@@ -23,11 +23,12 @@ function userInitial(user: SessionUser) {
 export function BrandMark({ className }: { className?: string }) {
   return (
     <div className={cn('flex items-center gap-2.5', className)}>
-      <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground" aria-hidden>
-        أ
+      <span className="flex items-center gap-1.5" aria-hidden>
+        <img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" />
+        <span className="text-[15px] font-bold text-[#303030]">أطلس</span>
       </span>
       <span className="flex flex-col leading-tight">
-        <span className="text-[15px] font-bold">فرق أطلس</span>
+        <span className="sr-only">فرق أطلس</span>
         <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
           منصة الفرص التجارية
         </span>

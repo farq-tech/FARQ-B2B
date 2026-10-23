@@ -1,50 +1,43 @@
 import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { isTargetingAllowed, sessionForRequest, setSession } from '@/lib/atlas-session'
+import { isTargetingAllowed, sessionForRequest } from '@/lib/atlas-session'
+import { isMapQuery } from '@/lib/live-directory'
+import { parsePbfTileY } from '@/lib/tile-coordinate'
+import { verifyTileAccess } from '@/lib/map-tile-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function targetingHeaders() {
+  const serviceToken = process.env.TARGETING_SERVICE_TOKEN
+  if (serviceToken) return { 'x-farq-service': serviceToken }
   const password = process.env.TARGETING_PASSWORD
-  return password ? { 'x-farq-service': createHmac('sha256', password).update('farq-proxy-v1').digest('hex') } : null
+  if (!password) return null
+  return { 'x-farq-service': createHmac('sha256', password).update('farq-proxy-v1').digest('hex') }
 }
 
-/**
- * Proxies an opaque, short-lived directory tile context. The browser never sees
- * targeting credentials, raw contact fields, or an unbounded directory export.
- * The context is issued only by the authenticated entities search route.
- */
 export async function GET(request: NextRequest, context: { params: Promise<{ query: string; z: string; x: string; y: string }> }) {
-  const { query, z, x, y } = await context.params
-  if (!/^[a-f0-9]{32}$/i.test(query) || !/^\d{1,2}$/.test(z) || !/^\d{1,7}$/.test(x) || !/^\d{1,7}$/.test(y)) {
-    return new NextResponse(null, { status: 400, headers: { 'cache-control': 'no-store' } })
-  }
-  const zoom = Number(z)
-  if (zoom > 20 || Number(x) >= 2 ** zoom || Number(y) >= 2 ** zoom) {
-    return new NextResponse(null, { status: 400, headers: { 'cache-control': 'no-store' } })
-  }
-  const { session, refreshed } = await sessionForRequest(request)
-  if (!session || !isTargetingAllowed(session)) return new NextResponse(null, { status: 401, headers: { 'cache-control': 'no-store' } })
+  // Tile requests are frequent. The encrypted Atlas session and allow-list are
+  // checked locally here; profile and directory APIs additionally verify the
+  // upstream account session before exposing an entity record.
+  const { query, z, x, y: rawY } = await context.params
+  const tileAccess = request.nextUrl.searchParams.get('access')
+  const { session } = await sessionForRequest(request)
+  const sessionAllowed = Boolean(session && isTargetingAllowed(session))
+  if (!sessionAllowed && !verifyTileAccess(query, tileAccess)) return new NextResponse(null, { status: 401, headers: { 'cache-control': 'private, no-store' } })
+  const y = parsePbfTileY(rawY)
+  if (!isMapQuery(query) || !/^\d{1,2}$/.test(z) || !/^\d{1,7}$/.test(x) || !y) return new NextResponse(null, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
-  if (!origin || !headers) return new NextResponse(null, { status: 503, headers: { 'cache-control': 'no-store' } })
+  if (!origin || !headers) return new NextResponse(null, { status: 503 })
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10_000)
+  const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
     const upstream = await fetch(`${origin}/tiles/${query}/${z}/${x}/${y}.pbf`, { headers, cache: 'no-store', signal: controller.signal })
-    if (!upstream.ok) return new NextResponse(null, { status: upstream.status === 410 ? 410 : 502, headers: { 'cache-control': 'no-store' } })
-    const response = new NextResponse(await upstream.arrayBuffer(), {
-      headers: {
-        'content-type': 'application/vnd.mapbox-vector-tile',
-        'cache-control': 'private, max-age=60',
-        'x-content-type-options': 'nosniff',
-      },
-    })
-    if (refreshed) setSession(response, session)
-    return response
+    if (!upstream.ok) return new NextResponse(null, { status: upstream.status >= 500 ? 502 : upstream.status, headers: { 'cache-control': 'private, no-store' } })
+    return new NextResponse(await upstream.arrayBuffer(), { status: 200, headers: { 'content-type': 'application/vnd.mapbox-vector-tile', 'cache-control': 'private, no-store' } })
   } catch {
-    return new NextResponse(null, { status: 502, headers: { 'cache-control': 'no-store' } })
+    return new NextResponse(null, { status: 502, headers: { 'cache-control': 'private, no-store' } })
   } finally {
     clearTimeout(timeout)
   }

@@ -1,11 +1,10 @@
 'use client'
 
-import { ChevronDown, Search, Sparkles } from 'lucide-react'
+import { ChevronDown, MapPinned, Search, Sparkles } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { CITIES } from '@/lib/mock-data'
 import type { GoalDef } from '@/lib/goals'
-import type { Filters } from '@/lib/types'
 
 interface SearchToolbarProps {
   goal: GoalDef
@@ -17,108 +16,31 @@ interface SearchToolbarProps {
   onOpenAssistant: () => void
 }
 
-export function SearchToolbar({
-  goal,
-  onChangeGoal,
-  cityId,
-  onCityChange,
-  initialQuery,
-  onSearch,
-  onOpenAssistant,
-}: SearchToolbarProps) {
+export function SearchToolbar({ goal, onChangeGoal, cityId, onCityChange, initialQuery, onSearch, onOpenAssistant }: SearchToolbarProps) {
   const [text, setText] = useState(initialQuery)
-
-  // Searches originating from the assistant or the live activity picker update
-  // the map state outside this input. Keep the visible query aligned with that
-  // applied state so the user can understand and refine the active scope.
-  useEffect(() => {
-    setText(initialQuery)
-  }, [initialQuery])
-
+  useEffect(() => { setText(initialQuery) }, [initialQuery])
   return (
-    <div className="flex flex-col gap-2.5">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onChangeGoal}
-          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border bg-accent px-3 text-sm font-medium text-accent-foreground hover:border-primary/40"
-          aria-label={`الهدف: ${goal.label}. اضغط للتغيير`}
-        >
-          <goal.icon className="size-4" aria-hidden />
-          <span className="hidden sm:inline">{goal.label}</span>
-          <ChevronDown className="size-3.5 opacity-60" aria-hidden />
+    <section aria-label="تحديد هدف البحث" className="rounded-2xl border bg-card p-2 shadow-xs">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <button type="button" onClick={onChangeGoal} className="inline-flex h-11 shrink-0 items-center justify-between gap-2 rounded-xl bg-foreground px-3.5 text-sm font-semibold text-background hover:opacity-90 lg:min-w-40" aria-label={`الهدف: ${goal.label}. اضغط للتغيير`}>
+          <span className="inline-flex items-center gap-2"><goal.icon className="size-4" />{goal.label}</span><ChevronDown className="size-3.5 opacity-70" />
         </button>
-        <form
-          role="search"
-          className="relative flex min-w-0 flex-1"
-          onSubmit={(e) => {
-            e.preventDefault()
-            onSearch(text)
-          }}
-        >
-          <label htmlFor="opp-search" className="sr-only">
-            ابحث بلغة طبيعية
-          </label>
-          <Search className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <input
-            id="opp-search"
-            type="search"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={goal.placeholder}
-            className="h-10 w-full rounded-lg border bg-card pr-9 pl-20 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25"
-          />
-          <Button type="submit" size="sm" className="absolute top-1/2 left-1 -translate-y-1/2">
-            بحث
-          </Button>
+        <form role="search" className="relative flex min-w-0 flex-1" onSubmit={(event) => { event.preventDefault(); onSearch(text) }}>
+          <label htmlFor="opp-search" className="sr-only">ابحث بلغة طبيعية</label>
+          <Search className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input id="opp-search" type="search" value={text} onChange={(event) => setText(event.target.value)} placeholder={goal.placeholder} className="h-11 w-full rounded-xl border bg-background pr-10 pl-20 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25" />
+          <Button type="submit" size="sm" className="absolute top-1/2 left-1.5 -translate-y-1/2">اعرض النتائج</Button>
         </form>
-        <Button variant="outline" className="h-10 shrink-0" onClick={onOpenAssistant} aria-label="فتح المساعد">
-          <Sparkles data-icon="inline-start" className="text-primary" />
-          <span className="hidden md:inline">المساعد</span>
-        </Button>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 lg:flex lg:items-center">
+          <NativeSelect label="المدينة" value={cityId} onChange={onCityChange}><>{CITIES.map((city) => <option key={city.id} value={city.id} disabled={!city.available}>{city.available ? city.name : `${city.name} (غير متاحة)`}</option>)}</></NativeSelect>
+          <Button variant="outline" className="h-11" onClick={onOpenAssistant}><Sparkles data-icon="inline-start" className="text-primary" /><span className="hidden sm:inline">ساعدني</span></Button>
+        </div>
       </div>
-
-      <div className="max-w-xs">
-        <NativeSelect label="المدينة" value={cityId} onChange={onCityChange}>
-          {CITIES.map((c) => (
-            <option key={c.id} value={c.id} disabled={!c.available}>
-              {c.available ? c.name : `${c.name} (غير متاحة)`}
-            </option>
-          ))}
-        </NativeSelect>
-      </div>
-    </div>
+      <p className="flex items-center gap-1.5 px-1.5 pt-2 text-xs text-muted-foreground"><MapPinned className="size-3.5 text-primary" />حدّد حيًا من الخريطة فيبقى نطاقك محفوظًا عند البحث أو تبديل التصنيف.</p>
+    </section>
   )
 }
 
-function NativeSelect({
-  label,
-  value,
-  onChange,
-  disabled,
-  children,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  disabled?: boolean
-  children: ReactNode
-}) {
-  return (
-    <label className="relative flex min-w-0 flex-col">
-      <span className="sr-only">{label}</span>
-      <span className="pointer-events-none absolute top-1 right-3 text-[10px] font-medium text-muted-foreground" aria-hidden>
-        {label}
-      </span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full min-w-0 appearance-none truncate rounded-lg border bg-card pt-3.5 pr-3 pl-7 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-50"
-      >
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-    </label>
-  )
+function NativeSelect({ label, value, onChange, disabled, children }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; children: ReactNode }) {
+  return <label className="relative flex min-w-0"><span className="sr-only">{label}</span><select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="h-11 min-w-0 appearance-none rounded-xl border bg-background py-0 pr-8 pl-8 text-sm font-medium outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-50">{children}</select><MapPinned className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-primary" /><ChevronDown className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" /></label>
 }

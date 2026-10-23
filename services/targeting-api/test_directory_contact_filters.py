@@ -66,7 +66,7 @@ class DirectoryContactFilterTests(unittest.TestCase):
                 ('wholesale', 'مورد جملة', 'Wholesale supplier', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
                  'حي الملز', '', 24.6, 46.7, 'point', null, null, false, true, null, '', 1, '', null, null, '', 90, true, 'طريق الملك فهد', 'مصنع|جملة', 'حديد، إسمنت'),
                 ('retail', 'متجر تجزئة', 'Retail shop', 'مواد بناء', 'مواد بناء', '', '', 'Riyadh', '', '',
-                 'حي الملز', '', 24.61, 46.71, 'point', null, null, false, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا', 'متجر', 'دهانات')
+                 'حي الملز', '', 24.61, 46.71, 'point', '0501234567', null, true, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا', 'متجر', 'دهانات')
             """)
             db.execute("copy places to ? (format parquet)", [str(path)])
             db.execute("create table branches(brand varchar, n integer)")
@@ -84,7 +84,10 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertIs(result["rows"][0]["is_wholesale"], True)
             self.assertEqual(result["rows"][0]["street_ar"], "طريق الملك فهد")
             self.assertEqual(result["areas"]["streets"], [{"name": "طريق الملك فهد", "district": "حي الملز", "n": 1}])
-            broad_result = tiles.browse("Riyadh", {})
+            broad_result = tiles.browse("Riyadh", {}, limit=1)
+            self.assertEqual(broad_result["total"], 2)
+            self.assertEqual(len(broad_result["rows"]), 1)
+            self.assertEqual(broad_result["with_whatsapp"], 1)
             self.assertCountEqual(broad_result["areas"]["streets"], [
                 {"name": "طريق الملك فهد", "district": "حي الملز", "n": 1},
                 {"name": "شارع العليا", "district": "حي الملز", "n": 1},

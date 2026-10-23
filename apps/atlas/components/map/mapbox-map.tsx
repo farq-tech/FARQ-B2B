@@ -1,24 +1,31 @@
 'use client'
 
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { Feature, FeatureCollection, Geometry, Point as GeoPoint, Position } from 'geojson'
-import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
+import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapboxMap, VectorTileSource } from 'mapbox-gl'
 import { Loader2, MapPinOff, Minus, Plus, Scan, SearchX } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { formatNumber } from '@/lib/format'
 import { areaKey, areaRing, boundsOf, cityBounds, isInArea, toLngLat, type LngLatBounds, type MapArea } from '@/lib/geo'
 import { DISTRICT_MAX_ZOOM, ENTITY_MIN_ZOOM, LEVELS, STREET_MIN_ZOOM, summarize, type MapLevel } from '@/lib/map-summary'
-import { DISTRICTS, STREETS, cityById, districtById } from '@/lib/mock-data'
+import { cityById, districtById } from '@/lib/mock-data'
 import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperties } from '@/lib/live-market'
 import type { Business } from '@/lib/types'
+import { normalizeArabic } from '@/lib/search'
+import { mapIconImageId, mapPinSvg, resolveMapIcon, svgToImage } from '@/lib/map-icons'
+import { directoryRenderMode } from '@/lib/directory-render-mode'
+import type { DirectoryLoadState } from '@/components/opportunity/live-entity-results'
+import type { DirectorySummary } from '@/components/opportunity/live-entity-results'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
 import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard, MarketStreetCard } from './map-overlays'
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
-  primary: '#0d8b72',
+  // Official FARQ green, shared with the Atlas wordmark and application UI.
+  primary: '#008060',
   primarySoft: '#e3f1ec',
   card: '#fffefb',
   foreground: '#161816',
@@ -42,12 +49,13 @@ const MARKET_CLUSTER_LAYERS = ['market-cluster-halo', 'market-cluster', 'market-
 const CLUSTER_LAYERS = [...BUSINESS_CLUSTER_LAYERS, ...MARKET_CLUSTER_LAYERS]
 const MARKET_STREET_LAYERS = ['market-street-hit', 'market-street-line', 'market-street-label']
 const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
-const DIRECTORY_TILE_LAYERS = ['directory-tile-cluster', 'directory-tile-count', 'directory-tile-point']
+const DIRECTORY_TILE_LAYERS = ['directory-tile-cluster', 'directory-tile-cluster-count', 'directory-tile-pin', 'directory-tile-name']
 
 const expr = (x: unknown) => x as ExpressionSpecification
 const filter = (x: unknown) => x as FilterSpecification
 const isOn = (key: string) => expr(['==', ['get', key], 1])
 const UNCLUSTERED = filter(['!', ['has', 'point_count']])
+const CLUSTERED = filter(['has', 'point_count'])
 const FADED = (on: number, off: number) => expr(['case', isOn('out'), off, on])
 
 type Card =
@@ -57,6 +65,7 @@ type Card =
   | { kind: 'market-cluster'; label: string; count: number; wholesale: number; district?: string; center: [number, number] }
   | { kind: 'market-street'; label: string; count: number; wholesale: number; district?: string }
   | { kind: 'live-entity'; id: string }
+  | { kind: 'tile-entity'; id: string; name: string; nonce: number }
   | null
 
 export interface MapboxMapProps extends MockMapProps {
@@ -78,9 +87,19 @@ export interface MapboxMapProps extends MockMapProps {
   /** Read-only geographically aggregated opportunities. */
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
-  liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
-  /** Same-origin, short-lived vector-tile context for the complete live cohort. */
-  liveEntityTileUrl?: string
+  liveEntityPins?: readonly { id: string; name: string; category: string; specialties?: readonly string[]; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
+  /** A selected district has loaded every safe directory point client-side. */
+  liveEntityPinsComplete?: boolean
+  /** Exact count of the authenticated directory cohort used by the tile source. */
+  liveDirectorySummary?: DirectorySummary | null
+  liveEntityState?: DirectoryLoadState
+  /** Opaque short-lived cohort returned by the authenticated directory endpoint. */
+  liveMapQuery?: string | null
+  /** Short-lived proof for map workers that cannot forward cookies. */
+  liveTileAccess?: string | null
+  onLiveEntityResolved?: (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => void
+  /** Map extent after a completed move; used to refresh aggregate analytics only. */
+  onViewportChange?: (bounds: [number, number, number, number]) => void
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -134,9 +153,10 @@ function businessesFC(cityId: string, items: Business[], selected: Set<string>, 
 }
 
 function addLayers(map: MapboxMap) {
-  for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'ghosts', 'biz-flat', 'selected', 'area', 'live-entities']) {
+  for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'ghosts', 'biz-flat', 'selected', 'area']) {
     map.addSource(id, { type: 'geojson', data: EMPTY })
   }
+  map.addSource('live-entities', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 54, clusterMaxZoom: ENTITY_MIN_ZOOM })
   // The targeting service already returns geographically aggregated street
   // opportunities. Rendering those records directly keeps each visible point
   // truthful and clickable; clustering them again can hide all activity at
@@ -372,22 +392,61 @@ function addLayers(map: MapboxMap) {
     paint: { 'circle-radius': 4.5, 'circle-color': COLORS.primary, 'circle-stroke-color': COLORS.card, 'circle-stroke-width': 2 },
   })
 
-  // A semantic directory query yields at most 30 candidates. Show those
-  // exact matches immediately alongside the district boundaries so the user
-  // can compare their spread before choosing campaign recipients.
+  // Directory points follow the same progressive disclosure as Google Maps:
+  // a count cluster when zoomed out, then individual searchable establishments
+  // only when the user is close enough to act on a specific location.
+  map.addLayer({
+    id: 'live-entity-cluster',
+    type: 'circle',
+    source: 'live-entities',
+    minzoom: 10,
+    filter: CLUSTERED,
+    paint: { 'circle-radius': expr(['interpolate', ['linear'], ['get', 'point_count'], 2, 15, 50, 23, 500, 31]), 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+  })
+  map.addLayer({
+    id: 'live-entity-cluster-count',
+    type: 'symbol',
+    source: 'live-entities',
+    minzoom: 10,
+    filter: CLUSTERED,
+    layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': FONT_BOLD, 'text-size': 12 },
+    paint: { 'text-color': COLORS.primary },
+  })
   map.addLayer({
     id: 'live-entity-halo',
     type: 'circle',
     source: 'live-entities',
-    minzoom: 10,
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: UNCLUSTERED,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 11, 9]), 'circle-color': COLORS.primary, 'circle-opacity': expr(['case', isOn('selected'), 0.25, 0.14]) },
   })
   map.addLayer({
     id: 'live-entity-pin',
     type: 'circle',
     source: 'live-entities',
-    minzoom: 10,
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: UNCLUSTERED,
     paint: { 'circle-radius': expr(['case', isOn('selected'), 6.5, 5]), 'circle-color': expr(['case', isOn('selected'), COLORS.primary, COLORS.card]), 'circle-stroke-color': expr(['case', isOn('selected'), COLORS.card, COLORS.primary]), 'circle-stroke-width': 2.5 },
+  })
+  // The point carries the icon chosen from Farq's commercial taxonomy. The
+  // artwork is registered lazily only for activities present in this view.
+  // Clustering remains responsible for dense areas; a person sees an actual
+  // activity marker only when zooming close enough to act on the location.
+  map.addLayer({
+    id: 'live-entity-icon',
+    type: 'symbol',
+    source: 'live-entities',
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: filter(['all', UNCLUSTERED, ['==', ['get', 'selected'], 0]]),
+    layout: { 'icon-image': ['get', 'icon'], 'icon-size': 0.9, 'icon-anchor': 'bottom', 'icon-allow-overlap': false, 'icon-ignore-placement': false },
+  })
+  map.addLayer({
+    id: 'live-entity-icon-selected',
+    type: 'symbol',
+    source: 'live-entities',
+    minzoom: ENTITY_MIN_ZOOM,
+    filter: filter(['all', UNCLUSTERED, ['==', ['get', 'selected'], 1]]),
+    layout: { 'icon-image': ['get', 'icon_selected'], 'icon-size': 0.98, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
   })
 
   map.addLayer({
@@ -493,27 +552,38 @@ function addLayers(map: MapboxMap) {
   })
 }
 
-function ensureDirectoryTileLayers(map: MapboxMap, tileUrl: string) {
-  const existing = map.getSource('directory-tiles') as ({ setTiles?: (tiles: string[]) => void } | undefined)
-  if (existing?.setTiles) existing.setTiles([tileUrl])
-  else if (!existing) map.addSource('directory-tiles', { type: 'vector', tiles: [tileUrl], minzoom: 0, maxzoom: 20 })
-  if (map.getLayer('directory-tile-cluster')) return
-  const clustered = filter(['>', ['get', 'count'], 1])
+/** Quiets the basemap so business data, not POIs, carries the visual weight. */
+function addDirectoryTileLayers(map: MapboxMap) {
+  const source = 'directory-tiles'
+  const vectorLayer = 'businesses'
   map.addLayer({
-    id: 'directory-tile-cluster', type: 'circle', source: 'directory-tiles', 'source-layer': 'businesses', maxzoom: 16, filter: clustered,
-    paint: { 'circle-radius': expr(['step', ['get', 'count'], 13, 10, 16, 50, 21, 200, 26]), 'circle-color': COLORS.primary, 'circle-opacity': 0.92, 'circle-stroke-color': COLORS.card, 'circle-stroke-width': 2 },
+    id: 'directory-tile-cluster', type: 'circle', source, 'source-layer': vectorLayer, minzoom: 10, maxzoom: ENTITY_MIN_ZOOM + 0.5,
+    filter: filter(['>', ['coalesce', ['get', 'count'], 0], 1]),
+    paint: { 'circle-radius': expr(['interpolate', ['linear'], ['coalesce', ['get', 'count'], 1], 2, 15, 50, 23, 500, 31]), 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
   })
   map.addLayer({
-    id: 'directory-tile-count', type: 'symbol', source: 'directory-tiles', 'source-layer': 'businesses', maxzoom: 16, filter: clustered,
-    layout: { 'text-field': ['to-string', ['get', 'count']], 'text-font': FONT_BOLD, 'text-size': 12, 'text-allow-overlap': true }, paint: { 'text-color': '#ffffff' },
+    id: 'directory-tile-cluster-count', type: 'symbol', source, 'source-layer': vectorLayer, minzoom: 10, maxzoom: ENTITY_MIN_ZOOM + 0.5,
+    filter: filter(['>', ['coalesce', ['get', 'count'], 0], 1]),
+    layout: { 'text-field': ['to-string', ['get', 'count']], 'text-font': FONT_BOLD, 'text-size': 12 }, paint: { 'text-color': COLORS.primary },
   })
   map.addLayer({
-    id: 'directory-tile-point', type: 'circle', source: 'directory-tiles', 'source-layer': 'businesses', minzoom: 16, filter: filter(['==', ['get', 'count'], 1]),
-    paint: { 'circle-radius': 5.5, 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+    id: 'directory-tile-pin', type: 'circle', source, 'source-layer': vectorLayer, minzoom: ENTITY_MIN_ZOOM,
+    filter: filter(['==', ['coalesce', ['get', 'count'], 0], 1]),
+    paint: { 'circle-radius': 5, 'circle-color': COLORS.card, 'circle-stroke-color': COLORS.primary, 'circle-stroke-width': 2.5 },
+  })
+  map.addLayer({
+    id: 'directory-tile-name', type: 'symbol', source, 'source-layer': vectorLayer, minzoom: ENTITY_MIN_ZOOM + 0.65,
+    filter: filter(['==', ['coalesce', ['get', 'count'], 0], 1]),
+    layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-max-width': 12 },
+    paint: { 'text-color': COLORS.foreground, 'text-halo-color': COLORS.card, 'text-halo-width': 1.5 },
   })
 }
 
-/** Quiets the basemap so business data, not POIs, carries the visual weight. */
+function removeDirectoryTileSource(map: MapboxMap) {
+  for (const id of DIRECTORY_TILE_LAYERS) if (map.getLayer(id)) map.removeLayer(id)
+  if (map.getSource('directory-tiles')) map.removeSource('directory-tiles')
+}
+
 function calmBasemap(map: MapboxMap) {
   for (const layer of map.getStyle()?.layers ?? []) {
     if (/poi|transit|airport|ferry|aerialway/.test(layer.id)) map.setLayoutProperty(layer.id, 'visibility', 'none')
@@ -542,7 +612,6 @@ export function MapboxBusinessMap({
   onTogglePin,
   focusRequest,
   highlightDistricts = [],
-  highlightStreets = [],
   state = 'ready',
   onResetFilters,
   compact = false,
@@ -560,11 +629,17 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
-  liveEntityTileUrl,
+  liveEntityPinsComplete = false,
+  liveDirectorySummary = null,
+  liveEntityState = 'idle',
+  liveMapQuery = null,
+  liveTileAccess = null,
+  onLiveEntityResolved,
   focusDistrictRequest,
   focusStreetRequest,
   onDetailLevelChange,
   onMarketInsightOpened,
+  onViewportChange,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -584,9 +659,14 @@ export function MapboxBusinessMap({
   const [dismissedArea, setDismissedArea] = useState<object | null>(null)
   const [drawRect, setDrawRect] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const [wide, setWide] = useState(true)
+  const [tileProfiles, setTileProfiles] = useState<Record<string, import('@/components/opportunity/live-entity-results').LiveEntity>>({})
+  const [tileProfileError, setTileProfileError] = useState<string | null>(null)
+  const tileActionRef = useRef<number | null>(null)
+  const reduceMotion = useReducedMotion()
 
   const level = levelFor(zoom, progressive, layers)
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const liveDirectoryMode = directoryRenderMode({ mapQuery: liveMapQuery, pinCount: liveEntityPins.length, pinsComplete: liveEntityPinsComplete })
   const liveDistrictFeatures = useMemo(() => (liveDistricts?.features ?? []).filter((feature): feature is Feature<Geometry> => Boolean(feature?.geometry && districtId(feature))), [liveDistricts])
   const liveDistrictById = useMemo(() => new Map(liveDistrictFeatures.map((feature) => [districtId(feature) as string, feature])), [liveDistrictFeatures])
   const liveCountByName = useMemo(() => new Map(liveCounts.map((count) => [count.district_ar.trim(), count])), [liveCounts])
@@ -600,14 +680,14 @@ export function MapboxBusinessMap({
     areaMode,
     progressive,
     onMarketInsightOpened,
+    onViewportChange,
   })
   useEffect(() => {
-    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive, onMarketInsightOpened }
+    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, areaMode, progressive, onMarketInsightOpened, onViewportChange }
   })
   const initialCityRef = useRef(cityId)
 
   const districtsKey = highlightDistricts.join(',')
-  const streetsKey = highlightStreets.join(',')
   const resultsKey = useMemo(() => `${cityId}|${businesses.map((b) => b.id).join(',')}`, [cityId, businesses])
 
   useEffect(() => {
@@ -633,6 +713,12 @@ export function MapboxBusinessMap({
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
+          // Vector tiles are served from the authenticated Atlas route. Mapbox
+          // fetches them from a worker, so make same-origin session delivery
+          // explicit instead of relying on the browser default.
+          transformRequest: (url, resourceType) => resourceType === 'Tile' && url.startsWith('/api/market/tiles/')
+            ? { url, credentials: 'include' }
+            : { url },
           minZoom: 9,
         })
         map = m
@@ -655,7 +741,11 @@ export function MapboxBusinessMap({
           setZoom(nextZoom)
           setPendingLevel(null)
           const b = m.getBounds()
-          if (b) setViewBounds([b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]])
+          if (b) {
+            const nextBounds: LngLatBounds = [b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]]
+            setViewBounds(nextBounds)
+            handlersRef.current.onViewportChange?.([nextBounds[0][0], nextBounds[0][1], nextBounds[1][0], nextBounds[1][1]])
+          }
         }
 
         m.on('load', () => {
@@ -686,13 +776,35 @@ export function MapboxBusinessMap({
               const id = d?.properties?.id
               if (typeof id === 'string') {
                 const label = typeof d?.properties?.name === 'string' ? d.properties.name : typeof d?.properties?.ar === 'string' ? d.properties.ar : districtById.get(id)?.name ?? ''
-                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${label}`, districtName: label })
+                h.onAreaChange?.({ kind: 'district', districtId: id, label: `حي ${label}` })
                 setAreaMode(false)
               }
               return
             }
             setLayersOpen(false)
-            const livePin = hit(['live-entity-pin'], e.point)
+            const tileCluster = hit(['directory-tile-cluster-count', 'directory-tile-cluster'], e.point, 20)
+            if (tileCluster) {
+              const center = (tileCluster.geometry as GeoPoint).coordinates as [number, number]
+              m.easeTo({ center, zoom: Math.min(ENTITY_MIN_ZOOM + 0.8, m.getZoom() + 1.4), duration: 500 })
+              return
+            }
+            const tilePin = hit(['directory-tile-pin'], e.point, 12)
+            const tileId = tilePin?.properties?.key
+            if (typeof tileId === 'string' && tileId) {
+              setCard({ kind: 'tile-entity', id: tileId, name: typeof tilePin?.properties?.name === 'string' ? tilePin.properties.name : 'منشأة', nonce: Date.now() })
+              return
+            }
+            const liveCluster = hit(['live-entity-cluster-count', 'live-entity-cluster'], e.point, 20)
+            const liveClusterId = liveCluster?.properties?.cluster_id
+            if (liveCluster && typeof liveClusterId === 'number') {
+              const source = m.getSource('live-entities') as GeoJSONSource
+              const center = (liveCluster.geometry as GeoPoint).coordinates as [number, number]
+              source.getClusterExpansionZoom(liveClusterId, (error, nextZoom) => {
+                if (!error && nextZoom != null) m.easeTo({ center, zoom: Math.max(nextZoom, m.getZoom() + 0.8), duration: 500 })
+              })
+              return
+            }
+            const livePin = hit(['live-entity-icon-selected', 'live-entity-icon', 'live-entity-pin'], e.point)
             const liveId = livePin?.properties?.id
             if (typeof liveId === 'string') {
               h.onTogglePin(liveId)
@@ -765,7 +877,7 @@ export function MapboxBusinessMap({
             setCard(null)
           })
 
-          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-pin', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
+          const pointerLayers = ['biz-flat-pin', 'biz-clustered-pin', 'live-entity-cluster', 'live-entity-cluster-count', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected', 'ghost', 'cluster', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count', 'market-street-hit']
           for (const layer of pointerLayers) {
             m.on('mouseenter', layer, () => {
               if (!handlersRef.current.areaMode) m.getCanvas().style.cursor = 'pointer'
@@ -839,6 +951,52 @@ export function MapboxBusinessMap({
   useEffect(() => {
     const m = mapRef.current
     if (!ready || !m) return
+    // A paged directory starts with only a small first page. Keep the private
+    // vector-tile cohort visible until all pages arrive, then switch once to
+    // the exact direct pins. Removing tiles on page one made large districts
+    // appear to load a few hundred points at a time.
+    if (liveDirectoryMode !== 'tiles' || !liveMapQuery) {
+      removeDirectoryTileSource(m)
+      return
+    }
+    const access = liveTileAccess ? `?access=${encodeURIComponent(liveTileAccess)}` : ''
+    const tiles = [`/api/market/tiles/${liveMapQuery}/{z}/{x}/{y}.pbf${access}`]
+    const source = m.getSource('directory-tiles') as VectorTileSource | undefined
+    if (source) source.setTiles(tiles)
+    else {
+      m.addSource('directory-tiles', { type: 'vector', tiles, minzoom: 0, maxzoom: 20 })
+      addDirectoryTileLayers(m)
+    }
+  }, [ready, liveDirectoryMode, liveMapQuery, liveTileAccess])
+
+  useEffect(() => {
+    if (card?.kind !== 'tile-entity' || !liveMapQuery || tileActionRef.current === card.nonce) return
+    tileActionRef.current = card.nonce
+    const cached = tileProfiles[card.id]
+    const controller = new AbortController()
+    setTileProfileError(null)
+    const resolve = (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => {
+      setTileProfiles((current) => ({ ...current, [entity.id]: entity }))
+      onLiveEntityResolved?.(entity)
+      onTogglePin(entity.id)
+    }
+    if (cached) { resolve(cached); return () => controller.abort() }
+    fetch('/api/market/map-profile', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
+      body: JSON.stringify({ query: liveMapQuery, poiKey: card.id }),
+    }).then(async (response) => {
+      const payload = await response.json().catch(() => null) as { entity?: import('@/components/opportunity/live-entity-results').LiveEntity; error?: string } | null
+      if (!response.ok || !payload?.entity) throw new Error(payload?.error || 'تعذر تحميل بيانات المنشأة.')
+      resolve(payload.entity)
+    }).catch((error) => {
+      if (!controller.signal.aborted) setTileProfileError(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنشأة.')
+    })
+    return () => controller.abort()
+  }, [card, liveMapQuery, onLiveEntityResolved, onTogglePin, tileProfiles])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m) return
     if (areaMode) {
       m.dragPan.disable()
       m.getCanvas().style.cursor = 'crosshair'
@@ -860,10 +1018,55 @@ export function MapboxBusinessMap({
     type: 'FeatureCollection',
     features: liveEntityPins.flatMap((entity) => entity.latitude != null && entity.longitude != null ? [{
       type: 'Feature' as const,
-      properties: { id: entity.id, name: entity.name, category: entity.category, district: entity.district, street: entity.street, whatsapp: entity.whatsapp ? 1 : 0, reason: entity.reason, selected: selectedSet.has(entity.id) ? 1 : 0 },
+      properties: (() => {
+        const marker = resolveMapIcon({ category: entity.category, specialties: entity.specialties })
+        return {
+          id: entity.id,
+          name: entity.name,
+          category: entity.category,
+          district: entity.district,
+          street: entity.street,
+          whatsapp: entity.whatsapp ? 1 : 0,
+          reason: entity.reason,
+          selected: selectedSet.has(entity.id) ? 1 : 0,
+          icon: mapIconImageId(marker.icon),
+          icon_selected: mapIconImageId(marker.icon, true),
+        }
+      })(),
       geometry: { type: 'Point' as const, coordinates: [entity.longitude, entity.latitude] },
     }] : []),
   }), [liveEntityPins, selectedSet])
+
+  const liveMarkerIcons = useMemo(() => {
+    const icons = new Set<string>()
+    for (const entity of liveEntityPins) icons.add(resolveMapIcon({ category: entity.category, specialties: entity.specialties }).icon)
+    return [...icons]
+  }, [liveEntityPins])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m || !liveMarkerIcons.length) return
+    let cancelled = false
+    Promise.all(liveMarkerIcons.flatMap((icon) => [
+      svgToImage(mapPinSvg(icon)),
+      svgToImage(mapPinSvg(icon, true)),
+    ])).then((images) => {
+      if (cancelled || !m.isStyleLoaded()) return
+      for (let index = 0; index < liveMarkerIcons.length; index += 1) {
+        const icon = liveMarkerIcons[index]
+        const regularId = mapIconImageId(icon)
+        const selectedId = mapIconImageId(icon, true)
+        if (!m.hasImage(regularId)) m.addImage(regularId, images[index * 2])
+        if (!m.hasImage(selectedId)) m.addImage(selectedId, images[index * 2 + 1])
+      }
+      // Existing GeoJSON features are re-evaluated as soon as Mapbox receives
+      // their images, so no additional request or client data is needed here.
+    }).catch(() => {
+      // The underlying point layer remains interactive if an icon asset cannot
+      // be decoded; a rendering enhancement must never hide live entities.
+    })
+    return () => { cancelled = true }
+  }, [ready, liveMarkerIcons])
 
   const liveStreetData = useMemo<FeatureCollection<Geometry, StreetDensityProperties>>(() => liveStreets ?? (EMPTY as FeatureCollection<Geometry, StreetDensityProperties>), [liveStreets])
   const liveClusterData = useMemo<FeatureCollection>(() => {
@@ -907,11 +1110,6 @@ export function MapboxBusinessMap({
 
   const overlayData = useMemo(() => {
     const hlDistricts = new Set(districtsKey ? districtsKey.split(',') : [])
-    const hlStreets = new Set(streetsKey ? streetsKey.split(',') : [])
-    const streetCounts = new Map<string, number>()
-    for (const b of businesses) streetCounts.set(b.streetId, (streetCounts.get(b.streetId) ?? 0) + 1)
-    const syntheticDistricts = DISTRICTS.filter((d) => d.cityId === cityId)
-    const streets = STREETS.filter((s) => s.cityId === cityId && ((streetCounts.get(s.id) ?? 0) >= 3 || hlStreets.has(s.id)))
     const rankedDistrictIds = [...districtStats.counts.entries()]
       .sort(([, a], [, b]) => b - a)
       .map(([id]) => id)
@@ -928,58 +1126,34 @@ export function MapboxBusinessMap({
         labelRank: districtRank.get(id) ?? Number.MAX_SAFE_INTEGER,
       }
     }
-    const districts = useLiveDistricts
-      ? liveDistrictFeatures.map((feature) => ({ ...feature, properties: { ...(feature.properties ?? {}), ...props(districtId(feature) as string) } }))
-      : syntheticDistricts.map((d) => {
-          const ring = d.polygon.map((point) => toLngLat(cityId, point))
-          return { type: 'Feature' as const, properties: props(d.id), geometry: { type: 'Polygon' as const, coordinates: [[...ring, ring[0]]] } }
-        })
-    const points = useLiveDistricts
-      ? liveDistrictFeatures.flatMap((feature) => {
-          const id = districtId(feature)
-          const center = polygonCenter(feature.geometry)
-          if (!id || !center) return []
-          const p = props(id)
-          return [{ type: 'Feature' as const, properties: { ...p, name: districtName(feature), countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: center } }]
-        })
-      : syntheticDistricts.map((d) => {
-          const p = props(d.id)
-          return { type: 'Feature' as const, properties: { ...p, name: d.name, countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: toLngLat(cityId, d.center) } }
-        })
+    // Never replace unavailable live boundaries with illustrative geometry:
+    // that would visually present invented areas as a real data layer.
+    const districts = liveDistrictFeatures.map((feature) => ({ ...feature, properties: { ...(feature.properties ?? {}), ...props(districtId(feature) as string) } }))
+    const points = liveDistrictFeatures.flatMap((feature) => {
+      const id = districtId(feature)
+      const center = polygonCenter(feature.geometry)
+      if (!id || !center) return []
+      const p = props(id)
+      return [{ type: 'Feature' as const, properties: { ...p, name: districtName(feature), countLabel: `${formatNumber(p.count)} منشأة` }, geometry: { type: 'Point' as const, coordinates: center } }]
+    })
     return {
       districts: { type: 'FeatureCollection', features: districts } satisfies FeatureCollection,
       points: { type: 'FeatureCollection', features: points } satisfies FeatureCollection,
       streets: {
         type: 'FeatureCollection',
-        features: streets.map((s) => ({
-          type: 'Feature',
-          properties: { name: s.name, strong: hlStreets.has(s.id) ? 1 : 0 },
-          geometry: { type: 'LineString', coordinates: [toLngLat(cityId, s.from), toLngLat(cityId, s.to)] },
-        })),
+        features: [],
       } satisfies FeatureCollection,
     }
-  }, [cityId, businesses, districtsKey, streetsKey, districtStats, liveDistrictFeatures, useLiveDistricts])
+  }, [districtsKey, districtStats, liveDistrictFeatures])
 
   const areaData = useMemo<FeatureCollection>(() => {
     if (!area) return EMPTY
-    const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
-    const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
+    const ring = area.kind === 'district'
+      ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null)
+      : areaRing(cityId, area)
     if (ring.length < 3) return EMPTY
     return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] } }] }
-  }, [cityId, area, liveDistrictById])
-
-  useEffect(() => {
-    const m = mapRef.current
-    if (!ready || !m) return
-    if (liveEntityTileUrl) ensureDirectoryTileLayers(m, liveEntityTileUrl)
-    const staticVisibility = liveEntityTileUrl ? 'none' : 'visible'
-    for (const id of ['live-entity-halo', 'live-entity-pin']) {
-      if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', staticVisibility)
-    }
-    for (const id of DIRECTORY_TILE_LAYERS) {
-      if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', liveEntityTileUrl ? 'visible' : 'none')
-    }
-  }, [ready, liveEntityTileUrl])
+  }, [area, liveDistrictById])
 
   useEffect(() => {
     const m = mapRef.current
@@ -1034,7 +1208,9 @@ export function MapboxBusinessMap({
       m.setLayerZoomRange(id, pinMin, 24)
     }
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
-  }, [ready, layers, progressive, level])
+    const hasDirectDirectoryPins = liveDirectoryMode === 'direct'
+    for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected']) m.setLayoutProperty(id, 'visibility', vis(hasDirectDirectoryPins || !liveMapQuery))
+  }, [ready, layers, progressive, level, liveMapQuery, liveDirectoryMode])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
   const activeDistrict = card?.kind === 'district' ? card.id : ''
@@ -1060,20 +1236,29 @@ export function MapboxBusinessMap({
   const compactFitKey = compact ? `${cityId}` : resultsKey
   useEffect(() => {
     if (!ready) return
+    // Loading a new page changes the live district collection. Do not let that
+    // background refresh pull a user who has selected an area back out to the
+    // whole city: the dedicated area effect below owns that camera.
+    if (area) return
     const points = (compact ? [...businesses, ...ghostBusinesses] : businesses).map((b) => toLngLat(cityId, [b.x, b.y]))
     const liveBounds = boundsOf(liveDistrictFeatures.flatMap((feature) => outerRing(feature.geometry)))
     fitTo(liveBounds ?? boundsOf(points) ?? cityBounds(cityId))
-    // Only refit when the result set, city, or visible size changes — not on selection toggles.
+    // Only refit when the result set, city, or visible size changes — never on
+    // selection toggles or subsequent directory pages.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, compactFitKey, sizeEpoch, liveDistrictFeatures])
+  }, [ready, compactFitKey, sizeEpoch, liveDistrictFeatures, area])
 
   const currentAreaKey = areaKey(area)
   useEffect(() => {
     if (!ready || !area) return
-    const liveRing = area.kind === 'district' ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null) : []
-    const ring = liveRing.length ? liveRing : areaRing(cityId, area, area.kind === 'district' ? districtById.get(area.districtId)?.polygon : undefined)
+    const ring = area.kind === 'district'
+      ? outerRing(liveDistrictById.get(area.districtId)?.geometry ?? null)
+      : areaRing(cityId, area)
     const b = boundsOf(ring)
-    if (b) fitTo(b, true, 15.5)
+    // A district is an explicit request to inspect its establishments. Keep
+    // the camera at the entity threshold rather than fitting the whole
+    // polygon at overview scale, where POIs would be hidden again.
+    if (b) fitTo(b, true, ENTITY_MIN_ZOOM + 0.35, ENTITY_MIN_ZOOM)
     setCard(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, currentAreaKey, liveDistrictById])
@@ -1093,7 +1278,10 @@ export function MapboxBusinessMap({
     if (!feature || !id) return
     handledDistrictFocusRef.current = focusDistrictRequest.nonce
     const bounds = boundsOf(outerRing(feature.geometry))
-    if (bounds) fitTo(bounds, true, 13.2, DISTRICT_MAX_ZOOM + 0.35)
+    // Opening a district from the URL, a card, or the ranked list has the
+    // same meaning: enter the district and reveal its POIs. Aggregation still
+    // handles density within the viewport, as on conventional map products.
+    if (bounds) fitTo(bounds, true, ENTITY_MIN_ZOOM + 0.35, ENTITY_MIN_ZOOM)
     setCard({ kind: 'district', id })
   }, [ready, focusDistrictRequest, liveDistrictFeatures])
 
@@ -1142,6 +1330,30 @@ export function MapboxBusinessMap({
   }, [viewBounds, businesses, cityId])
 
   const areaItems = useMemo(() => (area ? businesses.filter((b) => isInArea(cityId, b, area)) : []), [area, businesses, cityId])
+  const areaLiveEntities = useMemo(() => {
+    if (!area) return []
+    if (area.kind === 'district') {
+      const liveFeature = liveDistrictById.get(area.districtId)
+      const district = liveFeature ? districtName(liveFeature) : area.label.replace(/^حي\s+/, '')
+      const key = normalizeArabic(district)
+      return liveEntityPins.filter((entity) => normalizeArabic(entity.district) === key)
+    }
+    const [[west, south], [east, north]] = area.bounds
+    return liveEntityPins.filter((entity) => entity.latitude != null && entity.longitude != null && entity.longitude >= west && entity.longitude <= east && entity.latitude >= south && entity.latitude <= north)
+  }, [area, liveDistrictById, liveEntityPins])
+  const areaSummary = useMemo(() => {
+    if (areaItems.length) return summarize(areaItems, selectedSet)
+    const categories = new Map<string, number>()
+    for (const entity of areaLiveEntities) categories.set(entity.category, (categories.get(entity.category) ?? 0) + 1)
+    return {
+      count: areaLiveEntities.length,
+      selected: areaLiveEntities.filter((entity) => selectedSet.has(entity.id)).length,
+      whatsappSignals: areaLiveEntities.filter((entity) => entity.whatsapp).length,
+      wholesale: 0,
+      topCategories: [...categories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => ({ name, count })),
+    }
+  }, [areaItems, areaLiveEntities, selectedSet])
+  const areaSelectableIds = areaItems.length ? areaItems.map((item) => item.id) : areaLiveEntities.map((item) => item.id)
 
   const goToLevel = (l: MapLevel) => {
     const m = mapRef.current
@@ -1161,6 +1373,19 @@ export function MapboxBusinessMap({
     const visibleFirst = <T extends { center: [number, number]; weight: number }>(items: T[]) => {
       const inView = items.filter((item) => currentBounds.contains(item.center))
       return [...(inView.length ? inView : items)].sort((a, b) => b.weight - a.weight)[0]
+    }
+
+    // A chosen district is the user's geographic context. Entering the entity
+    // level must focus that district, rather than only magnifying the city centre.
+    // Tiles then stream every matching POI for the visible viewport just like a
+    // conventional map; the complete district remains available by panning.
+    if (l === 'entities' && area?.kind === 'district') {
+      const feature = liveDistrictById.get(area.districtId)
+      const center = feature ? polygonCenter(feature.geometry) : null
+      if (center) {
+        m.easeTo({ center, zoom: target.zoom, duration: 550 })
+        return
+      }
     }
 
     if (l === 'clusters') {
@@ -1216,7 +1441,7 @@ export function MapboxBusinessMap({
             if (b) fitTo(b, true, 13.6, DISTRICT_MAX_ZOOM + 0.4)
             setCard(null)
           }}
-          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: card.id, label: `حي ${name}`, districtName: name })}
+          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: card.id, label: `حي ${name}` })}
         />
       )
     }
@@ -1236,6 +1461,11 @@ export function MapboxBusinessMap({
           onSelectAll={() => onSelectMany?.(items.map((b) => b.id))}
         />
       )
+    }
+    if (card?.kind === 'tile-entity') {
+      const entity = tileProfiles[card.id]
+      if (entity) return <LiveEntityCard entity={entity} selected={selectedSet.has(entity.id)} onClose={() => setCard(null)} onToggle={() => onTogglePin(entity.id)} />
+      return <div className="absolute right-3 bottom-3 z-20 w-[min(22rem,calc(100%-1.5rem))] rounded-xl border bg-card p-4 shadow-lg"><p className="text-sm font-semibold">{card.name}</p><p className="mt-1 text-xs text-muted-foreground">{tileProfileError || 'جارٍ تحميل البيانات الأساسية للمنشأة…'}</p></div>
     }
     if (card?.kind === 'live-entity') {
       const entity = liveEntityPins.find((item) => item.id === card.id)
@@ -1275,13 +1505,19 @@ export function MapboxBusinessMap({
       )
     }
     if (area && dismissedArea !== area) {
+      const district = area.kind === 'district' ? area.label.replace(/^حي\s+/, '').trim() : ''
+      const next = district ? `/opportunity-map?goal=explore&district=${encodeURIComponent(district)}` : '/opportunity-map'
       return (
         <AreaCard
           label={area.label}
-          summary={summarize(areaItems, selectedSet)}
+          summary={areaSummary}
+          totalCount={area.kind === 'district' ? liveDirectorySummary?.total ?? liveSummary?.total : undefined}
+          totalWhatsappSignals={area.kind === 'district' ? liveDirectorySummary?.withWhatsapp ?? liveSummary?.n_whatsapp : undefined}
+          entityState={liveEntityState}
+          loginHref={`/login?next=${encodeURIComponent(next)}`}
           onClose={() => setDismissedArea(area)}
           onClear={() => onAreaChange?.(null)}
-          onSelectAll={() => onSelectMany?.(areaItems.map((b) => b.id))}
+          onSelectAll={() => onSelectMany?.(areaSelectableIds)}
           onShowList={onShowList}
         />
       )
@@ -1290,6 +1526,7 @@ export function MapboxBusinessMap({
   }
 
   const cardNode = renderCard()
+  const cardKey = card ? JSON.stringify(card) : 'empty'
   const showBootLoading = !ready
   const showRefreshing = ready && state === 'loading'
   const cityName = cityById.get(cityId)?.name ?? ''
@@ -1314,13 +1551,18 @@ export function MapboxBusinessMap({
       ) : null}
 
       {!compact && ready && state !== 'empty' ? (
-        <div className="absolute top-3 right-3 left-14 z-10 @2xl:left-auto @2xl:w-[min(34rem,calc(100%-5rem))]">
+        <motion.div
+          className="absolute top-3 right-3 left-14 z-10 @2xl:left-auto @2xl:w-[min(34rem,calc(100%-5rem))]"
+          initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
+        >
           <MapContextBar
             cityName={cityName}
             level={level}
             progressive={progressive}
-            inView={liveSummary?.total ?? inView}
-            total={liveSummary?.total ?? businesses.length}
+            inView={liveMapQuery && liveDirectorySummary ? liveDirectorySummary.total : liveSummary?.total ?? inView}
+            total={liveMapQuery && liveDirectorySummary ? liveDirectorySummary.total : liveSummary?.total ?? businesses.length}
             selected={selectedIds.length}
             hasEntityPins={liveEntityPins.length > 0}
             marketSignalCount={liveClusters.length}
@@ -1330,7 +1572,7 @@ export function MapboxBusinessMap({
             onLevel={goToLevel}
             onToggleAreaMode={() => setAreaMode((v) => !v)}
           />
-        </div>
+        </motion.div>
       ) : null}
 
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
@@ -1359,16 +1601,23 @@ export function MapboxBusinessMap({
         <LayersControl layers={layers} defaults={defaultLayers} onChange={setLayers} open={layersOpen} onOpenChange={setLayersOpen} />
       </div>
 
-      {cardNode ? (
-        <div
-          className={cn(
-            'absolute inset-x-3 z-10 transition-[bottom] duration-200 @2xl:right-3 @2xl:bottom-auto @2xl:left-auto @2xl:top-[6.75rem] @2xl:w-80',
-            reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-auto' : 'bottom-3',
-          )}
-        >
-          {cardNode}
-        </div>
-      ) : null}
+      <AnimatePresence initial={false} mode="wait">
+        {cardNode ? (
+          <motion.div
+            key={cardKey}
+            className={cn(
+              'absolute inset-x-3 z-10 transition-[bottom] duration-200 @2xl:right-3 @2xl:bottom-auto @2xl:left-auto @2xl:top-[6.75rem] @2xl:w-80',
+              reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-auto' : 'bottom-3',
+            )}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.98, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98, y: 6 }}
+            transition={{ duration: reduceMotion ? 0 : 0.16, ease: 'easeOut' }}
+          >
+            {cardNode}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {ready && state === 'ready' && (wide || !cardNode) ? (
         <div className={cn('absolute right-3 z-[5] w-48 transition-[bottom] duration-200', reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-[5.25rem]' : 'bottom-3')}>
