@@ -6,6 +6,7 @@ This module returns aggregates only, never contact or business-identifying field
 """
 import os
 import threading
+import math
 
 import taxonomy_search
 
@@ -92,7 +93,15 @@ class MarketAnalytics:
         objective = body.get("objective", "purchase")
         if objective not in ("purchase", "marketing"):
             raise ValueError("objective")
-        return city, q, main_id, list(dict.fromkeys(sub_ids)), list(dict.fromkeys(districts)), objective
+        bounds = body.get("bounds")
+        if bounds is not None:
+            if not isinstance(bounds, list) or len(bounds) != 4 or not all(type(value) in (int, float) and math.isfinite(value) for value in bounds):
+                raise ValueError("bounds")
+            west, south, east, north = bounds
+            if not (-180 <= west <= east <= 180 and -85.1 <= south <= north <= 85.1):
+                raise ValueError("bounds")
+            bounds = [float(west), float(south), float(east), float(north)]
+        return city, q, main_id, list(dict.fromkeys(sub_ids)), list(dict.fromkeys(districts)), objective, bounds
 
     def _resolve_subs(self, q, main_id, sub_ids, objective):
         tx = self._tx()
@@ -136,7 +145,7 @@ class MarketAnalytics:
         return resolved, bool((main_id or q) and not resolved)
 
     def _where(self, body):
-        city, q, main_id, sub_ids, districts, objective = self._validate(body)
+        city, q, main_id, sub_ids, districts, objective, bounds = self._validate(body)
         subs, empty_match = self._resolve_subs(q, main_id, sub_ids, objective)
         specialty_ids = list(dict.fromkeys(body.get("specialty_ids") or []))
         specialty_available = not specialty_ids or self._has_specialty_column()
@@ -157,6 +166,10 @@ class MarketAnalytics:
         if districts:
             clauses.append("p.district_ar in (select unnest(?::varchar[]))")
             params.append(districts)
+        if bounds:
+            west, south, east, north = bounds
+            clauses.append("p.longitude between ? and ? and p.latitude between ? and ?")
+            params.extend([west, east, south, north])
         if specialty_ids:
             if not specialty_available:
                 # Older directory snapshots cannot answer exact-specialty questions;
@@ -165,10 +178,10 @@ class MarketAnalytics:
             else:
                 clauses.append("list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])")
                 params.append(specialty_ids)
-        return city, subs, " and ".join(clauses), params, specialty_available
+        return city, subs, " and ".join(clauses), params, specialty_available, bounds
 
     def district_counts(self, body):
-        city, _, where, params, specialty_available = self._where(body)
+        city, _, where, params, specialty_available, bounds = self._where(body)
         query = f"""
             select p.district_ar, count(distinct p.poi_key) n,
                    count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
@@ -192,6 +205,7 @@ class MarketAnalytics:
             ],
             "total": total,
             "specialty_available": specialty_available,
+            "scope": {"bounds": bounds} if bounds else {},
             "basis": MARKET_BASIS,
         }
 
@@ -201,7 +215,7 @@ class MarketAnalytics:
         Missing categories mean no matching directory records, not proof that a trade
         does not exist in the real district.
         """
-        city, q, main_id, sub_ids, districts, _ = self._validate(body)
+        city, q, main_id, sub_ids, districts, _, _ = self._validate(body)
         if q or main_id or sub_ids or not districts:
             raise ValueError("district_insights requires districts only")
         tx = self._tx()
@@ -314,7 +328,7 @@ class MarketAnalytics:
         }
 
     def market_summary(self, body):
-        city, subs, where, params, specialty_available = self._where(body)
+        city, subs, where, params, specialty_available, bounds = self._where(body)
         aggregate = f"""
             select count(distinct p.poi_key) total,
                    count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
@@ -373,7 +387,10 @@ class MarketAnalytics:
                     ).fetchall()
         # Street lines are aggregated only to subcategory in the current data asset.
         # Do not show one as an exact specialty result.
-        dense = None if body.get("specialty_ids") else self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
+        # The street asset has no portable spatial index for arbitrary viewport
+        # clipping. Do not label a city-wide street as the viewport's strongest
+        # signal until it can be filtered from the same spatial cohort.
+        dense = None if body.get("specialty_ids") or bounds else self._densest_street(city, subs, body.get("main_id"), body.get("districts") or [])
         total, n_whatsapp, n_wholesale, n_approx, n_cr, districts_count = row
         return {
             "ok": True,
@@ -395,6 +412,7 @@ class MarketAnalytics:
                 "n_approx": n_approx,
                 "n_cr": n_cr,
                 "specialty_available": specialty_available,
+                "scope": {"bounds": bounds} if bounds else {},
                 "basis": MARKET_BASIS,
             },
         }
@@ -431,7 +449,7 @@ class MarketAnalytics:
         }
 
     def who_buys(self, body):
-        city, q, main_id, sub_ids, _, _ = self._validate(body)
+        city, q, main_id, sub_ids, _, _, _ = self._validate(body)
         tx = self._tx()
         if tx is None:
             raise RuntimeError("taxonomy unavailable")

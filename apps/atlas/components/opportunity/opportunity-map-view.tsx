@@ -109,7 +109,9 @@ export function OpportunityMapView() {
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>('idle')
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const [livePinsComplete, setLivePinsComplete] = useState(false)
+  const [viewportBounds, setViewportBounds] = useState<[number, number, number, number] | null>(null)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handledEntryGoal = useRef(false)
   const handledEntryDistrict = useRef(false)
 
@@ -167,7 +169,8 @@ export function OpportunityMapView() {
       subIds: activeActivity.subs.map((item) => item.sub_id),
       districts: liveDistrictScope,
       objective: directoryObjective(goal, intent),
-    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent) })
+      ...(viewportBounds ? { bounds: viewportBounds } : {}),
+    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent), ...(viewportBounds ? { bounds: viewportBounds } : {}) })
       .then((data) => {
         if (!controller.signal.aborted) setMarket({ status: 'ready', data })
       })
@@ -175,7 +178,7 @@ export function OpportunityMapView() {
         if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
       })
     return () => controller.abort()
-  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope])
+  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope, viewportBounds])
 
   useEffect(() => {
     if (!goal) return
@@ -341,6 +344,7 @@ export function OpportunityMapView() {
     // view with an unavailable scope until its data coverage is ready.
     if (!cityById.get(id)?.available) return
     setCityId(id)
+    setViewportBounds(null)
     setArea(null)
     resetSearch()
     simulateLoad()
@@ -387,6 +391,15 @@ export function OpportunityMapView() {
   const handleAreaChange = (nextArea: MapArea | null) => {
     setArea(nextArea)
   }
+
+  const handleViewportChange = useCallback((next: [number, number, number, number]) => {
+    if (viewportTimer.current) clearTimeout(viewportTimer.current)
+    viewportTimer.current = setTimeout(() => {
+      setViewportBounds((current) => current?.every((value, index) => Math.abs(value - next[index]) < 0.0001) ? current : next)
+    }, 240)
+  }, [])
+
+  useEffect(() => () => { if (viewportTimer.current) clearTimeout(viewportTimer.current) }, [])
 
   const focusStreetOnMap = (street: string, district?: string) => {
     setFocusStreet({ street, district, nonce: Date.now() })
@@ -443,8 +456,8 @@ export function OpportunityMapView() {
   // The authenticated directory applies the stricter, documented WhatsApp
   // validity rule. When a district is selected it is the authoritative cohort
   // for the list, points, and contact-signal statistic together.
-  const scopeTotal = selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
-  const scopeWhatsapp = selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
+  const scopeTotal = viewportBounds ? market.data?.summary?.total ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
+  const scopeWhatsapp = viewportBounds ? market.data?.summary?.n_whatsapp ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
 
   return (
     <main data-viewport-workspace className="flex min-h-0 flex-1 flex-col lg:h-dvh lg:max-h-dvh lg:flex-none lg:overflow-hidden">
@@ -500,7 +513,7 @@ export function OpportunityMapView() {
           className={cn('min-h-0 overflow-y-auto border-l bg-muted/[0.18] px-4 py-4 lg:block', mobileView === 'list' ? 'block flex-1 pb-40' : 'hidden', 'lg:pb-28')}
         >
           <section className="flex flex-col gap-3" aria-label="ملخص السوق الحي">
-            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} district={selectedAreaDistrict} total={market.status === 'ready' ? scopeTotal : null} onClearQuery={clearLiveActivity} onClearDistrict={() => setArea(null)} />
+            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} district={selectedAreaDistrict} total={market.status === 'ready' ? scopeTotal : null} viewportScoped={Boolean(viewportBounds)} onClearQuery={clearLiveActivity} onClearDistrict={() => setArea(null)} />
             <div className="rounded-2xl border bg-card p-4">
               <p className="font-semibold">{selectedAreaDistrict ? `ملخص حي ${selectedAreaDistrict}` : query ? `ملخص نشاط «${query}»` : 'ملخص سوق المدينة'}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">إحصاءات هذا النطاق فقط. لا نعرض أرقام الاتصال هنا؛ القرار يبنى على النشاط والموقع وسبب المطابقة.</p>
@@ -585,6 +598,7 @@ export function OpportunityMapView() {
             liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
+            onViewportChange={handleViewportChange}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}

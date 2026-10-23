@@ -138,7 +138,7 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(next(row for row in districts if row["district_ar"] == "حي النخيل")["n_whatsapp"], 1)
 
     def test_unmatched_query_and_activity_intersection_returns_zero(self):
-        city, subs, where, params, _ = self.analytics._where({
+        city, subs, where, params, _, _ = self.analytics._where({
             "city": "Riyadh",
             "q": "مغاسل",
             "sub_ids": ["plumbing.tools"],
@@ -206,6 +206,24 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(counts["total"], 4)
         self.assertEqual(next(row for row in counts["districts"] if row["district_ar"] == "حي النخيل")["n"], 2)
         self.assertEqual(summary["total"], 4)
+
+    def test_viewport_bounds_apply_to_the_same_summary_and_district_cohort(self):
+        body = {"city": "Riyadh", "bounds": [46.59, 24.69, 46.61, 24.72]}
+        counts = self.analytics.district_counts(body)
+        summary = self.analytics.market_summary(body)["summary"]
+
+        self.assertEqual(counts["total"], 2)
+        self.assertEqual(counts["districts"], [{
+            "district_ar": "حي النخيل", "n": 2, "n_whatsapp": 1, "n_wholesale": 0,
+        }])
+        self.assertEqual(summary["total"], 2)
+        self.assertEqual(summary["n_whatsapp"], 1)
+        self.assertIsNone(summary["densest_street"])
+        self.assertEqual(summary["scope"], {"bounds": [46.59, 24.69, 46.61, 24.72]})
+
+    def test_rejects_invalid_viewport_bounds(self):
+        with self.assertRaisesRegex(ValueError, "bounds"):
+            self.analytics.market_summary({"city": "Riyadh", "bounds": [46.0, 24.0, 45.0, 25.0]})
 
 
 if __name__ == "__main__":
