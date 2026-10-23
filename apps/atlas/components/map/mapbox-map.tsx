@@ -14,6 +14,7 @@ import type { DistrictCount, MarketCluster, MarketSummary, StreetDensityProperti
 import type { Business } from '@/lib/types'
 import { normalizeArabic } from '@/lib/search'
 import type { DirectoryLoadState } from '@/components/opportunity/live-entity-results'
+import type { DirectorySummary } from '@/components/opportunity/live-entity-results'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
 import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard, MarketStreetCard } from './map-overlays'
@@ -83,6 +84,8 @@ export interface MapboxMapProps extends MockMapProps {
   liveClusters?: MarketCluster[]
   /** Authenticated directory matches. These are only rendered at entity zoom. */
   liveEntityPins?: readonly { id: string; name: string; category: string; district: string; street: string; whatsapp: boolean; reason: string; latitude: number | null; longitude: number | null }[]
+  /** Exact count of the authenticated directory cohort used by the tile source. */
+  liveDirectorySummary?: DirectorySummary | null
   liveEntityState?: DirectoryLoadState
   /** Opaque short-lived cohort returned by the authenticated directory endpoint. */
   liveMapQuery?: string | null
@@ -597,6 +600,7 @@ export function MapboxBusinessMap({
   liveStreets,
   liveClusters = [],
   liveEntityPins = [],
+  liveDirectorySummary = null,
   liveEntityState = 'idle',
   liveMapQuery = null,
   onLiveEntityResolved,
@@ -1403,8 +1407,8 @@ export function MapboxBusinessMap({
         <AreaCard
           label={area.label}
           summary={areaSummary}
-          totalCount={area.kind === 'district' ? liveSummary?.total : undefined}
-          totalWhatsappSignals={area.kind === 'district' ? liveSummary?.n_whatsapp : undefined}
+          totalCount={area.kind === 'district' ? liveDirectorySummary?.total ?? liveSummary?.total : undefined}
+          totalWhatsappSignals={area.kind === 'district' ? liveDirectorySummary?.withWhatsapp ?? liveSummary?.n_whatsapp : undefined}
           entityState={liveEntityState}
           loginHref={`/login?next=${encodeURIComponent(next)}`}
           onClose={() => setDismissedArea(area)}
