@@ -646,7 +646,6 @@ export function MapboxBusinessMap({
   const mapRef = useRef<MapboxMap | null>(null)
   const progressive = !compact
   const [ready, setReady] = useState(false)
-  const [sizeEpoch, setSizeEpoch] = useState(0)
   const defaultLayers = useMemo<LayerState>(() => ({ ...DEFAULT_LAYERS, clusters: !compact }), [compact])
   const [layers, setLayers] = useState<LayerState>(defaultLayers)
   const [layersOpen, setLayersOpen] = useState(false)
@@ -660,6 +659,7 @@ export function MapboxBusinessMap({
   const [tileProfiles, setTileProfiles] = useState<Record<string, import('@/components/opportunity/live-entity-results').LiveEntity>>({})
   const [tileProfileError, setTileProfileError] = useState<string | null>(null)
   const tileActionRef = useRef<number | null>(null)
+  const lastAutomaticFitRef = useRef<string | null>(null)
   // Camera fits are internal navigation (initial city fit, selected district,
   // or a result focus). They must not be treated as a user pan that requests
   // a new viewport aggregate, otherwise moveend can continually reload data.
@@ -697,7 +697,6 @@ export function MapboxBusinessMap({
   const initialCityRef = useRef(cityId)
 
   const districtsKey = highlightDistricts.join(',')
-  const resultsKey = useMemo(() => `${cityId}|${businesses.map((b) => b.id).join(',')}`, [cityId, businesses])
 
   useEffect(() => {
     let cancelled = false
@@ -891,13 +890,9 @@ export function MapboxBusinessMap({
           setReady(true)
         })
 
-        let wasEmpty = container.clientWidth === 0 || container.clientHeight === 0
         observer = new ResizeObserver(() => {
           m.resize()
           setWide((rootRef.current?.clientWidth ?? container.clientWidth) >= 672)
-          const empty = container.clientWidth === 0 || container.clientHeight === 0
-          if (wasEmpty && !empty) setSizeEpoch((n) => n + 1)
-          wasEmpty = empty
         })
         observer.observe(container)
       } catch {
@@ -1192,20 +1187,25 @@ export function MapboxBusinessMap({
     m.easeTo({ center: camera.center, zoom, duration: animate ? 650 : 0 })
   }
 
-  const compactFitKey = compact ? `${cityId}` : resultsKey
+  const automaticFitKey = `${cityId}|${liveDistrictGeometryKey}`
   useEffect(() => {
     if (!ready) return
     // Loading a new page changes the live district collection. Do not let that
     // background refresh pull a user who has selected an area back out to the
     // whole city: the dedicated area effect below owns that camera.
     if (area) return
+    // Aggregate responses are refreshed when the user pans or changes detail.
+    // Their GeoJSON objects are new on each response, but that must never pull
+    // a user back to the city overview after they have started navigating.
+    if (lastAutomaticFitRef.current === automaticFitKey) return
+    lastAutomaticFitRef.current = automaticFitKey
     const points = (compact ? [...businesses, ...ghostBusinesses] : businesses).map((b) => toLngLat(cityId, [b.x, b.y]))
     const liveBounds = boundsOf(liveDistrictFeatures.flatMap((feature) => outerRing(feature.geometry)))
     fitTo(liveBounds ?? boundsOf(points) ?? cityBounds(cityId))
     // Only refit when the result set, city, or visible size changes — never on
     // selection toggles or subsequent directory pages.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, compactFitKey, sizeEpoch, liveDistrictGeometryKey, area])
+  }, [ready, automaticFitKey, area])
 
   const currentAreaKey = areaKey(area)
   useEffect(() => {
