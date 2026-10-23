@@ -22,7 +22,8 @@ import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapC
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
-  primary: '#0d8b72',
+  // Official FARQ green, shared with the Atlas wordmark and application UI.
+  primary: '#008060',
   primarySoft: '#e3f1ec',
   card: '#fffefb',
   foreground: '#161816',
