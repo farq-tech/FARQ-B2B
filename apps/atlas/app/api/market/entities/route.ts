@@ -34,7 +34,11 @@ export async function POST(request: NextRequest) {
   const city = cityNames[asText(input.city, 32).toLowerCase()] || asText(input.city, 64)
   const objective = input.objective === 'marketing' || input.objective === 'purchase' ? input.objective : null
   const limit = Math.min(200, Math.max(1, Number.isInteger(input.limit) ? Number(input.limit) : 100))
-  const offset = Math.min(10_000, Math.max(0, Number.isInteger(input.offset) ? Number(input.offset) : 0))
+  // A selected district can legitimately contain more than 10k establishments.
+  // The browser only requests these pages after an explicit district action and
+  // uses bounded concurrency, so keep a high guardrail without silently
+  // repeating page 10,000 for the remainder of a real district cohort.
+  const offset = Math.min(100_000, Math.max(0, Number.isInteger(input.offset) ? Number(input.offset) : 0))
   const district = asText(input.district, 100)
   if ((!q && !district) || !city) return NextResponse.json({ error: 'اكتب النشاط أو اختر حياً، ثم اختر المدينة.' }, { status: 400 })
   if (q && !objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
