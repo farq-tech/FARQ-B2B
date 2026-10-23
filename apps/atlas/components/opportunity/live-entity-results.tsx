@@ -59,15 +59,27 @@ export function LiveEntityResults({ query, cityId, objective, district, prefetch
       if (!prefetchAllForMap || !data.hasMore || typeof data.nextOffset !== 'number') return
       setLoadingMore(true)
       try {
-        while (!controller.signal.aborted && data.hasMore && typeof data.nextOffset === 'number') {
-          const page = await requestPage(data.nextOffset)
+        // Four small, ordered requests balance perceived speed with protection
+        // for the read-only directory. A 16k-record district no longer waits
+        // for eighty strictly serial round trips before its map can be complete.
+        const offsets: number[] = []
+        for (let offset = data.nextOffset; offset < data.total; offset += 200) offsets.push(offset)
+        while (!controller.signal.aborted && offsets.length) {
+          const batch = offsets.splice(0, 4)
+          const pages = await Promise.all(batch.map(requestPage))
           if (controller.signal.aborted) return
-          if (!page.response.ok || !page.payload) throw new Error(page.payload?.error || 'تعذر تحميل بقية نقاط الحي.')
-          data = {
-            ...page.payload,
-            total: data.total,
-            withWhatsapp: data.withWhatsapp,
-            rows: appendUniqueDirectoryRows(data.rows, page.payload.rows),
+          for (const page of pages) {
+            if (!page.response.ok || !page.payload) throw new Error(page.payload?.error || 'تعذر تحميل بقية نقاط الحي.')
+            data = {
+              ...page.payload,
+              total: data.total,
+              withWhatsapp: data.withWhatsapp,
+              // Preserve a paged state until the final batch so the UI never
+              // claims all points are present before they actually are.
+              hasMore: offsets.length > 0,
+              nextOffset: offsets.length ? offsets[0] : null,
+              rows: appendUniqueDirectoryRows(data.rows, page.payload.rows),
+            }
           }
           setState({ kind: 'ready', data })
         }
