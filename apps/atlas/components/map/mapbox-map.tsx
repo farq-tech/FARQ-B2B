@@ -1269,7 +1269,11 @@ export function MapboxBusinessMap({
     if (b) fitTo(b, true, ENTITY_MIN_ZOOM + 0.35, ENTITY_MIN_ZOOM)
     setCard(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, currentAreaKey, liveDistrictById])
+    // `liveDistrictById` is reconstructed whenever an aggregate response
+    // arrives. Depending on it here made an unchanged selected area call
+    // fitTo again, emit moveend, and start another viewport refresh. Geometry
+    // identity is the only live input that can require a new fit.
+  }, [ready, currentAreaKey, liveDistrictGeometryKey])
 
   useEffect(() => {
     setCard(null)
