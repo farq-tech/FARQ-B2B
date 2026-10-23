@@ -89,6 +89,8 @@ export interface MapboxMapProps extends MockMapProps {
   liveEntityState?: DirectoryLoadState
   /** Opaque short-lived cohort returned by the authenticated directory endpoint. */
   liveMapQuery?: string | null
+  /** Short-lived proof for map workers that cannot forward cookies. */
+  liveTileAccess?: string | null
   onLiveEntityResolved?: (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => void
 }
 
@@ -603,6 +605,7 @@ export function MapboxBusinessMap({
   liveDirectorySummary = null,
   liveEntityState = 'idle',
   liveMapQuery = null,
+  liveTileAccess = null,
   onLiveEntityResolved,
   focusDistrictRequest,
   focusStreetRequest,
@@ -917,14 +920,15 @@ export function MapboxBusinessMap({
       removeDirectoryTileSource(m)
       return
     }
-    const tiles = [`/api/market/tiles/${liveMapQuery}/{z}/{x}/{y}.pbf`]
+    const access = liveTileAccess ? `?access=${encodeURIComponent(liveTileAccess)}` : ''
+    const tiles = [`/api/market/tiles/${liveMapQuery}/{z}/{x}/{y}.pbf${access}`]
     const source = m.getSource('directory-tiles') as VectorTileSource | undefined
     if (source) source.setTiles(tiles)
     else {
       m.addSource('directory-tiles', { type: 'vector', tiles, minzoom: 0, maxzoom: 20 })
       addDirectoryTileLayers(m)
     }
-  }, [ready, liveMapQuery])
+  }, [ready, liveMapQuery, liveTileAccess])
 
   useEffect(() => {
     if (card?.kind !== 'tile-entity' || !liveMapQuery || tileActionRef.current === card.nonce) return

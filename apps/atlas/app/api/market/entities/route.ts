@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
 import { isMapQuery, sanitizeLiveDirectoryEntity } from '@/lib/live-directory'
+import { issueTileAccess } from '@/lib/map-tile-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,7 +54,8 @@ export async function POST(request: NextRequest) {
     const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown; has_more?: unknown; next_offset?: unknown; map_query?: unknown } | null
     if (!upstream.ok || !payload) return NextResponse.json({ error: 'تعذر تحميل الجهات الآن.' }, { status: 502 })
     const rows = Array.isArray(payload.rows) ? payload.rows.filter((row): row is Record<string, unknown> => Boolean(row && typeof row === 'object')).map(sanitizeLiveDirectoryEntity).filter((row) => row.id) : []
-    const response = NextResponse.json({ total: typeof payload.total === 'number' ? payload.total : rows.length, withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0, hasMore: payload.has_more === true, nextOffset: typeof payload.next_offset === 'number' ? payload.next_offset : null, mapQuery: isMapQuery(payload.map_query) ? payload.map_query : null, rows }, { headers: { 'cache-control': 'no-store' } })
+    const mapQuery = isMapQuery(payload.map_query) ? payload.map_query : null
+    const response = NextResponse.json({ total: typeof payload.total === 'number' ? payload.total : rows.length, withWhatsapp: typeof payload.with_whatsapp === 'number' ? payload.with_whatsapp : 0, hasMore: payload.has_more === true, nextOffset: typeof payload.next_offset === 'number' ? payload.next_offset : null, mapQuery, tileAccess: mapQuery ? issueTileAccess(mapQuery) : null, rows }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(response, session)
     return response
   } catch {

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest } from '@/lib/atlas-session'
 import { isMapQuery } from '@/lib/live-directory'
 import { parsePbfTileY } from '@/lib/tile-coordinate'
+import { verifyTileAccess } from '@/lib/map-tile-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,9 +20,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ que
   // Tile requests are frequent. The encrypted Atlas session and allow-list are
   // checked locally here; profile and directory APIs additionally verify the
   // upstream account session before exposing an entity record.
-  const { session } = await sessionForRequest(request)
-  if (!session || !isTargetingAllowed(session)) return new NextResponse(null, { status: 401, headers: { 'cache-control': 'private, no-store' } })
   const { query, z, x, y: rawY } = await context.params
+  const tileAccess = request.nextUrl.searchParams.get('access')
+  const { session } = await sessionForRequest(request)
+  const sessionAllowed = Boolean(session && isTargetingAllowed(session))
+  if (!sessionAllowed && !verifyTileAccess(query, tileAccess)) return new NextResponse(null, { status: 401, headers: { 'cache-control': 'private, no-store' } })
   const y = parsePbfTileY(rawY)
   if (!isMapQuery(query) || !/^\d{1,2}$/.test(z) || !/^\d{1,7}$/.test(x) || !y) return new NextResponse(null, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
