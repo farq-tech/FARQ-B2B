@@ -668,6 +668,14 @@ export function MapboxBusinessMap({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const liveDirectoryMode = directoryRenderMode({ mapQuery: liveMapQuery, pinCount: liveEntityPins.length, pinsComplete: liveEntityPinsComplete })
   const liveDistrictFeatures = useMemo(() => (liveDistricts?.features ?? []).filter((feature): feature is Feature<Geometry> => Boolean(feature?.geometry && districtId(feature))), [liveDistricts])
+  // Aggregate refreshes replace the GeoJSON object even when the visible
+  // district boundaries are unchanged. Keep a stable geometry identity for
+  // camera decisions so an updated count cannot trigger moveend → viewport
+  // fetch → aggregate refresh indefinitely.
+  const liveDistrictGeometryKey = useMemo(
+    () => liveDistrictFeatures.map((feature) => districtId(feature) as string).sort().join(','),
+    [liveDistrictFeatures],
+  )
   const liveDistrictById = useMemo(() => new Map(liveDistrictFeatures.map((feature) => [districtId(feature) as string, feature])), [liveDistrictFeatures])
   const liveCountByName = useMemo(() => new Map(liveCounts.map((count) => [count.district_ar.trim(), count])), [liveCounts])
   const useLiveDistricts = liveDistrictFeatures.length > 0
@@ -1246,7 +1254,7 @@ export function MapboxBusinessMap({
     // Only refit when the result set, city, or visible size changes — never on
     // selection toggles or subsequent directory pages.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, compactFitKey, sizeEpoch, liveDistrictFeatures, area])
+  }, [ready, compactFitKey, sizeEpoch, liveDistrictGeometryKey, area])
 
   const currentAreaKey = areaKey(area)
   useEffect(() => {
