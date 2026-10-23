@@ -27,6 +27,22 @@
 - أعداد الملخص والقائمة والتايلز تصدر من نفس رقم الإصدار ومجموعة الفلاتر.
 - فشل التحقق يمنع ترقية الإصدار، ولا يغير النسخة الحية.
 
+## مسار الإصدار المعتمد الآن
+
+لا تستخدم السكربتات القديمة ذات المسارات المحلية المطلقة لنشر إصدار. أنشئ مجلد إصدار جديدًا من أصول مسماة صراحةً، ثم انقله كما هو إلى Object Storage أو قرص تشغيل الخدمة:
+
+```text
+python services/targeting-api/stage_release.py --output releases/atlas-2026-10-23 \
+  --source targets.parquet=/input/targets.parquet \
+  --source poi_taxonomy.parquet=/input/poi_taxonomy.parquet \
+  --source street_density.parquet=/input/street_density.parquet \
+  --source trade_clusters.parquet=/input/trade_clusters.parquet \
+  --source districts.geojson=/input/districts.geojson \
+  --source taxonomy/farq_taxonomy.json=/input/farq_taxonomy.json
+```
+
+الأداة لا تستبدل مجلدًا موجودًا، وتنسخ الملفات إلى مجلد جديد، وتتحقق منها، ثم تكتب `release.manifest.json`. يوضع مسار هذا الملف في `FARQ_TARGETING_RELEASE_MANIFEST` عند تركيب الإصدار في الخدمة؛ وبذلك لا تبدأ الخدمة إذا اختلفت الملفات عن الإصدار المقبول.
+
 ## خطة الترحيل
 
 1. بناء نسخة تجريبية صغيرة مجهولة من البيانات، وإنتاج manifest لها واختبار الخدمة عليها للقراءة فقط.
