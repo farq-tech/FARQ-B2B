@@ -38,10 +38,11 @@ python services/targeting-api/stage_release.py --output releases/atlas-2026-10-2
   --source street_density.parquet=/input/street_density.parquet \
   --source trade_clusters.parquet=/input/trade_clusters.parquet \
   --source districts.geojson=/input/districts.geojson \
-  --source taxonomy/farq_taxonomy.json=/input/farq_taxonomy.json
+  --source taxonomy/farq_taxonomy.json=/input/farq_taxonomy.json \
+  --provenance /input/release-provenance.json
 ```
 
-الأداة لا تستبدل مجلدًا موجودًا، وتنسخ الملفات إلى مجلد جديد، وتتحقق منها، ثم تكتب `release.manifest.json`. يوضع مسار هذا الملف في `FARQ_TARGETING_RELEASE_MANIFEST` عند تركيب الإصدار في الخدمة؛ وبذلك لا تبدأ الخدمة إذا اختلفت الملفات عن الإصدار المقبول.
+يتضمن ملف المنشأ قائمة `sources`، ولكل مصدر `id` و`license` و`extracted_at` بصيغة ISO-8601. لا يقبل مسار الإصدار بدونه. الأداة لا تستبدل مجلدًا موجودًا، وتنسخ الملفات إلى مجلد جديد، وتتحقق منها، ثم تكتب `release.manifest.json`. يوضع مسار هذا الملف في `FARQ_TARGETING_RELEASE_MANIFEST` عند تركيب الإصدار في الخدمة؛ وبذلك لا تبدأ الخدمة إذا اختلفت الملفات عن الإصدار المقبول.
 
 ## خطة الترحيل
 
