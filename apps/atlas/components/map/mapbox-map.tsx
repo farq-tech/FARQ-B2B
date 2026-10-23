@@ -660,6 +660,10 @@ export function MapboxBusinessMap({
   const [tileProfiles, setTileProfiles] = useState<Record<string, import('@/components/opportunity/live-entity-results').LiveEntity>>({})
   const [tileProfileError, setTileProfileError] = useState<string | null>(null)
   const tileActionRef = useRef<number | null>(null)
+  // Camera fits are internal navigation (initial city fit, selected district,
+  // or a result focus). They must not be treated as a user pan that requests
+  // a new viewport aggregate, otherwise moveend can continually reload data.
+  const suppressViewportRefreshRef = useRef(false)
   const reduceMotion = useReducedMotion()
 
   const level = levelFor(zoom, progressive, layers)
@@ -749,7 +753,9 @@ export function MapboxBusinessMap({
           if (b) {
             const nextBounds: LngLatBounds = [b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]]
             setViewBounds(nextBounds)
-            handlersRef.current.onViewportChange?.([nextBounds[0][0], nextBounds[0][1], nextBounds[1][0], nextBounds[1][1]])
+            if (!suppressViewportRefreshRef.current) {
+              handlersRef.current.onViewportChange?.([nextBounds[0][0], nextBounds[0][1], nextBounds[1][0], nextBounds[1][1]])
+            }
           }
         }
 
@@ -1181,6 +1187,8 @@ export function MapboxBusinessMap({
     const camera = m.cameraForBounds(bounds, { padding, maxZoom })
     if (!camera) return
     const zoom = Math.max(camera.zoom ?? minZoom, minZoom)
+    suppressViewportRefreshRef.current = true
+    m.once('moveend', () => { suppressViewportRefreshRef.current = false })
     m.easeTo({ center: camera.center, zoom, duration: animate ? 650 : 0 })
   }
 
