@@ -132,12 +132,12 @@ function Stat({ value, label, accent }: { value: number; label: string; accent?:
   )
 }
 
-function SummaryBody({ s }: { s: AreaSummary }) {
+function SummaryBody({ s, totalCount, totalWhatsappSignals }: { s: AreaSummary; totalCount?: number; totalWhatsappSignals?: number }) {
   return (
     <>
       <div className="grid grid-cols-3 gap-1.5">
-        <Stat value={s.count} label="منشأة" />
-        <Stat value={s.whatsappSignals} label="إشارة واتساب" />
+        <Stat value={totalCount ?? s.count} label="منشأة" />
+        <Stat value={totalWhatsappSignals ?? s.whatsappSignals} label="إشارة واتساب" />
         <Stat value={s.selected} label="محددة" accent={s.selected > 0} />
       </div>
       <p className="text-[11px] leading-4 text-muted-foreground">إشارة واتساب لا تعني موافقة على التواصل.</p>
@@ -331,6 +331,8 @@ export function MarketStreetCard({
 export function AreaCard({
   label,
   summary,
+  totalCount,
+  totalWhatsappSignals,
   onClose,
   onClear,
   onSelectAll,
@@ -340,6 +342,9 @@ export function AreaCard({
 }: {
   label: string
   summary: AreaSummary
+  /** Aggregate count for the chosen district. The directory list is paged. */
+  totalCount?: number
+  totalWhatsappSignals?: number
   onClose: () => void
   onClear: () => void
   onSelectAll: () => void
@@ -348,7 +353,10 @@ export function AreaCard({
   /** Preserves the chosen district when the user signs in to unlock entity pins. */
   loginHref?: string
 }) {
-  const remaining = summary.count - summary.selected
+  const loadedCount = summary.count
+  const aggregateCount = Math.max(totalCount ?? loadedCount, loadedCount)
+  const remaining = loadedCount - summary.selected
+  const isPaged = aggregateCount > loadedCount
   return (
     <CardShell onClose={onClose} label="ملخص المنطقة المحددة">
       <div className="flex flex-col gap-0.5 pl-7">
@@ -360,7 +368,10 @@ export function AreaCard({
           {summary.count ? 'القائمة تعرض منشآت هذه المنطقة فقط.' : entityState === 'auth' ? 'سجّل الدخول لعرض الجهات ونقاطها داخل المنطقة.' : entityState === 'loading' ? 'جارٍ تحميل الجهات داخل المنطقة.' : entityState === 'error' || entityState === 'blocked' ? 'تعذر تحميل الجهات داخل المنطقة حالياً.' : 'لا توجد نتائج مطابقة داخل المنطقة. جرّب رسم منطقة أوسع.'}
         </p>
       </div>
-      {summary.count ? <SummaryBody s={summary} /> : null}
+      {summary.count ? <>
+        <SummaryBody s={summary} totalCount={aggregateCount} totalWhatsappSignals={totalWhatsappSignals} />
+        {isPaged ? <p className="text-[11px] leading-4 text-muted-foreground">القائمة تعرض أول {formatNumber(loadedCount)} جهة مرتبة. حمّل الدفعة التالية من القائمة؛ أما كل نقاط الحي فتظهر مجمعة ثم كدبابيس عند التكبير.</p> : null}
+      </> : null}
       <div className="flex gap-2">
         {entityState === 'auth' && loginHref ? (
           <Link href={loginHref} className="inline-flex h-8 flex-1 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow-xs transition-opacity hover:opacity-90">
@@ -369,7 +380,7 @@ export function AreaCard({
         ) : (
           <Button size="sm" className="flex-1" onClick={onSelectAll} disabled={remaining === 0 || entityState !== 'ready'}>
             <CircleCheck data-icon="inline-start" />
-            {summary.count === 0 ? 'لا نتائج' : remaining === 0 ? 'كلها محددة' : `تحديد ${formatNumber(remaining)}`}
+            {loadedCount === 0 ? 'لا نتائج' : remaining === 0 ? (isPaged ? `محددة ${formatNumber(loadedCount)} من ${formatNumber(aggregateCount)}` : 'كلها محددة') : `تحديد ${formatNumber(remaining)} ظاهرة`}
           </Button>
         )}
         {onShowList ? (

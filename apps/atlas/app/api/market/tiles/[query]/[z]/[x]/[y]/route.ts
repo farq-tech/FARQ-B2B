@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest } from '@/lib/atlas-session'
 import { isMapQuery } from '@/lib/live-directory'
+import { parsePbfTileY } from '@/lib/tile-coordinate'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,8 +21,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ que
   // upstream account session before exposing an entity record.
   const { session } = await sessionForRequest(request)
   if (!session || !isTargetingAllowed(session)) return new NextResponse(null, { status: 401, headers: { 'cache-control': 'private, no-store' } })
-  const { query, z, x, y } = await context.params
-  if (!isMapQuery(query) || !/^\d{1,2}$/.test(z) || !/^\d{1,7}$/.test(x) || !/^\d{1,7}$/.test(y)) return new NextResponse(null, { status: 400 })
+  const { query, z, x, y: rawY } = await context.params
+  const y = parsePbfTileY(rawY)
+  if (!isMapQuery(query) || !/^\d{1,2}$/.test(z) || !/^\d{1,7}$/.test(x) || !y) return new NextResponse(null, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
   if (!origin || !headers) return new NextResponse(null, { status: 503 })
