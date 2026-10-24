@@ -8,6 +8,7 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(route_label("/tiles/aabb/15/3/4.pbf?district=العليا"), "tiles")
         self.assertEqual(route_label("/unrecognised?q=شركة+مقاولات"), "other")
         self.assertEqual(route_label("/street-density/catalog"), "street_density_catalog")
+        self.assertEqual(route_label("/healthz"), "healthz")
 
     def test_prometheus_output_has_counts_and_no_request_content(self):
         metrics = ServiceMetrics()

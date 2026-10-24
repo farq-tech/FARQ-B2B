@@ -16,6 +16,8 @@ This directory tracks the Python service source used by the opportunity map. It 
 
 `GET /metrics` is authenticated like the rest of the service and emits Prometheus-compatible, low-cardinality counters and duration sums for API routes. It deliberately excludes search text, district names, POI identifiers, coordinates, and contact data.
 
+`GET /healthz` is the public Railway readiness check. It returns `200` with `{"ok":true,"service":"farq-targeting"}` when the primary directory asset is readable and DuckDB responds to a minimal query; otherwise it returns `503`. It does not expose data or credentials.
+
 The deployment's business directory and taxonomy assets are intentionally excluded from Git. A deployment requires a separately maintained, access-controlled `data/` directory containing the exact production assets listed in the `Dockerfile`. Do not substitute older local data files: the map counts and supplier coverage depend on the deployed snapshot.
 
 Before connecting Railway deployments to this folder, verify the staged data asset versions and hashes against the approved production snapshot, then deploy a preview service and check its aggregate results against the current production directory. Never commit `.parquet`, `.geojson`, contact, evaluation, or operational log data here.

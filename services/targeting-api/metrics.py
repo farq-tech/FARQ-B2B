@@ -20,7 +20,7 @@ def route_label(path: str) -> str:
         "/map-query", "/map-profile", "/map-focus", "/trial-search", "/clusters", "/market-summary",
         "/district-counts", "/district-insights", "/who-buys", "/street-density", "/street-density/catalog",
         "/suggest-specialties", "/search", "/demo-understand", "/demo-search", "/send-template",
-        "/send-test-template", "/send-farq", "/metrics",
+        "/send-test-template", "/send-farq", "/metrics", "/healthz",
     }
     return clean.removeprefix("/").replace("-", "_").replace("/", "_") if clean in known else "other"
 

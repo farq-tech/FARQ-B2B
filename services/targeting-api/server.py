@@ -16,6 +16,7 @@ import status_policy
 import read_only_test
 from metrics import ServiceMetrics, route_label
 import contextvars
+from health import is_ready
 _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
 import urllib.parse
 FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
@@ -655,6 +656,10 @@ class H(BaseHTTPRequestHandler):
         route=urllib.parse.urlparse(self.path)
         self._metric_has_request = True
         self._metric_route = route_label(route.path)
+        if route.path == '/healthz':
+            ready = is_ready(DATA, con, LOCK)
+            self._json({'ok': ready, 'service': 'farq-targeting'}, 200 if ready else 503)
+            return
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
         if route.path == '/metrics':
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
