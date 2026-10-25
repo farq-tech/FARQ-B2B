@@ -366,7 +366,7 @@ export const SEED_REQUESTS: RequestItem[] = [
       variables: { ...DEFAULT_VARIABLES, المنتج: 'التمور الفاخرة' },
       included: jeddahFood.filter((id) => {
         const b = businessById.get(id)
-        return Boolean(b?.whatsapp) && b?.consent === 'granted'
+        return Boolean(b?.whatsapp)
       }),
     },
   },

@@ -22,8 +22,6 @@ export function renderTemplate(body: string, vars: Record<string, string>, b?: T
 
 export function eligibility(b: Business): { ok: boolean; reason?: string } {
   if (!b.whatsapp) return { ok: false, reason: 'لا يوجد رقم واتساب' }
-  if (b.consent === 'declined') return { ok: false, reason: 'رفض التواصل التسويقي' }
-  if (b.consent === 'unknown') return { ok: false, reason: 'لا توجد موافقة مسجلة' }
   return { ok: true }
 }
 
@@ -36,7 +34,7 @@ export function campaignIssues(c: CampaignDetails) {
     if (missing.length) issues.push(`أكمل المتغيرات: ${missing.map((m) => m.replace(/_/g, ' ')).join('، ')}.`)
   }
   if (c.included.length === 0) {
-    issues.push(c.pendingVerification?.length ? 'لا يوجد مستلمون مؤهلون للإرسال بعد. تحقّق من موافقات التواصل أولاً.' : 'لا يوجد مستلمون مؤهلون.')
+    issues.push('لا يوجد مستلمون مؤهلون.')
   }
   return issues
 }
@@ -56,7 +54,6 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
   const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
-  const pendingVerification = new Set(value.pendingVerification ?? [])
   const sampleId = value.included.find((id) => businessIds.includes(id)) ?? businessIds[0]
   const sample = businessById.get(sampleId) ?? liveById.get(sampleId)
 
@@ -126,7 +123,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               المستلمون ومراجعة الأهلية
             </h2>
             <p className="text-xs text-muted-foreground">
-              {value.included.length} مؤهلون للإرسال اليدوي من {businessIds.length}. {pendingVerification.size ? `${pendingVerification.size} جهات واتساب تنتظر تحقق موافقة التواصل.` : 'نستبعد من لا يملك واتساب أو موافقة تواصل.'}
+              {value.included.length} مؤهلون للإرسال اليدوي من {businessIds.length}. نستبعد من لا يملك رقم واتساب.
             </p>
           </div>
           <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />
@@ -137,8 +134,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
             const liveBusiness = liveById.get(id)
             const b = mockBusiness ?? liveBusiness
             if (!b) return null
-            // A live record's WhatsApp signal never proves marketing consent. It stays visible for review but cannot be approved for sending yet.
-            const e = mockBusiness ? eligibility(mockBusiness) : { ok: false, reason: pendingVerification.has(id) ? 'واتساب متاح — تحتاج موافقة تواصل مسجلة' : 'لا توجد إشارة واتساب' }
+            const e = mockBusiness ? eligibility(mockBusiness) : { ok: Boolean(liveBusiness?.whatsapp), reason: 'لا توجد إشارة واتساب' }
             const checked = value.included.includes(id)
             return (
               <li key={id} className="flex items-center gap-3 py-2">

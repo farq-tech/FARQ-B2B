@@ -232,10 +232,6 @@ export function runSearch(params: { cityId: string; goal: GoalId | null; filters
         reasons.push('متاح عبر واتساب')
         score += 5
       }
-      if (b.consent === 'granted' && goal === 'target') {
-        reasons.push('موافقة تواصل مسجلة')
-        score += 4
-      }
       if (freeText.length) {
         reasons.push(`يطابق "${freeText.join(' ')}"`)
         score += 8

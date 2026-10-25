@@ -113,10 +113,8 @@ function buildDraft(input: DraftInput): RequestItem {
         variables: { ...DEFAULT_VARIABLES },
         included: ids.filter((id) => {
           const b = businessById.get(id)
-          return b?.whatsapp && b.consent === 'granted'
+          return Boolean(b?.whatsapp || liveById.get(id)?.whatsapp)
         }),
-        // A WhatsApp signal is useful for review, but it never substitutes for a recorded marketing consent.
-        pendingVerification: ids.filter((id) => Boolean(liveById.get(id)?.whatsapp)),
       },
     }
   }
@@ -136,7 +134,17 @@ function cloudPayload(request: RequestItem) {
 function cloudRequest(value: CloudRequest): RequestItem | null {
   const payload = value.payload && typeof value.payload === 'object' ? value.payload as { atlasDraft?: unknown; schema?: unknown } : null
   if (payload?.schema !== 'atlas-request-v1' || !isRequest(payload.atlasDraft) || typeof value.id !== 'string') return null
-  return { ...payload.atlasDraft, remoteId: value.id }
+  return { ...normalizeCampaignRecipients(payload.atlasDraft), remoteId: value.id }
+}
+
+function normalizeCampaignRecipients(request: RequestItem): RequestItem {
+  if (!request.campaign) return request
+  const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
+  const eligibleIds = request.businessIds.filter((id) => {
+    const business = businessById.get(id)
+    return Boolean(business?.whatsapp || liveById.get(id)?.whatsapp)
+  })
+  return { ...request, campaign: { ...request.campaign, included: [...new Set(eligibleIds)] } }
 }
 
 async function createCloudRequest(request: RequestItem) {
@@ -179,7 +187,7 @@ function readWorkspace(): Pick<State, 'requests' | 'inbox'> | null {
     if (!raw) return null
     const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown }
     if (!Array.isArray(value.requests) || !Array.isArray(value.inbox)) return null
-    const requests = value.requests.filter(isRequest)
+    const requests = value.requests.filter(isRequest).map(normalizeCampaignRecipients)
     const inbox = value.inbox.filter(isInboxMessage)
     return requests.length === value.requests.length && inbox.length === value.inbox.length ? { requests, inbox } : null
   } catch {

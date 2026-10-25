@@ -44,18 +44,16 @@ export function RequestDetailView({ id }: { id: string }) {
   const changeBusinesses = (ids: string[]) => {
     if (request.campaign) {
       const added = ids.filter((x) => !request.businessIds.includes(x))
+      const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
       const eligibleAdded = added.filter((x) => {
         const b = businessById.get(x)
-        return b && eligibility(b).ok
+        return b ? eligibility(b).ok : Boolean(liveById.get(x)?.whatsapp)
       })
-      const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
-      const pendingAdded = added.filter((id) => Boolean(liveById.get(id)?.whatsapp))
       patch({
         businessIds: ids,
         campaign: {
           ...request.campaign,
           included: [...request.campaign.included.filter((x) => ids.includes(x)), ...eligibleAdded],
-          pendingVerification: [...new Set([...(request.campaign.pendingVerification ?? []).filter((x) => ids.includes(x)), ...pendingAdded])],
         },
       })
     } else patch({ businessIds: ids })
@@ -383,13 +381,11 @@ function ReviewSummary({ request }: { request: RequestItem }) {
   }
   if (request.campaign) {
     const t = TEMPLATES.find((x) => x.id === request.campaign?.templateId)
-    const pending = request.campaign.pendingVerification?.length ?? 0
-    const skipped = request.businessIds.length - request.campaign.included.length - pending
+    const skipped = request.businessIds.length - request.campaign.included.length
     return (
       <div className="flex flex-col gap-3 text-sm">
         <p>
           <span className="font-semibold">{request.campaign.included.length}</span> مستلم مؤهل عبر واتساب بقالب «{t?.name}».
-          {pending > 0 ? ` و${pending} جهات ظاهرة للمراجعة بانتظار تحقق موافقة التواصل.` : ''}
           {skipped > 0 ? ` سيتم استبعاد ${skipped} منشأة لا تستوفي الأهلية.` : ''}
         </p>
         {t ? (

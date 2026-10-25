@@ -105,10 +105,8 @@ export interface RfqDetails {
 export interface CampaignDetails {
   templateId: string
   variables: Record<string, string>
-  /** Recipients whose WhatsApp channel and marketing consent are both verified. */
+  /** Recipients with a WhatsApp contact channel, eligible for this manual campaign. */
   included: string[]
-  /** Live directory candidates with a WhatsApp signal but no recorded marketing consent yet. */
-  pendingVerification?: string[]
 }
 
 export interface RequestItem {

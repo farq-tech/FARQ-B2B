@@ -401,7 +401,7 @@ export function BusinessCard({
   onToggle: () => void
 }) {
   const reasons = (business as Partial<ScoredBusiness>).reasons?.slice(0, 2) ?? []
-  const reachable = business.whatsapp && business.consent === 'granted'
+  const reachable = Boolean(business.whatsapp)
   return (
     <CardShell onClose={onClose} label={`بطاقة ${business.name}`}>
       <div className="flex flex-col gap-1 pl-7">
@@ -414,7 +414,7 @@ export function BusinessCard({
           {business.wholesale ? <Badge variant="secondary">جملة</Badge> : null}
           <Badge variant={reachable ? 'outline' : 'secondary'} className={cn(reachable ? 'text-primary' : 'text-muted-foreground')}>
             <MessageCircle />
-            {reachable ? 'واتساب بموافقة' : business.whatsapp ? 'واتساب بلا موافقة' : 'بلا واتساب'}
+            {reachable ? 'واتساب متاح' : 'بلا واتساب'}
           </Badge>
         </div>
       </div>
