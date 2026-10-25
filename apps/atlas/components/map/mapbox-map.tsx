@@ -98,8 +98,6 @@ export interface MapboxMapProps extends MockMapProps {
   /** Short-lived proof for map workers that cannot forward cookies. */
   liveTileAccess?: string | null
   onLiveEntityResolved?: (entity: import('@/components/opportunity/live-entity-results').LiveEntity) => void
-  /** Map extent after a completed move; used to refresh aggregate analytics only. */
-  onViewportChange?: (bounds: [number, number, number, number]) => void
 }
 
 function levelFor(zoom: number, progressive: boolean, layers: LayerState): MapLevel {
@@ -639,7 +637,6 @@ export function MapboxBusinessMap({
   focusStreetRequest,
   onDetailLevelChange,
   onMarketInsightOpened,
-  onViewportChange,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -691,10 +688,9 @@ export function MapboxBusinessMap({
     cityId,
     progressive,
     onMarketInsightOpened,
-    onViewportChange,
   })
   useEffect(() => {
-    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, progressive, onMarketInsightOpened, onViewportChange }
+    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, progressive, onMarketInsightOpened }
   })
   const initialCityRef = useRef(cityId)
 
@@ -757,28 +753,12 @@ export function MapboxBusinessMap({
           }
         }
 
-        const reportViewport = () => {
-          if (suppressViewportRefreshRef.current) return
-          const b = m.getBounds()
-          if (!b) return
-          handlersRef.current.onViewportChange?.([
-            b.getWest(),
-            b.getSouth(),
-            b.getEast(),
-            b.getNorth(),
-          ])
-        }
-
-        // A user pan changes the set of opportunities in view. Zooming only
-        // changes their scale and must not trigger another market aggregate.
-        m.on('dragend', reportViewport)
         m.on('load', () => {
           if (timeout) clearTimeout(timeout)
           calmBasemap(m)
           addLayers(m)
           m.on('moveend', syncView)
           syncView()
-          reportViewport()
 
           const hit = (ids: string[], point: { x: number; y: number }, hitRadius = 0) => {
             const visible = ids.filter((id) => m.getLayer(id) && m.getLayoutProperty(id, 'visibility') !== 'none')

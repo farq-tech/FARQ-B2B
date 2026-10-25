@@ -5,13 +5,12 @@ import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import type { GoalDef } from '@/lib/goals'
 
-export function MarketScope({ goal, city, query, district, total, viewportScoped = false, onClearQuery, onClearDistrict }: {
+export function MarketScope({ goal, city, query, district, total, onClearQuery, onClearDistrict }: {
   goal: GoalDef
   city: string
   query: string
   district: string | null
   total: number | null
-  viewportScoped?: boolean
   onClearQuery: () => void
   onClearDistrict: () => void
 }) {
@@ -28,7 +27,6 @@ export function MarketScope({ goal, city, query, district, total, viewportScoped
       <div className="flex flex-col gap-2 px-4 py-3">
         <ScopeRow icon={<MapPinned className="size-3.5" />} label="المدينة" value={city} />
         {district ? <ScopeRow icon={<Crosshair className="size-3.5" />} label="النطاق" value={`حي ${district}`} onClear={onClearDistrict} /> : null}
-        {viewportScoped ? <p className="text-xs leading-5 text-muted-foreground">المؤشرات الآن محصورة في الجزء الظاهر من الخريطة؛ القائمة تبقى ضمن نطاق الحي أو البحث.</p> : null}
         {query ? <ScopeRow icon={<Search className="size-3.5" />} label="النشاط" value={query} onClear={onClearQuery} /> : <p className="text-xs leading-5 text-muted-foreground">اختر حيًا أو اكتب نشاطًا لتتحول القراءة العامة إلى قائمة منشآت قابلة للمراجعة.</p>}
       </div>
     </section>

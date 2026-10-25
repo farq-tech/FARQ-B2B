@@ -109,9 +109,7 @@ export function OpportunityMapView() {
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>('idle')
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const [livePinsComplete, setLivePinsComplete] = useState(false)
-  const [viewportBounds, setViewportBounds] = useState<[number, number, number, number] | null>(null)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handledEntryGoal = useRef(false)
   const handledEntryDistrict = useRef(false)
 
@@ -152,12 +150,6 @@ export function OpportunityMapView() {
   // Assistant parsing can finish before polygon geometry arrives. Reconcile
   // the saved district name to the provider id once it is available so the
   // same applied filter is also visible as a selected map boundary.
-  // A selected district is the explicit map scope. Do not keep replacing it
-  // with a camera viewport scope: fitting the district produces a
-  // moveend event, which otherwise starts a new aggregate request and leaves
-  // the map permanently in its refreshing state.
-  const effectiveViewportBounds = area ? null : viewportBounds
-
   useEffect(() => {
     if (area || filters.districts.length !== 1) return
     const name = districtById.get(filters.districts[0])?.name
@@ -175,8 +167,7 @@ export function OpportunityMapView() {
       subIds: activeActivity.subs.map((item) => item.sub_id),
       districts: liveDistrictScope,
       objective: directoryObjective(goal, intent),
-      ...(effectiveViewportBounds ? { bounds: effectiveViewportBounds } : {}),
-    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent), ...(effectiveViewportBounds ? { bounds: effectiveViewportBounds } : {}) })
+    } : { q: query, districts: liveDistrictScope, objective: directoryObjective(goal, intent) })
       .then((data) => {
         if (!controller.signal.aborted) setMarket({ status: 'ready', data })
       })
@@ -184,7 +175,7 @@ export function OpportunityMapView() {
         if (!controller.signal.aborted) setMarket({ status: 'error', data: null })
       })
     return () => controller.abort()
-  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope, effectiveViewportBounds])
+  }, [cityId, goal, intent, query, activeActivity, liveDistrictScope])
 
   useEffect(() => {
     if (!goal) return
@@ -350,7 +341,6 @@ export function OpportunityMapView() {
     // view with an unavailable scope until its data coverage is ready.
     if (!cityById.get(id)?.available) return
     setCityId(id)
-    setViewportBounds(null)
     setArea(null)
     resetSearch()
     simulateLoad()
@@ -395,20 +385,10 @@ export function OpportunityMapView() {
   }
 
   const handleAreaChange = (nextArea: MapArea | null) => {
-    setViewportBounds(null)
     // Atlas scopes its map by official district boundaries only. Reject any
     // legacy free-drawn area that may survive a client-side navigation.
     setArea(nextArea?.kind === 'rect' ? null : nextArea)
   }
-
-  const handleViewportChange = useCallback((next: [number, number, number, number]) => {
-    if (viewportTimer.current) clearTimeout(viewportTimer.current)
-    viewportTimer.current = setTimeout(() => {
-      setViewportBounds((current) => current?.every((value, index) => Math.abs(value - next[index]) < 0.0001) ? current : next)
-    }, 240)
-  }, [])
-
-  useEffect(() => () => { if (viewportTimer.current) clearTimeout(viewportTimer.current) }, [])
 
   const focusStreetOnMap = (street: string, district?: string) => {
     setFocusStreet({ street, district, nonce: Date.now() })
@@ -465,8 +445,8 @@ export function OpportunityMapView() {
   // The authenticated directory applies the stricter, documented WhatsApp
   // validity rule. When a district is selected it is the authoritative cohort
   // for the list, points, and contact-signal statistic together.
-  const scopeTotal = effectiveViewportBounds ? market.data?.summary?.total ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
-  const scopeWhatsapp = effectiveViewportBounds ? market.data?.summary?.n_whatsapp ?? null : selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
+  const scopeTotal = selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
+  const scopeWhatsapp = selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
 
   return (
     <main data-viewport-workspace className="flex min-h-0 flex-1 flex-col lg:h-dvh lg:max-h-dvh lg:flex-none lg:overflow-hidden">
@@ -522,7 +502,7 @@ export function OpportunityMapView() {
           className={cn('min-h-0 overflow-y-auto border-l bg-muted/[0.18] px-4 py-4 lg:block', mobileView === 'list' ? 'block flex-1 pb-40' : 'hidden', 'lg:pb-28')}
         >
           <section className="flex flex-col gap-3" aria-label="ملخص السوق الحي">
-            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} district={selectedAreaDistrict} total={market.status === 'ready' ? scopeTotal : null} viewportScoped={Boolean(viewportBounds)} onClearQuery={clearLiveActivity} onClearDistrict={() => setArea(null)} />
+            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} district={selectedAreaDistrict} total={market.status === 'ready' ? scopeTotal : null} onClearQuery={clearLiveActivity} onClearDistrict={() => setArea(null)} />
             <div className="rounded-2xl border bg-card p-4">
               <p className="font-semibold">{selectedAreaDistrict ? `ملخص حي ${selectedAreaDistrict}` : query ? `ملخص نشاط «${query}»` : 'ملخص سوق المدينة'}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">إحصاءات هذا النطاق فقط. لا نعرض أرقام الاتصال هنا؛ القرار يبنى على النشاط والموقع وسبب المطابقة.</p>
@@ -607,7 +587,6 @@ export function OpportunityMapView() {
             liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
-            onViewportChange={area ? undefined : handleViewportChange}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}
