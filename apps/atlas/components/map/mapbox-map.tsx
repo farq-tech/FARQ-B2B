@@ -745,8 +745,6 @@ export function MapboxBusinessMap({
           if (status === 401 || status === 403) handlersRef.current.onFailure()
         })
 
-        let hasReportedInitialViewport = false
-        let userDraggedMap = false
         const syncView = () => {
           const nextZoom = m.getZoom()
           syncPoiVisibility(m, nextZoom)
@@ -756,22 +754,31 @@ export function MapboxBusinessMap({
           if (b) {
             const nextBounds: LngLatBounds = [b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]]
             setViewBounds(nextBounds)
-            const shouldReportViewport = !hasReportedInitialViewport || userDraggedMap
-            hasReportedInitialViewport = true
-            userDraggedMap = false
-            if (shouldReportViewport && !suppressViewportRefreshRef.current) {
-              handlersRef.current.onViewportChange?.([nextBounds[0][0], nextBounds[0][1], nextBounds[1][0], nextBounds[1][1]])
-            }
           }
         }
 
-        m.on('dragstart', () => { userDraggedMap = true })
+        const reportViewport = () => {
+          if (suppressViewportRefreshRef.current) return
+          const b = m.getBounds()
+          if (!b) return
+          handlersRef.current.onViewportChange?.([
+            b.getWest(),
+            b.getSouth(),
+            b.getEast(),
+            b.getNorth(),
+          ])
+        }
+
+        // A user pan changes the set of opportunities in view. Zooming only
+        // changes their scale and must not trigger another market aggregate.
+        m.on('dragend', reportViewport)
         m.on('load', () => {
           if (timeout) clearTimeout(timeout)
           calmBasemap(m)
           addLayers(m)
           m.on('moveend', syncView)
           syncView()
+          reportViewport()
 
           const hit = (ids: string[], point: { x: number; y: number }, hitRadius = 0) => {
             const visible = ids.filter((id) => m.getLayer(id) && m.getLayoutProperty(id, 'visibility') !== 'none')
