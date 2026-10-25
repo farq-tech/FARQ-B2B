@@ -78,6 +78,8 @@ export interface MapboxMapProps extends MockMapProps {
   onDetailLevelChange?: (level: MapLevel) => void
   /** Measures exploration of aggregate market insight, without names or coordinates. */
   onMarketInsightOpened?: (insight: { kind: 'cluster' | 'street'; count: number }) => void
+  selectedDistrictIds?: string[]
+  onDistrictScopeToggle?: (districtId: string, districtName: string) => void
   /** Server-proxied aggregate market data. Never contains contacts or send actions. */
   liveDistricts?: FeatureCollection
   liveCounts?: DistrictCount[]
@@ -637,6 +639,8 @@ export function MapboxBusinessMap({
   focusStreetRequest,
   onDetailLevelChange,
   onMarketInsightOpened,
+  selectedDistrictIds = [],
+  onDistrictScopeToggle,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -657,12 +661,9 @@ export function MapboxBusinessMap({
   const [tileProfileError, setTileProfileError] = useState<string | null>(null)
   const tileActionRef = useRef<number | null>(null)
   const lastAutomaticFitRef = useRef<string | null>(null)
-  const areaRef = useRef(area)
-  areaRef.current = area
-  // Camera fits are internal navigation (initial city fit, selected district,
-  // or a result focus). They must not be treated as a user pan that requests
-  // a new viewport aggregate, otherwise moveend can continually reload data.
-  const suppressViewportRefreshRef = useRef(false)
+  const selectedDistrictIdSet = useMemo(() => new Set(selectedDistrictIds), [selectedDistrictIds])
+  const selectedDistrictIdsRef = useRef(selectedDistrictIdSet)
+  selectedDistrictIdsRef.current = selectedDistrictIdSet
   const reduceMotion = useReducedMotion()
 
   const level = levelFor(zoom, progressive, layers)
@@ -670,9 +671,8 @@ export function MapboxBusinessMap({
   const liveDirectoryMode = directoryRenderMode({ mapQuery: liveMapQuery, pinCount: liveEntityPins.length, pinsComplete: liveEntityPinsComplete })
   const liveDistrictFeatures = useMemo(() => (liveDistricts?.features ?? []).filter((feature): feature is Feature<Geometry> => Boolean(feature?.geometry && districtId(feature))), [liveDistricts])
   // Aggregate refreshes replace the GeoJSON object even when the visible
-  // district boundaries are unchanged. Keep a stable geometry identity for
-  // camera decisions so an updated count cannot trigger moveend → viewport
-  // fetch → aggregate refresh indefinitely.
+  // district boundaries are unchanged. Keep a stable geometry identity so a
+  // count refresh cannot cause an unnecessary camera refit.
   const liveDistrictGeometryKey = useMemo(
     () => liveDistrictFeatures.map((feature) => districtId(feature) as string).sort().join(','),
     [liveDistrictFeatures],
@@ -688,9 +688,10 @@ export function MapboxBusinessMap({
     cityId,
     progressive,
     onMarketInsightOpened,
+    onDistrictScopeToggle,
   })
   useEffect(() => {
-    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, progressive, onMarketInsightOpened }
+    handlersRef.current = { onTogglePin, onFailure, onAreaChange, cityId, progressive, onMarketInsightOpened, onDistrictScopeToggle }
   })
   const initialCityRef = useRef(cityId)
 
@@ -866,14 +867,9 @@ export function MapboxBusinessMap({
             const d = hit(['district-heat'], e.point)
             const districtId = d?.properties?.id
             if (typeof districtId === 'string' && h.progressive && m.getZoom() < DISTRICT_MAX_ZOOM) {
-              if (areaRef.current?.kind === 'district' && areaRef.current.districtId === districtId) {
-                h.onAreaChange?.(null)
-                setCard(null)
-              } else {
-                setCard((current) => current?.kind === 'district' && current.id === districtId
-                  ? null
-                  : { kind: 'district', id: districtId })
-              }
+              const wasSelected = selectedDistrictIdsRef.current.has(districtId)
+              h.onDistrictScopeToggle?.(districtId, districtName(d as Feature))
+              setCard(wasSelected ? null : { kind: 'district', id: districtId })
               return
             }
             setCard(null)
@@ -1184,8 +1180,6 @@ export function MapboxBusinessMap({
     const camera = m.cameraForBounds(bounds, { padding, maxZoom })
     if (!camera) return
     const zoom = Math.max(camera.zoom ?? minZoom, minZoom)
-    suppressViewportRefreshRef.current = true
-    m.once('moveend', () => { suppressViewportRefreshRef.current = false })
     m.easeTo({ center: camera.center, zoom, duration: animate ? 650 : 0 })
   }
 
@@ -1196,9 +1190,8 @@ export function MapboxBusinessMap({
     // background refresh pull a user who has selected an area back out to the
     // whole city: the dedicated area effect below owns that camera.
     if (area) return
-    // Aggregate responses are refreshed when the user pans or changes detail.
-    // Their GeoJSON objects are new on each response, but that must never pull
-    // a user back to the city overview after they have started navigating.
+    // Aggregate responses replace their GeoJSON objects, but that must never
+    // pull a user back to the city overview after they have started navigating.
     if (lastAutomaticFitRef.current === automaticFitKey) return
     lastAutomaticFitRef.current = automaticFitKey
     const points = (compact ? [...businesses, ...ghostBusinesses] : businesses).map((b) => toLngLat(cityId, [b.x, b.y]))
@@ -1223,9 +1216,7 @@ export function MapboxBusinessMap({
     setCard(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // `liveDistrictById` is reconstructed whenever an aggregate response
-    // arrives. Depending on it here made an unchanged selected area call
-    // fitTo again, emit moveend, and start another viewport refresh. Geometry
-    // identity is the only live input that can require a new fit.
+    // arrives. Geometry identity is the only live input that can require a new fit.
   }, [ready, currentAreaKey, liveDistrictGeometryKey])
 
   useEffect(() => {
@@ -1399,13 +1390,14 @@ export function MapboxBusinessMap({
           name={name}
           summary={summary}
           intensity={count / districtStats.max}
+          selected={selectedDistrictIdSet.has(card.id)}
           onClose={() => setCard(null)}
           onZoom={() => {
             const b = boundsOf(ring)
             if (b) fitTo(b, true, 13.6, DISTRICT_MAX_ZOOM + 0.4)
             setCard(null)
           }}
-          onUseAsArea={() => onAreaChange?.({ kind: 'district', districtId: card.id, label: `حي ${name}` })}
+          onUseAsArea={() => onDistrictScopeToggle?.(card.id, name)}
         />
       )
     }

@@ -11,7 +11,7 @@ import { goalById } from '@/lib/goals'
 import { BUYER_ROLES, SUPPLIER_ROLES, cityById, districtById } from '@/lib/mock-data'
 import { EMPTY_FILTERS, mergeParsedIntoFilters, parseQuery, type ParsedQuery } from '@/lib/search'
 import { resolveLiveActivityScope } from '@/lib/activity-scope'
-import { districtAreaForQuery, districtDisplayName, districtNameById, findDistrictByName, stableDistrictId } from '@/lib/live-district'
+import { districtAreaForQuery, districtDisplayName, districtNameById, findDistrictByName, normalizeDistrictName, stableDistrictId } from '@/lib/live-district'
 import { loadLiveActivityCatalog, loadLiveMarket, type DistrictCount, type LiveActivityMain, type LiveMarket } from '@/lib/live-market'
 import { useAppStore } from '@/lib/store'
 import type { Filters, GoalId, RequestType } from '@/lib/types'
@@ -98,6 +98,7 @@ export function OpportunityMapView() {
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map')
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [area, setArea] = useState<MapArea | null>(null)
+  const [mapDistrictSelections, setMapDistrictSelections] = useState<Array<{ id: string; name: string }>>([])
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
   const [activityCatalog, setActivityCatalog] = useState<LiveActivityMain[]>([])
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
@@ -139,13 +140,33 @@ export function OpportunityMapView() {
     const name = liveDistrictNameById.get(area.districtId) ?? districtById.get(area.districtId)?.name ?? area.label.replace(/^حي\s+/, '').trim()
     return name || null
   }, [area, liveDistrictNameById])
-  const liveDistrictScope = useMemo(
-    () => Array.from(new Set([
+  const liveDistrictScope = useMemo(() => {
+    const names = [
       ...filters.districts.flatMap((id) => districtById.get(id)?.name ? [districtById.get(id)!.name] : []),
       ...(selectedAreaDistrict ? [selectedAreaDistrict] : []),
-    ])),
-    [filters.districts, selectedAreaDistrict],
-  )
+      ...mapDistrictSelections.map((district) => district.name),
+    ]
+    const unique = new Map<string, string>()
+    for (const name of names) {
+      const key = normalizeDistrictName(name)
+      if (!unique.has(key)) unique.set(key, name)
+    }
+    return Array.from(unique.values())
+  }, [filters.districts, selectedAreaDistrict, mapDistrictSelections])
+  const selectedDistrictIds = useMemo(() => {
+    const selectedNames = new Set(liveDistrictScope.map(normalizeDistrictName))
+    const matchingLiveIds = (market.data?.districts.features ?? []).flatMap((feature) => {
+      const name = districtDisplayName(feature)
+      const id = stableDistrictId(feature)
+      return name && id && selectedNames.has(normalizeDistrictName(name)) ? [id] : []
+    })
+    return Array.from(new Set([
+      ...filters.districts,
+      ...mapDistrictSelections.map((district) => district.id),
+      ...(area?.kind === 'district' ? [area.districtId] : []),
+      ...matchingLiveIds,
+    ]))
+  }, [area, filters.districts, liveDistrictScope, mapDistrictSelections, market.data?.districts])
 
   // Assistant parsing can finish before polygon geometry arrives. Reconcile
   // the saved district name to the provider id once it is available so the
@@ -235,6 +256,7 @@ export function OpportunityMapView() {
 
   const resetSearch = () => {
     setArea(null)
+    setMapDistrictSelections([])
     setActiveActivity(null)
     setActivityScopeWasInferred(false)
     setFilters(EMPTY_FILTERS)
@@ -373,7 +395,49 @@ export function OpportunityMapView() {
 
   const clearDistrictScope = () => {
     setArea(null)
+    setMapDistrictSelections([])
     setFilters((current) => ({ ...current, districts: [] }))
+  }
+
+  const toggleMapDistrictScope = (id: string, name: string) => {
+    const filterIds = filters.districts.filter((filterId) => {
+      const filterName = districtById.get(filterId)?.name
+      return filterName && normalizeDistrictName(filterName) === normalizeDistrictName(name)
+    })
+    const isArea = area?.kind === 'district' && area.districtId === id
+    const isMapSelection = mapDistrictSelections.some((district) => district.id === id)
+    const isFilterSelection = filterIds.length > 0
+
+    if (isArea || isMapSelection || isFilterSelection) {
+      const remaining = mapDistrictSelections.filter((district) => district.id !== id)
+      setMapDistrictSelections(remaining)
+      if (isFilterSelection) setFilters((current) => ({ ...current, districts: current.districts.filter((filterId) => !filterIds.includes(filterId)) }))
+      if (isArea) {
+        if (remaining.length === 1 && filters.districts.length === 0) {
+          const [next] = remaining
+          setArea({ kind: 'district', districtId: next.id, label: `حي ${next.name}`, districtName: next.name })
+          setMapDistrictSelections([])
+        } else setArea(null)
+      } else if (isMapSelection && remaining.length === 1 && !area && filters.districts.length === 0) {
+        const [next] = remaining
+        setArea({ kind: 'district', districtId: next.id, label: `حي ${next.name}`, districtName: next.name })
+        setMapDistrictSelections([])
+      }
+      return
+    }
+
+    const next = { id, name }
+    if (area?.kind === 'district') {
+      const existing = mapDistrictSelections.some((district) => district.id === area.districtId)
+        ? mapDistrictSelections
+        : [...mapDistrictSelections, { id: area.districtId, name: selectedAreaDistrict ?? area.label.replace(/^حي\s+/, '').trim() }]
+      setMapDistrictSelections([...existing, next])
+      setArea(null)
+    } else if (liveDistrictScope.length === 0) {
+      setArea({ kind: 'district', districtId: id, label: `حي ${name}`, districtName: name })
+    } else {
+      setMapDistrictSelections([...mapDistrictSelections, next])
+    }
   }
 
   const focusBusiness = (id: string) => {
@@ -581,7 +645,7 @@ export function OpportunityMapView() {
             focusRequest={focus}
             focusDistrictRequest={focusDistrict}
             focusStreetRequest={focusStreet}
-            highlightDistricts={filters.districts}
+            highlightDistricts={selectedDistrictIds}
             highlightStreets={filters.streets}
             state={mapState}
             liveDistricts={market.data?.districts}
@@ -598,6 +662,8 @@ export function OpportunityMapView() {
             liveEntityState={directoryState}
             onDetailLevelChange={(level) => trackMapDetailLevel({ city: cityId, level })}
             onMarketInsightOpened={({ kind, count }) => trackMarketInsightOpened({ city: cityId, kind, count })}
+            selectedDistrictIds={selectedDistrictIds}
+            onDistrictScopeToggle={toggleMapDistrictScope}
             onResetFilters={resetSearch}
             onRetry={() => window.location.reload()}
             area={area}

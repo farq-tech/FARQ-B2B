@@ -155,6 +155,7 @@ export function DistrictCard({
   name,
   summary,
   intensity,
+  selected,
   onClose,
   onZoom,
   onUseAsArea,
@@ -162,6 +163,7 @@ export function DistrictCard({
   name: string
   summary: AreaSummary
   intensity: number
+  selected: boolean
   onClose: () => void
   onZoom: () => void
   onUseAsArea: () => void
@@ -184,7 +186,7 @@ export function DistrictCard({
         </Button>
         <Button size="sm" variant="outline" className="flex-1" onClick={onUseAsArea} disabled={!summary.count}>
           <BoxSelect data-icon="inline-start" />
-          حصر القائمة فيه
+          {selected ? 'إزالة الحي من النطاق' : 'إضافة الحي للنطاق'}
         </Button>
       </div>
     </CardShell>
