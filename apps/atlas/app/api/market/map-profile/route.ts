@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const payload = await upstream.json().catch(() => null) as { row?: unknown } | null
     if (!upstream.ok || !payload?.row || typeof payload.row !== 'object') return NextResponse.json({ error: 'تعذر تحميل بيانات المنشأة الآن.' }, { status: upstream.status === 404 ? 404 : 502 })
     const entity = sanitizeLiveDirectoryEntity(payload.row as Record<string, unknown>)
-    if (!entity.id) return NextResponse.json({ error: 'تعذر تحميل بيانات المنشأة الآن.' }, { status: 502 })
+    if (!entity.id || entity.status === 'closed_permanent') return NextResponse.json({ error: 'المنشأة غير متاحة.' }, { status: 404 })
     const response = NextResponse.json({ entity }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(response, session)
     return response

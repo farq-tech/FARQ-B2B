@@ -24,12 +24,21 @@ _WS = re.compile(r'[\s_\-]+')                    # spaces, underscore, hyphen ->
 def _canon(v):
     return _WS.sub(' ', str(v or '').replace('\u0640', '')).strip().lower()   # tatweel removed, as in SQL
 
-CLOSED_PERMANENT = frozenset({'permanently closed', 'closed', 'cancelled', 'canceled', 'ملغي', 'ملغى', 'مغلق نهائيا', 'مغلق نهائياً'})
-CLOSED_TEMPORARY = frozenset({'temporary closed', 'temporarily closed', 'مغلق مؤقتا', 'مغلق مؤقتاً'})
+CLOSED_PERMANENT = frozenset({
+    'permanently closed', 'closed permanently', 'closed permanent', 'closed',
+    'cancelled', 'canceled', 'ملغي', 'ملغى', 'مغلق', 'مغلقة',
+    'مغلق نهائيا', 'مغلق نهائياً', 'مغلقة نهائيا', 'مغلقة نهائياً',
+    'مغلقه نهائيا', 'مغلقه نهائياً',
+})
+CLOSED_TEMPORARY = frozenset({
+    'temporary closed', 'temporarily closed', 'closed temporary', 'closed temporarily',
+    'مغلق مؤقتا', 'مغلق مؤقتاً', 'مغلقة مؤقتا', 'مغلقة مؤقتاً',
+    'مغلقه مؤقتا', 'مغلقه مؤقتاً',
+})
 INACTIVE = frozenset({'inactive', 'غير نشط'})
 OPEN = frozenset({'open', 'active', 'approved', 'success', 'مفتوح', 'نشط'})
 HIDDEN = frozenset({'hidden'})
-LIFECYCLE_CLOSED = frozenset({'closed', 'permanently closed'})
+LIFECYCLE_CLOSED = frozenset({'closed', 'permanently closed', 'closed permanently'})
 
 def normalize(company_status, lifecycle_state=None):
     """-> dict(status_original, status_source, status_normalized, normalization_rule, status_confidence)."""
