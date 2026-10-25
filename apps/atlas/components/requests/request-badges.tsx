@@ -11,10 +11,10 @@ const STATUS_STYLE: Record<RequestStatus, string> = {
   completed: 'border text-muted-foreground',
 }
 
-export function StatusBadge({ status, className }: { status: RequestStatus; className?: string }) {
+export function StatusBadge({ status, className, label }: { status: RequestStatus; className?: string; label?: string }) {
   return (
     <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', STATUS_STYLE[status], className)}>
-      {STATUS_SINGULAR[status]}
+      {label ?? STATUS_SINGULAR[status]}
     </span>
   )
 }

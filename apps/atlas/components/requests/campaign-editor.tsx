@@ -28,7 +28,7 @@ export function eligibility(b: Business): { ok: boolean; reason?: string } {
 export function campaignIssues(c: CampaignDetails) {
   const t = TEMPLATES.find((x) => x.id === c.templateId)
   const issues: string[] = []
-  if (!t || t.approval !== 'معتمد') issues.push('اختر قالباً معتمداً.')
+  if (!t || t.approval !== 'معتمد') issues.push('اختر صيغة رسالة متاحة.')
   if (t) {
     const missing = templateVariables(t.body).filter((v) => !AUTO_VARIABLES.includes(v) && !c.variables[v]?.trim())
     if (missing.length) issues.push(`أكمل المتغيرات: ${missing.map((m) => m.replace(/_/g, ' ')).join('، ')}.`)
@@ -61,8 +61,9 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
     <>
       <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4" aria-labelledby="tpl-title">
         <h2 id="tpl-title" className="font-semibold">
-          قالب الرسالة
+          نص الرسالة
         </h2>
+        <p className="text-xs text-muted-foreground">يُرسل هذا النص داخل قالب واتساب السحابي المعتمد، مع اسم المنشأة.</p>
         <div role="radiogroup" aria-label="القوالب" className="grid gap-2 sm:grid-cols-2">
           {TEMPLATES.map((t) => {
             const approved = t.approval === 'معتمد'
@@ -83,7 +84,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               >
                 <span className="text-sm font-medium">{t.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {t.kind} · {approved ? 'معتمد من واتساب' : 'قيد المراجعة — غير متاح'}
+                  {t.kind} · {approved ? 'متاح للإرسال' : 'قيد المراجعة — غير متاح'}
                 </span>
               </button>
             )
@@ -123,7 +124,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               المستلمون ومراجعة الأهلية
             </h2>
             <p className="text-xs text-muted-foreground">
-              {value.included.length} مؤهلون للإرسال اليدوي من {businessIds.length}. نستبعد من لا يملك رقم واتساب.
+              {value.included.length} مؤهلون للإرسال السحابي من {businessIds.length}. نستبعد من لا يملك رقم واتساب.
             </p>
           </div>
           <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />

@@ -1,9 +1,9 @@
 'use client'
 
-import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, Megaphone, MessageSquareText } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Send } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
@@ -92,7 +92,7 @@ export function RequestDetailView({ id }: { id: string }) {
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <TypeLabel type={request.type} />
-          <StatusBadge status={request.status} />
+          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
         </div>
         {editable ? (
           <label>
@@ -128,8 +128,12 @@ export function RequestDetailView({ id }: { id: string }) {
         <ManualRfqPanel request={request} onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })} />
       ) : null}
 
-      {request.campaign && request.status === 'ready_manual' ? (
-        <ManualSendPanel request={request} onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })} />
+      {request.campaign && (request.status === 'ready_manual' || request.status === 'awaiting') ? (
+        <CloudSendPanel
+          request={request}
+          onDeliveryUpdate={(campaign, complete) => patch({ campaign, status: complete ? 'awaiting' : 'ready_manual' })}
+          onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })}
+        />
       ) : null}
 
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
@@ -227,7 +231,7 @@ export function RequestDetailView({ id }: { id: string }) {
         description={
           request.type === 'rfq'
             ? 'تأكد من التفاصيل قبل الاعتماد. بعدها يصبح الطلب جاهزاً للمشاركة اليدوية؛ لن يرسل أطلس طلباً تلقائياً.'
-            : 'لن تُرسل أي رسالة تلقائياً. بعد الاعتماد تصبح الحملة «جاهزة للإرسال اليدوي» وتبقى في يدك.'
+            : 'لن تُرسل أي رسالة تلقائياً. بعد الاعتماد تصبح الحملة جاهزة، ثم يبدأ الإرسال السحابي بتأكيدك.'
         }
         footer={
           <>
@@ -245,11 +249,11 @@ export function RequestDetailView({ id }: { id: string }) {
                 if (request.type === 'rfq') {
                   toast.success('طلب التسعير جاهز للمشاركة اليدوية', { description: 'لم يُرسل أي شيء. شاركه بالطريقة التي تختارها ثم تابع الردود في الوارد.' })
                 } else {
-                  toast.success('الحملة جاهزة للإرسال اليدوي', { description: 'لم يُرسل شيء. الإرسال يتم يدوياً من جهتك.' })
+                  toast.success('الحملة جاهزة للإرسال السحابي', { description: 'لن يبدأ الإرسال إلا بعد ضغط زر الإرسال وتأكيده.' })
                 }
               }}
             >
-              {request.type === 'rfq' ? 'اعتماد كجاهز للمشاركة اليدوية' : 'اعتماد كجاهزة للإرسال اليدوي'}
+              {request.type === 'rfq' ? 'اعتماد كجاهز للمشاركة اليدوية' : 'اعتماد كجاهزة للإرسال السحابي'}
             </Button>
           </>
         }
@@ -308,50 +312,111 @@ function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBa
   )
 }
 
-function ManualSendPanel({ request, onBackToDraft }: { request: RequestItem; onBackToDraft: () => void }) {
-  const [copied, setCopied] = useState(false)
+function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
+  request: RequestItem
+  onDeliveryUpdate: (campaign: NonNullable<RequestItem['campaign']>, complete: boolean) => void
+  onBackToDraft: () => void
+}) {
+  const sendBatchSize = 100
+  const [sendingId, setSendingId] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [cloudReady, setCloudReady] = useState<boolean | null>(null)
+  const [cloudStatus, setCloudStatus] = useState('جارٍ التحقق من القالب...')
   const campaign = request.campaign
   if (!campaign) return null
   const t = TEMPLATES.find((x) => x.id === campaign.templateId)
   const text = t ? renderTemplate(t.body, campaign.variables) : ''
-
-  const copy = async () => {
+  const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
+  const eligibleIds = campaign.included.filter((id) => {
+    if (businessById.has(id)) return false
+    const liveBusiness = liveById.get(id)
+    return liveBusiness ? liveBusiness.whatsapp : /^[A-Za-z0-9:_\-.]{1,200}$/.test(id)
+  })
+  const delivery = campaign.delivery ?? {}
+  const unsentIds = eligibleIds.filter((id) => delivery[id] !== 'sent' && delivery[id] !== 'unknown')
+  const sentCount = eligibleIds.filter((id) => delivery[id] === 'sent').length
+  const unknownCount = eligibleIds.filter((id) => delivery[id] === 'unknown').length
+  const failedCount = eligibleIds.filter((id) => delivery[id] === 'failed').length
+  const unlinkedCount = campaign.included.length - eligibleIds.length
+  const hasDeliveryHistory = Object.keys(delivery).length > 0
+  const currentBatch = unsentIds.slice(0, sendBatchSize)
+  const refreshCloudStatus = useCallback(async () => {
+    setCloudReady(null)
+    setCloudStatus('جارٍ التحقق من القالب...')
     try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      trackManualHandoffCopied({ city: request.cityId, type: 'campaign', count: campaign.included.length })
-      setTimeout(() => setCopied(false), 2000)
+      const response = await fetch('/api/campaign/send', { cache: 'no-store' })
+      const result = await response.json().catch(() => null) as { ready?: boolean; status?: string; error?: string } | null
+      setCloudReady(response.ok && result?.ready === true)
+      setCloudStatus(response.ok ? `قالب WhatsApp Cloud: ${result?.status ?? 'غير متاح'}` : result?.error ?? 'تعذر التحقق من الإعداد')
     } catch {
-      setCopied(false)
+      setCloudReady(false)
+      setCloudStatus('تعذر الاتصال بخدمة الإرسال السحابي')
     }
+  }, [])
+  useEffect(() => { void refreshCloudStatus() }, [refreshCloudStatus])
+  const send = async () => {
+    if (!currentBatch.length || !text || sendingId || cloudReady !== true) return
+    if (!window.confirm(`سيُرسل أطلس رسالة واتساب سحابية إلى ${currentBatch.length} جهة الآن باستخدام القالب المعتمد farq_outreach_ar. هل تريد المتابعة؟`)) return
+    setError('')
+    const nextDelivery = { ...delivery }
+    for (const id of currentBatch) {
+      setSendingId(id)
+      try {
+        const response = await fetch('/api/campaign/send', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ poiKey: id, message: text }),
+        })
+        const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null
+        if (response.ok && result?.ok) nextDelivery[id] = 'sent'
+        else if (response.status >= 500) nextDelivery[id] = 'unknown'
+        else {
+          nextDelivery[id] = 'failed'
+          setError(result?.error || 'تعذر إرسال بعض الرسائل؛ راجع النتائج قبل إعادة المحاولة.')
+        }
+      } catch {
+        // A lost response does not prove that Meta rejected the message; do not offer an automatic retry.
+        nextDelivery[id] = 'unknown'
+        setError('انقطع الاتصال قبل تأكيد النتيجة. تحقّق من حالة الرسالة قبل أي إعادة إرسال.')
+      }
+      const campaignUpdate = { ...campaign, delivery: { ...nextDelivery } }
+      onDeliveryUpdate(campaignUpdate, eligibleIds.length > 0 && eligibleIds.every((target) => nextDelivery[target] === 'sent'))
+    }
+    setSendingId(null)
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-accent/30 p-4" aria-labelledby="manual-title">
+    <section className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-accent/30 p-4" aria-labelledby="cloud-send-title">
       <div className="flex items-start gap-3">
-        <Hand className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+        <Send className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
         <div className="flex flex-col gap-1">
-          <h2 id="manual-title" className="font-semibold">
-            جاهزة للإرسال اليدوي
+          <h2 id="cloud-send-title" className="font-semibold">
+            إرسال واتساب سحابي
           </h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            راجعتَ الحملة واعتمدتها{request.reviewedAt ? ` في ${formatDateTime(request.reviewedAt)}` : ''}. لم يُرسل أي شيء ولن يُرسل تلقائياً.
-            أرسلها بنفسك من حساب واتساب للأعمال إلى {campaign.included.length} مستلم مؤهل، ثم سجّل المتابعة في الوارد.
+            {request.reviewedAt ? `اعتمدت الحملة في ${formatDateTime(request.reviewedAt)}. ` : ''}الإرسال يتم عبر WhatsApp Cloud API بعد تأكيدك أدناه. كل دفعة ترسل حتى 100 جهة، ولا يبدأ إرسال الدفعة التالية تلقائياً.
           </p>
         </div>
       </div>
+      <p className="text-sm">
+        {sentCount} قبلها واتساب للإرسال · {unsentIds.length} بانتظار الإرسال{failedCount ? ` · ${failedCount} فشل` : ''}{unknownCount ? ` · ${unknownCount} نتيجتها غير مؤكدة` : ''}
+        {unlinkedCount ? ` · ${unlinkedCount} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : ''}
+      </p>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>{cloudStatus}</span>
+        <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => void refreshCloudStatus()} disabled={cloudReady === null}>إعادة التحقق</button>
+      </div>
+      {error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={copy} disabled={!text}>
-          {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
-          {copied ? 'تم النسخ' : 'نسخ نص الرسالة'}
+        <Button onClick={send} disabled={Boolean(sendingId) || cloudReady !== true || !unsentIds.length || !text}>
+          {sendingId ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}
+          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'التحقق من القالب...' : cloudReady ? `إرسال ${currentBatch.length} سحابيًا${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال السحابي غير جاهز'}
         </Button>
-        <Button variant="ghost" onClick={onBackToDraft}>
+        <Button variant="ghost" onClick={onBackToDraft} disabled={Boolean(sendingId) || hasDeliveryHistory}>
           إعادة إلى مسودة للتعديل
         </Button>
       </div>
-      <p className="sr-only" aria-live="polite">
-        {copied ? 'تم نسخ نص الرسالة' : ''}
-      </p>
+      {unknownCount ? <p className="text-xs text-muted-foreground">لا تعِد إرسال الجهات ذات النتيجة غير المؤكدة قبل مراجعة سجل واتساب؛ قد تكون الرسالة وصلت بالفعل.</p> : null}
     </section>
   )
 }

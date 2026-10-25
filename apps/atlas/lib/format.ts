@@ -30,7 +30,7 @@ export function formatPhone(p: string | null) {
 export const STATUS_LABEL: Record<RequestStatus, string> = {
   draft: 'مسودات',
   needs_decision: 'تحتاج قرارك',
-  ready_manual: 'جاهزة للإرسال اليدوي',
+  ready_manual: 'جاهزة للإرسال',
   awaiting: 'بانتظار الردود',
   completed: 'مكتملة',
 }
@@ -38,7 +38,7 @@ export const STATUS_LABEL: Record<RequestStatus, string> = {
 export const STATUS_SINGULAR: Record<RequestStatus, string> = {
   draft: 'مسودة',
   needs_decision: 'تحتاج قرارك',
-  ready_manual: 'جاهزة للإرسال اليدوي',
+  ready_manual: 'جاهزة للإرسال',
   awaiting: 'بانتظار الردود',
   completed: 'مكتمل',
 }

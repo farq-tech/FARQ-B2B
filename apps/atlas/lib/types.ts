@@ -105,8 +105,10 @@ export interface RfqDetails {
 export interface CampaignDetails {
   templateId: string
   variables: Record<string, string>
-  /** Recipients with a WhatsApp contact channel, eligible for this manual campaign. */
+  /** Directory recipients with a WhatsApp contact channel, eligible for this cloud campaign. */
   included: string[]
+  /** Per-directory-recipient result from the WhatsApp Cloud API. */
+  delivery?: Record<string, 'sent' | 'failed' | 'unknown'>
 }
 
 export interface RequestItem {

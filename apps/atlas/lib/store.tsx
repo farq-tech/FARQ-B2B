@@ -142,7 +142,12 @@ function normalizeCampaignRecipients(request: RequestItem): RequestItem {
   const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
   const eligibleIds = request.businessIds.filter((id) => {
     const business = businessById.get(id)
-    return Boolean(business?.whatsapp || liveById.get(id)?.whatsapp)
+    const liveBusiness = liveById.get(id)
+    if (business) return Boolean(business.whatsapp)
+    if (liveBusiness) return liveBusiness.whatsapp
+    // A cloud-restored request intentionally has no directory snapshot. Preserve
+    // its previously selected POI keys; the sender re-resolves them server-side.
+    return request.campaign?.included.includes(id) ?? false
   })
   return { ...request, campaign: { ...request.campaign, included: [...new Set(eligibleIds)] } }
 }
