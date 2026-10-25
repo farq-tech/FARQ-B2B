@@ -72,14 +72,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
   if (!payload) return NextResponse.json({ error: 'حدد نقاطًا صحيحة داخل نطاق السعودية.' }, { status: 400 })
 
   const origin = process.env.VALHALLA_ORIGIN?.replace(/\/$/, '')
-  if (!origin) return NextResponse.json({ error: 'خدمة تخطيط المسارات غير مهيأة.' }, { status: 503 })
+  const gatewayToken = process.env.VALHALLA_GATEWAY_TOKEN?.trim()
+  if (!origin || !gatewayToken) return NextResponse.json({ error: 'خدمة تخطيط المسارات غير مهيأة.' }, { status: 503 })
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20_000)
   try {
     const upstream = await fetch(`${origin}/${action}`, {
       method: 'POST',
-      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: `Bearer ${gatewayToken}`,
+      },
       body: JSON.stringify(payload),
       cache: 'no-store',
       signal: controller.signal,

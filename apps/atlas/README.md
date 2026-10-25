@@ -24,6 +24,7 @@ pnpm dev
 - `ATLAS_TARGETING_ALLOWED_EMAILS`
 - `ATLAS_PUBLIC_ORIGINS`
 - `VALHALLA_ORIGIN` (optional; private Valhalla routing service used by distribution and coverage planning)
+- `VALHALLA_GATEWAY_TOKEN` (server-only bearer token for the authenticated Railway routing gateway)
 
 ## فحص الجاهزية
 
