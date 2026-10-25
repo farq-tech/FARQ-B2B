@@ -5,11 +5,11 @@ import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import type { GoalDef } from '@/lib/goals'
 
-export function MarketScope({ goal, city, query, district, total, onClearQuery, onClearDistrict }: {
+export function MarketScope({ goal, city, query, districts, total, onClearQuery, onClearDistrict }: {
   goal: GoalDef
   city: string
   query: string
-  district: string | null
+  districts: string[]
   total: number | null
   onClearQuery: () => void
   onClearDistrict: () => void
@@ -26,7 +26,7 @@ export function MarketScope({ goal, city, query, district, total, onClearQuery, 
       </div>
       <div className="flex flex-col gap-2 px-4 py-3">
         <ScopeRow icon={<MapPinned className="size-3.5" />} label="المدينة" value={city} />
-        {district ? <ScopeRow icon={<Crosshair className="size-3.5" />} label="النطاق" value={`حي ${district}`} onClear={onClearDistrict} /> : null}
+        {districts.length ? <ScopeRow icon={<Crosshair className="size-3.5" />} label={districts.length === 1 ? 'النطاق' : 'الأحياء'} value={districts.map((district) => `حي ${district}`).join('، ')} onClear={onClearDistrict} /> : null}
         {query ? <ScopeRow icon={<Search className="size-3.5" />} label="النشاط" value={query} onClear={onClearQuery} /> : <p className="text-xs leading-5 text-muted-foreground">اختر حيًا أو اكتب نشاطًا لتتحول القراءة العامة إلى قائمة منشآت قابلة للمراجعة.</p>}
       </div>
     </section>

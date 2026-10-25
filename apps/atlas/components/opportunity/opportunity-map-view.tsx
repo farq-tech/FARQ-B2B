@@ -371,6 +371,11 @@ export function OpportunityMapView() {
     simulateLoad(450)
   }
 
+  const clearDistrictScope = () => {
+    setArea(null)
+    setFilters((current) => ({ ...current, districts: [] }))
+  }
+
   const focusBusiness = (id: string) => {
     setFocus({ id, nonce: Date.now() })
     setMobileView('map')
@@ -445,8 +450,14 @@ export function OpportunityMapView() {
   // The authenticated directory applies the stricter, documented WhatsApp
   // validity rule. When a district is selected it is the authoritative cohort
   // for the list, points, and contact-signal statistic together.
-  const scopeTotal = selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.total : market.data?.summary?.total ?? null
-  const scopeWhatsapp = selectedAreaDistrict && liveDirectorySummary ? liveDirectorySummary.withWhatsapp : market.data?.summary?.n_whatsapp ?? null
+  const useDirectoryDistrictSummary = liveDistrictScope.length === 1 && Boolean(selectedAreaDistrict && liveDirectorySummary)
+  const scopeTotal = useDirectoryDistrictSummary ? liveDirectorySummary?.total ?? null : market.data?.summary?.total ?? null
+  const scopeWhatsapp = useDirectoryDistrictSummary ? liveDirectorySummary?.withWhatsapp ?? null : market.data?.summary?.n_whatsapp ?? null
+  const marketSummaryTitle = query
+    ? liveDistrictScope.length ? `ملخص نشاط «${query}» في النطاق المحدد` : `ملخص نشاط «${query}»`
+    : liveDistrictScope.length === 1 ? `ملخص حي ${liveDistrictScope[0]}`
+      : liveDistrictScope.length > 1 ? 'ملخص الأحياء المحددة'
+        : 'ملخص سوق المدينة'
 
   return (
     <main data-viewport-workspace className="flex min-h-0 flex-1 flex-col lg:h-dvh lg:max-h-dvh lg:flex-none lg:overflow-hidden">
@@ -502,9 +513,9 @@ export function OpportunityMapView() {
           className={cn('min-h-0 overflow-y-auto border-l bg-muted/[0.18] px-4 py-4 lg:block', mobileView === 'list' ? 'block flex-1 pb-40' : 'hidden', 'lg:pb-28')}
         >
           <section className="flex flex-col gap-3" aria-label="ملخص السوق الحي">
-            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} district={selectedAreaDistrict} total={market.status === 'ready' ? scopeTotal : null} onClearQuery={clearLiveActivity} onClearDistrict={() => setArea(null)} />
+            <MarketScope goal={goalDef} city={city?.name ?? 'المدينة'} query={query} districts={liveDistrictScope} total={market.status === 'ready' ? scopeTotal : null} onClearQuery={clearLiveActivity} onClearDistrict={clearDistrictScope} />
             <div className="rounded-2xl border bg-card p-4">
-              <p className="font-semibold">{selectedAreaDistrict ? `ملخص حي ${selectedAreaDistrict}` : query ? `ملخص نشاط «${query}»` : 'ملخص سوق المدينة'}</p>
+              <p className="font-semibold">{marketSummaryTitle}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">إحصاءات هذا النطاق فقط. لا نعرض أرقام الاتصال هنا؛ القرار يبنى على النشاط والموقع وسبب المطابقة.</p>
               {market.status === 'ready' ? (
                 <>
