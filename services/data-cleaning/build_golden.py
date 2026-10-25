@@ -80,8 +80,13 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
    cs.poi_key is not null curated_contracting_supplier, coalesce(cs.qualified, false) qualified_distributor,
    gr.group_id dup_group, coalesce(gr.is_primary, true) dup_primary, gd.gdup_group, gd.gdup_primary, gd.gdup_size, b.sources
    from base b
-   left join (select b2.poi_key, coalesce(cs2b.crs_sub, fqs.farq_sub, c0b.sub_id) sub_id, case when cs2b.crs_sub is not null then 'crs_surveyor' when fqs.farq_sub is not null then 'farq_supplier_items' else c0b.cls_source end cls_source,
-        case when cs2b.crs_sub is not null then 'high' when fqs.farq_sub is not null then fqs.farq_sub_conf else c0b.cls_confidence end cls_confidence from base b2
+   left join (select b2.poi_key,
+        coalesce(cs2b.crs_sub, fqs.farq_sub,
+          case when (c0b.sub_id is null or c0b.sub_id like 'unc.%' or c0b.cls_confidence='low') and bn.sub_id is not null then bn.sub_id else c0b.sub_id end) sub_id,
+        case when cs2b.crs_sub is not null then 'crs_surveyor' when fqs.farq_sub is not null then 'farq_supplier_items'
+             when (c0b.sub_id is null or c0b.sub_id like 'unc.%' or c0b.cls_confidence='low') and bn.sub_id is not null then 'brand_name' else c0b.cls_source end cls_source,
+        case when cs2b.crs_sub is not null then 'high' when fqs.farq_sub is not null then fqs.farq_sub_conf
+             when (c0b.sub_id is null or c0b.sub_id like 'unc.%' or c0b.cls_confidence='low') and bn.sub_id is not null then bn.confidence else c0b.cls_confidence end cls_confidence from base b2
         left join (select poi_key, farq_sub, farq_sub_conf from read_parquet('{D}enrich/farq_suppliers_layer.parquet') where farq_sub not like 'unc.%' and farq_sub_conf in ('high','medium')) fqs using(poi_key)
         left join (select c.poi_key, case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then ec.sub_id else c.sub_id end sub_id,
           case when (c.sub_id is null or c.sub_id like 'unc.%' or c.cls_confidence='low') and ec.sub_id is not null then 'urbi_category' else c.cls_source end cls_source,
@@ -92,6 +97,7 @@ db.execute(f"""create table g as select b.poi_key, b.origin,
              union all select poi_key, osm_sub from read_parquet('{D}enrich/osm_poi_match.parquet') where osm_sub is not null
              union all select poi_key, sub_id from read_parquet('{D}enrich/serper_places_class.parquet')
              union all select gkey, farq_sub from read_parquet('{D}enrich/farq_suppliers_matched.parquet') where farq_sub not like 'unc.%' and farq_sub_conf in ('high','medium')) group by 1) ec using(poi_key)) c0b using(poi_key)
+        left join (select poi_key, sub_id, confidence from read_parquet('{D}enrich/brand_name_class.parquet') where sub_id is not null and sub_id not like 'unc.%') bn using(poi_key)
         left join (select poi_key, sub_id crs_sub from read_parquet('{D}enrich/crs_latest.parquet') where sub_id is not null and sub_confidence in ('high','medium')) cs2b using(poi_key)) c using(poi_key)
    left join (select * from read_parquet('{D}enrich/crs_latest.parquet') qualify row_number() over (partition by poi_key)=1) cr using(poi_key)
    left join (select gkey poi_key, count(*) farq_suppliers_merged, string_agg(distinct farq_items, ' | ') farq_items_merged, any_value(farq_phone) farq_phone, any_value(farq_wa) farq_wa from read_parquet('{D}enrich/farq_suppliers_matched.parquet') group by 1) fqm using(poi_key)

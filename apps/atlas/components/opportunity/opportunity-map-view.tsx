@@ -24,12 +24,16 @@ import { LiveEntityResults, type DirectoryObjective, type DirectorySummary, type
 import { MarketScope } from './market-scope'
 import { SearchToolbar } from './search-toolbar'
 import { SelectionTray } from './selection-tray'
+import { ExpansionOpportunities } from './expansion-opportunities'
+import { NetworkPlanner, type PlannedRoute } from './network-planner'
 
-function inferGoal(parsed: ParsedQuery): GoalId {
-  if (parsed.intent === 'rfq') return 'rfq'
+function inferGoal(parsed: ParsedQuery, text: string): GoalId {
+  if (/توسع|فرع(?:\s+جديد)?|موقع(?:\s+جديد)?|افتح\s+محل|افتح\s+فرع/.test(text)) return 'expand'
+  if (/توزيع|مندوب|مندوبي|تغطية\s+(?:المبيعات|العملاء)|مسارات|توصيل|مستودع/.test(text)) return 'network'
+  if (parsed.intent === 'rfq') return 'find-supplier'
   if (parsed.intent === 'campaign') return 'target'
-  if (parsed.roles.some((r) => BUYER_ROLES.includes(r))) return 'find-buyers'
-  if (parsed.roles.some((r) => SUPPLIER_ROLES.includes(r)) || parsed.categories.length) return 'find-supplier'
+  if (parsed.roles.some((r) => BUYER_ROLES.includes(r))) return 'target'
+  if (parsed.roles.some((r) => SUPPLIER_ROLES.includes(r))) return 'find-supplier'
   return 'explore'
 }
 
@@ -40,7 +44,7 @@ function inferGoal(parsed: ParsedQuery): GoalId {
  * named trade itself or its suppliers.
  */
 function directoryObjective(goal: GoalId | null, intent: RequestType | null): DirectoryObjective {
-  return goal === 'target' || intent === 'campaign' ? 'marketing' : 'purchase'
+  return goal === 'target' || goal === 'network' || intent === 'campaign' ? 'marketing' : 'purchase'
 }
 
 type RankedDistrict = DistrictCount & { reviewScore: number }
@@ -110,6 +114,7 @@ export function OpportunityMapView() {
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>('idle')
   const [liveEntitySnapshots, setLiveEntitySnapshots] = useState<Record<string, LiveEntity>>({})
   const [livePinsComplete, setLivePinsComplete] = useState(false)
+  const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(null)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handledEntryGoal = useRef(false)
   const handledEntryDistrict = useRef(false)
@@ -288,6 +293,7 @@ export function OpportunityMapView() {
   }
 
   const handleSearch = (text: string) => {
+    setPlannedRoute(null)
     trackMarketSearch({ city: cityId, goal: goal ?? 'explore', query: text })
     setActiveActivity(null)
     setActivityScopeWasInferred(false)
@@ -302,7 +308,7 @@ export function OpportunityMapView() {
 
   const handleAssistantApply = (text: string, parsed: ParsedQuery) => {
     setAssistantOpen(false)
-    applyQuery(text, parsed, goal ?? inferGoal(parsed))
+    applyQuery(text, parsed, goal ?? inferGoal(parsed, text))
   }
 
 
@@ -317,6 +323,7 @@ export function OpportunityMapView() {
   )
 
   const selectGoal = (g: GoalId) => {
+    setPlannedRoute(null)
     setGoal(g)
     resetSearch()
     setQuery('')
@@ -467,12 +474,14 @@ export function OpportunityMapView() {
   const liveSelection = selection.flatMap((id) => liveEntitySnapshots[id] ? [liveEntitySnapshots[id]] : [])
 
   const handleToggleSelect = (id: string, source: 'map_pin' | 'directory' = 'map_pin') => {
+    setPlannedRoute(null)
     const selected = !selection.includes(id)
     toggleSelect(id)
     trackSelectionChange({ city: cityId, selected, source, selectedCount: selection.length + (selected ? 1 : -1) })
   }
 
   const handleSelectMany = (ids: string[]) => {
+    setPlannedRoute(null)
     const next = Array.from(new Set([...selection, ...ids]))
     if (next.length === selection.length) return
     setSelection(next)
@@ -614,10 +623,24 @@ export function OpportunityMapView() {
               ) : null}
             </div>
             <LiveActivityFilter activities={activityCatalog} active={activeActivity} onSelect={selectLiveActivity} onClear={clearLiveActivity} />
+            {goal === 'expand' && market.status === 'ready' ? (
+              <ExpansionOpportunities
+                cityId={cityId}
+                query={query}
+                activity={activeActivity}
+                counts={market.data?.counts ?? []}
+                countsAvailable={!market.data?.unavailable.includes('districtCounts')}
+                districts={market.data?.districts}
+                onFocusDistrict={focusDistrictOnMap}
+              />
+            ) : null}
+            {(goal === 'network' || goal === 'expand') && market.status === 'ready' ? (
+              <NetworkPlanner key={goal} stops={liveSelection} onRouteChange={setPlannedRoute} initialMode={goal === 'expand' ? 'coverage' : 'route'} allowCoverage />
+            ) : null}
             {market.status === 'ready' ? (
               <div className="rounded-xl border bg-card p-4">
-                <p className="text-sm font-semibold">أحياء أولى بالمراجعة</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">يختلف الترتيب حسب هدفك الحالي، وليس توقعاً لفرصة مؤكدة أو موافقة تواصل.</p>
+                <p className="text-sm font-semibold">{goal === 'expand' ? 'كثافة النشاط المرصود حسب الحي' : 'أحياء أولى بالمراجعة'}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{goal === 'expand' ? 'قارن عدد المنشآت المرصودة مع تقدير السكان قبل ترشيح موقع.' : 'يختلف الترتيب حسب هدفك الحالي، وليس توقعاً لفرصة مؤكدة أو موافقة تواصل.'}</p>
                 <ul className="mt-3 flex flex-col divide-y">
                   {liveDistricts.map((district) => (
                     <li key={district.district_ar}>
@@ -628,7 +651,7 @@ export function OpportunityMapView() {
                     </li>
                   ))}
                 </ul>
-                {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير. اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
+                {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">{goal === 'expand' ? 'الترتيب هنا حسب عدد نتائج النشاط المرصودة؛ اقرأه مع مؤشر السكان لكل منشأة أعلاه.' : 'نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير.'} اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
             <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} prefetchAllForMap={Boolean(selectedAreaDistrict)} onResults={handleLiveResults} onSummary={setLiveDirectorySummary} onMapQuery={setLiveMapQuery} onTileAccess={setLiveTileAccess} onStateChange={setDirectoryState} onPinsCompleteChange={setLivePinsComplete} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
@@ -654,6 +677,7 @@ export function OpportunityMapView() {
             liveStreets={market.data?.streets}
             liveClusters={market.data?.clusters}
             liveEntityPins={liveEntities}
+            plannedRoute={plannedRoute}
             liveEntityPinsComplete={livePinsComplete}
             liveDirectorySummary={liveDirectorySummary}
             liveMapQuery={liveMapQuery}

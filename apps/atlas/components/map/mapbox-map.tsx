@@ -18,6 +18,7 @@ import { mapIconImageId, mapPinSvg, resolveMapIcon, svgToImage } from '@/lib/map
 import { directoryRenderMode } from '@/lib/directory-render-mode'
 import type { DirectoryLoadState } from '@/components/opportunity/live-entity-results'
 import type { DirectorySummary } from '@/components/opportunity/live-entity-results'
+import type { PlannedRoute } from '@/components/opportunity/network-planner'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LAYERS, LayersControl, type LayerState } from './layers-control'
 import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapContextBar, MapLegend, MarketClusterCard, MarketStreetCard } from './map-overlays'
@@ -80,6 +81,7 @@ export interface MapboxMapProps extends MockMapProps {
   onMarketInsightOpened?: (insight: { kind: 'cluster' | 'street'; count: number }) => void
   selectedDistrictIds?: string[]
   onDistrictScopeToggle?: (districtId: string, districtName: string) => void
+  plannedRoute?: PlannedRoute | null
   /** Server-proxied aggregate market data. Never contains contacts or send actions. */
   liveDistricts?: FeatureCollection
   liveCounts?: DistrictCount[]
@@ -156,6 +158,7 @@ function addLayers(map: MapboxMap) {
   for (const id of ['districts', 'district-points', 'streets', 'market-streets', 'ghosts', 'biz-flat', 'selected', 'area']) {
     map.addSource(id, { type: 'geojson', data: EMPTY })
   }
+  map.addSource('planned-route', { type: 'geojson', data: EMPTY })
   map.addSource('live-entities', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 54, clusterMaxZoom: ENTITY_MIN_ZOOM })
   // The targeting service already returns geographically aggregated street
   // opportunities. Rendering those records directly keeps each visible point
@@ -220,6 +223,29 @@ function addLayers(map: MapboxMap) {
     type: 'line',
     source: 'area',
     paint: { 'line-color': COLORS.primary, 'line-width': 2, 'line-dasharray': [2, 1.5] },
+  })
+  map.addLayer({
+    id: 'planned-coverage-fill',
+    type: 'fill',
+    source: 'planned-route',
+    filter: ['!=', ['geometry-type'], 'LineString'],
+    paint: { 'fill-color': COLORS.primary, 'fill-opacity': 0.18, 'fill-outline-color': COLORS.primary },
+  })
+  map.addLayer({
+    id: 'planned-route-casing',
+    type: 'line',
+    source: 'planned-route',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': COLORS.card, 'line-width': 9, 'line-opacity': 0.95 },
+  })
+  map.addLayer({
+    id: 'planned-route-line',
+    type: 'line',
+    source: 'planned-route',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': COLORS.primary, 'line-width': 5, 'line-opacity': 0.95 },
   })
 
   map.addLayer({
@@ -641,6 +667,7 @@ export function MapboxBusinessMap({
   onMarketInsightOpened,
   selectedDistrictIds = [],
   onDistrictScopeToggle,
+  plannedRoute = null,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -1115,6 +1142,15 @@ export function MapboxBusinessMap({
     ;(m.getSource('market-streets') as GeoJSONSource).setData(liveStreetData)
     ;(m.getSource('market-clusters') as GeoJSONSource).setData(liveClusterData)
   }, [ready, bizData, ghostData, selectedData, liveEntityData, liveStreetData, liveClusterData])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!ready || !m) return
+    const data: FeatureCollection = plannedRoute
+      ? { type: 'FeatureCollection', features: [plannedRoute] }
+      : EMPTY
+    ;(m.getSource('planned-route') as GeoJSONSource).setData(data)
+  }, [ready, plannedRoute])
 
   useEffect(() => {
     const m = mapRef.current

@@ -361,12 +361,33 @@ class Taxonomy:
         # «منشأة سعودية» (owner 2026-10-16): a commercial registration / municipal licence on file — presence only, never the number
         spec_col += ", t.commercial_license is not null" if 'commercial_license' in self._dir_cols else ", false"
         spec_col += (", try_cast(t.rating as double)" if 'rating' in self._dir_cols else ", null") + (", t.source_count" if 'source_count' in self._dir_cols else ", null")
+        def source_expr(*names):
+            found = [f"nullif(trim(cast(t.{name} as varchar)), '')" for name in names if name in self._dir_cols]
+            return "coalesce(" + ", ".join(found) + ")" if found else "null"
+        hour_fields = [('الأحد','urbi_sun_hours'),('الاثنين','urbi_mon_hours'),('الثلاثاء','urbi_tue_hours'),('الأربعاء','urbi_wed_hours'),('الخميس','urbi_thu_hours'),('الجمعة','urbi_fri_hours'),('السبت','urbi_sat_hours')]
+        hour_parts = [f"case when nullif(trim(cast(t.{field} as varchar)), '') is not null then '{label}: ' || trim(cast(t.{field} as varchar)) end" for label,field in hour_fields if field in self._dir_cols]
+        hours_expr = source_expr('opening_hours')
+        if hour_parts:
+            hours_expr = f"coalesce({hours_expr}, concat_ws(' · ', {', '.join(hour_parts)}))" if hours_expr != 'null' else f"concat_ws(' · ', {', '.join(hour_parts)})"
+        source_attrs = ', '.join([
+            f"{source_expr('urbi_branches_count','branches_count')} branch_count",
+            f"{source_expr('urbi_employee_count','employees_band')} employee_count",
+            f"{source_expr('urbi_payment_methods')} payment_methods",
+            f"{source_expr('urbi_service_languages')} service_languages",
+            f"{hours_expr} operating_hours",
+            f"{source_expr('urbi_floor','floor_no')} floor",
+            f"{source_expr('linked_building_use_ar','building_use_ar')} building_use",
+            f"{source_expr('urbi_makani','makani')} makani",
+            f"{source_expr('farq_atlas_id')} farq_atlas_id",
+        ])
+        legal_expr = source_expr('legal_name','urbi_legal_name')
+        brand_expr = source_expr('brand_name','urbi_brand_name')
         rows = db.execute(f"""
             select t.poi_key, coalesce(nullif(t.name_ar,''),t.name_en) display_name, coalesce(t.category_ar,t.category,'') category_ar,
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
                    t.latitude, t.longitude, t.city_en, t.region_ar, t.region_en, t.name_en, t.phone_norm, t.phone_kind, t.has_whatsapp,
-                   t.email, t.source_count, t.category, t.legal_name, t.brand_name, t.secondary_category, t.category_l3,
-                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}
+                   t.email, t.source_count, t.category, {legal_expr} legal_name, {brand_expr} brand_name, t.secondary_category, t.category_l3,
+                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
@@ -385,7 +406,8 @@ class Taxonomy:
         for r in rows:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
              source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
-             street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources) = r
+             street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources,
+             branch_count, employee_count, payment_methods, service_languages, operating_hours, floor, building_use, makani, farq_atlas_id) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -436,6 +458,9 @@ class Taxonomy:
                 'completeness_pct': float(complete or 0), 'rating': rating, 'sources_count': n_sources,
                 'role_badges': [x for x in (role_badges or '').split('|') if x], 'specialties': [x for x in (concepts or '').split('، ') if x], 'source_count': source_count, 'category': category, 'legal_name': legal,
                 'brand_name': brand, 'secondary_category': secondary, 'category_l3': l3, '_status': (company_status, lifecycle),
+                'branch_count': branch_count, 'employee_count': employee_count, 'payment_methods': payment_methods,
+                'service_languages': service_languages, 'operating_hours': operating_hours, 'floor': floor,
+                'building_use': building_use, 'makani': makani, 'farq_atlas_id': farq_atlas_id,
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
                 'evidence': {'source': 'farq_taxonomy', 'text': sub_ar, 'confidence': 'activity_inference' if objective == 'marketing' else 'business_evidence'},

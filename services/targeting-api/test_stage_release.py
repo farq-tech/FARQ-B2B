@@ -19,6 +19,7 @@ class StageReleaseTests(unittest.TestCase):
             "trade_clusters.parquet": root / "trade_clusters.parquet",
             "districts.geojson": root / "districts.geojson",
             "taxonomy/farq_taxonomy.json": root / "taxonomy/farq_taxonomy.json",
+            "identity/source_to_farq_atlas_id.parquet": root / "identity/source_to_farq_atlas_id.parquet",
         }
 
     def test_stages_a_new_release_with_manifest(self):

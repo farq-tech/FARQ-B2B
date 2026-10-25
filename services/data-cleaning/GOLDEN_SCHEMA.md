@@ -14,7 +14,7 @@ Targetable rows (`in_golden`): **2,271,487**.
 | `name_en` | VARCHAR | 2,039,226 (90%) | English name. | surveyor CR → source → same business in other sources → name dictionary → Google Maps |
 | `name_ar_source` | VARCHAR | 1,181,189 (52%) | Where name_ar came from. |  |
 | `name_en_source` | VARCHAR | 1,990,716 (88%) | Where name_en came from. |  |
-| `sub_id` | VARCHAR | 2,271,487 (100%) | Farq subcategory id (431 subcategories; unc.* = unclassified, noncom.* = non-commercial). | surveyor CR → Farq supplier items → row classifier → 2GIS/Overture/OSM/Google categories (fill unclassified/low only) |
+| `sub_id` | VARCHAR | 2,271,487 (100%) | Farq subcategory id (431 subcategories; unc.* = unclassified, noncom.* = non-commercial). | surveyor CR → Farq supplier items → row classifier → 2GIS/Overture/OSM/Google categories → exact known-brand name match (fills unclassified/low only) |
 | `sub_ar` | VARCHAR | 2,271,487 (100%) | Subcategory name (Arabic). | taxonomy |
 | `main_id` | VARCHAR | 2,271,487 (100%) | Main category id (25). | taxonomy |
 | `main_ar` | VARCHAR | 2,271,487 (100%) | Main category (Arabic). | taxonomy |

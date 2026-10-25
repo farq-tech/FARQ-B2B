@@ -1,15 +1,17 @@
 import Link from 'next/link'
-import { ArrowLeft, Compass, Crosshair, Factory } from 'lucide-react'
+import { ArrowLeft, Compass, Crosshair, Factory, MapPinned, Truck } from 'lucide-react'
 
 const goals = [
-  { id: 'find-supplier', title: 'أحتاج موردين', text: 'اكتشف المصانع والموردين والموزعين حسب النشاط والمنطقة.', icon: Factory },
-  { id: 'target', title: 'أبحث عن عملاء', text: 'ابنِ قائمة منشآت مناسبة للبيع ثم راجعها قبل أي تواصل.', icon: Crosshair },
-  { id: 'explore', title: 'أفهم السوق', text: 'شاهد كثافة النشاط والأحياء والشوارع التي تستحق الانتباه.', icon: Compass },
+  { id: 'explore', title: 'أفهم السوق', text: 'استكشف النشاط والمنافسة والفرص في المدن والأحياء.', icon: Compass },
+  { id: 'expand', title: 'أختار موقعًا للتوسع', text: 'قارن السكان والسوق والطرق بين المواقع المرشحة.', icon: MapPinned },
+  { id: 'target', title: 'أصل إلى عملاء جدد', text: 'اعثر على المنشآت المناسبة لما تبيعه وجهّز قائمة أو حملة.', icon: Crosshair },
+  { id: 'find-supplier', title: 'أجد موردًا وأطلب عرض سعر', text: 'ابحث عن الموردين وأرسل احتياجك وقارن عروضهم.', icon: Factory },
+  { id: 'network', title: 'أخطط للتوزيع والتغطية', text: 'خطط خدمة العملاء وتوزيع الطلبات عبر شبكة الطرق.', icon: Truck },
 ] as const
 
 export function AtlasGoalLinks({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={compact ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-4 sm:grid-cols-3'}>
+    <div className={compact ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>
       {goals.map(({ id, title, text, icon: Icon }) => (
         <Link
           key={id}

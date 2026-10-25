@@ -1,4 +1,4 @@
-export type GoalId = 'find-supplier' | 'find-buyers' | 'explore' | 'target' | 'rfq'
+export type GoalId = 'find-supplier' | 'find-buyers' | 'explore' | 'expand' | 'network' | 'target' | 'rfq'
 
 export type Role = 'مصنع' | 'مورد' | 'موزع' | 'تاجر تجزئة' | 'مشتري مؤسسي'
 
@@ -81,6 +81,17 @@ export interface LiveBusinessSnapshot {
   whatsapp: boolean
   reason: string
   fit: 'L' | 'M' | 'N' | null
+  brandName?: string
+  legalName?: string
+  branchCount?: string
+  employeeCount?: string
+  operatingHours?: string
+  paymentMethods?: string
+  serviceLanguages?: string
+  floor?: string
+  buildingUse?: string
+  makani?: string
+  atlasId?: string
 }
 
 export type RequestType = 'list' | 'rfq' | 'campaign'

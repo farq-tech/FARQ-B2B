@@ -23,8 +23,9 @@ REQUIRED_ASSETS = (
     "trade_clusters.parquet",
     "districts.geojson",
     "taxonomy/farq_taxonomy.json",
+    "identity/source_to_farq_atlas_id.parquet",
 )
-TARGET_COLUMNS = {"poi_key", "latitude", "longitude", "city_en", "district_ar"}
+TARGET_COLUMNS = {"poi_key", "farq_atlas_id", "latitude", "longitude", "city_en", "district_ar"}
 
 
 def _sha256(path: Path) -> str:
@@ -70,16 +71,25 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
     if not isinstance(features, list) or not features:
         raise ValueError("districts GeoJSON has no features")
     names = []
+    district_ids = []
+    unlabeled_districts = 0
     for feature in features:
         props = feature.get("properties", {}) if isinstance(feature, dict) else {}
         name = props.get("ar") or props.get("name_ar") or props.get("district_ar") or props.get("name")
         geometry = feature.get("geometry") if isinstance(feature, dict) else None
-        if not isinstance(name, str) or not name.strip() or not isinstance(geometry, dict):
-            raise ValueError("districts GeoJSON contains an unnamed or geometry-less feature")
-        names.append(name.strip())
-    duplicate_district_names = len(names) - len(set(names))
-    if duplicate_district_names:
-        raise ValueError("districts GeoJSON contains duplicate district labels")
+        if props.get("id") is None or not isinstance(geometry, dict):
+            raise ValueError("districts GeoJSON contains a feature without a stable id or geometry")
+        district_ids.append(str(props["id"]))
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
+        else:
+            # Keep valid official polygons whose source has an ID but no label;
+            # clients can still join data by ID and omit the unavailable label.
+            unlabeled_districts += 1
+    duplicate_district_ids = len(district_ids) - len(set(district_ids))
+    if duplicate_district_ids:
+        raise ValueError("districts GeoJSON contains duplicate stable ids")
+    duplicate_district_labels = len(names) - len(set(names))
 
     target_path = data_dir / "targets.parquet"
     db = duckdb.connect(":memory:")
@@ -102,6 +112,36 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
             raise ValueError("targets parquet has empty or duplicate poi_key values")
         if invalid_coordinates:
             raise ValueError("targets parquet contains invalid coordinates")
+        unique_farq_ids = _safe_count(db, target_path, "select count(distinct farq_atlas_id) from read_parquet(?) where farq_atlas_id is not null and trim(farq_atlas_id) <> ''")
+        invalid_farq_ids = _safe_count(db, target_path, "select count(*) from read_parquet(?) where farq_atlas_id is null or trim(farq_atlas_id) = ''")
+        if invalid_farq_ids or unique_farq_ids != rows:
+            raise ValueError("targets parquet has empty or duplicate Farq Atlas IDs")
+
+        identity_path = data_dir / "identity/source_to_farq_atlas_id.parquet"
+        identity_columns = {row[0] for row in db.execute("describe select * from read_parquet(?)", [str(identity_path)]).fetchall()}
+        identity_missing = sorted({"source_poi_key", "canonical_poi_key", "farq_atlas_id"} - identity_columns)
+        if identity_missing:
+            raise ValueError(f"identity crosswalk misses columns: {', '.join(identity_missing)}")
+        identity_rows = _safe_count(db, identity_path, "select count(*) from read_parquet(?)")
+        identity_unique_sources = _safe_count(db, identity_path, "select count(distinct source_poi_key) from read_parquet(?) where source_poi_key is not null and trim(source_poi_key) <> ''")
+        identity_invalid_rows = _safe_count(db, identity_path, "select count(*) from read_parquet(?) where source_poi_key is null or trim(source_poi_key) = '' or canonical_poi_key is null or trim(canonical_poi_key) = '' or farq_atlas_id is null or trim(farq_atlas_id) = ''")
+        if identity_invalid_rows or identity_rows == 0 or identity_unique_sources != identity_rows:
+            raise ValueError("identity crosswalk has empty or duplicate source keys")
+        identity_orphans = int(db.execute(
+            """select count(*) from read_parquet(?) identity
+               left join read_parquet(?) target on target.poi_key=identity.canonical_poi_key
+               where target.poi_key is null or target.farq_atlas_id<>identity.farq_atlas_id""",
+            [str(identity_path), str(target_path)],
+        ).fetchone()[0])
+        if identity_orphans:
+            raise ValueError("identity crosswalk does not resolve to matching canonical Farq Atlas IDs")
+        missing_canonical_aliases = int(db.execute(
+            """select count(*) from read_parquet(?) target
+               anti join read_parquet(?) identity on identity.source_poi_key=target.poi_key""",
+            [str(target_path), str(identity_path)],
+        ).fetchone()[0])
+        if missing_canonical_aliases:
+            raise ValueError("identity crosswalk omits canonical target keys")
 
         poi_taxonomy_path = data_dir / "poi_taxonomy.parquet"
         taxonomy_columns = {row[0] for row in db.execute("describe select * from read_parquet(?)", [str(poi_taxonomy_path)]).fetchall()}
@@ -163,11 +203,13 @@ def validate_release(data_dir: Path) -> dict[str, Any]:
         "targets": {
             "rows": rows,
             "distinct_poi_keys": distinct_keys,
+            "distinct_farq_atlas_ids": unique_farq_ids,
             "precise_point_rows": point_rows,
             "columns": sorted(columns),
         },
         "poi_taxonomy": {"rows": taxonomy_rows, "distinct_poi_keys": taxonomy_distinct_keys},
-        "districts": {"features": len(features), "labels": len(names)},
+        "identity": {"crosswalk_rows": identity_rows, "distinct_source_poi_keys": identity_unique_sources, "aliases": identity_rows - rows},
+        "districts": {"features": len(features), "labels": len(names), "unlabeled_with_stable_id": unlabeled_districts, "duplicate_labels": duplicate_district_labels},
         "taxonomy": {"subcategories": len(sub_ids)},
     }
 

@@ -23,6 +23,7 @@ pnpm dev
 - `FARQ_API_ORIGIN`
 - `ATLAS_TARGETING_ALLOWED_EMAILS`
 - `ATLAS_PUBLIC_ORIGINS`
+- `VALHALLA_ORIGIN` (optional; private Valhalla routing service used by distribution and coverage planning)
 
 ## فحص الجاهزية
 

@@ -1,6 +1,7 @@
 import type { FeatureCollection, GeoJsonProperties, Geometry } from 'geojson'
 
 export type DistrictCount = { district_ar: string; n: number; n_whatsapp?: number; n_wholesale?: number }
+export type DistrictPopulation = { district_id: string | number; district_ar: string; district_en?: string; population: number; coverage_pct: number; valid_cells: number; polygon_cells: number; year: number; source?: string; license?: string }
 export type MarketSummary = {
   ok?: boolean
   summary?: {
@@ -83,6 +84,20 @@ async function request<T>(resource: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, { cache: 'no-store', ...init })
   if (!response.ok) throw new Error('market-unavailable')
   return response.json() as Promise<T>
+}
+
+export async function loadDistrictPopulation(city: string): Promise<DistrictPopulation[]> {
+  const apiCity = ({ riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' } as Record<string, string>)[city.toLowerCase()] ?? city
+  const result = await request<{ districts?: unknown }>(`population-districts?city=${encodeURIComponent(apiCity)}`)
+  if (!Array.isArray(result.districts)) return []
+  return result.districts.filter((item): item is DistrictPopulation => {
+    if (!item || typeof item !== 'object') return false
+    const row = item as Partial<DistrictPopulation>
+    return (typeof row.district_id === 'string' || typeof row.district_id === 'number')
+      && typeof row.district_ar === 'string' && typeof row.population === 'number'
+      && typeof row.coverage_pct === 'number' && typeof row.valid_cells === 'number'
+      && typeof row.polygon_cells === 'number' && typeof row.year === 'number'
+  })
 }
 
 function asFeatureCollection<T extends GeoJsonProperties = GeoJsonProperties>(value: unknown): FeatureCollection<Geometry, T> {

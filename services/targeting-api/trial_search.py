@@ -144,7 +144,11 @@ class Directory:
         self.path=path; self.lock=threading.Lock(); self.cache=collections.OrderedDict()
         self.categories=None
         self.db=duckdb.connect(); self.db.execute("SET threads=2; SET memory_limit='512MB'")
+        self._dir_cols={row[0] for row in self.db.execute('describe select * from read_parquet(?)',[path]).fetchall()}
         self.search_sql=status_policy.search_sql(self.db,path)
+    def source_expr(self,*names):
+        found=[f"nullif(trim(cast({name} as varchar)), '')" for name in names if name in self._dir_cols]
+        return "coalesce("+", ".join(found)+")" if found else "null"
     @staticmethod
     def page(result, limit, offset, filters=None):
         from directory_tiles import filter_rows, area_facets
@@ -179,18 +183,35 @@ class Directory:
             expressions=[r'(^|[^[:alnum:]؀-ۿ_])'+re.escape(t)+r'($|[^[:alnum:]؀-ۿ_])' if len(t)<=3 else re.escape(t) for t in terms]
             pattern='|'.join(expressions)
             text="regexp_replace(translate(lower(concat_ws(' ',name_ar,name_en,category,category_ar,secondary_category,category_l3,google_category)), 'أإآةىؤئ', 'اااهيوي'), '[ً-ْـ]', '', 'g')"
-            candidates=self.db.execute("""select coalesce(nullif(name_ar,''),name_en) as display_name,
+            hour_fields=[('الأحد','urbi_sun_hours'),('الاثنين','urbi_mon_hours'),('الثلاثاء','urbi_tue_hours'),('الأربعاء','urbi_wed_hours'),('الخميس','urbi_thu_hours'),('الجمعة','urbi_fri_hours'),('السبت','urbi_sat_hours')]
+            hour_parts=[f"case when nullif(trim(cast({field} as varchar)), '') is not null then '{label}: ' || trim(cast({field} as varchar)) end" for label,field in hour_fields if field in self._dir_cols]
+            hours_expr=self.source_expr('opening_hours')
+            if hour_parts: hours_expr=f"coalesce({hours_expr}, concat_ws(' · ', {', '.join(hour_parts)}))" if hours_expr!='null' else f"concat_ws(' · ', {', '.join(hour_parts)})"
+            source_attrs=', '.join([
+                f"{self.source_expr('urbi_branches_count','branches_count')} branch_count",
+                f"{self.source_expr('urbi_employee_count','employees_band')} employee_count",
+                f"{self.source_expr('urbi_payment_methods')} payment_methods",
+                f"{self.source_expr('urbi_service_languages')} service_languages",
+                f"{hours_expr} operating_hours",
+                f"{self.source_expr('urbi_floor','floor_no')} floor",
+                f"{self.source_expr('linked_building_use_ar','building_use_ar')} building_use",
+                f"{self.source_expr('urbi_makani','makani')} makani",
+                f"{self.source_expr('farq_atlas_id')} farq_atlas_id",
+            ])
+            legal_expr=self.source_expr('legal_name','urbi_legal_name')
+            brand_expr=self.source_expr('brand_name','urbi_brand_name')
+            candidates=self.db.execute(f"""select coalesce(nullif(name_ar,''),name_en) as display_name,
                 coalesce(category_ar,category,'') category,
                 concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category) evidence_category,
                 coalesce(district_ar,district_en,'') district,
                 coalesce(completeness_pct,0) completeness,
-                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, legal_name, brand_name, secondary_category, category_l3, company_status, lifecycle_state
+                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, {legal_expr} legal_name, {brand_expr} brand_name, secondary_category, category_l3, company_status, lifecycle_state, {source_attrs}
                 from read_parquet(?) where city_en=? and coalesce(name_ar,name_en) is not null
                 and """ + self.search_sql + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
             ranked=[]; seen=set()
             for candidate in candidates:
                 name,category,details,district,complete,contactable=candidate[:6]
-                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state'],candidate[6:]))
+                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state','branch_count','employee_count','payment_methods','service_languages','operating_hours','floor','building_use','makani','farq_atlas_id'],candidate[6:]))
                 geo['status_class']=status_policy.normalize(geo.pop('company_status'),geo.pop('lifecycle_state'))['status_normalized']   # class only, never the raw value
                 if geo['location_precision'] != 'point': geo['latitude']=geo['longitude']=None
                 row={'name':name,'category':category,'evidence_category':details,'district':district}

@@ -23,8 +23,10 @@ FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(HERE, 'data'))
+RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'data'))
+AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 DATA = os.path.join(DATA_DIR, 'targets.parquet')
-LOG = os.path.join(DATA_DIR, 'send_log.csv')
+LOG = os.path.join(RUNTIME_DIR, 'send_log.csv')
 PORT = int(os.environ.get('PORT', '8765'))
 API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 DB_URL = os.environ.get('CONSTRUCTION_DB_URL')
@@ -678,6 +680,25 @@ class H(BaseHTTPRequestHandler):
             except NameError:
                 p=os.path.join(DATA_DIR,'districts.geojson'); _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
             self._json({'type':'FeatureCollection','features':[f for f in _DISTRICTS['features'] if f['properties'].get('city_en')==city]}); return
+        if route.path=="/population-districts":
+            # Population estimates are served from the existing data volume and
+            # joined to the same official district IDs used by /districts.
+            if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
+            city=urllib.parse.parse_qs(route.query).get("city",[""])[0]
+            if not city or len(city)>80: self._json({"error":"INPUT"},400); return
+            path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
+            if not os.path.isfile(path): self._json({"error":"UNAVAILABLE"},503); return
+            try:
+                with LOCK:
+                    rows=con.execute("""select district_id,district_ar,district_en,population_estimate,
+                        population_coverage_pct,population_valid_cells,population_polygon_cells,
+                        population_year,population_source,population_license
+                        from read_parquet(?) where city_en=? order by district_ar""",[path,city]).fetchall()
+                self._json({'city_en':city,'districts':[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]})
+            except Exception as error:
+                log_map_api_failure('population-districts',error)
+                self._json({"error":"UNAVAILABLE"},503)
+            return
         if route.path.startswith("/tiles/") or route.path=="/facets":
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             try:

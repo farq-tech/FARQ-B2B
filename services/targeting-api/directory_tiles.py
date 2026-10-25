@@ -8,6 +8,7 @@ import re
 import secrets
 import threading
 import time
+import os
 import duckdb
 import mapbox_vector_tile
 from trial_search import norm, contains
@@ -118,6 +119,8 @@ def filter_rows(rows,filters):
 class DirectoryTiles:
     def __init__(self,path):
         self.path=path;self.lock=threading.RLock();self.contexts=collections.OrderedDict();self.tiles=collections.OrderedDict();self.facets_cache={};self.area_options_cache={};self.fingerprints={}
+        identity_path=os.path.join(os.path.dirname(path),'identity','source_to_farq_atlas_id.parquet')
+        self.identity_path=identity_path if os.path.isfile(identity_path) else None
         self.db=duckdb.connect();self.db.execute("SET threads=2; SET memory_limit='512MB'")
         # Directory assets are refreshed independently from this service.  Optional
         # enrichment columns must degrade to empty values when an older asset is live.
@@ -304,9 +307,22 @@ class DirectoryTiles:
         with self.lock:
             _,rows,city,f=self.context(key)
             if rows is not None:
-                return next((r for r in rows if r['poi_key']==poi_key),None)
+                match=next((r for r in rows if r['poi_key']==poi_key or r.get('farq_atlas_id')==poi_key),None)
+                if match:return match
+            # Resolve legacy source keys through the release crosswalk first. This
+            # avoids scanning every entity's merged_source_poi_keys array per profile.
+            if self.identity_path and not str(poi_key).startswith('FA-'):
+                resolved=self.db.execute('select canonical_poi_key from read_parquet(?) where source_poi_key=? limit 1',[self.identity_path,poi_key]).fetchone()
+                if resolved:poi_key=resolved[0]
             base,params=self.sql(city,f)
-            cursor=self.db.execute('select p.* '+base+' and poi_key=? limit 1',params+[poi_key]);names=[d[0] for d in cursor.description];values=cursor.fetchone()
+            if 'merged_source_poi_keys' in self.columns:
+                identity='(poi_key=? or farq_atlas_id=? or list_contains(merged_source_poi_keys,?))'
+                identity_params=[poi_key,poi_key,poi_key]
+            elif 'farq_atlas_id' in self.columns:
+                identity='(poi_key=? or farq_atlas_id=?)';identity_params=[poi_key,poi_key]
+            else:
+                identity='poi_key=?';identity_params=[poi_key]
+            cursor=self.db.execute('select p.* '+base+' and '+identity+' limit 1',params+identity_params);names=[d[0] for d in cursor.description];values=cursor.fetchone()
             if not values:return None
             row=dict(zip(names,values));row['phone']=row.pop('phone_norm',None);row['status_class']=status_policy.normalize(row.pop('company_status',None),row.pop('lifecycle_state',None))['status_normalized'];row['registered_location_count']=self.branch_counts.get((row.get('brand_name') or '').strip().lower(),0)
             # Profile rows can be opened directly from vector tiles, bypassing the

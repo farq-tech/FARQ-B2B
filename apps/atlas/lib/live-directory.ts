@@ -30,6 +30,17 @@ export function sanitizeLiveDirectoryEntity(row: Record<string, unknown>): Publi
     specialties: strings(row.specialties),
     reason: asText(row.reason, 240),
     fit: row.ai === 'L' || row.ai === 'M' || row.ai === 'N' ? row.ai : null,
+    brandName: asText(row.brand_name ?? row.urbi_brand_name, 160) || undefined,
+    legalName: asText(row.legal_name ?? row.urbi_legal_name, 180) || undefined,
+    branchCount: asText(row.branch_count ?? row.urbi_branches_count ?? row.branches_count, 32) || undefined,
+    employeeCount: asText(row.employee_count ?? row.urbi_employee_count ?? row.employees_band, 48) || undefined,
+    operatingHours: asText(row.operating_hours ?? row.opening_hours ?? row.urbi_working_hours, 500) || undefined,
+    paymentMethods: asText(row.payment_methods ?? row.urbi_payment_methods, 160) || undefined,
+    serviceLanguages: asText(row.service_languages ?? row.urbi_service_languages, 120) || undefined,
+    floor: asText(row.floor ?? row.urbi_floor ?? row.floor_no, 32) || undefined,
+    buildingUse: asText(row.building_use ?? row.linked_building_use_ar ?? row.building_use_ar, 100) || undefined,
+    makani: asText(row.makani ?? row.urbi_makani, 32) || undefined,
+    atlasId: asText(row.farq_atlas_id, 32) || undefined,
     status: ['open', 'closed_temporary', 'inactive', 'hidden', 'unknown_empty', 'unknown_invalid', 'closed_permanent'].includes(String(row.status_class)) ? row.status_class as PublicDirectoryEntity['status'] : null,
   }
 }

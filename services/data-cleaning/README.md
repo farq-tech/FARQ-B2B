@@ -16,6 +16,7 @@ Outputs go to `/Users/m4pro/farq-taxonomy-data/`. Nothing in the directory is ch
 4. `import_archive11.py` → `enrich/` layers from the owner's reference files (Archive 11):
    - Brand branches: 16,302 rows, all matched by hudhud id.
    - Brand-name classification: 51,771 rows.
+   - `build_golden.py` uses this known-brand match only when the existing classification is missing, unclassified, or low confidence; surveyor CR and Farq supplier classifications retain priority, and medium/high classifications are not replaced.
    - Google (GMB) matches: 147,366 rows, of which 1,202 are permanently closed and 5,743 temporarily closed.
    - Curated contracting suppliers: 2,456 rows, 138 of them qualified.
 5. `lake_gap.py` compares the local KSA entity lake (`/Users/m4pro/ksa-entity-lake`, 4.41 M entities from 12 sources incl. 2GIS «Firms with Coordinates», trade-licence firms, TRX, atlas, golden, registry) with the directory:

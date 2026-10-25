@@ -25,6 +25,7 @@ REQUIRED_FILES = {
     "trade_clusters.parquet",
     "districts.geojson",
     "taxonomy/farq_taxonomy.json",
+    "identity/source_to_farq_atlas_id.parquet",
     "taxonomy/product_families.csv",
     "taxonomy/sub_family_relations.csv",
 }
