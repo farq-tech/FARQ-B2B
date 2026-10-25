@@ -139,7 +139,7 @@ export function ExpansionOpportunities({
       const localCount = localActivitiesById.get(item.main_id)?.shops ?? 0
       const expectedCount = item.shops * populationShare
       const representation = expectedCount > 0 ? localCount / expectedCount : 0
-      return { ...item, localCount, representation }
+      return { ...item, localCount, expectedCount, representation }
     })
     .filter((item) => item.representation < 0.8)
     .sort((a, b) => a.representation - b.representation || b.shops - a.shops)
@@ -152,8 +152,8 @@ export function ExpansionOpportunities({
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><MapPinned className="size-4" aria-hidden /></span>
         <div>
-          <h2 className="text-sm font-semibold">{activityName ? 'أحياء تستحق دراسة التوسع' : 'السكان والسوق حسب الحي'}</h2>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{activityName ? `${activityName} · ترتيب أولي حسب السكان لكل منشأة مرصودة` : 'أعلى الأحياء تقديرًا للسكان، مع أعداد المنشآت وشرائح العمر'}</p>
+          <h2 className="text-sm font-semibold">{selectedArea ? `فرص حي ${selectedArea.districtName}` : activityName ? 'أحياء تستحق دراسة التوسع' : 'السكان والسوق حسب الحي'}</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{selectedArea ? 'السكان والمنشآت والأنشطة التي تستحق الفحص في الحي المحدد' : activityName ? `${activityName} · ترتيب أولي حسب السكان لكل منشأة مرصودة` : 'أعلى الأحياء تقديرًا للسكان، مع أعداد المنشآت وشرائح العمر'}</p>
         </div>
       </div>
       {selectedArea ? (
@@ -165,6 +165,11 @@ export function ExpansionOpportunities({
           {selectedArea.children + selectedArea.workingAge + selectedArea.seniors > 0 ? (
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               الأعمار المقدرة: دون 15 {formatNumber(selectedArea.children)} · 15–64 {formatNumber(selectedArea.workingAge)} · 65+ {formatNumber(selectedArea.seniors)}
+            </p>
+          ) : null}
+          {selectedArea.male + selectedArea.female > 0 ? (
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              التقدير حسب الجنس: ذكور {formatNumber(selectedArea.male)} · إناث {formatNumber(selectedArea.female)}
             </p>
           ) : null}
           <div className="mt-3 border-t pt-2.5">
@@ -185,7 +190,7 @@ export function ExpansionOpportunities({
                     >
                       <span className="min-w-0 flex-1 text-xs font-medium">{item.main_ar}</span>
                       <span className="shrink-0 text-left text-[11px] text-muted-foreground">
-                        {formatNumber(item.localCount)} مرصودة محليًا · {Math.round(item.representation * 100)}٪ من المتوقع حسب حصة السكان
+                        {formatNumber(item.localCount)} مرصودة · {formatNumber(item.expectedCount)} متوقعة نسبيًا · {Math.round(item.representation * 100)}٪
                       </span>
                     </button>
                   </li>
