@@ -3,6 +3,7 @@ import type { FeatureCollection, GeoJsonProperties, Geometry } from 'geojson'
 export type DistrictCount = { district_ar: string; n: number; n_whatsapp?: number; n_wholesale?: number }
 export type DistrictPopulation = { district_id: string | number; district_ar: string; district_en?: string; population: number; coverage_pct: number; valid_cells: number; polygon_cells: number; year: number; source?: string; license?: string }
 export type DistrictDemographic = { district_id: string | number; district_ar: string; district_en?: string; age_code: string; age_group: string; male: number | null; female: number | null; total: number | null; coverage_pct: number | null; year: number; source?: string; license?: string }
+export type MarketActivityCount = { main_id: string; main_ar: string; n: number }
 export type MarketSummary = {
   ok?: boolean
   summary?: {
@@ -13,6 +14,8 @@ export type MarketSummary = {
     n_approx?: number
     n_cr?: number
     n_specialties?: number
+    main_activities?: MarketActivityCount[]
+    main_activities_basis?: string
     basis?: string
     densest_street?: {
       street_ar?: string
@@ -161,6 +164,18 @@ export async function loadLiveActivityCatalog(city: string, scope: Pick<LiveMark
     body: JSON.stringify({ city: apiCity, ...(scope.districts?.length ? { districts: scope.districts.slice(0, 30) } : {}) }),
   })
   return activityCatalog(response)
+}
+
+export async function loadMarketActivityCounts(city: string, districts: string[] = []): Promise<MarketActivityCount[]> {
+  const apiCity = ({ riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' } as Record<string, string>)[city.toLowerCase()] ?? city
+  const response = await request<MarketSummary>('market-summary', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ city: apiCity, ...(districts.length ? { districts: districts.slice(0, 30) } : {}) }),
+  })
+  return Array.isArray(response.summary?.main_activities)
+    ? response.summary.main_activities.filter((item): item is MarketActivityCount => Boolean(item && typeof item.main_id === 'string' && typeof item.main_ar === 'string' && typeof item.n === 'number'))
+    : []
 }
 
 export async function loadLiveMarket(city: string, scope: LiveMarketScope = {}): Promise<LiveMarket> {

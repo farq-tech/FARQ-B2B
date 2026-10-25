@@ -105,7 +105,6 @@ export function OpportunityMapView() {
   const [mapDistrictSelections, setMapDistrictSelections] = useState<Array<{ id: string; name: string }>>([])
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
   const [activityCatalog, setActivityCatalog] = useState<LiveActivityMain[]>([])
-  const [activityCatalogStatus, setActivityCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
   const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
@@ -207,10 +206,9 @@ export function OpportunityMapView() {
   useEffect(() => {
     if (!goal) return
     let active = true
-    setActivityCatalogStatus('loading')
     loadLiveActivityCatalog(cityId, { districts: liveDistrictScope })
-      .then((items) => { if (active) { setActivityCatalog(items); setActivityCatalogStatus('ready') } })
-      .catch(() => { if (active) { setActivityCatalog([]); setActivityCatalogStatus('error') } })
+      .then((items) => { if (active) setActivityCatalog(items) })
+      .catch(() => { if (active) setActivityCatalog([]) })
     return () => { active = false }
   }, [cityId, goal, liveDistrictScope])
 
@@ -638,8 +636,6 @@ export function OpportunityMapView() {
                 query={query}
                 activity={activeActivity}
                 selectedDistrictName={liveDistrictScope.length === 1 ? liveDistrictScope[0] : null}
-                localActivityCatalog={activityCatalog}
-                localActivityCatalogStatus={activityCatalogStatus}
                 counts={market.data?.counts ?? []}
                 countsAvailable={!market.data?.unavailable.includes('districtCounts')}
                 districts={market.data?.districts}

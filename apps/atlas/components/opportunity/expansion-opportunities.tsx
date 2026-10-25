@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { MapPinned, Users } from 'lucide-react'
 import type { FeatureCollection, GeoJsonProperties, Geometry } from 'geojson'
 import { normalizeDistrictName } from '@/lib/live-district'
-import { loadDistrictDemographics, loadDistrictPopulation, loadLiveActivityCatalog, type DistrictCount, type DistrictDemographic, type DistrictPopulation, type LiveActivityMain } from '@/lib/live-market'
+import { loadDistrictDemographics, loadDistrictPopulation, loadLiveActivityCatalog, loadMarketActivityCounts, type DistrictCount, type DistrictDemographic, type DistrictPopulation, type LiveActivityMain, type MarketActivityCount } from '@/lib/live-market'
 
 function formatNumber(value: number) {
   return Math.round(value).toLocaleString('en-US')
@@ -15,8 +15,6 @@ export function ExpansionOpportunities({
   query,
   activity,
   selectedDistrictName,
-  localActivityCatalog,
-  localActivityCatalogStatus,
   counts,
   countsAvailable,
   districts,
@@ -27,8 +25,6 @@ export function ExpansionOpportunities({
   query: string
   activity: LiveActivityMain | null
   selectedDistrictName: string | null
-  localActivityCatalog: LiveActivityMain[]
-  localActivityCatalogStatus: 'idle' | 'loading' | 'ready' | 'error'
   counts: DistrictCount[]
   countsAvailable: boolean
   districts: FeatureCollection<Geometry, GeoJsonProperties> | null | undefined
@@ -38,6 +34,11 @@ export function ExpansionOpportunities({
   const [populationRows, setPopulationRows] = useState<DistrictPopulation[]>([])
   const [demographicRows, setDemographicRows] = useState<DistrictDemographic[]>([])
   const [cityActivityCatalog, setCityActivityCatalog] = useState<LiveActivityMain[] | null>(null)
+  const [cityActivityCatalogStatus, setCityActivityCatalogStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [cityActivityCounts, setCityActivityCounts] = useState<MarketActivityCount[] | null>(null)
+  const [cityActivityCountsStatus, setCityActivityCountsStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [districtActivityCounts, setDistrictActivityCounts] = useState<MarketActivityCount[] | null>(null)
+  const [districtActivityStatus, setDistrictActivityStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   useEffect(() => {
     const controller = new AbortController()
     setPopulationRows([])
@@ -53,11 +54,35 @@ export function ExpansionOpportunities({
   useEffect(() => {
     let active = true
     setCityActivityCatalog(null)
+    setCityActivityCatalogStatus('loading')
     loadLiveActivityCatalog(cityId)
-      .then((rows) => { if (active) setCityActivityCatalog(rows) })
-      .catch(() => { if (active) setCityActivityCatalog([]) })
+      .then((rows) => { if (active) { setCityActivityCatalog(rows); setCityActivityCatalogStatus('ready') } })
+      .catch(() => { if (active) { setCityActivityCatalog([]); setCityActivityCatalogStatus('error') } })
     return () => { active = false }
   }, [cityId])
+  useEffect(() => {
+    let active = true
+    setCityActivityCounts(null)
+    setCityActivityCountsStatus('loading')
+    loadMarketActivityCounts(cityId)
+      .then((rows) => { if (active) { setCityActivityCounts(rows); setCityActivityCountsStatus('ready') } })
+      .catch(() => { if (active) { setCityActivityCounts([]); setCityActivityCountsStatus('error') } })
+    return () => { active = false }
+  }, [cityId])
+  useEffect(() => {
+    let active = true
+    if (!selectedDistrictName) {
+      setDistrictActivityCounts(null)
+      setDistrictActivityStatus('idle')
+      return () => { active = false }
+    }
+    setDistrictActivityCounts(null)
+    setDistrictActivityStatus('loading')
+    loadMarketActivityCounts(cityId, [selectedDistrictName])
+      .then((rows) => { if (active) { setDistrictActivityCounts(rows); setDistrictActivityStatus('ready') } })
+      .catch(() => { if (active) { setDistrictActivityCounts([]); setDistrictActivityStatus('error') } })
+    return () => { active = false }
+  }, [cityId, selectedDistrictName])
   const activityName = activity
     ? activity.subs.length === 1 ? activity.subs[0].sub_ar : activity.main_ar
     : query.trim()
@@ -132,14 +157,15 @@ export function ExpansionOpportunities({
   const noMatches = selectedDistrictName ? [] : activityName ? areas.filter((area) => area.competitorCount === 0).sort((a, b) => b.population - a.population).slice(0, 3) : []
   const totalMappedPopulation = areas.reduce((sum, area) => sum + area.population, 0)
   const populationShare = selectedArea && totalMappedPopulation > 0 ? selectedArea.population / totalMappedPopulation : 0
-  const localActivitiesById = new Map(localActivityCatalog.map((item) => [item.main_id, item]))
-  const underrepresentedActivities = (cityActivityCatalog ?? [])
-    .filter((item) => item.shops >= 300)
+  const cityActivitiesById = new Map((cityActivityCatalog ?? []).map((item) => [item.main_id, item]))
+  const localActivityCountsById = new Map((districtActivityCounts ?? []).map((item) => [item.main_id, item]))
+  const underrepresentedActivities = (cityActivityCounts ?? [])
+    .filter((item) => item.n >= 300 && cityActivitiesById.has(item.main_id))
     .map((item) => {
-      const localCount = localActivitiesById.get(item.main_id)?.shops ?? 0
-      const expectedCount = item.shops * populationShare
+      const localCount = localActivityCountsById.get(item.main_id)?.n ?? 0
+      const expectedCount = item.n * populationShare
       const representation = expectedCount > 0 ? localCount / expectedCount : 0
-      return { ...item, localCount, expectedCount, representation }
+      return { ...cityActivitiesById.get(item.main_id)!, localCount, expectedCount, representation }
     })
     .filter((item) => item.representation < 0.8)
     .sort((a, b) => a.representation - b.representation || b.shops - a.shops)
@@ -160,7 +186,7 @@ export function ExpansionOpportunities({
         <div className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-3">
           <h3 className="text-sm font-semibold">فرص أولية في حي {selectedArea.districtName}</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {formatNumber(selectedArea.population)} ساكن · {formatNumber(selectedArea.competitorCount)} منشأة مرصودة في الدليل · تقدير سكاني بتغطية {formatNumber(selectedArea.coverage)}٪
+            {formatNumber(selectedArea.population)} ساكن · {formatNumber(selectedArea.competitorCount)} {activityName ? 'منشأة للنشاط المحدد' : 'منشأة مرصودة في الدليل'} · تقدير سكاني بتغطية {formatNumber(selectedArea.coverage)}٪
           </p>
           {selectedArea.children + selectedArea.workingAge + selectedArea.seniors > 0 ? (
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -175,11 +201,11 @@ export function ExpansionOpportunities({
           <div className="mt-3 border-t pt-2.5">
             <p className="text-xs font-semibold">أنشطة أقل تمثيلًا من حصة الحي السكانية</p>
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-              مؤشر استكشافي يقارن المنشآت المصنفة على الشوارع بحصة الحي من السكان في الرياض؛ لا يثبت وجود طلب أو نقص فعلي.
+              يقارن سجلات النشاط عالية أو متوسطة الثقة بحصة الحي السكانية؛ قد يظهر السجل ضمن أكثر من نشاط. الأقل تمثيلًا مرشح للفحص، لا إثبات للطلب.
             </p>
-            {cityActivityCatalog === null || localActivityCatalogStatus === 'idle' || localActivityCatalogStatus === 'loading' ? <p className="mt-2 text-xs text-muted-foreground">جارٍ تحليل الأنشطة في الحي…</p> : null}
-            {localActivityCatalogStatus === 'error' ? <p className="mt-2 text-xs text-muted-foreground">تعذر تحميل تصنيفات أنشطة الحي للمقارنة الآن.</p> : null}
-            {cityActivityCatalog !== null && localActivityCatalogStatus === 'ready' && underrepresentedActivities.length ? (
+            {cityActivityCountsStatus === 'loading' || cityActivityCatalogStatus === 'loading' || districtActivityStatus === 'loading' ? <p className="mt-2 text-xs text-muted-foreground">جارٍ تحليل الأنشطة في الحي…</p> : null}
+            {cityActivityCountsStatus === 'error' || cityActivityCatalogStatus === 'error' || districtActivityStatus === 'error' ? <p className="mt-2 text-xs text-muted-foreground">تعذر تحميل أعداد الأنشطة للمقارنة الآن.</p> : null}
+            {cityActivityCountsStatus === 'ready' && cityActivityCatalogStatus === 'ready' && districtActivityStatus === 'ready' && underrepresentedActivities.length ? (
               <ul className="mt-2 divide-y">
                 {underrepresentedActivities.map((item) => (
                   <li key={item.main_id}>
@@ -197,7 +223,7 @@ export function ExpansionOpportunities({
                 ))}
               </ul>
             ) : null}
-            {cityActivityCatalog !== null && localActivityCatalogStatus === 'ready' && !underrepresentedActivities.length ? (
+            {cityActivityCountsStatus === 'ready' && cityActivityCatalogStatus === 'ready' && districtActivityStatus === 'ready' && !underrepresentedActivities.length ? (
               <p className="mt-2 text-xs text-muted-foreground">لا توجد فئة كافية البيانات للمقارنة في هذا الحي.</p>
             ) : null}
           </div>
