@@ -535,7 +535,10 @@ def _send_template(body):
     if rejected:
         why = next(iter(rejected.values())); log_decision('send_template', None, str(body.get('poi_key') or ''), 'reject', why); return {'ok': False, 'error': why}
     row = next(iter(found.values()))
-    ok, why = status_policy.send_decision(row)
+    # Atlas campaign recipients may have no lifecycle/status data in the source.
+    # Its explicit caller flag allows only unknown_empty; known closed/inactive
+    # and invalid states remain blocked, as do missing WhatsApp and bad phones.
+    ok, why = status_policy.send_decision(row, allow_unknown_empty_status=body.get('atlas_campaign') is True)
     if not ok: log_decision('send_template', None, row['poi_key'], 'reject', why); return {'ok': False, 'error': 'NOT_ELIGIBLE:' + why}
     if body.get('dry_run') is True: log_decision('send_template', None, row['poi_key'], 'dry_run', why); return {'ok': True, 'dry_run': True, 'eligible': row['poi_key']}
     if not (WA_TOKEN and WA_PHONE_ID): return {'ok': False, 'error': 'WHATSAPP_NOT_CONFIGURED'}

@@ -11,6 +11,8 @@ Owner rules (2026-10-15):
   * closed_temporary, inactive -> may be shown (labelled), never in campaigns
   * empty / invalid / unknown / hidden / draft / archived / any other lifecycle -> not eligible
     to send by default; their *display* stays as it is today until reviewed
+  * Atlas campaign calls may explicitly allow unknown_empty only; known closed,
+    inactive, hidden and invalid states remain blocked.
   * open alone is not enough to send; has_whatsapp / mobile format is not proof of WhatsApp
   * no environment variable can widen eligibility (constants only, changed by code review)
 """
@@ -108,11 +110,16 @@ def mobile_of(row):
         n = '966' + n
     return n if MOBILE.match(n) else None
 
-def send_reasons(row):
-    """Every reason a directory record may not be messaged (empty list = eligible). Never reads request data."""
+def send_reasons(row, allow_unknown_empty_status=False):
+    """Every reason a directory record may not be messaged (empty list = eligible).
+
+    The empty-status exception is off by default and is passed only by Atlas's
+    authenticated campaign route. It never permits a known closed or invalid state.
+    """
     st = normalize(row.get('company_status'), row.get('lifecycle_state'))
     reasons = []
-    if st['status_normalized'] not in SEND_CLASSES: reasons.append('status:' + st['status_normalized'])
+    unknown_empty_allowed = allow_unknown_empty_status and st['status_normalized'] == 'unknown_empty'
+    if st['status_normalized'] not in SEND_CLASSES and not unknown_empty_allowed: reasons.append('status:' + st['status_normalized'])
     lc = _canon(row.get('lifecycle_state'))
     if CHECK_LIFECYCLE and lc not in SEND_LIFECYCLE: reasons.append('lifecycle:' + (lc or 'empty'))
     wa = whatsapp_state(row)
@@ -123,9 +130,9 @@ def send_reasons(row):
     if not mobile_of(row): reasons.append('contact:invalid_mobile')
     return reasons
 
-def send_decision(row):
+def send_decision(row, allow_unknown_empty_status=False):
     """-> (eligible, first_reason_or_'eligible')."""
-    r = send_reasons(row)
+    r = send_reasons(row, allow_unknown_empty_status=allow_unknown_empty_status)
     return (not r), (r[0] if r else 'eligible:' + whatsapp_state(row))
 
 def mask(number):

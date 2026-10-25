@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   try {
     const upstream = await fetch(`${origin}/send-template`, {
       method: 'POST', headers,
-      body: JSON.stringify({ poi_key: poiKey, message, template: 'farq_outreach_ar' }),
+      body: JSON.stringify({ poi_key: poiKey, message, template: 'farq_outreach_ar', atlas_campaign: true }),
       cache: 'no-store', signal: controller.signal,
     })
     const payload = await upstream.json().catch(() => null) as { ok?: unknown; message_id?: unknown; error?: unknown; code?: unknown } | null
