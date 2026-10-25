@@ -105,6 +105,7 @@ export function OpportunityMapView() {
   const [mapDistrictSelections, setMapDistrictSelections] = useState<Array<{ id: string; name: string }>>([])
   const [market, setMarket] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; data: LiveMarket | null }>({ status: 'idle', data: null })
   const [activityCatalog, setActivityCatalog] = useState<LiveActivityMain[]>([])
+  const [activityCatalogStatus, setActivityCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [activeActivity, setActiveActivity] = useState<LiveActivityMain | null>(null)
   const [activityScopeWasInferred, setActivityScopeWasInferred] = useState(false)
   const [liveEntities, setLiveEntities] = useState<LiveEntity[]>([])
@@ -206,9 +207,10 @@ export function OpportunityMapView() {
   useEffect(() => {
     if (!goal) return
     let active = true
+    setActivityCatalogStatus('loading')
     loadLiveActivityCatalog(cityId, { districts: liveDistrictScope })
-      .then((items) => { if (active) setActivityCatalog(items) })
-      .catch(() => { if (active) setActivityCatalog([]) })
+      .then((items) => { if (active) { setActivityCatalog(items); setActivityCatalogStatus('ready') } })
+      .catch(() => { if (active) { setActivityCatalog([]); setActivityCatalogStatus('error') } })
     return () => { active = false }
   }, [cityId, goal, liveDistrictScope])
 
@@ -375,14 +377,16 @@ export function OpportunityMapView() {
     simulateLoad()
   }
 
-  const selectLiveActivity = (activity: LiveActivityMain, label = activity.main_ar) => {
+  const selectLiveActivity = (activity: LiveActivityMain, label = activity.main_ar, preserveDistrictScope = false) => {
     trackLiveActivityScopeApplied({ city: cityId, shops: activity.shops })
-    setArea(null)
+    if (!preserveDistrictScope) setArea(null)
     setSelection([])
     setActiveActivity(activity)
     setActivityScopeWasInferred(false)
     setQuery(label)
-    setFilters(EMPTY_FILTERS)
+    setFilters((current) => preserveDistrictScope
+      ? { ...EMPTY_FILTERS, districts: current.districts }
+      : EMPTY_FILTERS)
     setFreeText([])
     setInterpretation([`التصنيف: ${label}`])
     setIntent(null)
@@ -633,10 +637,14 @@ export function OpportunityMapView() {
                 cityId={cityId}
                 query={query}
                 activity={activeActivity}
+                selectedDistrictName={liveDistrictScope.length === 1 ? liveDistrictScope[0] : null}
+                localActivityCatalog={activityCatalog}
+                localActivityCatalogStatus={activityCatalogStatus}
                 counts={market.data?.counts ?? []}
                 countsAvailable={!market.data?.unavailable.includes('districtCounts')}
                 districts={market.data?.districts}
                 onFocusDistrict={focusDistrictOnMap}
+                onSelectActivity={(activity, label) => selectLiveActivity(activity, label, true)}
               />
             ) : null}
             {(goal === 'network' || goal === 'expand') && market.status === 'ready' ? (
