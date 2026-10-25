@@ -87,7 +87,7 @@ export function ExpansionOpportunities({
     ? activity.subs.length === 1 ? activity.subs[0].sub_ar : activity.main_ar
     : query.trim()
 
-  if (!populationRows.length || !districts?.features.length || !countsAvailable) return null
+  if (!populationRows.length || !districts?.features.length) return null
 
   const populationById = new Map(populationRows.filter((row) => row.coverage_pct >= 50).map((row) => [String(row.district_id), row]))
   const demographicsById = new Map<string, DistrictDemographic[]>()
@@ -142,19 +142,19 @@ export function ExpansionOpportunities({
     const seniors = sumCodes(['65', '70', '75', '80', '85', '90'])
     const workingAge = sumCodes(['15', '20', '25', '30', '35', '40', '45', '50', '55', '60'])
     const sexTotals = [...demographics.values()].reduce((sum, value) => ({ male: sum.male + value.male, female: sum.female + value.female }), { male: 0, female: 0 })
-    return { ...area, coverage, competitorCount, residentsPerBusiness: competitorCount > 0 ? area.population / competitorCount : null, children, workingAge, seniors, male: sexTotals.male, female: sexTotals.female }
+    return { ...area, coverage, competitorCount: countsAvailable ? competitorCount : null, residentsPerBusiness: competitorCount > 0 ? area.population / competitorCount : null, children, workingAge, seniors, male: sexTotals.male, female: sexTotals.female }
   })
   const selectedArea = selectedDistrictName
     ? areas.find((area) => normalizeDistrictName(area.districtName) === normalizeDistrictName(selectedDistrictName)) ?? null
     : null
   const candidates = selectedDistrictName
-    ? selectedArea && (!activityName || selectedArea.competitorCount > 0) ? [selectedArea] : []
-    : areas.filter((area) => !activityName || area.competitorCount > 0)
+    ? selectedArea && (!activityName || selectedArea.competitorCount == null || selectedArea.competitorCount > 0) ? [selectedArea] : []
+    : countsAvailable ? areas.filter((area) => !activityName || (area.competitorCount ?? 0) > 0)
       .sort((a, b) => activityName
         ? (b.residentsPerBusiness ?? 0) - (a.residentsPerBusiness ?? 0) || b.population - a.population
         : b.population - a.population)
-      .slice(0, 6)
-  const noMatches = selectedDistrictName ? [] : activityName ? areas.filter((area) => area.competitorCount === 0).sort((a, b) => b.population - a.population).slice(0, 3) : []
+      .slice(0, 6) : []
+  const noMatches = selectedDistrictName || !countsAvailable ? [] : activityName ? areas.filter((area) => area.competitorCount === 0).sort((a, b) => b.population - a.population).slice(0, 3) : []
   const totalMappedPopulation = areas.reduce((sum, area) => sum + area.population, 0)
   const populationShare = selectedArea && totalMappedPopulation > 0 ? selectedArea.population / totalMappedPopulation : 0
   const cityActivitiesById = new Map((cityActivityCatalog ?? []).map((item) => [item.main_id, item]))
@@ -186,7 +186,7 @@ export function ExpansionOpportunities({
         <div className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-3">
           <h3 className="text-sm font-semibold">فرص أولية في حي {selectedArea.districtName}</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {formatNumber(selectedArea.population)} ساكن · {formatNumber(selectedArea.competitorCount)} {activityName ? 'منشأة للنشاط المحدد' : 'منشأة مرصودة في الدليل'} · تقدير سكاني بتغطية {formatNumber(selectedArea.coverage)}٪
+            {formatNumber(selectedArea.population)} ساكن · {selectedArea.competitorCount == null ? 'عدد المنشآت غير متاح مؤقتًا' : `${formatNumber(selectedArea.competitorCount)} ${activityName ? 'منشأة للنشاط المحدد' : 'منشأة مرصودة في الدليل'}`} · تقدير سكاني بتغطية {formatNumber(selectedArea.coverage)}٪
           </p>
           {selectedArea.children + selectedArea.workingAge + selectedArea.seniors > 0 ? (
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -240,7 +240,7 @@ export function ExpansionOpportunities({
               <span className="min-w-0 flex-1 truncate text-sm font-medium">{candidate.districtName}</span>
                 <span className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><Users className="size-3.5" aria-hidden />{formatNumber(candidate.population)} ساكن</span>
-                {activityName ? <span><strong className="text-foreground tabular-nums">{formatNumber(candidate.competitorCount)}</strong> منشأة مرصودة · <strong className="text-foreground tabular-nums">{formatNumber(candidate.residentsPerBusiness ?? 0)}</strong> ساكن/منشأة</span> : <span><strong className="text-foreground tabular-nums">{formatNumber(candidate.competitorCount)}</strong> منشأة مرصودة في الحي</span>}
+                {activityName ? <span><strong className="text-foreground tabular-nums">{candidate.competitorCount == null ? '—' : formatNumber(candidate.competitorCount)}</strong> منشأة مرصودة · <strong className="text-foreground tabular-nums">{formatNumber(candidate.residentsPerBusiness ?? 0)}</strong> ساكن/منشأة</span> : <span><strong className="text-foreground tabular-nums">{candidate.competitorCount == null ? '—' : formatNumber(candidate.competitorCount)}</strong> منشأة مرصودة في الحي</span>}
                   {candidate.children + candidate.workingAge + candidate.seniors > 0 ? <span>أعمار السكان: دون 15 {formatNumber(candidate.children)} · 15–64 {formatNumber(candidate.workingAge)} · 65+ {formatNumber(candidate.seniors)}</span> : null}
                   {candidate.male + candidate.female > 0 ? <span>تقدير حسب الجنس: ذكور {formatNumber(candidate.male)} · إناث {formatNumber(candidate.female)}</span> : null}
                   <span>تغطية تقدير السكان {formatNumber(candidate.coverage)}٪</span>
