@@ -8,6 +8,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   cities: ['GET'],
   districts: ['GET'],
   'population-districts': ['GET'],
+  'population-demographics': ['GET'],
   'district-counts': ['POST'],
   'market-summary': ['POST'],
   'street-density': ['POST'],

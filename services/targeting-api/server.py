@@ -699,6 +699,29 @@ class H(BaseHTTPRequestHandler):
                 log_map_api_failure('population-districts',error)
                 self._json({"error":"UNAVAILABLE"},503)
             return
+        if route.path=="/population-demographics":
+            # Modeled WorldPop age/sex aggregates; never serve the source grids.
+            if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
+            query=urllib.parse.parse_qs(route.query,keep_blank_values=True)
+            city=query.get("city",[""])[0]
+            districts=query.get("district",[])
+            if not city or len(city)>80 or len(districts)>50 or any(not item or len(item)>120 for item in districts):
+                self._json({"error":"INPUT"},400); return
+            path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
+            if not os.path.isfile(path): self._json({"error":"UNAVAILABLE"},503); return
+            try:
+                district_filter=" and cast(district_id as varchar) in ("+','.join('?' for _ in districts)+")" if districts else ""
+                with LOCK:
+                    rows=con.execute("""select district_id,district_ar,district_en,age_code,age_group,
+                        male_estimate,female_estimate,total_estimate,coverage_pct,population_year,
+                        population_source,population_license from read_parquet(?) where city_en=?"""+district_filter+
+                        " order by district_ar,age_code",[path,city,*districts]).fetchall()
+                names=('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct','year','source','license')
+                self._json({'city_en':city,'districts':[dict(zip(names,row)) for row in rows]})
+            except Exception as error:
+                log_map_api_failure('population-demographics',error)
+                self._json({"error":"UNAVAILABLE"},503)
+            return
         if route.path.startswith("/tiles/") or route.path=="/facets":
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             try:

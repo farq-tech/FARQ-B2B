@@ -595,6 +595,11 @@ export function OpportunityMapView() {
                   <dl className="mt-4 grid grid-cols-2 gap-2">
                     <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">منشآت ضمن النطاق</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{scopeTotal?.toLocaleString('en-US') ?? '—'}</dd></div>
                     <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">إشارات واتساب قابلة للفحص</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{scopeWhatsapp?.toLocaleString('en-US') ?? '—'}</dd></div>
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">مواقع بإحداثيات دقيقة</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.total != null && market.data.summary.n_approx != null ? Math.max(0, market.data.summary.total - market.data.summary.n_approx).toLocaleString('en-US') : '—'}</dd></div>
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">لديها رقم رخصة مسجل</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_cr?.toLocaleString('en-US') ?? '—'}</dd></div>
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">منشآت مصنفة جملة</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_wholesale?.toLocaleString('en-US') ?? '—'}</dd></div>
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">تخصصات مصنفة</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.n_specialties?.toLocaleString('en-US') ?? '—'}</dd></div>
+                    <div className="rounded-lg bg-muted/60 p-3"><dt className="text-xs text-muted-foreground">أحياء بها منشآت مرصودة</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{market.data?.summary?.districts_count?.toLocaleString('en-US') ?? '—'}</dd></div>
                   </dl>
                   {strongestStreet?.street_ar ? (
                     <section className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3" aria-label="أقوى إشارة سوق">

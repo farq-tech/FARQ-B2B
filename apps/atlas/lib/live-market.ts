@@ -2,6 +2,7 @@ import type { FeatureCollection, GeoJsonProperties, Geometry } from 'geojson'
 
 export type DistrictCount = { district_ar: string; n: number; n_whatsapp?: number; n_wholesale?: number }
 export type DistrictPopulation = { district_id: string | number; district_ar: string; district_en?: string; population: number; coverage_pct: number; valid_cells: number; polygon_cells: number; year: number; source?: string; license?: string }
+export type DistrictDemographic = { district_id: string | number; district_ar: string; district_en?: string; age_code: string; age_group: string; male: number | null; female: number | null; total: number | null; coverage_pct: number | null; year: number; source?: string; license?: string }
 export type MarketSummary = {
   ok?: boolean
   summary?: {
@@ -9,6 +10,9 @@ export type MarketSummary = {
     districts_count?: number
     n_whatsapp?: number
     n_wholesale?: number
+    n_approx?: number
+    n_cr?: number
+    n_specialties?: number
     basis?: string
     densest_street?: {
       street_ar?: string
@@ -97,6 +101,19 @@ export async function loadDistrictPopulation(city: string): Promise<DistrictPopu
       && typeof row.district_ar === 'string' && typeof row.population === 'number'
       && typeof row.coverage_pct === 'number' && typeof row.valid_cells === 'number'
       && typeof row.polygon_cells === 'number' && typeof row.year === 'number'
+  })
+}
+
+export async function loadDistrictDemographics(city: string): Promise<DistrictDemographic[]> {
+  const apiCity = ({ riyadh: 'Riyadh', jeddah: 'Jeddah', dammam: 'Dammam' } as Record<string, string>)[city.toLowerCase()] ?? city
+  const result = await request<{ districts?: unknown }>(`population-demographics?city=${encodeURIComponent(apiCity)}`)
+  if (!Array.isArray(result.districts)) return []
+  return result.districts.filter((item): item is DistrictDemographic => {
+    if (!item || typeof item !== 'object') return false
+    const row = item as Partial<DistrictDemographic>
+    return (typeof row.district_id === 'string' || typeof row.district_id === 'number')
+      && typeof row.district_ar === 'string' && typeof row.age_code === 'string'
+      && typeof row.age_group === 'string' && typeof row.year === 'number'
   })
 }
 
