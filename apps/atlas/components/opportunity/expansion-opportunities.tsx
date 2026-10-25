@@ -119,15 +119,17 @@ export function ExpansionOpportunities({
     const sexTotals = [...demographics.values()].reduce((sum, value) => ({ male: sum.male + value.male, female: sum.female + value.female }), { male: 0, female: 0 })
     return { ...area, coverage, competitorCount, residentsPerBusiness: competitorCount > 0 ? area.population / competitorCount : null, children, workingAge, seniors, male: sexTotals.male, female: sexTotals.female }
   })
-  const candidates = areas.filter((area) => !activityName || area.competitorCount > 0)
-    .sort((a, b) => activityName
-      ? (b.residentsPerBusiness ?? 0) - (a.residentsPerBusiness ?? 0) || b.population - a.population
-      : b.population - a.population)
-    .slice(0, 6)
-  const noMatches = activityName ? areas.filter((area) => area.competitorCount === 0).sort((a, b) => b.population - a.population).slice(0, 3) : []
   const selectedArea = selectedDistrictName
     ? areas.find((area) => normalizeDistrictName(area.districtName) === normalizeDistrictName(selectedDistrictName)) ?? null
     : null
+  const candidates = selectedDistrictName
+    ? selectedArea && (!activityName || selectedArea.competitorCount > 0) ? [selectedArea] : []
+    : areas.filter((area) => !activityName || area.competitorCount > 0)
+      .sort((a, b) => activityName
+        ? (b.residentsPerBusiness ?? 0) - (a.residentsPerBusiness ?? 0) || b.population - a.population
+        : b.population - a.population)
+      .slice(0, 6)
+  const noMatches = selectedDistrictName ? [] : activityName ? areas.filter((area) => area.competitorCount === 0).sort((a, b) => b.population - a.population).slice(0, 3) : []
   const totalMappedPopulation = areas.reduce((sum, area) => sum + area.population, 0)
   const populationShare = selectedArea && totalMappedPopulation > 0 ? selectedArea.population / totalMappedPopulation : 0
   const localActivitiesById = new Map(localActivityCatalog.map((item) => [item.main_id, item]))
@@ -143,7 +145,7 @@ export function ExpansionOpportunities({
     .sort((a, b) => a.representation - b.representation || b.shops - a.shops)
     .slice(0, 5)
 
-  if (!candidates.length && !noMatches.length) return null
+  if (!selectedArea && !candidates.length && !noMatches.length) return null
 
   return (
     <section className="rounded-xl border border-primary/20 bg-card p-4" aria-label="مؤشرات السكان والسوق">
