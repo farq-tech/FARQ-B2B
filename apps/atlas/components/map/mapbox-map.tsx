@@ -660,6 +660,8 @@ export function MapboxBusinessMap({
   const [tileProfileError, setTileProfileError] = useState<string | null>(null)
   const tileActionRef = useRef<number | null>(null)
   const lastAutomaticFitRef = useRef<string | null>(null)
+  const areaRef = useRef(area)
+  areaRef.current = area
   // Camera fits are internal navigation (initial city fit, selected district,
   // or a result focus). They must not be treated as a user pan that requests
   // a new viewport aggregate, otherwise moveend can continually reload data.
@@ -743,6 +745,8 @@ export function MapboxBusinessMap({
           if (status === 401 || status === 403) handlersRef.current.onFailure()
         })
 
+        let hasReportedInitialViewport = false
+        let userDraggedMap = false
         const syncView = () => {
           const nextZoom = m.getZoom()
           syncPoiVisibility(m, nextZoom)
@@ -752,12 +756,16 @@ export function MapboxBusinessMap({
           if (b) {
             const nextBounds: LngLatBounds = [b.getSouthWest().toArray() as [number, number], b.getNorthEast().toArray() as [number, number]]
             setViewBounds(nextBounds)
-            if (!suppressViewportRefreshRef.current) {
+            const shouldReportViewport = !hasReportedInitialViewport || userDraggedMap
+            hasReportedInitialViewport = true
+            userDraggedMap = false
+            if (shouldReportViewport && !suppressViewportRefreshRef.current) {
               handlersRef.current.onViewportChange?.([nextBounds[0][0], nextBounds[0][1], nextBounds[1][0], nextBounds[1][1]])
             }
           }
         }
 
+        m.on('dragstart', () => { userDraggedMap = true })
         m.on('load', () => {
           if (timeout) clearTimeout(timeout)
           calmBasemap(m)
@@ -871,7 +879,14 @@ export function MapboxBusinessMap({
             const d = hit(['district-heat'], e.point)
             const districtId = d?.properties?.id
             if (typeof districtId === 'string' && h.progressive && m.getZoom() < DISTRICT_MAX_ZOOM) {
-              setCard({ kind: 'district', id: districtId })
+              if (areaRef.current?.kind === 'district' && areaRef.current.districtId === districtId) {
+                h.onAreaChange?.(null)
+                setCard(null)
+              } else {
+                setCard((current) => current?.kind === 'district' && current.id === districtId
+                  ? null
+                  : { kind: 'district', id: districtId })
+              }
               return
             }
             setCard(null)
@@ -1566,8 +1581,8 @@ export function MapboxBusinessMap({
         ) : null}
       </AnimatePresence>
 
-      {ready && state === 'ready' && (wide || !cardNode) ? (
-        <div className={cn('absolute right-3 z-[5] w-48 transition-[bottom] duration-200', reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-[5.25rem]' : 'bottom-3')}>
+      {ready && state === 'ready' ? (
+        <div className={cn('absolute right-3 z-[5] w-48 transition-[bottom] duration-200', wide ? (reserveBottom ? 'bottom-[7.5rem] @2xl:bottom-[5.25rem]' : 'bottom-3') : 'top-[5.75rem]')}>
           <MapLegend
             level={level}
             open={legendOpen && wide}
