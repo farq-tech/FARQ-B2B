@@ -1177,7 +1177,14 @@ export function MapboxBusinessMap({
     if (!ready || !m) return
     const vis = (on: boolean) => (on ? 'visible' : 'none')
     const tiered = progressive && layers.districts
-    for (const id of DISTRICT_LAYERS) m.setLayoutProperty(id, 'visibility', vis(layers.districts))
+    // Keep the district fill queryable while a district is selected, even
+    // after entity zoom hides the overview outline layers. This lets a second
+    // click on the selected polygon clear the geographic scope.
+    const keepSelectedDistrictClickable = progressive && selectedDistrictIdSet.size > 0
+    m.setLayoutProperty('district-heat', 'visibility', vis(layers.districts || keepSelectedDistrictClickable))
+    for (const id of DISTRICT_LAYERS.filter((layer) => layer !== 'district-heat')) {
+      m.setLayoutProperty(id, 'visibility', vis(layers.districts))
+    }
     m.setLayoutProperty('district-summary', 'visibility', vis(tiered))
     m.setLayoutProperty('selected-dot', 'visibility', vis(tiered))
     for (const id of ['street-active', 'street-label', ...MARKET_STREET_LAYERS]) m.setLayoutProperty(id, 'visibility', vis(layers.streets))
@@ -1202,7 +1209,7 @@ export function MapboxBusinessMap({
     for (const id of ['street-active', 'market-street-hit', 'market-street-line']) m.setLayerZoomRange(id, tiered ? DISTRICT_MAX_ZOOM : 0, 24)
     const hasDirectDirectoryPins = liveDirectoryMode === 'direct'
     for (const id of ['live-entity-cluster', 'live-entity-cluster-count', 'live-entity-halo', 'live-entity-pin', 'live-entity-icon', 'live-entity-icon-selected']) m.setLayoutProperty(id, 'visibility', vis(hasDirectDirectoryPins || !liveMapQuery))
-  }, [ready, layers, progressive, level, liveMapQuery, liveDirectoryMode])
+  }, [ready, layers, progressive, level, liveMapQuery, liveDirectoryMode, selectedDistrictIdSet])
 
   const focusedId = card?.kind === 'business' ? card.id : ''
   const activeDistrict = card?.kind === 'district' ? card.id : ''
