@@ -1155,6 +1155,17 @@ export function MapboxBusinessMap({
       ? { type: 'FeatureCollection', features: [plannedRoute] }
       : EMPTY
     ;(m.getSource('planned-route') as GeoJSONSource).setData(data)
+    if (plannedRoute?.geometry.type === 'LineString' && plannedRoute.geometry.coordinates.length > 1) {
+      const points = plannedRoute.geometry.coordinates.filter(([longitude, latitude]) => Number.isFinite(longitude) && Number.isFinite(latitude))
+      if (points.length > 1) {
+        const longitudes = points.map(([longitude]) => longitude)
+        const latitudes = points.map(([, latitude]) => latitude)
+        m.fitBounds(
+          [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
+          { padding: { top: 72, right: 72, bottom: 72, left: 72 }, maxZoom: 14, duration: 850 },
+        )
+      }
+    }
   }, [ready, plannedRoute])
 
   useEffect(() => {

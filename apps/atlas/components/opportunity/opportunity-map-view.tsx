@@ -645,7 +645,7 @@ export function OpportunityMapView() {
               />
             ) : null}
             {(goal === 'network' || goal === 'expand') && market.status === 'ready' ? (
-              <NetworkPlanner key={goal} stops={liveSelection} onRouteChange={setPlannedRoute} initialMode={goal === 'expand' ? 'coverage' : 'route'} allowCoverage />
+              <NetworkPlanner key={goal} stops={liveSelection} onRouteChange={setPlannedRoute} onRouteReady={() => setMobileView('map')} initialMode={goal === 'expand' ? 'coverage' : 'route'} allowCoverage />
             ) : null}
             {market.status === 'ready' ? (
               <div className="rounded-xl border bg-card p-4">

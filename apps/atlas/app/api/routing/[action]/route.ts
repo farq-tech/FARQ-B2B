@@ -3,6 +3,7 @@ import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const ACTIONS = new Set(['route', 'optimized_route', 'isochrone', 'sources_to_targets'])
 const COSTINGS = new Set(['auto', 'pedestrian', 'bicycle', 'truck'])
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
   if (!origin || !gatewayToken) return NextResponse.json({ error: 'خدمة تخطيط المسارات غير مهيأة.' }, { status: 503 })
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
+  const timeout = setTimeout(() => controller.abort(), 50_000)
   try {
     const upstream = await fetch(`${origin}/${action}`, {
       method: 'POST',
