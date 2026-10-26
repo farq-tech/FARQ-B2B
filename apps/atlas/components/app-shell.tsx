@@ -65,6 +65,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const workspaceBadge = <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">مساحة العمل</span>
   const shellBadge = pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
 
+  // The opportunity map owns its full-screen workspace, including navigation.
+  // Keep it unwrapped so the Bolt-designed map can use the full Atlas viewport.
+  if (pathname === '/opportunity-map') return <>{children}</>
+
   // The landing page owns its own header and calls to action.
   if (pathname === '/' || pathname === '/login') return <>{children}</>
 
