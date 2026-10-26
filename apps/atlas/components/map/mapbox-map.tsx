@@ -893,8 +893,14 @@ export function MapboxBusinessMap({
             }
             const d = hit(['district-heat'], e.point)
             const districtId = d?.properties?.id
-            if (typeof districtId === 'string' && h.progressive && m.getZoom() < DISTRICT_MAX_ZOOM) {
+            if (typeof districtId === 'string' && h.progressive) {
               const wasSelected = selectedDistrictIdsRef.current.has(districtId)
+              // Keep the selected district clickable after its first click
+              // advances the map to entity zoom, so a second click can clear it.
+              if (!wasSelected && m.getZoom() >= DISTRICT_MAX_ZOOM) {
+                setCard(null)
+                return
+              }
               h.onDistrictScopeToggle?.(districtId, districtName(d as Feature))
               setCard(wasSelected ? null : { kind: 'district', id: districtId })
               return
