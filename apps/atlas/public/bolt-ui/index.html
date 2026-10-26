@@ -16,7 +16,7 @@
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' })
       if (!response.ok) throw new Error('تعذر تهيئة خريطة Mapbox')
       window.__ATLAS_MAPBOX_TOKEN__ = (await response.json()).token
-      await import('/bolt-ui/assets/index-Bbl2qulI-dark-v6.js')
+      await import('/bolt-ui/assets/index-Bbl2qulI-dark-v7.js')
     </script>
   </body>
 </html>
