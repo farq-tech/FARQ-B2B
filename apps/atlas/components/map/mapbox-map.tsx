@@ -25,14 +25,13 @@ import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapC
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
-  // Higher contrast teal from the Atlas UI, tuned for a light map surface.
-  primary: '#008f72',
-  primarySoft: '#dff3eb',
-  card: '#fffefb',
-  foreground: '#161816',
-  muted: '#5f655f',
+  primary: '#25c99a',
+  primarySoft: '#164638',
+  card: '#0d1217',
+  foreground: '#e8eef2',
+  muted: '#95a3ad',
 }
-const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
+const STYLE_URL = 'mapbox://styles/mapbox/dark-v11'
 const FONT = ['DIN Pro Medium', 'Arial Unicode MS Regular']
 const FONT_BOLD = ['DIN Pro Bold', 'Arial Unicode MS Bold']
 const LOAD_TIMEOUT_MS = 20000
@@ -49,7 +48,7 @@ const BUSINESS_CLUSTER_LAYERS = ['cluster-halo', 'cluster', 'cluster-count', 'cl
 const MARKET_CLUSTER_LAYERS = ['market-cluster-halo', 'market-cluster', 'market-cluster-count', 'market-cluster-leaf', 'market-cluster-leaf-count']
 const CLUSTER_LAYERS = [...BUSINESS_CLUSTER_LAYERS, ...MARKET_CLUSTER_LAYERS]
 const MARKET_STREET_LAYERS = ['market-street-hit', 'market-street-line', 'market-street-label']
-const DISTRICT_LAYERS = ['district-heat', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
+const DISTRICT_LAYERS = ['district-fill', 'district-line', 'district-line-hl', 'district-line-active', 'district-label']
 const DIRECTORY_TILE_LAYERS = ['directory-tile-cluster', 'directory-tile-cluster-count', 'directory-tile-pin', 'directory-tile-name']
 
 const expr = (x: unknown) => x as ExpressionSpecification
@@ -175,7 +174,7 @@ function addLayers(map: MapboxMap) {
   })
 
   map.addLayer({
-    id: 'district-heat',
+    id: 'district-fill',
     type: 'fill',
     source: 'districts',
     paint: {
@@ -891,7 +890,7 @@ export function MapboxBusinessMap({
               })
               return
             }
-            const d = hit(['district-heat'], e.point)
+            const d = hit(['district-fill'], e.point)
             const districtId = d?.properties?.id
             if (typeof districtId === 'string' && h.progressive) {
               const wasSelected = selectedDistrictIdsRef.current.has(districtId)
@@ -1181,8 +1180,8 @@ export function MapboxBusinessMap({
     // after entity zoom hides the overview outline layers. This lets a second
     // click on the selected polygon clear the geographic scope.
     const keepSelectedDistrictClickable = progressive && selectedDistrictIdSet.size > 0
-    m.setLayoutProperty('district-heat', 'visibility', vis(layers.districts || keepSelectedDistrictClickable))
-    for (const id of DISTRICT_LAYERS.filter((layer) => layer !== 'district-heat')) {
+    m.setLayoutProperty('district-fill', 'visibility', vis(layers.districts || keepSelectedDistrictClickable))
+    for (const id of DISTRICT_LAYERS.filter((layer) => layer !== 'district-fill')) {
       m.setLayoutProperty(id, 'visibility', vis(layers.districts))
     }
     m.setLayoutProperty('district-summary', 'visibility', vis(tiered))
