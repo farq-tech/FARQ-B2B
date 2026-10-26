@@ -539,7 +539,6 @@ export function OpportunityMapView() {
       <h1 className="sr-only">خريطة الفرص — {goalDef.label}</h1>
       <div className="flex flex-col gap-2.5 border-b bg-card px-4 py-3">
         <SearchToolbar
-          key={`${goal}-${cityId}-${query}`}
           goal={goalDef}
           onChangeGoal={() => setGoal(null)}
           cityId={cityId}
@@ -547,6 +546,8 @@ export function OpportunityMapView() {
           initialQuery={query}
           onSearch={handleSearch}
           onOpenAssistant={() => setAssistantOpen(true)}
+          resultCount={query ? directoryState === 'ready' ? liveDirectorySummary?.total ?? null : null : market.data?.summary?.total ?? null}
+          searching={market.status === 'loading' || (Boolean(query) && directoryState === 'loading')}
         />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted-foreground">
           <span className="font-medium text-primary">قراءة سوق حية</span>
@@ -663,7 +664,7 @@ export function OpportunityMapView() {
                 {liveDistricts.length ? <details className="mt-2 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">كيف رُتّبت الأحياء؟</summary><p className="mt-1">{goal === 'expand' ? 'الترتيب هنا حسب عدد نتائج النشاط المرصودة؛ اقرأه مع مؤشر السكان لكل منشأة أعلاه.' : 'نعطي وزناً لكثافة النشاط دائماً، ثم نرفع وزن إشارات واتساب عند الاستهداف أو نشاط الجملة عند البحث عن مورد أو طلب تسعير.'} اضغط على حي لتظهر قراءته على الخريطة.</p></details> : null}
               </div>
             ) : null}
-            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} prefetchAllForMap={Boolean(selectedAreaDistrict)} onResults={handleLiveResults} onSummary={setLiveDirectorySummary} onMapQuery={setLiveMapQuery} onTileAccess={setLiveTileAccess} onStateChange={setDirectoryState} onPinsCompleteChange={setLivePinsComplete} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} />
+            <LiveEntityResults query={query} cityId={cityId} objective={directoryObjective(goal, intent)} district={selectedAreaDistrict ?? undefined} prefetchAllForMap={Boolean(selectedAreaDistrict)} onResults={handleLiveResults} onSummary={setLiveDirectorySummary} onMapQuery={setLiveMapQuery} onTileAccess={setLiveTileAccess} onStateChange={setDirectoryState} onPinsCompleteChange={setLivePinsComplete} selectedIds={selection} onToggle={(id) => handleToggleSelect(id, 'directory')} onFocus={focusBusiness} />
             {market.status === 'error' ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">تعذر تحميل بيانات السوق الحية. <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>إعادة المحاولة</button></div> : null}
           </section>
         </section>

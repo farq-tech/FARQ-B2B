@@ -21,7 +21,7 @@ export type DirectorySummary = Pick<Result, 'total' | 'withWhatsapp'>
 export type DirectoryLoadState = 'idle' | 'loading' | 'ready' | 'auth' | 'blocked' | 'error'
 type State = { kind: DirectoryLoadState; data: Result | null; message?: string }
 
-export function LiveEntityResults({ query, cityId, objective, district, prefetchAllForMap = false, onResults, onSummary, onMapQuery, onTileAccess, onStateChange, onPinsCompleteChange, selectedIds = [], onToggle }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; /** When a person chooses a district, progressively load every safe map point for that district. */ prefetchAllForMap?: boolean; onResults?: (rows: LiveEntity[]) => void; onSummary?: (summary: DirectorySummary | null) => void; onMapQuery?: (mapQuery: string | null) => void; onTileAccess?: (tileAccess: string | null) => void; onStateChange?: (state: DirectoryLoadState) => void; onPinsCompleteChange?: (complete: boolean) => void; selectedIds?: string[]; onToggle?: (id: string) => void }) {
+export function LiveEntityResults({ query, cityId, objective, district, prefetchAllForMap = false, onResults, onSummary, onMapQuery, onTileAccess, onStateChange, onPinsCompleteChange, selectedIds = [], onToggle, onFocus }: { query: string; cityId: string; objective: DirectoryObjective; district?: string; /** When a person chooses a district, progressively load every safe map point for that district. */ prefetchAllForMap?: boolean; onResults?: (rows: LiveEntity[]) => void; onSummary?: (summary: DirectorySummary | null) => void; onMapQuery?: (mapQuery: string | null) => void; onTileAccess?: (tileAccess: string | null) => void; onStateChange?: (state: DirectoryLoadState) => void; onPinsCompleteChange?: (complete: boolean) => void; selectedIds?: string[]; onToggle?: (id: string) => void; onFocus?: (id: string) => void }) {
   const [state, setState] = useState<State>({ kind: 'idle', data: null })
   const [visibleCount, setVisibleCount] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -142,7 +142,7 @@ export function LiveEntityResults({ query, cityId, objective, district, prefetch
       </div>
       {state.message ? <p className="mt-2 text-xs text-destructive">{state.message}</p> : null}
       {data.rows.length ? <>
-        <ul className="mt-3 flex flex-col divide-y">{data.rows.slice(0, visibleCount).map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} />)}</ul>
+        <ul className="mt-3 flex flex-col divide-y">{data.rows.slice(0, visibleCount).map((entity) => <EntityRow key={entity.id} entity={entity} selected={selectedIds.includes(entity.id)} onToggle={onToggle} onFocus={onFocus} />)}</ul>
         {visibleCount < data.rows.length ? <button type="button" className="mt-3 w-full rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-accent" onClick={() => setVisibleCount((count) => Math.min(data.rows.length, count + 100))}>عرض 100 جهة إضافية</button> : null}
         {data.hasMore ? <button type="button" className="mt-2 w-full rounded-md border px-3 py-2 text-sm font-medium text-primary hover:bg-accent disabled:opacity-60" onClick={loadMore} disabled={loadingMore}>{loadingMore ? 'جارٍ تحميل جهات إضافية…' : 'تحميل 200 جهة إضافية'}</button> : null}
       </> : <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">لم نجد جهات تطابق هذا النشاط ضمن النطاق.</p>}
@@ -163,8 +163,30 @@ function SignInPrompt({ district }: { district?: string }) {
 function Notice({ tone, text }: { tone: 'warning' | 'error'; text: string }) {
   return <section className={`rounded-xl border p-4 text-sm ${tone === 'error' ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-amber-500/30 bg-amber-50 text-amber-900'}`}>{text}</section>
 }
-function EntityRow({ entity, selected, onToggle }: { entity: LiveEntity; selected: boolean; onToggle?: (id: string) => void }) {
+function EntityRow({ entity, selected, onToggle, onFocus }: { entity: LiveEntity; selected: boolean; onToggle?: (id: string) => void; onFocus?: (id: string) => void }) {
   const fit = entity.fit === 'L' ? 'مطابقة قوية' : entity.fit === 'M' ? 'مطابقة محتملة' : null
   const hasDetails = Boolean(entity.atlasId || entity.brandName || entity.legalName || entity.branchCount || entity.employeeCount || entity.operatingHours || entity.paymentMethods || entity.serviceLanguages || entity.buildingUse || entity.floor)
-  return <li className="py-3 first:pt-0 last:pb-0"><div className="flex gap-2.5"><span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Building2 className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-medium">{entity.name}</p>{fit ? <span className="shrink-0 text-[11px] font-medium text-primary">{fit}</span> : null}</div><p className="mt-0.5 truncate text-xs text-muted-foreground">{entity.category}</p><div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">{entity.district ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{entity.district}</span> : null}{entity.whatsapp ? <span className="inline-flex items-center gap-1 text-foreground/75"><MessageCircle className="size-3 text-primary" />إشارة واتساب</span> : null}{entity.brandName ? <span>العلامة: {entity.brandName}</span> : null}{entity.branchCount ? <span>{entity.branchCount} فروع</span> : null}</div>{entity.reason ? <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{entity.reason}</p> : null}{hasDetails ? <details className="mt-1.5 text-[11px] leading-5 text-muted-foreground"><summary className="cursor-pointer w-fit font-medium text-primary">بيانات إضافية</summary><div className="mt-1 grid gap-1">{entity.atlasId ? <p>معرّف أطلس: {entity.atlasId}</p> : null}{entity.legalName ? <p>الاسم النظامي: {entity.legalName}</p> : null}{entity.employeeCount ? <p>عدد الموظفين: {entity.employeeCount}</p> : null}{entity.buildingUse ? <p>استخدام المبنى: {entity.buildingUse}</p> : null}{entity.floor ? <p>الدور: {entity.floor}</p> : null}{entity.operatingHours ? <p>ساعات العمل: {entity.operatingHours}</p> : null}{entity.paymentMethods ? <p>وسائل الدفع: {entity.paymentMethods}</p> : null}{entity.serviceLanguages ? <p>لغات الخدمة: {entity.serviceLanguages}</p> : null}</div></details> : null}</div>{onToggle ? <button type="button" onClick={() => onToggle(entity.id)} className={`shrink-0 rounded-md border px-2 py-1 text-[11px] font-medium ${selected ? 'border-primary bg-primary text-primary-foreground' : 'text-primary hover:bg-accent'}`}>{selected ? 'محددة' : 'تحديد'}</button> : null}</div></li>
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      <div className="flex gap-2.5">
+        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Building2 className="size-4" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-medium">{entity.name}</p>{fit ? <span className="shrink-0 text-[11px] font-medium text-primary">{fit}</span> : null}</div>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{entity.category}</p>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            {entity.district ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{entity.district}</span> : null}
+            {entity.whatsapp ? <span className="inline-flex items-center gap-1 text-foreground/75"><MessageCircle className="size-3 text-primary" />إشارة واتساب</span> : null}
+            {entity.brandName ? <span>العلامة: {entity.brandName}</span> : null}
+            {entity.branchCount ? <span>{entity.branchCount} فروع</span> : null}
+          </div>
+          {entity.reason ? <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{entity.reason}</p> : null}
+          {hasDetails ? <details className="mt-1.5 text-[11px] leading-5 text-muted-foreground"><summary className="w-fit cursor-pointer font-medium text-primary">بيانات إضافية</summary><div className="mt-1 grid gap-1">{entity.atlasId ? <p>معرّف أطلس: {entity.atlasId}</p> : null}{entity.legalName ? <p>الاسم النظامي: {entity.legalName}</p> : null}{entity.employeeCount ? <p>عدد الموظفين: {entity.employeeCount}</p> : null}{entity.buildingUse ? <p>استخدام المبنى: {entity.buildingUse}</p> : null}{entity.floor ? <p>الدور: {entity.floor}</p> : null}{entity.operatingHours ? <p>ساعات العمل: {entity.operatingHours}</p> : null}{entity.paymentMethods ? <p>وسائل الدفع: {entity.paymentMethods}</p> : null}{entity.serviceLanguages ? <p>لغات الخدمة: {entity.serviceLanguages}</p> : null}</div></details> : null}
+        </div>
+        <div className="flex shrink-0 items-start gap-1">
+          {onFocus && entity.latitude != null && entity.longitude != null ? <button type="button" onClick={() => onFocus(entity.id)} aria-label={`عرض ${entity.name} على الخريطة`} title="عرض على الخريطة" className="inline-flex size-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-primary"><MapPin className="size-4" /></button> : null}
+          {onToggle ? <button type="button" onClick={() => onToggle(entity.id)} className={`shrink-0 rounded-md border px-2 py-1.5 text-[11px] font-medium ${selected ? 'border-primary bg-primary text-primary-foreground' : 'text-primary hover:bg-accent'}`}>{selected ? 'محددة' : 'تحديد'}</button> : null}
+        </div>
+      </div>
+    </li>
+  )
 }

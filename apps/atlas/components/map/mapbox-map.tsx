@@ -25,9 +25,9 @@ import { AreaCard, BusinessCard, ClusterCard, DistrictCard, LiveEntityCard, MapC
 import type { MockMapProps } from './mock-map'
 
 const COLORS = {
-  // Official FARQ green, shared with the Atlas wordmark and application UI.
-  primary: '#008060',
-  primarySoft: '#e3f1ec',
+  // Higher contrast teal from the Atlas UI, tuned for a light map surface.
+  primary: '#008f72',
+  primarySoft: '#dff3eb',
   card: '#fffefb',
   foreground: '#161816',
   muted: '#5f655f',
@@ -1318,11 +1318,18 @@ export function MapboxBusinessMap({
     const m = mapRef.current
     if (!ready || !m || !focusRequest || handledFocusRef.current === focusRequest.nonce) return
     const b = businesses.find((x) => x.id === focusRequest.id) ?? ghostBusinesses.find((x) => x.id === focusRequest.id)
-    if (!b) return
+    if (!b) {
+      const entity = liveEntityPins.find((item) => item.id === focusRequest.id)
+      if (entity?.longitude == null || entity.latitude == null) return
+      handledFocusRef.current = focusRequest.nonce
+      m.flyTo({ center: [entity.longitude, entity.latitude], zoom: Math.max(m.getZoom(), ENTITY_MIN_ZOOM + 1), duration: 700 })
+      setCard({ kind: 'live-entity', id: entity.id })
+      return
+    }
     handledFocusRef.current = focusRequest.nonce
     m.flyTo({ center: toLngLat(cityId, [b.x, b.y]), zoom: Math.max(m.getZoom(), 15.2), duration: 700 })
     setCard({ kind: 'business', id: b.id })
-  }, [ready, focusRequest, businesses, ghostBusinesses, cityId])
+  }, [ready, focusRequest, businesses, ghostBusinesses, liveEntityPins, cityId])
 
   const inView = useMemo(() => {
     if (!viewBounds) return businesses.length
