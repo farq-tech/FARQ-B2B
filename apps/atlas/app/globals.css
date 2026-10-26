@@ -50,43 +50,49 @@
 }
 
 :root {
-  color-scheme: light;
-  /* FARQ approved S5 palette: charcoal wordmark with Farq green actions. */
-  --background: #faf9f7;
-  --foreground: #303030;
-  --card: #ffffff;
-  --card-foreground: #303030;
-  --popover: #ffffff;
-  --popover-foreground: #303030;
-  --primary: #008060;
-  --primary-foreground: #ffffff;
-  --secondary: #f4f2ee;
-  --secondary-foreground: #303030;
-  --muted: #f3f2ef;
-  --muted-foreground: #626262;
-  --accent: #e5f3ee;
-  --accent-foreground: #00664d;
-  --destructive: #c2410c;
-  --warning: #a56b15;
-  --border: #e5e2dc;
-  --input: #dcd9d2;
-  --ring: #008060;
-  --chart-1: #008060;
-  --chart-2: #a56b15;
-  --chart-3: #626262;
-  --chart-4: #a5a09a;
-  --chart-5: #303030;
-  --radius: 0.75rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #303030;
-  --sidebar-primary: #008060;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e5f3ee;
-  --sidebar-accent-foreground: #00664d;
-  --sidebar-border: #e5e2dc;
-  --sidebar-ring: #008060;
-  --map-land: #f1f0ec;
+  color-scheme: dark;
+  /* Atlas workspace: dark graphite surfaces with Farq's teal action color. */
+  --background: #0d1217;
+  --foreground: #e8eef2;
+  --card: #151c23;
+  --card-foreground: #e8eef2;
+  --popover: #1a232b;
+  --popover-foreground: #e8eef2;
+  --primary: #25c99a;
+  --primary-foreground: #062017;
+  --secondary: #202a32;
+  --secondary-foreground: #dce5ea;
+  --muted: #1b242c;
+  --muted-foreground: #95a3ad;
+  --accent: #17372f;
+  --accent-foreground: #7de5c2;
+  --destructive: #f07870;
+  --warning: #e8b763;
+  --border: #2a3740;
+  --input: #34424c;
+  --ring: #25c99a;
+  --chart-1: #25c99a;
+  --chart-2: #e8b763;
+  --chart-3: #83a4b7;
+  --chart-4: #a98ee8;
+  --chart-5: #f07870;
+  --radius: 0.8rem;
+  --sidebar: #11181e;
+  --sidebar-foreground: #e8eef2;
+  --sidebar-primary: #25c99a;
+  --sidebar-primary-foreground: #062017;
+  --sidebar-accent: #17372f;
+  --sidebar-accent-foreground: #7de5c2;
+  --sidebar-border: #2a3740;
+  --sidebar-ring: #25c99a;
+  --map-land: #e9e7e0;
   --map-road: #ffffff;
+}
+
+.atlas-landing-hero {
+  background:
+    radial-gradient(ellipse at 78% 10%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 50%, var(--background)), var(--background));
 }
 
 @layer base {

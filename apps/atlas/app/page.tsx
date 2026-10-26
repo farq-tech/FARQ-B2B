@@ -21,7 +21,7 @@ export default function AtlasLandingPage() {
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label="فرق أطلس، الرئيسية">
-            <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" /><strong className="text-[15px] text-[#303030]">أطلس</strong></span>
+            <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" /><strong className="text-[15px] text-foreground">أطلس</strong></span>
             <span><strong className="sr-only">فرق أطلس</strong><small className="text-xs text-muted-foreground">منصة الفرص التجارية</small></span>
           </Link>
           <div className="flex items-center gap-2">
@@ -31,7 +31,7 @@ export default function AtlasLandingPage() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden border-b bg-[radial-gradient(circle_at_82%_12%,hsl(var(--primary)/.14),transparent_33%),linear-gradient(180deg,hsl(var(--accent)/.42),transparent)]">
+      <section className="atlas-landing-hero relative overflow-hidden border-b">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:items-center lg:py-24">
           <div>
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-sm font-medium"><span className="size-2 rounded-full bg-primary" /> فرص منشأتك في مكان واحد</p>

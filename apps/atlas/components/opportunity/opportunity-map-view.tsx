@@ -535,7 +535,7 @@ export function OpportunityMapView() {
         : 'ملخص سوق المدينة'
 
   return (
-    <main data-viewport-workspace className="flex min-h-0 flex-1 flex-col lg:h-dvh lg:max-h-dvh lg:flex-none lg:overflow-hidden">
+    <main data-viewport-workspace className="flex min-h-0 flex-1 flex-col lg:h-full lg:max-h-full lg:flex-none lg:overflow-hidden">
       <h1 className="sr-only">خريطة الفرص — {goalDef.label}</h1>
       <div className="flex flex-col gap-2.5 border-b bg-card px-4 py-3">
         <SearchToolbar

@@ -22,18 +22,16 @@ function userInitial(user: SessionUser) {
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center gap-2.5', className)}>
+    <Link href="/" className={cn('flex shrink-0 items-center gap-2.5', className)} aria-label="فرق أطلس، الرئيسية">
       <span className="flex items-center gap-1.5" aria-hidden>
         <img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" />
-        <span className="text-[15px] font-bold text-[#303030]">أطلس</span>
+        <span className="text-[15px] font-bold text-foreground">أطلس</span>
       </span>
-      <span className="flex flex-col leading-tight">
+      <span className="hidden flex-col leading-tight sm:flex">
         <span className="sr-only">فرق أطلس</span>
-        <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
-          منصة الفرص التجارية
-        </span>
+        <span className="text-[11px] font-medium tracking-wide text-muted-foreground">منصة الفرص التجارية</span>
       </span>
-    </div>
+    </Link>
   )
 }
 
@@ -54,31 +52,28 @@ export function AppShell({ children }: { children: ReactNode }) {
       .finally(() => { if (active) setSessionChecked(true) })
     return () => { active = false }
   }, [])
+
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
-
   const items: NavItem[] = [
-    { href: '/opportunity-map', label: 'خريطة الفرص', icon: MapPinned },
+    { href: '/opportunity-map', label: 'السوق', icon: MapPinned },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
-  const marketBadge = <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
-  const workspaceBadge = <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">محفوظة على هذا الجهاز</span>
-  const shellBadge = pathname === '/' ? null : pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
+  const marketBadge = <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
+  const workspaceBadge = <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">مساحة العمل</span>
+  const shellBadge = pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
 
-  // The landing page owns its own header and calls to action. Rendering the
-  // workspace shell here duplicates the brand on small screens and adds an
-  // unrelated bottom navigation before the visitor starts a workspace.
-  if (pathname === '/') return <>{children}</>
+  // The landing page owns its own header and calls to action.
+  if (pathname === '/' || pathname === '/login') return <>{children}</>
 
   return (
-    <div className="min-h-dvh lg:flex">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-l bg-sidebar lg:flex">
-        <div className="px-5 pt-5 pb-6">
-          <BrandMark />
-        </div>
-        <nav aria-label="التنقل الرئيسي" className="flex flex-col gap-1 px-3">
+    <div className="min-h-dvh bg-background">
+      <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-card/95 px-4 backdrop-blur-xl sm:px-6">
+        <BrandMark />
+
+        <nav aria-label="التنقل الرئيسي" className="hidden h-full flex-1 items-center justify-center gap-1 lg:flex">
           {items.map((item) => {
             const active = isActive(item.href)
             return (
@@ -87,52 +82,39 @@ export function AppShell({ children }: { children: ReactNode }) {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  'relative inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors',
+                  active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
-                <item.icon className="size-[18px]" aria-hidden />
-                <span className="flex-1">{item.label}</span>
-                {item.count ? (
-                  <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] font-semibold leading-5 text-primary-foreground">
-                    {item.count}
-                  </span>
-                ) : null}
+                <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
+                {item.label}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[10px] font-bold leading-5 text-primary-foreground">{item.count}</span> : null}
               </Link>
             )
           })}
         </nav>
-        <div className="mt-auto flex flex-col gap-3 border-t p-4">
-          {shellBadge}
+
+        <div className="mr-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <span className="hidden sm:inline-flex">{shellBadge}</span>
           {user ? (
-            <div className="flex items-center gap-3" aria-label="الحساب المسجل">
-              <span className="flex size-9 items-center justify-center rounded-full bg-muted text-sm font-semibold" aria-hidden>{userInitial(user)}</span>
-              <div className="flex min-w-0 flex-col text-sm leading-tight">
-                <span className="truncate font-medium">{user.displayName || user.email || 'الحساب المسجل'}</span>
-                {user.displayName && user.email ? <span className="truncate text-xs text-muted-foreground">{user.email}</span> : null}
-              </div>
+            <div className="flex items-center gap-2.5" aria-label="الحساب المسجل">
+              <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground" aria-hidden>{userInitial(user)}</span>
+              <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline">{user.displayName || user.email || 'الحساب المسجل'}</span>
             </div>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted">
-              <LogIn className="size-4" aria-hidden />
-              سجّل الدخول
+            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
+              <LogIn className="size-3.5" aria-hidden />
+              دخول
             </Link>
           ) : null}
         </div>
-      </aside>
+      </header>
 
-      <div className="flex min-w-0 flex-1 flex-col pb-16 has-[[data-viewport-workspace]]:h-dvh lg:pb-0 lg:has-[[data-viewport-workspace]]:h-auto">
-        <header className="flex items-center justify-between border-b bg-card px-4 py-3 lg:hidden">
-          <BrandMark />
-          {shellBadge}
-        </header>
+      <div className="flex min-w-0 flex-col pb-16 lg:pb-0 lg:has-[[data-viewport-workspace]]:h-[calc(100dvh-4rem)] lg:has-[[data-viewport-workspace]]:min-h-0">
         {children}
       </div>
 
-      <nav
-        aria-label="التنقل الرئيسي"
-        className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-3 border-t bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
-      >
+      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-3 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
           const active = isActive(item.href)
           return (
@@ -140,18 +122,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn(
-                'relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium',
-                active ? 'text-primary' : 'text-muted-foreground',
-              )}
+              className={cn('relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium', active ? 'text-primary' : 'text-muted-foreground')}
             >
               <span className="relative">
                 <item.icon className="size-5" aria-hidden />
-                {item.count ? (
-                  <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">
-                    {item.count}
-                  </span>
-                ) : null}
+                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">{item.count}</span> : null}
               </span>
               {item.label}
             </Link>
