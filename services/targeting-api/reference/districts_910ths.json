@@ -3690,6 +3690,20 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "شعثاء",
+    "polygon_ids": [
+     "325"
+    ],
+    "population": 667,
+    "male_pct": 62.5,
+    "saudi_pct": 72.3,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "غليل",
     "polygon_ids": [
      "306"
@@ -4014,6 +4028,25 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "الحرمان- الوادي الاخضر",
+    "polygon_ids": [
+     "88"
+    ],
+    "shared_with": [
+     "الحرمان- الوادي الاخضر",
+     "المشاعر المقدسة",
+     "المغمس (جنوب)"
+    ],
+    "population": 13200,
+    "male_pct": 87.5,
+    "saudi_pct": 4.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "الحسينية",
     "polygon_ids": [
      "119"
@@ -4210,6 +4243,42 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "السليمانية الشرقي",
+    "polygon_ids": [
+     "154"
+    ],
+    "shared_with": [
+     "السليمانية الشرقي",
+     "السليمانية الغربي"
+    ],
+    "population": 13300,
+    "male_pct": 74.1,
+    "saudi_pct": 19.6,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "السليمانية الغربي",
+    "polygon_ids": [
+     "155"
+    ],
+    "shared_with": [
+     "السليمانية الشرقي",
+     "السليمانية الغربي"
+    ],
+    "population": 13300,
+    "male_pct": 74.1,
+    "saudi_pct": 19.6,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "السنابل",
     "polygon_ids": [
      "130"
@@ -4325,6 +4394,28 @@
     "district_ar": "الصفا",
     "polygon_ids": [
      "95"
+    ],
+    "shared_with": [
+     "الصفا",
+     "الصفا الشرقي"
+    ],
+    "population": 9500,
+    "male_pct": 54.2,
+    "saudi_pct": 80.9,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الصفا الشرقي",
+    "polygon_ids": [
+     "55"
+    ],
+    "shared_with": [
+     "الصفا",
+     "الصفا الشرقي"
     ],
     "population": 9500,
     "male_pct": 54.2,
@@ -4451,6 +4542,28 @@
     "district_ar": "العقبة",
     "polygon_ids": [
      "73"
+    ],
+    "shared_with": [
+     "العقبة",
+     "العقبة الشمالي"
+    ],
+    "population": 1900,
+    "male_pct": 61.4,
+    "saudi_pct": 70.9,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "العقبة الشمالي",
+    "polygon_ids": [
+     "74"
+    ],
+    "shared_with": [
+     "العقبة",
+     "العقبة الشمالي"
     ],
     "population": 1900,
     "male_pct": 61.4,
@@ -4676,6 +4789,28 @@
     "polygon_ids": [
      "81"
     ],
+    "shared_with": [
+     "المروة",
+     "المروة الشمالي"
+    ],
+    "population": 4300,
+    "male_pct": 93.7,
+    "saudi_pct": 2.3,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "المروة الشمالي",
+    "polygon_ids": [
+     "80"
+    ],
+    "shared_with": [
+     "المروة",
+     "المروة الشمالي"
+    ],
     "population": 4300,
     "male_pct": 93.7,
     "saudi_pct": 2.3,
@@ -4714,6 +4849,25 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "المشاعر المقدسة",
+    "polygon_ids": [
+     "61"
+    ],
+    "shared_with": [
+     "الحرمان- الوادي الاخضر",
+     "المشاعر المقدسة",
+     "المغمس (جنوب)"
+    ],
+    "population": 13200,
+    "male_pct": 87.5,
+    "saudi_pct": 4.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "المعابده",
     "polygon_ids": [
      "128"
@@ -4721,6 +4875,25 @@
     "population": 27300,
     "male_pct": 71.5,
     "saudi_pct": 27.9,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "المغمس (جنوب)",
+    "polygon_ids": [
+     "83"
+    ],
+    "shared_with": [
+     "الحرمان- الوادي الاخضر",
+     "المشاعر المقدسة",
+     "المغمس (جنوب)"
+    ],
+    "population": 13200,
+    "male_pct": 87.5,
+    "saudi_pct": 4.4,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -4938,6 +5111,42 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "جرهم الجنوبي",
+    "polygon_ids": [
+     "157"
+    ],
+    "shared_with": [
+     "جرهم الجنوبي",
+     "جرهم الشمالي"
+    ],
+    "population": 71500,
+    "male_pct": 60.8,
+    "saudi_pct": 8.5,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "جرهم الشمالي",
+    "polygon_ids": [
+     "146"
+    ],
+    "shared_with": [
+     "جرهم الجنوبي",
+     "جرهم الشمالي"
+    ],
+    "population": 71500,
+    "male_pct": 60.8,
+    "saudi_pct": 8.5,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "جرول (المنطقة المركزية)",
     "polygon_ids": [
      "79"
@@ -4983,6 +5192,28 @@
     "district_ar": "حنين",
     "polygon_ids": [
      "93"
+    ],
+    "shared_with": [
+     "حنين",
+     "حنين الشمالي"
+    ],
+    "population": 4500,
+    "male_pct": 55.9,
+    "saudi_pct": 80.9,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "حنين الشمالي",
+    "polygon_ids": [
+     "91"
+    ],
+    "shared_with": [
+     "حنين",
+     "حنين الشمالي"
     ],
     "population": 4500,
     "male_pct": 55.9,
@@ -5311,6 +5542,20 @@
     "population": 8100,
     "male_pct": 52.3,
     "saudi_pct": 76.2,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "البديع",
+    "polygon_ids": [
+     "579"
+    ],
+    "population": 14900,
+    "male_pct": 63.1,
+    "saudi_pct": 29.8,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -5710,6 +5955,20 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "الشعلة",
+    "polygon_ids": [
+     "638"
+    ],
+    "population": 54400,
+    "male_pct": 55.8,
+    "saudi_pct": 80.2,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "الصدفة",
     "polygon_ids": [
      "592"
@@ -5731,6 +5990,20 @@
     "population": 75200,
     "male_pct": 84.6,
     "saudi_pct": 14.3,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الصناعية الأولى",
+    "polygon_ids": [
+     "602"
+    ],
+    "population": 10700,
+    "male_pct": 92.1,
+    "saudi_pct": 0.3,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -5976,6 +6249,20 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "المزروعية",
+    "polygon_ids": [
+     "616"
+    ],
+    "population": 23100,
+    "male_pct": 61.2,
+    "saudi_pct": 31.1,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "المطار",
     "polygon_ids": [
      "585"
@@ -6200,6 +6487,20 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "ضاحية الملك فهد",
+    "polygon_ids": [
+     "637"
+    ],
+    "population": 107500,
+    "male_pct": 52.8,
+    "saudi_pct": 90.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "طيبة",
     "polygon_ids": [
      "640"
@@ -6291,6 +6592,20 @@
     "population": 1400,
     "male_pct": 62.1,
     "saudi_pct": 77,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "ميناء الملك عبد العزيز",
+    "polygon_ids": [
+     "618"
+    ],
+    "population": 10200,
+    "male_pct": 86.3,
+    "saudi_pct": 14.7,
     "income_all": null,
     "income_male": null,
     "income_female": null,

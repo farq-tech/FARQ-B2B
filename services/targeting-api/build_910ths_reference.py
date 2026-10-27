@@ -11,6 +11,11 @@ so a polygon that 910ths places in a different district never borrows its figure
 canonical district that 910ths reads as the same district give one row; when it reads them as different districts
 (e.g. الخزامى and الخزامي side by side), their populations and male counts add up exactly, while income, an
 average per working person whose worker counts are not published, is left unavailable rather than averaged.
+
+A polygon whose district 910ths spells differently is accepted through a reviewed link in district_corrections.json
+("n910_names"). When one 910ths district covers several canonical districts (the atlas splits حي جرهم into
+جرهم الشمالي and جرهم الجنوبي), each of them gets a row carrying the whole 910ths figure and the names it is shared
+with (shared_with); golden.population and the building model split that one total between them, never repeat it.
 """
 import argparse
 import json
@@ -36,7 +41,8 @@ def same_district(n910_name, atlas_name):
     return bool(keys(n910_name) & keys(atlas_name))
 
 
-def build(samples, collection, city, source, retrieved):
+def build(samples, collection, city, source, retrieved, n910_names=None):
+    n910_names = canonical_data.load_n910_names() if n910_names is None else n910_names
     canonical, id_map = canonical_data.canonical_districts(collection, canonical_data.load_corrections())
     names = {str(f['properties']['id']): f['properties'].get('ar') or f['properties'].get('district_ar') for f in canonical['features']}
     bases = {str(f['properties']['id']): f['properties'].get('name_base_ar') or names[str(f['properties']['id'])] for f in canonical['features']}
@@ -48,20 +54,31 @@ def build(samples, collection, city, source, retrieved):
         name = names.get(key)
         if cities.get(key) != city or not row.get('n910_population'):
             continue
-        if not name or not same_district(row.get('n910_name'), bases.get(key) or name):
+        linked = n910_names.get((city, polygon))
+        if not name or not (same_district(row.get('n910_name'), bases.get(key) or name) or same_district(row.get('n910_name'), linked)):
             skipped.append({'polygon': polygon, 'atlas': name, '910ths': row.get('n910_name')})
             continue
         grouped[name].append((polygon, row))
+    def identity(row):   # one 910ths district: its name and the figures it publishes
+        return (row.get('n910_name'), row.get('n910_population'), row.get('male_pct'))
+    owners = defaultdict(set)   # 910ths district -> the canonical districts it was read in
+    for name, members in grouped.items():
+        for _, row in members:
+            owners[identity(row)].add(name)
     rows, combined = [], []
     for name, members in sorted(grouped.items()):
         districts = {}   # one entry per distinct 910ths district read inside this canonical district
         for polygon, row in members:
-            districts.setdefault((row.get('n910_name'), row.get('n910_population'), row.get('male_pct')), (polygon, row))
+            districts.setdefault(identity(row), (polygon, row))
         polygons = sorted(p for p, _ in members)
         if len(districts) == 1:
-            first = next(iter(districts.values()))[1]
-            rows.append({'district_ar': name, 'polygon_ids': polygons,
+            ident, (_, first) = next(iter(districts.items()))
+            shared = {'shared_with': sorted(owners[ident])} if len(owners[ident]) > 1 else {}
+            rows.append({'district_ar': name, 'polygon_ids': polygons, **shared,
                          **{field: first.get('n910_population' if field == 'population' else field) for field in FIELDS}})
+            continue
+        if any(len(owners[ident]) > 1 for ident in districts):   # parts of two shared districts: no exact figure
+            skipped.extend({'polygon': polygon, 'atlas': name, '910ths': row.get('n910_name')} for polygon, row in members)
             continue
         parts = [row for _, row in districts.values()]
         population = sum(float(row['n910_population']) for row in parts)

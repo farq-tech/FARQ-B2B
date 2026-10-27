@@ -212,6 +212,14 @@ class BuildingPopulationTests(unittest.TestCase):
         self.assertAlmostEqual(rows["1"]["population_estimate"] + rows["2"]["population_estimate"], 9000, delta=1)
         self.assertAlmostEqual(rows["1"]["population_estimate"] / rows["2"]["population_estimate"], rows["1"]["dwelling_units"] / rows["2"]["dwelling_units"], delta=0.02)
 
+    def test_one_910ths_district_split_into_two_atlas_districts_is_spread_once_over_both(self):
+        reference = self.root / "districts_910ths.json"
+        shared = ["الملقا", "الياسمين"]   # 910ths publishes one district that the atlas draws as these two
+        reference.write_text(json.dumps({"cities": {"Riyadh": [{"district_ar": name, "population": 9000, "shared_with": shared} for name in shared]}}, ensure_ascii=False), encoding="utf-8")
+        _, rows = self.run_build(reference=reference)
+        self.assertAlmostEqual(rows["1"]["population_estimate"] + rows["2"]["population_estimate"], 9000, delta=1, msg="the one total is never repeated")
+        self.assertAlmostEqual(rows["1"]["population_estimate"] / rows["2"]["population_estimate"], rows["1"]["dwelling_units"] / rows["2"]["dwelling_units"], delta=0.02)
+
     def test_a_polygon_moved_to_another_city_never_takes_the_old_citys_figure(self):
         collection = json.loads(self.districts.read_text(encoding="utf-8"))
         collection["features"][1]["properties"]["ar"] = "الملقا"   # same name as polygon 1, but filed in another city

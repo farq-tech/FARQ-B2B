@@ -31,17 +31,37 @@ def building_totals(rows, id_map):
     return {key: value for key, value in totals.items() if eligible[key]}
 
 
+def _shared_split(rows, reference, buildings):
+    """{id(row): population} for districts that share one 910ths figure (reference rows with shared_with): the total
+    is split by the building model's figures where every part has one, else in proportion to the parts' WorldPop."""
+    groups = {}
+    for row in rows:
+        ref = reference.get(row.get('district_ar'))
+        if ref and ref.get('population') and ref.get('shared_with'):
+            groups.setdefault(tuple(ref['shared_with']), []).append(row)
+    shares = {}
+    for names, members in groups.items():
+        built = [buildings.get(str(row.get('district_id'))) for row in members]
+        weights = built if len(members) == len(names) and all(b is not None for b in built) else [float(row.get('population') or 0) for row in members]
+        total, figure = sum(weights), float(reference[members[0]['district_ar']]['population'])
+        for row, weight in zip(members, weights):
+            shares[id(row)] = figure * weight / total if total > 0 else figure / len(members)
+    return shares
+
+
 def population(rows, city, buildings=None, path=district_reference.PATH):
     """Merged WorldPop district rows (canonical_data.merge_population_rows) with the golden total and its source.
     Atlas keeps only rows with a numeric year and coverage, so a non-WorldPop figure carries both."""
     reference = district_reference.city_rows(city, path)
     year = district_reference.reference_year(path)
     buildings = buildings or {}
+    shares = _shared_split(rows, reference, buildings)
     for row in rows:
         ref = reference.get(row.get('district_ar'))
         built = buildings.get(str(row.get('district_id')))
         if ref and ref.get('population'):
-            row.update(population=float(ref['population']), source=district_reference.SOURCE, license=None,
+            figure = shares.get(id(row), float(ref['population']))
+            row.update(population=round(figure, 1), source=district_reference.SOURCE, license=None,
                        year=year if year is not None else row.get('year'), coverage_pct=100.0)
         elif built is not None:
             row.update(population=round(built, 1), source=BUILDINGS, license=None, coverage_pct=100.0)

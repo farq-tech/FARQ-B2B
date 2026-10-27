@@ -110,6 +110,18 @@ def load_corrections(path=CORRECTIONS_PATH):
     return {(row['city_en'], str(row['id'])): row for row in table.get('corrections', []) if row.get('city_en') and row.get('id') is not None and row.get('ar')}
 
 
+def load_n910_names(path=CORRECTIONS_PATH):
+    """(city_en, polygon id) -> the name 910ths gives the district this polygon belongs to, where it differs from the
+    atlas name (reviewed links in the same table, under "n910_names")."""
+    try:
+        with open(path, encoding='utf-8') as handle:
+            table = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return {(row['city_en'], str(row['id'])): row['n910_ar'] for row in table.get('n910_names', [])
+            if row.get('city_en') and row.get('id') is not None and row.get('n910_ar')}
+
+
 def _polygons(geometry):
     if not geometry:
         return []

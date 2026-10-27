@@ -72,5 +72,134 @@
       "qualifier_en": "Bahra",
       "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
     }
+  ],
+  "about_n910_names": "Reviewed links from an atlas polygon to the name 910ths gives its district, read only by build_910ths_reference.py; they never rename the atlas district. Left unlinked on purpose: a polygon whose point falls in another district (different boundaries), one 910ths district read in two cities (الحمراء Dammam/Al Khobar, جامعة الملك فهد للبترول), and atlas districts 910ths splits into numbered parts (البلد2, الأمل 1).",
+  "n910_names": [
+    {
+      "city_en": "Jeddah",
+      "id": "325",
+      "ar": "شعثاء",
+      "n910_ar": "الشعثا",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "579",
+      "ar": "البديع",
+      "n910_ar": "البديعة",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "616",
+      "ar": "المزروعية",
+      "n910_ar": "المزرعية",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "618",
+      "ar": "ميناء الملك عبد العزيز",
+      "n910_ar": "ميناء الملك عبدالعزيز",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "638",
+      "ar": "الشعلة",
+      "n910_ar": "الشله",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "602",
+      "ar": "الصناعية الأولى",
+      "n910_ar": "المنطقة الصناعية الأولى",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "637",
+      "ar": "ضاحية الملك فهد",
+      "n910_ar": "حي الملك فهد",
+      "evidence": "The 910ths demographic map, opened at a point inside this polygon, names the same district with another spelling; no other atlas polygon reads it. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "55",
+      "ar": "الصفا الشرقي",
+      "n910_ar": "حي الصفا",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "74",
+      "ar": "العقبة الشمالي",
+      "n910_ar": "حي العقبة",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "80",
+      "ar": "المروة الشمالي",
+      "n910_ar": "حي المروة",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "91",
+      "ar": "حنين الشمالي",
+      "n910_ar": "حي حنين",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "146",
+      "ar": "جرهم الشمالي",
+      "n910_ar": "حي جرهم",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "157",
+      "ar": "جرهم الجنوبي",
+      "n910_ar": "حي جرهم",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "154",
+      "ar": "السليمانية الشرقي",
+      "n910_ar": "حي السليمانية",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "155",
+      "ar": "السليمانية الغربي",
+      "n910_ar": "حي السليمانية",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "61",
+      "ar": "المشاعر المقدسة",
+      "n910_ar": "المشاعر",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "83",
+      "ar": "المغمس (جنوب)",
+      "n910_ar": "المشاعر",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    },
+    {
+      "city_en": "Makkah Al Mukarramah",
+      "id": "88",
+      "ar": "الحرمان- الوادي الاخضر",
+      "n910_ar": "المشاعر",
+      "evidence": "The 910ths demographic map publishes one district here that the atlas draws as several (read at a point inside each part); its total is split between the parts, never repeated. Checked 2026-10-27."
+    }
   ]
 }
