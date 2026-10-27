@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import threading
 from pathlib import Path
 
@@ -68,13 +69,28 @@ def _fetch_buildings(target):
         partial.unlink(missing_ok=True)
 
 
-def _building_population(data_dir):
+def _adopt_legacy_buildings(buildings, data_dir):
+    """Move a building layer left in the data release folder (where the first upload wrote it) to the population
+    folder, which outlives data releases. Returns True when it was moved."""
+    legacy = Path(data_dir) / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+    if buildings.is_file() or not legacy.is_file() or legacy.resolve() == buildings.resolve():
+        return False
+    buildings.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(legacy), str(buildings))
+    LOGGER.info('startup_job_input_moved job=building_population input=buildings')
+    return True
+
+
+def _building_population(data_dir, aux_dir=None):
+    """data_dir: the data release (district atlas, directory); aux_dir: the population folder that outlives
+    releases (WorldPop layers, the building layer and this job's outputs), the same one the server reads."""
     import build_building_population as job
     import district_reference
-    data_dir = Path(data_dir)
-    out_dir = data_dir / 'buildings_ingest' / 'population'
+    data_dir, aux_dir = Path(data_dir), Path(aux_dir or data_dir)
+    out_dir = aux_dir / 'buildings_ingest' / 'population'
     official = out_dir / 'official_city_population.csv'
-    buildings = data_dir / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+    buildings = aux_dir / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+    _adopt_legacy_buildings(buildings, data_dir)
     if not buildings.is_file():
         _fetch_buildings(buildings)
     missing = [name for name, path in (('buildings', buildings), ('districts', data_dir / 'districts.geojson')) if not path.is_file()]
@@ -118,10 +134,10 @@ def _run(name, target, *args):
         LOGGER.error('startup_job_failed job=%s error_type=%s', name, type(error).__name__)
 
 
-def start(data_dir):
+def start(data_dir, aux_dir=None):
     """Launch every enabled job on its own daemon thread; returns the names started."""
     started = []
     if _enabled('FARQ_BUILD_BUILDING_POPULATION'):
-        threading.Thread(target=_run, args=('building_population', _building_population, data_dir), daemon=True, name='job-building-population').start()
+        threading.Thread(target=_run, args=('building_population', _building_population, data_dir, aux_dir), daemon=True, name='job-building-population').start()
         started.append('building_population')
     return started

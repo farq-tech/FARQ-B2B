@@ -266,7 +266,7 @@ def load_worldpop(path: Path | None) -> dict:
         rows = db.execute("select district_id, city_en, population_estimate from read_parquet(?)", [str(path)]).fetchall()
     finally:
         db.close()
-    return {row[0]: {"city_en": row[1], "population": row[2]} for row in rows}
+    return {str(row[0]): {"city_en": row[1], "population": row[2]} for row in rows}   # ids as text, like the atlas join
 
 
 def reference_estimates(districts: Path, ids: list, district_city: dict, per_district: dict, reference: Path | None) -> tuple[dict, dict]:
@@ -384,9 +384,10 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
     for did, bucket in per_district.items():
         city_weight[district_city[did]] += bucket["weight"]
     worldpop_city: dict[str, float] = defaultdict(float)
+    district_city_text = {str(did): city for did, city in district_city.items()}   # WorldPop ids may be numbers or text
     for did, row in worldpop_rows.items():
-        if row["population"] is not None and did in district_city:
-            worldpop_city[district_city[did]] += float(row["population"])
+        if row["population"] is not None and did in district_city_text:
+            worldpop_city[district_city_text[did]] += float(row["population"])
     calibration: dict[str, dict] = {}
     for city in set(district_city.values()):
         if city in official_totals:
@@ -412,7 +413,7 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
             estimate, source = (round(share * cal["total"], 1) if share is not None and cal["total"] else None), cal["source"]
         if estimate is not None and bucket and bucket["weight"] > 0:
             factors[did] = estimate / bucket["weight"]
-        wp = worldpop_rows.get(did, {}).get("population")
+        wp = worldpop_rows.get(str(did), {}).get("population")
         diff_pct = flag = None
         if estimate is not None and wp is not None and wp >= MIN_COMPARABLE and estimate >= MIN_COMPARABLE:
             diff_pct = round((estimate - wp) / wp * 100, 1)

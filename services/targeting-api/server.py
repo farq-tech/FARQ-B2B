@@ -916,12 +916,12 @@ class H(BaseHTTPRequestHandler):
         self._metric_has_request = True
         self._metric_route = route_label(self.path)
         if self.path == input_upload.PATH:   # streamed to the volume, so it is handled before the body is read into memory
-            status, body = input_upload.receive(self.headers, self.rfile, DATA_DIR)
+            status, body = input_upload.receive(self.headers, self.rfile, AUX_DATA_DIR)
             LOGGER.info('input_upload status=%s', status)
             self._json(body, status)
             if status == 200:
                 import startup_jobs
-                for job in startup_jobs.start(DATA_DIR): LOGGER.info('startup job running in background after upload: %s', job)
+                for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): LOGGER.info('startup job running in background after upload: %s', job)
             return
         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
         if self.path == '/login':
@@ -1128,5 +1128,5 @@ if __name__ == '__main__':
     if os.environ.get('RAILWAY_ENVIRONMENT') and not AUTH_PASSWORD: sys.exit('TARGETING_PASSWORD is required in production')
     print(f"Farq Targeting on http://localhost:{PORT}  (AI: {'on' if API_KEY else 'off — fallback dictionary'})", flush=True)
     import startup_jobs
-    for job in startup_jobs.start(DATA_DIR): print(f"startup job running in background: {job}", flush=True)
+    for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
