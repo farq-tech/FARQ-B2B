@@ -79,7 +79,6 @@ export function TerritoriesView() {
               <p className="mt-1 text-xs leading-6 text-muted-foreground">{group.districts.map((district) => district.district_ar).join('، ')}</p>
             </article>
           ))}
-          {result && <p className="text-xs leading-6 text-muted-foreground">{result.basis}</p>}
         </section>
       </div>
     </main>

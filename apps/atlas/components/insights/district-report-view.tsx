@@ -108,7 +108,7 @@ export function DistrictReportView() {
             <Stat label="السعوديون" value={profile.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}٪`} note={profile.saudi_pct == null ? 'لا يوجد قياس لهذا الحي' : 'من السكان · المصدر: 910ths'} />
             <Stat label="منشآت بواتساب" value={profile.whatsapp == null ? 'غير متاح' : numberFormat.format(profile.whatsapp)} note={profile.whatsapp != null && profile.businesses ? `${Math.round((100 * profile.whatsapp) / profile.businesses)}٪ من المنشآت` : undefined} />
             <Stat label="منشآت جملة" value={profile.wholesale == null ? 'غير متاح' : numberFormat.format(profile.wholesale)} note={profile.wholesale != null && profile.businesses ? `${Math.round((100 * profile.wholesale) / profile.businesses)}٪ من المنشآت` : undefined} />
-            <Stat label="مساحة البناء الجاري" value={profile.growth ? `${numberFormat.format(profile.growth.floor_area_m2)} م²` : 'غير متاح'} note={profile.growth ? 'مجموع مساحات الطوابق تحت الإنشاء' : undefined} />
+            <Stat label="مساحة الطوابق الجديدة" value={profile.growth ? `${numberFormat.format(profile.growth.floor_area_m2)} م²` : 'غير متاح'} note={profile.growth ? 'المباني الجديدة وتحت الإنشاء' : undefined} />
           </section>
 
           {profile.income && (
@@ -143,7 +143,7 @@ export function DistrictReportView() {
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground"><span className="text-sky-500">■</span> ذكور <span className="text-pink-500">■</span> إناث · توزيع الأعمار نمط المنطقة من WorldPop لا قياس للحي</p>
+              <p className="mt-1 text-[11px] text-muted-foreground"><span className="text-sky-500">■</span> ذكور <span className="text-pink-500">■</span> إناث</p>
             </section>
           )}
 
@@ -164,10 +164,6 @@ export function DistrictReportView() {
             </section>
           )}
 
-          <footer className="border-t pt-3 text-[11px] leading-6 text-muted-foreground">
-            المصادر: السكان {populationSource(profile.sources.population)}؛ المنشآت {profile.sources.businesses}؛ النمو {profile.sources.growth}
-            {profile.income && profile.income_source ? `؛ الدخل ${profile.income_source}` : ''}. الأرقام تقديرات لدعم القرار وليست تعداداً رسمياً.
-          </footer>
         </article>
       )}
     </main>

@@ -621,12 +621,6 @@ export function OpportunityMapView() {
                       </div>
                     </section>
                   ) : null}
-                  {market.data?.summary?.basis ? (
-                    <details className="mt-3 text-xs leading-5 text-muted-foreground">
-                      <summary className="cursor-pointer font-medium text-foreground">كيف حُسبت هذه النتائج؟</summary>
-                      <p className="mt-1.5">{market.data.summary.basis}</p>
-                    </details>
-                  ) : null}
                 </>
               ) : null}
             </div>

@@ -66,7 +66,7 @@ export function GrowthView() {
             <div className="max-h-[380px] overflow-y-auto rounded-2xl border bg-card">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
-                  <tr><th className="p-2 text-start">#</th><th className="p-2 text-start">الحي</th><th className="p-2 text-end">تحت الإنشاء</th><th className="p-2 text-end">منها سكني</th><th className="p-2 text-end">جديدة</th><th className="p-2 text-end">مساحة الطوابق تحت الإنشاء</th></tr>
+                  <tr><th className="p-2 text-start">#</th><th className="p-2 text-start">الحي</th><th className="p-2 text-end">تحت الإنشاء</th><th className="p-2 text-end">منها سكني</th><th className="p-2 text-end">جديدة</th><th className="p-2 text-end">مساحة الطوابق (جديدة وتحت الإنشاء)</th></tr>
                 </thead>
                 <tbody>
                   {rows.map((row, index) => (
@@ -86,7 +86,6 @@ export function GrowthView() {
           </section>
         </div>
       )}
-      {result?.available && <p className="text-xs leading-6 text-muted-foreground">{result.basis}</p>}
     </main>
   )
 }
