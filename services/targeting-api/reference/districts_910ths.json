@@ -1,0 +1,2243 @@
+{
+ "source": "910ths.sa (هدف)",
+ "retrieved": "2026-10-27",
+ "unit": "SAR/month",
+ "note": "Population, male and Saudi shares and average monthly income per working person, as published per district on the 910ths demographic map.",
+ "cities": {
+  "Riyadh": [
+   {
+    "district_ar": "أحد",
+    "polygon_ids": [
+     "543"
+    ],
+    "population": 20300,
+    "male_pct": 53.1,
+    "saudi_pct": 77.3,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "أم الحمام الشرقي",
+    "polygon_ids": [
+     "363"
+    ],
+    "population": 34400,
+    "male_pct": 67.7,
+    "saudi_pct": 17.3,
+    "income_all": 5822,
+    "income_male": 5989,
+    "income_female": 4920,
+    "income_saudi": 20600,
+    "income_non_saudi": 3707
+   },
+   {
+    "district_ar": "أم الحمام الغربي",
+    "polygon_ids": [
+     "364"
+    ],
+    "population": 37700,
+    "male_pct": 62.4,
+    "saudi_pct": 23.6,
+    "income_all": 10100,
+    "income_male": 11100,
+    "income_female": 3294,
+    "income_saudi": 13600,
+    "income_non_saudi": 5274
+   },
+   {
+    "district_ar": "أم سليم",
+    "polygon_ids": [
+     "453"
+    ],
+    "population": 23900,
+    "male_pct": 83.4,
+    "saudi_pct": 3.8,
+    "income_all": 2612,
+    "income_male": 2611,
+    "income_female": 2653,
+    "income_saudi": 9756,
+    "income_non_saudi": 2551
+   },
+   {
+    "district_ar": "إشبيلية",
+    "polygon_ids": [
+     "454"
+    ],
+    "population": 96400,
+    "male_pct": 56.9,
+    "saudi_pct": 65.6,
+    "income_all": 12900,
+    "income_male": 15500,
+    "income_female": 7021,
+    "income_saudi": 15900,
+    "income_non_saudi": 5005
+   },
+   {
+    "district_ar": "الإزدهار",
+    "polygon_ids": [
+     "411"
+    ],
+    "population": 35500,
+    "male_pct": 64.5,
+    "saudi_pct": 38.8,
+    "income_all": 9435,
+    "income_male": 11300,
+    "income_female": 5741,
+    "income_saudi": 14100,
+    "income_non_saudi": 3853
+   },
+   {
+    "district_ar": "الإسكان",
+    "polygon_ids": [
+     "439"
+    ],
+    "population": 32600,
+    "male_pct": 61.1,
+    "saudi_pct": 62.4,
+    "income_all": 9821,
+    "income_male": 11100,
+    "income_female": 6293,
+    "income_saudi": 10700,
+    "income_non_saudi": 3784
+   },
+   {
+    "district_ar": "الاندلس",
+    "polygon_ids": [
+     "438"
+    ],
+    "population": 34600,
+    "male_pct": 57.6,
+    "saudi_pct": 60.3,
+    "income_all": 10400,
+    "income_male": 12300,
+    "income_female": 6586,
+    "income_saudi": 14000,
+    "income_non_saudi": 3785
+   },
+   {
+    "district_ar": "البديعة",
+    "polygon_ids": [
+     "440"
+    ],
+    "population": 30200,
+    "male_pct": 61.6,
+    "saudi_pct": 24.1,
+    "income_all": 4964,
+    "income_male": 5165,
+    "income_female": 3976,
+    "income_saudi": 9622,
+    "income_non_saudi": 2793
+   },
+   {
+    "district_ar": "البطيحا",
+    "polygon_ids": [
+     "441"
+    ],
+    "population": 3900,
+    "male_pct": 81.9,
+    "saudi_pct": 4.9,
+    "income_all": 5935,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 5935
+   },
+   {
+    "district_ar": "البيان",
+    "polygon_ids": [
+     "503"
+    ],
+    "population": 12300,
+    "male_pct": 62.2,
+    "saudi_pct": 74.5,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "التعاون",
+    "polygon_ids": [
+     "443"
+    ],
+    "population": 50000,
+    "male_pct": 54.3,
+    "saudi_pct": 34.9,
+    "income_all": 10800,
+    "income_male": 14400,
+    "income_female": 5434,
+    "income_saudi": 18400,
+    "income_non_saudi": 3299
+   },
+   {
+    "district_ar": "الجرادية",
+    "polygon_ids": [
+     "410"
+    ],
+    "population": 24900,
+    "male_pct": 66.4,
+    "saudi_pct": 21.3,
+    "income_all": 3423,
+    "income_male": 3339,
+    "income_female": 4344,
+    "income_saudi": 5924,
+    "income_non_saudi": 2525
+   },
+   {
+    "district_ar": "الجزيرة",
+    "polygon_ids": [
+     "444"
+    ],
+    "population": 39900,
+    "male_pct": 57.7,
+    "saudi_pct": 66.7,
+    "income_all": 9375,
+    "income_male": 10700,
+    "income_female": 6313,
+    "income_saudi": 12100,
+    "income_non_saudi": 3607
+   },
+   {
+    "district_ar": "الجنادرية",
+    "polygon_ids": [
+     "354"
+    ],
+    "population": 70900,
+    "male_pct": 60,
+    "saudi_pct": 68.9,
+    "income_all": 8212,
+    "income_male": 8452,
+    "income_female": 5115,
+    "income_saudi": 8684,
+    "income_non_saudi": 2735
+   },
+   {
+    "district_ar": "الحائر",
+    "polygon_ids": [
+     "504"
+    ],
+    "population": 14000,
+    "male_pct": 56.4,
+    "saudi_pct": 78,
+    "income_all": 6431,
+    "income_male": 6666,
+    "income_female": 3987,
+    "income_saudi": 7409,
+    "income_non_saudi": 2197
+   },
+   {
+    "district_ar": "الحمراء",
+    "polygon_ids": [
+     "445"
+    ],
+    "population": 54000,
+    "male_pct": 58.4,
+    "saudi_pct": 57.2,
+    "income_all": 12700,
+    "income_male": 15800,
+    "income_female": 7571,
+    "income_saudi": 17900,
+    "income_non_saudi": 3059
+   },
+   {
+    "district_ar": "الخالدية",
+    "polygon_ids": [
+     "404"
+    ],
+    "population": 58300,
+    "male_pct": 77.7,
+    "saudi_pct": 11.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الخليج",
+    "polygon_ids": [
+     "505"
+    ],
+    "population": 99000,
+    "male_pct": 58.7,
+    "saudi_pct": 62.8,
+    "income_all": 8659,
+    "income_male": 9761,
+    "income_female": 5300,
+    "income_saudi": 11500,
+    "income_non_saudi": 2467
+   },
+   {
+    "district_ar": "الدار البيضاء",
+    "polygon_ids": [
+     "373"
+    ],
+    "population": 157900,
+    "male_pct": 60.2,
+    "saudi_pct": 62.3,
+    "income_all": 7456,
+    "income_male": 7527,
+    "income_female": 7087,
+    "income_saudi": 8507,
+    "income_non_saudi": 3361
+   },
+   {
+    "district_ar": "الدحو",
+    "polygon_ids": [
+     "532"
+    ],
+    "population": 546,
+    "male_pct": 92.1,
+    "saudi_pct": 4.2,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الدريهمية",
+    "polygon_ids": [
+     "384"
+    ],
+    "population": 12100,
+    "male_pct": 59.3,
+    "saudi_pct": 51.2,
+    "income_all": 10900,
+    "income_male": 12300,
+    "income_female": 6603,
+    "income_saudi": 11600,
+    "income_non_saudi": 10000
+   },
+   {
+    "district_ar": "الدفاع",
+    "polygon_ids": [
+     "497"
+    ],
+    "population": 11300,
+    "male_pct": 82.2,
+    "saudi_pct": 19.2,
+    "income_all": 2071,
+    "income_male": 2071,
+    "income_female": null,
+    "income_saudi": 8688,
+    "income_non_saudi": 1598
+   },
+   {
+    "district_ar": "الدوبية",
+    "polygon_ids": [
+     "435"
+    ],
+    "population": 3900,
+    "male_pct": 85.7,
+    "saudi_pct": 2.7,
+    "income_all": 2136,
+    "income_male": 2124,
+    "income_female": 2353,
+    "income_saudi": 2172,
+    "income_non_saudi": 2135
+   },
+   {
+    "district_ar": "الديرة",
+    "polygon_ids": [
+     "498"
+    ],
+    "population": 22100,
+    "male_pct": 88.5,
+    "saudi_pct": 2.5,
+    "income_all": 3152,
+    "income_male": 3146,
+    "income_female": 3801,
+    "income_saudi": 5870,
+    "income_non_saudi": 2924
+   },
+   {
+    "district_ar": "الرائد",
+    "polygon_ids": [
+     "499"
+    ],
+    "population": 9600,
+    "male_pct": 56.2,
+    "saudi_pct": 51.1,
+    "income_all": 22500,
+    "income_male": 23400,
+    "income_female": 14500,
+    "income_saudi": 26300,
+    "income_non_saudi": 13700
+   },
+   {
+    "district_ar": "الربوة",
+    "polygon_ids": [
+     "495"
+    ],
+    "population": 70600,
+    "male_pct": 57.9,
+    "saudi_pct": 36.8,
+    "income_all": 10300,
+    "income_male": 12900,
+    "income_female": 5743,
+    "income_saudi": 15600,
+    "income_non_saudi": 3846
+   },
+   {
+    "district_ar": "الربيع",
+    "polygon_ids": [
+     "494"
+    ],
+    "population": 35100,
+    "male_pct": 58.1,
+    "saudi_pct": 54,
+    "income_all": 10700,
+    "income_male": 13500,
+    "income_female": 6026,
+    "income_saudi": 16500,
+    "income_non_saudi": 2037
+   },
+   {
+    "district_ar": "الرحمانية",
+    "polygon_ids": [
+     "385"
+    ],
+    "population": 14600,
+    "male_pct": 61.4,
+    "saudi_pct": 38.1,
+    "income_all": 9517,
+    "income_male": 11100,
+    "income_female": 2437,
+    "income_saudi": 14300,
+    "income_non_saudi": 2023
+   },
+   {
+    "district_ar": "الرفيعة",
+    "polygon_ids": [
+     "437"
+    ],
+    "population": 11500,
+    "male_pct": 53.4,
+    "saudi_pct": 48.7,
+    "income_all": 9372,
+    "income_male": 12500,
+    "income_female": 3956,
+    "income_saudi": 19400,
+    "income_non_saudi": 3180
+   },
+   {
+    "district_ar": "الرمال",
+    "polygon_ids": [
+     "479"
+    ],
+    "population": 141100,
+    "male_pct": 61.1,
+    "saudi_pct": 68.8,
+    "income_all": 12000,
+    "income_male": 12600,
+    "income_female": 5973,
+    "income_saudi": 13000,
+    "income_non_saudi": 2986
+   },
+   {
+    "district_ar": "الرماية",
+    "polygon_ids": [
+     "432"
+    ],
+    "population": 13500,
+    "male_pct": 46.3,
+    "saudi_pct": 32.7,
+    "income_all": 10500,
+    "income_male": 12200,
+    "income_female": 1303,
+    "income_saudi": 12200,
+    "income_non_saudi": 1303
+   },
+   {
+    "district_ar": "الروابي",
+    "polygon_ids": [
+     "433"
+    ],
+    "population": 57200,
+    "male_pct": 59.5,
+    "saudi_pct": 52,
+    "income_all": 10000,
+    "income_male": 12100,
+    "income_female": 5336,
+    "income_saudi": 13500,
+    "income_non_saudi": 3310
+   },
+   {
+    "district_ar": "الروضة",
+    "polygon_ids": [
+     "480"
+    ],
+    "population": 99100,
+    "male_pct": 53.6,
+    "saudi_pct": 35,
+    "income_all": 9276,
+    "income_male": 11400,
+    "income_female": 4975,
+    "income_saudi": 13700,
+    "income_non_saudi": 3091
+   },
+   {
+    "district_ar": "الريان",
+    "polygon_ids": [
+     "481"
+    ],
+    "population": 38500,
+    "male_pct": 59.7,
+    "saudi_pct": 48,
+    "income_all": 11400,
+    "income_male": 15000,
+    "income_female": 5467,
+    "income_saudi": 17400,
+    "income_non_saudi": 2186
+   },
+   {
+    "district_ar": "الزهراء",
+    "polygon_ids": [
+     "431"
+    ],
+    "population": 18700,
+    "male_pct": 72.3,
+    "saudi_pct": 15.2,
+    "income_all": 9900,
+    "income_male": 11000,
+    "income_female": 5681,
+    "income_saudi": 13100,
+    "income_non_saudi": 6580
+   },
+   {
+    "district_ar": "الزهرة",
+    "polygon_ids": [
+     "483"
+    ],
+    "population": 45800,
+    "male_pct": 56.9,
+    "saudi_pct": 68.5,
+    "income_all": 8197,
+    "income_male": 8921,
+    "income_female": 5969,
+    "income_saudi": 10300,
+    "income_non_saudi": 2171
+   },
+   {
+    "district_ar": "السحاب",
+    "polygon_ids": [
+     "485"
+    ],
+    "population": 648,
+    "male_pct": 88.3,
+    "saudi_pct": 8.3,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "السرحية",
+    "polygon_ids": [
+     "546"
+    ],
+    "population": 120,
+    "male_pct": 50,
+    "saudi_pct": 50,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "السعادة",
+    "polygon_ids": [
+     "417"
+    ],
+    "population": 83200,
+    "male_pct": 68.9,
+    "saudi_pct": 46.4,
+    "income_all": 8321,
+    "income_male": 8436,
+    "income_female": 7764,
+    "income_saudi": 9775,
+    "income_non_saudi": 3369
+   },
+   {
+    "district_ar": "السفارات",
+    "polygon_ids": [
+     "405"
+    ],
+    "population": 5600,
+    "male_pct": 58.2,
+    "saudi_pct": 30.6,
+    "income_all": 36600,
+    "income_male": 43200,
+    "income_female": 20200,
+    "income_saudi": 37700,
+    "income_non_saudi": 35200
+   },
+   {
+    "district_ar": "السلام",
+    "polygon_ids": [
+     "487"
+    ],
+    "population": 50100,
+    "male_pct": 56.7,
+    "saudi_pct": 62.6,
+    "income_all": 9531,
+    "income_male": 11200,
+    "income_female": 6216,
+    "income_saudi": 12300,
+    "income_non_saudi": 3764
+   },
+   {
+    "district_ar": "السلي",
+    "polygon_ids": [
+     "533"
+    ],
+    "population": 42600,
+    "male_pct": 95.8,
+    "saudi_pct": 5.3,
+    "income_all": 2152,
+    "income_male": 2129,
+    "income_female": 3620,
+    "income_saudi": 8009,
+    "income_non_saudi": 2022
+   },
+   {
+    "district_ar": "السليمانية",
+    "polygon_ids": [
+     "380",
+     "381",
+     "463"
+    ],
+    "population": 90300,
+    "male_pct": 67.8,
+    "saudi_pct": 12.1,
+    "income_all": 9835,
+    "income_male": 11400,
+    "income_female": 5194,
+    "income_saudi": 16000,
+    "income_non_saudi": 7401
+   },
+   {
+    "district_ar": "السويدي",
+    "polygon_ids": [
+     "418"
+    ],
+    "population": 58500,
+    "male_pct": 57.9,
+    "saudi_pct": 54.7,
+    "income_all": 7738,
+    "income_male": 8313,
+    "income_female": 5708,
+    "income_saudi": 10200,
+    "income_non_saudi": 2912
+   },
+   {
+    "district_ar": "السويدي الغربي",
+    "polygon_ids": [
+     "372"
+    ],
+    "population": 42400,
+    "male_pct": 54.4,
+    "saudi_pct": 73.2,
+    "income_all": 8774,
+    "income_male": 10300,
+    "income_female": 4927,
+    "income_saudi": 11100,
+    "income_non_saudi": 2076
+   },
+   {
+    "district_ar": "الشرفية",
+    "polygon_ids": [
+     "419"
+    ],
+    "population": 13900,
+    "male_pct": 67.5,
+    "saudi_pct": 17,
+    "income_all": 6250,
+    "income_male": 6414,
+    "income_female": 3754,
+    "income_saudi": 15600,
+    "income_non_saudi": 3637
+   },
+   {
+    "district_ar": "الشفا",
+    "polygon_ids": [
+     "534"
+    ],
+    "population": 70500,
+    "male_pct": 60.3,
+    "saudi_pct": 57.6,
+    "income_all": 8650,
+    "income_male": 9601,
+    "income_female": 5895,
+    "income_saudi": 10800,
+    "income_non_saudi": 3543
+   },
+   {
+    "district_ar": "الشميسي",
+    "polygon_ids": [
+     "420"
+    ],
+    "population": 32100,
+    "male_pct": 86.6,
+    "saudi_pct": 4.9,
+    "income_all": 3228,
+    "income_male": 3106,
+    "income_female": 4901,
+    "income_saudi": 5562,
+    "income_non_saudi": 2630
+   },
+   {
+    "district_ar": "الصالحية",
+    "polygon_ids": [
+     "406"
+    ],
+    "population": 10600,
+    "male_pct": 82.1,
+    "saudi_pct": 22.9,
+    "income_all": 3108,
+    "income_male": 3152,
+    "income_female": 2606,
+    "income_saudi": 4959,
+    "income_non_saudi": 2374
+   },
+   {
+    "district_ar": "الصحافة",
+    "polygon_ids": [
+     "422"
+    ],
+    "population": 52100,
+    "male_pct": 56.5,
+    "saudi_pct": 60.3,
+    "income_all": 10500,
+    "income_male": 13000,
+    "income_female": 5425,
+    "income_saudi": 14500,
+    "income_non_saudi": 3743
+   },
+   {
+    "district_ar": "الصفا",
+    "polygon_ids": [
+     "535"
+    ],
+    "population": 6500,
+    "male_pct": 64.1,
+    "saudi_pct": 38.2,
+    "income_all": 10400,
+    "income_male": 11700,
+    "income_female": 2534,
+    "income_saudi": 13800,
+    "income_non_saudi": 6418
+   },
+   {
+    "district_ar": "الصناعية",
+    "polygon_ids": [
+     "408"
+    ],
+    "population": 13000,
+    "male_pct": 92.9,
+    "saudi_pct": 5.3,
+    "income_all": 4849,
+    "income_male": 4790,
+    "income_female": 5240,
+    "income_saudi": 10200,
+    "income_non_saudi": 2322
+   },
+   {
+    "district_ar": "الضباط",
+    "polygon_ids": [
+     "489"
+    ],
+    "population": 22500,
+    "male_pct": 65.2,
+    "saudi_pct": 12.2,
+    "income_all": 8881,
+    "income_male": 9321,
+    "income_female": 6753,
+    "income_saudi": 13600,
+    "income_non_saudi": 8358
+   },
+   {
+    "district_ar": "العارض",
+    "polygon_ids": [
+     "490"
+    ],
+    "population": 81500,
+    "male_pct": 60.5,
+    "saudi_pct": 61,
+    "income_all": 11100,
+    "income_male": 13500,
+    "income_female": 4448,
+    "income_saudi": 14900,
+    "income_non_saudi": 1584
+   },
+   {
+    "district_ar": "العريجاء الأوسط",
+    "polygon_ids": [
+     "367"
+    ],
+    "population": 52200,
+    "male_pct": 55.9,
+    "saudi_pct": 68.2,
+    "income_all": 8478,
+    "income_male": 8930,
+    "income_female": 6691,
+    "income_saudi": 9152,
+    "income_non_saudi": 3862
+   },
+   {
+    "district_ar": "العريجاء الغربي",
+    "polygon_ids": [
+     "368",
+     "369"
+    ],
+    "population": 104700,
+    "male_pct": 56.9,
+    "saudi_pct": 73.5,
+    "income_all": 8714,
+    "income_male": 9565,
+    "income_female": 6095,
+    "income_saudi": 9915,
+    "income_non_saudi": 2491
+   },
+   {
+    "district_ar": "العزيزية",
+    "polygon_ids": [
+     "397"
+    ],
+    "population": 175900,
+    "male_pct": 63.5,
+    "saudi_pct": 39.2,
+    "income_all": 7410,
+    "income_male": 7916,
+    "income_female": 4909,
+    "income_saudi": 9681,
+    "income_non_saudi": 4299
+   },
+   {
+    "district_ar": "العقيق",
+    "polygon_ids": [
+     "491"
+    ],
+    "population": 53500,
+    "male_pct": 61.5,
+    "saudi_pct": 47,
+    "income_all": 9380,
+    "income_male": 10900,
+    "income_female": 5814,
+    "income_saudi": 11800,
+    "income_non_saudi": 3991
+   },
+   {
+    "district_ar": "العليا",
+    "polygon_ids": [
+     "492",
+     "493"
+    ],
+    "population": 118800,
+    "male_pct": 66.2,
+    "saudi_pct": 19.1,
+    "income_all": 9435,
+    "income_male": 10200,
+    "income_female": 7603,
+    "income_saudi": 13900,
+    "income_non_saudi": 7467
+   },
+   {
+    "district_ar": "العمل",
+    "polygon_ids": [
+     "506"
+    ],
+    "population": 20600,
+    "male_pct": 83.1,
+    "saudi_pct": 3,
+    "income_all": 4133,
+    "income_male": 4132,
+    "income_female": 4149,
+    "income_saudi": 9412,
+    "income_non_saudi": 3902
+   },
+   {
+    "district_ar": "العوالي",
+    "polygon_ids": [
+     "423"
+    ],
+    "population": 47100,
+    "male_pct": 56.7,
+    "saudi_pct": 70.9,
+    "income_all": 8977,
+    "income_male": 9347,
+    "income_female": 7099,
+    "income_saudi": 9848,
+    "income_non_saudi": 3357
+   },
+   {
+    "district_ar": "العود",
+    "polygon_ids": [
+     "507"
+    ],
+    "population": 25600,
+    "male_pct": 76.5,
+    "saudi_pct": 14,
+    "income_all": 3010,
+    "income_male": 2989,
+    "income_female": 4127,
+    "income_saudi": 5210,
+    "income_non_saudi": 2622
+   },
+   {
+    "district_ar": "الغدير",
+    "polygon_ids": [
+     "464"
+    ],
+    "population": 21300,
+    "male_pct": 58.2,
+    "saudi_pct": 51.5,
+    "income_all": 12700,
+    "income_male": 17200,
+    "income_female": 6367,
+    "income_saudi": 26300,
+    "income_non_saudi": 1682
+   },
+   {
+    "district_ar": "الغنامية",
+    "polygon_ids": [
+     "398"
+    ],
+    "population": 4700,
+    "male_pct": 58.2,
+    "saudi_pct": 75.3,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الفاخرية",
+    "polygon_ids": [
+     "399"
+    ],
+    "population": 6900,
+    "male_pct": 61.5,
+    "saudi_pct": 23.2,
+    "income_all": 8636,
+    "income_male": 10000,
+    "income_female": 4003,
+    "income_saudi": 8906,
+    "income_non_saudi": 8365
+   },
+   {
+    "district_ar": "الفاروق",
+    "polygon_ids": [
+     "424"
+    ],
+    "population": 6100,
+    "male_pct": 75.9,
+    "saudi_pct": 19.6,
+    "income_all": 7467,
+    "income_male": 7839,
+    "income_female": 4000,
+    "income_saudi": 10300,
+    "income_non_saudi": 4829
+   },
+   {
+    "district_ar": "الفلاح",
+    "polygon_ids": [
+     "465"
+    ],
+    "population": 24800,
+    "male_pct": 61.6,
+    "saudi_pct": 50.9,
+    "income_all": 10700,
+    "income_male": 14100,
+    "income_female": 5837,
+    "income_saudi": 18200,
+    "income_non_saudi": 2228
+   },
+   {
+    "district_ar": "الفوطة",
+    "polygon_ids": [
+     "466"
+    ],
+    "population": 15500,
+    "male_pct": 79.8,
+    "saudi_pct": 3.2,
+    "income_all": 7417,
+    "income_male": 7410,
+    "income_female": 7602,
+    "income_saudi": 6878,
+    "income_non_saudi": 7440
+   },
+   {
+    "district_ar": "الفيحاء",
+    "polygon_ids": [
+     "426"
+    ],
+    "population": 58100,
+    "male_pct": 60.6,
+    "saudi_pct": 52.6,
+    "income_all": 9992,
+    "income_male": 11500,
+    "income_female": 5804,
+    "income_saudi": 13600,
+    "income_non_saudi": 3061
+   },
+   {
+    "district_ar": "الفيصلية",
+    "polygon_ids": [
+     "400"
+    ],
+    "population": 18800,
+    "male_pct": 73.6,
+    "saudi_pct": 42.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "القادسية",
+    "polygon_ids": [
+     "401"
+    ],
+    "population": 58800,
+    "male_pct": 57.2,
+    "saudi_pct": 78.2,
+    "income_all": 9029,
+    "income_male": 8856,
+    "income_female": 10100,
+    "income_saudi": 11500,
+    "income_non_saudi": 2075
+   },
+   {
+    "district_ar": "القدس",
+    "polygon_ids": [
+     "508"
+    ],
+    "population": 41600,
+    "male_pct": 57.6,
+    "saudi_pct": 57.4,
+    "income_all": 12500,
+    "income_male": 15000,
+    "income_female": 7097,
+    "income_saudi": 15600,
+    "income_non_saudi": 3445
+   },
+   {
+    "district_ar": "القرى",
+    "polygon_ids": [
+     "509"
+    ],
+    "population": 295,
+    "male_pct": 85.4,
+    "saudi_pct": 0,
+    "income_all": 4344,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 4344
+   },
+   {
+    "district_ar": "القيروان",
+    "polygon_ids": [
+     "402"
+    ],
+    "population": 39300,
+    "male_pct": 64.1,
+    "saudi_pct": 53.9,
+    "income_all": 10200,
+    "income_male": 11400,
+    "income_female": 6311,
+    "income_saudi": 14000,
+    "income_non_saudi": 2580
+   },
+   {
+    "district_ar": "المؤتمرات",
+    "polygon_ids": [
+     "386"
+    ],
+    "population": 6200,
+    "male_pct": 57.8,
+    "saudi_pct": 15,
+    "income_all": 7430,
+    "income_male": 7538,
+    "income_female": 7168,
+    "income_saudi": 15100,
+    "income_non_saudi": 1955
+   },
+   {
+    "district_ar": "المحمدية",
+    "polygon_ids": [
+     "403"
+    ],
+    "population": 21700,
+    "male_pct": 61.7,
+    "saudi_pct": 45.8,
+    "income_all": 13500,
+    "income_male": 17500,
+    "income_female": 5993,
+    "income_saudi": 22100,
+    "income_non_saudi": 1629
+   },
+   {
+    "district_ar": "المدينة الصناعية الجديدة",
+    "polygon_ids": [
+     "360"
+    ],
+    "population": 102200,
+    "male_pct": 98.6,
+    "saudi_pct": 0.7,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "المربع",
+    "polygon_ids": [
+     "467"
+    ],
+    "population": 58100,
+    "male_pct": 67.2,
+    "saudi_pct": 7,
+    "income_all": 10900,
+    "income_male": 12000,
+    "income_female": 5420,
+    "income_saudi": 12100,
+    "income_non_saudi": 10700
+   },
+   {
+    "district_ar": "المرجان",
+    "polygon_ids": [
+     "427"
+    ],
+    "population": 1700,
+    "male_pct": 85.6,
+    "saudi_pct": 19.6,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "المرسلات",
+    "polygon_ids": [
+     "393"
+    ],
+    "population": 20400,
+    "male_pct": 68.6,
+    "saudi_pct": 30.3,
+    "income_all": 9959,
+    "income_male": 11900,
+    "income_female": 4688,
+    "income_saudi": 16200,
+    "income_non_saudi": 4887
+   },
+   {
+    "district_ar": "المرقب",
+    "polygon_ids": [
+     "468"
+    ],
+    "population": 27500,
+    "male_pct": 92.2,
+    "saudi_pct": 3.9,
+    "income_all": 2915,
+    "income_male": 2849,
+    "income_female": 11200,
+    "income_saudi": 6378,
+    "income_non_saudi": 2693
+   },
+   {
+    "district_ar": "المروة",
+    "polygon_ids": [
+     "469"
+    ],
+    "population": 17800,
+    "male_pct": 61.3,
+    "saudi_pct": 63.7,
+    "income_all": 7686,
+    "income_male": 8693,
+    "income_female": 4577,
+    "income_saudi": 10100,
+    "income_non_saudi": 1934
+   },
+   {
+    "district_ar": "المروج",
+    "polygon_ids": [
+     "470"
+    ],
+    "population": 39400,
+    "male_pct": 66.2,
+    "saudi_pct": 33.8,
+    "income_all": 10600,
+    "income_male": 12800,
+    "income_female": 5641,
+    "income_saudi": 14700,
+    "income_non_saudi": 6592
+   },
+   {
+    "district_ar": "المشاعل",
+    "polygon_ids": [
+     "428"
+    ],
+    "population": 21200,
+    "male_pct": 96.8,
+    "saudi_pct": 2.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "المصانع",
+    "polygon_ids": [
+     "429"
+    ],
+    "population": 14300,
+    "male_pct": 94.7,
+    "saudi_pct": 4.1,
+    "income_all": 2251,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 2251
+   },
+   {
+    "district_ar": "المصيف",
+    "polygon_ids": [
+     "472"
+    ],
+    "population": 42600,
+    "male_pct": 61,
+    "saudi_pct": 41.3,
+    "income_all": 9989,
+    "income_male": 11600,
+    "income_female": 6310,
+    "income_saudi": 14800,
+    "income_non_saudi": 4665
+   },
+   {
+    "district_ar": "المعذر",
+    "polygon_ids": [
+     "473"
+    ],
+    "population": 16500,
+    "male_pct": 60.3,
+    "saudi_pct": 14,
+    "income_all": 19800,
+    "income_male": 24300,
+    "income_female": 6244,
+    "income_saudi": 27200,
+    "income_non_saudi": 18800
+   },
+   {
+    "district_ar": "المعذر الشمالي",
+    "polygon_ids": [
+     "371"
+    ],
+    "population": 15900,
+    "male_pct": 63.1,
+    "saudi_pct": 32.5,
+    "income_all": 10600,
+    "income_male": 12100,
+    "income_female": 6854,
+    "income_saudi": 18300,
+    "income_non_saudi": 2484
+   },
+   {
+    "district_ar": "المعيزيلة",
+    "polygon_ids": [
+     "387"
+    ],
+    "population": 22600,
+    "male_pct": 59.3,
+    "saudi_pct": 71.9,
+    "income_all": 9150,
+    "income_male": 10800,
+    "income_female": 4222,
+    "income_saudi": 11400,
+    "income_non_saudi": 2243
+   },
+   {
+    "district_ar": "الملز",
+    "polygon_ids": [
+     "511"
+    ],
+    "population": 93100,
+    "male_pct": 71.9,
+    "saudi_pct": 12,
+    "income_all": 7415,
+    "income_male": 7781,
+    "income_female": 5688,
+    "income_saudi": 13800,
+    "income_non_saudi": 5033
+   },
+   {
+    "district_ar": "الملقا",
+    "polygon_ids": [
+     "474"
+    ],
+    "population": 87900,
+    "male_pct": 56.9,
+    "saudi_pct": 59.4,
+    "income_all": 11300,
+    "income_male": 14300,
+    "income_female": 5304,
+    "income_saudi": 17900,
+    "income_non_saudi": 2775
+   },
+   {
+    "district_ar": "الملك عبدالعزيز",
+    "polygon_ids": [
+     "370"
+    ],
+    "population": 55200,
+    "male_pct": 83.2,
+    "saudi_pct": 7,
+    "income_all": 16900,
+    "income_male": 31800,
+    "income_female": 5983,
+    "income_saudi": 32300,
+    "income_non_saudi": 12700
+   },
+   {
+    "district_ar": "الملك عبدالله",
+    "polygon_ids": [
+     "374"
+    ],
+    "population": 17700,
+    "male_pct": 57.3,
+    "saudi_pct": 45.7,
+    "income_all": 11600,
+    "income_male": 16700,
+    "income_female": 5309,
+    "income_saudi": 21400,
+    "income_non_saudi": 2676
+   },
+   {
+    "district_ar": "الملك فهد",
+    "polygon_ids": [
+     "388"
+    ],
+    "population": 34500,
+    "male_pct": 63.8,
+    "saudi_pct": 34.7,
+    "income_all": 8812,
+    "income_male": 10400,
+    "income_female": 5425,
+    "income_saudi": 12400,
+    "income_non_saudi": 4668
+   },
+   {
+    "district_ar": "الملك فيصل",
+    "polygon_ids": [
+     "382"
+    ],
+    "population": 53600,
+    "male_pct": 58.2,
+    "saudi_pct": 54.9,
+    "income_all": 10500,
+    "income_male": 12500,
+    "income_female": 5094,
+    "income_saudi": 13800,
+    "income_non_saudi": 2105
+   },
+   {
+    "district_ar": "المناخ",
+    "polygon_ids": [
+     "475"
+    ],
+    "population": 25100,
+    "male_pct": 83.9,
+    "saudi_pct": 9.6,
+    "income_all": 3842,
+    "income_male": 3823,
+    "income_female": 4616,
+    "income_saudi": 6857,
+    "income_non_saudi": 2155
+   },
+   {
+    "district_ar": "المنار",
+    "polygon_ids": [
+     "476"
+    ],
+    "population": 26600,
+    "male_pct": 58,
+    "saudi_pct": 52.9,
+    "income_all": 10400,
+    "income_male": 11700,
+    "income_female": 7786,
+    "income_saudi": 14700,
+    "income_non_saudi": 2764
+   },
+   {
+    "district_ar": "المنصورية",
+    "polygon_ids": [
+     "389",
+     "390"
+    ],
+    "population": 2600,
+    "male_pct": 95.4,
+    "saudi_pct": 4.8,
+    "income_all": 1629,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 1629
+   },
+   {
+    "district_ar": "المهدية",
+    "polygon_ids": [
+     "413"
+    ],
+    "population": 37100,
+    "male_pct": 53.4,
+    "saudi_pct": 84.5,
+    "income_all": 16500,
+    "income_male": 16500,
+    "income_female": null,
+    "income_saudi": 19300,
+    "income_non_saudi": 2172
+   },
+   {
+    "district_ar": "المونسية",
+    "polygon_ids": [
+     "355"
+    ],
+    "population": 130199.99999999999,
+    "male_pct": 60.8,
+    "saudi_pct": 57.6,
+    "income_all": 9770,
+    "income_male": 10800,
+    "income_female": 7135,
+    "income_saudi": 12800,
+    "income_non_saudi": 3965
+   },
+   {
+    "district_ar": "الناصرية",
+    "polygon_ids": [
+     "394"
+    ],
+    "population": 6200,
+    "male_pct": 68.1,
+    "saudi_pct": 11.2,
+    "income_all": 4408,
+    "income_male": 3423,
+    "income_female": 8018,
+    "income_saudi": 13800,
+    "income_non_saudi": 3286
+   },
+   {
+    "district_ar": "النخيل",
+    "polygon_ids": [
+     "458"
+    ],
+    "population": 29500,
+    "male_pct": 57.2,
+    "saudi_pct": 51.7,
+    "income_all": 10600,
+    "income_male": 14700,
+    "income_female": 5553,
+    "income_saudi": 18700,
+    "income_non_saudi": 2651
+   },
+   {
+    "district_ar": "الندوة",
+    "polygon_ids": [
+     "459"
+    ],
+    "population": 43400,
+    "male_pct": 60.9,
+    "saudi_pct": 66.2,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الندى",
+    "polygon_ids": [
+     "512"
+    ],
+    "population": 19000,
+    "male_pct": 52,
+    "saudi_pct": 66.7,
+    "income_all": 11500,
+    "income_male": 15700,
+    "income_female": 6776,
+    "income_saudi": 18100,
+    "income_non_saudi": 4986
+   },
+   {
+    "district_ar": "النرجس",
+    "polygon_ids": [
+     "460"
+    ],
+    "population": 82800,
+    "male_pct": 54.5,
+    "saudi_pct": 73,
+    "income_all": 9049,
+    "income_male": 10200,
+    "income_female": 4724,
+    "income_saudi": 14600,
+    "income_non_saudi": 1618
+   },
+   {
+    "district_ar": "النزهة",
+    "polygon_ids": [
+     "461"
+    ],
+    "population": 27400,
+    "male_pct": 56.9,
+    "saudi_pct": 43.5,
+    "income_all": 10200,
+    "income_male": 12600,
+    "income_female": 6547,
+    "income_saudi": 14300,
+    "income_non_saudi": 5000
+   },
+   {
+    "district_ar": "النسيم الشرقي",
+    "polygon_ids": [
+     "375"
+    ],
+    "population": 139900,
+    "male_pct": 64.4,
+    "saudi_pct": 51.5,
+    "income_all": 8206,
+    "income_male": 8455,
+    "income_female": 6043,
+    "income_saudi": 9829,
+    "income_non_saudi": 3537
+   },
+   {
+    "district_ar": "النسيم الغربي",
+    "polygon_ids": [
+     "376"
+    ],
+    "population": 159900,
+    "male_pct": 63.5,
+    "saudi_pct": 49.2,
+    "income_all": 7105,
+    "income_male": 7335,
+    "income_female": 5295,
+    "income_saudi": 8943,
+    "income_non_saudi": 3376
+   },
+   {
+    "district_ar": "النظيم",
+    "polygon_ids": [
+     "462"
+    ],
+    "population": 120700,
+    "male_pct": 58.8,
+    "saudi_pct": 65.5,
+    "income_all": 8191,
+    "income_male": 8476,
+    "income_female": 6341,
+    "income_saudi": 8847,
+    "income_non_saudi": 3091
+   },
+   {
+    "district_ar": "النفل",
+    "polygon_ids": [
+     "513"
+    ],
+    "population": 49400,
+    "male_pct": 58.8,
+    "saudi_pct": 31.9,
+    "income_all": 10400,
+    "income_male": 12500,
+    "income_female": 6108,
+    "income_saudi": 16400,
+    "income_non_saudi": 3990
+   },
+   {
+    "district_ar": "النموذجية",
+    "polygon_ids": [
+     "391"
+    ],
+    "population": 8100,
+    "male_pct": 59.1,
+    "saudi_pct": 29,
+    "income_all": 16000,
+    "income_male": 20000,
+    "income_female": 5231,
+    "income_saudi": 24100,
+    "income_non_saudi": 8527
+   },
+   {
+    "district_ar": "النهضة",
+    "polygon_ids": [
+     "457"
+    ],
+    "population": 99100,
+    "male_pct": 58.9,
+    "saudi_pct": 61.7,
+    "income_all": 9240,
+    "income_male": 10500,
+    "income_female": 5751,
+    "income_saudi": 12000,
+    "income_non_saudi": 3552
+   },
+   {
+    "district_ar": "النور",
+    "polygon_ids": [
+     "514"
+    ],
+    "population": 6300,
+    "male_pct": 97.1,
+    "saudi_pct": 2.6,
+    "income_all": 4417,
+    "income_male": 4417,
+    "income_female": null,
+    "income_saudi": 11100,
+    "income_non_saudi": 2498
+   },
+   {
+    "district_ar": "الهدا",
+    "polygon_ids": [
+     "515"
+    ],
+    "population": 6400,
+    "male_pct": 60.9,
+    "saudi_pct": 36.5,
+    "income_all": 8145,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": 10900,
+    "income_non_saudi": 5430
+   },
+   {
+    "district_ar": "الواحة",
+    "polygon_ids": [
+     "456"
+    ],
+    "population": 17300,
+    "male_pct": 54.7,
+    "saudi_pct": 59.6,
+    "income_all": 11500,
+    "income_male": 14300,
+    "income_female": 7566,
+    "income_saudi": 18400,
+    "income_non_saudi": 4049
+   },
+   {
+    "district_ar": "الوادي",
+    "polygon_ids": [
+     "455"
+    ],
+    "population": 42100,
+    "male_pct": 62.2,
+    "saudi_pct": 49.6,
+    "income_all": 9466,
+    "income_male": 11000,
+    "income_female": 6202,
+    "income_saudi": 15100,
+    "income_non_saudi": 2478
+   },
+   {
+    "district_ar": "الورود",
+    "polygon_ids": [
+     "446"
+    ],
+    "population": 39200,
+    "male_pct": 62.6,
+    "saudi_pct": 19.9,
+    "income_all": 13400,
+    "income_male": 17200,
+    "income_female": 7884,
+    "income_saudi": 18800,
+    "income_non_saudi": 6188
+   },
+   {
+    "district_ar": "الوزارات",
+    "polygon_ids": [
+     "395"
+    ],
+    "population": 65800,
+    "male_pct": 82.2,
+    "saudi_pct": 3.6,
+    "income_all": 4147,
+    "income_male": 4090,
+    "income_female": 6984,
+    "income_saudi": 13200,
+    "income_non_saudi": 3961
+   },
+   {
+    "district_ar": "الوسام",
+    "polygon_ids": [
+     "447"
+    ],
+    "population": 1900,
+    "male_pct": 97.2,
+    "saudi_pct": 2.5,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الوسيطا",
+    "polygon_ids": [
+     "414"
+    ],
+    "population": 3500,
+    "male_pct": 82.1,
+    "saudi_pct": 3.4,
+    "income_all": 2955,
+    "income_male": 2955,
+    "income_female": null,
+    "income_saudi": 3439,
+    "income_non_saudi": 2886
+   },
+   {
+    "district_ar": "الوشام",
+    "polygon_ids": [
+     "448"
+    ],
+    "population": 16500,
+    "male_pct": 66.7,
+    "saudi_pct": 6.2,
+    "income_all": 5915,
+    "income_male": 6056,
+    "income_female": 4645,
+    "income_saudi": 16200,
+    "income_non_saudi": 4670
+   },
+   {
+    "district_ar": "الياسمين",
+    "polygon_ids": [
+     "396"
+    ],
+    "population": 107200,
+    "male_pct": 53.5,
+    "saudi_pct": 66.4,
+    "income_all": 9524,
+    "income_male": 12300,
+    "income_female": 5350,
+    "income_saudi": 15400,
+    "income_non_saudi": 2121
+   },
+   {
+    "district_ar": "اليرموك",
+    "polygon_ids": [
+     "415"
+    ],
+    "population": 100700,
+    "male_pct": 61.5,
+    "saudi_pct": 54.7,
+    "income_all": 10300,
+    "income_male": 10900,
+    "income_female": 7306,
+    "income_saudi": 12500,
+    "income_non_saudi": 3518
+   },
+   {
+    "district_ar": "اليمامة",
+    "polygon_ids": [
+     "416"
+    ],
+    "population": 38400,
+    "male_pct": 70,
+    "saudi_pct": 22,
+    "income_all": 3695,
+    "income_male": 3811,
+    "income_female": 2389,
+    "income_saudi": 6555,
+    "income_non_saudi": 2902
+   },
+   {
+    "district_ar": "بدر",
+    "polygon_ids": [
+     "544"
+    ],
+    "population": 116200,
+    "male_pct": 60.1,
+    "saudi_pct": 64.3,
+    "income_all": 6955,
+    "income_male": 7208,
+    "income_female": 5734,
+    "income_saudi": 10400,
+    "income_non_saudi": 2386
+   },
+   {
+    "district_ar": "بنبان",
+    "polygon_ids": [
+     "516"
+    ],
+    "population": 10800,
+    "male_pct": 91.5,
+    "saudi_pct": 1.8,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "ثليم",
+    "polygon_ids": [
+     "538"
+    ],
+    "population": 34400,
+    "male_pct": 91.2,
+    "saudi_pct": 3,
+    "income_all": 2736,
+    "income_male": 2712,
+    "income_female": 4235,
+    "income_saudi": 4320,
+    "income_non_saudi": 2674
+   },
+   {
+    "district_ar": "جامعة الإمام محمد بن سعود الإسلامية",
+    "polygon_ids": [
+     "361"
+    ],
+    "population": 6300,
+    "male_pct": 57.4,
+    "saudi_pct": 70.1,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "جامعة الملك سعود",
+    "polygon_ids": [
+     "365"
+    ],
+    "population": 15200,
+    "male_pct": 54.5,
+    "saudi_pct": 56.8,
+    "income_all": 15400,
+    "income_male": 25600,
+    "income_female": 3980,
+    "income_saudi": 24200,
+    "income_non_saudi": 1621
+   },
+   {
+    "district_ar": "جبرة",
+    "polygon_ids": [
+     "539"
+    ],
+    "population": 8200,
+    "male_pct": 78.9,
+    "saudi_pct": 1.7,
+    "income_all": 3500,
+    "income_male": 3321,
+    "income_female": 10500,
+    "income_saudi": 11100,
+    "income_non_saudi": 3098
+   },
+   {
+    "district_ar": "جرير",
+    "polygon_ids": [
+     "540"
+    ],
+    "population": 31000,
+    "male_pct": 69.3,
+    "saudi_pct": 22.2,
+    "income_all": 8763,
+    "income_male": 8646,
+    "income_female": 9343,
+    "income_saudi": 18600,
+    "income_non_saudi": 5637
+   },
+   {
+    "district_ar": "حطين",
+    "polygon_ids": [
+     "537"
+    ],
+    "population": 35800,
+    "male_pct": 57.1,
+    "saudi_pct": 59.2,
+    "income_all": 10600,
+    "income_male": 13700,
+    "income_female": 5560,
+    "income_saudi": 16700,
+    "income_non_saudi": 1906
+   },
+   {
+    "district_ar": "ديراب",
+    "polygon_ids": [
+     "517"
+    ],
+    "population": 27000,
+    "male_pct": 55.8,
+    "saudi_pct": 82.9,
+    "income_all": 6900,
+    "income_male": 7424,
+    "income_female": 3351,
+    "income_saudi": 8048,
+    "income_non_saudi": 2360
+   },
+   {
+    "district_ar": "سكيرينة",
+    "polygon_ids": [
+     "412"
+    ],
+    "population": 11500,
+    "male_pct": 82.4,
+    "saudi_pct": 1.9,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "سلام",
+    "polygon_ids": [
+     "521"
+    ],
+    "population": 215,
+    "male_pct": 78.6,
+    "saudi_pct": 21.4,
+    "income_all": 2098,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 2098
+   },
+   {
+    "district_ar": "سلطانة",
+    "polygon_ids": [
+     "449"
+    ],
+    "population": 24000,
+    "male_pct": 67.8,
+    "saudi_pct": 36,
+    "income_all": 5656,
+    "income_male": 5971,
+    "income_female": 3904,
+    "income_saudi": 10000,
+    "income_non_saudi": 3183
+   },
+   {
+    "district_ar": "شبرا",
+    "polygon_ids": [
+     "522"
+    ],
+    "population": 39300,
+    "male_pct": 55.4,
+    "saudi_pct": 66.4,
+    "income_all": 8696,
+    "income_male": 10200,
+    "income_female": 4733,
+    "income_saudi": 11200,
+    "income_non_saudi": 2910
+   },
+   {
+    "district_ar": "صلاح الدين",
+    "polygon_ids": [
+     "378"
+    ],
+    "population": 9100,
+    "male_pct": 57.2,
+    "saudi_pct": 35.7,
+    "income_all": 10000,
+    "income_male": 11100,
+    "income_female": 5655,
+    "income_saudi": 13900,
+    "income_non_saudi": 6167
+   },
+   {
+    "district_ar": "صياح",
+    "polygon_ids": [
+     "523"
+    ],
+    "population": 2800,
+    "male_pct": 69.5,
+    "saudi_pct": 9,
+    "income_all": 3424,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 3424
+   },
+   {
+    "district_ar": "ضاحية نمار",
+    "polygon_ids": [
+     "379"
+    ],
+    "population": 14500,
+    "male_pct": 71.7,
+    "saudi_pct": 62,
+    "income_all": 8679,
+    "income_male": 8408,
+    "income_female": 15200,
+    "income_saudi": 8824,
+    "income_non_saudi": 5213
+   },
+   {
+    "district_ar": "طويق",
+    "polygon_ids": [
+     "524",
+     "525"
+    ],
+    "population": 282800,
+    "male_pct": 56.3,
+    "saudi_pct": 80.4,
+    "income_all": 3796,
+    "income_male": 3259,
+    "income_female": 13200,
+    "income_saudi": 7084,
+    "income_non_saudi": 2712
+   },
+   {
+    "district_ar": "طيبة",
+    "polygon_ids": [
+     "526"
+    ],
+    "population": 7200,
+    "male_pct": 65.1,
+    "saudi_pct": 65.1,
+    "income_all": 2172,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": 2172
+   },
+   {
+    "district_ar": "ظهرة البديعة",
+    "polygon_ids": [
+     "377"
+    ],
+    "population": 49400,
+    "male_pct": 55.1,
+    "saudi_pct": 66.7,
+    "income_all": 7660,
+    "income_male": 8620,
+    "income_female": 5207,
+    "income_saudi": 10300,
+    "income_non_saudi": 2468
+   },
+   {
+    "district_ar": "ظهرة لبن",
+    "polygon_ids": [
+     "392",
+     "542"
+    ],
+    "population": 237800,
+    "male_pct": 57.5,
+    "saudi_pct": 68.6,
+    "income_all": 8567,
+    "income_male": 9749,
+    "income_female": 5429,
+    "income_saudi": 10600,
+    "income_non_saudi": 3286
+   },
+   {
+    "district_ar": "عتيقة",
+    "polygon_ids": [
+     "518"
+    ],
+    "population": 29000,
+    "male_pct": 73.7,
+    "saudi_pct": 26.6,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "عرقة",
+    "polygon_ids": [
+     "527"
+    ],
+    "population": 42200,
+    "male_pct": 54.3,
+    "saudi_pct": 69.6,
+    "income_all": 9575,
+    "income_male": 10200,
+    "income_female": 7150,
+    "income_saudi": 16400,
+    "income_non_saudi": 3087
+   },
+   {
+    "district_ar": "عريض",
+    "polygon_ids": [
+     "528"
+    ],
+    "population": 942,
+    "male_pct": 74.5,
+    "saudi_pct": 26.3,
+    "income_all": 18100,
+    "income_male": 18100,
+    "income_female": null,
+    "income_saudi": 23900,
+    "income_non_saudi": 15200
+   },
+   {
+    "district_ar": "عكاظ",
+    "polygon_ids": [
+     "529"
+    ],
+    "population": 38400,
+    "male_pct": 54.7,
+    "saudi_pct": 77.1,
+    "income_all": 11400,
+    "income_male": 12200,
+    "income_female": 8007,
+    "income_saudi": 13500,
+    "income_non_saudi": 3222
+   },
+   {
+    "district_ar": "عليشة",
+    "polygon_ids": [
+     "519"
+    ],
+    "population": 8200,
+    "male_pct": 57.9,
+    "saudi_pct": 28.4,
+    "income_all": 10600,
+    "income_male": 13000,
+    "income_female": 4357,
+    "income_saudi": 15600,
+    "income_non_saudi": 5534
+   },
+   {
+    "district_ar": "غبيرا",
+    "polygon_ids": [
+     "520"
+    ],
+    "population": 46100,
+    "male_pct": 74.5,
+    "saudi_pct": 8.4,
+    "income_all": 4075,
+    "income_male": 4059,
+    "income_female": 4278,
+    "income_saudi": 6314,
+    "income_non_saudi": 3696
+   },
+   {
+    "district_ar": "غرناطة",
+    "polygon_ids": [
+     "450"
+    ],
+    "population": 33300,
+    "male_pct": 65.4,
+    "saudi_pct": 39.6,
+    "income_all": 11700,
+    "income_male": 13400,
+    "income_female": 7649,
+    "income_saudi": 14700,
+    "income_non_saudi": 4809
+   },
+   {
+    "district_ar": "قرطبة",
+    "polygon_ids": [
+     "356"
+    ],
+    "population": 87600,
+    "male_pct": 55.2,
+    "saudi_pct": 59.7,
+    "income_all": 10100,
+    "income_male": 12100,
+    "income_female": 5981,
+    "income_saudi": 14900,
+    "income_non_saudi": 3621
+   },
+   {
+    "district_ar": "معكال",
+    "polygon_ids": [
+     "501"
+    ],
+    "population": 2700,
+    "male_pct": 86.8,
+    "saudi_pct": 2.9,
+    "income_all": 2452,
+    "income_male": 2452,
+    "income_female": null,
+    "income_saudi": 6244,
+    "income_non_saudi": 2336
+   },
+   {
+    "district_ar": "مغرزات",
+    "polygon_ids": [
+     "451"
+    ],
+    "population": 16500,
+    "male_pct": 58.3,
+    "saudi_pct": 51,
+    "income_all": 9489,
+    "income_male": 12100,
+    "income_female": 5779,
+    "income_saudi": 16800,
+    "income_non_saudi": 2606
+   },
+   {
+    "district_ar": "منفوحة",
+    "polygon_ids": [
+     "452"
+    ],
+    "population": 39900,
+    "male_pct": 86.1,
+    "saudi_pct": 4.9,
+    "income_all": 2561,
+    "income_male": 2551,
+    "income_female": 4054,
+    "income_saudi": 5353,
+    "income_non_saudi": 2376
+   },
+   {
+    "district_ar": "منفوحة الجديدة",
+    "polygon_ids": [
+     "366"
+    ],
+    "population": 51200,
+    "male_pct": 82.3,
+    "saudi_pct": 6.8,
+    "income_all": 3085,
+    "income_male": 3019,
+    "income_female": 6125,
+    "income_saudi": 7723,
+    "income_non_saudi": 2729
+   },
+   {
+    "district_ar": "نمار",
+    "polygon_ids": [
+     "353"
+    ],
+    "population": 17500,
+    "male_pct": 58.2,
+    "saudi_pct": 58.7,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "وادي لبن",
+    "polygon_ids": [
+     "383"
+    ],
+    "population": 11900,
+    "male_pct": 58.4,
+    "saudi_pct": 76.9,
+    "income_all": 8819,
+    "income_male": 10700,
+    "income_female": 5165,
+    "income_saudi": 12600,
+    "income_non_saudi": 3187
+   }
+  ]
+ }
+}

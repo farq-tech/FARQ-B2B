@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import duckdb
@@ -89,6 +90,21 @@ class CanonicalDataTests(unittest.TestCase):
         first = os.stat(paths['targets.parquet']).st_mtime_ns
         self.assertEqual(canonical_data.prepare(str(self.data), str(self.out)), paths)
         self.assertEqual(os.stat(paths['targets.parquet']).st_mtime_ns, first, 'an unchanged source is not rewritten')
+
+    def test_a_new_atlas_or_correction_rebuilds_the_cached_copy(self):
+        paths = canonical_data.prepare(str(self.data), str(self.out))
+        first = os.stat(paths['targets.parquet']).st_mtime_ns
+        atlas = json.loads((self.data / 'districts.geojson').read_text(encoding='utf-8'))
+        atlas['features'].append({'type': 'Feature', 'properties': {'id': 999, 'ar': 'حي جديد', 'city_en': 'Riyadh'}, 'geometry': None})
+        (self.data / 'districts.geojson').write_text(json.dumps(atlas, ensure_ascii=False), encoding='utf-8')
+        canonical_data.prepare(str(self.data), str(self.out))
+        second = os.stat(paths['targets.parquet']).st_mtime_ns
+        self.assertNotEqual(second, first, 'district names are matched against the atlas, so a new atlas rebuilds the copy')
+        corrections = self.root / 'corrections.json'
+        corrections.write_text(json.dumps({'corrections': []}), encoding='utf-8')
+        with mock.patch.object(canonical_data, 'CORRECTIONS_PATH', str(corrections)):
+            canonical_data.prepare(str(self.data), str(self.out))
+        self.assertNotEqual(os.stat(paths['targets.parquet']).st_mtime_ns, second, 'a changed corrections file rebuilds the copy')
 
     def test_failure_falls_back_to_the_original_asset(self):
         (self.data / 'targets.parquet').write_bytes(b'not a parquet file')

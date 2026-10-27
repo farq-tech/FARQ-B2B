@@ -27,7 +27,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, tempfile
+import canonical_data, district_reference, tempfile
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -44,7 +44,8 @@ LOGGER = logging.getLogger('farq.targeting')
 METRICS = ServiceMetrics()
 
 def district_population_by_name(city):
-    """Canonical district name -> {population, male, female} for one city, from the WorldPop layers on the volume."""
+    """Canonical district name -> {population, male, female, source} for one city: 910ths where it publishes the
+    district (district_reference), else WorldPop with the male/female split unavailable (WorldPop's is regional)."""
     base=os.path.join(AUX_DATA_DIR,'buildings_ingest','population')
     out={}
     pop_path=os.path.join(base,'district_population_2025.parquet')
@@ -52,15 +53,17 @@ def district_population_by_name(city):
         with LOCK:
             rows=con.execute("select district_id,district_ar,district_en,population_estimate,population_coverage_pct,population_valid_cells,population_polygon_cells from read_parquet(?) where city_en=?",[pop_path,city]).fetchall()
         rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells'),row)) for row in rows]
-        for row in canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']):
-            if row['district_ar']: out[row['district_ar']]={'population':row['population'],'male':None,'female':None}
+        merged=district_reference.apply_population(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']),city)
+        for row in merged:
+            if row['district_ar']: out[row['district_ar']]={'population':row['population'],'male':None,'female':None,'source':row.get('source')}
     dem_path=os.path.join(base,'district_demographics_2025.parquet')
     if os.path.isfile(dem_path):
         with LOCK:
-            rows=con.execute("select district_id,district_ar,district_en,age_code,male_estimate,female_estimate,total_estimate,coverage_pct from read_parquet(?) where city_en=? and age_code='ALL'",[dem_path,city]).fetchall()
+            rows=con.execute("select district_id,district_ar,district_en,age_code,male_estimate,female_estimate,total_estimate,coverage_pct from read_parquet(?) where city_en=?",[dem_path,city]).fetchall()
         rows=[dict(zip(('district_id','district_ar','district_en','age_code','male','female','total','coverage_pct'),row)) for row in rows]
-        for row in canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True):
-            if row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
+        rows=district_reference.apply_demographics(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True),city)
+        for row in rows:
+            if row['age_code']=='ALL' and row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
     return out
 
 
@@ -100,8 +103,9 @@ def insight_response(path, body):
         with LOCK:
             result = insights.population_around(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, lon, lat, radius, HOUSEHOLD_SIZE)
-        result.update(ok=True, household_size=HOUSEHOLD_SIZE,
-                      basis='السكان = الوحدات السكنية في المباني ضمن الدائرة × 5 أفراد للوحدة. المنشآت من الدليل المفتوح. تقدير للمقارنة بين المواقع لا تعداد.')
+        basis = ('السكان = سكان كل حي (من 910ths حيث يتوفر، وإلا من كثافة الوحدات السكنية) موزعين على مبانيه السكنية، ثم جُمعت المباني داخل الدائرة.'
+                 if result.get('people_per_district') else 'السكان = الوحدات السكنية في المباني ضمن الدائرة × 5 أفراد للوحدة.')
+        result.update(ok=True, household_size=HOUSEHOLD_SIZE, basis=basis + ' المنشآت من الدليل المفتوح. تقدير للمقارنة بين المواقع لا تعداد.')
         return result
     if path == '/territories':
         city = _city(body)
@@ -132,9 +136,9 @@ def insight_response(path, body):
         if canonical and os.path.isfile(dem_path):
             members = [k for k, v in CANONICAL['district_id_map'].items() if str(v) == canonical] or [canonical]
             with LOCK:
-                rows = con.execute("select district_id, district_ar, district_en, age_code, age_group, male_estimate, female_estimate, total_estimate, coverage_pct from read_parquet(?) where city_en = ? and cast(district_id as varchar) in (select unnest(?::varchar[])) and age_code <> 'ALL'", [dem_path, city, members]).fetchall()
-            merged = canonical_data.merge_population_rows([dict(zip(('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct'), r)) for r in rows], CANONICAL['district_id_map'], CANONICAL['district_names'], by_age=True)
-            ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': round(r['male'] or 0), 'female': round(r['female'] or 0), 'total': round(r['total'] or 0)} for r in merged), key=lambda r: r['age_code'])
+                rows = con.execute("select district_id, district_ar, district_en, age_code, age_group, male_estimate, female_estimate, total_estimate, coverage_pct from read_parquet(?) where city_en = ? and cast(district_id as varchar) in (select unnest(?::varchar[]))", [dem_path, city, members]).fetchall()
+            merged = district_reference.apply_demographics(canonical_data.merge_population_rows([dict(zip(('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct'), r)) for r in rows], CANONICAL['district_id_map'], CANONICAL['district_names'], by_age=True), city)
+            ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': None if r['male'] is None else round(r['male']), 'female': None if r['female'] is None else round(r['female']), 'total': round(r['total'] or 0)} for r in merged if r['age_code'] != 'ALL'), key=lambda r: r['age_code'])
         with LOCK:
             growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city, CANONICAL['district_id_map'], CANONICAL['district_names']) or []
         income = insights.district_income(city) or {}
@@ -148,7 +152,7 @@ def insight_response(path, body):
             'growth': next((row for row in growth_rows if row['district_ar'] == district), None),
             'income': next((row for row in income.get('districts', []) if row.get('district_ar') == district), None),
             'income_source': income.get('source'),
-            'sources': {'population': 'WorldPop 2025 (CC-BY-4.0)', 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
+            'sources': {'population': people.get('source') or 'WorldPop 2025 (CC-BY-4.0)', 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
         }
     raise ValueError(path)
 
@@ -812,7 +816,7 @@ class H(BaseHTTPRequestHandler):
                         from read_parquet(?) where city_en=? order by district_ar""",[path,city]).fetchall()
                 rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
                 # one row per canonical district: polygons merged in districts.geojson are summed here too
-                self._json({'city_en':city,'districts':canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'])})
+                self._json({'city_en':city,'districts':district_reference.apply_population(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']),city)})
             except Exception as error:
                 log_map_api_failure('population-districts',error)
                 self._json({"error":"UNAVAILABLE"},503)
@@ -839,7 +843,8 @@ class H(BaseHTTPRequestHandler):
                         " order by district_ar,age_code",[path,city,*districts]).fetchall()
                 names=('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct','year','source','license')
                 rows=[dict(zip(names,row)) for row in rows]
-                self._json({'city_en':city,'districts':canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True)})
+                merged=canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True)
+                self._json({'city_en':city,'districts':district_reference.apply_demographics(merged,city)})
             except Exception as error:
                 log_map_api_failure('population-demographics',error)
                 self._json({"error":"UNAVAILABLE"},503)

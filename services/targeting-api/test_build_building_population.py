@@ -40,7 +40,7 @@ class BuildingPopulationTests(unittest.TestCase):
             building(46.601, 24.801, "residential", 6.4, "Residential building"), building(46.602, 24.802, "residential", 6.4, "Residential building"),
             building(46.603, 24.803, "residential", None, "Residential building"),
             # district 2: a 1-storey apartment building, a 4-storey mixed-use one (ground floor is shops), a commercial one (ignored)
-            building(46.621, 24.801, "residential", 3.2), building(46.622, 24.802, "mixed_use", 12.8), building(46.623, 24.803, "commercial", 30.0),
+            building(46.621, 24.801, "residential", 3.2, "Residential building"), building(46.622, 24.802, "mixed_use", 12.8), building(46.623, 24.803, "commercial", 30.0),
             # outside every polygon
             building(46.70, 24.90, "residential", 6.4),
             # Jeddah: one residential, no WorldPop and no official total
@@ -79,9 +79,14 @@ class BuildingPopulationTests(unittest.TestCase):
             db.close()
         return report, {row[0]: dict(zip(cols, row)) for row in rows}
 
+    def area(self):
+        return bbp.footprint_m2(square(46.601, 24.801, SIDE), 24.801 + SIDE / 2)
+
     def flats_per_storey(self):
-        area = bbp.footprint_m2(square(46.601, 24.801, SIDE), 24.801 + SIDE / 2)
-        return area * bbp.NET_FACTOR / bbp.UNIT_M2
+        return self.area() * bbp.NET_FACTOR / bbp.UNIT_M2
+
+    def households(self, storeys):
+        return max(1.0, self.area() * storeys / bbp.VILLA_M2)
 
     def test_official_total_is_distributed_by_dwellings(self):
         report, rows = self.run_build()
@@ -98,17 +103,17 @@ class BuildingPopulationTests(unittest.TestCase):
         self.assertEqual(report["cities"]["Riyadh"]["outside_boundaries"], 1)
         self.assertEqual(report["cities"]["Riyadh"]["by_use"], {"residential": 5, "mixed_use": 1}, "commercial buildings never enter the estimate")
 
-    def test_villa_is_one_household_and_unfinished_buildings_hold_nobody(self):
+    def test_villa_households_follow_floor_area_and_unfinished_buildings_hold_nobody(self):
         self.rows = [
-            building(46.601, 24.801, "residential", 6.4, "Villa"),                              # 1 household
-            building(46.602, 24.802, "residential", 9.6, "Villa"),                              # 3 storeys → 2 households
+            building(46.601, 24.801, "residential", 6.4, "Villa"),                              # 2 storeys
+            building(46.602, 24.802, "residential", 9.6, "Villa"),                              # 3 storeys
             building(46.603, 24.803, "residential", 6.4, "Villa under construction"),           # nobody yet
             building(46.621, 24.801, "residential", 6.4, "Residential building under construction"),
             building(46.622, 24.802, "residential", 3.2, "Residential building"),
         ]
         self.write_buildings()
         _, rows = self.run_build()
-        self.assertAlmostEqual(rows["1"]["dwelling_units"], 3.0, places=3)
+        self.assertAlmostEqual(rows["1"]["dwelling_units"], self.households(2) + self.households(3), places=1)
         self.assertEqual(rows["1"]["villas"], 2)
         self.assertEqual(rows["1"]["shops_or_unoccupied_excluded"], 1)
         self.assertAlmostEqual(rows["2"]["dwelling_units"], self.flats_per_storey(), delta=0.1)
@@ -132,7 +137,7 @@ class BuildingPopulationTests(unittest.TestCase):
         self.assertEqual(growth["1"], (2, 0, 1), "both unfinished buildings count; only the villa is a home")
         self.assertNotIn("2", growth)
         self.assertEqual([p[0] for p in points], ["1", "2"], "one point per occupied home building")
-        self.assertEqual(points[0][1], 1.0)
+        self.assertAlmostEqual(points[0][1], self.households(2), places=1)
         self.assertEqual(report["output"]["growth"]["under_construction"], 2)
 
     def test_directory_business_inside_a_building_takes_its_ground_floor(self):
@@ -151,6 +156,50 @@ class BuildingPopulationTests(unittest.TestCase):
         self.assertAlmostEqual(rows["1"]["dwelling_units"], 3 * self.flats_per_storey(), delta=0.1)   # 1 + 2 + 0
         self.assertEqual(rows["1"]["shops_or_unoccupied_excluded"], 1)
         self.assertEqual(report["method"]["pois"]["points"], 2)
+
+    def test_unsurveyed_homes_count_as_low_density_and_administrative_upper_floors_hold_some_flats(self):
+        self.rows = [
+            building(46.601, 24.801, "residential", 6.4),                                        # purpose never surveyed
+            building(46.602, 24.802, "administrative", 12.8, "Administrative building"),         # 4 storeys: 3 upper floors
+            building(46.603, 24.803, "administrative", 12.8, "Hotel"),                           # a named non-home use
+            building(46.604, 24.804, "administrative", 3.2),                                     # one storey: offices or shops
+            building(46.621, 24.801, "residential", 6.4, "Labour camp"),                         # dense housing counts as flats
+        ]
+        self.write_buildings()
+        report, rows = self.run_build()
+        self.assertAlmostEqual(rows["1"]["dwelling_units"], self.households(2) + bbp.ADMIN_HOME_SHARE * 3 * self.flats_per_storey(), places=1)
+        self.assertEqual(rows["1"]["shops_or_unoccupied_excluded"], 1)
+        self.assertAlmostEqual(rows["2"]["dwelling_units"], 2 * self.flats_per_storey(), places=1)
+        self.assertEqual(report["method"]["villa_m2"], bbp.VILLA_M2)
+
+    def test_910ths_district_totals_are_used_and_spread_over_buildings(self):
+        reference = self.root / "districts_910ths.json"
+        reference.write_text(json.dumps({"source": "910ths.sa", "cities": {"Riyadh": [{"district_ar": "الملقا", "population": 9000, "male_pct": 55}]}}, ensure_ascii=False), encoding="utf-8")
+        report, rows = self.run_build(reference=reference)
+        self.assertAlmostEqual(rows["1"]["population_estimate"], 9000, delta=0.5, msg="a listed district takes its 910ths total")
+        self.assertEqual(rows["1"]["calibration_source"], "910ths.sa")
+        # an unlisted district in the same city gets the people per dwelling the listed ones show
+        per_dwelling = 9000 / rows["1"]["dwelling_units"]
+        self.assertAlmostEqual(rows["2"]["population_estimate"], rows["2"]["dwelling_units"] * per_dwelling, delta=0.01 * rows["2"]["population_estimate"])   # dwelling_units is rounded in the output
+        self.assertEqual(rows["2"]["calibration_source"], "910ths.sa:people_per_dwelling")
+        self.assertIsNone(rows["3"]["population_estimate"], "a city with no reference and no total stays unavailable")
+        self.assertEqual(report["method"]["reference"]["districts"], 1)
+        db = duckdb.connect()
+        try:
+            people = db.execute("select sum(population) from read_parquet(?) where district_id = '1'", [str(self.root / "out" / "building_points_2026.parquet")]).fetchone()[0]
+        finally:
+            db.close()
+        self.assertAlmostEqual(people, 9000, delta=1, msg="the district's buildings carry exactly its people")
+
+    def test_a_district_split_into_several_polygons_shares_one_reference_total(self):
+        collection = json.loads(self.districts.read_text(encoding="utf-8"))
+        collection["features"][1]["properties"]["ar"] = "الملقا"   # polygon 2 is the same district under the same name
+        self.districts.write_text(json.dumps(collection, ensure_ascii=False), encoding="utf-8")
+        reference = self.root / "districts_910ths.json"
+        reference.write_text(json.dumps({"cities": {"Riyadh": [{"district_ar": "الملقا", "population": 9000}]}}, ensure_ascii=False), encoding="utf-8")
+        _, rows = self.run_build(reference=reference)
+        self.assertAlmostEqual(rows["1"]["population_estimate"] + rows["2"]["population_estimate"], 9000, delta=1)
+        self.assertAlmostEqual(rows["1"]["population_estimate"] / rows["2"]["population_estimate"], rows["1"]["dwelling_units"] / rows["2"]["dwelling_units"], delta=0.02)
 
     def test_worldpop_comparison_flags_divergence_only_when_large(self):
         _, rows = self.run_build()
