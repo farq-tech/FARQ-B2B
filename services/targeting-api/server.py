@@ -64,6 +64,95 @@ def district_population_by_name(city):
     return out
 
 
+POPULATION_DIR = os.path.join(AUX_DATA_DIR, 'buildings_ingest', 'population')
+HOUSEHOLD_SIZE = 5.0   # people per dwelling for building-based counts; the same assumption as build_building_population
+
+
+def _city(body):
+    city = body.get('city')
+    if not isinstance(city, str) or not 1 <= len(city) <= 80: raise ValueError('city')
+    return city
+
+
+def _number(body, key, low, high, default=None):
+    value = body.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high: raise ValueError(key)
+    return value
+
+
+def _city_features(city):
+    with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
+        return [f for f in json.load(handle).get('features', []) if (f.get('properties') or {}).get('city_en') == city]
+
+
+def insight_response(path, body):
+    import insights
+    if path == '/growth':
+        city = _city(body)
+        with LOCK:
+            rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city, CANONICAL['district_id_map'], CANONICAL['district_names'])
+        if rows is None: return {'ok': True, 'city': city, 'districts': [], 'available': False, 'basis': 'طبقة المباني لم تُعالج بعد على الخادم.'}
+        return {'ok': True, 'city': city, 'available': True, 'districts': rows,
+                'basis': 'مبانٍ تحت الإنشاء أو الترميم من حقل الغرض في طبقة المباني، ومبانٍ جديدة رُصدت منذ آخر مسح. مؤشر لاتجاه الطلب القادم، لا عدد وحدات مؤكد.'}
+    if path == '/population-around':
+        lon, lat = _number(body, 'lon', 34, 56), _number(body, 'lat', 16, 33)
+        radius = _number(body, 'radius_m', 100, 5000, 500)
+        with LOCK:
+            result = insights.population_around(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
+                                                DATA if os.path.isfile(DATA) else None, TILES.search_sql, lon, lat, radius, HOUSEHOLD_SIZE)
+        result.update(ok=True, household_size=HOUSEHOLD_SIZE,
+                      basis='السكان = الوحدات السكنية في المباني ضمن الدائرة × 5 أفراد للوحدة. المنشآت من الدليل المفتوح. تقدير للمقارنة بين المواقع لا تعداد.')
+        return result
+    if path == '/territories':
+        city = _city(body)
+        count = int(_number(body, 'count', 2, 50, 5))
+        weight = body.get('weight', 'population')
+        if weight not in ('population', 'businesses'): raise ValueError('weight')
+        if weight == 'population':
+            weights = {name: row['population'] for name, row in district_population_by_name(city).items() if row.get('population')}
+        else:
+            weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city})['districts']}
+        groups = insights.territories(_city_features(city), weights, count)
+        return {'ok': True, 'city': city, 'weight': weight, 'territories': groups,
+                'basis': 'الأحياء مرتبة على مسار يمر بمراكزها حتى تبقى كل منطقة متجاورة، ثم قُسمت عند كل حصة متساوية من ' + ('السكان.' if weight == 'population' else 'المنشآت.')}
+    if path == '/district-income':
+        city = _city(body)
+        table = insights.district_income(city)
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
+        return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/district-profile':
+        city = _city(body)
+        district = body.get('district')
+        if not isinstance(district, str) or not 1 <= len(district) <= 100: raise ValueError('district')
+        people = district_population_by_name(city).get(district) or {}
+        summary = MARKET_ANALYTICS.market_summary({'city': city, 'districts': [district]})['summary']
+        canonical = next((key for key, (ar, _) in CANONICAL['district_names'].items() if ar == district), None)
+        ages = []
+        dem_path = os.path.join(POPULATION_DIR, 'district_demographics_2025.parquet')
+        if canonical and os.path.isfile(dem_path):
+            members = [k for k, v in CANONICAL['district_id_map'].items() if str(v) == canonical] or [canonical]
+            with LOCK:
+                rows = con.execute("select district_id, district_ar, district_en, age_code, age_group, male_estimate, female_estimate, total_estimate, coverage_pct from read_parquet(?) where city_en = ? and cast(district_id as varchar) in (select unnest(?::varchar[])) and age_code <> 'ALL'", [dem_path, city, members]).fetchall()
+            merged = canonical_data.merge_population_rows([dict(zip(('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct'), r)) for r in rows], CANONICAL['district_id_map'], CANONICAL['district_names'], by_age=True)
+            ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': round(r['male'] or 0), 'female': round(r['female'] or 0), 'total': round(r['total'] or 0)} for r in merged), key=lambda r: r['age_code'])
+        with LOCK:
+            growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city, CANONICAL['district_id_map'], CANONICAL['district_names']) or []
+        income = insights.district_income(city) or {}
+        return {
+            'ok': True, 'city': city, 'district': district,
+            'population': round(people['population']) if people.get('population') else None,
+            'male': round(people['male']) if people.get('male') else None, 'female': round(people['female']) if people.get('female') else None,
+            'ages': ages,
+            'businesses': summary.get('total'), 'whatsapp': summary.get('n_whatsapp'), 'wholesale': summary.get('n_wholesale'),
+            'main_activities': (summary.get('main_activities') or [])[:10],
+            'growth': next((row for row in growth_rows if row['district_ar'] == district), None),
+            'income': next((row for row in income.get('districts', []) if row.get('district_ar') == district), None),
+            'income_source': income.get('source'),
+            'sources': {'population': 'WorldPop 2025 (CC-BY-4.0)', 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
+        }
+    raise ValueError(path)
+
+
 def log_map_api_failure(endpoint, error):
     """Log a safe failure location without request bodies, query text, or exception messages."""
     try:
@@ -865,6 +954,14 @@ class H(BaseHTTPRequestHandler):
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('clusters', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path in ('/growth', '/population-around', '/territories', '/district-income', '/district-profile'):
+            # Commercial insights over the district layers (insights.py); aggregates only, no business records.
+            try:
+                self._json(insight_response(self.path, body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('insights', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/market-gaps':
             # Districts where an activity has fewer directory businesses than its residents would carry at the city rate.

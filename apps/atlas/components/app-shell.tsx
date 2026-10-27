@@ -57,11 +57,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
     { href: '/opportunity-map', label: 'السوق', icon: MapPinned },
-    { href: '/market-gaps', label: 'الفجوات', icon: TrendingUp },
+    { href: '/insights', label: 'الرؤى', icon: TrendingUp },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || (href === '/insights' && pathname === '/market-gaps')
   const marketBadge = <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
   const workspaceBadge = <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">مساحة العمل</span>
   const shellBadge = pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-background">
-      <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-card/95 px-4 backdrop-blur-xl sm:px-6">
+      <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-card/95 px-4 backdrop-blur-xl sm:px-6 print:hidden">
         <BrandMark />
 
         <nav aria-label="التنقل الرئيسي" className="hidden h-full flex-1 items-center justify-center gap-1 lg:flex">
@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-3 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden print:hidden">
         {items.map((item) => {
           const active = isActive(item.href)
           return (
