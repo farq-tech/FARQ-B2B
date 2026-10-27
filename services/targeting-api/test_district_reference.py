@@ -22,7 +22,7 @@ class DistrictReferenceTests(unittest.TestCase):
 
     def test_male_share_comes_from_910ths_and_the_regional_split_is_never_shown_as_local(self):
         # WorldPop gives every district of a region the same split (60/40 here); its age shape is kept
-        rows = [{"district_ar": "الربيع", "age_code": "ALL", "male": 12000.0, "female": 8000.0, "total": 20000.0},
+        rows = [{"district_ar": "الربيع", "age_code": "ALL", "male": 99999.0, "female": 1.0, "total": 100000.0},   # a model total that disagrees with its ages
                 {"district_ar": "الربيع", "age_code": "00", "male": 3000.0, "female": 2000.0, "total": 5000.0},
                 {"district_ar": "الربيع", "age_code": "30", "male": 9000.0, "female": 6000.0, "total": 15000.0},
                 {"district_ar": "النرجس", "age_code": "ALL", "male": 30000.0, "female": 20000.0, "total": 50000.0},
@@ -34,6 +34,8 @@ class DistrictReferenceTests(unittest.TestCase):
         self.assertAlmostEqual(ages[1]["total"] / ages[0]["total"], 3.0, places=1, msg="age shape is unchanged")
         whole = next(r for r in out if r["district_ar"] == "الربيع" and r["age_code"] == "ALL")
         self.assertAlmostEqual(whole["male"] + whole["female"], 35100, places=3)
+        only_total = district_reference.apply_demographics([{"district_ar": "الربيع", "age_code": "ALL", "male": 1.0, "female": 1.0, "total": 2.0}], "Riyadh", self.path)[0]
+        self.assertAlmostEqual(only_total["male"], 35100 * 0.581, places=3, msg="a district with only its total row still gets the reference")
         others = [r for r in out if r["district_ar"] == "النرجس"]
         self.assertTrue(all(r["male"] is None and r["female"] is None for r in others), "no measured split: unavailable, not 60/40")
         self.assertEqual(others[0]["total"], 50000.0, "the WorldPop total itself is untouched")

@@ -51,8 +51,8 @@ def district_population_by_name(city):
     pop_path=os.path.join(base,'district_population_2025.parquet')
     if os.path.isfile(pop_path):
         with LOCK:
-            rows=con.execute("select district_id,district_ar,district_en,population_estimate,population_coverage_pct,population_valid_cells,population_polygon_cells,population_source from read_parquet(?) where city_en=?",[pop_path,city]).fetchall()
-        rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','source'),row)) for row in rows]
+            rows=con.execute("select district_id,district_ar,district_en,population_estimate,population_coverage_pct,population_valid_cells,population_polygon_cells from read_parquet(?) where city_en=?",[pop_path,city]).fetchall()
+        rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells'),row)) for row in rows]
         merged=district_reference.apply_population(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']),city)
         for row in merged:
             if row['district_ar']: out[row['district_ar']]={'population':row['population'],'male':None,'female':None,'source':row.get('source')}

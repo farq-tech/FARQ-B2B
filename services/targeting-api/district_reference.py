@@ -58,16 +58,18 @@ def apply_demographics(rows, city, path=PATH):
         by_district.setdefault(row.get('district_ar'), []).append(row)
     for name, group in by_district.items():
         ref = reference.get(name)
-        ages = [row for row in group if row.get('age_code') != 'ALL']
+        ages = [row for row in group if row.get('age_code') != 'ALL'] or group   # a district with only its ALL row
         male = sum(float(row.get('male') or 0) for row in ages)
         female = sum(float(row.get('female') or 0) for row in ages)
         if ref and ref.get('population') and ref.get('male_pct') is not None and male > 0 and female > 0:
-            share = float(ref['male_pct']) / 100
-            scale_m = float(ref['population']) * share / male
-            scale_f = float(ref['population']) * (1 - share) / female
+            population, share = float(ref['population']), float(ref['male_pct']) / 100
+            scale_m, scale_f = population * share / male, population * (1 - share) / female
             for row in group:
-                row['male'] = float(row.get('male') or 0) * scale_m
-                row['female'] = float(row.get('female') or 0) * scale_f
+                if row.get('age_code') == 'ALL':   # the district total is the reference itself, not a rescaled model sum
+                    row['male'], row['female'] = population * share, population * (1 - share)
+                else:
+                    row['male'] = float(row.get('male') or 0) * scale_m
+                    row['female'] = float(row.get('female') or 0) * scale_f
                 row['total'] = row['male'] + row['female']
                 row.update(source=SOURCE + ' + WorldPop age shape', license=None)
         else:
