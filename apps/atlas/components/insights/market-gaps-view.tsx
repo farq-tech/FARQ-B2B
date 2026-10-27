@@ -116,7 +116,6 @@ export function MarketGapsView() {
               <button key={example} onClick={() => run(example)} className="rounded-full border bg-background px-4 py-1.5 text-sm hover:border-primary hover:text-primary">{example}</button>
             ))}
           </div>
-          <p className="mt-3 text-xs leading-6 text-muted-foreground">النتيجة جدول بالأحياء التي فيها منشآت من هذا النشاط أقل مما يناسب عدد سكانها، مرتبة من الأكبر فجوة.</p>
         </section>
       )}
 
@@ -169,7 +168,6 @@ export function MarketGapsView() {
               </div>
             </>
           )}
-          <p className="text-xs leading-6 text-muted-foreground">{result.basis}</p>
         </section>
       )}
     </main>

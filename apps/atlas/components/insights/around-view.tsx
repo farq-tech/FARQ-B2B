@@ -85,7 +85,6 @@ export function AroundView() {
                   </ul>
                 </div>
               )}
-              <p className="text-xs leading-6 text-muted-foreground">{result.basis}</p>
             </>
           )}
         </section>

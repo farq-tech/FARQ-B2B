@@ -143,7 +143,7 @@ export function DistrictReportView() {
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground"><span className="text-sky-500">■</span> ذكور <span className="text-pink-500">■</span> إناث · توزيع الأعمار نمط المنطقة من WorldPop لا قياس للحي</p>
+              <p className="mt-1 text-[11px] text-muted-foreground"><span className="text-sky-500">■</span> ذكور <span className="text-pink-500">■</span> إناث</p>
             </section>
           )}
 
@@ -164,10 +164,6 @@ export function DistrictReportView() {
             </section>
           )}
 
-          <footer className="border-t pt-3 text-[11px] leading-6 text-muted-foreground">
-            المصادر: السكان {populationSource(profile.sources.population)}؛ المنشآت {profile.sources.businesses}؛ النمو {profile.sources.growth}
-            {profile.income && profile.income_source ? `؛ الدخل ${profile.income_source}` : ''}. الأرقام تقديرات لدعم القرار وليست تعداداً رسمياً.
-          </footer>
         </article>
       )}
     </main>

@@ -86,7 +86,6 @@ export function GrowthView() {
           </section>
         </div>
       )}
-      {result?.available && <p className="text-xs leading-6 text-muted-foreground">{result.basis}</p>}
     </main>
   )
 }
