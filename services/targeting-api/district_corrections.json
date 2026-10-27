@@ -71,6 +71,156 @@
       "qualifier_ar": "بحرة",
       "qualifier_en": "Bahra",
       "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "549",
+      "from": "الظهران",
+      "ar": "الظهران",
+      "en": "Al Dhahran",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 25.7 km from the centre of Al Khobar's own districts against 31.6 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "550",
+      "from": "الأندلس",
+      "ar": "الأندلس",
+      "en": "Al Andalus",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 10.1 km from the centre of Al Khobar's own districts against 14.0 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Al Khobar",
+      "id": "16",
+      "from": "المدينة الرياضية",
+      "ar": "المدينة الرياضية",
+      "en": "Al Madina Al Riyadiya",
+      "to_city_en": "Dammam",
+      "to_city_ar": "الدمام",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 12.1 km from the centre of Dammam's own districts against 14.0 km from Al Khobar's, so it belongs to Dammam (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "552",
+      "from": "الدرة",
+      "ar": "الدرة",
+      "en": "Al Durrah",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 19.7 km from the centre of Al Khobar's own districts against 37.7 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "553",
+      "from": "البحر",
+      "ar": "البحر",
+      "en": "Al Bahr",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 14.3 km from the centre of Al Khobar's own districts against 16.3 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "554",
+      "from": "الراكة الجنوبية",
+      "ar": "الراكة الجنوبية",
+      "en": "Ar Rakah Al Janubiyah",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 13.4 km from the centre of Al Khobar's own districts against 14.3 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "555",
+      "from": "العليا",
+      "ar": "العليا",
+      "en": "Al Olaya",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 7.2 km from the centre of Al Khobar's own districts against 15.4 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "556",
+      "from": "قرطبة",
+      "ar": "قرطبة",
+      "en": "Qurtubah",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 12.2 km from the centre of Al Khobar's own districts against 13.2 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Al Khobar",
+      "id": "46",
+      "from": "الصدفة",
+      "ar": "الصدفة",
+      "en": "Al Sadafah",
+      "to_city_en": "Dammam",
+      "to_city_ar": "الدمام",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 15.7 km from the centre of Dammam's own districts against 16.3 km from Al Khobar's, so it belongs to Dammam (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Al Khobar",
+      "id": "47",
+      "from": "الراكة الشمالية",
+      "ar": "الراكة الشمالية",
+      "en": "Al Rakah Al Shamaliya",
+      "to_city_en": "Dammam",
+      "to_city_ar": "الدمام",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 12.6 km from the centre of Dammam's own districts against 15.2 km from Al Khobar's, so it belongs to Dammam (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "626",
+      "from": "الدوحة الجنوبية",
+      "ar": "الدوحة الجنوبية",
+      "en": "Ad Dawhah Al Janubiyah",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 9.7 km from the centre of Al Khobar's own districts against 12.8 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "628",
+      "from": "جامعة الملك فهد للبترول",
+      "ar": "جامعة الملك فهد للبترول",
+      "en": "King Fahd University of Petroleum",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 9.0 km from the centre of Al Khobar's own districts against 12.5 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "653",
+      "from": "شاطئ نصف القمر",
+      "ar": "شاطئ نصف القمر",
+      "en": "Half Moon Beach",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 16.2 km from the centre of Al Khobar's own districts against 32.3 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "654",
+      "from": "شاطئ نصف القمر",
+      "ar": "شاطئ نصف القمر",
+      "en": "Half Moon Beach",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 23.0 km from the centre of Al Khobar's own districts against 33.3 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
+    },
+    {
+      "city_en": "Dammam",
+      "id": "656",
+      "from": "الشفاء",
+      "ar": "الشفاء",
+      "en": "Al Shifa",
+      "to_city_en": "Al Khobar",
+      "to_city_ar": "الخبر",
+      "evidence": "The same outline is filed under both Dammam and Al Khobar; its centre is 4.6 km from the centre of Al Khobar's own districts against 22.2 km from Dammam's, so it belongs to Al Khobar (Farq CTO rule: the nearest city, 2026-10-27)."
     }
   ],
   "about_n910_names": "Reviewed links from an atlas polygon to the name 910ths gives its district, read only by build_910ths_reference.py; they never rename the atlas district. Left unlinked on purpose: a polygon whose point falls in another district (different boundaries), one 910ths district read in two cities (الحمراء Dammam/Al Khobar, جامعة الملك فهد للبترول), and atlas districts 910ths splits into numbered parts (البلد2, الأمل 1).",

@@ -418,6 +418,25 @@ def canonicalize_file(src, out, official, shared=None):
         db.close()
 
 
+def cross_city_duplicates(collection, share=0.5):
+    """[(city, id, other city, other id)] for polygons filed under two cities that cover the same ground (more than
+    `share` of the smaller one), after corrections. Each such outline would count its people and businesses twice;
+    district_corrections.json moves the copy to the nearer city (to_city_en)."""
+    features = [f for f in collection.get('features', []) if f.get('geometry')]
+    shapes = [shapely.make_valid(shapely.geometry.shape(f['geometry'])) for f in features]
+    tree = shapely.STRtree(shapes)
+    found = []
+    for i, shape in enumerate(shapes):
+        for j in map(int, tree.query(shape)):
+            a, b = features[i]['properties'], features[j]['properties']
+            if j <= i or a.get('city_en') == b.get('city_en'):
+                continue
+            smaller = min(shape.area, shapes[j].area)
+            if smaller > 0 and shape.intersection(shapes[j]).area / smaller > share:
+                found.append((a.get('city_en'), str(a.get('id')), b.get('city_en'), str(b.get('id'))))
+    return found
+
+
 def prepare(data_dir, out_dir):
     """Canonical paths for the parquet assets and the district atlas in data_dir, plus the polygon id map
     and canonical district names; falls back to the originals on any failure."""
@@ -437,6 +456,8 @@ def prepare(data_dir, out_dir):
         paths['districts.geojson'], paths['district_id_map'] = out, id_map
         paths['district_names'] = {str(f['properties']['id']): (f['properties'].get('ar') or f['properties'].get('district_ar'), f['properties'].get('en') or f['properties'].get('district_en')) for f in collection['features']}
         LOGGER.info('canonical_data file=districts.geojson features=%s merged_polygons=%s', len(collection['features']), sum(1 for k, v in id_map.items() if str(v) != k))
+        for city, ident, other, other_id in cross_city_duplicates(collection):
+            LOGGER.warning('canonical_data_cross_city_duplicate city=%s id=%s other_city=%s other_id=%s', city, ident, other, other_id)
     except FileNotFoundError:
         pass
     except Exception as error:
