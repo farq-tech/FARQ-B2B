@@ -961,4 +961,6 @@ class H(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     if os.environ.get('RAILWAY_ENVIRONMENT') and not AUTH_PASSWORD: sys.exit('TARGETING_PASSWORD is required in production')
     print(f"Farq Targeting on http://localhost:{PORT}  (AI: {'on' if API_KEY else 'off — fallback dictionary'})", flush=True)
+    import startup_jobs
+    for job in startup_jobs.start(DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()

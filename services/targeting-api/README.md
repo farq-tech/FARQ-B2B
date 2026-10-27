@@ -21,6 +21,12 @@ The Atlas market summary includes additional cohort counts: precise point locati
 
 `GET /healthz` is the public Railway readiness check. It returns `200` with `{"ok":true,"service":"farq-targeting"}` when the primary directory asset is readable and DuckDB responds to a minimal query; otherwise it returns `503`. It does not expose data or credentials.
 
+## Startup data jobs
+
+Jobs that read or write the mounted data volume run inside the service, because nothing else can reach it. Each is switched on by one environment variable, runs once per boot on a background thread after the server is listening, and reports through the service log in aggregate form only. Unset the variable to make the next boot skip it.
+
+- `FARQ_BUILD_BUILDING_POPULATION=1` runs `build_building_population.py`: district population estimated from residential building footprints (`buildings_ingest/normalized/buildings.parquet`), calibrated to `buildings_ingest/population/official_city_population.csv` when that file exists on the volume, else to the WorldPop city sums. It writes `buildings_ingest/population/district_population_buildings_<year>.parquet` and `_report.json`, and logs the report as `building_population_done {...}`. `FARQ_BUILDING_ELEVATION_MODE` (`auto`, `height`, `floors`, `ignore`) overrides how `Elevation` is read.
+
 ## Canonical city and district names
 
 At startup the service writes a canonical copy of `targets.parquet`, `trade_clusters.parquet` and `street_density.parquet` into scratch space (`canonical_data.py`) and serves every read from that copy; the mounted data directory is never modified. One English spelling per city (from the alias table shared with `services/data-cleaning/city_names.py`) with its Arabic name filled in, district labels matched to the official district atlas spelling with any «حي» prefix dropped, and values that are not district names at all (serialised objects, `False`, Latin street names) set to null with `district_reliable = false`. The copy is rebuilt only when a source file changes and any failure falls back to the original asset. `FARQ_TARGETING_CANONICAL_DIR` chooses the scratch directory (default: the system temp dir); `FARQ_TARGETING_CANONICALIZE=0` serves the mounted files as they are.
