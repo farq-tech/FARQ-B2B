@@ -20,6 +20,13 @@ from health import is_ready
 _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of a dry run; provider_send refuses
 import urllib.parse
 FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
+# Without a handler Python prints only warnings, which hid every info line (canonical copy sizes, startup job
+# reports) from the Railway log. Messages are aggregate-only by convention, so they go to stderr as written.
+if not logging.getLogger('farq.targeting').handlers:
+    _log_handler = logging.StreamHandler(sys.stderr)
+    _log_handler.setFormatter(logging.Formatter('%(message)s'))
+    logging.getLogger('farq.targeting').addHandler(_log_handler)
+    logging.getLogger('farq.targeting').setLevel(logging.INFO)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(HERE, 'data'))

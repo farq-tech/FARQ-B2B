@@ -9,7 +9,7 @@ import district_reference
 class DistrictReferenceTests(unittest.TestCase):
     def setUp(self):
         self.path = str(Path(tempfile.mkdtemp()) / "districts_910ths.json")
-        Path(self.path).write_text(json.dumps({"source": "910ths.sa", "cities": {"Riyadh": [
+        Path(self.path).write_text(json.dumps({"source": "910ths.sa", "retrieved": "2026-10-27", "cities": {"Riyadh": [
             {"district_ar": "الربيع", "population": 35100, "male_pct": 58.1, "income_all": 10700}]}}, ensure_ascii=False), encoding="utf-8")
 
     def test_population_is_replaced_only_where_910ths_lists_the_district(self):
@@ -17,6 +17,8 @@ class DistrictReferenceTests(unittest.TestCase):
                 {"district_ar": "النرجس", "population": 50000.0, "source": "WorldPop", "license": "CC-BY-4.0", "year": 2025, "coverage_pct": 95.0}]
         out = district_reference.apply_population(rows, "Riyadh", self.path)
         self.assertEqual((out[0]["population"], out[0]["source"], out[0]["license"]), (35100.0, "910ths.sa", None))
+        # Atlas (lib/live-market.ts) drops a row whose year or coverage_pct is not a number
+        self.assertEqual((out[0]["year"], out[0]["coverage_pct"]), (2026, 100.0))
         self.assertEqual((out[1]["population"], out[1]["source"]), (50000.0, "WorldPop"))
         self.assertEqual(district_reference.apply_population([dict(rows[1])], "Jeddah", self.path)[0]["population"], 50000.0)
 

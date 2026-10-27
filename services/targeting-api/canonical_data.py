@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+import shutil
 
 import duckdb
 
@@ -287,6 +288,10 @@ def prepare(data_dir, out_dir):
         LOGGER.error('canonical_data_failed file=districts.geojson error_type=%s', type(error).__name__)
     official = official_districts(paths['districts.geojson'])
     depends = {'districts': _file_stamp(os.path.join(data_dir, 'districts.geojson')), 'corrections': _file_stamp(CORRECTIONS_PATH)}
+    try:   # sizes the decision to keep the copy on the data volume (FARQ_TARGETING_CANONICAL_DIR)
+        LOGGER.info('canonical_data out_dir_free_bytes=%s data_dir_free_bytes=%s', shutil.disk_usage(out_dir).free if os.path.isdir(out_dir) else None, shutil.disk_usage(data_dir).free)
+    except OSError:
+        pass
     for name in FILES:
         src = paths[name]
         if not os.path.isfile(src):
@@ -301,7 +306,7 @@ def prepare(data_dir, out_dir):
                     continue
                 with open(out + '.source.json', 'w', encoding='utf-8') as handle:
                     json.dump(signature, handle)
-                LOGGER.info('canonical_data file=%s rows=%s', name, rows)
+                LOGGER.info('canonical_data file=%s rows=%s bytes=%s', name, rows, os.path.getsize(out))
             paths[name] = out
         except Exception as error:   # the original asset keeps the service up; the log names the file only
             LOGGER.error('canonical_data_failed file=%s error_type=%s', name, type(error).__name__)

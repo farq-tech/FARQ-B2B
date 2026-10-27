@@ -66,6 +66,13 @@ class StartupJobsTests(unittest.TestCase):
         module.SOURCE = 'v4'
         run()
         self.assertEqual(len(calls), 3, 'a new model version reruns the job')
+        os.environ['FARQ_BUILDING_ELEVATION_MODE'] = 'floors'
+        try:
+            run()
+        finally:
+            del os.environ['FARQ_BUILDING_ELEVATION_MODE']
+        self.assertEqual(len(calls), 4, 'a new elevation reading reruns the job')
+        self.assertEqual(calls[-1]['elevation_mode'], 'floors')
 
     def test_a_failing_job_is_logged_by_type_and_never_raises(self):
         os.environ['FARQ_BUILD_BUILDING_POPULATION'] = 'true'

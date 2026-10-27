@@ -42,11 +42,19 @@ def city_rows(city, path=PATH):
 def apply_population(rows, city, path=PATH):
     """Replace WorldPop totals in merged /population-districts rows with the 910ths figure where one exists."""
     reference = city_rows(city, path)
+    year = _year(path)
     for row in rows:
         ref = reference.get(row.get('district_ar'))
         if ref and ref.get('population'):
-            row.update(population=float(ref['population']), source=SOURCE, license=None, year=None, coverage_pct=None)
+            # Atlas keeps only rows with a numeric year and coverage; a published district total covers the whole district
+            row.update(population=float(ref['population']), source=SOURCE, license=None, year=year if year is not None else row.get('year'), coverage_pct=100.0)
     return rows
+
+
+def _year(path=PATH):
+    """The year the reference was read (from its "retrieved" date), or None."""
+    retrieved = str((load(path) or {}).get('retrieved') or '')
+    return int(retrieved[:4]) if retrieved[:4].isdigit() else None
 
 
 def apply_demographics(rows, city, path=PATH):
