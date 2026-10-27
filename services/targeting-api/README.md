@@ -21,6 +21,12 @@ The Atlas market summary includes additional cohort counts: precise point locati
 
 `GET /healthz` is the public Railway readiness check. It returns `200` with `{"ok":true,"service":"farq-targeting"}` when the primary directory asset is readable and DuckDB responds to a minimal query; otherwise it returns `503`. It does not expose data or credentials.
 
+## Startup data jobs
+
+Jobs that read or write the mounted data volume run inside the service, because nothing else can reach it. Each is switched on by one environment variable, runs once per boot on a background thread after the server is listening, and reports through the service log in aggregate form only. Unset the variable to make the next boot skip it.
+
+- `FARQ_BUILD_BUILDING_POPULATION=1` runs `build_building_population.py`: district population estimated from residential building footprints (`buildings_ingest/normalized/buildings.parquet`), calibrated to `buildings_ingest/population/official_city_population.csv` when that file exists on the volume, else to the WorldPop city sums. It writes `buildings_ingest/population/district_population_buildings_<year>.parquet` and `_report.json`, and logs the report as `building_population_done {...}`. `FARQ_BUILDING_ELEVATION_MODE` (`auto`, `height`, `floors`, `ignore`) overrides how `Elevation` is read.
+
 The deployment's business directory and taxonomy assets are intentionally excluded from Git. A deployment requires a separately maintained, access-controlled `data/` directory containing the exact production assets listed in the `Dockerfile`. Do not substitute older local data files: the map counts and supplier coverage depend on the deployed snapshot.
 
 Before connecting Railway deployments to this folder, verify the staged data asset versions and hashes against the approved production snapshot, then deploy a preview service and check its aggregate results against the current production directory. Never commit `.parquet`, `.geojson`, contact, evaluation, or operational log data here.
