@@ -53,7 +53,9 @@ function circlePolygon({ lon, lat, radius_m }: Circle): GeoJSON.Feature<GeoJSON.
  * district. A tool can paint districts in its own colours (`colors`, e.g. sales territories), draw a search
  * circle, and take clicks as points instead (`onPick`). The token comes from /api/mapbox-token like every Atlas map.
  */
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick }: {
+export type MapPoint = { id: string; lon: number; lat: number }
+
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -61,6 +63,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   colors?: Map<string, string> | null
   circle?: Circle | null
   onPick?: ((point: { lon: number; lat: number }) => void) | null
+  points?: MapPoint[] | null
+  lines?: GeoJSON.LineString[] | null
+  start?: { lon: number; lat: number } | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -107,6 +112,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addSource('circle', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'circle-fill', type: 'fill', source: 'circle', paint: { 'fill-color': '#d9f99d', 'fill-opacity': 0.18 } })
         instance.addLayer({ id: 'circle-line', type: 'line', source: 'circle', paint: { 'line-color': '#d9f99d', 'line-width': 2.5 } })
+        instance.addSource('route', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0d1217', 'line-width': 7 } })
+        instance.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#d9f99d', 'line-width': 4 } })
+        instance.addSource('stops', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': '#facc15', 'circle-stroke-color': '#0d1217', 'circle-stroke-width': 1 } })
+        instance.addSource('start', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': '#ffffff', 'circle-stroke-color': '#25c99a', 'circle-stroke-width': 4 } })
         instance.on('click', (event) => {
           if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
           const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
@@ -137,6 +149,15 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     ;(instance.getSource('circle') as GeoJSONSource | undefined)?.setData(circle ? { type: 'FeatureCollection', features: [circlePolygon(circle)] } : EMPTY)
     instance.getCanvas().style.cursor = onPick ? 'crosshair' : ''
   }, [ready, circle, onPick])
+
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance) return
+    const collection = (items: GeoJSON.Feature[]): GeoJSON.FeatureCollection => ({ type: 'FeatureCollection', features: items })
+    ;(instance.getSource('stops') as GeoJSONSource | undefined)?.setData(collection((points ?? []).map((point) => ({ type: 'Feature', properties: { id: point.id }, geometry: { type: 'Point', coordinates: [point.lon, point.lat] } }))))
+    ;(instance.getSource('route') as GeoJSONSource | undefined)?.setData(collection((lines ?? []).map((line) => ({ type: 'Feature', properties: {}, geometry: line }))))
+    ;(instance.getSource('start') as GeoJSONSource | undefined)?.setData(collection(start ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [start.lon, start.lat] } }] : []))
+  }, [ready, points, lines, start])
 
   useEffect(() => {
     const instance = map.current

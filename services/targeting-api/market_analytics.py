@@ -187,6 +187,30 @@ class MarketAnalytics:
                 params.append(specialty_ids)
         return city, subs, " and ".join(clauses), params, specialty_available, bounds
 
+    def district_points(self, body, limit=20000):
+        """Located directory businesses in the given districts (and activity), for planning a visit route: id, name,
+        district, coordinates and whether it is reachable on WhatsApp. Only point-precise locations are returned."""
+        if not body.get("districts"):
+            raise ValueError("districts")
+        _, _, where, params, _, _ = self._where(body)
+        query = f"""
+            select p.poi_key, coalesce(nullif(p.name_ar, ''), p.name_en), p.district_ar, p.longitude, p.latitude,
+                   ({USABLE_WHATSAPP_SQL}) whatsapp
+            from read_parquet(?) p
+            where {where} and coalesce(p.location_precision, 'unknown') = 'point'
+              and p.longitude between -180 and 180 and p.latitude between -90 and 90
+            qualify row_number() over (partition by p.poi_key) = 1
+            order by p.poi_key limit ?
+        """
+        with self.lock:
+            rows = self.db.execute(query, params + [limit + 1]).fetchall()
+        return {
+            "ok": True,
+            "points": [{"id": key, "name": name, "district_ar": district, "lon": lon, "lat": lat, "whatsapp": bool(whatsapp)}
+                       for key, name, district, lon, lat, whatsapp in rows[:limit]],
+            "truncated": len(rows) > limit,
+        }
+
     def district_counts(self, body):
         city, _, where, params, specialty_available, bounds = self._where(body)
         query = f"""

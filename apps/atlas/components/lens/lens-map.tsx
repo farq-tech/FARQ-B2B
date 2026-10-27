@@ -125,7 +125,7 @@ export function LensMap() {
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[50vh] shrink-0 lg:h-auto lg:flex-1">
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} />
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} />
           {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="absolute bottom-3 start-3 flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
             <span className="text-muted-foreground">أقل</span>
             {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}

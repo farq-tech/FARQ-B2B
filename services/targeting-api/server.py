@@ -163,7 +163,8 @@ def insight_response(path, body):
         if weight == 'population':
             weights = {name: row['population'] for name, row in district_population_by_name(city).items() if row.get('population')}
         else:
-            weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city})['districts']}
+            activity = {key: body[key] for key in ('q', 'main_id') if body.get(key)}   # a distributor balances on its own customers
+            weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city, **activity})['districts']}
         groups = insights.territories(_city_features(city), weights, count)
         return {'ok': True, 'city': city, 'weight': weight, 'territories': groups,
                 'basis': 'الأحياء مرتبة على مسار يمر بمراكزها حتى تبقى كل منطقة متجاورة، ثم قُسمت عند كل حصة متساوية من ' + ('السكان.' if weight == 'population' else 'المنشآت.')}
@@ -1015,6 +1016,13 @@ class H(BaseHTTPRequestHandler):
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('market-gaps', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/district-points':
+            # Business records with coordinates for route planning; Atlas serves it only to signed-in users.
+            try: self._json(MARKET_ANALYTICS.district_points(body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('district-points', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys'):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
