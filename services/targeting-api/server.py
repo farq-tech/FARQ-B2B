@@ -21,9 +21,15 @@ _DRY = contextvars.ContextVar('dry_run', default=False)   # set for the whole of
 import urllib.parse
 FARQ_DIR = os.path.expanduser('~/farq-ontology-sync')
 # Without a handler Python prints only warnings, which hid every info line (canonical copy sizes, startup job
-# reports) from the Railway log. Messages are aggregate-only by convention, so they go to stderr as written.
+# reports) from the Railway log. Messages are aggregate-only by convention. Railway marks every stderr line as an
+# error, so info goes to stdout and warnings and errors to stderr.
 if not logging.getLogger('farq.targeting').handlers:
+    _log_handler = logging.StreamHandler(sys.stdout)
+    _log_handler.addFilter(lambda record: record.levelno < logging.WARNING)
+    _log_handler.setFormatter(logging.Formatter('%(message)s'))
+    logging.getLogger('farq.targeting').addHandler(_log_handler)
     _log_handler = logging.StreamHandler(sys.stderr)
+    _log_handler.setLevel(logging.WARNING)
     _log_handler.setFormatter(logging.Formatter('%(message)s'))
     logging.getLogger('farq.targeting').addHandler(_log_handler)
     logging.getLogger('farq.targeting').setLevel(logging.INFO)
