@@ -40,7 +40,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, tempfile
+import canonical_data, district_reference, input_upload, tempfile
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -915,6 +915,14 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         self._metric_has_request = True
         self._metric_route = route_label(self.path)
+        if self.path == input_upload.PATH:   # streamed to the volume, so it is handled before the body is read into memory
+            status, body = input_upload.receive(self.headers, self.rfile, DATA_DIR)
+            LOGGER.info('input_upload status=%s', status)
+            self._json(body, status)
+            if status == 200:
+                import startup_jobs
+                for job in startup_jobs.start(DATA_DIR): LOGGER.info('startup job running in background after upload: %s', job)
+            return
         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
         if self.path == '/login':
             if not login_allowed(self._client_ip()): self._json({'error': 'TOO_MANY_ATTEMPTS'}, 429); return
