@@ -1,5 +1,5 @@
 {
-  "about": "Reviewed corrections to district names in the official district atlas (districts.geojson), applied by canonical_data.canonical_districts before polygons that share a name are merged. A polygon is renamed only when its current name is also carried by another polygon in the same city and an independent source places it in a district that already exists in the atlas under the corrected name. A correction may also move a polygon to the city it lies in (to_city_en / to_city_ar); directory records filed under the old city with that district name then go to the nearer of the two districts by their coordinates.",
+  "about": "Reviewed corrections to district names in the official district atlas (districts.geojson), applied by canonical_data.canonical_districts before polygons that share a name are merged. A polygon is renamed only when its current name is also carried by another polygon in the same city and an independent source places it in a district that already exists in the atlas under the corrected name. A correction may also move a polygon to the city it lies in (to_city_en / to_city_ar); directory records filed under the old city with that district name then go to the nearer of the two districts by their coordinates. A correction may also give a district its place name (qualifier_ar / qualifier_en) to tell it from a same-name district of the same city: «العزيزية (بحرة)» beside Jeddah's own العزيزية.",
   "corrections": [
     {
       "city_en": "Riyadh",
@@ -26,6 +26,51 @@
       "to_city_en": "Diriyah",
       "to_city_ar": "الدرعية",
       "evidence": "Filed under Riyadh with the same name as polygon 421 (الشهداء, east Riyadh) but 15.6 km west of it, inside Diriyah; confirmed by Farq (CTO), 2026-10-27."
+    },
+    {
+      "city_en": "Jeddah",
+      "id": "339",
+      "from": "المستقبل",
+      "ar": "المستقبل",
+      "qualifier_ar": "بحرة",
+      "qualifier_en": "Bahra",
+      "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
+    },
+    {
+      "city_en": "Jeddah",
+      "id": "342",
+      "from": "الفنار",
+      "ar": "الفنار",
+      "qualifier_ar": "بحرة",
+      "qualifier_en": "Bahra",
+      "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
+    },
+    {
+      "city_en": "Jeddah",
+      "id": "343",
+      "from": "العزيزية",
+      "ar": "العزيزية",
+      "qualifier_ar": "بحرة",
+      "qualifier_en": "Bahra",
+      "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
+    },
+    {
+      "city_en": "Jeddah",
+      "id": "344",
+      "from": "الأصالة",
+      "ar": "الأصالة",
+      "qualifier_ar": "بحرة",
+      "qualifier_en": "Bahra",
+      "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
+    },
+    {
+      "city_en": "Jeddah",
+      "id": "346",
+      "from": "صناعي",
+      "ar": "صناعي",
+      "qualifier_ar": "بحرة",
+      "qualifier_en": "Bahra",
+      "evidence": "In the contiguous block of polygons 337-346 around 21.41N 39.47E (Bahra, between Jeddah and Makkah), sharing its name with a Jeddah district; Farq (CTO) confirmed on 2026-10-27 that the block stays in Jeddah."
     }
   ]
 }

@@ -234,6 +234,17 @@ class CanonicalDistrictTests(unittest.TestCase):
         self.assertEqual(rows['riyadh'], ('Riyadh', 'الرياض', 'الشهداء'))
         self.assertEqual(rows['diriyah'], ('Diriyah', 'الدرعية', 'الشهداء'))
 
+    def test_a_reviewed_place_name_tells_same_name_districts_apart(self):
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 9172, 'ar': 'العزيزية', 'en': 'Al Aziziyah', 'city_en': 'Jeddah'}, 'geometry': poly(39.19, 21.55)},
+            {'type': 'Feature', 'properties': {'id': 9343, 'ar': 'العزيزية', 'en': 'Al Aziziyah', 'city_en': 'Jeddah'}, 'geometry': poly(39.44, 21.41)},
+        ]}
+        fix = {('Jeddah', '9343'): {'city_en': 'Jeddah', 'id': '9343', 'ar': 'العزيزية', 'qualifier_ar': 'بحرة', 'qualifier_en': 'Bahra'}}
+        collection, _ = canonical_data.canonical_districts(atlas, fix)
+        names = {f['properties']['id']: (f['properties']['ar'], f['properties']['en']) for f in collection['features']}
+        self.assertEqual(names, {9172: ('العزيزية', 'Al Aziziyah'), 9343: ('العزيزية (بحرة)', 'Al Aziziyah (Bahra)')})
+        self.assertTrue(all('_qualifier' not in f['properties'] for f in collection['features']))
+
     def test_the_reviewed_corrections_table_loads(self):
         table = canonical_data.load_corrections()
         self.assertEqual(table[('Riyadh', '463')]['ar'], 'السليمانية')

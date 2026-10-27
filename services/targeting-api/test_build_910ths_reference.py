@@ -29,7 +29,7 @@ class ReferenceBuildTests(unittest.TestCase):
         samples = [sample(1, 'الملز', 93100, 71.9), sample(2, 'الملز', 93100, 71.9),
                    sample(3, 'الشهداء', 29600), sample(4, 'الشهداء', 1700),
                    sample(5, 'الخزامى', 9000, 53.1, 17000), sample(6, 'الخزامي', 3400, 51.0, None),
-                   sample(7, 'المنصورة (خنشليلة)', 20000), sample(8, 'المرجان', 1700)]
+                   sample(7, 'حي المنصورة (خنشليلة)', 20000), sample(8, 'المرجان', 1700)]
         self.table, self.skipped, self.combined = ref.build(samples, ATLAS, 'Riyadh', '910ths.sa', '2026-10-27')
         self.rows = {row['district_ar']: row for row in self.table['cities']['Riyadh']}
 

@@ -30,7 +30,9 @@ def same_district(n910_name, atlas_name):
     and «الصناعية (البطحاء)» is الصناعية."""
     if not n910_name or not atlas_name:
         return False
-    keys = lambda name: {canonical_data.district_key(name), canonical_data.district_key(re.sub(r'\s*\([^)]*\)\s*$', '', name))}
+    def keys(name):   # the shared cleaning drops a «حي» prefix and other wrapping, as everywhere else
+        base = canonical_data.clean_district(name) or name
+        return {canonical_data.district_key(base), canonical_data.district_key(re.sub(r'\s*\([^)]*\)\s*$', '', base))}
     return bool(keys(n910_name) & keys(atlas_name))
 
 
