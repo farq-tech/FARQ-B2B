@@ -65,6 +65,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle }: {
       const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance
       instance.on('load', () => {
+        // place names on the basemap in Arabic where Mapbox has them
+        for (const layer of instance.getStyle().layers ?? []) {
+          if (layer.type === 'symbol' && instance.getLayoutProperty(layer.id, 'text-field') != null) {
+            instance.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name_ar'], ['get', 'name']])
+          }
+        }
         instance.addSource('districts', { type: 'geojson', data: EMPTY, promoteId: 'id' })
         instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
           'fill-color': ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)'],
