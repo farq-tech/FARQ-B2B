@@ -8,7 +8,7 @@ import type { DistrictFeature } from '@/lib/insights-api'
 const STYLE_URL = 'mapbox://styles/mapbox/dark-v11'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 // five steps from low to high; a district without the figure is left unshaded
-export const SHADES = ['#123a4a', '#155e75', '#0e7490', '#0891b2', '#22d3ee']
+export const SHADES = ['#2b3f12', '#3f6212', '#65a30d', '#a3e635', '#d9f99d']   // light lime for the highest districts
 
 function boundsOf(features: DistrictFeature[]): [[number, number], [number, number]] | null {
   let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
@@ -72,12 +72,20 @@ export function LensMapCanvas({ features, steps, selected, onToggle }: {
           }
         }
         instance.addSource('districts', { type: 'geojson', data: EMPTY, promoteId: 'id' })
+        // shading and outlines sit under the basemap's place and road names; district names go on top of everything
+        const firstLabel = instance.getStyle().layers?.find((layer) => layer.type === 'symbol')?.id
         instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
           'fill-color': ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)'],
-          'fill-opacity': ['case', ['boolean', ['get', '__selected'], false], 0.85, 0.6],
-        } })
-        instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': '#67e8f9', 'line-width': 0.6, 'line-opacity': 0.5 } })
-        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': '#2dd4a7', 'line-width': 3 } })
+          'fill-opacity': ['case', ['boolean', ['get', '__selected'], false], 0.85, 0.55],
+        } }, firstLabel)
+        instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': '#d9f99d', 'line-width': 0.6, 'line-opacity': 0.45 } }, firstLabel)
+        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': '#ffffff', 'line-width': 3 } })
+        instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
+          'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
+          'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 13, 14, 15],
+          'text-padding': 2,
+        }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#0d1217', 'text-halo-width': 1.6 } })
         instance.on('click', 'district-fill', (event) => {
           const id = event.features?.[0]?.properties?.id
           if (id != null) toggle.current(String(id))
