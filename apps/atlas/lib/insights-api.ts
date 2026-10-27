@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-export type City = { en: string; ar: string | null }
+export type City = { en: string; ar: string | null; districts?: number }
 
 export const numberFormat = new Intl.NumberFormat('ar-SA-u-nu-latn')
 
@@ -18,13 +18,18 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
   return payload as T
 }
 
-/** The directory's cities, largest first, with Riyadh as a fallback while loading or on failure. */
+/** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
+ * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
 export function useCities(): City[] {
   const [cities, setCities] = useState<City[]>([{ en: 'Riyadh', ar: 'الرياض' }])
   useEffect(() => {
     fetch('/api/market/cities')
       .then((response) => response.json())
-      .then((rows: City[]) => { if (Array.isArray(rows) && rows.length) setCities(rows) })
+      .then((rows: City[]) => {
+        if (!Array.isArray(rows)) return
+        const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
+        if (mapped.length) setCities(mapped)
+      })
       .catch(() => undefined)
   }, [])
   return cities

@@ -6,7 +6,7 @@ Farq Targeting — local server over the KSA golden POI set.
 AI query parsing uses ANTHROPIC_API_KEY (claude-haiku-4-5) when present; otherwise a built-in Arabic dictionary.
 Nothing is sent automatically: the UI opens WhatsApp click-to-chat / mailto links one contact at a time after your confirmation.
 """
-import os, json, re, sys, time, urllib.request, csv, threading, logging, traceback
+import os, json, re, sys, time, urllib.request, csv, threading, logging, traceback, collections
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import duckdb, subprocess, base64
 from trial_search import Directory
@@ -333,10 +333,14 @@ Return ONLY JSON: {{"L": [ids], "M": [ids]}} — ids not listed are N.
 RANK_MAX = 300
 _CITIES = []
 def cities():
-    """Cities with at least 1,500 places, largest first (computed once)."""
+    """Cities with at least 1,500 places, largest first (computed once), each with the number of districts it has in
+    the golden atlas: tools that work per district (population, gaps, growth, territories, reports) offer only
+    cities with districts, instead of letting a user pick one and find nothing."""
     if not _CITIES:
+        with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
+            districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
         with LOCK:
-            _CITIES.extend({'en': a, 'ar': b, 'n': c} for a, b, c in con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall())
+            _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall())
     return _CITIES
 
 def ai_rank(q, rows):

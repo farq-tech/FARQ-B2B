@@ -1,10 +1,11 @@
 'use client'
 
 import { Loader2, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useCities } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
-type City = { en: string; ar: string | null }
 type Activity = { main_id: string; main_ar: string; n: number }
 type GapRow = {
   district_ar: string
@@ -18,6 +19,7 @@ type GapRow = {
 type GapResult = { residents_per_business: number | null; districts: GapRow[]; basis: string; message?: string }
 
 const number = new Intl.NumberFormat('ar-SA-u-nu-latn')
+const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 
 async function post<T>(resource: string, body: unknown): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, {
@@ -31,7 +33,7 @@ async function post<T>(resource: string, body: unknown): Promise<T> {
 }
 
 export function MarketGapsView() {
-  const [cities, setCities] = useState<City[]>([])
+  const cities = useCities()
   const [city, setCity] = useState('Riyadh')
   const [activities, setActivities] = useState<Activity[]>([])
   const [mainId, setMainId] = useState('')
@@ -42,10 +44,6 @@ export function MarketGapsView() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/market/cities').then((r) => r.json()).then((rows: City[]) => setCities(Array.isArray(rows) ? rows : [])).catch(() => setCities([]))
-  }, [])
-
-  useEffect(() => {
     setActivities([])
     setMainId('')
     post<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
@@ -53,13 +51,15 @@ export function MarketGapsView() {
       .catch(() => setActivities([]))
   }, [city])
 
-  async function run() {
-    if (!mainId && !query.trim()) return
+  async function run(example?: string) {
+    const text = (example ?? query).trim()
+    if (example) { setQuery(example); setMainId('') }
+    if (!mainId && !text) return
     setStatus('loading')
     setError('')
     try {
       const body: Record<string, unknown> = { city, min_population: minPopulation, limit: 40 }
-      if (query.trim()) body.q = query.trim()
+      if (text) body.q = text
       else body.main_id = mainId
       setResult(await post<GapResult>('market-gaps', body))
       setStatus('idle')
@@ -82,13 +82,13 @@ export function MarketGapsView() {
         </p>
       </header>
 
-      <section className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-[1fr_1.4fr_1fr_auto] sm:items-end">
+      <section className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4">
         <label className="flex flex-col gap-1 text-xs font-medium">المدينة
           <select value={city} onChange={(e) => setCity(e.target.value)} className="h-10 rounded-lg border bg-background px-3 text-sm">
-            {(cities.length ? cities : [{ en: 'Riyadh', ar: 'الرياض' }]).map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
+            {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium">النشاط
+        <label className="flex min-w-64 flex-1 flex-col gap-1 text-xs font-medium">النشاط
           <div className="flex gap-2">
             <select value={mainId} onChange={(e) => { setMainId(e.target.value); setQuery('') }} className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm">
               <option value="">اختر نشاطاً رئيسياً</option>
@@ -98,12 +98,24 @@ export function MarketGapsView() {
           </div>
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium">أقل عدد سكان للحي
-          <input type="number" min={0} step={1000} value={minPopulation} onChange={(e) => setMinPopulation(Math.max(0, Number(e.target.value) || 0))} className="h-10 rounded-lg border bg-background px-3 text-sm" />
+          <input type="number" min={0} step={1000} value={minPopulation} onChange={(e) => setMinPopulation(Math.max(0, Number(e.target.value) || 0))} className="h-10 w-32 rounded-lg border bg-background px-3 text-sm" />
         </label>
-        <button onClick={run} disabled={status === 'loading' || (!mainId && !query.trim())} className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+        <button onClick={() => run()} disabled={status === 'loading' || (!mainId && !query.trim())} className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' && <Loader2 className="size-4 animate-spin" aria-hidden />} احسب الفجوات
         </button>
       </section>
+
+      {!result && status !== 'loading' && (
+        <section className="rounded-2xl border border-dashed p-5 text-sm">
+          <p className="font-semibold">جرّب نشاطاً بضغطة واحدة:</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {EXAMPLES.map((example) => (
+              <button key={example} onClick={() => run(example)} className="rounded-full border bg-background px-4 py-1.5 text-sm hover:border-primary hover:text-primary">{example}</button>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-6 text-muted-foreground">النتيجة جدول بالأحياء التي فيها منشآت من هذا النشاط أقل مما يناسب عدد سكانها، مرتبة من الأكبر فجوة.</p>
+        </section>
+      )}
 
       {status === 'error' && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
 
@@ -133,7 +145,7 @@ export function MarketGapsView() {
                   <tbody>
                     {result.districts.map((row) => (
                       <tr key={row.district_ar} className="border-t">
-                        <td className="p-3 font-semibold">{row.district_ar}</td>
+                        <td className="p-3 font-semibold"><Link href={`/insights/report?city=${encodeURIComponent(city)}&district=${encodeURIComponent(row.district_ar)}`} className="hover:text-primary hover:underline">{row.district_ar}</Link></td>
                         <td className="p-3">{number.format(row.population)}</td>
                         <td className="p-3">{number.format(row.businesses)}</td>
                         <td className="p-3">{number.format(Math.round(row.expected_businesses))}</td>

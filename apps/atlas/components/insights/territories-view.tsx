@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, Users } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { InsightMap } from '@/components/insights/insight-map'
 import { numberFormat, postMarket, useCities, useDistricts } from '@/lib/insights-api'
 
@@ -31,6 +31,10 @@ export function TerritoriesView() {
       setStatus('idle')
     }
   }
+
+  // divide as soon as the page opens or the city changes, so the map is never empty; the button reruns with new settings
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { run() }, [city])
 
   const colors = useMemo(() => Object.fromEntries((result?.territories ?? []).flatMap((group, index) =>
     group.districts.map((district) => [String(district.district_id), PALETTE[index % PALETTE.length]]))), [result])

@@ -104,9 +104,9 @@ export function DistrictReportView() {
 
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} note={populationSource(profile.sources.population)} />
-            <Stat label="ذكور · إناث" value={people ? `${Math.round((100 * (profile.male ?? 0)) / people)}٪ · ${Math.round((100 * (profile.female ?? 0)) / people)}٪` : 'غير متاح'} note={people ? undefined : 'لا يوجد قياس لهذا الحي'} />
+            <Stat label="الجنس" value={people ? `ذكور ${Math.round((100 * (profile.male ?? 0)) / people)}٪` : 'غير متاح'} note={people ? `إناث ${Math.round((100 * (profile.female ?? 0)) / people)}٪ · المصدر: 910ths` : 'لا يوجد قياس لهذا الحي'} />
             <Stat label="المنشآت" value={profile.businesses == null ? 'غير متاح' : numberFormat.format(profile.businesses)} note={profile.population && profile.businesses ? `منشأة لكل ${numberFormat.format(Math.round(profile.population / profile.businesses))} ساكن` : undefined} />
-            <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني` : undefined} />
+            <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني · ${numberFormat.format(profile.growth.new_buildings)} مبنى جديد` : undefined} />
           </section>
 
           {profile.income && (
@@ -164,7 +164,7 @@ export function DistrictReportView() {
 
           <footer className="border-t pt-3 text-[11px] leading-6 text-muted-foreground">
             المصادر: السكان {populationSource(profile.sources.population)}؛ المنشآت {profile.sources.businesses}؛ النمو {profile.sources.growth}
-            {profile.income_source ? `؛ الدخل ${profile.income_source}` : ''}. الأرقام تقديرات لدعم القرار وليست تعداداً رسمياً.
+            {profile.income && profile.income_source ? `؛ الدخل ${profile.income_source}` : ''}. الأرقام تقديرات لدعم القرار وليست تعداداً رسمياً.
           </footer>
         </article>
       )}
