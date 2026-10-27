@@ -222,7 +222,8 @@ def canonicalize_file(src, out, official):
     """Rewrite one parquet asset with canonical city and district values; returns the row count."""
     db = duckdb.connect()
     try:
-        db.execute("SET threads=2; SET memory_limit='1GB'")
+        # the server waits for this copy before it listens, so use the machine (production: 32 vCPU, 32 GB)
+        db.execute(f"SET threads={min(8, os.cpu_count() or 2)}; SET memory_limit='4GB'")
         columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [src]).fetchall()}
         replace = []
         joins = ''
