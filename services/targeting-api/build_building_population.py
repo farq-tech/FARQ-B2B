@@ -276,12 +276,13 @@ def reference_estimates(districts: Path, ids: list, district_city: dict, per_dis
         return {}, {}
     collection, id_map = canonical_data.canonical_districts(json.loads(Path(districts).read_text(encoding="utf-8")), canonical_data.load_corrections())
     names = {str(f["properties"]["id"]): f["properties"].get("ar") or f["properties"].get("district_ar") for f in collection["features"]}
+    cities = {str(f["properties"]["id"]): f["properties"].get("city_en") for f in collection["features"]}   # after corrections that move a polygon
     groups: dict = defaultdict(list)
     for did in ids:
         groups[str(id_map.get(str(did), did))].append(did)
     referenced, people, dwellings = {}, defaultdict(float), defaultdict(float)
     for canonical, members in groups.items():
-        city = district_city[members[0]]
+        city = cities.get(canonical) or district_city[members[0]]
         row = district_reference.city_rows(city, reference).get(names.get(canonical))
         if not row or not row.get("population"):
             continue

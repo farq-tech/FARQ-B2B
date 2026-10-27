@@ -2,6 +2,7 @@ import csv
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import duckdb
@@ -201,6 +202,18 @@ class BuildingPopulationTests(unittest.TestCase):
         _, rows = self.run_build(reference=reference)
         self.assertAlmostEqual(rows["1"]["population_estimate"] + rows["2"]["population_estimate"], 9000, delta=1)
         self.assertAlmostEqual(rows["1"]["population_estimate"] / rows["2"]["population_estimate"], rows["1"]["dwelling_units"] / rows["2"]["dwelling_units"], delta=0.02)
+
+    def test_a_polygon_moved_to_another_city_never_takes_the_old_citys_figure(self):
+        collection = json.loads(self.districts.read_text(encoding="utf-8"))
+        collection["features"][1]["properties"]["ar"] = "الملقا"   # same name as polygon 1, but filed in another city
+        self.districts.write_text(json.dumps(collection, ensure_ascii=False), encoding="utf-8")
+        reference = self.root / "districts_910ths.json"
+        reference.write_text(json.dumps({"cities": {"Riyadh": [{"district_ar": "الملقا", "population": 9000}]}}, ensure_ascii=False), encoding="utf-8")
+        moved = {("Riyadh", "2"): {"city_en": "Riyadh", "id": "2", "ar": "الملقا", "to_city_en": "Diriyah", "to_city_ar": "الدرعية"}}
+        with mock.patch.object(bbp.canonical_data, "load_corrections", lambda path=None: moved):
+            _, rows = self.run_build(reference=reference)
+        self.assertAlmostEqual(rows["1"]["population_estimate"], 9000, delta=0.5)
+        self.assertNotEqual(rows["2"]["calibration_source"], "910ths.sa", "the Riyadh figure stays with the Riyadh district")
 
     def test_worldpop_comparison_flags_divergence_only_when_large(self):
         _, rows = self.run_build()

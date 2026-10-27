@@ -56,19 +56,28 @@ MODEL = 'claude-haiku-4-5-20251001'
 LOGGER = logging.getLogger('farq.targeting')
 METRICS = ServiceMetrics()
 
+def city_polygon_ids(city):
+    """Ids of every source polygon in a city of the golden atlas. Source layers (WorldPop, the building model)
+    keep the city a polygon was filed under; a correction can move a polygon to another city, so rows are chosen
+    by these ids, never by the source's own city column."""
+    ids={str(f['properties']['id']) for f in _city_features(city)}
+    return sorted(ids|{k for k,v in CANONICAL['district_id_map'].items() if str(v) in ids})
+
+
 def golden_population(city):
     """The golden population rows of a city, one per canonical district (golden.population), or None when the
     WorldPop layer the rows are built on is missing."""
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
     if not os.path.isfile(path): return None
     import golden, insights
+    ids=city_polygon_ids(city)
     with LOCK:
         rows=con.execute("""select district_id,district_ar,district_en,population_estimate,
             population_coverage_pct,population_valid_cells,population_polygon_cells,
             population_year,population_source,population_license
-            from read_parquet(?) where city_en=? order by district_ar""",[path,city]).fetchall()
+            from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[])) order by district_ar""",[path,ids]).fetchall()
         built_path=insights.latest(os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_buildings_*.parquet'))
-        built=con.execute("select district_id,population_estimate,calibration_source from read_parquet(?) where city_en=?",[built_path,city]).fetchall() if built_path else []
+        built=con.execute("select district_id,population_estimate,calibration_source from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[]))",[built_path,ids]).fetchall() if built_path else []
     rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
     # one row per canonical district: polygons merged in districts.geojson are summed here too
     merged=canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'])
@@ -81,15 +90,16 @@ def golden_demographics(city, districts=(), population=None):
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
     if not os.path.isfile(path): return None
     import golden
-    # a canonical district stands for every polygon merged into it
-    members=[k for k,v in CANONICAL['district_id_map'].items() if str(v) in set(districts)]
-    ids=sorted(set(districts)|set(members))
-    district_filter=" and cast(district_id as varchar) in ("+','.join('?' for _ in ids)+")" if ids else ""
+    # a canonical district stands for every polygon merged into it; rows are chosen by the city's polygon ids
+    ids=city_polygon_ids(city)
+    if districts:
+        wanted=set(districts)|{k for k,v in CANONICAL['district_id_map'].items() if str(v) in set(districts)}
+        ids=[i for i in ids if i in wanted]
     with LOCK:
         rows=con.execute("""select district_id,district_ar,district_en,age_code,age_group,
             male_estimate,female_estimate,total_estimate,coverage_pct,population_year,
-            population_source,population_license from read_parquet(?) where city_en=?"""+district_filter+
-            " order by district_ar,age_code",[path,city,*ids]).fetchall()
+            population_source,population_license from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[]))
+            order by district_ar,age_code""",[path,ids]).fetchall()
     names=('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct','year','source','license')
     merged=canonical_data.merge_population_rows([dict(zip(names,row)) for row in rows],CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True)
     totals={row['district_ar']:row['population'] for row in ((golden_population(city) if population is None else population) or []) if row.get('district_ar')}
@@ -132,7 +142,7 @@ def insight_response(path, body):
     if path == '/growth':
         city = _city(body)
         with LOCK:
-            rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city, CANONICAL['district_id_map'], CANONICAL['district_names'])
+            rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names'])
         if rows is None: return {'ok': True, 'city': city, 'districts': [], 'available': False, 'basis': 'طبقة المباني لم تُعالج بعد على الخادم.'}
         return {'ok': True, 'city': city, 'available': True, 'districts': rows,
                 'basis': 'مبانٍ تحت الإنشاء أو الترميم من حقل الغرض في طبقة المباني، ومبانٍ جديدة رُصدت منذ آخر مسح. مؤشر لاتجاه الطلب القادم، لا عدد وحدات مؤكد.'}
@@ -174,7 +184,7 @@ def insight_response(path, body):
                         'female': None if r['female'] is None else round(r['female']), 'total': round(r['total'] or 0)}
                        for r in (golden_demographics(city) or []) if r['district_ar'] == district and r['age_code'] != 'ALL'), key=lambda r: r['age_code'])
         with LOCK:
-            growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city, CANONICAL['district_id_map'], CANONICAL['district_names']) or []
+            growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names']) or []
         income = insights.district_income(city) or {}
         return {
             'ok': True, 'city': city, 'district': district,
