@@ -15,13 +15,10 @@ type GapRow = {
   shortfall: number
   residents_per_business: number | null
   male_pct: number | null
-  population_source: string | null
 }
 type GapResult = { residents_per_business: number | null; districts: GapRow[]; basis: string; message?: string }
 
 const number = new Intl.NumberFormat('ar-SA-u-nu-latn')
-// the three sources of the golden population table (services/targeting-api/golden.py)
-const SOURCE_LABEL = (source: string | null) => source?.startsWith('910ths') ? '910ths' : source === 'farq_buildings_v3' ? 'المباني' : 'WorldPop'
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 
 async function post<T>(resource: string, body: unknown): Promise<T> {
@@ -148,7 +145,7 @@ export function MarketGapsView() {
                     {result.districts.map((row) => (
                       <tr key={row.district_ar} className="border-t">
                         <td className="p-3 font-semibold"><Link href={`/insights/report?city=${encodeURIComponent(city)}&district=${encodeURIComponent(row.district_ar)}`} className="hover:text-primary hover:underline">{row.district_ar}</Link></td>
-                        <td className="p-3">{number.format(row.population)}<span className="ms-1 text-[11px] text-muted-foreground">{SOURCE_LABEL(row.population_source)}</span></td>
+                        <td className="p-3">{number.format(row.population)}</td>
                         <td className="p-3">{number.format(row.businesses)}</td>
                         <td className="p-3">{number.format(Math.round(row.expected_businesses))}</td>
                         <td className="p-3">

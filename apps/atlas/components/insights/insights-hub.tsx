@@ -6,7 +6,7 @@ const TOOLS: { href: string; icon: LucideIcon; title: string; text: string; who:
   { href: '/insights/around', icon: LocateFixed, title: 'السكان حول موقع', text: 'كم شخصاً ومنشأة حول نقطة تختارها على الخريطة، بدائرة من 250 م إلى 2 كم.', who: 'لقرار فتح فرع' },
   { href: '/insights/growth', icon: Building2, title: 'خريطة النمو', text: 'المباني تحت الإنشاء والجديدة لكل حي: أين يتجه الطلب القادم.', who: 'لموردي البناء والتكييف والأثاث' },
   { href: '/insights/territories', icon: Users, title: 'مناطق المندوبين', text: 'تقسيم المدينة إلى مناطق متجاورة بحصص متساوية من السكان أو المنشآت.', who: 'لمديري المبيعات والتوزيع' },
-  { href: '/insights/report', icon: FileText, title: 'تقرير الحي', text: 'ملف كامل لأي حي: السكان والجنس والأعمار والمنشآت والنمو والدخل، مع مصدر كل رقم.', who: 'للعرض على المستثمر أو الإدارة' },
+  { href: '/insights/report', icon: FileText, title: 'تقرير الحي', text: 'ملف كامل لأي حي: السكان والجنس والأعمار والمنشآت والنمو والدخل.', who: 'للعرض على المستثمر أو الإدارة' },
 ]
 
 export function InsightsHub() {

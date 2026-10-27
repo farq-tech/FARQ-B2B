@@ -264,11 +264,6 @@ export function ExpansionOpportunities({
           </ul>
         </div>
       ) : null}
-      <details className="mt-2 border-t pt-2 text-[11px] leading-5 text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground">مصدر المؤشر وحدوده</summary>
-        <p className="mt-1.5">السكان وشرائح العمر والجنس تقديرات WorldPop لعام 2025 مجمّعة داخل حدود الحي من خلايا تقارب 100 م، وليست تعدادًا لأفراد أو بيانات عن العاملين. تُعرض الأحياء التي تغطي خلاياها 50٪ على الأقل من مساحة الحي. أعداد المنشآت مرصودة في أطلس؛ المؤشرات تساعد على المقارنة الأولية ولا تثبت الطلب أو غياب المنافسة.</p>
-        <a className="mt-1 inline-block font-medium text-primary underline-offset-4 hover:underline" href="https://hub.worldpop.org/geodata/summary?id=83055" target="_blank" rel="noreferrer">مصدر السكان والعمر والجنس · WorldPop</a>
-      </details>
     </section>
   )
 }

@@ -32,13 +32,6 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   )
 }
 
-// the golden population table labels every district with one of three sources (services/targeting-api/golden.py)
-function populationSource(source?: string) {
-  if (source?.startsWith('910ths')) return 'المصدر: 910ths'
-  if (source === 'farq_buildings_v3') return 'تقدير من المباني'
-  return 'تقدير WorldPop 2025'
-}
-
 const money = (value?: number) => (value == null ? 'غير متاح' : `${numberFormat.format(value)} ر.س`)
 
 export function DistrictReportView() {
@@ -75,7 +68,7 @@ export function DistrictReportView() {
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-4 py-6 pb-24 lg:py-10">
       <header>
         <p className="flex items-center gap-2 text-sm font-semibold text-primary"><FileText className="size-4" aria-hidden /> تقرير الحي</p>
-        <h1 className="mt-1 text-2xl font-bold">كل ما نعرفه عن الحي في صفحة واحدة: السكان والمنشآت والنمو والدخل مع مصدر كل رقم</h1>
+        <h1 className="mt-1 text-2xl font-bold">كل ما نعرفه عن الحي في صفحة واحدة: السكان والمنشآت والنمو والدخل</h1>
       </header>
       <section className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4">
         <label className="flex flex-col gap-1 text-xs font-medium">المدينة
@@ -101,13 +94,12 @@ export function DistrictReportView() {
           </header>
 
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} note={populationSource(profile.sources.population)} />
-            <Stat label="الجنس" value={people ? `ذكور ${Math.round((100 * (profile.male ?? 0)) / people)}٪` : 'غير متاح'} note={people ? `إناث ${Math.round((100 * (profile.female ?? 0)) / people)}٪ · المصدر: 910ths` : 'لا يوجد قياس لهذا الحي'} />
+            <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} />
+            <Stat label="الجنس" value={people ? `ذكور ${Math.round((100 * (profile.male ?? 0)) / people)}٪` : 'غير متاح'} note={people ? `إناث ${Math.round((100 * (profile.female ?? 0)) / people)}٪` : undefined} />
             <Stat label="المنشآت" value={profile.businesses == null ? 'غير متاح' : numberFormat.format(profile.businesses)} note={profile.population && profile.businesses ? `منشأة لكل ${numberFormat.format(Math.round(profile.population / profile.businesses))} ساكن` : undefined} />
             <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني · ${numberFormat.format(profile.growth.new_buildings)} مبنى جديد` : undefined} />
-            <Stat label="السعوديون" value={profile.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}٪`} note={profile.saudi_pct == null ? 'لا يوجد قياس لهذا الحي' : 'من السكان · المصدر: 910ths'} />
+            <Stat label="السعوديون" value={profile.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}٪`} note={profile.saudi_pct == null ? undefined : 'من السكان'} />
             <Stat label="منشآت بواتساب" value={profile.whatsapp == null ? 'غير متاح' : numberFormat.format(profile.whatsapp)} note={profile.whatsapp != null && profile.businesses ? `${Math.round((100 * profile.whatsapp) / profile.businesses)}٪ من المنشآت` : undefined} />
-            <Stat label="منشآت جملة" value={profile.wholesale == null ? 'غير متاح' : numberFormat.format(profile.wholesale)} note={profile.wholesale != null && profile.businesses ? `${Math.round((100 * profile.wholesale) / profile.businesses)}٪ من المنشآت` : undefined} />
             <Stat label="مساحة الطوابق الجديدة" value={profile.growth ? `${numberFormat.format(profile.growth.floor_area_m2)} م²` : 'غير متاح'} note={profile.growth ? 'المباني الجديدة وتحت الإنشاء' : undefined} />
           </section>
 
