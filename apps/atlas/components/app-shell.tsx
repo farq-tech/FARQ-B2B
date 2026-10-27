@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Inbox, LogIn, MapPinned, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Inbox, LogIn, MapPinned, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -57,6 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
     { href: '/opportunity-map', label: 'السوق', icon: MapPinned },
+    { href: '/market-gaps', label: 'الفجوات', icon: TrendingUp },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]

@@ -32,6 +32,10 @@ MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام، ولا يعني نية الشراء."
 )
+MARKET_GAPS_BASIS = (
+    "النقص = عدد المنشآت المتوقع بمعدل المدينة (سكان لكل منشأة من النشاط نفسه) ناقص الموجود في الدليل. "
+    "السكان تقديرات WorldPop 2025 لكل حي. الدليل لا يغطي كل المنشآت الفعلية، فالنقص يدل على مكان البحث لا على طلب مؤكد."
+)
 BUYER_BASIS = (
     "الشراء المتوقع مستنتج من علاقات التصنيف (يشتري عادةً)، وليس سجلاً لطلب أو شراء فعلي. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام."
@@ -210,6 +214,57 @@ class MarketAnalytics:
             "specialty_available": specialty_available,
             "scope": {"bounds": bounds} if bounds else {},
             "basis": MARKET_BASIS,
+        }
+
+    def market_gaps(self, body, population):
+        """Districts where an activity has fewer directory businesses than its residents would carry at the
+        city's own rate. `population` maps a canonical district name to {"population", "male", "female"}.
+
+        The city rate is residents per business over the districts that have both a population estimate
+        and the activity; a district's expected count is its population at that rate, and the shortfall is
+        expected minus present. Directory coverage is incomplete, so a shortfall marks where to look, not
+        proof of unmet demand."""
+        min_population = body.get("min_population", 5000)
+        if not isinstance(min_population, (int, float)) or isinstance(min_population, bool) or not 0 <= min_population <= 1_000_000:
+            raise ValueError("min_population")
+        limit = body.get("limit", 30)
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 200:
+            raise ValueError("limit")
+        counts = {row["district_ar"]: row["n"] for row in self.district_counts(body)["districts"]}
+        city = body.get("city")
+        known = {name: row for name, row in population.items() if row.get("population")}
+        covered = [name for name in known if counts.get(name)]
+        city_population = sum(known[name]["population"] for name in covered)
+        city_businesses = sum(counts[name] for name in covered)
+        if not city_businesses or not city_population:
+            return {"ok": True, "city": city, "residents_per_business": None, "districts": [], "basis": MARKET_GAPS_BASIS,
+                    "message": "لا توجد منشآت مطابقة في أحياء معروفة السكان لحساب معدل المدينة."}
+        rate = city_population / city_businesses
+        rows = []
+        for name, row in known.items():
+            people = row["population"]
+            if people < min_population:
+                continue
+            present = counts.get(name, 0)
+            expected = people / rate
+            male, female = row.get("male"), row.get("female")
+            rows.append({
+                "district_ar": name,
+                "population": round(people),
+                "businesses": present,
+                "expected_businesses": round(expected, 1),
+                "shortfall": round(expected - present, 1),
+                "residents_per_business": round(people / present) if present else None,
+                "male_pct": round(100 * male / (male + female), 1) if male and female else None,
+            })
+        rows.sort(key=lambda row: (-row["shortfall"], row["district_ar"]))
+        return {
+            "ok": True,
+            "city": city,
+            "residents_per_business": round(rate),
+            "districts_with_population": len(known),
+            "districts": rows[:limit],
+            "basis": MARKET_GAPS_BASIS,
         }
 
     def district_insights(self, body):

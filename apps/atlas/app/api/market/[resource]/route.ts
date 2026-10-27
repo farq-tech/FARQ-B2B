@@ -14,6 +14,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'street-density': ['POST'],
   'street-density/catalog': ['POST'],
   clusters: ['POST'],
+  'market-gaps': ['POST'],
 }
 
 function targetingHeaders() {
