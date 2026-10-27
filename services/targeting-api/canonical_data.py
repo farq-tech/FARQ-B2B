@@ -24,7 +24,7 @@ import re
 import duckdb
 
 LOGGER = logging.getLogger('farq.targeting')
-VERSION = 1   # bump when the rules below change so cached copies are rebuilt
+VERSION = 2   # bump when the rules below change so cached copies are rebuilt
 
 # key -> (English, Arabic); keep in step with services/data-cleaning/city_names.py
 CITY_ALIAS = {
@@ -47,6 +47,7 @@ ARTICLES = r'^(al|el|ad|ar|as|at|az|an|ash|adh|ath|aj)[\s\-]+'
 AR_LETTERS = str.maketrans({'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ة': 'ه', 'ى': 'ي', 'ؤ': 'و', 'ئ': 'ي'})
 NOT_A_DISTRICT = {'', 'false', 'true', 'none', 'null', 'nan', 'n/a'}
 FILES = ('targets.parquet', 'trade_clusters.parquet', 'street_density.parquet')
+CORRECTIONS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'district_corrections.json')
 
 
 def city_key(name):
@@ -91,6 +92,105 @@ def official_districts(geojson_path):
         if name and city:
             official.setdefault((city, district_key(name)), name)
     return official
+
+
+def load_corrections(path=CORRECTIONS_PATH):
+    """(city_en, polygon id) -> corrected names, from the reviewed table kept in the repository."""
+    try:
+        with open(path, encoding='utf-8') as handle:
+            table = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return {(row['city_en'], str(row['id'])): row for row in table.get('corrections', []) if row.get('city_en') and row.get('id') is not None and row.get('ar')}
+
+
+def _polygons(geometry):
+    if not geometry:
+        return []
+    if geometry.get('type') == 'Polygon':
+        return [geometry['coordinates']]
+    if geometry.get('type') == 'MultiPolygon':
+        return list(geometry['coordinates'])
+    return []
+
+
+def _id_order(value):
+    text = str(value)
+    return (0, int(text), text) if text.isdigit() else (1, 0, text)
+
+
+def canonical_districts(collection, corrections):
+    """One feature per district: names corrected from the reviewed table, then polygons that carry the
+    same name in the same city merged, because directory counts are kept per district name and two
+    outlines with one name can never be matched to them. Returns (collection, {original id: canonical id})."""
+    groups, order = {}, []
+    for feature in collection.get('features') or []:
+        props = dict(feature.get('properties') or {})
+        city, ident = props.get('city_en'), props.get('id')
+        if ident is None:
+            continue
+        fix = corrections.get((city, str(ident)))
+        if fix:
+            props['ar'] = fix['ar']
+            if fix.get('en'):
+                props['en'] = fix['en']
+        key = (city, district_key(props.get('ar') or props.get('district_ar') or str(ident)))
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append((props, feature.get('geometry')))
+    features, id_map = [], {}
+    for key in order:
+        members = sorted(groups[key], key=lambda member: _id_order(member[0]['id']))
+        props = dict(members[0][0])
+        canonical_id = props['id']
+        if len(members) == 1:
+            geometry = members[0][1]
+        else:
+            geometry = {'type': 'MultiPolygon', 'coordinates': [ring for _, geom in members for ring in _polygons(geom)]}
+            props['member_ids'] = [member[0]['id'] for member in members]
+        for member_props, _ in members:
+            id_map[str(member_props['id'])] = canonical_id
+        features.append({'type': 'Feature', 'id': canonical_id, 'properties': props, 'geometry': geometry})
+    return {'type': 'FeatureCollection', 'features': features}, id_map
+
+
+def merge_population_rows(rows, id_map, names, by_age=False):
+    """Sum per-polygon population rows (dicts) into canonical districts; coverage is recomputed from cells
+    or, for age groups, weighted by population. Unmapped ids pass through unchanged."""
+    merged, order = {}, []
+    for row in rows:
+        canonical = id_map.get(str(row['district_id']), row['district_id'])
+        key = (str(canonical), row.get('age_code')) if by_age else str(canonical)
+        if key not in merged:
+            out = dict(row)
+            out['district_id'] = canonical
+            out['district_ar'], out['district_en'] = names.get(str(canonical), (row.get('district_ar'), row.get('district_en')))
+            out['_weight'] = 0.0
+            out['_coverage'] = 0.0
+            for field in ('population', 'valid_cells', 'polygon_cells', 'male', 'female', 'total'):
+                if field in out:
+                    out[field] = None
+            merged[key] = out
+            order.append(key)
+        out = merged[key]
+        for field in ('population', 'valid_cells', 'polygon_cells', 'male', 'female', 'total'):
+            if field in row and row[field] is not None:
+                out[field] = (out[field] or 0) + row[field]
+        weight = row.get('total') if by_age else row.get('population')
+        if weight and row.get('coverage_pct') is not None:
+            out['_weight'] += weight
+            out['_coverage'] += weight * row['coverage_pct']
+    result = []
+    for key in order:
+        out = merged[key]
+        weight, coverage = out.pop('_weight'), out.pop('_coverage')
+        if not by_age and out.get('polygon_cells'):
+            out['coverage_pct'] = round(100 * (out.get('valid_cells') or 0) / out['polygon_cells'], 4)
+        elif weight:
+            out['coverage_pct'] = round(coverage / weight, 4)
+        result.append(out)
+    return result
 
 
 def _source_signature(path):
@@ -150,12 +250,31 @@ def canonicalize_file(src, out, official):
 
 
 def prepare(data_dir, out_dir):
-    """Canonical paths for the parquet assets in data_dir; falls back to the originals on any failure."""
+    """Canonical paths for the parquet assets and the district atlas in data_dir, plus the polygon id map
+    and canonical district names; falls back to the originals on any failure."""
     paths = {name: os.path.join(data_dir, name) for name in FILES}
+    paths['districts.geojson'] = os.path.join(data_dir, 'districts.geojson')
+    paths['district_id_map'], paths['district_names'] = {}, {}
     if os.environ.get('FARQ_TARGETING_CANONICALIZE', '1') in ('0', 'false', 'no'):
         return paths
-    official = official_districts(os.path.join(data_dir, 'districts.geojson'))
-    for name, src in list(paths.items()):
+    try:
+        with open(paths['districts.geojson'], encoding='utf-8') as handle:
+            collection, id_map = canonical_districts(json.load(handle), load_corrections())
+        out = os.path.join(out_dir, 'districts.geojson')
+        os.makedirs(out_dir, exist_ok=True)
+        with open(out + '.tmp', 'w', encoding='utf-8') as handle:
+            json.dump(collection, handle, ensure_ascii=False)
+        os.replace(out + '.tmp', out)
+        paths['districts.geojson'], paths['district_id_map'] = out, id_map
+        paths['district_names'] = {str(f['properties']['id']): (f['properties'].get('ar'), f['properties'].get('en')) for f in collection['features']}
+        LOGGER.info('canonical_data file=districts.geojson features=%s merged_polygons=%s', len(collection['features']), sum(1 for k, v in id_map.items() if str(v) != k))
+    except FileNotFoundError:
+        pass
+    except Exception as error:
+        LOGGER.error('canonical_data_failed file=districts.geojson error_type=%s', type(error).__name__)
+    official = official_districts(paths['districts.geojson'])
+    for name in FILES:
+        src = paths[name]
         if not os.path.isfile(src):
             continue
         out = os.path.join(out_dir, name)

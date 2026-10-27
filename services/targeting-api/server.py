@@ -684,7 +684,7 @@ class H(BaseHTTPRequestHandler):
             global _DISTRICTS
             try: _DISTRICTS
             except NameError:
-                p=os.path.join(DATA_DIR,'districts.geojson'); _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
+                p=CANONICAL['districts.geojson']; _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
             self._json({'type':'FeatureCollection','features':[f for f in _DISTRICTS['features'] if f['properties'].get('city_en')==city]}); return
         if route.path=="/population-districts":
             # Population estimates are served from the existing data volume and
@@ -700,7 +700,9 @@ class H(BaseHTTPRequestHandler):
                         population_coverage_pct,population_valid_cells,population_polygon_cells,
                         population_year,population_source,population_license
                         from read_parquet(?) where city_en=? order by district_ar""",[path,city]).fetchall()
-                self._json({'city_en':city,'districts':[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]})
+                rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
+                # one row per canonical district: polygons merged in districts.geojson are summed here too
+                self._json({'city_en':city,'districts':canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'])})
             except Exception as error:
                 log_map_api_failure('population-districts',error)
                 self._json({"error":"UNAVAILABLE"},503)
@@ -716,6 +718,9 @@ class H(BaseHTTPRequestHandler):
             path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
             if not os.path.isfile(path): self._json({"error":"UNAVAILABLE"},503); return
             try:
+                # a canonical district stands for every polygon merged into it
+                members=[k for k,v in CANONICAL['district_id_map'].items() if str(v) in set(districts)]
+                districts=sorted(set(districts)|set(members))
                 district_filter=" and cast(district_id as varchar) in ("+','.join('?' for _ in districts)+")" if districts else ""
                 with LOCK:
                     rows=con.execute("""select district_id,district_ar,district_en,age_code,age_group,
@@ -723,7 +728,8 @@ class H(BaseHTTPRequestHandler):
                         population_source,population_license from read_parquet(?) where city_en=?"""+district_filter+
                         " order by district_ar,age_code",[path,city,*districts]).fetchall()
                 names=('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct','year','source','license')
-                self._json({'city_en':city,'districts':[dict(zip(names,row)) for row in rows]})
+                rows=[dict(zip(names,row)) for row in rows]
+                self._json({'city_en':city,'districts':canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True)})
             except Exception as error:
                 log_map_api_failure('population-demographics',error)
                 self._json({"error":"UNAVAILABLE"},503)
