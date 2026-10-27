@@ -332,7 +332,7 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
             break
         geometries, meta = [], []
         for use, city, wkb_hex, elevation, purpose in rows:
-            city = city or ""
+            city = (canonical_data.canonical_city(city) or (city,))[0] if city else ""   # report under the one spelling per city
             per_city[city]["candidate_buildings"] += 1
             per_city[city]["by_use"][use] += 1
             try:

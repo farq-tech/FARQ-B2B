@@ -40,7 +40,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, input_upload, tempfile
+import canonical_data, district_reference, golden, input_upload, tempfile
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -69,7 +69,7 @@ def golden_population(city):
     WorldPop layer the rows are built on is missing."""
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
     if not os.path.isfile(path): return None
-    import golden, insights
+    import insights
     ids=city_polygon_ids(city)
     with LOCK:
         rows=con.execute("""select district_id,district_ar,district_en,population_estimate,
@@ -89,7 +89,6 @@ def golden_demographics(city, districts=(), population=None):
     male/female are given only where 910ths measured them. None when the WorldPop age layer is missing."""
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
     if not os.path.isfile(path): return None
-    import golden
     # a canonical district stands for every polygon merged into it; rows are chosen by the city's polygon ids
     ids=city_polygon_ids(city)
     if districts:
@@ -196,7 +195,7 @@ def insight_response(path, body):
             'growth': next((row for row in growth_rows if row['district_ar'] == district), None),
             'income': next((row for row in income.get('districts', []) if row.get('district_ar') == district), None),
             'income_source': income.get('source'),
-            'sources': {'population': people.get('source') or 'WorldPop 2025 (CC-BY-4.0)', 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
+            'sources': {'population': people.get('source') or golden.WORLDPOP, 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
         }
     raise ValueError(path)
 

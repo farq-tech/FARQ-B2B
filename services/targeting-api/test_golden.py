@@ -22,7 +22,7 @@ class GoldenPopulationTests(unittest.TestCase):
         out = {r["district_ar"]: r for r in golden.population(self.rows(), "Riyadh", built, self.path)}
         self.assertEqual((out["الربيع"]["population"], out["الربيع"]["source"]), (35100.0, "910ths.sa"), "910ths first")
         self.assertEqual((out["النرجس"]["population"], out["النرجس"]["source"]), (82800.0, golden.BUILDINGS), "then buildings calibrated on 910ths")
-        self.assertEqual((out["الملقا"]["population"], out["الملقا"]["source"]), (18000.0, "WorldPop"), "buildings not calibrated on 910ths never replace WorldPop")
+        self.assertEqual((out["الملقا"]["population"], out["الملقا"]["source"]), (18000.0, golden.WORLDPOP), "buildings not calibrated on 910ths never replace WorldPop")
         # Atlas (lib/live-market.ts) drops a row whose year or coverage_pct is not a number
         self.assertTrue(all(isinstance(r["year"], int) and isinstance(r["coverage_pct"], float) for r in out.values()))
         self.assertEqual(out["الربيع"]["year"], 2026)

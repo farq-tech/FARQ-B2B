@@ -16,7 +16,7 @@ same regional figure in every district.
 import district_reference
 
 BUILDINGS = 'farq_buildings_v3'
-WORLDPOP = 'WorldPop'
+WORLDPOP = 'WorldPop 2025'   # one label per source on every row, whatever id the source file carries
 
 
 def building_totals(rows, id_map):
@@ -46,7 +46,7 @@ def population(rows, city, buildings=None, path=district_reference.PATH):
         elif built is not None:
             row.update(population=round(built, 1), source=BUILDINGS, license=None, coverage_pct=100.0)
         else:
-            row.setdefault('source', WORLDPOP)
+            row['source'] = WORLDPOP
     return rows
 
 
@@ -79,4 +79,5 @@ def demographics(rows, totals, city, path=district_reference.PATH):
             else:
                 row['male'] = row['female'] = None
                 row['total'] = total
+                row['source'] = WORLDPOP + ' age shape'
     return rows

@@ -31,6 +31,13 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   )
 }
 
+// the golden population table labels every district with one of three sources (services/targeting-api/golden.py)
+function populationSource(source?: string) {
+  if (source?.startsWith('910ths')) return 'المصدر: 910ths'
+  if (source === 'farq_buildings_v3') return 'تقدير من المباني'
+  return 'تقدير WorldPop 2025'
+}
+
 const money = (value?: number) => (value == null ? 'غير متاح' : `${numberFormat.format(value)} ر.س`)
 
 export function DistrictReportView() {
@@ -96,7 +103,7 @@ export function DistrictReportView() {
           </header>
 
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} note={profile.sources.population?.startsWith('910ths') ? '910ths' : 'تقدير WorldPop 2025'} />
+            <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} note={populationSource(profile.sources.population)} />
             <Stat label="ذكور · إناث" value={people ? `${Math.round((100 * (profile.male ?? 0)) / people)}٪ · ${Math.round((100 * (profile.female ?? 0)) / people)}٪` : 'غير متاح'} note={people ? undefined : 'لا يوجد قياس لهذا الحي'} />
             <Stat label="المنشآت" value={profile.businesses == null ? 'غير متاح' : numberFormat.format(profile.businesses)} note={profile.population && profile.businesses ? `منشأة لكل ${numberFormat.format(Math.round(profile.population / profile.businesses))} ساكن` : undefined} />
             <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني` : undefined} />
@@ -156,7 +163,7 @@ export function DistrictReportView() {
           )}
 
           <footer className="border-t pt-3 text-[11px] leading-6 text-muted-foreground">
-            المصادر: السكان {profile.sources.population}؛ المنشآت {profile.sources.businesses}؛ النمو {profile.sources.growth}
+            المصادر: السكان {populationSource(profile.sources.population)}؛ المنشآت {profile.sources.businesses}؛ النمو {profile.sources.growth}
             {profile.income_source ? `؛ الدخل ${profile.income_source}` : ''}. الأرقام تقديرات لدعم القرار وليست تعداداً رسمياً.
           </footer>
         </article>
