@@ -1,4 +1,5 @@
 """District reference figures read from 910ths.sa (هدف): population, male share, Saudi share and income.
+golden.py decides how they combine with the other population sources; this module only reads the table.
 
 WorldPop's district totals are a satellite model, and its age/sex split comes from a regional table, so every
 district of a region shows the same male share. Where 910ths publishes a district, its total and male share are
@@ -39,48 +40,7 @@ def city_rows(city, path=PATH):
     return {row['district_ar']: row for row in (table.get('cities') or {}).get(city, []) if row.get('district_ar')}
 
 
-def apply_population(rows, city, path=PATH):
-    """Replace WorldPop totals in merged /population-districts rows with the 910ths figure where one exists."""
-    reference = city_rows(city, path)
-    year = _year(path)
-    for row in rows:
-        ref = reference.get(row.get('district_ar'))
-        if ref and ref.get('population'):
-            # Atlas keeps only rows with a numeric year and coverage; a published district total covers the whole district
-            row.update(population=float(ref['population']), source=SOURCE, license=None, year=year if year is not None else row.get('year'), coverage_pct=100.0)
-    return rows
-
-
-def _year(path=PATH):
+def reference_year(path=PATH):
     """The year the reference was read (from its "retrieved" date), or None."""
     retrieved = str((load(path) or {}).get('retrieved') or '')
     return int(retrieved[:4]) if retrieved[:4].isdigit() else None
-
-
-def apply_demographics(rows, city, path=PATH):
-    """Merged by-age rows: in a 910ths district, scale male and female so the district matches its 910ths total and
-    male share (the age shape stays WorldPop's); elsewhere blank the regional male/female split."""
-    reference = city_rows(city, path)
-    by_district = {}
-    for row in rows:
-        by_district.setdefault(row.get('district_ar'), []).append(row)
-    for name, group in by_district.items():
-        ref = reference.get(name)
-        ages = [row for row in group if row.get('age_code') != 'ALL'] or group   # a district with only its ALL row
-        male = sum(float(row.get('male') or 0) for row in ages)
-        female = sum(float(row.get('female') or 0) for row in ages)
-        if ref and ref.get('population') and ref.get('male_pct') is not None and male > 0 and female > 0:
-            population, share = float(ref['population']), float(ref['male_pct']) / 100
-            scale_m, scale_f = population * share / male, population * (1 - share) / female
-            for row in group:
-                if row.get('age_code') == 'ALL':   # the district total is the reference itself, not a rescaled model sum
-                    row['male'], row['female'] = population * share, population * (1 - share)
-                else:
-                    row['male'] = float(row.get('male') or 0) * scale_m
-                    row['female'] = float(row.get('female') or 0) * scale_f
-                row['total'] = row['male'] + row['female']
-                row.update(source=SOURCE + ' + WorldPop age shape', license=None)
-        else:
-            for row in group:
-                row['male'] = row['female'] = None
-    return rows

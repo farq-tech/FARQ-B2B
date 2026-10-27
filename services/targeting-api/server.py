@@ -56,27 +56,53 @@ MODEL = 'claude-haiku-4-5-20251001'
 LOGGER = logging.getLogger('farq.targeting')
 METRICS = ServiceMetrics()
 
+def golden_population(city):
+    """The golden population rows of a city, one per canonical district (golden.population), or None when the
+    WorldPop layer the rows are built on is missing."""
+    path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
+    if not os.path.isfile(path): return None
+    import golden, insights
+    with LOCK:
+        rows=con.execute("""select district_id,district_ar,district_en,population_estimate,
+            population_coverage_pct,population_valid_cells,population_polygon_cells,
+            population_year,population_source,population_license
+            from read_parquet(?) where city_en=? order by district_ar""",[path,city]).fetchall()
+        built_path=insights.latest(os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_buildings_*.parquet'))
+        built=con.execute("select district_id,population_estimate,calibration_source from read_parquet(?) where city_en=?",[built_path,city]).fetchall() if built_path else []
+    rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
+    # one row per canonical district: polygons merged in districts.geojson are summed here too
+    merged=canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'])
+    return golden.population(merged,city,golden.building_totals(built,CANONICAL['district_id_map']))
+
+
+def golden_demographics(city, districts=(), population=None):
+    """Golden by-age rows of a city (or of the given canonical district ids): ages add up to the golden total and
+    male/female are given only where 910ths measured them. None when the WorldPop age layer is missing."""
+    path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
+    if not os.path.isfile(path): return None
+    import golden
+    # a canonical district stands for every polygon merged into it
+    members=[k for k,v in CANONICAL['district_id_map'].items() if str(v) in set(districts)]
+    ids=sorted(set(districts)|set(members))
+    district_filter=" and cast(district_id as varchar) in ("+','.join('?' for _ in ids)+")" if ids else ""
+    with LOCK:
+        rows=con.execute("""select district_id,district_ar,district_en,age_code,age_group,
+            male_estimate,female_estimate,total_estimate,coverage_pct,population_year,
+            population_source,population_license from read_parquet(?) where city_en=?"""+district_filter+
+            " order by district_ar,age_code",[path,city,*ids]).fetchall()
+    names=('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct','year','source','license')
+    merged=canonical_data.merge_population_rows([dict(zip(names,row)) for row in rows],CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True)
+    totals={row['district_ar']:row['population'] for row in ((golden_population(city) if population is None else population) or []) if row.get('district_ar')}
+    return golden.demographics(merged,totals,city)
+
+
 def district_population_by_name(city):
-    """Canonical district name -> {population, male, female, source} for one city: 910ths where it publishes the
-    district (district_reference), else WorldPop with the male/female split unavailable (WorldPop's is regional)."""
-    base=os.path.join(AUX_DATA_DIR,'buildings_ingest','population')
-    out={}
-    pop_path=os.path.join(base,'district_population_2025.parquet')
-    if os.path.isfile(pop_path):
-        with LOCK:
-            rows=con.execute("select district_id,district_ar,district_en,population_estimate,population_coverage_pct,population_valid_cells,population_polygon_cells from read_parquet(?) where city_en=?",[pop_path,city]).fetchall()
-        rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells'),row)) for row in rows]
-        merged=district_reference.apply_population(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']),city)
-        for row in merged:
-            if row['district_ar']: out[row['district_ar']]={'population':row['population'],'male':None,'female':None,'source':row.get('source')}
-    dem_path=os.path.join(base,'district_demographics_2025.parquet')
-    if os.path.isfile(dem_path):
-        with LOCK:
-            rows=con.execute("select district_id,district_ar,district_en,age_code,male_estimate,female_estimate,total_estimate,coverage_pct from read_parquet(?) where city_en=?",[dem_path,city]).fetchall()
-        rows=[dict(zip(('district_id','district_ar','district_en','age_code','male','female','total','coverage_pct'),row)) for row in rows]
-        rows=district_reference.apply_demographics(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True),city)
-        for row in rows:
-            if row['age_code']=='ALL' and row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
+    """Canonical district name -> {population, male, female, source}: the golden table, keyed for name-based joins."""
+    population=golden_population(city) or []
+    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source')}
+         for row in population if row.get('district_ar')}
+    for row in golden_demographics(city,population=population) or []:
+        if row['age_code']=='ALL' and row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
     return out
 
 
@@ -143,15 +169,10 @@ def insight_response(path, body):
         if not isinstance(district, str) or not 1 <= len(district) <= 100: raise ValueError('district')
         people = district_population_by_name(city).get(district) or {}
         summary = MARKET_ANALYTICS.market_summary({'city': city, 'districts': [district]})['summary']
-        canonical = next((key for key, (ar, _) in CANONICAL['district_names'].items() if ar == district), None)
-        ages = []
-        dem_path = os.path.join(POPULATION_DIR, 'district_demographics_2025.parquet')
-        if canonical and os.path.isfile(dem_path):
-            members = [k for k, v in CANONICAL['district_id_map'].items() if str(v) == canonical] or [canonical]
-            with LOCK:
-                rows = con.execute("select district_id, district_ar, district_en, age_code, age_group, male_estimate, female_estimate, total_estimate, coverage_pct from read_parquet(?) where city_en = ? and cast(district_id as varchar) in (select unnest(?::varchar[]))", [dem_path, city, members]).fetchall()
-            merged = district_reference.apply_demographics(canonical_data.merge_population_rows([dict(zip(('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct'), r)) for r in rows], CANONICAL['district_id_map'], CANONICAL['district_names'], by_age=True), city)
-            ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': None if r['male'] is None else round(r['male']), 'female': None if r['female'] is None else round(r['female']), 'total': round(r['total'] or 0)} for r in merged if r['age_code'] != 'ALL'), key=lambda r: r['age_code'])
+        # the golden rows of this city only: a district name can recur in other cities
+        ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': None if r['male'] is None else round(r['male']),
+                        'female': None if r['female'] is None else round(r['female']), 'total': round(r['total'] or 0)}
+                       for r in (golden_demographics(city) or []) if r['district_ar'] == district and r['age_code'] != 'ALL'), key=lambda r: r['age_code'])
         with LOCK:
             growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city, CANONICAL['district_id_map'], CANONICAL['district_names']) or []
         income = insights.district_income(city) or {}
@@ -819,17 +840,10 @@ class H(BaseHTTPRequestHandler):
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             city=urllib.parse.parse_qs(route.query).get("city",[""])[0]
             if not city or len(city)>80: self._json({"error":"INPUT"},400); return
-            path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
-            if not os.path.isfile(path): self._json({"error":"UNAVAILABLE"},503); return
             try:
-                with LOCK:
-                    rows=con.execute("""select district_id,district_ar,district_en,population_estimate,
-                        population_coverage_pct,population_valid_cells,population_polygon_cells,
-                        population_year,population_source,population_license
-                        from read_parquet(?) where city_en=? order by district_ar""",[path,city]).fetchall()
-                rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
-                # one row per canonical district: polygons merged in districts.geojson are summed here too
-                self._json({'city_en':city,'districts':district_reference.apply_population(canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']),city)})
+                rows=golden_population(city)
+                if rows is None: self._json({"error":"UNAVAILABLE"},503); return
+                self._json({'city_en':city,'districts':rows})
             except Exception as error:
                 log_map_api_failure('population-districts',error)
                 self._json({"error":"UNAVAILABLE"},503)
@@ -842,22 +856,10 @@ class H(BaseHTTPRequestHandler):
             districts=query.get("district",[])
             if not city or len(city)>80 or len(districts)>50 or any(not item or len(item)>120 for item in districts):
                 self._json({"error":"INPUT"},400); return
-            path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
-            if not os.path.isfile(path): self._json({"error":"UNAVAILABLE"},503); return
             try:
-                # a canonical district stands for every polygon merged into it
-                members=[k for k,v in CANONICAL['district_id_map'].items() if str(v) in set(districts)]
-                districts=sorted(set(districts)|set(members))
-                district_filter=" and cast(district_id as varchar) in ("+','.join('?' for _ in districts)+")" if districts else ""
-                with LOCK:
-                    rows=con.execute("""select district_id,district_ar,district_en,age_code,age_group,
-                        male_estimate,female_estimate,total_estimate,coverage_pct,population_year,
-                        population_source,population_license from read_parquet(?) where city_en=?"""+district_filter+
-                        " order by district_ar,age_code",[path,city,*districts]).fetchall()
-                names=('district_id','district_ar','district_en','age_code','age_group','male','female','total','coverage_pct','year','source','license')
-                rows=[dict(zip(names,row)) for row in rows]
-                merged=canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True)
-                self._json({'city_en':city,'districts':district_reference.apply_demographics(merged,city)})
+                rows=golden_demographics(city,districts)
+                if rows is None: self._json({"error":"UNAVAILABLE"},503); return
+                self._json({'city_en':city,'districts':rows})
             except Exception as error:
                 log_map_api_failure('population-demographics',error)
                 self._json({"error":"UNAVAILABLE"},503)

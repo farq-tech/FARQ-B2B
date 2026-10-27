@@ -30,7 +30,7 @@ import shapely.geometry
 import shapely.ops
 
 LOGGER = logging.getLogger('farq.targeting')
-VERSION = 3   # bump when the rules below change so cached copies are rebuilt
+VERSION = 4   # bump when the rules below change so cached copies are rebuilt
 
 # key -> (English, Arabic); keep in step with services/data-cleaning/city_names.py
 CITY_ALIAS = {
@@ -204,6 +204,10 @@ def canonical_districts(collection, corrections):
             props['ar'] = fix['ar']
             if fix.get('en'):
                 props['en'] = fix['en']
+            if fix.get('to_city_en'):   # the polygon belongs to another city (e.g. الشهداء of Diriyah filed under Riyadh)
+                props['moved_from_city_en'] = city
+                props['city_en'], city = fix['to_city_en'], fix['to_city_en']
+                props['city_ar'] = fix.get('to_city_ar') or props.get('city_ar')
         key = (city, district_key(props.get('ar') or props.get('district_ar') or str(ident)))
         if key not in groups:
             groups[key] = []
@@ -302,16 +306,28 @@ def _fresh(out, signature):
 
 
 def shared_name_parts(collection):
-    """[(city, key of the shared name, qualified name, centroid lat, centroid lon)] for districts that share a
-    name with a separate district of the same city (see canonical_districts)."""
+    """[(city the records are filed under, key of the shared name, district name, city the district is in, its Arabic
+    city name, centroid lat, centroid lon)] for every name that directory records cannot place by text alone: a
+    name two separate districts of one city share (canonical_districts adds a compass word), and the name of a
+    polygon moved to another city by a correction, together with the same-name district left in the old city."""
+    features = [f.get('properties') or {} for f in collection.get('features') or []]
+    centres = {id(p): _centre([f.get('geometry')]) for p, f in zip(features, collection.get('features') or [])}
     parts = []
-    for feature in collection.get('features') or []:
-        props = feature.get('properties') or {}
-        if not props.get('name_base_ar'):
-            continue
-        centre = _centre([feature.get('geometry')])
+
+    def add(filed_under, base, props):
+        centre = centres.get(id(props))
         if centre is not None:
-            parts.append((props.get('city_en'), district_key(props['name_base_ar']), props.get('ar') or props.get('district_ar'), centre.y, centre.x))
+            city = canonical_city(props.get('city_en')) or (props.get('city_en'), props.get('city_ar'))   # one spelling per city
+            parts.append((filed_under, district_key(base), props.get('ar') or props.get('district_ar'), city[0], city[1], centre.y, centre.x))
+    for props in features:
+        if props.get('name_base_ar'):
+            add(props.get('city_en'), props['name_base_ar'], props)
+        if props.get('moved_from_city_en'):
+            name = props.get('ar') or props.get('district_ar')
+            add(props['moved_from_city_en'], name, props)
+            for other in features:   # the district of the same name that stays in the old city
+                if other.get('city_en') == props['moved_from_city_en'] and district_key(other.get('name_base_ar') or other.get('ar') or '') == district_key(name):
+                    add(props['moved_from_city_en'], name, other)
     return parts
 
 
@@ -349,12 +365,19 @@ def canonicalize_file(src, out, official, shared=None):
             lat = next((c for c in ('latitude', 'lat') if c in columns), None)
             lon = next((c for c in ('longitude', 'lon', 'lng') if c in columns), None)
             if shared and lat and lon:
-                db.execute('create temp table shared_parts (city varchar, key varchar, label varchar, lat double, lon double)')
-                db.executemany('insert into shared_parts values (?, ?, ?, ?, ?)', shared)
+                db.execute('create temp table shared_parts (city varchar, key varchar, label varchar, to_city varchar, to_city_ar varchar, lat double, lon double)')
+                db.executemany('insert into shared_parts values (?, ?, ?, ?, ?, ?, ?)', shared)
                 y, x = f'try_cast(t.{lat} as double)', f'try_cast(t.{lon} as double)'   # older assets store coordinates as text
-                nearest = (f'(select arg_min(s.label, (s.lat - {y}) * (s.lat - {y}) + (s.lon - {x}) * (s.lon - {x})) '
-                           f'from shared_parts s where s.city is not distinct from {city_expr} and s.key = d.key)')
-                replace.append(f'case when {y} is not null and {x} is not null then coalesce({nearest}, d.clean) else d.clean end as district_ar')
+                located = f'{y} is not null and {x} is not null'
+
+                def nearest(field):
+                    return (f'(select arg_min(s.{field}, (s.lat - {y}) * (s.lat - {y}) + (s.lon - {x}) * (s.lon - {x})) '
+                            f'from shared_parts s where s.city is not distinct from {city_expr} and s.key = d.key)')
+                replace.append(f'case when {located} then coalesce({nearest("label")}, d.clean) else d.clean end as district_ar')
+                # a record placed in a district moved to another city moves with it
+                replace[:] = [f'case when {located} then coalesce({nearest("to_city")}, {city_expr}) else {city_expr} end as city_en' if r == f'{city_expr} as city_en'
+                              else f'case when {located} then coalesce({nearest("to_city_ar")}, c.ar, t.city_ar) else coalesce(c.ar, t.city_ar) end as city_ar' if r == 'coalesce(c.ar, t.city_ar) as city_ar'
+                              else r for r in replace]
             else:
                 replace.append('d.clean as district_ar')
             if 'district_reliable' in columns:
