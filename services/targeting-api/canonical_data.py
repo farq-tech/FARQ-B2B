@@ -204,6 +204,8 @@ def canonical_districts(collection, corrections):
             props['ar'] = fix['ar']
             if fix.get('en'):
                 props['en'] = fix['en']
+            if fix.get('qualifier_ar'):   # the place that tells this district from a same-name one, e.g. «بحرة»
+                props['_qualifier'] = (fix['qualifier_ar'], fix.get('qualifier_en') or fix['qualifier_ar'])
             if fix.get('to_city_en'):   # the polygon belongs to another city (e.g. الشهداء of Diriyah filed under Riyadh)
                 props['moved_from_city_en'] = city
                 props['city_en'], city = fix['to_city_en'], fix['to_city_en']
@@ -217,10 +219,19 @@ def canonical_districts(collection, corrections):
     for key in order:
         members = sorted(groups[key], key=lambda member: _id_order(member[0]['id']))
         parts = _components(members) if len(members) > 1 else [[0]]
-        qualifiers = _qualifiers([_centre([members[i][1] for i in part]) for part in parts]) if len(parts) > 1 else [None]
+        qualifiers = [None]
+        if len(parts) > 1:
+            named = [next((members[i][0]['_qualifier'] for i in part if members[i][0].get('_qualifier')), None) for part in parts]
+            plain = [k for k, q in enumerate(named) if q is None]
+            # a reviewed place name wins; one part left without one keeps the bare name, several get compass words
+            compass = _qualifiers([_centre([members[i][1] for i in parts[k]]) for k in plain]) if len(plain) > 1 else [None] * len(plain)
+            qualifiers = list(named)
+            for k, word in zip(plain, compass):
+                qualifiers[k] = word
         for part, qualifier in zip(parts, qualifiers):
             chosen = [members[i] for i in part]
             props = dict(chosen[0][0])
+            props.pop('_qualifier', None)
             canonical_id = props['id']
             if len(chosen) == 1:
                 geometry = chosen[0][1]
