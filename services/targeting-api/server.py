@@ -43,6 +43,27 @@ MODEL = 'claude-haiku-4-5-20251001'
 LOGGER = logging.getLogger('farq.targeting')
 METRICS = ServiceMetrics()
 
+def district_population_by_name(city):
+    """Canonical district name -> {population, male, female} for one city, from the WorldPop layers on the volume."""
+    base=os.path.join(AUX_DATA_DIR,'buildings_ingest','population')
+    out={}
+    pop_path=os.path.join(base,'district_population_2025.parquet')
+    if os.path.isfile(pop_path):
+        with LOCK:
+            rows=con.execute("select district_id,district_ar,district_en,population_estimate,population_coverage_pct,population_valid_cells,population_polygon_cells from read_parquet(?) where city_en=?",[pop_path,city]).fetchall()
+        rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells'),row)) for row in rows]
+        for row in canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names']):
+            if row['district_ar']: out[row['district_ar']]={'population':row['population'],'male':None,'female':None}
+    dem_path=os.path.join(base,'district_demographics_2025.parquet')
+    if os.path.isfile(dem_path):
+        with LOCK:
+            rows=con.execute("select district_id,district_ar,district_en,age_code,male_estimate,female_estimate,total_estimate,coverage_pct from read_parquet(?) where city_en=? and age_code='ALL'",[dem_path,city]).fetchall()
+        rows=[dict(zip(('district_id','district_ar','district_en','age_code','male','female','total','coverage_pct'),row)) for row in rows]
+        for row in canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'],by_age=True):
+            if row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
+    return out
+
+
 def log_map_api_failure(endpoint, error):
     """Log a safe failure location without request bodies, query text, or exception messages."""
     try:
@@ -844,6 +865,16 @@ class H(BaseHTTPRequestHandler):
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('clusters', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/market-gaps':
+            # Districts where an activity has fewer directory businesses than its residents would carry at the city rate.
+            try:
+                city = body.get('city')
+                if not isinstance(city, str) or not 1 <= len(city) <= 80: raise ValueError('city')
+                self._json(MARKET_ANALYTICS.market_gaps(body, district_population_by_name(city)))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('market-gaps', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys'):
             # Read-only market aggregates for the map; analytics return aggregate counts only.

@@ -165,7 +165,8 @@ def merge_population_rows(rows, id_map, names, by_age=False):
         if key not in merged:
             out = dict(row)
             out['district_id'] = canonical
-            out['district_ar'], out['district_en'] = names.get(str(canonical), (row.get('district_ar'), row.get('district_en')))
+            name_ar, name_en = names.get(str(canonical), (None, None))
+            out['district_ar'], out['district_en'] = name_ar or row.get('district_ar'), name_en or row.get('district_en')
             out['_weight'] = 0.0
             out['_coverage'] = 0.0
             for field in ('population', 'valid_cells', 'polygon_cells', 'male', 'female', 'total'):
@@ -176,11 +177,11 @@ def merge_population_rows(rows, id_map, names, by_age=False):
         out = merged[key]
         for field in ('population', 'valid_cells', 'polygon_cells', 'male', 'female', 'total'):
             if field in row and row[field] is not None:
-                out[field] = (out[field] or 0) + row[field]
+                out[field] = (out[field] or 0) + float(row[field])   # parquet decimals and doubles both sum as floats
         weight = row.get('total') if by_age else row.get('population')
         if weight and row.get('coverage_pct') is not None:
-            out['_weight'] += weight
-            out['_coverage'] += weight * row['coverage_pct']
+            out['_weight'] += float(weight)
+            out['_coverage'] += float(weight) * float(row['coverage_pct'])
     result = []
     for key in order:
         out = merged[key]
@@ -266,7 +267,7 @@ def prepare(data_dir, out_dir):
             json.dump(collection, handle, ensure_ascii=False)
         os.replace(out + '.tmp', out)
         paths['districts.geojson'], paths['district_id_map'] = out, id_map
-        paths['district_names'] = {str(f['properties']['id']): (f['properties'].get('ar'), f['properties'].get('en')) for f in collection['features']}
+        paths['district_names'] = {str(f['properties']['id']): (f['properties'].get('ar') or f['properties'].get('district_ar'), f['properties'].get('en') or f['properties'].get('district_en')) for f in collection['features']}
         LOGGER.info('canonical_data file=districts.geojson features=%s merged_polygons=%s', len(collection['features']), sum(1 for k, v in id_map.items() if str(v) != k))
     except FileNotFoundError:
         pass
