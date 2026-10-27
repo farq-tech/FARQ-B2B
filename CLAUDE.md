@@ -10,6 +10,8 @@
 
 ## قواعد عملية
 
+- وثيقة المنتج الملزمة: `docs/atlas-product-foundation.md` (الفئات الأربع، العدسات، قواعد العرض، أولوية البناء). أي ميزة جديدة تُقاس عليها.
+
 - سجّل كل تحسين في `docs/opportunity-map-improvement-log.md` بصيغة: الفجوة، التغيير، التحقق والحدود.
 - لا تضع بيانات إنتاج أو أسراراً أو ملفات `.parquet`/`.geojson` في Git.
 - أسماء المدن والأحياء الموحّدة مصدرها `services/targeting-api/canonical_data.py` (وتوأمه `services/data-cleaning/city_names.py` لإعادة بناء اللقطة). أي اسم جديد يُضاف هناك لا في الواجهة.
