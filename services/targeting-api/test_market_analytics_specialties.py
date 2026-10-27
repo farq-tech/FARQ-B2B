@@ -176,6 +176,7 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         missing_column = self.root / "targets-without-specialties.parquet"
         self._write_targets(missing_column, include_specialty=False)
         market_analytics.DATA = str(missing_column)
+        self.analytics.data = str(missing_column)
         self.analytics._specialty_column = None
 
         result = self.analytics.district_counts({
