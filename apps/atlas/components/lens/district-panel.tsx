@@ -70,8 +70,8 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         <Figure label="المنشآت" value={show(businesses)} />
         {lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={people != null && businesses ? show(people / businesses) : 'غير متاح'} />}
         {(lens === 'marketers' || lens === 'analysts' || selected.length > 0) && <Figure label="منشآت بواتساب" value={show(sumOf(scope, 'whatsapp'))} />}
-        {single && <Figure label="ذكور · إناث" value={sexKnown ? `${Math.round((100 * profile!.male!) / (profile!.male! + profile!.female!))}٪ · ${Math.round((100 * profile!.female!) / (profile!.male! + profile!.female!))}٪` : 'غير متاح'} />}
-        {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}٪`} />}
+        {single && <Figure label="ذكور · إناث" value={sexKnown ? `${Math.round((100 * profile!.male!) / (profile!.male! + profile!.female!))}% · ${Math.round((100 * profile!.female!) / (profile!.male! + profile!.female!))}%` : 'غير متاح'} />}
+        {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} />}
         {single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(income, ' ر.س')} />}
         {single && lens !== 'marketers' && <Figure label="مبانٍ جديدة وتحت الإنشاء" value={show(growth)} />}
         {single && lens === 'marketers' && <Figure label="أكبر شريحة عمرية" value={topAge ? topAge.age_group : 'غير متاح'} />}

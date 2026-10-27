@@ -186,7 +186,7 @@ export function ExpansionOpportunities({
         <div className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-3">
           <h3 className="text-sm font-semibold">فرص أولية في حي {selectedArea.districtName}</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {formatNumber(selectedArea.population)} ساكن · {selectedArea.competitorCount == null ? 'عدد المنشآت غير متاح مؤقتًا' : `${formatNumber(selectedArea.competitorCount)} ${activityName ? 'منشأة للنشاط المحدد' : 'منشأة مرصودة في الدليل'}`} · تقدير سكاني بتغطية {formatNumber(selectedArea.coverage)}٪
+            {formatNumber(selectedArea.population)} ساكن · {selectedArea.competitorCount == null ? 'عدد المنشآت غير متاح مؤقتًا' : `${formatNumber(selectedArea.competitorCount)} ${activityName ? 'منشأة للنشاط المحدد' : 'منشأة مرصودة في الدليل'}`} · تقدير سكاني بتغطية {formatNumber(selectedArea.coverage)}%
           </p>
           {selectedArea.children + selectedArea.workingAge + selectedArea.seniors > 0 ? (
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -216,7 +216,7 @@ export function ExpansionOpportunities({
                     >
                       <span className="min-w-0 flex-1 text-xs font-medium">{item.main_ar}</span>
                       <span className="shrink-0 text-left text-[11px] text-muted-foreground">
-                        {formatNumber(item.localCount)} مرصودة · {formatNumber(item.expectedCount)} متوقعة نسبيًا · {Math.round(item.representation * 100)}٪
+                        {formatNumber(item.localCount)} مرصودة · {formatNumber(item.expectedCount)} متوقعة نسبيًا · {Math.round(item.representation * 100)}%
                       </span>
                     </button>
                   </li>
@@ -243,7 +243,7 @@ export function ExpansionOpportunities({
                 {activityName ? <span><strong className="text-foreground tabular-nums">{candidate.competitorCount == null ? '—' : formatNumber(candidate.competitorCount)}</strong> منشأة مرصودة · <strong className="text-foreground tabular-nums">{formatNumber(candidate.residentsPerBusiness ?? 0)}</strong> ساكن/منشأة</span> : <span><strong className="text-foreground tabular-nums">{candidate.competitorCount == null ? '—' : formatNumber(candidate.competitorCount)}</strong> منشأة مرصودة في الحي</span>}
                   {candidate.children + candidate.workingAge + candidate.seniors > 0 ? <span>أعمار السكان: دون 15 {formatNumber(candidate.children)} · 15–64 {formatNumber(candidate.workingAge)} · 65+ {formatNumber(candidate.seniors)}</span> : null}
                   {candidate.male + candidate.female > 0 ? <span>تقدير حسب الجنس: ذكور {formatNumber(candidate.male)} · إناث {formatNumber(candidate.female)}</span> : null}
-                  <span>تغطية تقدير السكان {formatNumber(candidate.coverage)}٪</span>
+                  <span>تغطية تقدير السكان {formatNumber(candidate.coverage)}%</span>
               </span>
             </button>
           </li>

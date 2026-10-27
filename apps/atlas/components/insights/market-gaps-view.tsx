@@ -3,7 +3,7 @@
 import { Loader2, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { useCities } from '@/lib/insights-api'
+import { numberFormat, useCities } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
 type Activity = { main_id: string; main_ar: string; n: number }
@@ -18,7 +18,7 @@ type GapRow = {
 }
 type GapResult = { residents_per_business: number | null; districts: GapRow[]; basis: string; message?: string }
 
-const number = new Intl.NumberFormat('ar-SA-u-nu-latn')
+const number = numberFormat
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 
 async function post<T>(resource: string, body: unknown): Promise<T> {
@@ -157,7 +157,7 @@ export function MarketGapsView() {
                           </div>
                         </td>
                         <td className="p-3">{row.residents_per_business == null ? 'لا توجد منشأة' : number.format(row.residents_per_business)}</td>
-                        <td className="p-3">{row.male_pct == null ? 'غير متاح' : `${row.male_pct}٪`}</td>
+                        <td className="p-3">{row.male_pct == null ? 'غير متاح' : `${row.male_pct}%`}</td>
                       </tr>
                     ))}
                   </tbody>
