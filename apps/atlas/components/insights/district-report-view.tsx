@@ -10,7 +10,7 @@ type Profile = {
   population: number | null
   male: number | null
   female: number | null
-  ages: { age_group: string; male: number; female: number; total: number }[]
+  ages: { age_group: string; male: number | null; female: number | null; total: number }[]
   businesses: number | null
   whatsapp: number | null
   wholesale: number | null
@@ -96,8 +96,8 @@ export function DistrictReportView() {
           </header>
 
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} note="تقدير 2025" />
-            <Stat label="ذكور · إناث" value={people ? `${Math.round((100 * (profile.male ?? 0)) / people)}٪ · ${Math.round((100 * (profile.female ?? 0)) / people)}٪` : 'غير متاح'} />
+            <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} note={profile.sources.population?.startsWith('910ths') ? '910ths' : 'تقدير WorldPop 2025'} />
+            <Stat label="ذكور · إناث" value={people ? `${Math.round((100 * (profile.male ?? 0)) / people)}٪ · ${Math.round((100 * (profile.female ?? 0)) / people)}٪` : 'غير متاح'} note={people ? undefined : 'لا يوجد قياس لهذا الحي'} />
             <Stat label="المنشآت" value={profile.businesses == null ? 'غير متاح' : numberFormat.format(profile.businesses)} note={profile.population && profile.businesses ? `منشأة لكل ${numberFormat.format(Math.round(profile.population / profile.businesses))} ساكن` : undefined} />
             <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني` : undefined} />
           </section>
@@ -123,14 +123,18 @@ export function DistrictReportView() {
                   <div key={row.age_group} className="flex items-center gap-2">
                     <span className="w-12 text-muted-foreground">{row.age_group}</span>
                     <div className="flex h-3 flex-1 overflow-hidden rounded bg-muted">
-                      <span className="h-full bg-sky-500" style={{ width: `${(100 * row.male) / largestAge}%` }} />
-                      <span className="h-full bg-pink-500" style={{ width: `${(100 * row.female) / largestAge}%` }} />
+                      {row.male == null || row.female == null
+                        ? <span className="h-full bg-muted-foreground/40" style={{ width: `${(100 * row.total) / largestAge}%` }} />
+                        : <>
+                          <span className="h-full bg-sky-500" style={{ width: `${(100 * row.male) / largestAge}%` }} />
+                          <span className="h-full bg-pink-500" style={{ width: `${(100 * row.female) / largestAge}%` }} />
+                        </>}
                     </div>
                     <span className="w-14 text-end">{numberFormat.format(row.total)}</span>
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground"><span className="text-sky-500">■</span> ذكور <span className="text-pink-500">■</span> إناث</p>
+              <p className="mt-1 text-[11px] text-muted-foreground"><span className="text-sky-500">■</span> ذكور <span className="text-pink-500">■</span> إناث · توزيع الأعمار نمط المنطقة من WorldPop لا قياس للحي</p>
             </section>
           )}
 

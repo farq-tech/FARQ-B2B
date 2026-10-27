@@ -38,12 +38,34 @@ class StartupJobsTests(unittest.TestCase):
             done.set()
             return report
 
-        with mock.patch.dict('sys.modules', {'build_building_population': mock.Mock(build=fake_build)}), \
+        with mock.patch.dict('sys.modules', {'build_building_population': mock.Mock(build=fake_build, SOURCE='v3')}), \
                 self.assertLogs('farq.targeting', level=logging.INFO) as logs:
             self.assertEqual(startup_jobs.start(self.data), ['building_population'])
             self.assertTrue(done.wait(5))
             threading.Event().wait(0.2)   # let the thread write its final line
         self.assertTrue(any('building_population_done' in line and json.dumps(report, ensure_ascii=False) in line for line in logs.output))
+
+    def test_an_unchanged_run_is_skipped_and_a_changed_input_reruns(self):
+        os.environ['FARQ_BUILD_BUILDING_POPULATION'] = '1'
+        (self.data / 'buildings_ingest' / 'population').mkdir(parents=True)
+        calls = []
+        module = mock.Mock(build=lambda **kwargs: calls.append(kwargs) or {}, SOURCE='v3')
+
+        def run():
+            with mock.patch.dict('sys.modules', {'build_building_population': module}), self.assertLogs('farq.targeting', level=logging.INFO) as logs:
+                startup_jobs._run('building_population', startup_jobs._building_population, self.data)
+            return logs.output
+
+        run()
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(any('reason=inputs_unchanged' in line for line in run()), 'a restart with the same inputs does not redo the work')
+        self.assertEqual(len(calls), 1)
+        (self.data / 'districts.geojson').write_text('{"features": []}', encoding='utf-8')
+        run()
+        self.assertEqual(len(calls), 2, 'a new district atlas reruns the job')
+        module.SOURCE = 'v4'
+        run()
+        self.assertEqual(len(calls), 3, 'a new model version reruns the job')
 
     def test_a_failing_job_is_logged_by_type_and_never_raises(self):
         os.environ['FARQ_BUILD_BUILDING_POPULATION'] = 'true'
@@ -51,7 +73,7 @@ class StartupJobsTests(unittest.TestCase):
         def boom(**kwargs):
             raise FileNotFoundError('/data/buildings_ingest/normalized/buildings.parquet')
 
-        with mock.patch.dict('sys.modules', {'build_building_population': mock.Mock(build=boom)}), \
+        with mock.patch.dict('sys.modules', {'build_building_population': mock.Mock(build=boom, SOURCE='v3')}), \
                 self.assertLogs('farq.targeting', level=logging.ERROR) as logs:
             startup_jobs.start(self.data)
             for thread in threading.enumerate():
@@ -63,7 +85,7 @@ class StartupJobsTests(unittest.TestCase):
     def test_a_missing_input_is_reported_and_the_job_skipped(self):
         os.environ['FARQ_BUILD_BUILDING_POPULATION'] = '1'
         (self.data / 'districts.geojson').unlink()
-        with mock.patch.dict('sys.modules', {'build_building_population': mock.Mock(build=mock.Mock())}), \
+        with mock.patch.dict('sys.modules', {'build_building_population': mock.Mock(build=mock.Mock(), SOURCE='v3')}), \
                 self.assertLogs('farq.targeting', level=logging.ERROR) as logs:
             startup_jobs.start(self.data)
             for thread in threading.enumerate():

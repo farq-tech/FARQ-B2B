@@ -5,16 +5,22 @@ WorldPop spreads people over a 100 m satellite grid, so it blurs residential
 blocks into commercial streets and empty lots. The building layer knows which
 footprints are homes (`building_use`, verified by the owner as reliable), how
 large they are, and in most cases how tall. Each home building becomes a number
-of dwellings: a villa is one household however large it is, other homes are
-floor area × home storeys over a flat size, a ground floor goes to shops when the
-building is mixed use or a directory business lies inside it, and buildings under
-construction hold nobody. A city's official population is then distributed over
-its districts in proportion to dwellings; dwellings × household size also gives a
-buildings-only total with no outside population source. Nothing is invented: the
-total comes from the General Authority for Statistics (or, until an official
-city figure is supplied, from the WorldPop city sum, and the output says which),
-and the distribution comes from real buildings assigned to official district
-polygons by point-in-polygon, never by the free-text district field.
+of dwellings: flats are floor area × home storeys over a flat size; a villa, and a
+residential building whose purpose was never surveyed, is one household per
+VILLA_M2 of floor area (at least one); an "administrative" building keeps a share
+of its upper floors as flats, because in central districts flats above shops are
+surveyed as administrative; a ground floor goes to shops when the building is
+mixed use or a directory business lies inside it, and buildings under
+construction hold nobody. These rules were chosen against 910ths district
+populations for Riyadh with a two-fold holdout (docs/opportunity-map-improvement-log.md).
+
+District totals come, in order, from the 910ths reference table (district_reference;
+spread over a district's polygons by dwellings), from the people per dwelling those
+referenced districts show in the same city, or from the city's official total (or
+the WorldPop city sum until one is supplied) shared by dwellings; the output says
+which. dwellings × household size also gives a buildings-only total with no outside
+population source. Buildings are assigned to official district polygons by
+point-in-polygon, never by the free-text district field.
 
 `Apartments` is deliberately not used: the owner reports it is sparsely filled.
 
@@ -45,16 +51,23 @@ import duckdb
 import shapely
 from shapely.strtree import STRtree
 
+import canonical_data
+import district_reference
+
 DATA_DIR = Path(os.environ.get("FARQ_DATA_DIR", "/app/data"))
 POP_DIR = DATA_DIR / "buildings_ingest" / "population"
-SOURCE = "farq_buildings_dasymetric_v2"
-USE_WEIGHT = {"residential": 1.0, "mixed_use": 1.0}   # uses that can hold homes; mixed use loses its ground floor below
+SOURCE = "farq_buildings_dasymetric_v3"
+USE_WEIGHT = {"residential": 1.0, "mixed_use": 1.0, "administrative": 1.0}   # uses that can hold homes; see dwelling_units
 # Dwelling-unit model. These constants scale every building alike, so they set the buildings-only total but
 # cancel out of the district shares once a city total is calibrated; only the villa/apartment split and the
 # floors removed for shops change how people are distributed between districts.
 NET_FACTOR = 0.75          # share of gross floor area that is flats (stairs, shafts and walls excluded)
 UNIT_M2 = 150.0            # net floor area of one flat
 HOUSEHOLD_SIZE = 5.0       # people per dwelling for the buildings-only total; replace with an official figure when known
+VILLA_M2 = 500.0           # villa floor area per household (a large villa holds more than one family)
+ADMIN_HOME_SHARE = 0.25    # share of an administrative building's upper floors that are flats
+ADMIN_HOME_PURPOSES = {"", "administrative building"}   # not government, hotel, medical or other named uses
+APARTMENT_PURPOSES = {"residential building", "residental building", "labour camp"}   # flats; the vendor's spelling varies
 VILLA_PURPOSES = {"villa", "townhouse"}
 NOT_YET_HOMES = ("under construction", "under repair")
 NEW_BUILDING_TYPES = ("مباني جديدة", "new_building")   # vendor "new building" layer: built since the last survey
@@ -171,15 +184,22 @@ def floors_from(value: float | None, mode: str, floor_height: float) -> tuple[in
 
 def dwelling_units(use: str, purpose: str, area_m2: float, floors: int, shops: int) -> tuple[float, str]:
     """(dwellings, class) for one building. Shops found inside take the ground floor; a one-storey
-    building with a shop in it is a shop. Villas are one household however large they are."""
+    building with a shop in it is a shop."""
     p = (purpose or "").strip().casefold()
     if any(token in p for token in NOT_YET_HOMES):
         return 0.0, "not_yet_occupied"
-    if p in VILLA_PURPOSES:
+    if use == "administrative":
+        if p not in ADMIN_HOME_PURPOSES:
+            return 0.0, "not_home"
+        upper = floors - 1
+        if upper <= 0:
+            return 0.0, "shop"
+        return ADMIN_HOME_SHARE * area_m2 * upper * NET_FACTOR / UNIT_M2, "admin_upper_floors"
+    homes_floors = floors - 1 if (use == "mixed_use" or shops) else floors
+    if p in VILLA_PURPOSES or (use == "residential" and p not in APARTMENT_PURPOSES):
         if shops and floors <= 1:
             return 0.0, "shop"
-        return (2.0 if floors >= 3 else 1.0), "villa"
-    homes_floors = floors - 1 if (use == "mixed_use" or shops) else floors
+        return max(1.0, area_m2 * floors / VILLA_M2), ("villa" if p in VILLA_PURPOSES else "unspecified_home")
     if homes_floors <= 0:
         return 0.0, "shop"
     return area_m2 * homes_floors * NET_FACTOR / UNIT_M2, ("mixed_use" if use == "mixed_use" else "apartments")
@@ -249,9 +269,35 @@ def load_worldpop(path: Path | None) -> dict:
     return {row[0]: {"city_en": row[1], "population": row[2]} for row in rows}
 
 
+def reference_estimates(districts: Path, ids: list, district_city: dict, per_district: dict, reference: Path | None) -> tuple[dict, dict]:
+    """({polygon id: population} for districts listed in the 910ths reference, {city: people per dwelling} over them).
+    A reference row names a canonical district, which may be several polygons; its total is spread over them by dwellings."""
+    if not reference or not Path(reference).is_file():
+        return {}, {}
+    collection, id_map = canonical_data.canonical_districts(json.loads(Path(districts).read_text(encoding="utf-8")), canonical_data.load_corrections())
+    names = {str(f["properties"]["id"]): f["properties"].get("ar") or f["properties"].get("district_ar") for f in collection["features"]}
+    groups: dict = defaultdict(list)
+    for did in ids:
+        groups[str(id_map.get(str(did), did))].append(did)
+    referenced, people, dwellings = {}, defaultdict(float), defaultdict(float)
+    for canonical, members in groups.items():
+        city = district_city[members[0]]
+        row = district_reference.city_rows(city, reference).get(names.get(canonical))
+        if not row or not row.get("population"):
+            continue
+        weights = [per_district[m]["weight"] if m in per_district else 0.0 for m in members]
+        total = sum(weights)
+        for member, weight in zip(members, weights):
+            referenced[member] = float(row["population"]) * (weight / total if total > 0 else 1 / len(members))
+        if total > 0:
+            people[city] += float(row["population"])
+            dwellings[city] += total
+    return referenced, {city: people[city] / dwellings[city] for city in people if dwellings[city] > 0}
+
+
 def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | None, official: Path | None,
           elevation_mode: str = "auto", floor_height: float = 3.2, year: int = 2026, batch: int = 50_000,
-          pois: Path | None = None) -> dict:
+          pois: Path | None = None, reference: Path | None = None) -> dict:
     ids, geoms, props, invalid_polygons = load_districts(districts)
     tree = STRtree(geoms)
     poi_tree, poi_count = load_pois(pois)
@@ -349,13 +395,22 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
         else:
             calibration[city] = {"total": None, "source": None, "year": None}
 
-    out_rows, divergent, comparable = [], 0, 0
+    referenced, people_per_dwelling = reference_estimates(districts, ids, district_city, per_district, reference)
+
+    out_rows, divergent, comparable, factors = [], 0, 0, {}
     for did in ids:
         prop, city = props[did], district_city[did]
         bucket = per_district.get(did)
         cal = calibration[city]
         share = (bucket["weight"] / city_weight[city]) if bucket and city_weight[city] > 0 else None
-        estimate = round(share * cal["total"], 1) if share is not None and cal["total"] else None
+        if did in referenced:
+            estimate, source = round(referenced[did], 1), district_reference.SOURCE
+        elif city in people_per_dwelling and bucket:
+            estimate, source = round(bucket["weight"] * people_per_dwelling[city], 1), district_reference.SOURCE + ":people_per_dwelling"
+        else:
+            estimate, source = (round(share * cal["total"], 1) if share is not None and cal["total"] else None), cal["source"]
+        if estimate is not None and bucket and bucket["weight"] > 0:
+            factors[did] = estimate / bucket["weight"]
         wp = worldpop_rows.get(did, {}).get("population")
         diff_pct = flag = None
         if estimate is not None and wp is not None and wp >= MIN_COMPARABLE and estimate >= MIN_COMPARABLE:
@@ -374,7 +429,7 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
             "population_buildings_only": round(bucket["weight"] * HOUSEHOLD_SIZE, 1) if bucket else None,
             "city_weight_share": round(share, 6) if share is not None else None,
             "population_estimate": estimate,
-            "calibration_total": cal["total"], "calibration_source": cal["source"], "calibration_year": cal["year"],
+            "calibration_total": cal["total"], "calibration_source": source, "calibration_year": cal["year"],
             "worldpop_estimate": wp, "worldpop_diff_pct": diff_pct, "estimates_diverge": flag,
             "population_year": year, "population_source": SOURCE, "elevation_mode": mode,
         })
@@ -406,7 +461,9 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
     db = duckdb.connect()
     try:
         db.execute("SET threads=4; SET memory_limit='4GB'")
-        write_rows(db, points, [("longitude", "DOUBLE"), ("latitude", "DOUBLE"), ("district_id", "VARCHAR"), ("dwellings", "DOUBLE")], points_parquet)
+        for point in points:   # each building's share of its district's people
+            point["population"] = round(point["dwellings"] * factors.get(point["district_id"], HOUSEHOLD_SIZE), 2)
+        write_rows(db, points, [("longitude", "DOUBLE"), ("latitude", "DOUBLE"), ("district_id", "VARCHAR"), ("dwellings", "DOUBLE"), ("population", "DOUBLE")], points_parquet)
         growth = growth_by_district(db, buildings, columns, tree, ids)
         write_rows(db, [{"district_id": did, "district_ar": props[did].get("ar"), "city_en": district_city[did], **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in growth[did].items()}}
                         for did in ids if did in growth],
@@ -419,9 +476,14 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
         "source": SOURCE, "year": year,
         "inputs": {"buildings": {"path": str(buildings), "sha256": sha256(buildings)}, "districts": {"path": str(districts), "sha256": sha256(districts), "invalid_polygons_repaired": invalid_polygons},
                    "worldpop": str(worldpop) if worldpop else None, "official": str(official) if official else None},
-        "method": {"weight": "dwelling units: villa = 1 (2 when 3+ storeys); other homes = footprint_m2 × home storeys × net_factor / unit_m2; "
-                             "home storeys drop the ground floor for mixed use or when a directory business lies inside; under construction/repair excluded",
-                   "net_factor": NET_FACTOR, "unit_m2": UNIT_M2, "household_size_for_buildings_only_total": HOUSEHOLD_SIZE,
+        "method": {"weight": "dwelling units: flats = footprint_m2 × home storeys × net_factor / unit_m2; villa or unsurveyed residential = max(1, floor area / villa_m2); "
+                             "administrative = admin_home_share of upper-floor flats; home storeys drop the ground floor for mixed use or when a directory business "
+                             "lies inside; under construction/repair excluded",
+                   "net_factor": NET_FACTOR, "unit_m2": UNIT_M2, "villa_m2": VILLA_M2, "admin_home_share": ADMIN_HOME_SHARE,
+                   "household_size_for_buildings_only_total": HOUSEHOLD_SIZE,
+                   "district_totals": "910ths reference where listed (spread over the district's polygons by dwellings); elsewhere dwellings × the people per "
+                                      "dwelling of the city's referenced districts; cities without references: city total shared by dwellings",
+                   "reference": {"path": str(reference) if reference else None, "districts": len(referenced), "people_per_dwelling": {c: round(v, 3) for c, v in people_per_dwelling.items()}},
                    "pois": {"path": str(pois) if pois else None, "points": poi_count},
                    "use_weight": USE_WEIGHT, "apartments_field_used": False,
                    "elevation_mode": mode, "elevation_stats": elevation_stats, "floor_height_m": floor_height,
@@ -450,12 +512,14 @@ def main() -> int:
     parser.add_argument("--floor-height", type=float, default=3.2, help="metres per storey when Elevation is a height")
     parser.add_argument("--year", type=int, default=2026)
     parser.add_argument("--pois", type=Path, default=DATA_DIR / "targets.parquet", help="directory businesses (longitude/latitude) used to find shops inside buildings")
+    parser.add_argument("--reference", type=Path, default=Path(district_reference.PATH), help="910ths district reference table (district_reference.py)")
     args = parser.parse_args()
     for path in (args.buildings, args.districts):
         if not path.is_file():
             raise SystemExit(f"Missing source: {path}")
     report = build(args.buildings, args.districts, args.output, args.worldpop if args.worldpop.is_file() else None, args.official,
-                   args.elevation_mode, args.floor_height, args.year, pois=args.pois if args.pois.is_file() else None)
+                   args.elevation_mode, args.floor_height, args.year, pois=args.pois if args.pois.is_file() else None,
+                   reference=args.reference if args.reference.is_file() else None)
     print(json.dumps({"ok": True, "elevation_mode": report["method"]["elevation_mode"], "districts": report["districts"],
                       "cities": {c: {"assigned": s["assigned"], "outside_boundaries": s["outside_boundaries"], "calibration": s["calibration"]["source"] if s["calibration"] else None}
                                  for c, s in report["cities"].items()}}, ensure_ascii=False))

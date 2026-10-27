@@ -46,6 +46,12 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(result["businesses"], 3)
         self.assertEqual(result["top_activities"][0], {"activity": "صيدلية", "n": 2})
 
+    def test_population_around_uses_each_buildings_people_when_the_layer_has_them(self):
+        points = self.parquet("p3.parquet", "longitude double, latitude double, district_id varchar, dwellings double, population double", [
+            (46.7000, 24.7000, "1", 4.0, 30.0), (46.7020, 24.7010, "1", 6.0, 45.0), (46.7500, 24.7000, "2", 100.0, 500.0)])
+        result = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
+        self.assertEqual((result["home_buildings"], result["dwellings"], result["population"], result["people_per_district"]), (2, 10.0, 75, True))
+
     def test_territories_are_balanced_runs_of_neighbouring_districts(self):
         features = [{"properties": {"id": i, "ar": f"حي{i}"}, "geometry": square(46.0 + (i % 4) * 0.01, 24.0 + (i // 4) * 0.01)} for i in range(16)]
         weights = {f"حي{i}": 100 for i in range(16)}
@@ -62,9 +68,12 @@ class InsightTests(unittest.TestCase):
 
     def test_district_income_reads_the_reference_table(self):
         path = self.root / "income.json"
-        path.write_text(json.dumps({"source": "s", "retrieved": "2026-10-27", "unit": "SAR/month", "cities": {"Riyadh": [{"district_ar": "الربيع", "income_all": 10700}]}}, ensure_ascii=False), encoding="utf-8")
+        path.write_text(json.dumps({"source": "s", "retrieved": "2026-10-27", "cities": {"Riyadh": [
+            {"district_ar": "الربيع", "population": 35100, "income_all": 10700}, {"district_ar": "سكيرينة", "population": 11500, "income_all": None}]}}, ensure_ascii=False), encoding="utf-8")
         table = insights.district_income("Riyadh", str(path))
-        self.assertEqual(table["districts"][0]["income_all"], 10700)
+        self.assertEqual(table["districts"], [{"district_ar": "الربيع", "income_all": 10700, "income_male": None, "income_female": None, "income_saudi": None, "income_non_saudi": None}],
+                         "districts with no published income are left out, not shown as zero")
+        self.assertEqual(table["unit"], "SAR/month")
         self.assertIsNone(insights.district_income("Jeddah", str(path)))
         self.assertIsNone(insights.district_income("Riyadh", str(self.root / "missing.json")))
 

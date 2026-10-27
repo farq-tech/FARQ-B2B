@@ -7,9 +7,9 @@ import math
 import os
 
 import canonical_data
+import district_reference
 
 EARTH_M = 6_371_000.0
-REFERENCE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference')
 
 
 def latest(pattern):
@@ -60,11 +60,15 @@ def population_around(db, points_path, targets_path, search_sql, lon, lat, radiu
     result = {'radius_m': radius_m, 'dwellings': None, 'population': None, 'businesses': None, 'top_activities': []}
     if points_path:
         dist = _haversine_sql('longitude', 'latitude')
-        homes, dwellings = db.execute(
-            f"""select count(*), sum(dwellings) from read_parquet(?) where longitude between ? and ? and latitude between ? and ?
+        # v3 layers carry each building's people (its district's population spread over the district's dwellings);
+        # older layers only have dwellings, counted at household_size people each
+        has_people = 'population' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [points_path]).fetchall()}
+        people = 'sum(population)' if has_people else f'sum(dwellings) * {float(household_size)}'
+        homes, dwellings, population = db.execute(
+            f"""select count(*), sum(dwellings), {people} from read_parquet(?) where longitude between ? and ? and latitude between ? and ?
                 and {dist} <= ?""", [points_path, west, east, south, north, lat, lat, lon, radius_m]).fetchone()
         dwellings = float(dwellings or 0)   # parquet decimals and doubles alike
-        result.update(home_buildings=homes or 0, dwellings=round(dwellings, 1), population=round(dwellings * household_size))
+        result.update(home_buildings=homes or 0, dwellings=round(dwellings, 1), population=round(float(population or 0)), people_per_district=has_people)
     if targets_path:
         dist = _haversine_sql('p.longitude', 'p.latitude')
         where = (f"{search_sql} and p.longitude between ? and ? and p.latitude between ? and ? and {dist} <= ?")
@@ -134,15 +138,15 @@ def territories(features, weights, count):
     return [group for group in groups if group['districts']]
 
 
+INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
+
+
 def district_income(city, path=None):
-    """Average monthly income per working person by district, from the reference table in the repository."""
-    path = path or os.path.join(REFERENCE_DIR, 'district_income.json')
-    try:
-        with open(path, encoding='utf-8') as handle:
-            table = json.load(handle)
-    except (OSError, ValueError):
-        return None
-    rows = (table.get('cities') or {}).get(city)
+    """Average monthly income per working person by district, from the 910ths reference table (district_reference)."""
+    table = district_reference.load(path or district_reference.PATH)
+    rows = ((table or {}).get('cities') or {}).get(city)
     if rows is None:
         return None
-    return {'source': table.get('source'), 'retrieved': table.get('retrieved'), 'unit': table.get('unit'), 'districts': rows}
+    rows = [{'district_ar': row['district_ar'], **{key: row.get(key) for key in INCOME_FIELDS}} for row in rows
+            if any(row.get(key) is not None for key in INCOME_FIELDS)]
+    return {'source': table.get('source'), 'retrieved': table.get('retrieved'), 'unit': table.get('unit', 'SAR/month'), 'districts': rows}
