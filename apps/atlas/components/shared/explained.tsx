@@ -18,7 +18,12 @@ export function Explained({ title, lines, children, className }: {
       </PopoverTrigger>
       <PopoverContent side="top" className="w-80">
         <p className="text-base font-semibold">{title}</p>
-        {lines.map((line) => <p key={line} className="text-sm leading-7 text-muted-foreground">{line}</p>)}
+        {lines.map((line) => (
+          // a worked sum («22,600 ÷ 1,784 = 13») reads left to right like any equation, inside the Arabic card
+          /^[\d,.\s÷×+\-=%]+$/.test(line)
+            ? <p key={line} dir="ltr" className="text-end text-base font-semibold tabular-nums text-foreground">{line}</p>
+            : <p key={line} className="text-sm leading-7 text-muted-foreground">{line}</p>
+        ))}
       </PopoverContent>
     </Popover>
   )
