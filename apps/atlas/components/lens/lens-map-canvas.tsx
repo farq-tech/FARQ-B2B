@@ -36,22 +36,40 @@ export function shadeSteps(values: Map<string, number | null>): Map<string, numb
   return steps
 }
 
+export type Circle = { lon: number; lat: number; radius_m: number }
+
+/** A ring of points approximating a circle on the ground (good to well under 1% at city scale). */
+function circlePolygon({ lon, lat, radius_m }: Circle): GeoJSON.Feature<GeoJSON.Polygon> {
+  const ring: [number, number][] = []
+  for (let i = 0; i <= 64; i++) {
+    const angle = (i / 64) * 2 * Math.PI
+    ring.push([lon + (radius_m / (111_320 * Math.cos((lat * Math.PI) / 180))) * Math.cos(angle), lat + (radius_m / 111_320) * Math.sin(angle)])
+  }
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } }
+}
+
 /**
  * The lens map: districts shaded by the lens metric, selected districts outlined, a click selects or releases a
- * district. The token comes from /api/mapbox-token like every Atlas map.
+ * district. A tool can paint districts in its own colours (`colors`, e.g. sales territories), draw a search
+ * circle, and take clicks as points instead (`onPick`). The token comes from /api/mapbox-token like every Atlas map.
  */
-export function LensMapCanvas({ features, steps, selected, onToggle }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
   onToggle: (id: string) => void
+  colors?: Map<string, string> | null
+  circle?: Circle | null
+  onPick?: ((point: { lon: number; lat: number }) => void) | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
   const toggle = useRef(onToggle)
+  const pick = useRef(onPick)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
   toggle.current = onToggle
+  pick.current = onPick
 
   useEffect(() => {
     let disposed = false
@@ -75,7 +93,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle }: {
         // shading and outlines sit under the basemap's place and road names; district names go on top of everything
         const firstLabel = instance.getStyle().layers?.find((layer) => layer.type === 'symbol')?.id
         instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
-          'fill-color': ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)'],
+          'fill-color': ['coalesce', ['get', '__color'], ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)']],
           'fill-opacity': ['case', ['boolean', ['get', '__selected'], false], 0.85, 0.55],
         } }, firstLabel)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': '#d9f99d', 'line-width': 0.6, 'line-opacity': 0.45 } }, firstLabel)
@@ -86,8 +104,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle }: {
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 15, 14, 18],
           'text-padding': 2,
         }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#0d1217', 'text-halo-width': 1.6 } })
-        instance.on('click', 'district-fill', (event) => {
-          const id = event.features?.[0]?.properties?.id
+        instance.addSource('circle', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'circle-fill', type: 'fill', source: 'circle', paint: { 'fill-color': '#d9f99d', 'fill-opacity': 0.18 } })
+        instance.addLayer({ id: 'circle-line', type: 'line', source: 'circle', paint: { 'line-color': '#d9f99d', 'line-width': 2.5 } })
+        instance.on('click', (event) => {
+          if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
+          const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
           if (id != null) toggle.current(String(id))
         })
         instance.on('mouseenter', 'district-fill', () => { instance.getCanvas().style.cursor = 'pointer' })
@@ -104,10 +126,17 @@ export function LensMapCanvas({ features, steps, selected, onToggle }: {
     const chosen = new Set(selected)
     const painted = features.map((feature) => {
       const id = String(feature.properties.id)
-      return { ...feature, properties: { ...feature.properties, id, __step: steps.get(id) ?? null, __selected: chosen.has(id) } }
+      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null, __selected: chosen.has(id) } }
     })
     ;(instance.getSource('districts') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: painted })
-  }, [ready, features, steps, selected])
+  }, [ready, features, steps, selected, colors])
+
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance) return
+    ;(instance.getSource('circle') as GeoJSONSource | undefined)?.setData(circle ? { type: 'FeatureCollection', features: [circlePolygon(circle)] } : EMPTY)
+    instance.getCanvas().style.cursor = onPick ? 'crosshair' : ''
+  }, [ready, circle, onPick])
 
   useEffect(() => {
     const instance = map.current

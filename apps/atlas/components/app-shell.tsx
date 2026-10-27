@@ -57,11 +57,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
     { href: '/opportunity-map', label: 'السوق', icon: MapPinned },
-    { href: '/insights', label: 'الرؤى', icon: TrendingUp },
+    { href: '/map', label: 'الخريطة والرؤى', icon: TrendingUp },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || (href === '/insights' && pathname === '/market-gaps')
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || false
   const marketBadge = <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
   const workspaceBadge = <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">مساحة العمل</span>
   const shellBadge = pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
