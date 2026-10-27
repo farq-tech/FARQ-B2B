@@ -16,6 +16,7 @@ starts. The English city spellings follow the targeting service's CITIES table a
 the official district atlas; data-cleaning/city_names.py carries the same alias
 table for rebuilds of the snapshot itself.
 """
+import hashlib
 import json
 import logging
 import os
@@ -194,9 +195,19 @@ def merge_population_rows(rows, id_map, names, by_age=False):
     return result
 
 
-def _source_signature(path):
+def _source_signature(path, depends=None):
+    """What a canonical copy was built from: the rules version, the source file, and (depends) the district atlas
+    and corrections the district names were matched against, so a new atlas or correction rebuilds the copy."""
     stat = os.stat(path)
-    return {'version': VERSION, 'size': stat.st_size, 'mtime': stat.st_mtime}
+    return {'version': VERSION, 'size': stat.st_size, 'mtime': stat.st_mtime, **(depends or {})}
+
+
+def _file_stamp(path):
+    try:
+        with open(path, 'rb') as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return None
 
 
 def _fresh(out, signature):
@@ -274,6 +285,7 @@ def prepare(data_dir, out_dir):
     except Exception as error:
         LOGGER.error('canonical_data_failed file=districts.geojson error_type=%s', type(error).__name__)
     official = official_districts(paths['districts.geojson'])
+    depends = {'districts': _file_stamp(os.path.join(data_dir, 'districts.geojson')), 'corrections': _file_stamp(CORRECTIONS_PATH)}
     for name in FILES:
         src = paths[name]
         if not os.path.isfile(src):
@@ -281,7 +293,7 @@ def prepare(data_dir, out_dir):
         out = os.path.join(out_dir, name)
         try:
             os.makedirs(out_dir, exist_ok=True)
-            signature = _source_signature(src)
+            signature = _source_signature(src, depends)
             if not _fresh(out, signature):
                 rows = canonicalize_file(src, out, official)
                 if rows is None:
