@@ -258,6 +258,25 @@
     "income_non_saudi": null
    },
    {
+    "district_ar": "الخزامى",
+    "polygon_ids": [
+     "434",
+     "545"
+    ],
+    "population": 12400.0,
+    "male_pct": 52.5,
+    "saudi_pct": 55.0,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null,
+    "combined_910ths_districts": [
+     "الخزامى",
+     "الخزامي"
+    ]
+   },
+   {
     "district_ar": "الخليج",
     "polygon_ids": [
      "505"
@@ -694,6 +713,34 @@
     "income_non_saudi": 2630
    },
    {
+    "district_ar": "الشهداء (شرق)",
+    "polygon_ids": [
+     "421"
+    ],
+    "population": 29600,
+    "male_pct": 63.5,
+    "saudi_pct": 38.4,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "الشهداء (غرب)",
+    "polygon_ids": [
+     "547"
+    ],
+    "population": 1700,
+    "male_pct": 52.8,
+    "saudi_pct": 67.1,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
     "district_ar": "الصالحية",
     "polygon_ids": [
      "406"
@@ -739,6 +786,20 @@
     "district_ar": "الصناعية",
     "polygon_ids": [
      "408"
+    ],
+    "population": 13000,
+    "male_pct": 92.9,
+    "saudi_pct": 5.3,
+    "income_all": 4849,
+    "income_male": 4790,
+    "income_female": 5240,
+    "income_saudi": 10200,
+    "income_non_saudi": 2322
+   },
+   {
+    "district_ar": "الصناعية (البطحاء)",
+    "polygon_ids": [
+     "407"
     ],
     "population": 13000,
     "male_pct": 92.9,
@@ -1380,6 +1441,20 @@
     "income_female": 7786,
     "income_saudi": 14700,
     "income_non_saudi": 2764
+   },
+   {
+    "district_ar": "المنصورة",
+    "polygon_ids": [
+     "362"
+    ],
+    "population": 68800,
+    "male_pct": 61.1,
+    "saudi_pct": 27,
+    "income_all": 7617,
+    "income_male": 8443,
+    "income_female": 4065,
+    "income_saudi": 12000,
+    "income_non_saudi": 4683
    },
    {
     "district_ar": "المنصورية",
