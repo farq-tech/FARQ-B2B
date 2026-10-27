@@ -18,12 +18,13 @@ def latest(pattern):
     return files[-1] if files else None
 
 
-def growth(db, path, city, id_map, names):
-    """Buildings being built per canonical district of a city, most first."""
+def growth(db, path, polygon_ids, id_map, names):
+    """Buildings being built per canonical district of a city (polygon_ids: the city's polygons in the golden
+    atlas, since a source file keeps the city a polygon was first filed under), most first."""
     if not path:
         return None
     rows = db.execute("""select district_id, district_ar, under_construction, new_buildings, homes_under_construction, floor_area_m2
-                         from read_parquet(?) where city_en = ?""", [path, city]).fetchall()
+                         from read_parquet(?) where cast(district_id as varchar) in (select unnest(?::varchar[]))""", [path, list(polygon_ids)]).fetchall()
     merged, order = {}, []
     for district_id, district_ar, building, new, homes, area in rows:
         canonical = str(id_map.get(str(district_id), district_id))

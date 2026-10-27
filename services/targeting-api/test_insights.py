@@ -30,10 +30,10 @@ class InsightTests(unittest.TestCase):
     def test_growth_merges_polygons_into_canonical_districts_and_ranks(self):
         path = self.parquet("g.parquet", "district_id varchar, district_ar varchar, city_en varchar, under_construction bigint, new_buildings bigint, homes_under_construction bigint, floor_area_m2 double", [
             ("492", "العليا", "Riyadh", 3, 1, 2, 100.0), ("493", "العليا", "Riyadh", 4, 0, 1, 50.0), ("380", "السليمانية", "Riyadh", 10, 0, 9, 900.0), ("1", "x", "Jeddah", 99, 0, 0, 0.0)])
-        rows = insights.growth(self.db, path, "Riyadh", {"492": "492", "493": "492", "380": "380"}, {"492": ("العليا", None), "380": ("السليمانية", None)})
+        rows = insights.growth(self.db, path, ["492", "493", "380"], {"492": "492", "493": "492", "380": "380"}, {"492": ("العليا", None), "380": ("السليمانية", None)})
         self.assertEqual([r["district_ar"] for r in rows], ["السليمانية", "العليا"])
         self.assertEqual((rows[1]["under_construction"], rows[1]["new_buildings"], rows[1]["homes_under_construction"], rows[1]["floor_area_m2"]), (7, 1, 3, 150))
-        self.assertIsNone(insights.growth(self.db, None, "Riyadh", {}, {}), "no layer yet is reported as missing, not as zero")
+        self.assertIsNone(insights.growth(self.db, None, [], {}, {}), "no layer yet is reported as missing, not as zero")
 
     def test_population_and_businesses_within_a_radius(self):
         # three home buildings: two within ~300 m of the point, one ~5 km away
