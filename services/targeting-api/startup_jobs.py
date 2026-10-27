@@ -14,6 +14,8 @@ import os
 import threading
 from pathlib import Path
 
+import canonical_data
+
 LOGGER = logging.getLogger('farq.targeting')
 
 
@@ -21,8 +23,8 @@ def _enabled(name):
     return os.environ.get(name, '').strip().lower() in {'1', 'true', 'yes'}
 
 
-def _signature(source, paths):
-    """What a job's output depends on: the job version and each input file's size and modification time."""
+def _signature(source, paths, settings=None):
+    """What a job's output depends on: the job version, its settings and each input file's size and modification time."""
     stats = {}
     for name, path in paths.items():
         try:
@@ -30,7 +32,7 @@ def _signature(source, paths):
             stats[name] = [stat.st_size, stat.st_mtime_ns]
         except (OSError, TypeError):
             stats[name] = None
-    return {'source': source, 'inputs': stats}
+    return {'source': source, 'settings': settings or {}, 'inputs': stats}
 
 
 def _building_population(data_dir):
@@ -46,8 +48,10 @@ def _building_population(data_dir):
         return
     reference = Path(district_reference.PATH)
     inputs = {'buildings': buildings, 'districts': data_dir / 'districts.geojson', 'worldpop': out_dir / 'district_population_2025.parquet',
-              'official': official, 'pois': data_dir / 'targets.parquet', 'reference': reference}
-    signature = _signature(job.SOURCE, inputs)
+              'official': official, 'pois': data_dir / 'targets.parquet', 'reference': reference,
+              'corrections': Path(canonical_data.CORRECTIONS_PATH)}   # renamed polygons change which reference row a district takes
+    elevation_mode = os.environ.get('FARQ_BUILDING_ELEVATION_MODE', 'auto')
+    signature = _signature(job.SOURCE, inputs, {'elevation_mode': elevation_mode})
     marker = out_dir / 'district_population_buildings_signature.json'
     try:
         if json.loads(marker.read_text(encoding='utf-8')) == signature:
@@ -61,7 +65,7 @@ def _building_population(data_dir):
         output_dir=out_dir,
         worldpop=inputs['worldpop'],
         official=official if official.is_file() else None,
-        elevation_mode=os.environ.get('FARQ_BUILDING_ELEVATION_MODE', 'auto'),
+        elevation_mode=elevation_mode,
         pois=inputs['pois'] if inputs['pois'].is_file() else None,
         reference=reference if reference.is_file() else None,
     )
