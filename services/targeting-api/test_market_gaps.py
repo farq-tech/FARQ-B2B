@@ -53,6 +53,14 @@ class MarketGapTests(unittest.TestCase):
         self.assertEqual((nakheel["population_source"], rabi["population_source"]), ("910ths.sa", None), "each figure names its source")
         self.assertIn("الدليل لا يغطي", result["basis"])
 
+    def test_district_points_list_located_businesses_of_the_districts_asked(self):
+        result = self.analytics.district_points({"city": "Riyadh", "districts": ["الياسمين", "مجهول"]})
+        self.assertEqual(sorted(point["id"] for point in result["points"]), ["u0", "u1", "u2", "y0", "y1"])
+        self.assertEqual(set(result["points"][0]), {"id", "name", "district_ar", "lon", "lat", "whatsapp"})
+        self.assertFalse(result["truncated"])
+        with self.assertRaises(ValueError):
+            self.analytics.district_points({"city": "Riyadh"})   # never the whole city in one call
+
     def test_min_population_and_limit_are_respected_and_validated(self):
         result = self.analytics.market_gaps({"city": "Riyadh", "min_population": 500, "limit": 2}, self.population)
         self.assertEqual(len(result["districts"]), 2)
