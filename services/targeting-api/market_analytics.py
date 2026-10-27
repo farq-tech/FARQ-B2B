@@ -39,10 +39,13 @@ BUYER_BASIS = (
 
 
 class MarketAnalytics:
-    def __init__(self, directory_tiles):
+    def __init__(self, directory_tiles, street_density=None):
         self.tiles = directory_tiles
         self.lock = directory_tiles.lock
         self.db = directory_tiles.db
+        # Aggregates read the same (canonical) directory copy the tiles serve, never the mounted file directly.
+        self.data = getattr(directory_tiles, "path", None) or DATA
+        self.street_density = street_density or STREET_DENSITY
         self._taxonomy = None
         self._taxonomy_lock = threading.Lock()
         self._specialty_column = None
@@ -60,7 +63,7 @@ class MarketAnalytics:
             with self._specialty_column_lock:
                 if self._specialty_column is None:
                     with self.lock:
-                        columns = {row[0] for row in self.db.execute("describe select * from read_parquet(?)", [DATA]).fetchall()}
+                        columns = {row[0] for row in self.db.execute("describe select * from read_parquet(?)", [self.data]).fetchall()}
                     self._specialty_column = "specialty_ids" in columns
         return self._specialty_column
 
@@ -154,7 +157,7 @@ class MarketAnalytics:
             "coalesce(nullif(p.name_ar, ''), p.name_en) is not null",
             "p.city_en = ?",
         ]
-        params = [DATA, city]
+        params = [self.data, city]
         if empty_match:
             clauses.append("false")
         elif subs:
@@ -239,7 +242,7 @@ class MarketAnalytics:
             "and length(trim(coalesce(p.district_ar, ''))) > 0 "
             "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null"
         )
-        where_params = [DATA, city]
+        where_params = [self.data, city]
         with self.lock:
             district_rows = self.db.execute(
                 f"select p.district_ar, count(distinct p.poi_key) n {base} "
@@ -252,7 +255,7 @@ class MarketAnalytics:
                 f"where {self.tiles.search_sql} and p.city_en = ? and p.district_reliable is true "
                 "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null group by 1",
-                [DATA, POI_TAXONOMY, city, districts],
+                [self.data, POI_TAXONOMY, city, districts],
             ).fetchall()
             # City coverage defines which main activities can be called missing.
             city_activity_rows = self.db.execute(
@@ -262,7 +265,7 @@ class MarketAnalytics:
                 f"where {self.tiles.search_sql} and p.city_en = ? and c.confidence in ('high','medium') "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                 "group by t.main_id",
-                taxonomy_params + [DATA, POI_TAXONOMY, city],
+                taxonomy_params + [self.data, POI_TAXONOMY, city],
             ).fetchall()
             main_rows = self.db.execute(
                 f"with {taxonomy_cte} select p.district_ar, t.main_id, any_value(t.main_ar), count(distinct p.poi_key) n "
@@ -272,7 +275,7 @@ class MarketAnalytics:
                 "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                 "group by p.district_ar, t.main_id",
-                taxonomy_params + [DATA, POI_TAXONOMY, city, districts],
+                taxonomy_params + [self.data, POI_TAXONOMY, city, districts],
             ).fetchall()
             sub_rows = self.db.execute(
                 f"with {taxonomy_cte} select p.district_ar, t.main_id, t.sub_id, any_value(t.sub_ar), count(distinct p.poi_key) n "
@@ -282,7 +285,7 @@ class MarketAnalytics:
                 "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                 "group by p.district_ar, t.main_id, t.sub_id",
-                taxonomy_params + [DATA, POI_TAXONOMY, city, districts],
+                taxonomy_params + [self.data, POI_TAXONOMY, city, districts],
             ).fetchall()
 
         city_mains = {mid: {"main_id": mid, "main_ar": label, "n": n} for mid, label, n in city_activity_rows}
@@ -361,7 +364,7 @@ class MarketAnalytics:
         tx = self._tx()
         with self.lock:
             row = self.db.execute(aggregate, params).fetchone()
-            n_specialties = self.db.execute(specialty_sql, [DATA, POI_TAXONOMY] + params[1:]).fetchone()[0]
+            n_specialties = self.db.execute(specialty_sql, [self.data, POI_TAXONOMY] + params[1:]).fetchone()[0]
             top_districts = self.db.execute(district_sql, params).fetchall()
             activity_rows = []
             if tx is not None:
@@ -383,7 +386,7 @@ class MarketAnalytics:
                         f"where {where} and c.confidence in ('high', 'medium') "
                         "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                         "group by t.main_id order by n desc, t.main_id",
-                        taxonomy_params + [DATA, POI_TAXONOMY] + params[1:],
+                        taxonomy_params + [self.data, POI_TAXONOMY] + params[1:],
                     ).fetchall()
         # Street lines are aggregated only to subcategory in the current data asset.
         # Do not show one as an exact specialty result.
@@ -418,10 +421,10 @@ class MarketAnalytics:
         }
 
     def _densest_street(self, city, subs, main_id, districts):
-        if not os.path.isfile(STREET_DENSITY):
+        if not os.path.isfile(self.street_density):
             return None
         clauses = ["city_en = ?"]
-        params = [STREET_DENSITY, city]
+        params = [self.street_density, city]
         if subs:
             clauses.append("sub_id in (select unnest(?::varchar[]))")
             params.append(subs)
@@ -501,7 +504,7 @@ class MarketAnalytics:
                       and c.sub_id in (select unnest(?::varchar[]))
                     group by c.sub_id
                     """,
-                    [DATA, POI_TAXONOMY, city, ranked],
+                    [self.data, POI_TAXONOMY, city, ranked],
                 ).fetchall()
             counts = {sub: (n, whatsapp) for sub, n, whatsapp in rows}
         buyers = []

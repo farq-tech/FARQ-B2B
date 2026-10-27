@@ -1,0 +1,13 @@
+{
+  "about": "Reviewed corrections to district names in the official district atlas (districts.geojson), applied by canonical_data.canonical_districts before polygons that share a name are merged. A polygon is renamed only when its current name is also carried by another polygon in the same city and an independent source places it in a district that already exists in the atlas under the corrected name.",
+  "corrections": [
+    {
+      "city_en": "Riyadh",
+      "id": "463",
+      "from": "العليا",
+      "ar": "السليمانية",
+      "en": "Al Sulaimaniyah",
+      "evidence": "Labelled العليا beside polygons 492 and 493 that carry the same name; the 910ths demographic map places its interior in السليمانية (polygons 380, 381). Checked 2026-10-27."
+    }
+  ]
+}
