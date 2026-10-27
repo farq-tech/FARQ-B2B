@@ -37,6 +37,7 @@ def _building_population(data_dir):
         worldpop=(data_dir / 'buildings_ingest' / 'population' / 'district_population_2025.parquet'),
         official=official if official.is_file() else None,
         elevation_mode=os.environ.get('FARQ_BUILDING_ELEVATION_MODE', 'auto'),
+        pois=(data_dir / 'targets.parquet') if (data_dir / 'targets.parquet').is_file() else None,
     )
     # The report holds aggregates only (see build_building_population), so it is safe in the log.
     LOGGER.info('building_population_done %s', json.dumps(report, ensure_ascii=False))
