@@ -176,7 +176,8 @@ class BuildingPopulationTests(unittest.TestCase):
     def test_910ths_district_totals_are_used_and_spread_over_buildings(self):
         reference = self.root / "districts_910ths.json"
         reference.write_text(json.dumps({"source": "910ths.sa", "cities": {"Riyadh": [{"district_ar": "الملقا", "population": 9000, "male_pct": 55}]}}, ensure_ascii=False), encoding="utf-8")
-        report, rows = self.run_build(reference=reference)
+        with mock.patch.object(bbp, "MIN_REFERENCE_DISTRICTS", 1):   # this two-district city is its whole sample
+            report, rows = self.run_build(reference=reference)
         self.assertAlmostEqual(rows["1"]["population_estimate"], 9000, delta=0.5, msg="a listed district takes its 910ths total")
         self.assertEqual(rows["1"]["calibration_source"], "910ths.sa")
         # an unlisted district in the same city gets the people per dwelling the listed ones show
@@ -191,6 +192,14 @@ class BuildingPopulationTests(unittest.TestCase):
         finally:
             db.close()
         self.assertAlmostEqual(people, 9000, delta=1, msg="the district's buildings carry exactly its people")
+
+    def test_a_city_with_too_few_910ths_districts_is_not_calibrated_on_them(self):
+        reference = self.root / "districts_910ths.json"
+        reference.write_text(json.dumps({"cities": {"Riyadh": [{"district_ar": "الملقا", "population": 9000}]}}, ensure_ascii=False), encoding="utf-8")
+        report, rows = self.run_build(reference=reference)   # one district is below MIN_REFERENCE_DISTRICTS
+        self.assertAlmostEqual(rows["1"]["population_estimate"], 9000, delta=0.5, msg="the listed district still takes its own figure")
+        self.assertFalse(str(rows["2"]["calibration_source"]).startswith("910ths"), "the other districts are not scaled on a one-district sample")
+        self.assertEqual(report["method"]["reference"]["people_per_dwelling"], {})
 
     def test_a_district_split_into_several_polygons_shares_one_reference_total(self):
         collection = json.loads(self.districts.read_text(encoding="utf-8"))
