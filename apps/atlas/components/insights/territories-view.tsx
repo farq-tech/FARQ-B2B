@@ -74,7 +74,7 @@ export function TerritoriesView() {
               <header className="flex items-center gap-2">
                 <span className="size-3 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                 <h2 className="font-semibold">المنطقة {group.territory}</h2>
-                <span className="ms-auto text-xs text-muted-foreground">{numberFormat.format(group.weight)} {weight === 'population' ? 'ساكن' : 'منشأة'} · {group.share_pct}٪</span>
+                <span className="ms-auto text-xs text-muted-foreground">{numberFormat.format(group.weight)} {weight === 'population' ? 'ساكن' : 'منشأة'} · {group.share_pct}%</span>
               </header>
               <p className="mt-1 text-xs leading-6 text-muted-foreground">{group.districts.map((district) => district.district_ar).join('، ')}</p>
             </article>

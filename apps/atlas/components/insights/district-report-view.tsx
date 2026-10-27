@@ -89,17 +89,17 @@ export function DistrictReportView() {
       {profile && status === 'idle' && (
         <article className="flex flex-col gap-5">
           <header className="border-b pb-3">
-            <p className="text-sm text-muted-foreground">فرق أطلس · تقرير حي · {new Date().toLocaleDateString('ar-SA-u-nu-latn')}</p>
+            <p className="text-sm text-muted-foreground">فرق أطلس · تقرير حي · {new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</p>
             <h2 className="mt-1 text-3xl font-bold">حي {profile.district} · {cityName}</h2>
           </header>
 
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="السكان" value={profile.population == null ? 'غير متاح' : numberFormat.format(profile.population)} />
-            <Stat label="الجنس" value={people ? `ذكور ${Math.round((100 * (profile.male ?? 0)) / people)}٪` : 'غير متاح'} note={people ? `إناث ${Math.round((100 * (profile.female ?? 0)) / people)}٪` : undefined} />
+            <Stat label="الجنس" value={people ? `ذكور ${Math.round((100 * (profile.male ?? 0)) / people)}%` : 'غير متاح'} note={people ? `إناث ${Math.round((100 * (profile.female ?? 0)) / people)}%` : undefined} />
             <Stat label="المنشآت" value={profile.businesses == null ? 'غير متاح' : numberFormat.format(profile.businesses)} note={profile.population && profile.businesses ? `منشأة لكل ${numberFormat.format(Math.round(profile.population / profile.businesses))} ساكن` : undefined} />
             <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني · ${numberFormat.format(profile.growth.new_buildings)} مبنى جديد` : undefined} />
-            <Stat label="السعوديون" value={profile.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}٪`} note={profile.saudi_pct == null ? undefined : 'من السكان'} />
-            <Stat label="منشآت بواتساب" value={profile.whatsapp == null ? 'غير متاح' : numberFormat.format(profile.whatsapp)} note={profile.whatsapp != null && profile.businesses ? `${Math.round((100 * profile.whatsapp) / profile.businesses)}٪ من المنشآت` : undefined} />
+            <Stat label="السعوديون" value={profile.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} note={profile.saudi_pct == null ? undefined : 'من السكان'} />
+            <Stat label="منشآت بواتساب" value={profile.whatsapp == null ? 'غير متاح' : numberFormat.format(profile.whatsapp)} note={profile.whatsapp != null && profile.businesses ? `${Math.round((100 * profile.whatsapp) / profile.businesses)}% من المنشآت` : undefined} />
             <Stat label="مساحة الطوابق الجديدة" value={profile.growth ? `${numberFormat.format(profile.growth.floor_area_m2)} م²` : 'غير متاح'} note={profile.growth ? 'المباني الجديدة وتحت الإنشاء' : undefined} />
           </section>
 

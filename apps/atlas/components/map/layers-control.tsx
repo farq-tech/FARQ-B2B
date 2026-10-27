@@ -37,7 +37,7 @@ const LAYER_META: {
   {
     key: 'streets',
     label: 'شوارع النشاط',
-    hint: 'الشوارع التي تضم ٣ منشآت مطابقة أو أكثر',
+    hint: 'الشوارع التي تضم 3 منشآت مطابقة أو أكثر',
     on: 'ظاهر',
     off: 'مخفي',
     swatch: <span className="h-1.5 w-5 rounded-full bg-primary" />,
@@ -50,7 +50,7 @@ const LAYER_META: {
     off: 'معطّل',
     swatch: (
       <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground ring-3 ring-primary/20">
-        ٥
+        5
       </span>
     ),
   },

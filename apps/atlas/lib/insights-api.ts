@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 
 export type City = { en: string; ar: string | null; districts?: number }
 
-export const numberFormat = new Intl.NumberFormat('ar-SA-u-nu-latn')
+// every figure in Atlas is written in English digits with English separators (docs/atlas-product-foundation.md §5)
+export const numberFormat = new Intl.NumberFormat('en-US')
 
 /** POST a read-only market resource through the Atlas proxy and surface its Arabic error. */
 export async function postMarket<T>(resource: string, body: unknown): Promise<T> {
