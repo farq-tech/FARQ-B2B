@@ -27,6 +27,16 @@ class GoldenPopulationTests(unittest.TestCase):
         self.assertTrue(all(isinstance(r["year"], int) and isinstance(r["coverage_pct"], float) for r in out.values()))
         self.assertEqual(out["الربيع"]["year"], 2026)
 
+    def test_a_910ths_figure_shared_by_two_districts_is_split_not_repeated(self):
+        shared = ["النرجس", "الملقا"]
+        Path(self.path).write_text(json.dumps({"retrieved": "2026-10-27", "cities": {"Riyadh": [
+            {"district_ar": name, "population": 34000, "male_pct": 60.0, "shared_with": shared} for name in shared]}}, ensure_ascii=False), encoding="utf-8")
+        out = {r["district_ar"]: r for r in golden.population(self.rows(), "Riyadh", {}, self.path)}
+        self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (25000.0, 9000.0), "split like their WorldPop figures (50,000 : 18,000)")
+        out = {r["district_ar"]: r for r in golden.population(self.rows(), "Riyadh", {"2": 4000.0, "3": 30000.0}, self.path)}
+        self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (4000.0, 30000.0), "the building model's split when every part has one")
+        self.assertEqual(out["النرجس"]["source"], "910ths.sa")
+
     def test_building_total_counts_only_when_every_polygon_is_calibrated(self):
         built = golden.building_totals([("10", 100.0, "910ths.sa"), ("11", 50.0, "worldpop_city_total"), ("12", 70.0, "910ths.sa")], {"11": "10"})
         self.assertEqual(built, {"12": 70.0})

@@ -53,5 +53,23 @@ class ReferenceBuildTests(unittest.TestCase):
         self.assertEqual(self.skipped, [{'polygon': '8', 'atlas': 'الرابية', '910ths': 'المرجان'}])
 
 
+class LinkedNameTests(unittest.TestCase):
+    """Reviewed links from district_corrections.json ("n910_names") for districts 910ths names differently."""
+
+    def test_a_reviewed_spelling_is_accepted_and_one_district_drawn_as_two_shares_its_figure(self):
+        atlas = {'type': 'FeatureCollection', 'features': [
+            feature(1, 'الشعلة', 46.70, 24.66), feature(2, 'جرهم الشمالي', 46.80, 24.70), feature(3, 'جرهم الجنوبي', 46.80, 24.60)]}
+        samples = [sample(1, 'الشله', 54400), sample(2, 'حي جرهم', 71500), sample(3, 'حي جرهم', 71500)]
+        links = {('Riyadh', '1'): 'الشله', ('Riyadh', '2'): 'حي جرهم', ('Riyadh', '3'): 'حي جرهم'}
+        table, skipped, _ = ref.build(samples, atlas, 'Riyadh', '910ths.sa', '2026-10-27', links)
+        rows = {row['district_ar']: row for row in table['cities']['Riyadh']}
+        self.assertEqual((rows['الشعلة']['population'], rows['الشعلة'].get('shared_with')), (54400, None))
+        self.assertEqual(rows['جرهم الشمالي']['shared_with'], ['جرهم الجنوبي', 'جرهم الشمالي'])
+        self.assertEqual(rows['جرهم الجنوبي']['population'], 71500, 'each part names the whole figure; golden splits it')
+        self.assertEqual(skipped, [])
+        _, skipped, _ = ref.build(samples, atlas, 'Riyadh', '910ths.sa', '2026-10-27', {})
+        self.assertEqual(len(skipped), 3, 'without a reviewed link a different name is never matched')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -272,7 +272,9 @@ def load_worldpop(path: Path | None) -> dict:
 
 def reference_estimates(districts: Path, ids: list, district_city: dict, per_district: dict, reference: Path | None) -> tuple[dict, dict]:
     """({polygon id: population} for districts listed in the 910ths reference, {city: people per dwelling} over them).
-    A reference row names a canonical district, which may be several polygons; its total is spread over them by dwellings."""
+    A reference row names a canonical district, which may be several polygons; its total is spread over them by dwellings.
+    A row shared by several canonical districts (shared_with: one 910ths district the atlas splits) is spread once
+    over all their polygons, so the parts add up to the one published total."""
     if not reference or not Path(reference).is_file():
         return {}, {}
     collection, id_map = canonical_data.canonical_districts(json.loads(Path(districts).read_text(encoding="utf-8")), canonical_data.load_corrections())
@@ -281,12 +283,19 @@ def reference_estimates(districts: Path, ids: list, district_city: dict, per_dis
     groups: dict = defaultdict(list)
     for did in ids:
         groups[str(id_map.get(str(did), did))].append(did)
-    referenced, people, dwellings = {}, defaultdict(float), defaultdict(float)
+    referenced, people, dwellings, spread = {}, defaultdict(float), defaultdict(float), set()
+    city_of = {canonical: cities.get(canonical) or district_city[members[0]] for canonical, members in groups.items()}
     for canonical, members in groups.items():
-        city = cities.get(canonical) or district_city[members[0]]
+        city = city_of[canonical]
         row = district_reference.city_rows(city, reference).get(names.get(canonical))
         if not row or not row.get("population"):
             continue
+        if row.get("shared_with"):
+            key = (city, tuple(row["shared_with"]))
+            if key in spread:
+                continue
+            spread.add(key)
+            members = [m for other, ms in groups.items() if city_of[other] == city and names.get(other) in key[1] for m in ms]
         weights = [per_district[m]["weight"] if m in per_district else 0.0 for m in members]
         total = sum(weights)
         for member, weight in zip(members, weights):
