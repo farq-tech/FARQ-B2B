@@ -66,22 +66,23 @@ export function GrowthView() {
             <div className="max-h-[380px] overflow-y-auto rounded-2xl border bg-card">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
-                  <tr><th className="p-2 text-start">#</th><th className="p-2 text-start">الحي</th><th className="p-2 text-end">تحت الإنشاء</th><th className="p-2 text-end">منها سكني</th><th className="p-2 text-end">جديدة</th></tr>
+                  <tr><th className="p-2 text-start">#</th><th className="p-2 text-start">الحي</th><th className="p-2 text-end">تحت الإنشاء</th><th className="p-2 text-end">منها سكني</th><th className="p-2 text-end">جديدة</th><th className="p-2 text-end">مساحة الطوابق تحت الإنشاء</th></tr>
                 </thead>
                 <tbody>
-                  {rows.slice(0, 60).map((row, index) => (
+                  {rows.map((row, index) => (
                     <tr key={row.district_id} className="border-t hover:bg-muted/50">
                       <td className="p-2 text-xs text-muted-foreground">{index + 1}</td>
                       <td className="p-2 font-semibold"><Link href={`/insights/report?city=${encodeURIComponent(city)}&district=${encodeURIComponent(row.district_ar)}`} className="hover:text-primary hover:underline">{row.district_ar}</Link></td>
                       <td className="p-2 text-end font-semibold text-primary">{numberFormat.format(row.under_construction)}</td>
                       <td className="p-2 text-end">{numberFormat.format(row.homes_under_construction)}</td>
                       <td className="p-2 text-end">{numberFormat.format(row.new_buildings)}</td>
+                      <td className="p-2 text-end">{numberFormat.format(row.floor_area_m2)} م²</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground">اضغط اسم الحي لفتح تقريره الكامل.</p>
+            <p className="text-xs text-muted-foreground">{`${numberFormat.format(rows.length)} حياً. اضغط اسم الحي لفتح تقريره الكامل.`}</p>
           </section>
         </div>
       )}

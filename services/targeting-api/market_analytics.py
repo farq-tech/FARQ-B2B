@@ -256,6 +256,7 @@ class MarketAnalytics:
                 "shortfall": round(expected - present, 1),
                 "residents_per_business": round(people / present) if present else None,
                 "male_pct": round(100 * male / (male + female), 1) if male and female else None,
+                "population_source": row.get("source"),
             })
         rows.sort(key=lambda row: (-row["shortfall"], row["district_ar"]))
         return {

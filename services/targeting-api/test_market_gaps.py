@@ -32,7 +32,7 @@ class MarketGapTests(unittest.TestCase):
         tiles.db, tiles.lock, tiles.search_sql, tiles.path = duckdb.connect(), threading.RLock(), "true", str(self.targets)
         self.analytics = MarketAnalytics(tiles)
         self.population = {
-            "النخيل": {"population": 20000.0, "male": 11000.0, "female": 9000.0},
+            "النخيل": {"population": 20000.0, "male": 11000.0, "female": 9000.0, "source": "910ths.sa"},
             "الياسمين": {"population": 40000.0, "male": 20000.0, "female": 20000.0},
             "الربيع": {"population": 30000.0, "male": None, "female": None},
             "صغير": {"population": 1000.0, "male": None, "female": None},
@@ -50,6 +50,7 @@ class MarketGapTests(unittest.TestCase):
         self.assertEqual((yasmin["businesses"], yasmin["shortfall"], yasmin["residents_per_business"]), (2, 6.0, 20000))
         self.assertEqual(nakheel["shortfall"], -6.0, "a surplus is a negative shortfall")
         self.assertEqual(nakheel["male_pct"], 55.0)
+        self.assertEqual((nakheel["population_source"], rabi["population_source"]), ("910ths.sa", None), "each figure names its source")
         self.assertIn("الدليل لا يغطي", result["basis"])
 
     def test_min_population_and_limit_are_respected_and_validated(self):
