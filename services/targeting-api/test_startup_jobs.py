@@ -118,6 +118,21 @@ class StartupJobsTests(unittest.TestCase):
                 os.environ.pop(name, None)
             self.assertFalse(startup_jobs._fetch_buildings(target), 'without a configured source nothing is fetched')
 
+    def test_the_job_works_in_the_population_folder_and_adopts_a_layer_left_in_the_release(self):
+        os.environ['FARQ_BUILD_BUILDING_POPULATION'] = '1'
+        aux = Path(tempfile.mkdtemp())
+        legacy = self.data / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+        legacy.write_bytes(b'layer')
+        calls = []
+        module = mock.Mock(build=lambda **kwargs: calls.append(kwargs) or {}, SOURCE='v3')
+        with mock.patch.dict('sys.modules', {'build_building_population': module}), self.assertLogs('farq.targeting', level=logging.INFO):
+            startup_jobs._run('building_population', startup_jobs._building_population, self.data, aux)
+        moved = aux / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+        self.assertEqual((moved.read_bytes(), legacy.exists()), (b'layer', False), 'the layer now lives where releases cannot replace it')
+        self.assertEqual(calls[0]['buildings'], moved)
+        self.assertEqual(calls[0]['output_dir'], aux / 'buildings_ingest' / 'population', 'outputs go where the server reads population')
+        self.assertEqual(calls[0]['districts'], self.data / 'districts.geojson', 'the district atlas still comes from the release')
+
     def test_a_missing_input_is_reported_and_the_job_skipped(self):
         os.environ['FARQ_BUILD_BUILDING_POPULATION'] = '1'
         (self.data / 'districts.geojson').unlink()
