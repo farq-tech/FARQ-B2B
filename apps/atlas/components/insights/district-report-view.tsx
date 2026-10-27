@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, Loader2, Printer } from 'lucide-react'
+import { FileText, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { districtName, numberFormat, postMarket, useCities, useDistricts } from '@/lib/insights-api'
 
@@ -10,12 +10,13 @@ type Profile = {
   population: number | null
   male: number | null
   female: number | null
+  saudi_pct: number | null
   ages: { age_group: string; male: number | null; female: number | null; total: number }[]
   businesses: number | null
   whatsapp: number | null
   wholesale: number | null
   main_activities: { main_id: string; main_ar: string; n: number }[]
-  growth: { under_construction: number; new_buildings: number; homes_under_construction: number } | null
+  growth: { under_construction: number; new_buildings: number; homes_under_construction: number; floor_area_m2: number } | null
   income: { income_all?: number; income_male?: number; income_female?: number; income_saudi?: number; income_non_saudi?: number } | null
   income_source: string | null
   sources: Record<string, string>
@@ -23,7 +24,7 @@ type Profile = {
 
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-xl border bg-card p-3 print:border-neutral-300">
+    <div className="rounded-xl border bg-card p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-bold">{value}</p>
       {note && <p className="mt-0.5 text-[11px] text-muted-foreground">{note}</p>}
@@ -71,12 +72,12 @@ export function DistrictReportView() {
   const cityName = cities.find((c) => c.en === city)?.ar || city
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-4 py-6 pb-24 lg:py-10 print:max-w-none print:p-0">
-      <header className="print:hidden">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-4 py-6 pb-24 lg:py-10">
+      <header>
         <p className="flex items-center gap-2 text-sm font-semibold text-primary"><FileText className="size-4" aria-hidden /> تقرير الحي</p>
-        <h1 className="mt-1 text-2xl font-bold">ملف كامل لأي حي، جاهز للطباعة أو الحفظ PDF</h1>
+        <h1 className="mt-1 text-2xl font-bold">كل ما نعرفه عن الحي في صفحة واحدة: السكان والمنشآت والنمو والدخل مع مصدر كل رقم</h1>
       </header>
-      <section className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4 print:hidden">
+      <section className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4">
         <label className="flex flex-col gap-1 text-xs font-medium">المدينة
           <select value={city} onChange={(e) => { setCity(e.target.value); setDistrict('') }} className="h-10 rounded-lg border bg-background px-3 text-sm">
             {cities.map((c) => <option key={c.en} value={c.en}>{c.ar || c.en}</option>)}
@@ -88,9 +89,6 @@ export function DistrictReportView() {
             {names.map((name) => <option key={name} value={name}>{name}</option>)}
           </select>
         </label>
-        <button onClick={() => window.print()} disabled={!profile} className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
-          <Printer className="size-4" aria-hidden /> طباعة / PDF
-        </button>
       </section>
       {status === 'loading' && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden /> جارٍ إعداد التقرير…</p>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -107,6 +105,10 @@ export function DistrictReportView() {
             <Stat label="الجنس" value={people ? `ذكور ${Math.round((100 * (profile.male ?? 0)) / people)}٪` : 'غير متاح'} note={people ? `إناث ${Math.round((100 * (profile.female ?? 0)) / people)}٪ · المصدر: 910ths` : 'لا يوجد قياس لهذا الحي'} />
             <Stat label="المنشآت" value={profile.businesses == null ? 'غير متاح' : numberFormat.format(profile.businesses)} note={profile.population && profile.businesses ? `منشأة لكل ${numberFormat.format(Math.round(profile.population / profile.businesses))} ساكن` : undefined} />
             <Stat label="تحت الإنشاء" value={profile.growth ? numberFormat.format(profile.growth.under_construction) : 'غير متاح'} note={profile.growth ? `منها ${numberFormat.format(profile.growth.homes_under_construction)} سكني · ${numberFormat.format(profile.growth.new_buildings)} مبنى جديد` : undefined} />
+            <Stat label="السعوديون" value={profile.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}٪`} note={profile.saudi_pct == null ? 'لا يوجد قياس لهذا الحي' : 'من السكان · المصدر: 910ths'} />
+            <Stat label="منشآت بواتساب" value={profile.whatsapp == null ? 'غير متاح' : numberFormat.format(profile.whatsapp)} note={profile.whatsapp != null && profile.businesses ? `${Math.round((100 * profile.whatsapp) / profile.businesses)}٪ من المنشآت` : undefined} />
+            <Stat label="منشآت جملة" value={profile.wholesale == null ? 'غير متاح' : numberFormat.format(profile.wholesale)} note={profile.wholesale != null && profile.businesses ? `${Math.round((100 * profile.wholesale) / profile.businesses)}٪ من المنشآت` : undefined} />
+            <Stat label="مساحة البناء الجاري" value={profile.growth ? `${numberFormat.format(profile.growth.floor_area_m2)} م²` : 'غير متاح'} note={profile.growth ? 'مجموع مساحات الطوابق تحت الإنشاء' : undefined} />
           </section>
 
           {profile.income && (
@@ -147,7 +149,7 @@ export function DistrictReportView() {
 
           {profile.main_activities.length > 0 && (
             <section>
-              <h3 className="mb-2 font-bold">الأنشطة الرئيسية في الحي</h3>
+              <h3 className="mb-2 font-bold">كل الأنشطة الرئيسية في الحي</h3>
               <table className="w-full text-sm">
                 <tbody>
                   {profile.main_activities.map((row) => (

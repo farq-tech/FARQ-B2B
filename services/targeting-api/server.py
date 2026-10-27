@@ -185,13 +185,15 @@ def insight_response(path, body):
         with LOCK:
             growth_rows = insights.growth(con, insights.latest(os.path.join(POPULATION_DIR, 'district_growth_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names']) or []
         income = insights.district_income(city) or {}
+        measured = district_reference.city_rows(city).get(district) or {}
         return {
             'ok': True, 'city': city, 'district': district,
             'population': round(people['population']) if people.get('population') else None,
             'male': round(people['male']) if people.get('male') else None, 'female': round(people['female']) if people.get('female') else None,
             'ages': ages,
+            'saudi_pct': measured.get('saudi_pct'),   # published by 910ths only; None elsewhere
             'businesses': summary.get('total'), 'whatsapp': summary.get('n_whatsapp'), 'wholesale': summary.get('n_wholesale'),
-            'main_activities': (summary.get('main_activities') or [])[:10],
+            'main_activities': summary.get('main_activities') or [],
             'growth': next((row for row in growth_rows if row['district_ar'] == district), None),
             'income': next((row for row in income.get('districts', []) if row.get('district_ar') == district), None),
             'income_source': income.get('source'),
