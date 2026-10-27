@@ -8,6 +8,7 @@ blocked), is skipped when its version and input files match its last successful
 run, and reports through the service log in aggregate form only: counts, shares and decisions, never a business name, key, address or
 coordinate. Unsetting the variable makes the next boot skip the job.
 """
+import hashlib
 import json
 import logging
 import os
@@ -35,6 +36,38 @@ def _signature(source, paths, settings=None):
     return {'source': source, 'settings': settings or {}, 'inputs': stats}
 
 
+def _fetch_buildings(target):
+    """Put the building layer on the volume from the project's bucket when it is missing there.
+
+    FARQ_BUILDINGS_OBJECT names the object and FARQ_BUILDINGS_SHA256 its digest; the bucket and its keys come
+    from the Railway bucket variables (BUCKET, ENDPOINT, REGION, ACCESS_KEY_ID, SECRET_ACCESS_KEY). The file is
+    written beside the target, checked against the digest and only then moved into place, so a partial or
+    different download never reaches the job. Returns True when the file is in place."""
+    key, digest = os.environ.get('FARQ_BUILDINGS_OBJECT', '').strip(), os.environ.get('FARQ_BUILDINGS_SHA256', '').strip().lower()
+    bucket = os.environ.get('BUCKET', '').strip()
+    if not key or not digest or not bucket:
+        return False
+    import boto3
+    client = boto3.client('s3', endpoint_url=os.environ.get('ENDPOINT') or None, region_name=os.environ.get('REGION') or None,
+                          aws_access_key_id=os.environ.get('ACCESS_KEY_ID') or None, aws_secret_access_key=os.environ.get('SECRET_ACCESS_KEY') or None)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + '.download')
+    try:
+        client.download_file(bucket, key, str(partial))
+        sha = hashlib.sha256()
+        with partial.open('rb') as handle:
+            for block in iter(lambda: handle.read(4 * 1024 * 1024), b''):
+                sha.update(block)
+        if sha.hexdigest() != digest:
+            LOGGER.error('startup_job_input_rejected job=building_population input=buildings reason=sha256_mismatch')
+            return False
+        os.replace(partial, target)
+        LOGGER.info('startup_job_input_fetched job=building_population input=buildings bytes=%s', target.stat().st_size)
+        return True
+    finally:
+        partial.unlink(missing_ok=True)
+
+
 def _building_population(data_dir):
     import build_building_population as job
     import district_reference
@@ -42,6 +75,8 @@ def _building_population(data_dir):
     out_dir = data_dir / 'buildings_ingest' / 'population'
     official = out_dir / 'official_city_population.csv'
     buildings = data_dir / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+    if not buildings.is_file():
+        _fetch_buildings(buildings)
     missing = [name for name, path in (('buildings', buildings), ('districts', data_dir / 'districts.geojson')) if not path.is_file()]
     if missing:
         LOGGER.error('startup_job_skipped job=building_population missing_input=%s', ','.join(missing))

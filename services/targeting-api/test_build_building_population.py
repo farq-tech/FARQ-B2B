@@ -193,7 +193,8 @@ class BuildingPopulationTests(unittest.TestCase):
 
     def test_a_district_split_into_several_polygons_shares_one_reference_total(self):
         collection = json.loads(self.districts.read_text(encoding="utf-8"))
-        collection["features"][1]["properties"]["ar"] = "الملقا"   # polygon 2 is the same district under the same name
+        collection["features"][1]["properties"]["ar"] = "الملقا"   # polygon 2 is the same district under the same name,
+        collection["features"][1]["geometry"] = shapely.geometry.mapping(square(46.61, 24.80, 0.02))   # drawn touching polygon 1
         self.districts.write_text(json.dumps(collection, ensure_ascii=False), encoding="utf-8")
         reference = self.root / "districts_910ths.json"
         reference.write_text(json.dumps({"cities": {"Riyadh": [{"district_ar": "الملقا", "population": 9000}]}}, ensure_ascii=False), encoding="utf-8")

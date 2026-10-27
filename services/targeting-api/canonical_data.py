@@ -19,14 +19,18 @@ table for rebuilds of the snapshot itself.
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import shutil
 
 import duckdb
+import shapely
+import shapely.geometry
+import shapely.ops
 
 LOGGER = logging.getLogger('farq.targeting')
-VERSION = 2   # bump when the rules below change so cached copies are rebuilt
+VERSION = 3   # bump when the rules below change so cached copies are rebuilt
 
 # key -> (English, Arabic); keep in step with services/data-cleaning/city_names.py
 CITY_ALIAS = {
@@ -121,10 +125,74 @@ def _id_order(value):
     return (0, int(text), text) if text.isdigit() else (1, 0, text)
 
 
+TOUCH_DEG = 0.0005   # ~50 m: same-name outlines this close are one district drawn in pieces
+DIRECTIONS = [('شرق', 'East'), ('شمال شرق', 'Northeast'), ('شمال', 'North'), ('شمال غرب', 'Northwest'),
+              ('غرب', 'West'), ('جنوب غرب', 'Southwest'), ('جنوب', 'South'), ('جنوب شرق', 'Southeast')]
+
+
+def _components(members):
+    """Index lists of same-name polygons that touch one another (within TOUCH_DEG), lowest id first."""
+    shapes = []
+    for _, geometry in members:
+        try:
+            shapes.append(shapely.geometry.shape(geometry).buffer(TOUCH_DEG) if geometry else None)
+        except Exception:   # an unreadable outline stands alone
+            shapes.append(None)
+    parent = list(range(len(members)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for i in range(len(members)):
+        for j in range(i + 1, len(members)):
+            if shapes[i] is not None and shapes[j] is not None and shapes[i].intersects(shapes[j]):
+                parent[root(j)] = root(i)
+    groups = {}
+    for i in range(len(members)):
+        groups.setdefault(root(i), []).append(i)
+    return sorted(groups.values(), key=lambda idx: _id_order(members[idx[0]][0]['id']))
+
+
+def _centre(geometries):
+    try:
+        return shapely.ops.unary_union([shapely.geometry.shape(g) for g in geometries if g]).centroid
+    except Exception:
+        return None
+
+
+def _qualifiers(centres):
+    """A compass word for each separate part of a shared name, from its position around the parts' mean."""
+    known = [c for c in centres if c is not None]
+    if not known:
+        return [None] * len(centres)
+    cx, cy = sum(c.x for c in known) / len(known), sum(c.y for c in known) / len(known)
+    words = []
+    for c in centres:
+        if c is None:
+            words.append(None)
+            continue
+        if len(known) == 2:   # two parts: the axis they are spread along reads more plainly than a diagonal
+            dx, dy = c.x - cx, c.y - cy
+            words.append(DIRECTIONS[0 if dx > 0 else 4] if abs(dx) >= abs(dy) else DIRECTIONS[2 if dy > 0 else 6])
+            continue
+        octant = int(((math.degrees(math.atan2(c.y - cy, c.x - cx)) + 360 + 22.5) % 360) // 45)
+        words.append(DIRECTIONS[octant])
+    seen = {}
+    for i, word in enumerate(words):   # two parts in the same direction are numbered rather than guessed
+        if word is not None:
+            seen.setdefault(word, []).append(i)
+    return [None if w is None else (w if len(seen[w]) == 1 else (f"{w[0]} {seen[w].index(i) + 1}", f"{w[1]} {seen[w].index(i) + 1}"))
+            for i, w in enumerate(words)]
+
+
 def canonical_districts(collection, corrections):
-    """One feature per district: names corrected from the reviewed table, then polygons that carry the
-    same name in the same city merged, because directory counts are kept per district name and two
-    outlines with one name can never be matched to them. Returns (collection, {original id: canonical id})."""
+    """One feature per district: names corrected from the reviewed table, then polygons that carry the same
+    name in the same city merged when they touch (a district drawn in pieces). Same-name polygons that do
+    not touch are different districts: each keeps its outline and gets the shared name with a compass word,
+    e.g. «الشهداء (غرب)», recorded in `name_base_ar` so directory records carrying the bare name can be placed
+    by location (canonicalize_file). Returns (collection, {original id: canonical id})."""
     groups, order = {}, []
     for feature in collection.get('features') or []:
         props = dict(feature.get('properties') or {})
@@ -144,16 +212,30 @@ def canonical_districts(collection, corrections):
     features, id_map = [], {}
     for key in order:
         members = sorted(groups[key], key=lambda member: _id_order(member[0]['id']))
-        props = dict(members[0][0])
-        canonical_id = props['id']
-        if len(members) == 1:
-            geometry = members[0][1]
-        else:
-            geometry = {'type': 'MultiPolygon', 'coordinates': [ring for _, geom in members for ring in _polygons(geom)]}
-            props['member_ids'] = [member[0]['id'] for member in members]
-        for member_props, _ in members:
-            id_map[str(member_props['id'])] = canonical_id
-        features.append({'type': 'Feature', 'id': canonical_id, 'properties': props, 'geometry': geometry})
+        parts = _components(members) if len(members) > 1 else [[0]]
+        qualifiers = _qualifiers([_centre([members[i][1] for i in part]) for part in parts]) if len(parts) > 1 else [None]
+        for part, qualifier in zip(parts, qualifiers):
+            chosen = [members[i] for i in part]
+            props = dict(chosen[0][0])
+            canonical_id = props['id']
+            if len(chosen) == 1:
+                geometry = chosen[0][1]
+            else:
+                geometry = {'type': 'MultiPolygon', 'coordinates': [ring for _, geom in chosen for ring in _polygons(geom)]}
+                props['member_ids'] = [member[0]['id'] for member in chosen]
+            if len(parts) > 1:
+                base = props.get('ar') or props.get('district_ar')
+                props['name_base_ar'] = base
+                if qualifier:
+                    for field in ('ar', 'district_ar'):
+                        if props.get(field):
+                            props[field] = f"{props[field]} ({qualifier[0]})"
+                    for field in ('en', 'district_en'):
+                        if props.get(field):
+                            props[field] = f"{props[field]} ({qualifier[1]})"
+            for member_props, _ in chosen:
+                id_map[str(member_props['id'])] = canonical_id
+            features.append({'type': 'Feature', 'id': canonical_id, 'properties': props, 'geometry': geometry})
     return {'type': 'FeatureCollection', 'features': features}, id_map
 
 
@@ -219,8 +301,24 @@ def _fresh(out, signature):
         return False
 
 
-def canonicalize_file(src, out, official):
-    """Rewrite one parquet asset with canonical city and district values; returns the row count."""
+def shared_name_parts(collection):
+    """[(city, key of the shared name, qualified name, centroid lat, centroid lon)] for districts that share a
+    name with a separate district of the same city (see canonical_districts)."""
+    parts = []
+    for feature in collection.get('features') or []:
+        props = feature.get('properties') or {}
+        if not props.get('name_base_ar'):
+            continue
+        centre = _centre([feature.get('geometry')])
+        if centre is not None:
+            parts.append((props.get('city_en'), district_key(props['name_base_ar']), props.get('ar') or props.get('district_ar'), centre.y, centre.x))
+    return parts
+
+
+def canonicalize_file(src, out, official, shared=None):
+    """Rewrite one parquet asset with canonical city and district values; returns the row count. A record whose
+    district is a name two separate districts share (shared, from shared_name_parts) goes to the part nearest
+    its coordinates; without coordinates it keeps the bare name, which matches neither part."""
     db = duckdb.connect()
     try:
         # the server waits for this copy before it listens, so use the machine (production: 32 vCPU, 32 GB)
@@ -243,11 +341,22 @@ def canonicalize_file(src, out, official):
             rows = []
             for city, raw in pairs:
                 cleaned = clean_district(raw)
-                rows.append((city, raw, official.get((city, district_key(cleaned)), cleaned) if cleaned else None))
-            db.execute('create temp table district_map (city varchar, raw varchar, clean varchar)')
-            db.executemany('insert into district_map values (?, ?, ?)', rows)
+                clean = official.get((city, district_key(cleaned)), cleaned) if cleaned else None
+                rows.append((city, raw, clean, district_key(clean) if clean else None))
+            db.execute('create temp table district_map (city varchar, raw varchar, clean varchar, key varchar)')
+            db.executemany('insert into district_map values (?, ?, ?, ?)', rows)
             joins += f' left join district_map d on d.city is not distinct from {city_expr} and d.raw = t.district_ar'
-            replace.append('d.clean as district_ar')
+            lat = next((c for c in ('latitude', 'lat') if c in columns), None)
+            lon = next((c for c in ('longitude', 'lon', 'lng') if c in columns), None)
+            if shared and lat and lon:
+                db.execute('create temp table shared_parts (city varchar, key varchar, label varchar, lat double, lon double)')
+                db.executemany('insert into shared_parts values (?, ?, ?, ?, ?)', shared)
+                y, x = f'try_cast(t.{lat} as double)', f'try_cast(t.{lon} as double)'   # older assets store coordinates as text
+                nearest = (f'(select arg_min(s.label, (s.lat - {y}) * (s.lat - {y}) + (s.lon - {x}) * (s.lon - {x})) '
+                           f'from shared_parts s where s.city is not distinct from {city_expr} and s.key = d.key)')
+                replace.append(f'case when {y} is not null and {x} is not null then coalesce({nearest}, d.clean) else d.clean end as district_ar')
+            else:
+                replace.append('d.clean as district_ar')
             if 'district_reliable' in columns:
                 # a value that was never a district name must not place the record inside any polygon
                 replace.append('case when t.district_ar is not null and d.clean is null then false else t.district_reliable end as district_reliable')
@@ -287,6 +396,11 @@ def prepare(data_dir, out_dir):
     except Exception as error:
         LOGGER.error('canonical_data_failed file=districts.geojson error_type=%s', type(error).__name__)
     official = official_districts(paths['districts.geojson'])
+    try:
+        with open(paths['districts.geojson'], encoding='utf-8') as handle:
+            shared = shared_name_parts(json.load(handle))
+    except (OSError, ValueError):
+        shared = []
     depends = {'districts': _file_stamp(os.path.join(data_dir, 'districts.geojson')), 'corrections': _file_stamp(CORRECTIONS_PATH)}
     try:   # sizes the decision to keep the copy on the data volume (FARQ_TARGETING_CANONICAL_DIR)
         LOGGER.info('canonical_data out_dir_free_bytes=%s data_dir_free_bytes=%s', shutil.disk_usage(out_dir).free if os.path.isdir(out_dir) else None, shutil.disk_usage(data_dir).free)
@@ -301,7 +415,7 @@ def prepare(data_dir, out_dir):
             os.makedirs(out_dir, exist_ok=True)
             signature = _source_signature(src, depends)
             if not _fresh(out, signature):
-                rows = canonicalize_file(src, out, official)
+                rows = canonicalize_file(src, out, official, shared)
                 if rows is None:
                     continue
                 with open(out + '.source.json', 'w', encoding='utf-8') as handle:

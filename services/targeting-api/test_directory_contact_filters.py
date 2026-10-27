@@ -69,11 +69,8 @@ class DirectoryContactFilterTests(unittest.TestCase):
                  'حي الملز', '', 24.61, 46.71, 'point', '0501234567', null, true, false, null, '', 1, '', null, null, '', 80, true, 'شارع العليا', 'متجر', 'دهانات')
             """)
             db.execute("copy places to ? (format parquet)", [str(path)])
-            db.execute("create table branches(brand varchar, n integer)")
-            tiles = DirectoryTiles.__new__(DirectoryTiles)
-            tiles.db = db
-            tiles.lock = threading.RLock()
-            tiles.path = str(path)
+            # the real constructor, so every attribute it sets exists; only the status policy and tile registry are stubbed
+            tiles = DirectoryTiles(str(path))
             tiles.search_sql = "true"
             tiles.register = lambda **_kwargs: "map-key"
 
@@ -106,6 +103,7 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual(profile["specialties"], ["حديد", "إسمنت"])
             self.assertTrue(profile["is_wholesale"])
             db.close()
+            tiles.db.close()
 
     def test_search_page_scopes_total_rows_and_tile_cohort_to_the_selected_district(self):
         """The list total and the map query must describe the same district cohort."""
@@ -148,11 +146,8 @@ class DirectoryContactFilterTests(unittest.TestCase):
                  'point', null, null, false, false, null, '', 1, '', null, null, '', 70, true, 'طريق الملك فهد', 'مصنع|جملة', 'حديد، إسمنت')
             """)
             db.execute("copy places to ? (format parquet)", [str(path)])
-            db.execute("create table branches(brand varchar, n integer)")
-            tiles = DirectoryTiles.__new__(DirectoryTiles)
-            tiles.db = db
-            tiles.lock = threading.RLock()
-            tiles.path = str(path)
+            # the real constructor, so every attribute it sets exists; only the status policy and tile registry are stubbed
+            tiles = DirectoryTiles(str(path))
             tiles.search_sql = "true"
             tiles.register = lambda **_kwargs: "map-key"
 
@@ -161,6 +156,7 @@ class DirectoryContactFilterTests(unittest.TestCase):
             self.assertEqual(result["total"], 1)
             self.assertEqual([row["poi_key"] for row in result["rows"]], ["target"])
             db.close()
+            tiles.db.close()
 
     def test_area_picker_includes_streets_beyond_the_density_preview_limit(self):
         """Selecting a street must use geography, never the top-60 density preview."""
@@ -179,6 +175,7 @@ class DirectoryContactFilterTests(unittest.TestCase):
             tiles.db = duckdb.connect()
             tiles.lock = threading.RLock()
             tiles.path = str(path)
+            tiles.identity_path = None   # set by __init__, which these tests bypass
             tiles.area_options_cache = {}
             tiles.column = lambda name, _fallback: name
 
@@ -217,6 +214,7 @@ class DirectoryContactFilterTests(unittest.TestCase):
             tiles.db = db
             tiles.lock = threading.RLock()
             tiles.path = str(path)
+            tiles.identity_path = None   # set by __init__, which these tests bypass
             tiles.columns = {row[0] for row in db.execute("describe places").fetchall()}
             tiles.search_sql = "true"
             tiles.register = lambda **_kwargs: "map-key"

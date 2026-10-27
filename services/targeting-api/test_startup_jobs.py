@@ -89,6 +89,35 @@ class StartupJobsTests(unittest.TestCase):
         self.assertTrue(any('startup_job_failed job=building_population error_type=FileNotFoundError' in line for line in logs.output))
         self.assertFalse(any('buildings.parquet' in line for line in logs.output), 'paths never reach the log')
 
+    def test_a_missing_building_layer_is_fetched_from_the_bucket_and_checked(self):
+        target = self.data / 'buildings_ingest' / 'normalized' / 'buildings.parquet'
+        target.unlink()
+        payload = b'parquet-bytes'
+        written = []
+
+        class Client:
+            def download_file(self, bucket, key, path):
+                written.append((bucket, key))
+                Path(path).write_bytes(payload)
+
+        env = {'FARQ_BUILDINGS_OBJECT': 'inputs/buildings.parquet', 'BUCKET': 'farq-data-inputs',
+               'FARQ_BUILDINGS_SHA256': __import__('hashlib').sha256(payload).hexdigest()}
+        with mock.patch.dict(os.environ, env), mock.patch.dict('sys.modules', {'boto3': mock.Mock(client=lambda *a, **k: Client())}):
+            self.assertTrue(startup_jobs._fetch_buildings(target))
+        self.assertEqual((target.read_bytes(), written), (payload, [('farq-data-inputs', 'inputs/buildings.parquet')]))
+        target.unlink()
+        env['FARQ_BUILDINGS_SHA256'] = '0' * 64
+        with mock.patch.dict(os.environ, env), mock.patch.dict('sys.modules', {'boto3': mock.Mock(client=lambda *a, **k: Client())}), \
+                self.assertLogs('farq.targeting', level=logging.ERROR) as logs:
+            self.assertFalse(startup_jobs._fetch_buildings(target))
+        self.assertFalse(target.exists(), 'a download that does not match its digest never reaches the job')
+        self.assertFalse(any(p.name.endswith('.download') for p in target.parent.iterdir()))
+        self.assertTrue(any('sha256_mismatch' in line for line in logs.output))
+        with mock.patch.dict(os.environ, {}, clear=False):
+            for name in ('FARQ_BUILDINGS_OBJECT', 'BUCKET'):
+                os.environ.pop(name, None)
+            self.assertFalse(startup_jobs._fetch_buildings(target), 'without a configured source nothing is fetched')
+
     def test_a_missing_input_is_reported_and_the_job_skipped(self):
         os.environ['FARQ_BUILD_BUILDING_POPULATION'] = '1'
         (self.data / 'districts.geojson').unlink()
