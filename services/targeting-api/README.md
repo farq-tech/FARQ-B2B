@@ -21,6 +21,10 @@ The Atlas market summary includes additional cohort counts: precise point locati
 
 `GET /healthz` is the public Railway readiness check. It returns `200` with `{"ok":true,"service":"farq-targeting"}` when the primary directory asset is readable and DuckDB responds to a minimal query; otherwise it returns `503`. It does not expose data or credentials.
 
+## Canonical city and district names
+
+At startup the service writes a canonical copy of `targets.parquet`, `trade_clusters.parquet` and `street_density.parquet` into scratch space (`canonical_data.py`) and serves every read from that copy; the mounted data directory is never modified. One English spelling per city (from the alias table shared with `services/data-cleaning/city_names.py`) with its Arabic name filled in, district labels matched to the official district atlas spelling with any «حي» prefix dropped, and values that are not district names at all (serialised objects, `False`, Latin street names) set to null with `district_reliable = false`. The copy is rebuilt only when a source file changes and any failure falls back to the original asset. `FARQ_TARGETING_CANONICAL_DIR` chooses the scratch directory (default: the system temp dir); `FARQ_TARGETING_CANONICALIZE=0` serves the mounted files as they are.
+
 The deployment's business directory and taxonomy assets are intentionally excluded from Git. A deployment requires a separately maintained, access-controlled `data/` directory containing the exact production assets listed in the `Dockerfile`. Do not substitute older local data files: the map counts and supplier coverage depend on the deployed snapshot.
 
 Before connecting Railway deployments to this folder, verify the staged data asset versions and hashes against the approved production snapshot, then deploy a preview service and check its aggregate results against the current production directory. Never commit `.parquet`, `.geojson`, contact, evaluation, or operational log data here.
