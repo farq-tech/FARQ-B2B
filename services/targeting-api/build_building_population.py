@@ -56,7 +56,7 @@ import district_reference
 
 DATA_DIR = Path(os.environ.get("FARQ_DATA_DIR", "/app/data"))
 POP_DIR = DATA_DIR / "buildings_ingest" / "population"
-SOURCE = "farq_buildings_dasymetric_v3"
+SOURCE = "farq_buildings_dasymetric_v3_1"
 USE_WEIGHT = {"residential": 1.0, "mixed_use": 1.0, "administrative": 1.0}   # uses that can hold homes; see dwelling_units
 # Dwelling-unit model. These constants scale every building alike, so they set the buildings-only total but
 # cancel out of the district shares once a city total is calibrated; only the villa/apartment split and the
@@ -138,6 +138,7 @@ def growth_by_district(db, buildings: Path, columns: dict, tree, ids: list, batc
             floors = max(1, min(60, round(elevation))) if elevation and elevation > 0 else 1
             bucket["floor_area_m2"] += footprint_m2(geoms[i], cents[i].y) * floors
     return out
+MIN_REFERENCE_DISTRICTS = 30   # fewer 910ths districts than this in a city is too small a sample to calibrate it on
 DIVERGENCE_PCT = 30.0                                  # beyond this the two estimates are shown as disagreeing
 MIN_COMPARABLE = 500                                   # below this many people a percentage gap is noise
 EARTH_M_PER_DEG = 111_320.0
@@ -293,7 +294,13 @@ def reference_estimates(districts: Path, ids: list, district_city: dict, per_dis
         if total > 0:
             people[city] += float(row["population"])
             dwellings[city] += total
-    return referenced, {city: people[city] / dwellings[city] for city in people if dwellings[city] > 0}
+    counts: dict = defaultdict(int)
+    for member in referenced:
+        counts[cities.get(str(id_map.get(str(member), member))) or district_city[member]] += 1
+    # people per dwelling only from a sample big enough to stand for the city (MIN_REFERENCE_DISTRICTS); the first
+    # districts read in Dammam, for instance, put the city at 2.6 million against about 1.4 million counted in 2022
+    return referenced, {city: people[city] / dwellings[city] for city in people
+                        if dwellings[city] > 0 and counts[city] >= MIN_REFERENCE_DISTRICTS}
 
 
 def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | None, official: Path | None,
@@ -485,7 +492,8 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
                    "household_size_for_buildings_only_total": HOUSEHOLD_SIZE,
                    "district_totals": "910ths reference where listed (spread over the district's polygons by dwellings); elsewhere dwellings × the people per "
                                       "dwelling of the city's referenced districts; cities without references: city total shared by dwellings",
-                   "reference": {"path": str(reference) if reference else None, "districts": len(referenced), "people_per_dwelling": {c: round(v, 3) for c, v in people_per_dwelling.items()}},
+                   "reference": {"path": str(reference) if reference else None, "districts": len(referenced), "min_districts_per_city": MIN_REFERENCE_DISTRICTS,
+                                 "people_per_dwelling": {c: round(v, 3) for c, v in people_per_dwelling.items()}},
                    "pois": {"path": str(pois) if pois else None, "points": poi_count},
                    "use_weight": USE_WEIGHT, "apartments_field_used": False,
                    "elevation_mode": mode, "elevation_stats": elevation_stats, "floor_height_m": floor_height,
