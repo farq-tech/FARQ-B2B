@@ -12,6 +12,7 @@ export type DistrictRow = {
   id: string
   name: string
   population: number | null
+  populationSource: string | null
   businesses: number | null
   whatsapp: number | null
   income: number | null
@@ -26,7 +27,7 @@ export type CityData = {
   total: number | null
 }
 
-type PopulationRow = { district_id: string | number; district_ar: string; population: number | null }
+type PopulationRow = { district_id: string | number; district_ar: string; population: number | null; source?: string | null }
 type CountRow = { district_ar: string; n: number; n_whatsapp?: number }
 type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
@@ -53,7 +54,7 @@ export function useCityData(city: string): CityData {
     ]).then(([atlas, population, counts, income, growth]) => {
       if (!active) return
       const features = atlas.features ?? []
-      const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row.population]))
+      const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
       const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
       const count = byName(counts?.districts)
       const pay = byName(income?.districts)
@@ -66,7 +67,8 @@ export function useCityData(city: string): CityData {
         return {
           id,
           name,
-          population: people.get(id) ?? null,
+          population: people.get(id)?.population ?? null,
+          populationSource: people.get(id)?.source ?? null,
           businesses: c ? c.n : null,
           whatsapp: c?.n_whatsapp ?? null,
           income: pay.get(name)?.income_all ?? null,
@@ -83,7 +85,7 @@ export function useCityData(city: string): CityData {
 }
 
 /** Sum of a field over rows; null when any row lacks it, so a partial total is never shown as the whole. */
-export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name'>): number | null {
+export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource'>): number | null {
   if (!rows.length || rows.some((row) => row[key] == null)) return null
   return rows.reduce((total, row) => total + (row[key] as number), 0)
 }

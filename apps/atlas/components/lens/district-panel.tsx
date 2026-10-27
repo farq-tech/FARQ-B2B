@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
+import { Explained } from '@/components/shared/explained'
+import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
 import { sumOf, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
@@ -16,11 +18,14 @@ type Profile = {
 
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
-function Figure({ label, value }: { label: string; value: string }) {
+/** One figure; tapping it explains how it was worked out. */
+function Figure({ label, value, explain }: { label: string; value: string; explain: string[] }) {
   return (
-    <div className="rounded-lg bg-muted/40 px-3 py-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className={value === 'غير متاح' ? 'mt-0.5 text-sm text-muted-foreground' : 'mt-0.5 text-base font-bold'}>{value}</p>
+    <div className="rounded-xl bg-muted/40 px-3 py-2.5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <Explained title={label} lines={explain} className={value === 'غير متاح' ? 'mt-0.5 text-base text-muted-foreground' : 'mt-0.5 text-xl font-bold'}>
+        {value}
+      </Explained>
     </div>
   )
 }
@@ -49,47 +54,54 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const scope = selected.length ? selected : rows
   const people = sumOf(scope, 'population')
   const businesses = selected.length ? sumOf(scope, 'businesses') : total
-  const sexKnown = profile?.male != null && profile?.female != null
+  const male = profile?.male ?? null
+  const female = profile?.female ?? null
+  const sex = male != null && female != null && male + female > 0
+    ? `${Math.round((100 * male) / (male + female))}% · ${Math.round((100 * female) / (male + female))}%`
+    : 'غير متاح'
   const topAge = profile?.ages.length ? [...profile.ages].sort((a, b) => b.total - a.total)[0] : null
-  const income = single ? single.income : null
-  const growth = single && single.underConstruction != null && single.newBuildings != null ? single.underConstruction + single.newBuildings : null
   const title = single ? single.name : selected.length ? `${numberFormat.format(selected.length)} أحياء` : cityName
+  const scopeKind = single ? 'district' : selected.length ? 'districts' : 'city'
 
   return (
     <section aria-label="الملخص" className="rounded-2xl border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="truncate text-lg font-bold">{title}</h2>
+        <h2 className="truncate text-xl font-bold">{title}</h2>
         {selected.length > 0 && (
-          <button onClick={onClear} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
-            <X className="size-3.5" aria-hidden /> إلغاء التحديد
+          <button onClick={onClear} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground">
+            <X className="size-4" aria-hidden /> إلغاء التحديد
           </button>
         )}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Figure label="السكان" value={show(people)} />
-        <Figure label="المنشآت" value={show(businesses)} />
-        {lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={people != null && businesses ? show(people / businesses) : 'غير متاح'} />}
-        {(lens === 'marketers' || lens === 'analysts' || selected.length > 0) && <Figure label="منشآت بواتساب" value={show(sumOf(scope, 'whatsapp'))} />}
-        {single && <Figure label="ذكور · إناث" value={sexKnown ? `${Math.round((100 * profile!.male!) / (profile!.male! + profile!.female!))}% · ${Math.round((100 * profile!.female!) / (profile!.male! + profile!.female!))}%` : 'غير متاح'} />}
-        {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} />}
-        {single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(income, ' ر.س')} />}
-        {single && lens !== 'marketers' && <Figure label="مبانٍ جديدة وتحت الإنشاء" value={show(growth)} />}
-        {single && lens === 'marketers' && <Figure label="أكبر شريحة عمرية" value={topAge ? topAge.age_group : 'غير متاح'} />}
+        <Figure label="السكان" value={show(people)} explain={EXPLAIN.population(scope.map((row) => row.populationSource), people)} />
+        <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />
+        {lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={people != null && businesses ? show(people / businesses) : 'غير متاح'} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />}
+        {(lens === 'marketers' || lens === 'analysts' || selected.length > 0) && <Figure label="منشآت بواتساب" value={show(sumOf(scope, 'whatsapp'))} explain={EXPLAIN.whatsapp} />}
+        {single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />}
+        {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />}
+        {single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(single.income, ' ر.س')} explain={EXPLAIN.income} />}
+        {single && lens !== 'marketers' && (
+          <Figure label="مبانٍ جديدة وتحت الإنشاء"
+            value={single.underConstruction != null && single.newBuildings != null ? show(single.underConstruction + single.newBuildings) : 'غير متاح'}
+            explain={EXPLAIN.growth(single.underConstruction, single.newBuildings)} />
+        )}
+        {single && lens === 'marketers' && <Figure label="أكبر شريحة عمرية" value={topAge ? topAge.age_group : 'غير متاح'} explain={EXPLAIN.topAge} />}
       </div>
       {selected.length > 1 && (
-        <ul className="mt-3 divide-y text-sm">
+        <ul className="mt-3 divide-y text-base">
           {selected.map((row) => (
-            <li key={row.id} className="flex items-center justify-between py-1.5">
+            <li key={row.id} className="flex items-center justify-between py-2">
               <span className="font-medium">{row.name}</span>
-              <span className="text-xs text-muted-foreground">{show(row.population)} ساكن · {show(row.businesses)} منشأة</span>
+              <span className="text-sm text-muted-foreground">{show(row.population)} ساكن · {show(row.businesses)} منشأة</span>
             </li>
           ))}
         </ul>
       )}
       {single && profile && profile.main_activities.length > 0 && (
-        <div className="mt-3">
-          <p className="mb-1 text-xs font-semibold text-muted-foreground">أكثر الأنشطة</p>
-          <ul className="space-y-1 text-sm">
+        <div className="mt-4">
+          <Explained title="أكثر الأنشطة" lines={EXPLAIN.activities} className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة</Explained>
+          <ul className="space-y-1.5 text-base">
             {profile.main_activities.slice(0, 5).map((row) => (
               <li key={row.main_ar} className="flex justify-between"><span>{row.main_ar}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
             ))}

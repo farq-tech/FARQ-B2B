@@ -83,7 +83,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle }: {
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
           'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
           'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 13, 14, 15],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 15, 14, 18],
           'text-padding': 2,
         }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#0d1217', 'text-halo-width': 1.6 } })
         instance.on('click', 'district-fill', (event) => {
