@@ -114,6 +114,27 @@ class BuildingPopulationTests(unittest.TestCase):
         self.assertAlmostEqual(rows["2"]["dwelling_units"], self.flats_per_storey(), delta=0.1)
         self.assertEqual(rows["2"]["shops_or_unoccupied_excluded"], 1)
 
+    def test_growth_and_building_points_are_written(self):
+        self.rows = [
+            building(46.601, 24.801, "residential", 6.4, "Villa"),
+            building(46.602, 24.802, "residential", 6.4, "Villa under construction"),
+            building(46.603, 24.803, "administrative", 9.6, "Administrative building under construction"),
+            building(46.621, 24.801, "residential", 3.2, "Residential building"),
+        ]
+        self.write_buildings()
+        report, _ = self.run_build()
+        db = duckdb.connect()
+        try:
+            growth = {r[0]: r[1:] for r in db.execute("select district_id, under_construction, new_buildings, homes_under_construction from read_parquet(?)", [str(self.root / "out" / "district_growth_2026.parquet")]).fetchall()}
+            points = db.execute("select district_id, dwellings from read_parquet(?) order by district_id", [str(self.root / "out" / "building_points_2026.parquet")]).fetchall()
+        finally:
+            db.close()
+        self.assertEqual(growth["1"], (2, 0, 1), "both unfinished buildings count; only the villa is a home")
+        self.assertNotIn("2", growth)
+        self.assertEqual([p[0] for p in points], ["1", "2"], "one point per occupied home building")
+        self.assertEqual(points[0][1], 1.0)
+        self.assertEqual(report["output"]["growth"]["under_construction"], 2)
+
     def test_directory_business_inside_a_building_takes_its_ground_floor(self):
         pois = self.root / "targets.parquet"
         db = duckdb.connect()

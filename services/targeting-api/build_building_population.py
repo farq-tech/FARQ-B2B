@@ -57,6 +57,74 @@ UNIT_M2 = 150.0            # net floor area of one flat
 HOUSEHOLD_SIZE = 5.0       # people per dwelling for the buildings-only total; replace with an official figure when known
 VILLA_PURPOSES = {"villa", "townhouse"}
 NOT_YET_HOMES = ("under construction", "under repair")
+NEW_BUILDING_TYPES = ("مباني جديدة", "new_building")   # vendor "new building" layer: built since the last survey
+
+
+def write_rows(db, rows: list[dict], columns: list[tuple[str, str]], target: Path) -> None:
+    """Write dict rows to parquet through a temporary CSV with explicit column types."""
+    with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=[name for name, _ in columns])
+        writer.writeheader()
+        writer.writerows(rows)
+        temp_csv = handle.name
+    try:
+        spec = ", ".join(f"'{name}': '{kind}'" for name, kind in columns)
+        quoted = str(target).replace("'", "''")
+        db.execute(f"copy (select * from read_csv(?, header=true, nullstr='', columns={{{spec}}})) to '{quoted}' (format parquet, compression zstd)", [temp_csv])
+    finally:
+        os.unlink(temp_csv)
+
+
+def growth_by_district(db, buildings: Path, columns: dict, tree, ids: list, batch: int = 50_000) -> dict:
+    """Buildings that are being built, of any use, per official district: under construction or repair
+    (from Purpose) and newly mapped buildings (from Type). A leading signal of where demand is arriving."""
+    purpose_col, type_col, use_col = columns.get("purpose"), columns.get("type"), columns["building_use"]
+    if not purpose_col and not type_col:
+        return {}
+    conditions = []
+    if purpose_col:
+        conditions.append(f"lower({purpose_col}) like '%under construction%' or lower({purpose_col}) like '%under repair%'")
+    if type_col:
+        conditions.append(f"lower({type_col}) in ({', '.join(repr(t) for t in NEW_BUILDING_TYPES)})")
+    select = (f"select {columns['geometry_wkb_hex']}, {use_col}, " + (purpose_col or "null") + ", " + (type_col or "null") +
+              f" from read_parquet(?) where ({' or '.join(conditions)}) and {columns['geometry_wkb_hex']} <> ''")
+    elevation_col = columns.get("elevation")
+    if elevation_col:
+        select = select.replace(" from read_parquet(?)", f", try_cast({elevation_col} as double) from read_parquet(?)", 1)
+    else:
+        select = select.replace(" from read_parquet(?)", ", null from read_parquet(?)", 1)
+    out: dict = defaultdict(lambda: {"under_construction": 0, "new_buildings": 0, "homes_under_construction": 0, "floor_area_m2": 0.0})
+    cursor = db.execute(select, [str(buildings)])
+    while True:
+        rows = cursor.fetchmany(batch)
+        if not rows:
+            break
+        geoms, meta = [], []
+        for wkb_hex, use, purpose, typ, elevation in rows:
+            try:
+                geom = shapely.from_wkb(bytes.fromhex(wkb_hex))
+            except Exception:
+                continue
+            geoms.append(geom)
+            meta.append((use, (purpose or "").casefold(), (typ or "").casefold(), elevation))
+        if not geoms:
+            continue
+        cents = [g.centroid for g in geoms]
+        hits = tree.query(cents, predicate="within")
+        first = {}
+        for pi, di in zip(hits[0], hits[1]):
+            first.setdefault(int(pi), int(di))
+        for i, (use, purpose, typ, elevation) in enumerate(meta):
+            if i not in first:
+                continue
+            bucket = out[ids[first[i]]]
+            building = any(token in purpose for token in NOT_YET_HOMES)
+            bucket["under_construction" if building else "new_buildings"] += 1
+            if building and (use in ("residential", "mixed_use") or "villa" in purpose or "residential" in purpose):
+                bucket["homes_under_construction"] += 1
+            floors = max(1, min(60, round(elevation))) if elevation and elevation > 0 else 1
+            bucket["floor_area_m2"] += footprint_m2(geoms[i], cents[i].y) * floors
+    return out
 DIVERGENCE_PCT = 30.0                                  # beyond this the two estimates are shown as disagreeing
 MIN_COMPARABLE = 500                                   # below this many people a percentage gap is noise
 EARTH_M_PER_DEG = 111_320.0
@@ -209,6 +277,7 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
 
     per_district: dict = defaultdict(lambda: {"buildings": 0, "floors_known": 0, "area_m2": 0.0, "weight": 0.0, "by_use": defaultdict(int), "by_class": defaultdict(int)})
     per_city: dict = defaultdict(lambda: {"candidate_buildings": 0, "assigned": 0, "outside_boundaries": 0, "ambiguous_boundary": 0, "invalid_geometry": 0, "by_use": defaultdict(int)})
+    points: list[dict] = []   # one row per occupied home building, for population-around-a-point queries
     cursor = db.execute(select, [str(buildings)])
     while True:
         rows = cursor.fetchmany(batch)
@@ -256,6 +325,8 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
             bucket["area_m2"] += area
             units, kind = dwelling_units(use, purpose, area, floors, shops.get(i, 0))
             bucket["weight"] += units
+            if units > 0:
+                points.append({"longitude": round(centroids[i].x, 6), "latitude": round(centroids[i].y, 6), "district_id": district_id, "dwellings": round(units, 2)})
             bucket["by_use"][use] += 1
             bucket["by_class"][kind] += 1
             per_city[city]["assigned"] += 1
@@ -330,6 +401,20 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
         os.unlink(temp_csv)
         db.close()
 
+    points_parquet = output_dir / f"building_points_{year}.parquet"
+    growth_parquet = output_dir / f"district_growth_{year}.parquet"
+    db = duckdb.connect()
+    try:
+        db.execute("SET threads=4; SET memory_limit='4GB'")
+        write_rows(db, points, [("longitude", "DOUBLE"), ("latitude", "DOUBLE"), ("district_id", "VARCHAR"), ("dwellings", "DOUBLE")], points_parquet)
+        growth = growth_by_district(db, buildings, columns, tree, ids)
+        write_rows(db, [{"district_id": did, "district_ar": props[did].get("ar"), "city_en": district_city[did], **{k: (round(v, 1) if isinstance(v, float) else v) for k, v in growth[did].items()}}
+                        for did in ids if did in growth],
+                   [("district_id", "VARCHAR"), ("district_ar", "VARCHAR"), ("city_en", "VARCHAR"), ("under_construction", "BIGINT"), ("new_buildings", "BIGINT"),
+                    ("homes_under_construction", "BIGINT"), ("floor_area_m2", "DOUBLE")], growth_parquet)
+    finally:
+        db.close()
+
     report = {
         "source": SOURCE, "year": year,
         "inputs": {"buildings": {"path": str(buildings), "sha256": sha256(buildings)}, "districts": {"path": str(districts), "sha256": sha256(districts), "invalid_polygons_repaired": invalid_polygons},
@@ -346,7 +431,9 @@ def build(buildings: Path, districts: Path, output_dir: Path, worldpop: Path | N
                           "calibration": calibration.get(city), "districts": sum(1 for d in ids if district_city[d] == city)}
                    for city, stats in sorted(per_city.items())},
         "districts": {"total": len(ids), "with_buildings": len(per_district), "comparable_with_worldpop": comparable, "diverging_from_worldpop": divergent},
-        "output": {"file": out_parquet.name, "rows": len(out_rows)},
+        "output": {"file": out_parquet.name, "rows": len(out_rows), "building_points": {"file": points_parquet.name, "rows": len(points)},
+                   "growth": {"file": growth_parquet.name, "districts": len(growth), "under_construction": sum(g["under_construction"] for g in growth.values()),
+                              "new_buildings": sum(g["new_buildings"] for g in growth.values())}},
     }
     (output_dir / f"district_population_buildings_{year}_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
