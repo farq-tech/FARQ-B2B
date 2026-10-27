@@ -1,6 +1,7 @@
 'use client'
 
 import { Building2, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { InsightMap } from '@/components/insights/insight-map'
 import { numberFormat, postMarket, useCities, useDistricts } from '@/lib/insights-api'
@@ -31,6 +32,7 @@ export function GrowthView() {
   })), [rows, largest])
   const total = rows.reduce((sum, row) => sum + row.under_construction, 0)
   const homes = rows.reduce((sum, row) => sum + row.homes_under_construction, 0)
+  const fresh = rows.reduce((sum, row) => sum + row.new_buildings, 0)
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-6 pb-24 lg:py-10">
@@ -51,17 +53,35 @@ export function GrowthView() {
         <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
           <InsightMap districts={districts} colors={colors} className="h-[460px]" />
           <section className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground"><strong className="text-foreground">{numberFormat.format(total)}</strong> مبنى تحت الإنشاء، منها <strong className="text-foreground">{numberFormat.format(homes)}</strong> سكني.</p>
-            <ol className="flex max-h-[420px] flex-col gap-1 overflow-y-auto rounded-2xl border bg-card p-3 text-sm">
-              {rows.slice(0, 40).map((row, index) => (
-                <li key={row.district_id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50">
-                  <span className="w-6 text-xs text-muted-foreground">{index + 1}</span>
-                  <span className="flex-1 font-semibold">{row.district_ar}</span>
-                  <span className="text-xs text-muted-foreground">سكني {numberFormat.format(row.homes_under_construction)}</span>
-                  <span className="w-14 text-end font-semibold text-primary">{numberFormat.format(row.under_construction + row.new_buildings)}</span>
-                </li>
-              ))}
-            </ol>
+            <dl className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl border bg-card p-3"><dt className="text-xs text-muted-foreground">تحت الإنشاء</dt><dd className="text-xl font-bold">{numberFormat.format(total)}</dd></div>
+              <div className="rounded-xl border bg-card p-3"><dt className="text-xs text-muted-foreground">منها سكني</dt><dd className="text-xl font-bold">{numberFormat.format(homes)}</dd></div>
+              <div className="rounded-xl border bg-card p-3"><dt className="text-xs text-muted-foreground">مبانٍ جديدة</dt><dd className="text-xl font-bold">{numberFormat.format(fresh)}</dd></div>
+            </dl>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              لون الحي حسب مجموع ما يُبنى فيه:
+              {SCALE.map((color) => <span key={color} className="inline-block size-3 rounded-sm" style={{ background: color }} aria-hidden />)}
+              <span>أقل ← أكثر</span>
+            </p>
+            <div className="max-h-[380px] overflow-y-auto rounded-2xl border bg-card">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
+                  <tr><th className="p-2 text-start">#</th><th className="p-2 text-start">الحي</th><th className="p-2 text-end">تحت الإنشاء</th><th className="p-2 text-end">منها سكني</th><th className="p-2 text-end">جديدة</th></tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 60).map((row, index) => (
+                    <tr key={row.district_id} className="border-t hover:bg-muted/50">
+                      <td className="p-2 text-xs text-muted-foreground">{index + 1}</td>
+                      <td className="p-2 font-semibold"><Link href={`/insights/report?city=${encodeURIComponent(city)}&district=${encodeURIComponent(row.district_ar)}`} className="hover:text-primary hover:underline">{row.district_ar}</Link></td>
+                      <td className="p-2 text-end font-semibold text-primary">{numberFormat.format(row.under_construction)}</td>
+                      <td className="p-2 text-end">{numberFormat.format(row.homes_under_construction)}</td>
+                      <td className="p-2 text-end">{numberFormat.format(row.new_buildings)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground">اضغط اسم الحي لفتح تقريره الكامل.</p>
           </section>
         </div>
       )}
