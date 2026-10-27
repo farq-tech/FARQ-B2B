@@ -13,4 +13,5 @@
 - سجّل كل تحسين في `docs/opportunity-map-improvement-log.md` بصيغة: الفجوة، التغيير، التحقق والحدود.
 - لا تضع بيانات إنتاج أو أسراراً أو ملفات `.parquet`/`.geojson` في Git.
 - أسماء المدن والأحياء الموحّدة مصدرها `services/targeting-api/canonical_data.py` (وتوأمه `services/data-cleaning/city_names.py` لإعادة بناء اللقطة). أي اسم جديد يُضاف هناك لا في الواجهة.
+- لكل نوع بيانات جدول ذهبي واحد (الأحياء، المدن، المنشآت، السكان، الدخل) موصوف في `docs/golden-data.md`. كل شاشة تقرأ منه ولا تعيد تركيب الرقم، والتصحيح يدخل من نقطة التعديل الوحيدة المذكورة هناك.
 - قبل أي دفع: `pnpm build` في `apps/atlas`، و`python -m unittest` في `services/targeting-api`، و`git diff --check`.

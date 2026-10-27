@@ -187,21 +187,22 @@ class CanonicalDistrictTests(unittest.TestCase):
         self.assertEqual(by_age['ALL']['district_id'], 492)
 
     def test_same_name_polygons_that_do_not_touch_stay_separate_districts(self):
+        # ids outside the reviewed corrections table, so only the touch rule is at work
         atlas = {'type': 'FeatureCollection', 'features': [
-            {'type': 'Feature', 'properties': {'id': 421, 'ar': 'الشهداء', 'en': 'Ash-Shohda', 'city_en': 'Riyadh'}, 'geometry': poly(46.73, 24.78)},
-            {'type': 'Feature', 'properties': {'id': 547, 'ar': 'الشهداء', 'en': 'Al Shohda', 'city_en': 'Riyadh'}, 'geometry': poly(46.59, 24.72)},   # ~15 km west
+            {'type': 'Feature', 'properties': {'id': 9421, 'ar': 'الشهداء', 'en': 'Ash-Shohda', 'city_en': 'Riyadh'}, 'geometry': poly(46.73, 24.78)},
+            {'type': 'Feature', 'properties': {'id': 9547, 'ar': 'الشهداء', 'en': 'Al Shohda', 'city_en': 'Riyadh'}, 'geometry': poly(46.59, 24.72)},   # ~15 km west
         ]}
         collection, id_map = canonical_data.canonical_districts(atlas, {})
         names = {f['properties']['id']: f['properties']['ar'] for f in collection['features']}
-        self.assertEqual(names, {421: 'الشهداء (شرق)', 547: 'الشهداء (غرب)'}, 'two places with one name are two districts')
-        self.assertEqual((id_map['421'], id_map['547']), (421, 547))
+        self.assertEqual(names, {9421: 'الشهداء (شرق)', 9547: 'الشهداء (غرب)'}, 'two places with one name are two districts')
+        self.assertEqual((id_map['9421'], id_map['9547']), (9421, 9547))
         self.assertTrue(all(f['properties']['name_base_ar'] == 'الشهداء' for f in collection['features']))
         self.assertEqual(collection['features'][1]['properties']['en'], 'Al Shohda (West)')
 
     def test_records_with_a_shared_name_go_to_the_nearest_part(self):
         atlas = {'type': 'FeatureCollection', 'features': [
-            {'type': 'Feature', 'properties': {'id': 421, 'ar': 'الشهداء', 'city_en': 'Riyadh'}, 'geometry': poly(46.73, 24.78)},
-            {'type': 'Feature', 'properties': {'id': 547, 'ar': 'الشهداء', 'city_en': 'Riyadh'}, 'geometry': poly(46.59, 24.72)},
+            {'type': 'Feature', 'properties': {'id': 9421, 'ar': 'الشهداء', 'city_en': 'Riyadh'}, 'geometry': poly(46.73, 24.78)},
+            {'type': 'Feature', 'properties': {'id': 9547, 'ar': 'الشهداء', 'city_en': 'Riyadh'}, 'geometry': poly(46.59, 24.72)},
         ]}
         root = Path(tempfile.mkdtemp())
         (root / 'data').mkdir()
@@ -212,6 +213,26 @@ class CanonicalDistrictTests(unittest.TestCase):
         rows = read(paths['targets.parquet'], ['poi_key', 'district_ar'])
         self.assertEqual((rows['east'], rows['west']), (('الشهداء (شرق)',), ('الشهداء (غرب)',)))
         self.assertEqual(rows['nowhere'], ('الشهداء',), 'without coordinates the record is not guessed into either part')
+
+    def test_a_polygon_moved_to_its_own_city_takes_its_records_with_it(self):
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 421, 'ar': 'الشهداء', 'city_en': 'Riyadh'}, 'geometry': poly(46.73, 24.78)},
+            {'type': 'Feature', 'properties': {'id': 547, 'ar': 'الشهداء', 'city_en': 'Riyadh'}, 'geometry': poly(46.59, 24.72)},
+        ]}
+        fix = {('Riyadh', '547'): {'city_en': 'Riyadh', 'id': '547', 'ar': 'الشهداء', 'to_city_en': 'Diriyah', 'to_city_ar': 'الدرعية'}}
+        collection, _ = canonical_data.canonical_districts(atlas, fix)
+        cities = {f['properties']['id']: (f['properties']['city_en'], f['properties']['ar']) for f in collection['features']}
+        self.assertEqual(cities, {421: ('Riyadh', 'الشهداء'), 547: ('Diriyah', 'الشهداء')}, 'one الشهداء per city, no compass word')
+        root = Path(tempfile.mkdtemp())
+        (root / 'data').mkdir()
+        (root / 'data' / 'districts.geojson').write_text(json.dumps(atlas, ensure_ascii=False), encoding='utf-8')
+        write_parquet(root / 'data' / 'targets.parquet', ['poi_key', 'city_en', 'city_ar', 'district_ar', 'latitude', 'longitude'], [
+            ('riyadh', 'Riyadh', 'الرياض', 'الشهداء', 24.785, 46.735), ('diriyah', 'Riyadh', 'الرياض', 'الشهداء', 24.725, 46.595)])
+        with mock.patch.object(canonical_data, 'load_corrections', lambda path=None: fix):
+            paths = canonical_data.prepare(str(root / 'data'), str(root / 'out'))
+        rows = read(paths['targets.parquet'], ['poi_key', 'city_en', 'city_ar', 'district_ar'])
+        self.assertEqual(rows['riyadh'], ('Riyadh', 'الرياض', 'الشهداء'))
+        self.assertEqual(rows['diriyah'], ('Diriyah', 'الدرعية', 'الشهداء'))
 
     def test_the_reviewed_corrections_table_loads(self):
         table = canonical_data.load_corrections()

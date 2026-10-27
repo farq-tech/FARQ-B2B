@@ -713,27 +713,13 @@
     "income_non_saudi": 2630
    },
    {
-    "district_ar": "الشهداء (شرق)",
+    "district_ar": "الشهداء",
     "polygon_ids": [
      "421"
     ],
     "population": 29600,
     "male_pct": 63.5,
     "saudi_pct": 38.4,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
-    "district_ar": "الشهداء (غرب)",
-    "polygon_ids": [
-     "547"
-    ],
-    "population": 1700,
-    "male_pct": 52.8,
-    "saudi_pct": 67.1,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -2312,6 +2298,22 @@
     "income_female": 5165,
     "income_saudi": 12600,
     "income_non_saudi": 3187
+   }
+  ],
+  "Diriyah": [
+   {
+    "district_ar": "الشهداء",
+    "polygon_ids": [
+     "547"
+    ],
+    "population": 1700,
+    "male_pct": 52.8,
+    "saudi_pct": 67.1,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
    }
   ]
  }
