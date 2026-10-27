@@ -5465,20 +5465,6 @@
     "income_non_saudi": null
    },
    {
-    "district_ar": "الأندلس",
-    "polygon_ids": [
-     "550"
-    ],
-    "population": 28800,
-    "male_pct": 61.8,
-    "saudi_pct": 60.6,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
     "district_ar": "الاسكان",
     "polygon_ids": [
      "610"
@@ -5514,20 +5500,6 @@
     "population": 27700,
     "male_pct": 79.8,
     "saudi_pct": 16.3,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
-    "district_ar": "البحر",
-    "polygon_ids": [
-     "553"
-    ],
-    "population": 4000,
-    "male_pct": 61.6,
-    "saudi_pct": 54.5,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -5759,20 +5731,6 @@
     "income_non_saudi": null
    },
    {
-    "district_ar": "الدوحة الجنوبية",
-    "polygon_ids": [
-     "626"
-    ],
-    "population": 21000,
-    "male_pct": 57.1,
-    "saudi_pct": 61.1,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
     "district_ar": "الدوحة الشمالية",
     "polygon_ids": [
      "623"
@@ -5787,22 +5745,9 @@
     "income_non_saudi": null
    },
    {
-    "district_ar": "الراكة الجنوبية",
-    "polygon_ids": [
-     "554"
-    ],
-    "population": 34200,
-    "male_pct": 68.8,
-    "saudi_pct": 32.4,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
     "district_ar": "الراكة الشمالية",
     "polygon_ids": [
+     "47",
      "596"
     ],
     "population": 27200,
@@ -5971,6 +5916,7 @@
    {
     "district_ar": "الصدفة",
     "polygon_ids": [
+     "46",
      "592"
     ],
     "population": 8400,
@@ -6060,20 +6006,6 @@
     "population": 43800,
     "male_pct": 60.6,
     "saudi_pct": 61.3,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
-    "district_ar": "العليا",
-    "polygon_ids": [
-     "555"
-    ],
-    "population": 24400,
-    "male_pct": 67.8,
-    "saudi_pct": 31.7,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -6223,6 +6155,7 @@
    {
     "district_ar": "المدينة الرياضية",
     "polygon_ids": [
+     "16",
      "551"
     ],
     "population": 236,
@@ -6473,20 +6406,6 @@
     "income_non_saudi": null
    },
    {
-    "district_ar": "شاطئ نصف القمر",
-    "polygon_ids": [
-     "654"
-    ],
-    "population": 1300,
-    "male_pct": 97.9,
-    "saudi_pct": 2.2,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
     "district_ar": "ضاحية الملك فهد",
     "polygon_ids": [
      "637"
@@ -6536,20 +6455,6 @@
     "population": 45700,
     "male_pct": 63.5,
     "saudi_pct": 45.3,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
-    "district_ar": "قرطبة",
-    "polygon_ids": [
-     "556"
-    ],
-    "population": 29000,
-    "male_pct": 63.4,
-    "saudi_pct": 51.4,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -6659,7 +6564,8 @@
    {
     "district_ar": "الأندلس",
     "polygon_ids": [
-     "15"
+     "15",
+     "550"
     ],
     "population": 28800,
     "male_pct": 61.8,
@@ -6701,7 +6607,8 @@
    {
     "district_ar": "البحر",
     "polygon_ids": [
-     "19"
+     "19",
+     "553"
     ],
     "population": 4000,
     "male_pct": 61.6,
@@ -6911,7 +6818,8 @@
    {
     "district_ar": "الدوحة الجنوبية",
     "polygon_ids": [
-     "48"
+     "48",
+     "626"
     ],
     "population": 21000,
     "male_pct": 57.1,
@@ -6925,25 +6833,12 @@
    {
     "district_ar": "الراكة الجنوبية",
     "polygon_ids": [
-     "23"
+     "23",
+     "554"
     ],
     "population": 34200,
     "male_pct": 68.8,
     "saudi_pct": 32.4,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
-    "district_ar": "الراكة الشمالية",
-    "polygon_ids": [
-     "47"
-    ],
-    "population": 27200,
-    "male_pct": 68.6,
-    "saudi_pct": 19.8,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -7021,20 +6916,6 @@
     "income_non_saudi": null
    },
    {
-    "district_ar": "الصدفة",
-    "polygon_ids": [
-     "46"
-    ],
-    "population": 8400,
-    "male_pct": 87,
-    "saudi_pct": 7.9,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
     "district_ar": "الصواري",
     "polygon_ids": [
      "38"
@@ -7079,7 +6960,8 @@
    {
     "district_ar": "العليا",
     "polygon_ids": [
-     "31"
+     "31",
+     "555"
     ],
     "population": 24400,
     "male_pct": 67.8,
@@ -7126,20 +7008,6 @@
     "population": 5800,
     "male_pct": 52.6,
     "saudi_pct": 90,
-    "income_all": null,
-    "income_male": null,
-    "income_female": null,
-    "income_saudi": null,
-    "income_non_saudi": null
-   },
-   {
-    "district_ar": "المدينة الرياضية",
-    "polygon_ids": [
-     "16"
-    ],
-    "population": 236,
-    "male_pct": 50,
-    "saudi_pct": 31.4,
     "income_all": null,
     "income_male": null,
     "income_female": null,
@@ -7205,7 +7073,8 @@
    {
     "district_ar": "شاطئ نصف القمر",
     "polygon_ids": [
-     "51"
+     "51",
+     "654"
     ],
     "population": 1300,
     "male_pct": 97.9,
@@ -7252,6 +7121,20 @@
     "population": 1200,
     "male_pct": 52.4,
     "saudi_pct": 60.1,
+    "income_all": null,
+    "income_male": null,
+    "income_female": null,
+    "income_saudi": null,
+    "income_non_saudi": null
+   },
+   {
+    "district_ar": "قرطبة",
+    "polygon_ids": [
+     "556"
+    ],
+    "population": 29000,
+    "male_pct": 63.4,
+    "saudi_pct": 51.4,
     "income_all": null,
     "income_male": null,
     "income_female": null,

@@ -234,6 +234,18 @@ class CanonicalDistrictTests(unittest.TestCase):
         self.assertEqual(rows['riyadh'], ('Riyadh', 'الرياض', 'الشهداء'))
         self.assertEqual(rows['diriyah'], ('Diriyah', 'الدرعية', 'الشهداء'))
 
+    def test_an_outline_filed_under_two_cities_is_kept_once_in_the_nearer_city(self):
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 555, 'ar': 'العليا', 'city_en': 'Dammam'}, 'geometry': poly(50.20, 26.28)},
+            {'type': 'Feature', 'properties': {'id': 31, 'ar': 'العليا', 'city_en': 'Al Khobar'}, 'geometry': poly(50.20, 26.28)},
+        ]}
+        self.assertEqual(canonical_data.cross_city_duplicates(atlas), [('Dammam', '555', 'Al Khobar', '31')], 'the same ground in two cities is flagged')
+        fix = {('Dammam', '555'): {'city_en': 'Dammam', 'id': '555', 'ar': 'العليا', 'to_city_en': 'Al Khobar', 'to_city_ar': 'الخبر'}}
+        collection, id_map = canonical_data.canonical_districts(atlas, fix)
+        self.assertEqual([(f['properties']['city_en'], f['properties']['ar']) for f in collection['features']], [('Al Khobar', 'العليا')], 'one district, in one city')
+        self.assertEqual(str(id_map['555']), '31', 'records filed under the Dammam copy join the Al Khobar district')
+        self.assertEqual(canonical_data.cross_city_duplicates(collection), [])
+
     def test_a_reviewed_place_name_tells_same_name_districts_apart(self):
         atlas = {'type': 'FeatureCollection', 'features': [
             {'type': 'Feature', 'properties': {'id': 9172, 'ar': 'العزيزية', 'en': 'Al Aziziyah', 'city_en': 'Jeddah'}, 'geometry': poly(39.19, 21.55)},
