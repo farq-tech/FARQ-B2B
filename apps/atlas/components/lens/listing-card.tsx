@@ -12,13 +12,13 @@ import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-amber-500' } as const
 
 /** Every photo of the ad, swiped sideways; a photo that fails to load drops out. */
-function Gallery({ photos }: { photos: string[] }) {
+export function Gallery({ photos, className = 'h-40' }: { photos: string[]; className?: string }) {
   const [broken, setBroken] = useState<Set<string>>(new Set())
   const shown = photos.filter((photo) => !broken.has(photo))
   if (!shown.length) return null
   return (
     <div className="relative">
-      <div className="flex h-40 snap-x snap-mandatory overflow-x-auto" dir="ltr">
+      <div className={cn('flex snap-x snap-mandatory overflow-x-auto', className)} dir="ltr">
         {shown.map((photo) => (
           // the ad's own photos, shown from where they are published
           // eslint-disable-next-line @next/next/no-img-element

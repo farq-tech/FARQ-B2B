@@ -58,11 +58,11 @@ export type MapPoint = { id: string; lon: number; lat: number }
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
 /** A current property listing on the map, coloured by its price against its district. */
-export type ListingDot = { id: string; lon: number; lat: number; color: string }
+export type ListingDot = { id: string; lon: number; lat: number; color: string; /** A short price shown beside the dot when zoomed in. */ label?: string; /** The listing the viewer is pointing at in a list. */ active?: boolean }
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, focus }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, focus, onBounds }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -78,12 +78,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   listings?: ListingDot[] | null
   onListing?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
+  /** The visible area [west, south, east, north] each time the map settles. */
+  onBounds?: ((bounds: [number, number, number, number]) => void) | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
   const toggle = useRef(onToggle)
   const pick = useRef(onPick)
   const openListing = useRef(onListing)
+  const reportBounds = useRef(onBounds)
+  reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
   toggle.current = onToggle
@@ -156,8 +160,18 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         }, paint: { 'text-color': '#ffffff' } })
         instance.addLayer({ id: 'listing-dot', type: 'circle', source: 'listings', filter: ['!', ['has', 'point_count']], paint: {
           'circle-color': ['get', 'color'], 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 5, 16, 9],
-          'circle-stroke-color': '#0d1217', 'circle-stroke-width': 1.5,
+          'circle-stroke-color': ['case', ['boolean', ['get', 'active'], false], '#ffffff', '#0d1217'],
+          'circle-stroke-width': ['case', ['boolean', ['get', 'active'], false], 3, 1.5],
         } })
+        // the price beside each single listing once zoomed in, like a price pin
+        instance.addLayer({ id: 'listing-price', type: 'symbol', source: 'listings', minzoom: 12.5, filter: ['all', ['!', ['has', 'point_count']], ['has', 'label']], layout: {
+          'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.4], 'text-allow-overlap': false,
+          'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
+        }, paint: { 'text-color': '#0d1217', 'text-halo-color': '#ffffff', 'text-halo-width': 6 } })
+        instance.on('moveend', () => {
+          const b = instance.getBounds()
+          if (b) reportBounds.current?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
+        })
         instance.on('click', (event) => {
           const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })
           if (listing && openListing.current) { openListing.current(String(listing.properties?.id)); return }
@@ -216,7 +230,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   useEffect(() => {
     const instance = map.current
     if (!ready || !instance) return
-    ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
+    ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color, ...(dot.label ? { label: dot.label } : {}), active: !!dot.active }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
   }, [ready, listings])
 
   useEffect(() => {

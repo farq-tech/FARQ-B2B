@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Inbox, LogIn, TrendingUp, type LucideIcon } from 'lucide-react'
+import { ClipboardList, House, Inbox, LogIn, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -57,6 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
     { href: '/map', label: 'الخريطة والرؤى', icon: TrendingUp },
+    { href: '/homes', label: 'العقار', icon: House },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
@@ -113,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-3 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
           const active = isActive(item.href)
           return (
