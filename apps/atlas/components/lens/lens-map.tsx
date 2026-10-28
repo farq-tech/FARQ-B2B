@@ -11,21 +11,23 @@ import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { LENSES, METRICS, lensById, type LensId, type MetricId } from './lenses'
 import { AroundTool } from './tools/around-tool'
+import { AudienceTool } from './tools/audience-tool'
 import { GapsTool } from './tools/gaps-tool'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
 
 /** The insight tools, named by the question each one answers; their results are drawn on the one map. */
-type ToolId = 'district' | 'gaps' | 'around' | 'growth' | 'territories'
+type ToolId = 'district' | 'gaps' | 'audience' | 'around' | 'growth' | 'territories'
 const TOOLS: { id: ToolId; label: string }[] = [
   { id: 'district', label: 'الحي' },
   { id: 'gaps', label: 'أين ينقص نشاطي؟' },
+  { id: 'audience', label: 'أين جمهوري؟' },
   { id: 'around', label: 'كم شخص حول موقع؟' },
   { id: 'growth', label: 'أين يُبنى الآن؟' },
   { id: 'territories', label: 'تقسيم المندوبين' },
 ]
 // the tool each group starts on (docs/atlas-product-foundation.md §4)
-const START: Record<LensId, ToolId> = { shops: 'gaps', marketers: 'district', distributors: 'territories', analysts: 'district' }
+const START: Record<LensId, ToolId> = { shops: 'gaps', marketers: 'audience', distributors: 'territories', analysts: 'district' }
 
 const format = (value: number | null, unit?: string) => (value == null ? 'غير متاح' : `${numberFormat.format(value)}${unit ? ` ${unit}` : ''}`)
 
@@ -150,6 +152,7 @@ export function LensMap() {
                 ))}
               </div>
               {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} />}
+              {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggle} />}
               {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
               {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
               {(tool === 'district' || tool === 'growth' || selected.length > 0) && tool !== 'around' && (

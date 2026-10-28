@@ -78,5 +78,14 @@ class InsightTests(unittest.TestCase):
         self.assertIsNone(insights.district_income("Riyadh", str(self.root / "missing.json")))
 
 
+    def test_district_audience_keeps_only_measured_shares(self):
+        path = self.root / "audience.json"
+        path.write_text(json.dumps({"cities": {"Riyadh": [
+            {"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}, {"district_ar": "سكيرينة", "male_pct": None, "saudi_pct": 40.0}]}}, ensure_ascii=False), encoding="utf-8")
+        table = insights.district_audience("Riyadh", str(path))
+        self.assertEqual(table["districts"], [{"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}])
+        self.assertIsNone(insights.district_audience("Jeddah", str(path)))
+
+
 if __name__ == "__main__":
     unittest.main()

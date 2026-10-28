@@ -19,6 +19,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'population-around': ['POST'],
   territories: ['POST'],
   'district-income': ['POST'],
+  'district-audience': ['POST'],
   'district-profile': ['POST'],
 }
 

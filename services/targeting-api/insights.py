@@ -142,6 +142,20 @@ def territories(features, weights, count):
 INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
 
 
+AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
+
+
+def district_audience(city, path=None):
+    """Measured audience shares by district: the share of men and of Saudis, from the 910ths reference table. A
+    district without a measured share is left out, so the caller shows «غير متاح» for it rather than a guess."""
+    table = district_reference.load(path or district_reference.PATH)
+    rows = ((table or {}).get('cities') or {}).get(city)
+    if rows is None:
+        return None
+    return {'districts': [{'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}} for row in rows
+                          if all(row.get(key) is not None for key in AUDIENCE_FIELDS)]}
+
+
 def district_income(city, path=None):
     """Average monthly income per working person by district, from the 910ths reference table (district_reference)."""
     table = district_reference.load(path or district_reference.PATH)
