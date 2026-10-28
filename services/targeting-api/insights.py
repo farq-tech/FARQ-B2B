@@ -226,6 +226,23 @@ INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', '
 REAL_ESTATE_PATH = os.environ.get('REAL_ESTATE_DISTRICTS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_districts.json')
 
 
+REGISTERED_DEALS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'registered_deals.json')
+
+
+def registered_deals(city, path=None):
+    """Prices paid per district from registered sale deals (build_registered_deals.py): per classification, the deals
+    and the median price per m². None when there is no table for the city."""
+    try:
+        with open(path or REGISTERED_DEALS_PATH, encoding='utf-8') as handle:
+            table = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    rows = (table.get('cities') or {}).get(city)
+    if rows is None:
+        return None
+    return {'quarters': table.get('quarters'), 'min_deals': table.get('min_deals'), 'unit': table.get('unit'), 'districts': rows}
+
+
 def real_estate(city, path=None):
     """Asking prices per district from build_real_estate_reference.py: per property group, the listings and the median
     price per m² (sale) or per m² per year (rent). None when there is no table for the city yet."""
@@ -242,6 +259,7 @@ def real_estate(city, path=None):
 
 # the listing cards are a data file, not source: kept on the service's data volume (REAL_ESTATE_LISTINGS), never in Git
 REAL_ESTATE_LISTINGS_PATH = os.environ.get('REAL_ESTATE_LISTINGS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_listings.json')
+BEST_DISCOUNT_FLOOR = -30
 LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
                  'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
 LISTINGS_MAX = 1500
@@ -281,7 +299,11 @@ def real_estate_listings(city, filters, path=None):
              and (max_price is None or card['price_sar'] <= max_price)
              and (min_area is None or card['area_sqm'] >= min_area)]
     # a card to check (its figures look wrong) goes after every other, then those without a district comparison
-    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, card.get('vs_district_pct') or 0))
+    # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
+    # so those follow the rest; an ad with photos goes before one without at the same price standing
+    floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
+    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
+                                 card.get('vs_district_pct') or 0))
     return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': found[:filters.get('limit') or LISTINGS_MAX]}
 
 

@@ -185,6 +185,11 @@ def insight_response(path, body):
         table = insights.district_income(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/registered-deals':
+        city = _city(body)
+        table = insights.registered_deals(city)
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
+        return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/real-estate':
         city = _city(body)
         table = insights.real_estate(city)
@@ -1064,7 +1069,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/real-estate-listings', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))
@@ -1088,6 +1093,13 @@ class H(BaseHTTPRequestHandler):
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('district-points', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/places-near':
+            # schools, hospitals, the airport and the centre around a home (market_analytics.places_near)
+            try: self._json(MARKET_ANALYTICS.places_near(body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('places-near', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/brand-profile':
             # one chain across every activity in the city: branches per district and the activities they fall under

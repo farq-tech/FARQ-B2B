@@ -25,17 +25,22 @@ import canonical_data
 import insights
 
 MIN_LISTINGS = 5
+# below this a district median is shown with a small-sample note and kept out of «highest» rankings
+RELIABLE_LISTINGS = 10
 
 # property types as the listings name them -> the groups Atlas shows
 GROUPS = {
-    # a room is left out of the medians: its listed area is usually the whole building's
-    'apartment': 'residential', 'studio': 'residential', 'floor': 'residential', 'villa': 'residential',
+    # a room is left out of the medians: its listed area is usually the whole building's; a studio is its own group,
+    # since its price per m² runs far above a family home's and the official studio figures rank districts poorly
+    'apartment': 'residential', 'studio': 'studio', 'floor': 'residential', 'villa': 'residential',
     'house': 'residential', 'building': 'residential',
     'store': 'commercial', 'shop': 'commercial', 'showroom': 'commercial', 'office': 'office',
     'warehouse': 'warehouse', 'land': 'land',
 }
 # a rent keeps the period its ad states; each period is its own median and nothing is converted between them
 PERIODS = {'annually': 'year', 'yearly': 'year', 'monthly': 'month'}
+# shops are let by the year: a shop rent whose ad states no period is a yearly rent (owner, 2026-10-28)
+YEARLY_WHEN_UNSTATED = {'store', 'shop', 'showroom'}
 # outside these a price per m² is a typo or a different unit (a compound's total, a daily chalet)
 PER_SQM_BOUNDS = {'sale': (100, 100_000), 'rent_year': (20, 10_000), 'rent_month': (2, 1_000), 'rent_unstated': (2, 10_000)}
 # one home listed with the whole building's or plot's area: beyond these the m² is not the unit's
@@ -61,7 +66,10 @@ def deal_of(listing):
     if kind == 'sale':
         return 'sale'
     if kind == 'rent':
-        return f"rent_{PERIODS.get(str(listing.get('rentPeriod') or '').lower(), 'unstated')}"
+        period = PERIODS.get(str(listing.get('rentPeriod') or '').lower())
+        if period is None and str(listing.get('propertyType') or '').lower() in YEARLY_WHEN_UNSTATED:
+            period = 'year'
+        return f"rent_{period or 'unstated'}"
     return None
 
 
@@ -207,7 +215,8 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
         if len(prices) < MIN_LISTINGS:
             continue
         row = cities[city].setdefault(district_id, {'district_id': district_id, 'district_ar': names[(city, district_id)], 'groups': {}})
-        row['groups'][f'{kind}_{group}'] = {'listings': len(prices), 'median_sar_per_sqm': round(statistics.median(prices))}
+        row['groups'][f'{kind}_{group}'] = {'listings': len(prices), 'median_sar_per_sqm': round(statistics.median(prices)),
+                                            'reliable': len(prices) >= RELIABLE_LISTINGS}
     if cards is not None:
         # each card against its district's median for the same deal and group, when the district has one
         for card in cards:

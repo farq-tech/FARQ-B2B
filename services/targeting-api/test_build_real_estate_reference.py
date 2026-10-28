@@ -29,13 +29,15 @@ class RealEstateReferenceTests(unittest.TestCase):
         doc = ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28')
         riyadh = doc['cities']['Riyadh']
         self.assertEqual([r['district_ar'] for r in riyadh], ['العليا'], 'a group under 5 listings is left out')
-        self.assertEqual(riyadh[0]['groups'], {'rent_year_residential': {'listings': 5, 'median_sar_per_sqm': 517}})
+        self.assertEqual(riyadh[0]['groups'], {'rent_year_residential': {'listings': 5, 'median_sar_per_sqm': 517, 'reliable': False}})
         self.assertNotIn('9665', str(doc), 'no advertiser detail leaves the script')
 
     def test_each_rent_period_keeps_its_own_figure_and_nothing_is_converted(self):
         self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 5000, 100, period='monthly')), ('rent_month', 'commercial', 50))
         self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period='annually')), ('rent_year', 'commercial', 600))
-        self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period=None)), ('rent_unstated', 'commercial', 600))
+        # a shop rent with no stated period is a yearly rent (owner, 2026-10-28); an office's stays unstated
+        self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period=None)), ('rent_year', 'commercial', 600))
+        self.assertEqual(ref.price_per_sqm(listing('rent', 'office', 60000, 100, period=None)), ('rent_unstated', 'office', 600))
         self.assertIsNone(ref.price_per_sqm(listing('rent', 'apartment', 3000, 100, period='annually')), 'a «yearly» 3,000 is a month')
         self.assertIsNone(ref.price_per_sqm(listing('rent', 'chalet', 500, 300, period='daily')), 'a chalet has no group')
         self.assertIsNone(ref.price_per_sqm(listing('sale', 'apartment', 900000, 0)))

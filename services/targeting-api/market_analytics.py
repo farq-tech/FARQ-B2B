@@ -29,6 +29,7 @@ USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
     '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$'
 )"""
 
+NEAR_BASIS = "أقرب الأماكن من دليل فرق في دائرة 6 كم، والمسافة خط مستقيم. نوع المدرسة (حكومية أو أهلية) من اسمها؛ ما لا يذكر اسمه النوع يظهر «مدرسة» فقط."
 BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع."
 MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
@@ -45,6 +46,11 @@ BUYER_BASIS = (
 
 
 UNCOVERED_MIN_POPULATION = 5000
+
+
+def haversine_km(lon1, lat1, lon2, lat2):
+    lon1, lat1, lon2, lat2 = map(math.radians, (lon1, lat1, lon2, lat2))
+    return 2 * 6371 * math.asin(math.sqrt(math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2))
 
 
 def chain_growth(history, city, keys):
@@ -86,6 +92,26 @@ def read_chain_history(path):
             return json.load(handle)
     except (OSError, ValueError):
         return None
+
+
+# fixed places a home is measured against, per city: its airport and its centre (lon, lat, label)
+CITY_ANCHORS = {
+    "Riyadh": {"airport": (46.6988, 24.9576, "مطار الملك خالد الدولي"), "center": (46.7135, 24.6311, "وسط الرياض (قصر الحكم)")},
+    "Jeddah": {"airport": (39.1565, 21.6796, "مطار الملك عبدالعزيز الدولي"), "center": (39.1868, 21.4858, "وسط جدة (البلد)")},
+    "Makkah Al Mukarramah": {"airport": (39.1565, 21.6796, "مطار الملك عبدالعزيز الدولي"), "center": (39.8262, 21.4225, "المسجد الحرام")},
+    "Al Madinah Al Munawwarah": {"airport": (39.7051, 24.5534, "مطار الأمير محمد بن عبدالعزيز"), "center": (39.6111, 24.4672, "المسجد النبوي")},
+    "Dammam": {"airport": (49.7979, 26.4712, "مطار الملك فهد الدولي"), "center": (50.1033, 26.4344, "وسط الدمام")},
+    "Al Khobar": {"airport": (49.7979, 26.4712, "مطار الملك فهد الدولي"), "center": (50.2083, 26.2794, "وسط الخبر")},
+}
+NEAR_RADIUS_KM = 6
+# places classified from the business name (folded Arabic, lower-case Latin); a name decides, never a guess
+NEAR_KINDS = {
+    "school": r"مدرس|مدارس|school|academy|اكاديمي",
+    "hospital": r"مستشفي|مستشفى|hospital|مدينه .*الطبيه|medical city",
+}
+NEAR_EXCLUDE = r"قياده|سياقه|driving|تدريب|training|معهد|بيطري|veterinary|عياده|clinic|مستلزمات|supplies|نقل|transport|قرطاسي"
+SCHOOL_PRIVATE = r"اهلي|عالمي|international|private|خاص"
+SCHOOL_PUBLIC = r"ابتدائي|متوسط|ثانوي|elementary|primary|secondary|intermediate|high school|تحفيظ"
 
 
 class MarketAnalytics:
@@ -451,6 +477,46 @@ class MarketAnalytics:
         for city, key, n in rows:
             cities.setdefault(city, {})[key] = n
         return cities
+
+    def places_near(self, body):
+        """The nearest schools (public and private apart, by name) and hospitals to a point within NEAR_RADIUS_KM, with
+        straight-line distance, plus the city's airport and centre. Classification is by the business name, so a
+        school whose name says neither is listed as a school of unstated type."""
+        city, lon, lat = body.get("city"), body.get("lon"), body.get("lat")
+        if not isinstance(city, str) or not 1 <= len(city) <= 80:
+            raise ValueError("city")
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (lon, lat)) or not (34 <= lon <= 56 and 16 <= lat <= 33):
+            raise ValueError("point")
+        box = NEAR_RADIUS_KM / 111.0
+        folded = "translate(lower(concat_ws(' ', p.name_ar, p.name_en)), 'أإآةىؤئ', 'اااهيوي')"
+        kind = " ".join(f"when regexp_matches(n, '{pattern}') then '{name}'" for name, pattern in NEAR_KINDS.items())
+        query = f"""
+            with c as (
+                select p.poi_key, coalesce(nullif(p.name_ar, ''), p.name_en) place_name, p.district_ar, p.longitude place_lon, p.latitude place_lat, {folded} n
+                from read_parquet(?) p
+                where {self.tiles.search_sql} and p.city_en = ? and p.longitude between ? and ? and p.latitude between ? and ?
+                  and coalesce(p.location_precision, 'point') = 'point'
+            ),
+            k as (
+                select *, case {kind} end kind,
+                       2 * 6371 * asin(sqrt(pow(sin(radians(place_lat - ?) / 2), 2) + cos(radians(?)) * cos(radians(place_lat)) * pow(sin(radians(place_lon - ?) / 2), 2))) km
+                from c where not regexp_matches(n, '{NEAR_EXCLUDE}')
+            )
+            select kind, case when kind = 'school' and regexp_matches(n, '{SCHOOL_PRIVATE}') then 'private'
+                              when kind = 'school' and regexp_matches(n, '{SCHOOL_PUBLIC}') then 'public' end school_type,
+                   place_name, district_ar, place_lon, place_lat, km
+            from k where kind is not null and km <= ? order by km
+        """
+        with self.lock:
+            rows = self.db.execute(query, [self.data, city, lon - box, lon + box, lat - box, lat + box, lat, lat, lon, NEAR_RADIUS_KM]).fetchall()
+        groups = {"school_public": [], "school_private": [], "school": [], "hospital": []}
+        for kind, school_type, name, district, place_lon, place_lat, km in rows:
+            key = f"school_{school_type}" if kind == "school" and school_type else kind
+            if len(groups[key]) < 3:
+                groups[key].append({"name": name, "district_ar": district, "lon": place_lon, "lat": place_lat, "km": round(km, 1)})
+        anchors = {name: {"label": label, "lon": a_lon, "lat": a_lat, "km": round(haversine_km(lon, lat, a_lon, a_lat), 1)}
+                   for name, (a_lon, a_lat, label) in CITY_ANCHORS.get(city, {}).items()}
+        return {"ok": True, "city": city, "radius_km": NEAR_RADIUS_KM, "places": groups, "anchors": anchors, "basis": NEAR_BASIS}
 
     def market_gaps(self, body, population):
         """Districts where an activity has fewer directory businesses than its residents would carry at the

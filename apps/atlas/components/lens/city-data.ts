@@ -29,6 +29,8 @@ export type DistrictRow = {
   villaShare: number | null
   /** Median asking price per m² from current listings (rent per year), by property group; null below the listing floor. */
   realEstate: Partial<Record<RealEstateGroup, { median: number; listings: number }>>
+  /** Median price per m² paid in registered sale deals, by classification, and the deals behind it. */
+  deals: { residential: { median: number; deals: number } | null; commercial: { median: number; deals: number } | null }
 }
 
 /** `${deal}_${group}`: sale_residential, rent_year_commercial, rent_month_residential, rent_unstated_office … each its
@@ -48,10 +50,17 @@ type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
 type HousingRow = { district_ar: string; villa_share_pct: number }
 type RealEstateRow = { district_id: string; groups: Partial<Record<RealEstateGroup, { listings: number; median_sar_per_sqm: number }>> }
+type DealRow = { district_ar: string; residential?: { deals: number; median_sar_per_sqm: number }; commercial?: { deals: number; median_sar_per_sqm: number } }
 type RestaurantRow = { district_id: string; restaurants: number }
 type MenuPriceRow = { district_id: string; price: number; places: number | null }
 export type DemandTerm = { term: string; searches: number; unmet: number }
 type DemandRow = { district_id: string; searches: number; unmet: number; unmetTerms: DemandTerm[] }
+
+/** A district name folded the way the service folds it (canonical_data.district_key), to join tables named differently. */
+export function districtKey(name: string): string {
+  return name.replace(/^(حي|حى)\s+/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/[\u064B-\u0652\u0640]/g, '').replace(/\s+/g, ' ').trim()
+}
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
@@ -74,14 +83,16 @@ export function useCityData(city: string): CityData {
       optional(postMarket<{ districts?: GrowthRow[] }>('growth', { city })),
       optional(postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
       optional(postMarket<{ districts?: RealEstateRow[] }>('real-estate', { city })),
+      optional(postMarket<{ districts?: DealRow[] }>('registered-deals', { city })),
       optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
       optional(getJson<{ districts?: MenuPriceRow[] }>(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`)),
       optional(getJson<{ districts?: DemandRow[] }>(`/api/farq/demand?city=${encodeURIComponent(city)}`)),
-    ]).then(([atlas, population, counts, income, growth, housing, property, restaurants, menuPrices, demand]) => {
+    ]).then(([atlas, population, counts, income, growth, housing, property, registered, restaurants, menuPrices, demand]) => {
       if (!active) return
       const features = atlas.features ?? []
       const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
       const eateries = new Map((restaurants?.districts ?? []).map((row) => [row.district_id, row.restaurants]))
+      const paid = new Map((registered?.districts ?? []).map((row) => [districtKey(row.district_ar), row]))
       const menus = new Map((menuPrices?.districts ?? []).map((row) => [row.district_id, row]))
       const wanted = new Map((demand?.districts ?? []).map((row) => [row.district_id, row]))
       const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
@@ -111,6 +122,11 @@ export function useCityData(city: string): CityData {
           underConstruction: g ? g.under_construction : null,
           newBuildings: g ? g.new_buildings : null,
           villaShare: homes.get(name)?.villa_share_pct ?? null,
+          deals: (() => {
+            const row = paid.get(districtKey(name))
+            const pick = (value?: { deals: number; median_sar_per_sqm: number }) => (value ? { median: value.median_sar_per_sqm, deals: value.deals } : null)
+            return { residential: pick(row?.residential), commercial: pick(row?.commercial) }
+          })(),
           realEstate: Object.fromEntries(Object.entries(listings.get(id) ?? {}).map(([group, value]) => [group, { median: value!.median_sar_per_sqm, listings: value!.listings }])),
         }
       })
@@ -123,7 +139,7 @@ export function useCityData(city: string): CityData {
 }
 
 /** Sum of a field over rows; null when any row lacks it, so a partial total is never shown as the whole. */
-export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource' | 'unmetTerms' | 'realEstate'>): number | null {
+export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource' | 'unmetTerms' | 'realEstate' | 'deals'>): number | null {
   if (!rows.length || rows.some((row) => row[key] == null)) return null
   return rows.reduce((total, row) => total + (row[key] as number), 0)
 }
