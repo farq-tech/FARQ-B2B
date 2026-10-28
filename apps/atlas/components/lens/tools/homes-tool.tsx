@@ -5,7 +5,7 @@ import { Loader2, Scale, Sparkles, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
-import { BUDGETS, LISTING_TYPES, priceLine, toneColor, typeLabel, versusDistrict, type Listing, type ListingKind } from '@/lib/real-estate'
+import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
@@ -29,7 +29,10 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
 }) {
   const [kind, setKind] = useState<ListingKind>('rent')
   const [type, setType] = useState('apartment')
+  // a rent is searched in one period at a time, the one its ad states; «all» mixes them, so it takes no budget
+  const [rentDeal, setRentDeal] = useState<Deal | 'all'>('rent_year')
   const [budget, setBudget] = useState(0)
+  const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
   const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: 0, listings: [] })
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
@@ -39,7 +42,7 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
   const districtKey = districtIds.join('|')
 
   useEffect(() => { if (!LISTING_TYPES.find((item) => item.id === type)?.kinds.includes(kind)) setType('apartment') }, [kind, type])
-  useEffect(() => { setBudget(0) }, [kind])
+  useEffect(() => { setBudget(0) }, [kind, rentDeal])
 
   useEffect(() => {
     let live = true
@@ -47,13 +50,14 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
     setActive(null)
     postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
       city, kind, types: [type], limit: LIMIT,
-      ...(budget ? { max_price: budget } : {}),
+      ...(deal ? { deal } : {}),
+      ...(budget && deal ? { max_price: budget } : {}),
       ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
     })
       .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? 0, listings: data.listings ?? [] }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
     return () => { live = false }
-  }, [city, kind, type, budget, districtKey])
+  }, [city, kind, type, deal, budget, districtKey])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
@@ -64,7 +68,7 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
-      color: toneColor[versusDistrict(listing)?.tone ?? 'none'],
+      color: toneColor[listing.check ? 'check' : versusDistrict(listing)?.tone ?? 'none'],
     }))
     onOverlay({
       listings: dots,
@@ -92,10 +96,20 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
             className={cn('rounded-full border px-3 py-1.5 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
         ))}
       </div>
-      <select aria-label="الميزانية" value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="rounded-lg border bg-background px-3 py-2 text-base">
-        <option value={0}>أي ميزانية</option>
-        {BUDGETS[kind].map((value) => <option key={value} value={value}>حتى {numberFormat.format(value)} ريال{kind === 'rent' ? ' سنوياً' : ''}</option>)}
-      </select>
+      {kind === 'rent' && (
+        <div className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
+          {[...RENT_DEALS, { id: 'all' as const, label: 'الكل' }].map((item) => (
+            <button key={item.id} onClick={() => setRentDeal(item.id)} aria-pressed={rentDeal === item.id}
+              className={cn('rounded-full border px-3 py-1.5 text-sm', rentDeal === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
+          ))}
+        </div>
+      )}
+      {deal && (
+        <select aria-label="الميزانية" value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="rounded-lg border bg-background px-3 py-2 text-base">
+          <option value={0}>أي ميزانية</option>
+          {BUDGETS[deal].map((value) => <option key={value} value={value}>حتى {numberFormat.format(value)} ريال{PERIOD_WORD[deal] ? ` ${PERIOD_WORD[deal]}` : ''}</option>)}
+        </select>
+      )}
 
       {result.status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
@@ -116,7 +130,7 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
                     <li key={listing.id}>
                       <button onClick={() => open(listing)} className={cn('flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary', active?.id === listing.id && 'text-primary')}>
                         <span className="min-w-0">
-                          <span className="block truncate font-medium">{typeLabel(listing.type)} · {listing.district_ar} · {numberFormat.format(listing.area_sqm)} م²</span>
+                          <span className="block truncate font-medium">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
                           {versus && <span className={cn('block text-sm', versus.tone === 'good' ? 'text-primary' : 'text-muted-foreground')}>{versus.text}</span>}
                         </span>
                         <span className="shrink-0 text-sm font-semibold">{priceLine(listing)}</span>
@@ -136,7 +150,7 @@ export function HomesTool({ city, rows, selected, onOverlay }: {
           <ul className="space-y-1 text-sm">
             {compare.map((listing) => (
               <li key={listing.id} className="flex items-center justify-between gap-2">
-                <button onClick={() => open(listing)} className="truncate text-start hover:text-primary">{typeLabel(listing.type)} في {listing.district_ar} · {priceLine(listing)}</button>
+                <button onClick={() => open(listing)} className="truncate text-start hover:text-primary">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ""} · {priceLine(listing)}</button>
                 <button onClick={() => toggleCompare(listing)} aria-label="إزالة من المقارنة" className="text-muted-foreground hover:text-foreground"><X className="size-4" aria-hidden /></button>
               </li>
             ))}

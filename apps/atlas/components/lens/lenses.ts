@@ -6,7 +6,7 @@ import type { DistrictRow } from './city-data'
  */
 export type LensId = 'shops' | 'marketers' | 'distributors' | 'analysts'
 
-export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'whatsapp' | 'income' | 'growth' | 'restaurants' | 'villaShare' | 'shopRent' | 'homeRent' | 'homePrice' | 'warehouseRent'
+export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'whatsapp' | 'income' | 'growth' | 'restaurants' | 'villaShare' | 'shopRent' | 'shopRentUnstated' | 'homeRent' | 'homeRentMonthly' | 'homePrice' | 'warehouseRent'
 
 export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow) => number | null; unit?: string }> = {
   population: { label: 'السكان', value: (row) => row.population },
@@ -18,10 +18,13 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
   whatsapp: { label: 'منشآت بواتساب', value: (row) => row.whatsapp },
   restaurants: { label: 'مطاعم على تطبيقات التوصيل', value: (row) => row.restaurants },
   villaShare: { label: 'حصة الفلل من المساكن', value: (row) => row.villaShare, unit: '%' },
-  shopRent: { label: 'إيجار متر المحل سنوياً', value: (row) => row.realEstate.rent_commercial?.median ?? null, unit: 'ر.س' },
-  homeRent: { label: 'إيجار متر السكن سنوياً', value: (row) => row.realEstate.rent_residential?.median ?? null, unit: 'ر.س' },
+  // each rent period is its own figure, never converted (services/targeting-api/build_real_estate_reference.py)
+  shopRent: { label: 'إيجار متر المحل سنوياً', value: (row) => row.realEstate.rent_year_commercial?.median ?? null, unit: 'ر.س' },
+  shopRentUnstated: { label: 'إيجار متر المحل (المدة غير مذكورة)', value: (row) => row.realEstate.rent_unstated_commercial?.median ?? null, unit: 'ر.س' },
+  homeRent: { label: 'إيجار متر السكن سنوياً', value: (row) => row.realEstate.rent_year_residential?.median ?? null, unit: 'ر.س' },
+  homeRentMonthly: { label: 'إيجار متر السكن شهرياً', value: (row) => row.realEstate.rent_month_residential?.median ?? null, unit: 'ر.س' },
   homePrice: { label: 'سعر متر السكن للبيع', value: (row) => row.realEstate.sale_residential?.median ?? null, unit: 'ر.س' },
-  warehouseRent: { label: 'إيجار متر المستودع سنوياً', value: (row) => row.realEstate.rent_warehouse?.median ?? null, unit: 'ر.س' },
+  warehouseRent: { label: 'إيجار متر المستودع سنوياً', value: (row) => row.realEstate.rent_year_warehouse?.median ?? null, unit: 'ر.س' },
   income: { label: 'متوسط الدخل', value: (row) => row.income, unit: 'ر.س' },
   growth: {
     label: 'مبانٍ جديدة وتحت الإنشاء',
@@ -30,10 +33,10 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
 }
 
 export const LENSES: { id: LensId; label: string; metric: MetricId; metrics: MetricId[] }[] = [
-  { id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'shopRent', 'population', 'income', 'villaShare', 'restaurants', 'growth'] },
+  { id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'shopRent', 'shopRentUnstated', 'population', 'income', 'villaShare', 'restaurants', 'growth'] },
   { id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare', 'homePrice', 'restaurants', 'whatsapp'] },
   { id: 'distributors', label: 'الموزّعون', metric: 'businesses', metrics: ['businesses', 'warehouseRent', 'restaurants', 'growth', 'population'] },
-  { id: 'analysts', label: 'المحلّلون', metric: 'population', metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'villaShare', 'shopRent', 'homeRent', 'homePrice', 'restaurants', 'growth', 'whatsapp'] },
+  { id: 'analysts', label: 'المحلّلون', metric: 'population', metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'villaShare', 'shopRent', 'shopRentUnstated', 'homeRent', 'homeRentMonthly', 'homePrice', 'restaurants', 'growth', 'whatsapp'] },
 ]
 
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]

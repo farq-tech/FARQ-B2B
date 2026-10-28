@@ -25,7 +25,9 @@ export type DistrictRow = {
   realEstate: Partial<Record<RealEstateGroup, { median: number; listings: number }>>
 }
 
-export type RealEstateGroup = 'rent_commercial' | 'rent_residential' | 'rent_warehouse' | 'rent_office' | 'sale_residential' | 'sale_land' | 'sale_commercial'
+/** `${deal}_${group}`: sale_residential, rent_year_commercial, rent_month_residential, rent_unstated_office … each its
+ * own median, in its own period (lib/real-estate.ts groupLabel names them). */
+export type RealEstateGroup = string
 
 export type CityData = {
   status: 'loading' | 'ready' | 'error'

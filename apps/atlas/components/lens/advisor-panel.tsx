@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Loader2, Send, Sparkles, X } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
-import { priceLine, sar, typeLabel, type Listing } from '@/lib/real-estate'
+import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from './city-data'
 
@@ -20,7 +20,7 @@ const figure = (value: number | null | undefined, unit = '') => (value == null ?
 /** A district's Atlas figures as one line for the advisor; a missing one stays «غير متاح». */
 function districtFacts(row: DistrictRow | undefined, name: string): string {
   if (!row) return `حي ${name}: لا أرقام له في أطلس.`
-  const median = (key: keyof DistrictRow['realEstate']) => figure(row.realEstate[key]?.median, ' ريال')
+  const median = (key: string) => figure(row.realEstate[key]?.median, ' ريال')
   return [
     `حي ${row.name}`,
     `السكان ${figure(row.population)}`,
@@ -29,19 +29,22 @@ function districtFacts(row: DistrictRow | undefined, name: string): string {
     `متوسط الدخل الشهري ${figure(row.income, ' ريال')}`,
     `حصة الفلل من المساكن ${figure(row.villaShare, '%')}`,
     `مبانٍ تحت الإنشاء ${figure(row.underConstruction)}`,
-    `وسيط إيجار السكن للمتر سنوياً ${median('rent_residential')}`,
+    `وسيط إيجار السكن السنوي للمتر ${median('rent_year_residential')}`,
+    `وسيط إيجار السكن الشهري للمتر ${median('rent_month_residential')}`,
     `وسيط سعر بيع السكن للمتر ${median('sale_residential')}`,
-    `وسيط إيجار المحل للمتر سنوياً ${median('rent_commercial')}`,
+    `وسيط إيجار المحل السنوي للمتر ${median('rent_year_commercial')}`,
+    `وسيط إيجار المحل للمتر (المدة غير مذكورة) ${median('rent_unstated_commercial')}`,
     `وسيط سعر الأرض للمتر ${median('sale_land')}`,
   ].join(' | ')
 }
 
 function listingFacts(listing: Listing, letter: string): string {
   return [
-    `الخيار ${letter}: ${typeLabel(listing.type)} ${listing.kind === 'rent' ? 'للإيجار' : 'للبيع'} في حي ${listing.district_ar}`,
+    `الخيار ${letter}: ${typeLabel(listing.type)} ${listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''} في ${listing.district_ar ? `حي ${listing.district_ar}` : 'حي غير محدد'}`,
     priceLine(listing),
-    `${numberFormat.format(listing.area_sqm)} م²`,
-    `سعر المتر ${sar(listing.sar_per_sqm)}${listing.kind === 'rent' ? ' سنوياً' : ''}`,
+    listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : 'المساحة غير مذكورة',
+    perSqmLine(listing) ?? 'سعر المتر غير متاح',
+    ...(listing.check ? ['أرقام الإعلان تحتاج تحققاً'] : []),
     `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : `${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`}`,
     `غرف النوم ${figure(listing.beds)}`,
     `دورات المياه ${figure(listing.wc)}`,
@@ -53,7 +56,7 @@ export function subjectFacts(subject: AdvisorSubject, rows: DistrictRow[]): stri
   if (subject.kind === 'districts') return subject.rows.map((row, index) => `الخيار ${LETTERS[index]}: ${districtFacts(row, row.name)}`).join('\n')
   return subject.listings.map((listing, index) => [
     listingFacts(listing, LETTERS[index]),
-    districtFacts(rows.find((row) => row.id === listing.district_id), listing.district_ar),
+    districtFacts(rows.find((row) => row.id === listing.district_id), listing.district_ar ?? 'غير محدد'),
   ].join('\n')).join('\n\n')
 }
 

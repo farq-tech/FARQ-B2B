@@ -43,10 +43,12 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'whatsapp': return EXPLAIN.whatsapp
     case 'restaurants': return EXPLAIN.restaurants
     case 'villaShare': return EXPLAIN.villaShare
-    case 'shopRent': return EXPLAIN.realEstate(row.realEstate.rent_commercial?.listings, true)
-    case 'homeRent': return EXPLAIN.realEstate(row.realEstate.rent_residential?.listings, true)
-    case 'homePrice': return EXPLAIN.realEstate(row.realEstate.sale_residential?.listings, false)
-    case 'warehouseRent': return EXPLAIN.realEstate(row.realEstate.rent_warehouse?.listings, true)
+    case 'shopRent': return EXPLAIN.realEstate(row.realEstate.rent_year_commercial?.listings, 'rent_year')
+    case 'shopRentUnstated': return EXPLAIN.realEstate(row.realEstate.rent_unstated_commercial?.listings, 'rent_unstated')
+    case 'homeRent': return EXPLAIN.realEstate(row.realEstate.rent_year_residential?.listings, 'rent_year')
+    case 'homeRentMonthly': return EXPLAIN.realEstate(row.realEstate.rent_month_residential?.listings, 'rent_month')
+    case 'homePrice': return EXPLAIN.realEstate(row.realEstate.sale_residential?.listings, 'sale')
+    case 'warehouseRent': return EXPLAIN.realEstate(row.realEstate.rent_year_warehouse?.listings, 'rent_year')
     case 'income': return EXPLAIN.income
     case 'growth': return EXPLAIN.growth(row.underConstruction, row.newBuildings)
   }
