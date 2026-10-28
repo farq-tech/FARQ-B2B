@@ -16,6 +16,9 @@ export type DistrictRow = {
   businesses: number | null
   whatsapp: number | null
   restaurants: number | null
+  /** Median menu-item price of the district's restaurants, and how many restaurants it rests on. */
+  menuPrice: number | null
+  menuPricePlaces: number | null
   income: number | null
   underConstruction: number | null
   newBuildings: number | null
@@ -33,6 +36,7 @@ type CountRow = { district_ar: string; n: number; n_whatsapp?: number }
 type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
 type RestaurantRow = { district_id: string; restaurants: number }
+type MenuPriceRow = { district_id: string; price: number; places: number | null }
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
@@ -54,11 +58,13 @@ export function useCityData(city: string): CityData {
       optional(postMarket<{ districts?: IncomeRow[] }>('district-income', { city })),
       optional(postMarket<{ districts?: GrowthRow[] }>('growth', { city })),
       optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
-    ]).then(([atlas, population, counts, income, growth, restaurants]) => {
+      optional(getJson<{ districts?: MenuPriceRow[] }>(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`)),
+    ]).then(([atlas, population, counts, income, growth, restaurants, menuPrices]) => {
       if (!active) return
       const features = atlas.features ?? []
       const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
       const eateries = new Map((restaurants?.districts ?? []).map((row) => [row.district_id, row.restaurants]))
+      const menus = new Map((menuPrices?.districts ?? []).map((row) => [row.district_id, row]))
       const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
       const count = byName(counts?.districts)
       const pay = byName(income?.districts)
@@ -76,6 +82,8 @@ export function useCityData(city: string): CityData {
           businesses: c ? c.n : null,
           whatsapp: c?.n_whatsapp ?? null,
           restaurants: eateries.get(id) ?? null,
+          menuPrice: menus.get(id)?.price ?? null,
+          menuPricePlaces: menus.get(id)?.places ?? null,
           income: pay.get(name)?.income_all ?? null,
           underConstruction: g ? g.under_construction : null,
           newBuildings: g ? g.new_buildings : null,
