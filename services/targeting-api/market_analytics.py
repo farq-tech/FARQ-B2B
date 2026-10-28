@@ -30,7 +30,7 @@ USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
 )"""
 
 NEAR_BASIS = "أقرب الأماكن من دليل فرق في دائرة 6 كم، والمسافة خط مستقيم. نوع المدرسة (حكومية أو أهلية) من اسمها؛ ما لا يذكر اسمه النوع يظهر «مدرسة» فقط."
-BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع."
+BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع ورقمه. الاسمان العربي واللاتيني بسجل تجاري مشترك سلسلة واحدة إذا كان كل منهما أقرب اسم للآخر، ولا تتسلسل الأسماء، وكلمة النشاط وحدها ليست سلسلة."
 MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام، ولا يعني نية الشراء."
@@ -46,6 +46,15 @@ BUYER_BASIS = (
 
 
 UNCOVERED_MIN_POPULATION = 5000
+
+
+# a bare activity word is how many independent shops are named, not a brand (keys after letter folding)
+GENERIC_BRAND_KEYS = frozenset({
+    "صيدليه", "pharmacy", "مطعم", "restaurant", "مقهي", "كافيه", "cafe", "coffee", "بقاله", "grocery", "سوبرماركت",
+    "supermarket", "تموينات", "مخبز", "bakery", "مغسله", "laundry", "صالون", "salon", "حلاق", "barber", "ورشه",
+    "workshop", "مستودع", "warehouse", "مكتب", "office", "مؤسسه", "شركه", "company", "متجر", "store", "shop", "محل",
+    "عياده", "clinic", "مجمع", "مركز", "center", "centre", "مدرسه", "school",
+})
 
 
 def haversine_km(lon1, lat1, lon2, lat2):
@@ -325,44 +334,43 @@ class MarketAnalytics:
         columns = self._columns()
         brand = "nullif(trim(p.brand_name), '')" if "brand_name" in columns else "null"
         cr = "nullif(trim(p.commercial_license), '')" if "commercial_license" in columns else "null"
-        label = (rf"trim(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en), "
-                 r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i'))")
-        key = (rf"trim(regexp_replace(regexp_replace(translate(lower({label}), 'أإآةىؤئـ', 'اااهيوي'), "
-               r"'[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g'))")
+        label = (rf"trim(regexp_replace(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en), "
+                 r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i'), '(\s+[0-9٠-٩]+)+$', ''))")
+        # a branch number at the end («الجازع 5», «اوشن ٣١») names the branch, not the brand
+        key = (rf"trim(regexp_replace(regexp_replace(regexp_replace(translate(lower({label}), 'أإآةىؤئـ', 'اااهيوي'), "
+               r"'[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g'), '(\s+[0-9٠-٩]+)+$', ''))")
         return f"p.poi_key, p.district_ar, {label} brand_label, {key} brand_key, {cr} cr"
 
     @staticmethod
     def _group_chains(rows):
-        """Businesses (poi_key, district, label, key, cr) grouped into brands by key. Two keys also join when they share a
-        commercial registration and one is written in Arabic letters and the other in Latin: the same brand in two
-        scripts. Keys in the same script never join through a registration, so a holding company's brands stay apart."""
-        parent = {}
-
-        def find(key):
-            while parent.setdefault(key, key) != key:
-                parent[key] = parent[parent[key]]
-                key = parent[key]
-            return key
-
+        """Businesses (poi_key, district, label, key, cr) grouped into brands by key. An Arabic key and a Latin key also
+        join when they share commercial registrations and each is the other's strongest partner across scripts: the
+        same brand in two scripts. A join never chains (Arabic to Latin to another Arabic name), so two competitors that
+        a stray registration links stay apart, and keys in the same script never join, so a holding company's brands
+        stay apart. A bare activity word («صيدليه», «pharmacy») names no brand."""
         arabic = lambda text: any("؀" <= char <= "ۿ" for char in text)
+        usable = lambda key: bool(key) and len(key) >= 2 and key not in GENERIC_BRAND_KEYS
         by_cr = {}
-        for _, _, _, key, cr in rows:
-            if key and len(key) >= 2:
-                find(key)
-                if cr:
-                    by_cr.setdefault(cr, set()).add(key)
+        for poi, _, _, key, cr in rows:
+            if usable(key) and cr:
+                by_cr.setdefault(cr, {}).setdefault(key, set()).add(poi)
+        # how strongly each Arabic and Latin key are tied: branches sharing a registration, summed over registrations
+        ties = Counter()
         for keys in by_cr.values():
-            if len(keys) > 1:
-                scripts = {key: arabic(key) for key in keys}
-                for key in keys:
-                    for other in keys:
-                        if scripts[key] != scripts[other]:
-                            parent[find(key)] = find(other)
+            for key, pois in keys.items():
+                for other, others in keys.items():
+                    if arabic(key) and not arabic(other):
+                        ties[(key, other)] += min(len(pois), len(others))
+        best_latin, best_arabic = {}, {}
+        for (ar, la), weight in sorted(ties.items(), key=lambda item: (-item[1], item[0])):
+            best_latin.setdefault(ar, la)
+            best_arabic.setdefault(la, ar)
+        partner = {la: ar for ar, la in best_latin.items() if best_arabic.get(la) == ar}
         groups = {}
         for poi, district, label, key, _ in rows:
-            if not key or len(key) < 2:
+            if not usable(key):
                 continue
-            group = groups.setdefault(find(key), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
+            group = groups.setdefault(partner.get(key, key), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
             if poi in group["pois"]:
                 continue
             group["pois"].add(poi)
@@ -454,12 +462,16 @@ class MarketAnalytics:
             if main:
                 mains[main] += n
         districts = Counter(district for _, district in branches if district)
+        # a chain is one business: it takes the activity most of its classified branches carry, and the branches the
+        # directory files elsewhere are counted, then named apart so the directory can be corrected
+        main = mains.most_common(1)[0] if mains else None
         return {
             "ok": True,
             "city": city,
             "branches": len(set(pois)),
             "districts": len(districts),
             "by_district": [{"district_ar": name, "n": n} for name, n in sorted(districts.items(), key=lambda item: (-item[1], item[0]))],
+            "activity": {"main_ar": main[0], "classified": sum(mains.values()), "agree": main[1]} if main else None,
             "activities": [{"main_ar": name, "n": n} for name, n in mains.most_common(8)],
             "basis": BRANDS_BASIS,
         }

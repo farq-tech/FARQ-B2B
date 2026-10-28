@@ -18,7 +18,7 @@ type Growth = { since: string | null; before: number; now: number } | null
 type Brand = { brand: string; keys: string[]; branches: number; districts: number; share_pct: number | null; by_district: Count[]; growth: Growth }
 type Uncovered = { district_ar: string; population: number; businesses: number }
 type Brands = { total: number; chains: number; in_chains: number; brands: Brand[]; uncovered?: Uncovered[]; uncovered_by?: string[] }
-type Profile = { branches: number; districts: number; activities: { main_ar: string; n: number }[] }
+type Profile = { branches: number; districts: number; activity: { main_ar: string; classified: number; agree: number } | null; activities: { main_ar: string; n: number }[] }
 
 /** «+5 فروع منذ 2026-09-01», or null while the directory history has one snapshot. */
 function growthLine(growth: Growth): string | null {
@@ -267,8 +267,12 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
               {profile && profile !== 'error' && (
                 <div className="flex flex-col gap-1 rounded-xl border p-3 text-base">
                   <p>في المدينة كلها: <strong>{numberFormat.format(profile.branches)}</strong> فرعاً في {numberFormat.format(profile.districts)} حياً</p>
-                  {profile.activities.length > 0 && (
-                    <p className="text-sm text-muted-foreground">تعمل في: {profile.activities.map((item) => `${item.main_ar} (${numberFormat.format(item.n)})`).join('، ')}</p>
+                  {/* a chain is one business with one activity; branches the directory files elsewhere are named, not spread over activities */}
+                  <p>النشاط: <strong>{profile.activity?.main_ar ?? 'غير متاح'}</strong></p>
+                  {profile.activity && profile.activity.classified > profile.activity.agree && (
+                    <Explained title="فروع بتصنيف آخر في الدليل" lines={EXPLAIN.chainActivity(profile.activity.main_ar, profile.activities.filter((item) => item.main_ar !== profile.activity?.main_ar))} className="self-start text-sm text-muted-foreground">
+                      {numberFormat.format(profile.activity.classified - profile.activity.agree)} من فروعها مصنفة في الدليل تحت نشاط آخر
+                    </Explained>
                   )}
                 </div>
               )}
