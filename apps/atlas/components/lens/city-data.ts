@@ -15,6 +15,9 @@ export type DistrictRow = {
   populationSource: string | null
   businesses: number | null
   restaurants: number | null
+  /** Median menu-item price of the district's restaurants, and how many restaurants it rests on. */
+  menuPrice: number | null
+  menuPricePlaces: number | null
   /** Located Farq searches near the district in 90 days, and how many found nothing (null below the threshold). */
   searches: number | null
   unmetSearches: number | null
@@ -46,6 +49,7 @@ type GrowthRow = { district_ar: string; under_construction: number; new_building
 type HousingRow = { district_ar: string; villa_share_pct: number }
 type RealEstateRow = { district_id: string; groups: Partial<Record<RealEstateGroup, { listings: number; median_sar_per_sqm: number }>> }
 type RestaurantRow = { district_id: string; restaurants: number }
+type MenuPriceRow = { district_id: string; price: number; places: number | null }
 export type DemandTerm = { term: string; searches: number; unmet: number }
 type DemandRow = { district_id: string; searches: number; unmet: number; unmetTerms: DemandTerm[] }
 
@@ -71,12 +75,14 @@ export function useCityData(city: string): CityData {
       optional(postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
       optional(postMarket<{ districts?: RealEstateRow[] }>('real-estate', { city })),
       optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
+      optional(getJson<{ districts?: MenuPriceRow[] }>(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`)),
       optional(getJson<{ districts?: DemandRow[] }>(`/api/farq/demand?city=${encodeURIComponent(city)}`)),
-    ]).then(([atlas, population, counts, income, growth, housing, property, restaurants, demand]) => {
+    ]).then(([atlas, population, counts, income, growth, housing, property, restaurants, menuPrices, demand]) => {
       if (!active) return
       const features = atlas.features ?? []
       const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
       const eateries = new Map((restaurants?.districts ?? []).map((row) => [row.district_id, row.restaurants]))
+      const menus = new Map((menuPrices?.districts ?? []).map((row) => [row.district_id, row]))
       const wanted = new Map((demand?.districts ?? []).map((row) => [row.district_id, row]))
       const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
       const count = byName(counts?.districts)
@@ -96,6 +102,8 @@ export function useCityData(city: string): CityData {
           populationSource: people.get(id)?.source ?? null,
           businesses: c ? c.n : null,
           restaurants: eateries.get(id) ?? null,
+          menuPrice: menus.get(id)?.price ?? null,
+          menuPricePlaces: menus.get(id)?.places ?? null,
           searches: wanted.get(id)?.searches ?? null,
           unmetSearches: wanted.get(id)?.unmet ?? null,
           unmetTerms: wanted.get(id)?.unmetTerms ?? [],
