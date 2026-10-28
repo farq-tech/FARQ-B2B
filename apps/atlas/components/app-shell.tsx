@@ -24,7 +24,7 @@ export function BrandMark({ className }: { className?: string }) {
   return (
     <Link href="/" className={cn('flex shrink-0 items-center gap-2.5', className)} aria-label="فرق أطلس، الرئيسية">
       <span className="flex items-center gap-1.5" aria-hidden>
-        <img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" />
+        <img src="/brand/farq-b2b-light.svg" alt="" className="h-6 w-auto" />
         <span className="text-[15px] font-bold text-foreground">أطلس</span>
       </span>
       <span className="hidden flex-col leading-tight sm:flex">
@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (pathname === '/' || pathname === '/login') return <>{children}</>
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh">
       <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-card/95 px-4 backdrop-blur-xl sm:px-6">
         <BrandMark />
 

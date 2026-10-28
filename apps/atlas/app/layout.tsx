@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#0d1217',
+  themeColor: '#f8faf5',
 }
 
 export default function RootLayout({
@@ -38,8 +38,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={`${plex.variable} bg-background`}>
+    <html lang="ar" dir="rtl" className={plex.variable}>
       <body className="font-sans antialiased">
+        <div className="atlas-dots" aria-hidden />
         <AppStoreProvider>
           <TooltipProvider delay={300}>
             <AppShell>{children}</AppShell>

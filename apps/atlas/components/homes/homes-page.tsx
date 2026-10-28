@@ -102,7 +102,7 @@ export function HomesPage() {
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
       {/* the search pill and the chip row, one tap above the results */}
-      <header className="flex flex-col gap-3 border-b bg-background px-4 py-3">
+      <header className="flex flex-col gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-1 rounded-full border bg-card p-1.5 shadow-sm">
           <label className="flex min-w-[8rem] flex-1 flex-col rounded-full px-4 py-1 hover:bg-muted">
             <span className="text-xs font-semibold">المدينة</span>
