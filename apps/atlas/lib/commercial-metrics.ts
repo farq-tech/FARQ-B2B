@@ -71,3 +71,13 @@ export function trackQuoteAccepted({ city, quoteCount }: { city: string; quoteCo
 export function trackManualHandoffCopied({ city, type, count }: { city: string; type: 'rfq' | 'campaign'; count: number }) {
   track('atlas_manual_handoff_copied', { city, type, selection_size: countBucket(count) })
 }
+
+type OnboardingStep = 'shown' | 'goal_picked' | 'district_picked' | 'completed' | 'skipped' | 'restarted'
+
+/**
+ * The map's first-visit tour, one event name for every step: the step, the goal's lens id when one is picked, the
+ * step a visitor left from, and how the tour ended (opening a figure's source or «فهمت»). No names, places or text.
+ */
+export function trackOnboardingStep(step: OnboardingStep, detail: { lens?: string; at?: string; via?: 'explain' | 'button' } = {}) {
+  track('atlas_onboarding_step', { step, ...detail })
+}
