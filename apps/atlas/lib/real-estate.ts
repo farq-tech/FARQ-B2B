@@ -41,7 +41,7 @@ export const RENT_DEALS: { id: Deal; label: string }[] = [
   { id: 'rent_month', label: 'شهري' },
   { id: 'rent_unstated', label: 'المدة غير مذكورة' },
 ]
-const GROUP_WORD: Record<string, string> = { residential: 'سكن', commercial: 'محل', office: 'مكتب', warehouse: 'مستودع', land: 'أرض' }
+const GROUP_WORD: Record<string, string> = { residential: 'سكن', commercial: 'محل', office: 'مكتب', warehouse: 'مستودع', land: 'أرض', studio: 'استديو' }
 
 /** «إيجار سكن شهري» for a district group key such as rent_month_residential. */
 export function groupLabel(key: string): string {

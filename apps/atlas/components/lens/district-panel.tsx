@@ -6,6 +6,7 @@ import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
 import { groupLabel } from '@/lib/real-estate'
+import { RELIABLE_LISTINGS } from './lenses'
 import { sumOf, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
 
@@ -116,14 +117,22 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           </ul>
         </div>
       )}
+      {single && (
+        <div className="mt-4">
+          <Figure label="سعر متر البيع في الصفقات المسجلة" value={show(single.deals.residential?.median ?? null, ' ر.س')} explain={EXPLAIN.registeredDeals(single.deals.residential?.deals)} />
+        </div>
+      )}
       {single && Object.keys(single.realEstate).length > 0 && (
         <div className="mt-4">
           <p className="mb-1 text-sm font-semibold text-muted-foreground">أسعار العقار المعروضة (للمتر)</p>
           <ul className="space-y-1.5 text-base">
-            {Object.entries(single.realEstate).sort(([a], [b]) => dealRank(a) - dealRank(b) || a.localeCompare(b)).map(([group, figure]) => (
+            {/* studio prices rank districts poorly against official rents, so they stay out of the district comparison */}
+            {Object.entries(single.realEstate).filter(([group]) => !group.endsWith('_studio')).sort(([a], [b]) => dealRank(a) - dealRank(b) || a.localeCompare(b)).map(([group, figure]) => (
               <li key={group} className="flex justify-between gap-2">
                 <span>{groupLabel(group)}</span>
-                <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">{show(figure!.median, ' ر.س')}</Explained>
+                <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">
+                  {show(figure!.median, ' ر.س')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-amber-500">عينة صغيرة</span>}
+                </Explained>
               </li>
             ))}
           </ul>

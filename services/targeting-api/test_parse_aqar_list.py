@@ -68,7 +68,7 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertIsNone(reference.price_per_sqm(building))
         shop = parse.parse_map_listing({**record, 'title': 'محل للإيجار في حي العليا, مدينة الرياض', 'price': 120000,
                                         'area': 80, 'content': '', 'rent_period': None})
-        self.assertEqual(reference.price_per_sqm(shop), ('rent_unstated', 'commercial', 1500))
+        self.assertEqual(reference.price_per_sqm(shop), ('rent_year', 'commercial', 1500))
         office_month = parse.parse_map_listing({**record, 'title': 'مكتب تجاري للإيجار في حي العليا, مدينة الرياض', 'price': 1500,
                                                 'area': 40, 'content': '', 'rent_period': None})
         self.assertEqual(reference.price_per_sqm(office_month), ('rent_unstated', 'office', 37.5), 'no period stated: its own figure')

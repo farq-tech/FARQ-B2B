@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { areaKm2 } from '@/lib/geo-measure'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { MapLegend } from './map-legend'
@@ -31,22 +32,6 @@ const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطع
 // competition reads as heat: dark for few competitors per km², amber for many
 const HEAT = ['#2a2312', '#4a3a12', '#7a5a12', '#b57f12', '#f59e0b']
 const NONE = '#1f9a76'   // no competitor of this activity in the district
-
-/** Area of a district outline in km², on a local flat projection (well under 1% off at district scale). */
-function areaKm2(geometry: DistrictFeature['geometry']): number {
-  const polygons: number[][][][] = geometry?.type === 'Polygon' ? [geometry.coordinates as number[][][]] : geometry?.type === 'MultiPolygon' ? geometry.coordinates as number[][][][] : []
-  let total = 0
-  for (const polygon of polygons) {
-    polygon.forEach((ring, index) => {
-      const lat = (ring.reduce((sum, point) => sum + point[1], 0) / ring.length) * (Math.PI / 180)
-      let twice = 0
-      for (let i = 0; i < ring.length - 1; i++) twice += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
-      const km2 = Math.abs(twice / 2) * 111.32 * 111.32 * Math.cos(lat)
-      total += index === 0 ? km2 : -km2   // inner rings are holes
-    })
-  }
-  return total
-}
 
 /**
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map

@@ -133,5 +133,15 @@ class InsightTests(unittest.TestCase):
         self.assertIsNone(insights.real_estate_listings("Riyadh", {}, str(self.root / "missing.json")))
 
 
-if __name__ == "__main__":
+class RegisteredDealsTest(unittest.TestCase):
+    def test_the_city_table_or_none(self):
+        import json, tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as handle:
+            json.dump({'quarters': ['2026-Q1'], 'min_deals': 10, 'cities': {'Riyadh': [{'district_ar': 'العزيزية', 'residential': {'deals': 298, 'median_sar_per_sqm': 2731}}]}}, handle)
+        table = insights.registered_deals('Riyadh', handle.name)
+        self.assertEqual(table['districts'][0]['residential']['median_sar_per_sqm'], 2731)
+        self.assertIsNone(insights.registered_deals('Tabuk', handle.name))
+
+
+if __name__ == '__main__':
     unittest.main()
