@@ -10,6 +10,7 @@ import { SHADES } from '../lens-map-canvas'
 import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
+import { Icon3D } from '@/components/shared/icon-3d'
 
 type Activity = { main_id: string; main_ar: string }
 type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
@@ -87,7 +88,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
       </select>
       <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
-            <button key={example} onClick={() => { setQuery(example); run(example, '') }} className="rounded-full border px-3 py-1.5 text-sm hover:border-primary hover:text-primary">{example}</button>
+            <button key={example} onClick={() => { setQuery(example); run(example, '') }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}

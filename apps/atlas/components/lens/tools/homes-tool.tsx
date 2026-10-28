@@ -13,6 +13,7 @@ import type { DistrictRow } from '../city-data'
 import { ListingCard } from '../listing-card'
 import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
+import { Icon3D } from '@/components/shared/icon-3d'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }
 const LIMIT = 1500
@@ -138,7 +139,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       <div className="flex flex-wrap gap-1.5">
         {types.map((item) => (
           <button key={item.id} onClick={() => setType(item.id)} aria-pressed={type === item.id}
-            className={cn('rounded-full border px-3 py-1.5 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
+            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}><Icon3D type={item.id} />{item.label}</button>
         ))}
       </div>
       {kind === 'rent' && (

@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BedSingle, BriefcaseBusiness, Building2, House, LandPlot, Layers, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, Store, Warehouse, X, type LucideIcon } from 'lucide-react'
+import { Building2, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
+import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow } from '@/components/shared/search-pill'
@@ -20,10 +21,6 @@ import { LensMapCanvas, type ListingDot } from '../lens/lens-map-canvas'
 import { Gallery, ListingCard } from '../lens/listing-card'
 
 const CITIES = [['Riyadh', 'الرياض'], ['Jeddah', 'جدة'], ['Dammam', 'الدمام'], ['Al Khobar', 'الخبر'], ['Makkah Al Mukarramah', 'مكة المكرمة']] as const
-// the type row's icons until the 3D set is generated
-const TYPE_ICON: Record<string, LucideIcon> = {
-  room: BedSingle, apartment: Building2, floor: Layers, villa: House, store: Store, office: BriefcaseBusiness, warehouse: Warehouse, land: LandPlot,
-}
 const LIMIT = 1500
 const PAGE = 24
 const NO_STEPS = new Map<string, number>()
@@ -132,13 +129,12 @@ export function HomesPage() {
         </div>
         <nav aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
           {kindTypes.map((item) => {
-            const Icon = TYPE_ICON[item.id] ?? House
             const on = types.length === 1 && types[0] === item.id
             return (
               <button key={item.id} onClick={() => change({ types: [item.id] })} aria-pressed={on}
-                className={cn('flex shrink-0 flex-col items-center gap-1 border-b-2 pt-1 pb-2.5 text-xs font-semibold transition-colors outline-none focus-visible:text-foreground',
+                className={cn('group flex shrink-0 flex-col items-center gap-1 border-b-2 pt-1 pb-2.5 text-xs font-semibold transition-colors outline-none focus-visible:text-foreground',
                   on ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground')}>
-                <Icon className="size-6" strokeWidth={on ? 2 : 1.6} aria-hidden />
+                <Icon3D type={item.id} className={cn('size-9 transition-[opacity,transform] duration-200', on ? 'scale-110' : 'opacity-70 group-hover:opacity-100')} />
                 {item.label}
               </button>
             )
