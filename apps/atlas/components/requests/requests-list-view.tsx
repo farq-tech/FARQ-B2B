@@ -31,7 +31,7 @@ export function RequestsListView() {
           <h1 className="text-2xl font-bold text-balance">الطلبات</h1>
           <p className="text-sm text-muted-foreground">القوائم وطلبات التسعير ومسودات الحملات في مكان واحد.</p>
         </div>
-        <Button variant="outline" nativeButton={false} render={<Link href="/opportunity-map" />}>
+        <Button variant="outline" nativeButton={false} render={<Link href="/map" />}>
           <MapPinned data-icon="inline-start" />
           طلب جديد من الخريطة
         </Button>
@@ -77,7 +77,7 @@ export function RequestsListView() {
       {visible.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-card p-10 text-center">
           <p className="text-sm text-muted-foreground">لا توجد طلبات في «{STATUS_LABEL[tab]}».</p>
-          <Button size="sm" nativeButton={false} render={<Link href="/opportunity-map" />}>
+          <Button size="sm" nativeButton={false} render={<Link href="/map" />}>
             ابدأ من خريطة الفرص
           </Button>
         </div>

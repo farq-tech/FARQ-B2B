@@ -155,6 +155,17 @@ def insight_response(path, body):
                  if result.get('people_per_district') else 'السكان = الوحدات السكنية في المباني ضمن الدائرة × 5 أفراد للوحدة.')
         result.update(ok=True, household_size=HOUSEHOLD_SIZE, basis=basis + ' المنشآت من الدليل المفتوح. تقدير للمقارنة بين المواقع لا تعداد.')
         return result
+    if path == '/population-within':
+        geometry = body.get('geometry')
+        if not isinstance(geometry, dict) or geometry.get('type') not in ('Polygon', 'MultiPolygon'): raise ValueError('geometry')
+        points = [p for rings in canonical_data._polygons(geometry) for ring in rings for p in ring]
+        if not 3 <= len(points) <= 20000 or not all(isinstance(p, list) and len(p) >= 2 and 34 <= p[0] <= 56 and 16 <= p[1] <= 33 for p in points):
+            raise ValueError('geometry')
+        with LOCK:
+            result = insights.population_within(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
+                                                DATA if os.path.isfile(DATA) else None, TILES.search_sql, geometry, HOUSEHOLD_SIZE)
+        result.update(ok=True, household_size=HOUSEHOLD_SIZE)
+        return result
     if path == '/territories':
         city = _city(body)
         count = int(_number(body, 'count', 2, 50, 5))
@@ -171,6 +182,17 @@ def insight_response(path, body):
     if path == '/district-income':
         city = _city(body)
         table = insights.district_income(city)
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
+        return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/housing-level':
+        city = _city(body)
+        with LOCK:
+            rows = insights.housing_level(con, insights.latest(os.path.join(POPULATION_DIR, 'district_population_buildings_*.parquet')), city_polygon_ids(city), CANONICAL['district_id_map'], CANONICAL['district_names'])
+        if rows is None: return {'ok': True, 'city': city, 'districts': [], 'available': False}
+        return {'ok': True, 'city': city, 'available': True, 'min_units': insights.MIN_HOUSING_UNITS, 'districts': rows}
+    if path == '/district-audience':
+        city = _city(body)
+        table = insights.district_audience(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/district-profile':
@@ -999,7 +1021,7 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('clusters', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
-        elif self.path in ('/growth', '/population-around', '/territories', '/district-income', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))

@@ -25,8 +25,8 @@ export default function AtlasLandingPage() {
             <span><strong className="sr-only">فرق أطلس</strong><small className="text-xs text-muted-foreground">منصة الفرص التجارية</small></span>
           </Link>
           <div className="flex items-center gap-2">
-            <Link href="/login?next=%2Fopportunity-map" className="hidden rounded-lg px-3 py-2 text-sm font-medium sm:block">دخول</Link>
-            <Link href="/opportunity-map" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">ابدأ الآن</Link>
+            <Link href="/login?next=%2Fmap" className="hidden rounded-lg px-3 py-2 text-sm font-medium sm:block">دخول</Link>
+            <Link href="/map" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">ابدأ الآن</Link>
           </div>
         </div>
       </header>
@@ -38,7 +38,7 @@ export default function AtlasLandingPage() {
             <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-6xl">قل لنا وش تبي تحقق.<br />ونساعدك توصل للجهة <span className="text-primary">المناسبة.</span></h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">فرق أطلس يجمع فهم السوق، البحث عن الجهات، والخريطة في مساحة واحدة تساعدك على الوصول لقرار تجاري أسرع وأوضح.</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/opportunity-map" className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">استكشف الفرص <ArrowLeft className="size-4" aria-hidden /></Link>
+              <Link href="/map" className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">استكشف الفرص <ArrowLeft className="size-4" aria-hidden /></Link>
               <a href="#how" className="rounded-lg border bg-card px-5 py-3 font-semibold">كيف تعمل؟</a>
             </div>
             <p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="size-4 text-primary" aria-hidden /> لا يتم إرسال أي طلب أو رسالة قبل مراجعتك.</p>
@@ -70,9 +70,9 @@ export default function AtlasLandingPage() {
         <div><p className="text-sm font-semibold text-primary">مصممة لفرق الشركات</p><h2 className="mt-2 text-3xl font-bold">وضوح أكبر في كل خطوة</h2><ul className="mt-6 space-y-4">{benefits.map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden /><span className="leading-7">{benefit}</span></li>)}</ul><Link href="/requests" className="mt-8 inline-flex items-center gap-2 font-semibold text-primary">عرض الطلبات والمسودات <ArrowLeft className="size-4" aria-hidden /></Link></div>
       </section>
 
-      <section className="border-t bg-muted/40"><div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8"><h2 className="text-3xl font-bold">ابدأ من هدفك التجاري</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">استكشف السوق وحدد الجهات المناسبة، ثم راجع قرارك قبل تنفيذه.</p><Link href="/opportunity-map" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">فتح خريطة الفرص <ArrowLeft className="size-4" aria-hidden /></Link></div></section>
+      <section className="border-t bg-muted/40"><div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8"><h2 className="text-3xl font-bold">ابدأ من هدفك التجاري</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">استكشف السوق وحدد الجهات المناسبة، ثم راجع قرارك قبل تنفيذه.</p><Link href="/map" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">فتح خريطة الفرص <ArrowLeft className="size-4" aria-hidden /></Link></div></section>
 
-      <footer className="border-t bg-card"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8"><p>© 2026 شركة فرق للتكنولوجيا</p><div className="flex gap-5"><Link href="/opportunity-map">خريطة الفرص</Link><Link href="/requests">الطلبات</Link><Link href="/inbox">الوارد</Link></div></div></footer>
+      <footer className="border-t bg-card"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8"><p>© 2026 شركة فرق للتكنولوجيا</p><div className="flex gap-5"><Link href="/map">خريطة الفرص</Link><Link href="/requests">الطلبات</Link><Link href="/inbox">الوارد</Link></div></div></footer>
     </main>
   )
 }
