@@ -8,6 +8,8 @@ listing for de-duplication, since the same card appears on more than one result 
 """
 import re
 
+import canonical_data
+
 TYPES = {
     'شقة': 'apartment', 'استوديو': 'studio', 'دور': 'floor', 'فيلا': 'villa', 'بيت': 'house', 'غرفة': 'room',
     'عمارة': 'building', 'محل': 'store', 'محلات': 'store', 'معرض': 'showroom', 'مكتب تجاري': 'office', 'مكتب': 'office',
@@ -60,11 +62,47 @@ def parse_row(row, city_en='Riyadh'):
     }
 
 
+_CITY_EN = {canonical_data.district_key(ar): en for en, ar in canonical_data.CITY_ALIAS.values()}
+_PERIOD = {'/سنوي': 'annually', '/شهري': 'monthly'}
+
+
+def parse_collected(record, city_en=None):
+    """One listing from tools/aqar-collector -> a listing dict, or None. The card's text arrives as lines; its link
+    path is type / city / region / district / street-id, and the district there is Aqar's own filing of the listing,
+    preferred over the street address in the title."""
+    lines = [str(line).strip() for line in record.get('lines') or [] if str(line).strip()]
+    title = next((line for line in lines if _TITLE.match(line)), '')
+    head = _TITLE.match(title)
+    property_type = TYPES.get(head.group('type').strip()) if head else None
+    price_line = next((line for line in lines if '§' in line or 'ريال' in line), '')
+    area_line = next((line for line in lines if 'م²' in line), '')
+    price, area = _number(price_line), _number(area_line)
+    if not property_type or not price or not area:
+        return None
+    kind = 'sale' if head.group('kind') == 'بيع' else 'rent'
+    period = next((value for label, value in _PERIOD.items() if label in price_line), None)
+    description = max(lines, key=len)
+    if period == 'annually' and 'شهري' in description:
+        period = None
+    path = record.get('path') or []
+    district = next((segment[3:].replace('-', ' ') for segment in path[2:4] if segment.startswith('حي-')), None)
+    if not district:
+        found = _DISTRICT.search(title)
+        district = found.group(1).strip() if found else None
+    city = city_en or (_CITY_EN.get(canonical_data.district_key(path[1].replace('-', ' '))) if len(path) > 1 else None)
+    return {
+        'listingType': kind, 'propertyType': property_type, 'priceSar': price, 'areaSqm': area,
+        'rentPeriod': period if kind == 'rent' else None, 'districtArabic': district, 'city_en': city,
+        'title': title, 'image': record.get('image'), 'url': record.get('url'), 'aqar_id': record.get('id'),
+    }
+
+
 def parse_rows(rows, city_en='Riyadh'):
-    """Parsed listings without the repeats a paginated list produces (same photo or same link = same listing)."""
+    """Parsed listings without the repeats a paginated list produces (same photo or same link = same listing).
+    Takes either a browser scraper's columns or tools/aqar-collector's records."""
     seen, out = set(), []
     for row in rows:
-        listing = parse_row(row, city_en)
+        listing = parse_collected(row, city_en) if 'lines' in row else parse_row(row, city_en)
         if not listing:
             continue
         key = listing['url'] or listing['image'] or (listing['title'], listing['priceSar'], listing['areaSqm'])
@@ -85,7 +123,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument('export')
     parser.add_argument('out')
-    parser.add_argument('--city', default='Riyadh')
+    parser.add_argument('--city', help='city_en when the export does not say (default: from each link, else Riyadh)')
     args = parser.parse_args(argv)
     path = Path(args.export)
     if path.suffix.lower() == '.csv':
@@ -93,7 +131,11 @@ def main(argv=None):
             rows = list(csv.DictReader(handle))
     else:
         rows = json.loads(path.read_text(encoding='utf-8'))
+        if isinstance(rows, dict):   # tools/aqar-collector export
+            rows = rows.get('listings', [])
     listings = parse_rows(rows, args.city)
+    for listing in listings:
+        listing['city_en'] = listing['city_en'] or 'Riyadh'
     Path(args.out).write_text(json.dumps(listings, ensure_ascii=False), encoding='utf-8')
     with_link = sum(1 for listing in listings if listing['url'])
     print(f'{len(listings)} listings from {len(rows)} rows; {with_link} carry the listing link', file=sys.stderr)

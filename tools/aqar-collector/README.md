@@ -1,13 +1,18 @@
 # Farq Aqar collector
 
-A Chrome extension that runs in the user's own browser on sa.aqar.fm (the site blocks server requests) and records
-the data the page itself receives. It feeds `services/targeting-api/parse_aqar_list.py` and
-`build_real_estate_reference.py`; only district aggregates and a link to each listing reach Atlas.
+A Chrome extension that runs in the user's own browser on sa.aqar.fm (the site blocks server requests). It feeds
+`services/targeting-api/parse_aqar_list.py` and `build_real_estate_reference.py`; only district aggregates and a
+link to each listing reach Atlas.
 
-**v0.1 — discovery.** Records every JSON answer, the page's embedded state and the card links as received, contact
-details included; they are hidden when Farq processes the export, never in Atlas. Its export shows where the listing id, link, coordinates, price
-and rent period live, so the collecting version reads those fields only.
+- **List walk (`collect.js`).** «ابدأ من هذه الصفحة» on a city page starts a run that moves by itself: a slice
+  that lists sub-areas with counts (city → region → district) is replaced by them, a district that ends below 90% of
+  its count is split by property type, anything else is paged to its end. Each listing is kept once by its Aqar id,
+  as its card shows it: text lines, link, photo. A block or check page pauses the run.
+- **Map answers (`inject.js`, `relay.js`).** Aqar's map receives listings from its GraphQL `Web.find` with location,
+  district id, link, price, rent period and photos; each is kept once, with the latest request as a template for
+  a faster collecting mode.
 
-Install: `chrome://extensions` → Developer mode → Load unpacked → this folder.
+Records are kept as received, contact details included; they are hidden when Farq processes the export.
 
-Exports are raw data: keep them out of Git.
+Install: `chrome://extensions` → Developer mode → Load unpacked → this folder. Exports are raw data: keep them out
+of Git.

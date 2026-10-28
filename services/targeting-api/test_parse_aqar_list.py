@@ -32,6 +32,17 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertIsNone(parse.parse_row({'name': 'إعلان مميز', 'data': '1'}))
         self.assertEqual(len(parse.parse_rows([SALE, SALE, RENT, {**RENT, 'image': 'x'}])), 2)
 
+    def test_collector_record(self):
+        record = {'id': '6896439', 'url': 'https://sa.aqar.fm/x-6896439', 'image': 'https://images.aqar.fm/p.jpg',
+                  'path': ['فلل-للإيجار', 'الرياض', 'شمال-الرياض', 'حي-جامعة-الأميرة-نورة', 'شارع-رقم-1095-6896439'],
+                  'lines': ['فيلا للإيجار في شارع رقم 1095, حي سدرة, مدينة الرياض, منطقة الرياض', '145,000 § ريال /سنوي',
+                            '300م²', '4', 'للإيجار فيلا جديدة سدرة روشن المساحة 300 م²']}
+        listing = parse.parse_collected(record)
+        self.assertEqual((listing['districtArabic'], listing['city_en'], listing['rentPeriod'], listing['aqar_id']),
+                         ('جامعة الأميرة نورة', 'Riyadh', 'annually', '6896439'))
+        self.assertEqual(reference.price_per_sqm(listing), ('rent', 'residential', 145000 / 300))
+        self.assertEqual(len(parse.parse_rows([record, record])), 1)
+
 
 if __name__ == '__main__':
     unittest.main()
