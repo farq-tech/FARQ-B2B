@@ -12,8 +12,19 @@ import type { Overlay } from './overlay'
 
 type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
-type Brand = { brand: string; branches: number; districts: number; share_pct: number | null; by_district: Count[] }
-type Brands = { total: number; chains: number; in_chains: number; brands: Brand[] }
+type Growth = { since: string | null; before: number; now: number } | null
+type Brand = { brand: string; keys: string[]; branches: number; districts: number; share_pct: number | null; by_district: Count[]; growth: Growth }
+type Uncovered = { district_ar: string; population: number; businesses: number }
+type Brands = { total: number; chains: number; in_chains: number; brands: Brand[]; uncovered?: Uncovered[]; uncovered_by?: string[] }
+type Profile = { branches: number; districts: number; activities: { main_ar: string; n: number }[] }
+
+/** «+5 فروع منذ 2026-09-01», or null while the directory history has one snapshot. */
+function growthLine(growth: Growth): string | null {
+  if (!growth) return null
+  const change = growth.now - growth.before
+  const since = growth.since ? ` منذ ${growth.since}` : ''
+  return change === 0 ? `بلا تغيير${since}` : `${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))} فرعاً${since}`
+}
 type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: number; residentsPer: number | null }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مقهى']
@@ -41,7 +52,7 @@ function areaKm2(geometry: DistrictFeature['geometry']): number {
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map
  * shows where competition is dense; a district picked from the list opens its competitors by name.
  */
-export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onActivity }: {
+export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onActivity, onAllBranches }: {
   city: string
   rows: DistrictRow[]
   features: DistrictFeature[]
@@ -49,6 +60,8 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
   onSelect: (id: string) => void
   /** The activity being studied, so the competitors of a picked district can be listed by name. */
   onActivity: (activity: string | null) => void
+  /** Opens every branch of a chain across the city, for a quote request or campaign to all of them. */
+  onAllBranches: (brand: string) => void
 }) {
   const [activities, setActivities] = useState<Activity[]>([])
   const [query, setQuery] = useState(EXAMPLES[0])
@@ -59,6 +72,17 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
   const [view, setView] = useState<'districts' | 'brands'>('districts')
   const [brands, setBrands] = useState<Brands | null>(null)
   const [brand, setBrand] = useState<Brand | null>(null)
+  const [profile, setProfile] = useState<Profile | null | 'error'>(null)
+
+  useEffect(() => {
+    if (!brand) return
+    let live = true
+    setProfile(null)
+    postMarket<Profile>('brand-profile', { city, keys: brand.keys })
+      .then((data) => { if (live) setProfile(data) })
+      .catch(() => { if (live) setProfile('error') })
+    return () => { live = false }
+  }, [city, brand])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
   useEffect(() => {
@@ -213,7 +237,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
                       <span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{item.brand}</span>
-                        <span className="block text-sm text-muted-foreground">في {numberFormat.format(item.districts)} حياً</span>
+                        <span className="block text-sm text-muted-foreground">في {numberFormat.format(item.districts)} حياً{growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}</span>
                       </span>
                       <span className="shrink-0 text-end">
                         <span className="block font-bold">{numberFormat.format(item.branches)} فرعاً</span>
@@ -223,12 +247,48 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
                   </li>
                 ))}
               </ol>
+              {brands.uncovered && brands.uncovered.length > 0 && (
+                <div className="flex flex-col gap-1.5 rounded-xl border p-3">
+                  <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
+                    أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
+                  </Explained>
+                  <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
+                    {brands.uncovered.map((item) => {
+                      const id = rows.find((row) => row.name === item.district_ar)?.id
+                      return (
+                        <li key={item.district_ar}>
+                          <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary disabled:hover:text-inherit">
+                            <span className="min-w-0 flex-1 truncate">{item.district_ar}</span>
+                            <span className="shrink-0 text-end text-sm text-muted-foreground">{numberFormat.format(item.population)} ساكن · {numberFormat.format(item.businesses)} منشأة من النشاط</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                </div>
+              )}
             </>
           )}
           {view === 'brands' && brand && (
             <>
               <button onClick={() => pickBrand(null)} className="self-start text-sm font-semibold text-primary underline">كل السلاسل</button>
-              <p className="text-base"><strong>{brand.brand}</strong>: {numberFormat.format(brand.branches)} فرعاً في {numberFormat.format(brand.districts)} حياً</p>
+              <p className="text-base"><strong>{brand.brand}</strong>: {numberFormat.format(brand.branches)} فرعاً في {numberFormat.format(brand.districts)} حياً لهذا النشاط</p>
+              <Explained title="توسّع السلسلة" lines={EXPLAIN.chainGrowth} className="self-start text-sm">
+                التوسّع: {growthLine(brand.growth) ?? 'غير متاح'}
+              </Explained>
+              {profile === null && <Loader2 className="size-5 animate-spin" aria-label="جارٍ التحميل" />}
+              {profile === 'error' && <p className="text-sm text-muted-foreground">بقية فروع السلسلة غير متاحة الآن.</p>}
+              {profile && profile !== 'error' && (
+                <div className="flex flex-col gap-1 rounded-xl border p-3 text-base">
+                  <p>في المدينة كلها: <strong>{numberFormat.format(profile.branches)}</strong> فرعاً في {numberFormat.format(profile.districts)} حياً</p>
+                  {profile.activities.length > 0 && (
+                    <p className="text-sm text-muted-foreground">تعمل في: {profile.activities.map((item) => `${item.main_ar} (${numberFormat.format(item.n)})`).join('، ')}</p>
+                  )}
+                </div>
+              )}
+              <button onClick={() => onAllBranches(brand.brand)} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground">
+                طلب تسعير أو حملة لكل الفروع
+              </button>
               <MapLegend from="فرع واحد" to="فروع أكثر" shades={HEAT} />
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
                 {brand.by_district.map((item) => {

@@ -5,6 +5,7 @@ counts use the same high/medium row-level taxonomy confidence as map discovery.
 This module returns aggregates only, never contact or business-identifying fields.
 """
 import os
+from collections import Counter
 import threading
 import math
 
@@ -41,6 +42,50 @@ BUYER_BASIS = (
     "الشراء المتوقع مستنتج من علاقات التصنيف (يشتري عادةً)، وليس سجلاً لطلب أو شراء فعلي. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام."
 )
+
+
+UNCOVERED_MIN_POPULATION = 5000
+
+
+def chain_growth(history, city, keys):
+    """A brand's whole-city branches in the oldest and newest directory snapshots of the chain history, or None while
+    the history holds fewer than two snapshots (shown as «غير متاح»)."""
+    snapshots = (history or {}).get("snapshots") or []
+    if len(snapshots) < 2:
+        return None
+    first, last = snapshots[0], snapshots[-1]
+    count = lambda snapshot: sum((snapshot.get("cities", {}).get(city) or {}).get(key, 0) for key in keys)
+    return {"since": first.get("date"), "before": count(first), "now": count(last)}
+
+
+def record_chain_history(analytics, path, today=None):
+    """Append a chain snapshot when the directory file differs from the last one recorded. Returns True when written."""
+    import datetime
+    import json
+    stat = os.stat(analytics.data)
+    signature = [stat.st_size, stat.st_mtime_ns]
+    try:
+        with open(path, encoding="utf-8") as handle:
+            history = json.load(handle)
+    except (OSError, ValueError):
+        history = {"snapshots": []}
+    if history["snapshots"] and history["snapshots"][-1].get("signature") == signature:
+        return False
+    history["snapshots"].append({"date": today or datetime.date.today().isoformat(), "signature": signature, "cities": analytics.chain_snapshot()})
+    partial = path + ".partial"
+    with open(partial, "w", encoding="utf-8") as handle:
+        json.dump(history, handle, ensure_ascii=False)
+    os.replace(partial, path)
+    return True
+
+
+def read_chain_history(path):
+    import json
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return None
 
 
 class MarketAnalytics:
@@ -247,11 +292,73 @@ class MarketAnalytics:
                 self._column_names = {row[0] for row in self.db.execute("describe select * from read_parquet(?)", [self.data]).fetchall()}
         return self._column_names
 
-    def brands(self, body):
-        """Chains of an activity in a city: directory businesses grouped by brand, a brand being the registered brand
-        name or else the business name cut before a branch suffix ("- العليا", "فرع", brackets), compared after Arabic
-        letter normalisation. A brand counts as a chain from `min_branches` locations (default 3). Returns the chains
-        ranked by locations, each with the districts it covers, and how much of the activity chains hold."""
+    def _brand_sql(self):
+        """Select list giving each business its brand label and key: the registered brand name, else the business name
+        cut before a branch suffix ("- العليا", "فرع", brackets); the key compares labels after Arabic letter folding.
+        Also the commercial registration, which joins a brand written in Arabic and in Latin letters."""
+        columns = self._columns()
+        brand = "nullif(trim(p.brand_name), '')" if "brand_name" in columns else "null"
+        cr = "nullif(trim(p.commercial_license), '')" if "commercial_license" in columns else "null"
+        label = (rf"trim(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en), "
+                 r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i'))")
+        key = (rf"trim(regexp_replace(regexp_replace(translate(lower({label}), 'أإآةىؤئـ', 'اااهيوي'), "
+               r"'[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g'))")
+        return f"p.poi_key, p.district_ar, {label} brand_label, {key} brand_key, {cr} cr"
+
+    @staticmethod
+    def _group_chains(rows):
+        """Businesses (poi_key, district, label, key, cr) grouped into brands by key. Two keys also join when they share a
+        commercial registration and one is written in Arabic letters and the other in Latin: the same brand in two
+        scripts. Keys in the same script never join through a registration, so a holding company's brands stay apart."""
+        parent = {}
+
+        def find(key):
+            while parent.setdefault(key, key) != key:
+                parent[key] = parent[parent[key]]
+                key = parent[key]
+            return key
+
+        arabic = lambda text: any("؀" <= char <= "ۿ" for char in text)
+        by_cr = {}
+        for _, _, _, key, cr in rows:
+            if key and len(key) >= 2:
+                find(key)
+                if cr:
+                    by_cr.setdefault(cr, set()).add(key)
+        for keys in by_cr.values():
+            if len(keys) > 1:
+                scripts = {key: arabic(key) for key in keys}
+                for key in keys:
+                    for other in keys:
+                        if scripts[key] != scripts[other]:
+                            parent[find(key)] = find(other)
+        groups = {}
+        for poi, district, label, key, _ in rows:
+            if not key or len(key) < 2:
+                continue
+            group = groups.setdefault(find(key), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
+            if poi in group["pois"]:
+                continue
+            group["pois"].add(poi)
+            group["keys"][key] += 1
+            group["labels"][label] += 1
+            if district and district.strip():
+                group["districts"][district] += 1
+        for group in groups.values():
+            # the Arabic spelling names the brand when it has one
+            names = [label for label, _ in group["labels"].most_common() if arabic(label)] or [group["labels"].most_common(1)[0][0]]
+            group["brand"] = names[0]
+        return groups
+
+    def _chain_rows(self, where, params):
+        with self.lock:
+            return self.db.execute(f"select distinct {self._brand_sql()} from read_parquet(?) p where {where}", params).fetchall()
+
+    def brands(self, body, population=None, history=None):
+        """Chains of an activity in a city (see _group_chains): a brand counts as a chain from `min_branches` locations
+        (default 3). Returns the chains ranked by locations, each with the districts it covers and its whole-city
+        branches then and now when the directory history has an older snapshot; how much of the activity chains hold;
+        and, with `population`, the populated districts none of the five largest chains has reached."""
         min_branches = body.get("min_branches", 3)
         if not isinstance(min_branches, int) or isinstance(min_branches, bool) or not 2 <= min_branches <= 50:
             raise ValueError("min_branches")
@@ -259,51 +366,91 @@ class MarketAnalytics:
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
             raise ValueError("limit")
         city, _, where, params, specialty_available, bounds = self._where(body)
-        brand = "nullif(trim(p.brand_name), '')" if "brand_name" in self._columns() else "null"
-        query = rf"""
-            with base as (
-                select distinct p.poi_key, p.district_ar,
-                       trim(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en),
-                                           '\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i')) brand_label
-                from read_parquet(?) p where {where}
-            ),
-            keyed as (
-                select *, trim(regexp_replace(regexp_replace(translate(lower(brand_label), 'أإآةىؤئـ', 'اااهيوي'),
-                                                             '[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g')) brand_key
-                from base
-            ),
-            chains as (
-                select brand_key, mode(brand_label) brand, count(*) branches, count(distinct district_ar) districts
-                from keyed where length(brand_key) >= 2 group by brand_key having count(*) >= ?
-            )
-            select c.brand, c.branches, c.districts,
-                   (select list({{'district_ar': k.district_ar, 'n': k.n}} order by k.n desc, k.district_ar)
-                    from (select district_ar, count(*) n from keyed
-                          where brand_key = c.brand_key and length(trim(coalesce(district_ar, ''))) > 0
-                          group by district_ar) k) by_district
-            from chains c order by c.branches desc, c.brand
-        """
-        with self.lock:
-            rows = self.db.execute(query, params + [min_branches]).fetchall()
-            total = self.db.execute(f"select count(distinct p.poi_key) from read_parquet(?) p where {where}", params).fetchone()[0]
-        in_chains = sum(row[1] for row in rows)
-        return {
+        rows = self._chain_rows(where, params)
+        total = len({row[0] for row in rows})
+        chains = sorted((group for group in self._group_chains(rows).values() if len(group["pois"]) >= min_branches),
+                        key=lambda group: (-len(group["pois"]), group["brand"]))
+        in_chains = sum(len(group["pois"]) for group in chains)
+        result = {
             "ok": True,
             "city": city,
             "min_branches": min_branches,
             "total": total,
-            "chains": len(rows),
+            "chains": len(chains),
             "in_chains": in_chains,
             "brands": [
-                {"brand": name, "branches": branches, "districts": districts,
-                 "share_pct": round(100 * branches / total, 1) if total else None,
-                 "by_district": [dict(item) for item in (by_district or [])[:80]]}
-                for name, branches, districts, by_district in rows[:limit]
+                {"brand": group["brand"], "keys": [key for key, _ in group["keys"].most_common(10)],
+                 "branches": len(group["pois"]), "districts": len(group["districts"]),
+                 "share_pct": round(100 * len(group["pois"]) / total, 1) if total else None,
+                 "by_district": [{"district_ar": name, "n": n} for name, n in sorted(group["districts"].items(), key=lambda item: (-item[1], item[0]))[:80]],
+                 "growth": chain_growth(history, city, group["keys"])}
+                for group in chains[:limit]
             ],
             "specialty_available": specialty_available,
             "scope": {"bounds": bounds} if bounds else {},
             "basis": BRANDS_BASIS,
         }
+        if population is not None:
+            top = chains[:5]
+            reached = set().union(*(group["districts"] for group in top)) if top else set()
+            present = Counter(district for _, district, _, _, _ in {row[0]: row for row in rows}.values() if district)
+            result["uncovered"] = [
+                {"district_ar": name, "population": round(row["population"]), "businesses": present.get(name, 0)}
+                for name, row in sorted(population.items(), key=lambda item: -(item[1].get("population") or 0))
+                if (row.get("population") or 0) >= UNCOVERED_MIN_POPULATION and name not in reached
+            ][:20] if top else []
+            result["uncovered_by"] = [group["brand"] for group in top]
+        return result
+
+    def brand_profile(self, body):
+        """One brand across the whole city, every activity: its branches per district and the main activities they
+        are classified under. `keys` are the brand keys a /brands answer gave for it."""
+        city = body.get("city")
+        keys = body.get("keys")
+        if not isinstance(city, str) or not 1 <= len(city) <= 80:
+            raise ValueError("city")
+        if not isinstance(keys, list) or not 1 <= len(keys) <= 10 or not all(isinstance(key, str) and 2 <= len(key) <= 120 for key in keys):
+            raise ValueError("keys")
+        query = f"""
+            with b as (select {self._brand_sql()} from read_parquet(?) p where {self.tiles.search_sql} and p.city_en = ?)
+            select distinct poi_key, district_ar from b where brand_key in (select unnest(?::varchar[]))
+        """
+        with self.lock:
+            branches = self.db.execute(query, [self.data, city, keys]).fetchall()
+            pois = [poi for poi, _ in branches]
+            subs = self.db.execute(
+                "select sub_id, count(distinct poi_key) from read_parquet(?) where confidence in ('high', 'medium') "
+                "and poi_key in (select unnest(?::varchar[])) group by sub_id", [POI_TAXONOMY, pois]).fetchall() if pois else []
+        mains = Counter()
+        known = getattr(self._tx(), "subs", {}) if subs else {}
+        for sub_id, n in subs:
+            main = (known.get(sub_id) or {}).get("main_ar")
+            if main:
+                mains[main] += n
+        districts = Counter(district for _, district in branches if district)
+        return {
+            "ok": True,
+            "city": city,
+            "branches": len(set(pois)),
+            "districts": len(districts),
+            "by_district": [{"district_ar": name, "n": n} for name, n in sorted(districts.items(), key=lambda item: (-item[1], item[0]))],
+            "activities": [{"main_ar": name, "n": n} for name, n in mains.most_common(8)],
+            "basis": BRANDS_BASIS,
+        }
+
+    def chain_snapshot(self):
+        """Every brand with at least 3 branches in each city, over the whole directory, for the chain history."""
+        query = f"""
+            with b as (select p.city_en, {self._brand_sql()} from read_parquet(?) p where {self.tiles.search_sql})
+            select city_en, brand_key, count(distinct poi_key) n from b where length(brand_key) >= 2
+            group by city_en, brand_key having count(distinct poi_key) >= 3
+        """
+        with self.lock:
+            rows = self.db.execute(query, [self.data]).fetchall()
+        cities = {}
+        for city, key, n in rows:
+            cities.setdefault(city, {})[key] = n
+        return cities
 
     def market_gaps(self, body, population):
         """Districts where an activity has fewer directory businesses than its residents would carry at the

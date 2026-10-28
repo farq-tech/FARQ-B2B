@@ -200,7 +200,8 @@ export function LensMap() {
                   </div>
                   {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} />}
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggle} />}
-                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} features={data.features} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} onActivity={setRival} />}
+                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} features={data.features} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} onActivity={setRival}
+                    onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
                   {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
                   {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}

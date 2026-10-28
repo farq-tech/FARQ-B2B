@@ -110,11 +110,17 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         }
         instance.addSource('districts', { type: 'geojson', data: EMPTY, promoteId: 'id' })
         // shading and outlines sit under the basemap's place and road names; district names go on top of everything
-        const firstLabel = instance.getStyle().layers?.find((layer) => layer.type === 'symbol')?.id
+        const layers = instance.getStyle().layers ?? []
+        const firstLabel = layers.find((layer) => layer.type === 'symbol')?.id
+        // the shading sits under the streets and the place names, so both stay readable through it
+        const firstRoad = layers.find((layer) => layer.type === 'line' && /road|street|bridge|tunnel/.test(layer.id))?.id ?? firstLabel
         instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
           'fill-color': ['coalesce', ['get', '__color'], ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)']],
-          'fill-opacity': ['case', ['boolean', ['get', '__selected'], false], 0.85, 0.55],
-        } }, firstLabel)
+          // lighter as the map zooms in to street level
+          'fill-opacity': ['interpolate', ['linear'], ['zoom'],
+            10, ['case', ['boolean', ['get', '__selected'], false], 0.65, 0.4],
+            14, ['case', ['boolean', ['get', '__selected'], false], 0.4, 0.18]],
+        } }, firstRoad)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': '#25c99a', 'line-width': 0.6, 'line-opacity': 0.45 } }, firstLabel)
         instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': '#ffffff', 'line-width': 3 } })
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
