@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
 
@@ -43,11 +43,28 @@ function readInput(value: unknown): { facts: string; profile: string; turns: Tur
   return { facts: input.facts, profile, turns }
 }
 
+// The model call runs in the targeting service, which holds the Anthropic key (services/targeting-api/advisor_proxy.py).
+function targetingHeaders() {
+  const serviceToken = process.env.TARGETING_SERVICE_TOKEN
+  if (serviceToken) return { 'content-type': 'application/json', 'x-farq-service': serviceToken }
+  const password = process.env.TARGETING_PASSWORD
+  if (!password) return null
+  return { 'content-type': 'application/json', 'x-farq-service': createHmac('sha256', password).update('farq-proxy-v1').digest('hex') }
+}
+
+const UPSTREAM_ERRORS: Record<string, [string, number]> = {
+  UNCONFIGURED: ['المساعد غير مفعّل بعد.', 503],
+  REFUSED: ['تعذر على المساعد الرد على هذا الطلب.', 422],
+  BUSY: ['المساعد مشغول، حاول بعد قليل.', 429],
+}
+
 export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return NextResponse.json({ error: 'سجّل الدخول لاستخدام المساعد.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لاستخدام المساعد.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'المساعد غير مفعّل بعد.' }, { status: 503, headers: { 'cache-control': 'no-store' } })
+  const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
+  const headers = targetingHeaders()
+  if (!origin || !headers) return NextResponse.json({ error: 'المساعد غير مفعّل بعد.' }, { status: 503, headers: { 'cache-control': 'no-store' } })
 
   let input: ReturnType<typeof readInput> = null
   try { input = readInput(await request.json()) } catch { input = null }
@@ -55,28 +72,19 @@ export async function POST(request: NextRequest) {
 
   // the first message carries the figures and the profile; later turns are the conversation itself
   const opening = `FACTS\n${input.facts}\n\nPROFILE\n${input.profile || 'لم يحدد بعد.'}\n\nقارن لي بين الخيارين بحسب احتياجي.`
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: opening }, ...input.turns]
+  const messages: Turn[] = [{ role: 'user', content: opening }, ...input.turns]
 
   try {
-    const client = new Anthropic()
-    const response = await client.beta.messages.create({
-      model: 'claude-opus-5-5',
-      max_tokens: 16000,
-      system: SYSTEM,
-      output_config: { effort: 'low' },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      messages,
-    })
-    if (response.stop_reason === 'refusal') return NextResponse.json({ error: 'تعذر على المساعد الرد على هذا الطلب.' }, { status: 422 })
-    const reply = response.content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n').trim()
-    if (!reply) return NextResponse.json({ error: 'تعذر الحصول على رد.' }, { status: 502 })
-    const result = NextResponse.json({ reply }, { headers: { 'cache-control': 'no-store' } })
+    const response = await fetch(`${origin}/advisor`, { method: 'POST', headers, body: JSON.stringify({ system: SYSTEM, messages }), cache: 'no-store', signal: AbortSignal.timeout(58000) })
+    const answer = (await response.json().catch(() => ({}))) as { reply?: string; error?: string }
+    if (!response.ok || !answer.reply) {
+      const [error, status] = UPSTREAM_ERRORS[answer.error ?? ''] ?? ['تعذر الاتصال بالمساعد.', 502]
+      return NextResponse.json({ error }, { status, headers: { 'cache-control': 'no-store' } })
+    }
+    const result = NextResponse.json({ reply: answer.reply }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(result, session)
     return result
-  } catch (error) {
-    if (error instanceof Anthropic.RateLimitError) return NextResponse.json({ error: 'المساعد مشغول، حاول بعد قليل.' }, { status: 429 })
-    if (error instanceof Anthropic.APIError) return NextResponse.json({ error: 'تعذر الاتصال بالمساعد.' }, { status: 502 })
+  } catch {
     return NextResponse.json({ error: 'تعذر الاتصال بالمساعد.' }, { status: 502 })
   }
 }
