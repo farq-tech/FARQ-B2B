@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowLeft, Compass, Crosshair, Factory, MapPinned, Truck } from 'lucide-react'
+import { ArrowLeft, Compass, Crosshair, Factory, House, MapPinned, Truck } from 'lucide-react'
 
 const goals = [
   { id: 'explore', title: 'أفهم السوق', text: 'استكشف النشاط والمنافسة والفرص في المدن والأحياء.', icon: Compass },
@@ -7,6 +7,7 @@ const goals = [
   { id: 'target', title: 'أصل إلى عملاء جدد', text: 'اعثر على المنشآت المناسبة لما تبيعه وجهّز قائمة أو حملة.', icon: Crosshair },
   { id: 'find-supplier', title: 'أجد موردًا وأطلب عرض سعر', text: 'ابحث عن الموردين وأرسل احتياجك وقارن عروضهم.', icon: Factory },
   { id: 'network', title: 'أخطط للتوزيع والتغطية', text: 'خطط خدمة العملاء وتوزيع الطلبات عبر شبكة الطرق.', icon: Truck },
+  { id: 'property', title: 'أبحث عن عقار', text: 'شاهد العروض على الخريطة وقارن بين خيارين بحسب احتياجك.', icon: House },
 ] as const
 
 export function AtlasGoalLinks({ compact = false }: { compact?: boolean }) {

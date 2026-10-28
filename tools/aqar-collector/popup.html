@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><style>
+  body { font: 14px system-ui, sans-serif; width: 300px; margin: 12px; }
+  button { display: block; width: 100%; margin-top: 8px; padding: 8px; font-size: 14px; border-radius: 8px; border: 1px solid #25c99a; background: #25c99a; color: #0d1217; cursor: pointer; }
+  button.secondary { background: none; color: inherit; }
+  button[hidden] { display: none; }
+  p { margin: 4px 0; }
+  .big { font-size: 22px; font-weight: 700; }
+</style></head>
+<body>
+  <strong>جامع عقار — فرق</strong>
+  <p class="big" id="listings">0</p>
+  <p id="map"></p>
+  <p id="detail"></p>
+  <p id="status"></p>
+  <button id="fast">سحب سريع من الخريطة</button>
+  <p id="fastStatus"></p>
+  <button id="fastArea" class="secondary">سحب المنطقة الظاهرة الآن (مدينة جديدة)</button>
+  <button id="start" class="secondary">تقليب القوائم (أبطأ، بلا إحداثيات)</button>
+  <button id="pause" class="secondary" hidden>إيقاف مؤقت</button>
+  <button id="resume" hidden>استئناف</button>
+  <button id="export" class="secondary">تصدير الإعلانات</button>
+  <button id="clear" class="secondary">مسح كل شيء</button>
+  <script src="popup.js"></script>
+</body>
+</html>

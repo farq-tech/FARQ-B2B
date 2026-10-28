@@ -7,6 +7,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
+import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 
 type Activity = { main_id: string; main_ar: string }
@@ -31,9 +32,13 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
 
   useEffect(() => {
     setResult(null)
+    // the map opens painted: the first example runs at once, and any activity replaces it
+    setQuery(EXAMPLES[0])
+    run(EXAMPLES[0], '')
     postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
       .then((payload) => setActivities(payload.summary?.main_activities ?? []))
       .catch(() => setActivities([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city])
 
   useEffect(() => {
@@ -79,13 +84,11 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
         <option value="">أو اختر نشاطاً رئيسياً</option>
         {activities.map((item) => <option key={item.main_id} value={item.main_id}>{item.main_ar}</option>)}
       </select>
-      {!result && (
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
             <button key={example} onClick={() => { setQuery(example); run(example, '') }} className="rounded-full border px-3 py-1.5 text-sm hover:border-primary hover:text-primary">{example}</button>
           ))}
         </div>
-      )}
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
       {result && result.residents_per_business == null && <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>}
       {result && result.residents_per_business != null && (
@@ -93,6 +96,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
           <p className="text-base">
             معدل المدينة: منشأة لكل <strong>{numberFormat.format(result.residents_per_business)}</strong> ساكن · {numberFormat.format(gaps.length)} حياً فيها نقص
           </p>
+          <MapLegend from="نقص قليل" to="نقص كبير" shades={SHADES} extra={{ color: SURPLUS, label: 'مكتفٍ' }} />
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
             {gaps.map((row) => (
               <li key={row.district_ar} className="flex items-center gap-2 py-2">

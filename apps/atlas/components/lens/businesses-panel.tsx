@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Loader2, Megaphone, MessageCircle, Search } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { useAppStore } from '@/lib/store'
@@ -18,31 +18,34 @@ const PAGE = 200
  * activity, picked and turned into a request — a quote request, a WhatsApp campaign or a saved list. The request
  * opens in «الطلبات» for review; nothing is sent from here (docs/atlas-product-foundation.md §5).
  */
-export function BusinessesPanel({ city, districts }: { city: string; districts: string[] }) {
+export function BusinessesPanel({ city, districts, query }: { city: string; districts: string[]; query?: string }) {
   const router = useRouter()
   const { createDraft } = useAppStore()
-  const [activity, setActivity] = useState('')
+  const [activity, setActivity] = useState(query ?? '')
   const [rows, setRows] = useState<PublicDirectoryEntity[]>([])
   const [total, setTotal] = useState<number | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [whatsappOnly, setWhatsappOnly] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState('')
   const key = districts.join('|')
 
   useEffect(() => { setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle') }, [key, city])
+  // a search from the top of the map runs at once, over the selected districts or the whole city
+  useEffect(() => { if (query) void load() }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setStatus('loading')
     try {
       const found: PublicDirectoryEntity[] = []
       let count = 0
-      for (const district of districts.slice(0, 5)) {
+      // no district chosen: one search over the whole city, which needs an activity
+      const scopes: (string | null)[] = districts.length ? districts.slice(0, 5) : activity.trim() ? [null] : []
+      for (const district of scopes) {
         const response = await fetch('/api/market/entities', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ city, district, limit: PAGE, offset: 0, ...(activity.trim() ? { q: activity.trim(), objective: 'purchase' } : {}) }),
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(activity.trim() ? { q: activity.trim(), objective: 'purchase' } : {}) }),
         })
         const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string } | null
         if (response.status === 401) { setStatus('login'); return }
@@ -61,7 +64,7 @@ export function BusinessesPanel({ city, districts }: { city: string; districts: 
     }
   }
 
-  const shown = useMemo(() => (whatsappOnly ? rows.filter((row) => row.whatsapp) : rows), [rows, whatsappOnly])
+  const shown = rows
   const allPicked = shown.length > 0 && shown.every((row) => picked.has(row.id))
   const toggle = (id: string) => setPicked((current) => {
     const next = new Set(current)
@@ -85,7 +88,7 @@ export function BusinessesPanel({ city, districts }: { city: string; districts: 
     router.push(`/requests/${id}`)
   }
 
-  const where = districts.length === 1 ? districts[0] : `${numberFormat.format(districts.length)} أحياء`
+  const where = !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : `${numberFormat.format(districts.length)} أحياء`
 
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -104,9 +107,6 @@ export function BusinessesPanel({ city, districts }: { city: string; districts: 
         <>
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}</span>
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={whatsappOnly} onChange={(event) => setWhatsappOnly(event.target.checked)} className="size-4 accent-[#25c99a]" /> بواتساب فقط
-            </label>
           </div>
           {shown.length > 0 && (
             <label className="flex items-center gap-2 text-sm font-medium">
@@ -123,7 +123,6 @@ export function BusinessesPanel({ city, districts }: { city: string; districts: 
                     <span className="block truncate font-medium">{row.name}</span>
                     <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>
                   </span>
-                  {row.whatsapp && <MessageCircle className="size-4 shrink-0 text-primary" aria-label="واتساب" />}
                 </label>
               </li>
             ))}

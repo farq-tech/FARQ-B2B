@@ -1,10 +1,10 @@
 'use client'
 
-import { Map as MapIcon, MessageCircle, X } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
-import { BusinessMap } from '@/components/map/business-map'
+import Link from 'next/link'
+import { MessageCircle, X } from 'lucide-react'
+import { useMemo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { BUSINESSES, businessById, districtById } from '@/lib/mock-data'
+import { businessById, districtById } from '@/lib/mock-data'
 import type { Business, LiveBusinessSnapshot } from '@/lib/types'
 
 interface BusinessListEditorProps {
@@ -18,20 +18,10 @@ interface BusinessListEditorProps {
 }
 
 export function BusinessListEditor({ title, cityId, businessIds, editable, onChange, renderMeta, liveBusinesses = [] }: BusinessListEditorProps) {
-  const [mapOpen, setMapOpen] = useState(false)
   const businesses = businessIds.map((id) => businessById.get(id)).filter((b): b is Business => Boolean(b))
   const liveById = useMemo(() => new Map(liveBusinesses.map((business) => [business.id, business])), [liveBusinesses])
   const visibleLiveBusinesses = businessIds.flatMap((id) => liveById.get(id) ? [liveById.get(id)!] : [])
   const totalCount = businesses.length + visibleLiveBusinesses.length
-
-  const candidates = useMemo(() => {
-    const included = new Set(businessIds)
-    const categories = new Set(businesses.map((b) => b.category))
-    return BUSINESSES.filter(
-      (b) => b.cityId === cityId && !b.duplicateOf && !included.has(b.id) && (categories.size === 0 || categories.has(b.category)),
-    ).slice(0, 40)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cityId, businessIds.join(',')])
 
   const toggle = (id: string) => onChange(businessIds.includes(id) ? businessIds.filter((x) => x !== id) : [...businessIds, id])
 
@@ -41,31 +31,10 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
         <h2 id="biz-list-title" className="font-semibold">
           {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({totalCount})</span>
         </h2>
-        {editable && visibleLiveBusinesses.length === 0 ? (
-          <Button variant="outline" size="sm" onClick={() => setMapOpen((v) => !v)} aria-expanded={mapOpen}>
-            <MapIcon data-icon="inline-start" />
-            {mapOpen ? 'إخفاء الخريطة' : 'تعديل على الخريطة'}
-          </Button>
-        ) : null}
       </div>
 
-      {mapOpen && editable ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">اضغط على الدبوس الملوّن لإزالته، أو على الدبوس الباهت لإضافة منشأة مشابهة.</p>
-          <BusinessMap
-            compact
-            cityId={cityId}
-            businesses={businesses}
-            ghostBusinesses={candidates}
-            selectedIds={businessIds.filter((id) => !liveById.has(id))}
-            onTogglePin={toggle}
-            className="h-72"
-          />
-        </div>
-      ) : null}
-
       {totalCount === 0 ? (
-        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد منشآت. أضف من الخريطة.</p>
+        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد منشآت. <Link href="/map" className="font-semibold text-primary underline">اخترها من الخريطة</Link>.</p>
       ) : (
         <ul className="flex flex-col divide-y">
           {businesses.map((b) => (

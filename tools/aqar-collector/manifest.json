@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Farq Aqar collector",
+  "version": "0.5.3",
+  "description": "Walks Aqar's listing pages on its own, city to region to district, keeps each listing once, and keeps the map's listing answers with their locations.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://sa.aqar.fm/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Farq Aqar collector"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://sa.aqar.fm/*"
+      ],
+      "js": [
+        "inject.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://sa.aqar.fm/*"
+      ],
+      "js": [
+        "relay.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://sa.aqar.fm/*"
+      ],
+      "js": [
+        "collect.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
