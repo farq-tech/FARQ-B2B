@@ -100,7 +100,13 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
         <ul className="mt-3 grid gap-2">
           {LENSES.map((item) => (
             <li key={item.id}>
-              <button onClick={() => { trackOnboardingStep('goal_picked', { lens: item.id }); onLens(item.id); setState(picked ? 'waiting_explain' : 'waiting_pick') }}
+              <button onClick={() => {
+                trackOnboardingStep('goal_picked', { lens: item.id })
+                // a district picked before the goal still counts as the pick step
+                if (picked) trackOnboardingStep('district_picked')
+                onLens(item.id)
+                setState(picked ? 'waiting_explain' : 'waiting_pick')
+              }}
                 className="flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-start transition-colors outline-none hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 data-[current=true]:border-primary"
                 data-current={item.id === lens}>
                 <span className="font-semibold">{GOALS[item.id]}</span>
