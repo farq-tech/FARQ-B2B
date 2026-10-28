@@ -66,6 +66,7 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual((first['district_ar'], first['kind'], first['group'], first['price_sar'], first['beds']),
                          ('العليا', 'rent', 'residential', 60000, 3))
         self.assertEqual(first['photo'], 'https://images.aqar.fm/webp/350x0/props/0.jpg')
+        self.assertEqual(first['url'], 'https://sa.aqar.fm/ad/0/ar', 'the ad opens in the Aqar app, where the person makes contact')
         self.assertEqual(first['address'], 'شارع س, حي العليا, مدينة الرياض')
         self.assertEqual(first['vs_district_pct'], -3)   # 500 per m² against the district's 516.67
         self.assertFalse({'sellerPhone', 'sellerName'} & set(first))

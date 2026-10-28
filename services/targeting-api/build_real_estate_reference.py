@@ -122,6 +122,7 @@ def name_index(index):
 # the ad's own photos where they are published: a small one for the card, the large ones for its gallery
 PHOTO_URL = 'https://images.aqar.fm/webp/350x0/props/{}'
 GALLERY_URL = 'https://images.aqar.fm/webp/750x0/props/{}'
+AD_URL = 'https://sa.aqar.fm/ad/{}/ar'
 # the fields a listing card shows; nothing about who placed the ad
 CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width')
 
@@ -137,8 +138,12 @@ def _card(listing, city, district_id, district_ar, found):
         photos = [listing['image']]
     full = [name if name.startswith('http') else GALLERY_URL.format(name) for name in photos]
     title = str(listing.get('title') or '')
+    aqar_id = str(listing.get('aqar_id') or '')
     return {
-        'id': str(listing.get('aqar_id') or listing.get('url') or ''), 'url': listing.get('url'),
+        'id': aqar_id or str(listing.get('url') or ''),
+        # Aqar's own short link for an ad (the one its share and WhatsApp messages carry): it opens the listing in the
+        # Aqar app, where the person calls or chats with the advertiser from their own account
+        'url': AD_URL.format(aqar_id) if aqar_id.isdigit() else listing.get('url'),
         'lon': round(float(listing['longitude']), 6), 'lat': round(float(listing['latitude']), 6),
         'city': city, 'district_id': district_id, 'district_ar': district_ar,
         'kind': {'sale': 'sale', None: None}.get(found['deal'], 'rent'), 'deal': found['deal'],

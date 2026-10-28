@@ -83,7 +83,7 @@ export function ListingCard({ listing, comparing, onCompare, onClose }: {
           {listing.url ? (
             <a href={listing.url} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
-              <ExternalLink className="size-4" aria-hidden /> افتح الإعلان
+              <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
             </a>
           ) : <span />}
           <button onClick={onCompare} aria-pressed={comparing}
