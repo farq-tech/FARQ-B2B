@@ -15,7 +15,7 @@ export function AtlasGoalLinks({ compact = false }: { compact?: boolean }) {
       {goals.map(({ id, title, text, icon: Icon }) => (
         <Link
           key={id}
-          href={`/opportunity-map?goal=${id}`}
+          href={`/map?goal=${id}`}
           className="group rounded-2xl border bg-card p-5 text-right shadow-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="size-5" aria-hidden /></span>

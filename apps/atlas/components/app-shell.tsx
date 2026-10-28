@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Inbox, LogIn, MapPinned, TrendingUp, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Inbox, LogIn, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -56,19 +56,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
-    { href: '/opportunity-map', label: 'السوق', icon: MapPinned },
     { href: '/map', label: 'الخريطة والرؤى', icon: TrendingUp },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || false
-  const marketBadge = <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">السوق الحي</span>
   const workspaceBadge = <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">مساحة العمل</span>
-  const shellBadge = pathname.startsWith('/opportunity-map') ? marketBadge : workspaceBadge
-
-  // The opportunity map owns its full-screen workspace, including navigation.
-  // Keep it unwrapped so the Bolt-designed map can use the full Atlas viewport.
-  if (pathname === '/opportunity-map') return <>{children}</>
+  const shellBadge = workspaceBadge
 
   // The landing page owns its own header and calls to action.
   if (pathname === '/' || pathname === '/login') return <>{children}</>
@@ -119,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-3 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
           const active = isActive(item.href)
           return (
