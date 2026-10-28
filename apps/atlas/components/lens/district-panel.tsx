@@ -131,7 +131,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
               <li key={group} className="flex justify-between gap-2">
                 <span>{groupLabel(group)}</span>
                 <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">
-                  {show(figure!.median, ' ر.س')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-amber-500">عينة صغيرة</span>}
+                  {show(figure!.median, ' ر.س')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-warning">عينة صغيرة</span>}
                 </Explained>
               </li>
             ))}

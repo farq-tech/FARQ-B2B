@@ -9,7 +9,7 @@ import { perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 
-const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-amber-500' } as const
+const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-warning' } as const
 
 /** Every photo of the ad, swiped sideways; a photo that fails to load drops out. */
 export function Gallery({ photos, className = 'h-40' }: { photos: string[]; className?: string }) {
@@ -81,7 +81,7 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
           </p>
         )}
         {listing.check && (
-          <Explained title="تحقق من الإعلان" lines={EXPLAIN.listingCheck} className="flex items-center gap-1.5 text-sm text-amber-500 no-underline">
+          <Explained title="تحقق من الإعلان" lines={EXPLAIN.listingCheck} className="flex items-center gap-1.5 text-sm text-warning no-underline">
             <AlertTriangle className="size-4" aria-hidden /> أرقام هذا الإعلان تحتاج تحققاً
           </Explained>
         )}

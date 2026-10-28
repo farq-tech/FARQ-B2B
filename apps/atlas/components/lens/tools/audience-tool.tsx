@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
+import { PALETTE } from '@/lib/palette'
 
 type Mode = 'people' | 'businesses'
 type Sex = 'all' | 'men' | 'women'
@@ -109,7 +110,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
 
   useEffect(() => {
     const colors = new Map<string, string>()
-    for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : '#3f3f46')
+    for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
     onOverlay({ colors })
   }, [scored, onOverlay])
 

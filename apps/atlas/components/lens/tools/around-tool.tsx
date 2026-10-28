@@ -8,6 +8,7 @@ import { numberFormat, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
+import { PALETTE } from '@/lib/palette'
 
 type Within = { population: number | null; dwellings: number | null; businesses: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
@@ -19,7 +20,7 @@ const REACHES: Reach[] = [
   { kind: 'radius', metres: 500 }, { kind: 'radius', metres: 1000 }, { kind: 'radius', metres: 2000 },
   { kind: 'drive', minutes: 5 }, { kind: 'drive', minutes: 10 }, { kind: 'drive', minutes: 15 },
 ]
-const COLORS = ['#25c99a', '#60a5fa', '#f472b6']
+const COLORS = [PALETTE.olive, PALETTE.ochre, PALETTE.slate]
 const MAX_SITES = 3
 const reachLabel = (reach: Reach) => (reach.kind === 'radius'
   ? (reach.metres < 1000 ? `${reach.metres} م` : `${reach.metres / 1000} كم`)
@@ -130,7 +131,7 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
                 {labelled.map((site) => (
                   <th key={site.id} className="py-1.5 text-center font-medium">
                     <span className="inline-flex items-center gap-1">
-                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold text-[#0d1217]" style={{ background: site.color }}>{site.label}</span>
+                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: site.color }}>{site.label}</span>
                       <button onClick={() => setSites((current) => current.filter((item) => item.id !== site.id))} aria-label={`إزالة الموقع ${site.label}`} className="text-muted-foreground hover:text-foreground">
                         <X className="size-4" aria-hidden />
                       </button>

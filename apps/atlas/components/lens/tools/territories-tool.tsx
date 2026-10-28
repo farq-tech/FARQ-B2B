@@ -10,13 +10,14 @@ import { planRoute, type Point, type RoutePart, type Stop } from '@/lib/route-pl
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import type { Overlay } from './overlay'
+import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Activity = { main_id: string; main_ar: string }
 type Customer = Stop & { name: string; district_ar: string }
 
-const PALETTE = ['#3e573b', '#0284c7', '#db2777', '#ca8a04', '#7c3aed', '#ea580c', '#0f766e', '#dc2626', '#475569', '#c026d3', '#16a34a', '#2563eb']
-const DIM = '#27272a'
+const PALETTE = CATEGORICAL
+const DIM = TONE.pebble
 
 function Step({ n, title, done, children }: { n: number; title: string; done?: boolean; children: React.ReactNode }) {
   return (

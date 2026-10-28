@@ -9,13 +9,14 @@ import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
+import { PALETTE } from '@/lib/palette'
 
 type Activity = { main_id: string; main_ar: string }
 type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
 type Result = { residents_per_business: number | null; districts: Gap[] }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
-const SURPLUS = '#3f3f46'   // more businesses than the city rate carries
+const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
 export function GapsTool({ city, rows, onOverlay, onSelect }: {
