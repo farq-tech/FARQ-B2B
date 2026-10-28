@@ -246,6 +246,14 @@ class CanonicalDistrictTests(unittest.TestCase):
         self.assertEqual(str(id_map['555']), '31', 'records filed under the Dammam copy join the Al Khobar district')
         self.assertEqual(canonical_data.cross_city_duplicates(collection), [])
 
+    def test_district_names_drop_the_word_hay_and_cities_carry_the_table_name(self):
+        atlas = {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'properties': {'id': 600, 'ar': 'حي العمامرة', 'city_en': 'Dammam', 'city_ar': 'الدمام, مدينة, , المنطقة الشرقية , المملكة العربية السعودية'}, 'geometry': poly(50.10, 26.40)},
+        ]}
+        collection, _ = canonical_data.canonical_districts(atlas, {})
+        props = collection['features'][0]['properties']
+        self.assertEqual((props['ar'], props['city_ar']), ('العمامرة', 'الدمام'))
+
     def test_a_reviewed_place_name_tells_same_name_districts_apart(self):
         atlas = {'type': 'FeatureCollection', 'features': [
             {'type': 'Feature', 'properties': {'id': 9172, 'ar': 'العزيزية', 'en': 'Al Aziziyah', 'city_en': 'Jeddah'}, 'geometry': poly(39.19, 21.55)},
