@@ -126,6 +126,7 @@ def parse_map_listing(record, city_en=None):
         'latitude': location.get('lat'), 'longitude': location.get('lng'),
         'districtArabic': district[3:] if district.startswith('حي ') else district or None,
         'aqar_district_id': record.get('district_id'), 'city_en': city, 'title': title,
+        **{key: record.get(key) for key in ('beds', 'livings', 'wc', 'street_width')},
         'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
         'aqar_id': str(record.get('id')),
     }

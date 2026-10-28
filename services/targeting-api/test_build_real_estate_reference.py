@@ -54,5 +54,29 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(ref.build(rows, {'Riyadh': twice}, 'd', default_city='Riyadh')['listings_placed'], 0, 'a shared name is not guessed')
 
 
+    def test_cards_carry_the_district_comparison_and_nothing_about_the_advertiser(self):
+        rows = [dict(listing('rent', 'apartment', 60000 + i * 1000, 120), aqar_id=str(i), url=f'https://sa.aqar.fm/x-{i}',
+                     images=[f'{i}.jpg'], title='شقة للإيجار في شارع س, حي العليا, مدينة الرياض', beds=3) for i in range(5)]
+        cards = []
+        ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
+        self.assertEqual(len(cards), 5)
+        first = cards[0]
+        self.assertEqual((first['district_ar'], first['kind'], first['group'], first['price_sar'], first['beds']),
+                         ('العليا', 'rent', 'residential', 60000, 3))
+        self.assertEqual(first['photo'], 'https://images.aqar.fm/webp/350x0/props/0.jpg')
+        self.assertEqual(first['address'], 'شارع س, حي العليا, مدينة الرياض')
+        self.assertEqual(first['vs_district_pct'], -3)   # 500 per m² against the district's 516.67
+        self.assertFalse({'sellerPhone', 'sellerName'} & set(first))
+
+    def test_a_card_far_below_its_district_is_not_offered(self):
+        rows = [dict(listing('rent', 'apartment', 60000, 120), aqar_id=str(i)) for i in range(5)]
+        rows.append(dict(listing('rent', 'apartment', 10000, 120), aqar_id='odd'))   # 83% under: a wrong figure
+        cards = []
+        doc = ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
+        self.assertEqual(len(cards), 5)
+        self.assertNotIn('odd', [card['id'] for card in cards])
+        self.assertEqual(doc['cities']['Riyadh'][0]['groups']['rent_residential']['listings'], 6)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -189,6 +189,24 @@ def insight_response(path, body):
         table = insights.real_estate(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/real-estate-listings':
+        city = _city(body)
+        box = body.get('bbox')
+        if box is not None and not (isinstance(box, list) and len(box) == 4 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in box)
+                                    and 34 <= box[0] < box[2] <= 56 and 16 <= box[1] < box[3] <= 33):
+            raise ValueError('bbox')
+        ids = body.get('district_ids')
+        if ids is not None and not (isinstance(ids, list) and len(ids) <= 50 and all(isinstance(v, str) and len(v) <= 40 for v in ids)): raise ValueError('district_ids')
+        kind = body.get('kind')
+        if kind not in (None, 'rent', 'sale'): raise ValueError('kind')
+        types = body.get('types')
+        if types is not None and not (isinstance(types, list) and all(t in insights.LISTING_TYPES for t in types)): raise ValueError('types')
+        filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'types': types,
+                   'max_price': body.get('max_price') and _number(body, 'max_price', 1, 1e9), 'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6),
+                   'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
+        table = insights.real_estate_listings(city, filters)
+        if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
+        return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/housing-level':
         city = _city(body)
         with LOCK:
@@ -1026,7 +1044,7 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('clusters', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/real-estate-listings', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))

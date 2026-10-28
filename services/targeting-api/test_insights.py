@@ -119,6 +119,19 @@ class InsightTests(unittest.TestCase):
         self.assertIsNone(insights.real_estate("Jeddah", str(path)))
         self.assertIsNone(insights.real_estate("Riyadh", str(self.root / "missing.json")))
 
+    def test_real_estate_listings_filter_and_put_the_best_value_first(self):
+        card = {"city": "Riyadh", "kind": "rent", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
+                "price_sar": 60000, "area_sqm": 120}
+        cards = [dict(card, id="a", vs_district_pct=5), dict(card, id="b", vs_district_pct=-10), dict(card, id="c", vs_district_pct=None),
+                 dict(card, id="d", kind="sale", vs_district_pct=-50), dict(card, id="e", lon=46.9, vs_district_pct=-20),
+                 dict(card, id="f", price_sar=90000, vs_district_pct=-30)]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"retrieved": "2026-10-28", "listings": cards}), encoding="utf-8")
+        found = insights.real_estate_listings("Riyadh", {"kind": "rent", "bbox": [46.6, 24.6, 46.8, 24.8], "max_price": 70000}, str(path))
+        self.assertEqual([c["id"] for c in found["listings"]], ["b", "a", "c"])
+        self.assertEqual(found["total"], 3)
+        self.assertIsNone(insights.real_estate_listings("Riyadh", {}, str(self.root / "missing.json")))
+
 
 if __name__ == "__main__":
     unittest.main()

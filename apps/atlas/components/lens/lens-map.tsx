@@ -14,13 +14,15 @@ import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
+import { HomesTool } from './tools/homes-tool'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
 
 /** The insight tools, named by the question each one answers; their results are drawn on the one map. */
-type ToolId = 'district' | 'gaps' | 'audience' | 'around' | 'growth' | 'territories'
+type ToolId = 'district' | 'homes' | 'gaps' | 'audience' | 'around' | 'growth' | 'territories'
 const TOOLS: { id: ToolId; label: string }[] = [
   { id: 'district', label: 'الحي' },
+  { id: 'homes', label: 'اختر عقاراً' },
   { id: 'gaps', label: 'أين ينقص نشاطي؟' },
   { id: 'audience', label: 'أين جمهوري؟' },
   { id: 'around', label: 'قارن المواقع' },
@@ -141,7 +143,8 @@ export function LensMap() {
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[50vh] shrink-0 lg:h-auto lg:flex-1">
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} />
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} focus={overlay.focus} />
+          {overlay.popup}
           {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="absolute bottom-3 start-3 flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
             <span className="text-muted-foreground">أقل</span>
             {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}
@@ -168,10 +171,11 @@ export function LensMap() {
               {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggle} />}
               {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
               {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
+              {tool === 'homes' && <HomesTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} />}
               {(tool === 'district' || tool === 'growth' || selected.length > 0) && tool !== 'around' && (
                 <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
               )}
-              {selected.length > 0 && tool !== 'around' && <BusinessesPanel city={city} districts={chosen.map((row) => row.name)} />}
+              {selected.length > 0 && tool !== 'around' && tool !== 'homes' && <BusinessesPanel city={city} districts={chosen.map((row) => row.name)} />}
               {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggle} full={lens === 'analysts' || tool === 'growth'} />}
             </>
           )}

@@ -57,10 +57,12 @@ export type MapPoint = { id: string; lon: number; lat: number }
 /** A drawn area (a radius or a drive-time area) and the numbered site it belongs to. */
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
+/** A current property listing on the map, coloured by its price against its district. */
+export type ListingDot = { id: string; lon: number; lat: number; color: string }
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, focus }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -73,15 +75,20 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   start?: { lon: number; lat: number } | null
   areas?: Area[] | null
   sites?: Site[] | null
+  listings?: ListingDot[] | null
+  onListing?: ((id: string) => void) | null
+  focus?: { lon: number; lat: number } | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
   const toggle = useRef(onToggle)
   const pick = useRef(onPick)
+  const openListing = useRef(onListing)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
   toggle.current = onToggle
   pick.current = onPick
+  openListing.current = onListing
 
   useEffect(() => {
     let disposed = false
@@ -132,11 +139,32 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addSource('sites', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'site-dot', type: 'circle', source: 'sites', paint: { 'circle-radius': 13, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#0d1217', 'circle-stroke-width': 2 } })
         instance.addLayer({ id: 'site-label', type: 'symbol', source: 'sites', layout: { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 15, 'text-allow-overlap': true }, paint: { 'text-color': '#0d1217' } })
+        // listings: grouped into a numbered circle until zoomed in, so a dense district stays readable
+        instance.addSource('listings', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 42, clusterMaxZoom: 15 })
+        instance.addLayer({ id: 'listing-cluster', type: 'circle', source: 'listings', filter: ['has', 'point_count'], paint: {
+          'circle-color': '#0d1217', 'circle-stroke-color': '#25c99a', 'circle-stroke-width': 2,
+          'circle-radius': ['step', ['get', 'point_count'], 14, 25, 18, 100, 23],
+        } })
+        instance.addLayer({ id: 'listing-count', type: 'symbol', source: 'listings', filter: ['has', 'point_count'], layout: {
+          'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 13, 'text-allow-overlap': true,
+        }, paint: { 'text-color': '#ffffff' } })
+        instance.addLayer({ id: 'listing-dot', type: 'circle', source: 'listings', filter: ['!', ['has', 'point_count']], paint: {
+          'circle-color': ['get', 'color'], 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 5, 16, 9],
+          'circle-stroke-color': '#0d1217', 'circle-stroke-width': 1.5,
+        } })
         instance.on('click', (event) => {
+          const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })
+          if (listing && openListing.current) { openListing.current(String(listing.properties?.id)); return }
+          const [cluster] = instance.queryRenderedFeatures(event.point, { layers: ['listing-cluster'] })
+          if (cluster) { instance.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom: instance.getZoom() + 2 }); return }
           if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
           const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
           if (id != null) toggle.current(String(id))
         })
+        for (const layer of ['listing-dot', 'listing-cluster']) {
+          instance.on('mouseenter', layer, () => { instance.getCanvas().style.cursor = 'pointer' })
+          instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
+        }
         instance.on('mouseenter', 'district-fill', () => { instance.getCanvas().style.cursor = 'pointer' })
         instance.on('mouseleave', 'district-fill', () => { instance.getCanvas().style.cursor = '' })
         setReady(true)
@@ -178,6 +206,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (areas ?? []).map((area) => ({ type: 'Feature', properties: { id: area.id, color: area.color }, geometry: area.geometry })) })
     ;(instance.getSource('sites') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (sites ?? []).map((site) => ({ type: 'Feature', properties: { id: site.id, label: site.label, color: site.color }, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } })) })
   }, [ready, areas, sites])
+
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance) return
+    ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
+  }, [ready, listings])
+
+  useEffect(() => {
+    if (ready && focus) map.current?.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(map.current.getZoom(), 15) })
+  }, [ready, focus])
 
   useEffect(() => {
     const instance = map.current

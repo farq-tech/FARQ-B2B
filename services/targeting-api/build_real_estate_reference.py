@@ -37,9 +37,12 @@ RENT_PER_YEAR = {'annually': 1, 'yearly': 1, 'monthly': 12}
 # outside these a figure is a typo or a different unit (a total for a compound, a daily chalet), not a price per m²
 PER_SQM_BOUNDS = {'sale': (100, 100_000), 'rent': (20, 10_000)}
 # one home listed with the whole building's or plot's area: beyond these the m² is not the unit's
-MAX_AREA = {'apartment': 400, 'studio': 150, 'floor': 800}
+MAX_AREA = {'apartment': 300, 'studio': 150, 'floor': 800}
 # a yearly rent below this for a home is a month's rent whose period was not marked
 MIN_YEARLY_HOME_RENT = 6_000
+# a card this far from its district's median is almost always a wrong area, price or period, not a bargain: it still
+# counts in the median (which it barely moves) but is not offered on the map
+CARD_VS_DISTRICT = (-40, 150)
 
 
 def _number(value):
@@ -102,7 +105,29 @@ def name_index(index):
     return {key: next(iter(hits)) for key, hits in found.items() if len(hits) == 1}
 
 
-def build(listings, atlases, retrieved, default_city=None):
+PHOTO_URL = 'https://images.aqar.fm/webp/350x0/props/{}'
+# the fields a listing card shows; nothing about who placed the ad
+CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width')
+
+
+def _card(listing, city, district_id, district_ar, kind, group, value):
+    photo = next((name for name in listing.get('images') or [] if isinstance(name, str) and name), None)
+    title = str(listing.get('title') or '')
+    return {
+        'id': str(listing.get('aqar_id') or listing.get('url') or ''), 'url': listing.get('url'),
+        'lon': round(float(listing['longitude']), 6), 'lat': round(float(listing['latitude']), 6),
+        'city': city, 'district_id': district_id, 'district_ar': district_ar,
+        'kind': kind, 'group': group, 'type': listing.get('propertyType'),
+        # rent as a yearly figure, whatever period the ad was written in
+        'price_sar': round(value * float(listing['areaSqm'])), 'area_sqm': round(float(listing['areaSqm'])),
+        'sar_per_sqm': round(value), 'photo': PHOTO_URL.format(photo) if photo else None,
+        # the street address only: «في شارع …, حي …»
+        'address': title.split(' في ', 1)[1] if ' في ' in title else None,
+        **{key: listing.get(key) for key in CARD_FIELDS if listing.get(key) is not None},
+    }
+
+
+def build(listings, atlases, retrieved, default_city=None, cards=None):
     """atlases: {city_en: GeoJSON FeatureCollection}. Returns the reference document. A listing with coordinates joins
     the district they fall in; one without (a list page carries only the district's name) joins by that name within
     its city (`city_en`, else default_city), and only when the name is unambiguous there."""
@@ -137,12 +162,21 @@ def build(listings, atlases, retrieved, default_city=None):
             values[(city, district_id, kind, group)].append(value)
             names[(city, district_id)] = district_ar
             placed += 1
+            if cards is not None and lon is not None:   # only a located listing can stand on the map
+                cards.append(_card(listing, city, district_id, district_ar, kind, group, value))
     cities = defaultdict(dict)
     for (city, district_id, kind, group), prices in values.items():
         if len(prices) < MIN_LISTINGS:
             continue
         row = cities[city].setdefault(district_id, {'district_id': district_id, 'district_ar': names[(city, district_id)], 'groups': {}})
         row['groups'][f'{kind}_{group}'] = {'listings': len(prices), 'median_sar_per_sqm': round(statistics.median(prices))}
+    if cards is not None:
+        # each card against its district's median for the same deal and group, when the district has one
+        for card in cards:
+            median = cities.get(card['city'], {}).get(card['district_id'], {}).get('groups', {}).get(f"{card['kind']}_{card['group']}")
+            card['vs_district_pct'] = round(100 * (card['sar_per_sqm'] / median['median_sar_per_sqm'] - 1)) if median else None
+        low, high = CARD_VS_DISTRICT
+        cards[:] = [card for card in cards if card['vs_district_pct'] is None or low <= card['vs_district_pct'] <= high]
     return {
         'source': 'asking prices of current property listings, joined to atlas districts by coordinates',
         'retrieved': retrieved,
@@ -162,14 +196,19 @@ def main(argv=None):
     parser.add_argument('--out', default=str(Path(__file__).with_name('reference') / 'real_estate_districts.json'))
     parser.add_argument('--retrieved', default=date.today().isoformat())
     parser.add_argument('--city', help='city_en for listings that carry no coordinates and no city_en')
+    parser.add_argument('--listings-out', help='also write the located listings as map cards (reference/real_estate_listings.json)')
     args = parser.parse_args(argv)
     atlases = {}
     for item in args.atlas:
         city, _, path = item.partition('=')
         atlases[city] = json.loads(Path(path).read_text(encoding='utf-8'))
     listings = json.loads(Path(args.listings).read_text(encoding='utf-8'))
-    document = build(listings, atlases, args.retrieved, default_city=args.city)
+    cards = [] if args.listings_out else None
+    document = build(listings, atlases, args.retrieved, default_city=args.city, cards=cards)
     Path(args.out).write_text(json.dumps(document, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    if cards is not None:
+        Path(args.listings_out).write_text(json.dumps({'retrieved': args.retrieved, 'listings': cards}, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8')
+        print(f'{len(cards)} listing cards written', file=sys.stderr)
     print(f"{document['listings_placed']} of {document['listings_with_price']} priced listings placed; "
           f"{sum(len(rows) for rows in document['cities'].values())} districts with a figure", file=sys.stderr)
 
