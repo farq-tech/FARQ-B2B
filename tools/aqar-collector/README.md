@@ -11,8 +11,8 @@ link to each listing reach Atlas.
 - **Map answers (`inject.js`, `relay.js`).** Aqar's map receives listings from its GraphQL `Web.find` with location,
   district id, link, price, rent period and photos; each is kept once, with the latest request as a template.
 - **Fast run (`relay.js`).** «سحب سريع من الخريطة» replays that template: the area the map last showed is cut into
-  quarters until a tile holds at most 1,000 listings, and each tile is read 50 at a time with a short pause. Its state
-  lives in storage, so a reloaded tab resumes; a 403/429 pauses it.
+  quarters until a tile holds at most 1,000 listings, and each tile is read 50 at a time with a 2.5–4 s pause. A 429 waits (Retry-After, else 1 min doubling to 10 min), slows the rest of the run by half, and retries by itself. Its state
+  lives in storage, so a reloaded tab resumes; a 403 pauses it.
 
 Records are kept as received, contact details included; they are hidden when Farq processes the export.
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Farq Aqar collector",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Walks Aqar's listing pages on its own, city to region to district, keeps each listing once, and keeps the map's listing answers with their locations.",
   "permissions": [
     "storage",

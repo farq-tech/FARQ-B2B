@@ -4,7 +4,9 @@
 const SIZE = 50
 const TILE_MAX = 1000
 const MAX_DEPTH = 12
-const PAUSE_MS = [600, 1400]
+const PAUSE_MS = [2500, 4000]   // Aqar answers 429 at about one request a second
+const WAIT_429_MS = [60000, 600000]   // first wait after a 429, and the longest
+const SLOWER = 1.5                     // each 429 stretches the pause by this much, for the rest of the run
 const HEARTBEAT_MS = 15000
 const get = (keys) => new Promise((done) => chrome.storage.local.get(keys, done))
 const set = (items) => new Promise((done) => chrome.storage.local.set(items, done))
@@ -46,7 +48,10 @@ async function ask(template, bbox, from) {
   const body = JSON.parse(template.request)
   body.variables = { ...body.variables, size: SIZE, from, polygon: polygonOf(bbox) }
   const response = await fetch(template.url, { method: 'POST', credentials: 'include', headers: { ...template.headers, 'content-type': 'application/json' }, body: JSON.stringify(body) })
-  if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
+  if (!response.ok) {
+    const retryAfter = Number(response.headers.get('retry-after')) * 1000 || 0
+    throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status, retryAfter })
+  }
   const find = (await response.json())?.data?.Web?.find
   if (!find) throw new Error('no find in answer')
   return find
@@ -71,7 +76,15 @@ async function fastRun() {
       try {
         find = await ask(findTemplate, current.bbox, current.from)
       } catch (error) {
-        const status = error.status === 403 || error.status === 429 ? 'blocked' : 'error'
+        if (error.status === 429) {
+          // too fast: wait as asked (or longer each time), slow down for good, and try the same request again
+          const strikes = (fast.strikes || 0) + 1
+          const wait = Math.max(error.retryAfter, Math.min(WAIT_429_MS[1], WAIT_429_MS[0] * 2 ** (strikes - 1)))
+          await set({ fast: { ...fast, current, strikes, slow: (fast.slow || 1) * SLOWER, status: 'waiting', until: Date.now() + wait, error: 'HTTP 429', beat: Date.now() + wait } })
+          await sleep(wait)
+          continue
+        }
+        const status = error.status === 403 ? 'blocked' : 'error'
         await set({ fast: { ...fast, active: false, status, error: String(error.message), queue, current, stats } })
         break
       }
@@ -86,8 +99,10 @@ async function fastRun() {
         if (!listings.length || from >= find.total) { stats.tiles += 1; current = null }
         else current = { ...current, from, total: find.total }
       }
-      await set({ fast: { ...fast, queue, current, stats, status: 'running', beat: Date.now() } })
-      await sleep(PAUSE_MS[0] + Math.random() * (PAUSE_MS[1] - PAUSE_MS[0]))
+      // a run that has gone through 20 requests since its last 429 waits less long next time
+      const strikes = fast.strikes && stats.requests % 20 === 0 ? fast.strikes - 1 : fast.strikes || 0
+      await set({ fast: { ...fast, queue, current, stats, strikes, status: 'running', error: null, beat: Date.now() } })
+      await sleep((PAUSE_MS[0] + Math.random() * (PAUSE_MS[1] - PAUSE_MS[0])) * (fast.slow || 1))
     }
   } catch (error) {
     const { fast } = await get({ fast: null })

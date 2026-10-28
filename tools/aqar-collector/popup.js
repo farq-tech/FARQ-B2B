@@ -6,12 +6,13 @@ const STATUS = { running: 'يعمل…', done: 'انتهى ✓', blocked: 'أو�
 const urlOf = (segs, page = 1) => `https://sa.aqar.fm/${segs.map(encodeURIComponent).join('/')}${page > 1 ? `/${page}` : ''}`
 const activeTab = async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]
 
-const FAST = { running: 'السحب السريع يعمل…', done: 'السحب السريع انتهى ✓', blocked: 'أوقفه عقار. انتظر قليلاً ثم اضغط السحب السريع للاستئناف.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
+const FAST = { running: 'السحب السريع يعمل…', waiting: 'عقار طلب التمهّل، سيكمل وحده بعد الانتظار.', done: 'السحب السريع انتهى ✓', blocked: 'أوقفه عقار. انتظر قليلاً ثم اضغط السحب السريع للاستئناف.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
 
 async function refreshFast() {
   const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
   $('fast').textContent = fast?.active ? 'إيقاف السحب السريع' : (fast?.current || fast?.queue?.length ? 'استئناف السحب السريع' : 'سحب سريع من الخريطة')
   $('fastStatus').textContent = !findTemplate ? 'افتح «الخريطة» في عقار وصغّرها حتى تظهر المدينة كاملة، ثم اضغط.'
+    : fast?.active && fast.status === 'waiting' && fast.until > Date.now() ? `عقار طلب التمهّل. يكمل وحده بعد ${fmt.format(Math.ceil((fast.until - Date.now()) / 1000))} ثانية · ${fmt.format(fast.stats.requests)} طلب حتى الآن`
     : fast?.active && Date.now() - (fast.beat || 0) > 30000 && fast.beat ? 'لا يتقدم منذ 30 ثانية. أعد تحميل صفحة عقار ليكمل.'
     : fast?.active && !fast.beat ? 'يبدأ… (إن طال الانتظار أعد تحميل صفحة عقار)'
     : fast ? `${FAST[fast.status] || ''} ${fmt.format(fast.stats.requests)} طلب · ${fmt.format(fast.stats.tiles)} مربع انتهى · ${fmt.format(fast.queue.length)} متبقٍ${fast.error ? ` (${fast.error})` : ''}` : ''
