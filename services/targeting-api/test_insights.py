@@ -110,5 +110,15 @@ class InsightTests(unittest.TestCase):
         self.assertIsNone(insights.housing_level(self.db, None, [], {}, {}))
 
 
+    def test_real_estate_reads_the_reference_and_reports_a_missing_table(self):
+        path = self.root / "re.json"
+        path.write_text(json.dumps({"retrieved": "2026-10-28", "min_listings": 5, "cities": {"Riyadh": [
+            {"district_id": "492", "district_ar": "العليا", "groups": {"rent_commercial": {"listings": 7, "median_sar_per_sqm": 900}}}]}}, ensure_ascii=False), encoding="utf-8")
+        table = insights.real_estate("Riyadh", str(path))
+        self.assertEqual(table["districts"][0]["groups"]["rent_commercial"]["median_sar_per_sqm"], 900)
+        self.assertIsNone(insights.real_estate("Jeddah", str(path)))
+        self.assertIsNone(insights.real_estate("Riyadh", str(self.root / "missing.json")))
+
+
 if __name__ == "__main__":
     unittest.main()

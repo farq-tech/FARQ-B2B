@@ -222,6 +222,23 @@ def territories(features, weights, count):
 INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
 
 
+REAL_ESTATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_districts.json')
+
+
+def real_estate(city, path=None):
+    """Asking prices per district from build_real_estate_reference.py: per property group, the listings and the median
+    price per m² (sale) or per m² per year (rent). None when there is no table for the city yet."""
+    try:
+        with open(path or REAL_ESTATE_PATH, encoding='utf-8') as handle:
+            table = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    rows = (table.get('cities') or {}).get(city)
+    if rows is None:
+        return None
+    return {'retrieved': table.get('retrieved'), 'min_listings': table.get('min_listings'), 'unit': table.get('unit'), 'districts': rows}
+
+
 AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
 
 

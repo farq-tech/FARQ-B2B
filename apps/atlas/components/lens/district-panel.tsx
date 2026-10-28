@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
-import { sumOf, type DistrictRow } from './city-data'
+import { sumOf, type DistrictRow, type RealEstateGroup } from './city-data'
 import type { LensId } from './lenses'
 
 type Profile = {
@@ -15,6 +15,16 @@ type Profile = {
   ages: { age_group: string; total: number }[]
   main_activities: { main_ar: string; n: number }[]
 }
+
+const REAL_ESTATE_ROWS: [RealEstateGroup, string, boolean][] = [
+  ['rent_commercial', 'إيجار محل سنوياً', true],
+  ['rent_office', 'إيجار مكتب سنوياً', true],
+  ['rent_warehouse', 'إيجار مستودع سنوياً', true],
+  ['rent_residential', 'إيجار سكن سنوياً', true],
+  ['sale_residential', 'بيع سكن', false],
+  ['sale_land', 'بيع أرض', false],
+  ['sale_commercial', 'بيع تجاري', false],
+]
 
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
@@ -99,6 +109,19 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
             </li>
           ))}
         </ul>
+      )}
+      {single && Object.keys(single.realEstate).length > 0 && (
+        <div className="mt-4">
+          <p className="mb-1 text-sm font-semibold text-muted-foreground">أسعار العقار المعروضة (للمتر)</p>
+          <ul className="space-y-1.5 text-base">
+            {REAL_ESTATE_ROWS.filter(([group]) => single.realEstate[group]).map(([group, label, rent]) => (
+              <li key={group} className="flex justify-between">
+                <span>{label}</span>
+                <Explained title={label} lines={EXPLAIN.realEstate(single.realEstate[group]!.listings, rent)} className="font-semibold">{show(single.realEstate[group]!.median, ' ر.س')}</Explained>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {single && profile && profile.main_activities.length > 0 && (
         <div className="mt-4">
