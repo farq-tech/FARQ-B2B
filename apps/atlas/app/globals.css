@@ -105,7 +105,7 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -2;
+  z-index: -3;
   pointer-events: none;
   background: var(--wash);
 }
@@ -126,6 +126,39 @@ body::before {
   /* only opacity and transform breathe, so the layer is painted once */
   .atlas-dots { will-change: opacity, transform; animation: atlas-dot-pulse 5.2s ease-in-out infinite; }
 }
+/* slow waves of Farq colour drifting behind the dots, the way Gemini's chat breathes (owner); each blob is painted
+   once, blurred, and only moved, so the compositor carries it */
+.atlas-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.atlas-aurora span {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(56px);
+  opacity: 0.85;
+  will-change: transform;
+}
+.atlas-aurora span:nth-child(1) { background: radial-gradient(circle, color-mix(in srgb, #a3b80f 55%, transparent), transparent 65%); top: -20vmax; right: -12vmax; }
+.atlas-aurora span:nth-child(2) { background: radial-gradient(circle, color-mix(in srgb, #3e573b 34%, transparent), transparent 65%); bottom: -24vmax; left: -16vmax; }
+.atlas-aurora span:nth-child(3) { background: radial-gradient(circle, color-mix(in srgb, #c9ddb7 95%, transparent), transparent 65%); top: 25vh; left: 20vw; }
+.atlas-aurora span:nth-child(4) { background: radial-gradient(circle, color-mix(in srgb, #e2cfa8 90%, transparent), transparent 65%); bottom: -10vmax; right: 10vw; }
+@media (prefers-reduced-motion: no-preference) {
+  .atlas-aurora span:nth-child(1) { animation: atlas-wave-a 18s ease-in-out infinite alternate; }
+  .atlas-aurora span:nth-child(2) { animation: atlas-wave-b 23s ease-in-out infinite alternate; }
+  .atlas-aurora span:nth-child(3) { animation: atlas-wave-c 16s ease-in-out infinite alternate; }
+  .atlas-aurora span:nth-child(4) { animation: atlas-wave-d 21s ease-in-out infinite alternate; }
+}
+@keyframes atlas-wave-a { from { transform: translate(0, 0) scale(1); } to { transform: translate(-18vw, 14vh) scale(1.25); } }
+@keyframes atlas-wave-b { from { transform: translate(0, 0) scale(1.1); } to { transform: translate(22vw, -16vh) scale(0.9); } }
+@keyframes atlas-wave-c { from { transform: translate(0, 0) scale(0.9); } to { transform: translate(14vw, 10vh) scale(1.2); } }
+@keyframes atlas-wave-d { from { transform: translate(0, 0) scale(1); } to { transform: translate(-16vw, -12vh) scale(1.15); } }
+
 @keyframes atlas-dot-pulse {
   0%, 100% { opacity: 0.45; transform: scale(1); }
   50% { opacity: 0.9; transform: scale(1.012); }
