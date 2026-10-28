@@ -68,7 +68,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
                   <span>{b.category}</span><span>{b.district}</span>
                   {b.whatsapp ? <span className="inline-flex items-center gap-1"><MessageCircle className="size-3 text-primary" aria-hidden />إشارة واتساب</span> : null}
                 </p>
-                {b.reason ? <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{b.reason}</p> : null}
+                {b.reason ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{b.reason}</p> : null}
               </div>
               {editable ? <Button variant="ghost" size="icon-sm" onClick={() => toggle(b.id)} aria-label={`إزالة ${b.name}`}><X /></Button> : null}
             </li>

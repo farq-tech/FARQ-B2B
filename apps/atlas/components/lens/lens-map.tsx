@@ -1,7 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Search, X } from 'lucide-react'
+import { Loader2, MousePointerClick, X } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
+import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
+import { Chip } from '@/components/ui/chip'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { numberFormat, useCities } from '@/lib/insights-api'
@@ -76,7 +80,7 @@ function Ranking({ rows, metric, selected, onToggle, full }: {
 function StepTab({ index, label, active, onClick }: { index: number; label: string; active: boolean; onClick: () => void }) {
   return (
     <button role="tab" aria-selected={active} onClick={onClick}
-      className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium', active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+      className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60', active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
     </button>
@@ -137,35 +141,33 @@ export function LensMap() {
 
   return (
     <main className="flex h-[calc(100dvh-4rem)] flex-col pb-16 lg:pb-0">
-      <div className="flex flex-wrap items-center gap-2 border-b bg-card/60 px-3 py-2">
-        <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className="h-10 rounded-lg border bg-background px-3 text-base">
-          {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
-        </select>
-        <div role="tablist" aria-label="الفئة" className="flex flex-wrap gap-1 rounded-xl bg-muted/50 p-1">
-          {LENSES.map((item) => (
-            <button key={item.id} role="tab" aria-selected={lens === item.id} onClick={() => setLens(item.id)}
-              className={cn('rounded-lg px-3 py-1.5 text-base font-medium transition-colors', lens === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
-              {item.label}
-            </button>
+      {/* one search pill and one chip row, as on «العقار»: the city, who is looking, and what they look for */}
+      <header className="flex flex-col gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur">
+        <SearchPill label="ابحث عن مورد أو نشاط" onSubmit={() => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }}>
+          <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
+            <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className={pillControl}>
+              {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
+            </select>
+          </PillField>
+          <PillField label="أنا من" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[13rem]">
+            <select aria-label="الفئة" value={lens} onChange={(e) => setLens(e.target.value as LensId)} className={pillControl}>
+              {LENSES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+          </PillField>
+          <PillField label="ابحث عن مورد أو نشاط" className="sm:flex-[2]">
+            <input ref={searchBox} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="ابحث عن مورد أو نشاط"
+              placeholder="مثل: مورد قهوة" className={pillControl} />
+          </PillField>
+        </SearchPill>
+        <ChipRow label="المقياس على الخريطة">
+          {overlay.colors ? (
+            // a tool that paints the districts itself owns the map's colours while it is open
+            <p className="py-2 text-sm text-muted-foreground">الألوان الآن من «{step?.label}». ارجع إلى «{active.steps[0].label}» لتغييرها.</p>
+          ) : active.metrics.map((id) => (
+            <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>
           ))}
-        </div>
-        <form role="search" className="flex min-w-[240px] flex-1 gap-1.5" onSubmit={(event) => { event.preventDefault(); if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }}>
-          <input ref={searchBox} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="ابحث عن مورد أو نشاط"
-            placeholder="ابحث عن مورد أو نشاط، مثل: مورد قهوة" className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-          <button type="submit" className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"><Search className="size-4" aria-hidden /> ابحث</button>
-        </form>
-      </div>
-      <div className="flex flex-wrap items-center gap-1 border-b px-3 py-1.5" aria-label="المقياس على الخريطة">
-        {overlay.colors ? (
-          // a tool that paints the districts itself owns the map's colours while it is open
-          <p className="text-sm text-muted-foreground">ألوان الخريطة الآن من خطوة «{step?.label}». ارجع إلى «{active.steps[0].label}» أو اختر خطوة أخرى لتغييرها.</p>
-        ) : active.metrics.map((id) => (
-          <button key={id} onClick={() => setMetric(id)} aria-pressed={metric === id}
-            className={cn('rounded-full border px-3 py-1 text-sm', metric === id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
-            {METRICS[id].label}
-          </button>
-        ))}
-      </div>
+        </ChipRow>
+      </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[50vh] shrink-0 lg:h-auto lg:flex-1">
@@ -177,17 +179,20 @@ export function LensMap() {
             <span className="text-muted-foreground">أعلى · {METRICS[metric].label}</span>
           </Explained>}
           {data.status === 'loading' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/40"><Loader2 className="size-6 animate-spin text-primary" aria-label="جارٍ التحميل" /></div>
+            // a small note in the corner: the map stays visible while the city loads
+            <div role="status" className="absolute top-3 start-3 flex items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-sm shadow-sm backdrop-blur">
+              <Loader2 className="size-4 animate-spin text-primary" aria-hidden />جارٍ تحميل أحياء {cityName}
+            </div>
           )}
         </div>
         <aside className="flex w-full flex-col gap-3 overflow-y-auto p-3 lg:w-[400px] lg:border-s">
           {data.status === 'error' ? (
-            <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">تعذر تحميل بيانات المدينة.</p>
+            <LoadError what="بيانات المدينة" onRetry={data.reload} />
           ) : (
             <>
               {search && (
                 <div className="flex flex-col gap-2">
-                  <button onClick={() => setSearch(null)} className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground"><X className="size-4" aria-hidden /> إغلاق البحث والعودة للخطوات</button>
+                  <Chip onClick={() => setSearch(null)} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
                   <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} />
                 </div>
               )}
@@ -207,7 +212,7 @@ export function LensMap() {
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} features={data.features} selected={chosen} onOverlay={onOverlay} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
                   {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
                   {tool === 'businesses' && !selected.length && (
-                    <p className="rounded-xl border border-dashed p-3 text-base text-muted-foreground">اختر حياً أو أكثر من الخريطة، أو من ترتيب «أين جمهوري؟»، فتظهر منشآته هنا. أو ابحث عن نشاط من المربع بالأعلى.</p>
+                    <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو من ترتيب «أين جمهوري؟»، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}
                   {(tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />

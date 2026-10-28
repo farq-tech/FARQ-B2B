@@ -1,6 +1,9 @@
 'use client'
 
-import { ChevronLeft, MapPinned, Search } from 'lucide-react'
+import { ChevronLeft, ClipboardList, MapPinned } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
+import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
+import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -37,50 +40,25 @@ export function RequestsListView() {
         </Button>
       </header>
 
-      <div role="tablist" aria-label="حالة الطلب" className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
-        {TABS.map((s) => {
-          const count = requests.filter((r) => r.status === s).length
-          return (
-            <button
-              key={s}
-              type="button"
-              role="tab"
-              aria-selected={tab === s}
-              onClick={() => setTab(s)}
-              className={cn(
-                'inline-flex flex-1 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap',
-                tab === s ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted',
-              )}
-            >
-              {STATUS_LABEL[s]}
-              <span className={cn('rounded-full px-1.5 text-[11px] tabular-nums', tab === s ? 'bg-background/20' : 'bg-muted')}>{count}</span>
-            </button>
-          )
-        })}
-      </div>
+      <SearchPill label="ابحث في الطلبات">
+        <PillField label="ابحث في الطلبات">
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="بعنوان الطلب" className={pillControl} />
+        </PillField>
+      </SearchPill>
 
-      <div className="relative">
-        <label htmlFor="req-search" className="sr-only">
-          ابحث في الطلبات
-        </label>
-        <Search className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <input
-          id="req-search"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="ابحث بعنوان الطلب"
-          className="h-10 w-full rounded-lg border bg-card pr-9 pl-3 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25"
-        />
-      </div>
+      <ChipRow label="حالة الطلب" className="max-w-none">
+        {TABS.map((s) => (
+          <Chip key={s} active={tab === s} onClick={() => setTab(s)}>
+            {STATUS_LABEL[s]}
+            <ChipCount value={requests.filter((r) => r.status === s).length} active={tab === s} />
+          </Chip>
+        ))}
+      </ChipRow>
 
       {visible.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-card p-10 text-center">
-          <p className="text-sm text-muted-foreground">لا توجد طلبات في «{STATUS_LABEL[tab]}».</p>
-          <Button size="sm" nativeButton={false} render={<Link href="/map" />}>
-            ابدأ من خريطة الفرص
-          </Button>
-        </div>
+        <EmptyState icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
+          body={q ? 'لا طلب بهذا العنوان هنا. جرّب حالة أخرى أو كلمة أقصر.' : 'اختر منشآت من الخريطة ثم «جهّز قائمة» أو «طلب تسعير»، فتظهر طلباتك هنا للمراجعة قبل أي إرسال.'}
+          action={<Button size="sm" nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (
         <ul className="flex flex-col gap-2">
           {visible.map((r) => {
@@ -90,7 +68,7 @@ export function RequestsListView() {
               <li key={r.id}>
                 <Link
                   href={`/requests/${r.id}`}
-                  className="group flex items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20"
+                  className="group flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-sm transition-all outline-none hover:border-foreground/20 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/60"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">

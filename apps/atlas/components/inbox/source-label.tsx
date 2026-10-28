@@ -19,14 +19,14 @@ export function SourceLabel({ message, compact }: { message: InboxMessage; compa
     <span className="flex min-w-0 flex-wrap items-center gap-1.5">
       <span
         className={cn(
-          'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+          'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold',
           message.source === 'rfq' ? 'bg-secondary text-secondary-foreground' : 'bg-accent text-accent-foreground',
         )}
       >
         {label}
       </span>
       {message.sentiment ? (
-        <span className={cn('inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium', SENTIMENT_STYLE[message.sentiment])}>
+        <span className={cn('inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium', SENTIMENT_STYLE[message.sentiment])}>
           {message.sentiment}
         </span>
       ) : null}

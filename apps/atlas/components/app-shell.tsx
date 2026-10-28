@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, House, Inbox, LogIn, TrendingUp, type LucideIcon } from 'lucide-react'
+import { ClipboardList, House, Inbox, LogIn, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -29,7 +29,7 @@ export function BrandMark({ className }: { className?: string }) {
       </span>
       <span className="hidden flex-col leading-tight sm:flex">
         <span className="sr-only">فرق أطلس</span>
-        <span className="text-[11px] font-medium tracking-wide text-muted-foreground">منصة الفرص التجارية</span>
+        <span className="text-xs font-medium tracking-wide text-muted-foreground">منصة الفرص التجارية</span>
       </span>
     </Link>
   )
@@ -56,14 +56,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
-    { href: '/map', label: 'الخريطة والرؤى', icon: TrendingUp },
+    { href: '/map', label: 'الخريطة', icon: MapIcon },
     { href: '/homes', label: 'العقار', icon: House },
     { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
     { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
   ]
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || false
-  const workspaceBadge = <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">مساحة العمل</span>
-  const shellBadge = workspaceBadge
 
   // The landing page owns its own header and calls to action.
   if (pathname === '/' || pathname === '/login') return <>{children}</>
@@ -88,14 +86,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
                 {item.label}
-                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[10px] font-bold leading-5 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{item.count}</span> : null}
               </Link>
             )
           })}
         </nav>
 
         <div className="mr-auto flex shrink-0 items-center gap-2 sm:gap-3">
-          <span className="hidden sm:inline-flex">{shellBadge}</span>
           {user ? (
             <div className="flex items-center gap-2.5" aria-label="الحساب المسجل">
               <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground" aria-hidden>{userInitial(user)}</span>
@@ -122,11 +119,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn('relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium', active ? 'text-primary' : 'text-muted-foreground')}
+              className={cn('relative flex flex-col items-center justify-center gap-1 text-xs font-medium', active ? 'text-primary' : 'text-muted-foreground')}
             >
               <span className="relative">
                 <item.icon className="size-5" aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{item.count}</span> : null}
               </span>
               {item.label}
             </Link>

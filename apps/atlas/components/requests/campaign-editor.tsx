@@ -148,7 +148,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                   }
                 />
                 <span className={cn('min-w-0 flex-1 truncate text-sm', !e.ok && 'text-muted-foreground')}>{b.name}</span>
-                {e.ok ? <span className="text-[11px] text-primary">مؤهل</span> : <span className="text-[11px] text-muted-foreground">{e.reason}</span>}
+                {e.ok ? <span className="text-xs text-primary">مؤهل</span> : <span className="text-xs text-muted-foreground">{e.reason}</span>}
               </li>
             )
           })}
