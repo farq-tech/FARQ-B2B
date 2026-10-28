@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CircleHelp, MousePointerClick, Sparkles, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { trackOnboardingStep } from '@/lib/commercial-metrics'
 import { LENSES, type LensId } from './lenses'
 
 /**
@@ -33,17 +34,26 @@ function write(state: CoachState) {
 export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: (lens: LensId) => void; picked: boolean }) {
   // null until mounted, so the server render and a returning visitor never flash the tour
   const [state, setState] = useState<CoachState | null>(null)
-  const go = (next: CoachState) => { setState(next); if (next === 'completed' || next === 'skipped') write(next) }
+  const go = (next: CoachState, via?: 'explain' | 'button') => {
+    if (next === 'completed') trackOnboardingStep('completed', { via })
+    if (next === 'skipped') trackOnboardingStep('skipped', { at: state ?? undefined })
+    setState(next)
+    if (next === 'completed' || next === 'skipped') write(next)
+  }
 
   useEffect(() => {
     const saved = read()
     // a link that already names a goal (?lens= / ?goal=) has answered the first question
     const query = new URLSearchParams(window.location.search)
-    setState(saved === 'not_started' ? (query.get('lens') || query.get('goal') ? 'waiting_pick' : 'goal') : saved)
+    const first = saved === 'not_started' ? (query.get('lens') || query.get('goal') ? 'waiting_pick' : 'goal') : saved
+    if (saved === 'not_started') trackOnboardingStep('shown', { at: first })
+    setState(first)
   }, [])
 
   // a district picked by any route (map, ranking, a tool's list) moves the tour on
-  useEffect(() => { if (picked && state === 'waiting_pick') setState('waiting_explain') }, [picked, state])
+  useEffect(() => {
+    if (picked && state === 'waiting_pick') { trackOnboardingStep('district_picked'); setState('waiting_explain') }
+  }, [picked, state])
 
   // the hint rings the first explained figure in the panel, and opening any of them completes the tour
   useEffect(() => {
@@ -59,12 +69,12 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
     mark()
     const watch = new MutationObserver(mark)
     watch.observe(document.body, { childList: true, subtree: true })
-    const opened = (event: MouseEvent) => { if ((event.target as Element | null)?.closest?.('[aria-label^="كيف حُسب"]')) go('completed') }
+    const opened = (event: MouseEvent) => { if ((event.target as Element | null)?.closest?.('[aria-label^="كيف حُسب"]')) go('completed', 'explain') }
     document.addEventListener('click', opened, true)
     return () => { watch.disconnect(); target?.classList.remove('coach-target'); document.removeEventListener('click', opened, true) }
   }, [state])
 
-  const restart = () => setState('goal')
+  const restart = () => { trackOnboardingStep('restarted'); setState('goal') }
   const help = (
     <button onClick={restart} aria-label="جولة سريعة في الخريطة"
       className="absolute end-3 bottom-14 z-10 grid size-10 place-items-center rounded-full border bg-card/95 text-muted-foreground shadow-sm backdrop-blur transition-colors outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 lg:top-3 lg:bottom-auto">
@@ -90,7 +100,7 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
         <ul className="mt-3 grid gap-2">
           {LENSES.map((item) => (
             <li key={item.id}>
-              <button onClick={() => { onLens(item.id); setState(picked ? 'waiting_explain' : 'waiting_pick') }}
+              <button onClick={() => { trackOnboardingStep('goal_picked', { lens: item.id }); onLens(item.id); setState(picked ? 'waiting_explain' : 'waiting_pick') }}
                 className="flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-start transition-colors outline-none hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 data-[current=true]:border-primary"
                 data-current={item.id === lens}>
                 <span className="font-semibold">{GOALS[item.id]}</span>
@@ -113,12 +123,13 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
     )
   }
 
+  // on phones the hint sits under the bottom sheet: pulled up to full, the sheet's handle stays in reach
   return (
-    <div role="status" className={`${card} top-3`}>
+    <div role="status" className={`${card} top-3 max-lg:z-[15]`}>
       <p className="flex items-center gap-2 font-bold"><Sparkles className="size-5 text-primary" aria-hidden />كل رقم له مصدر</p>
       <p className="mt-1 text-sm leading-7 text-muted-foreground">اضغط أي رقم عليه علامة «i» في اللوحة، وتشوف كيف حسبناه ومن وين.</p>
       <div className="mt-2 flex items-center justify-between">
-        <Button size="sm" variant="ghost" onClick={() => go('completed')}>فهمت</Button>
+        <Button size="sm" variant="ghost" onClick={() => go('completed', 'button')}>فهمت</Button>
         {skip}
       </div>
     </div>

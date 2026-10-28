@@ -6,6 +6,7 @@ import { ClipboardList, House, Inbox, LogIn, Map as MapIcon, type LucideIcon } f
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { WhatsNew } from '@/components/shared/whats-new'
 
 interface NavItem {
   href: string
@@ -110,6 +111,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-col pb-16 lg:pb-0 lg:has-[[data-viewport-workspace]]:h-[calc(100dvh-4rem)] lg:has-[[data-viewport-workspace]]:min-h-0">
         {children}
       </div>
+
+      <WhatsNew />
 
       <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
