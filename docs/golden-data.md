@@ -9,7 +9,7 @@
 | المنشآت | النسخة الموحّدة من `targets.parquet` (`canonical_data.canonicalize_file`) | لقطة الدليل نفسها، والأسماء من الصفين أعلاه | المدينة والحي بإملاء الأطلس. الاسم المشترك بين حيين، أو الحي المنقول إلى مدينة أخرى، يُحسم بإحداثيات المنشأة. |
 | السكان | `golden.population` / `golden.demographics` عبر `server.golden_population` و`server.golden_demographics` | `reference/districts_910ths.json`، ومخرجات `build_building_population.py` | لكل حي رقم واحد بمصدر مكتوب: 910ths ← المباني (حيث تُعايَر على 910ths) ← WorldPop. الأعمار تُجمع إلى الإجمالي الذهبي. الذكور والإناث فقط حيث قاسها 910ths. |
 | الدخل | `reference/districts_910ths.json` | الملف نفسه (`build_910ths_reference.py`) | كما ينشره 910ths لكل حي. لا يُدمج دخل حيين، فهو متوسط لكل عامل. |
-| المطاعم على تطبيقات التوصيل | تجميع فرق لكل حي: `GET api.farq.sa/api/intelligence/map/city/<city>/districts` (حقل `places`)، تقرؤه `apps/atlas/app/api/farq/restaurants` | مستودع `farq-tech/farq` (`lib/city-opportunities.js`) | فرق يقرأ حدود الأحياء من هذا الأطلس (ADR 0141 هناك)، فيُربط الصف بـ`atlas_district_id` لا بالاسم. المطعم الذي تتباعد فروعه لا يُنسب لحي. |
+| المطاعم على تطبيقات التوصيل | تجميع فرق لكل حي: `GET api.farq.sa/api/intelligence/map/city/<city>/districts` (حقل `places`)، تقرؤه `apps/atlas/app/api/farq/restaurants` | مستودع `farq-tech/farq` (`lib/city-opportunities.js`) | فرق يقرأ حدود الأحياء من هذا الأطلس (ADR 0141 هناك)، فيُربط الصف بـ`atlas_district_id` لا بالاسم. المطعم الذي تتباعد فروعه لا يُنسب لحي. مدينة كل أحيائها صفر تعني أن فرق لا يغطيها بعد، فتظهر «غير متاح». |
 
 ## قواعد
 
