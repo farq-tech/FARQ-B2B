@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, MousePointerClick, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ChevronDown, Loader2, MousePointerClick, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
+import { MapSheet, PEEK, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
@@ -76,11 +77,24 @@ function Ranking({ rows, metric, selected, onToggle, full }: {
   )
 }
 
+/** A native select dressed as a chip, for the phone's floating row. */
+function ChipSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: [string, string][] }) {
+  return (
+    <span className="relative shrink-0">
+      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}
+        className="h-9 appearance-none rounded-full border border-primary/40 bg-card/95 ps-3.5 pe-8 text-sm font-semibold text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        {options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
+      </select>
+      <ChevronDown className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+    </span>
+  )
+}
+
 /** The step of a journey, as a numbered tab. */
 function StepTab({ index, label, active, onClick }: { index: number; label: string; active: boolean; onClick: () => void }) {
   return (
     <button role="tab" aria-selected={active} onClick={onClick}
-      className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60', active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+      className={cn('flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60', active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
     </button>
@@ -107,6 +121,9 @@ export function LensMap() {
   // the activity «المنافسون» is studying: a picked district then lists its competitors by name
   const [rival, setRival] = useState<string | null>(null)
   const searchBox = useRef<HTMLInputElement>(null)
+  const phoneSearch = useRef<HTMLInputElement>(null)
+  // the phone's bottom sheet: a picked district or a search opens it halfway so the answer shows beside the map
+  const [sheet, setSheet] = useState<SheetSnap>('peek')
   const data = useCityData(city)
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
   const active = lensById(lens)
@@ -129,21 +146,27 @@ export function LensMap() {
     const presetLens = query.get('lens') ?? GOAL_LENS[query.get('goal') ?? '']
     presetTool.current = (query.get('tool') as ToolId | null) ?? null
     if (presetLens && LENSES.some((item) => item.id === presetLens)) setLens(presetLens as LensId)
-    if (query.get('goal') === 'find-supplier' || query.get('search') != null) searchBox.current?.focus()
+    if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
   }, [])
+  useEffect(() => { if (selected.length) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [selected.length])
+  useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
 
   const steps = useMemo(() => shadeSteps(new Map(data.rows.map((row) => [row.id, METRICS[metric].value(row)]))), [data.rows, metric])
   const chosen = data.rows.filter((row) => selected.includes(row.id))
   const toggle = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   const cityName = cities.find((item) => item.en === city)?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
+  const submit = () => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }
+  // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait
+  const colorsNote = overlay.colors ? `ألوان الخريطة من «${step?.label}»` : null
+  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${step?.label} · ${chosen.map((row) => row.name).join('، ')}` : `${active.label} · ${step?.label ?? ''}`
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
 
   return (
-    <main className="flex h-[calc(100dvh-4rem)] flex-col pb-16 lg:pb-0">
-      {/* one search pill and one chip row, as on «العقار»: the city, who is looking, and what they look for */}
-      <header className="flex flex-col gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur">
-        <SearchPill label="ابحث عن مورد أو نشاط" onSubmit={() => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }}>
+    <main className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
+      {/* from lg: one search pill and one chip row, as on «العقار»: the city, who is looking, and what they look for */}
+      <header className="hidden flex-col gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur lg:flex">
+        <SearchPill label="ابحث عن مورد أو نشاط" onSubmit={submit}>
           <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
             <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className={pillControl}>
               {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
@@ -160,19 +183,32 @@ export function LensMap() {
           </PillField>
         </SearchPill>
         <ChipRow label="المقياس على الخريطة">
-          {overlay.colors ? (
-            // a tool that paints the districts itself owns the map's colours while it is open
-            <p className="py-2 text-sm text-muted-foreground">الألوان الآن من «{step?.label}». ارجع إلى «{active.steps[0].label}» لتغييرها.</p>
-          ) : active.metrics.map((id) => (
+          {colorsNote ? <p className="py-2 text-sm text-muted-foreground">{colorsNote}</p> : active.metrics.map((id) => (
             <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>
           ))}
         </ChipRow>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative h-[50vh] shrink-0 lg:h-auto lg:flex-1">
+      <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
+        <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} focus={overlay.focus} />
           {overlay.popup}
+          {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3 lg:hidden">
+            <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); submit() }}
+              className="pointer-events-auto flex items-center gap-2 rounded-full border bg-card/95 p-1.5 ps-4 shadow-md backdrop-blur">
+              <input ref={phoneSearch} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="ابحث عن مورد أو نشاط"
+                placeholder="ابحث عن مورد أو نشاط" className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
+              <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
+            </form>
+            <div className="pointer-events-auto -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="المدينة والفئة والمقياس">
+              <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
+              <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
+              {colorsNote
+                ? <span className="inline-flex h-9 shrink-0 items-center rounded-full border bg-card/95 px-3.5 text-sm text-muted-foreground shadow-sm">{colorsNote}</span>
+                : active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
+            </div>
+          </div>
           {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="absolute bottom-3 start-3 flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
             <span className="text-muted-foreground">أقل</span>
             {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}
@@ -180,12 +216,12 @@ export function LensMap() {
           </Explained>}
           {data.status === 'loading' && (
             // a small note in the corner: the map stays visible while the city loads
-            <div role="status" className="absolute top-3 start-3 flex items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-sm shadow-sm backdrop-blur">
+            <div role="status" className="absolute bottom-14 start-3 flex lg:top-3 lg:bottom-auto items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-sm shadow-sm backdrop-blur">
               <Loader2 className="size-4 animate-spin text-primary" aria-hidden />جارٍ تحميل أحياء {cityName}
             </div>
           )}
         </div>
-        <aside className="flex w-full flex-col gap-3 overflow-y-auto p-3 lg:w-[400px] lg:border-s">
+        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle}>
           {data.status === 'error' ? (
             <LoadError what="بيانات المدينة" onRetry={data.reload} />
           ) : (
@@ -198,7 +234,7 @@ export function LensMap() {
               )}
               {!search && (
                 <>
-                  <div role="tablist" aria-label={`خطوات ${active.label}`} className="flex flex-col gap-1.5">
+                  <div role="tablist" aria-label={`خطوات ${active.label}`} className="-mx-3 flex shrink-0 gap-1.5 overflow-x-auto px-3 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0">
                     {active.steps.map((item, index) => (
                       <StepTab key={item.tool} index={index} label={item.label} active={tool === item.tool} onClick={() => setTool(item.tool)} />
                     ))}
@@ -223,7 +259,7 @@ export function LensMap() {
               )}
             </>
           )}
-        </aside>
+        </MapSheet>
       </div>
     </main>
   )
