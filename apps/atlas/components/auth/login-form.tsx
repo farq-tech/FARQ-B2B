@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 function safeNext(value: string | null) {
-  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/opportunity-map'
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/map'
 }
 
 export function LoginForm() {

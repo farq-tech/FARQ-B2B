@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
@@ -12,6 +12,7 @@ import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { LENSES, METRICS, lensById, type LensId, type MetricId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
+import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
@@ -87,14 +88,21 @@ export function LensMap() {
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
 
   useEffect(() => { setSelected([]) }, [city])
-  useEffect(() => { setMetric(lensById(lens).metric); setTool(START[lens]) }, [lens])
+  // a link's ?tool= wins once over the lens's starting tool
+  const presetTool = useRef<ToolId | null>(null)
+  useEffect(() => { setMetric(lensById(lens).metric); setTool(presetTool.current ?? START[lens]); presetTool.current = null }, [lens])
   useEffect(() => {
     setOverlay({})
     if (tool === 'growth') setMetric('growth')
   }, [tool])
   useEffect(() => {
-    const preset = new URLSearchParams(window.location.search).get('tool')
-    if (preset && TOOLS.some((item) => item.id === preset)) setTool(preset as ToolId)
+    const query = new URLSearchParams(window.location.search)
+    // old «السوق» links carry a goal; each goal lands on the lens it served
+    const goalLens: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', 'find-supplier': 'distributors', network: 'distributors' }
+    const presetLens = query.get('lens') ?? goalLens[query.get('goal') ?? '']
+    if (presetLens && LENSES.some((item) => item.id === presetLens)) setLens(presetLens as LensId)
+    const preset = query.get('tool')
+    if (preset && TOOLS.some((item) => item.id === preset)) { presetTool.current = presetLens && presetLens !== 'shops' ? (preset as ToolId) : null; setTool(preset as ToolId) }
   }, [])
 
   const steps = useMemo(() => shadeSteps(new Map(data.rows.map((row) => [row.id, METRICS[metric].value(row)]))), [data.rows, metric])
@@ -159,6 +167,7 @@ export function LensMap() {
               {(tool === 'district' || tool === 'growth' || selected.length > 0) && tool !== 'around' && (
                 <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
               )}
+              {selected.length > 0 && tool !== 'around' && <BusinessesPanel city={city} districts={chosen.map((row) => row.name)} />}
               {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggle} full={lens === 'analysts' || tool === 'growth'} />}
             </>
           )}
