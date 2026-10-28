@@ -3,6 +3,9 @@
 // (body and headers), is handed to relay.js as received; so is any request behind «اتصال» or «محادثة».
 (() => {
   const CONTACT = /phone|mobile|call|contact|chat|conversation|whatsapp|reveal/i
+  // Aqar's own requests only, without the signed-in user's own account query and the page's event log
+  const OWN = /^(\/|https:\/\/[a-z.]*aqar\.fm)/
+  const SKIP = /\/api\/v1\/events|getAuthUser/
   const realFetch = window.fetch
   const headersOf = (init) => {
     try { return Object.fromEntries(new Headers(init?.headers || {}).entries()) } catch { return {} }
@@ -14,7 +17,7 @@
       const body = typeof init?.body === 'string' ? init.body : null
       // what the page asks when someone presses «اتصال» or «محادثة»: kept as samples, so the collecting mode can ask
       // the same for every listing
-      if (url && CONTACT.test(`${url} ${body || ''}`) && !/\/api\/v1\/events/.test(url)) {
+      if (url && CONTACT.test(`${url} ${body || ''}`) && OWN.test(url) && !SKIP.test(`${url} ${body || ''}`)) {
         response.clone().text().then((text) => window.postMessage({ source: 'farq-aqar', type: 'contact', url: String(url), request: body, headers: headersOf(init), response: text.slice(0, 20000), page: location.href }, '*')).catch(() => {})
       }
       if (url && url.includes('/graphql') && body && body.includes('find')) {
@@ -44,7 +47,7 @@
   XMLHttpRequest.prototype.open = function (method, url, ...rest) { this.__farqUrl = String(url); return open.call(this, method, url, ...rest) }
   XMLHttpRequest.prototype.send = function (body) {
     const url = this.__farqUrl || ''
-    if (CONTACT.test(`${url} ${typeof body === 'string' ? body : ''}`)) {
+    if (CONTACT.test(`${url} ${typeof body === 'string' ? body : ''}`) && OWN.test(url) && !SKIP.test(`${url} ${typeof body === 'string' ? body : ''}`)) {
       this.addEventListener('load', () => {
         try { window.postMessage({ source: 'farq-aqar', type: 'contact', url, request: typeof body === 'string' ? body : null, headers: {}, response: String(this.responseText).slice(0, 20000), page: location.href }, '*') } catch { /* ignore */ }
       })

@@ -150,3 +150,22 @@ if (/chat|محادث|message/i.test(decodeURIComponent(location.pathname))) {
     await set({ contactSamples: [...contactSamples, { url: location.href, page: document.referrer, kind: 'chat-page', at: new Date().toISOString() }].slice(-40) })
   })
 }
+
+// on a listing's page the advertiser's number and chat may show as links after «اتصال» or «محادثة» is pressed:
+// every call, WhatsApp or chat link that appears is kept with the listing it belongs to
+const listingId = (decodeURIComponent(location.pathname).match(/-(\d{5,})$/) || [])[1]
+if (listingId) {
+  const seen = new Set()
+  const look = () => {
+    for (const a of document.querySelectorAll('a[href^="tel:"], a[href*="wa.me"], a[href*="whatsapp"], a[href*="chat"], a[href*="محادث"]')) {
+      if (seen.has(a.href)) continue
+      seen.add(a.href)
+      writes = writes.then(async () => {
+        const { contactSamples } = await get({ contactSamples: [] })
+        await set({ contactSamples: [...contactSamples, { kind: 'page-link', listing: listingId, url: a.href, text: (a.innerText || '').trim().slice(0, 80), page: location.href, at: new Date().toISOString() }].slice(-40) })
+      })
+    }
+  }
+  new MutationObserver(look).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] })
+  look()
+}
