@@ -43,9 +43,11 @@ def chain_decisions(rows, taxonomy, main_of):
     main_of: sub_id -> main id. Returns ({poi_key: new row}, [one summary per chain that reached consensus])."""
     by_city = {}
     for city, *rest in rows:
-        by_city.setdefault(city, []).append(tuple(rest))
+        # a chain lives in one city, as on the map: places without a city are never pooled into one
+        if city and city.strip():
+            by_city.setdefault(city, []).append(tuple(rest))
     changes, chains = {}, []
-    for city, city_rows in sorted(by_city.items(), key=lambda item: item[0] or ""):
+    for city, city_rows in sorted(by_city.items()):
         for group in group_chains(city_rows).values():
             pois = sorted(group["pois"])
             if len(pois) < MIN_BRANCHES:
@@ -95,8 +97,9 @@ def main():
                 db.execute("select poi_key, sub_id, confidence from read_parquet(?)", [args.taxonomy]).fetchall()}
     changes, chains = chain_decisions(rows, taxonomy, main_of)
     db.execute("create table changes(poi_key varchar, sub_id varchar, source varchar, confidence varchar, evidence varchar)")
-    db.executemany("insert into changes values (?, ?, ?, ?, ?)",
-                   [(c["poi_key"], c["sub_id"], c["source"], c["confidence"], c["evidence"]) for c in changes.values()])
+    if changes:  # DuckDB refuses an empty executemany; a run that moves nothing still writes its copy and report
+        db.executemany("insert into changes values (?, ?, ?, ?, ?)",
+                       [(c["poi_key"], c["sub_id"], c["source"], c["confidence"], c["evidence"]) for c in changes.values()])
     kept = {row[0] for row in db.execute("describe select * from read_parquet(?)", [args.taxonomy]).fetchall()}
     select = ", ".join(f"cast(x.{name} as varchar) as \"{name}\"" if name in kept else f"null::varchar as \"{name}\""
                        for name in ("poi_key", "sub_id", "source", "confidence", "evidence"))

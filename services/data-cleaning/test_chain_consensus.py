@@ -79,6 +79,11 @@ class ChainConsensusTests(unittest.TestCase):
         changes, _ = self.decide(split, {f"a{i}": ("health.pharmacy", "high") for i in range(1, 4)})
         self.assertEqual(changes, {})
 
+    def test_places_without_a_city_are_not_one_chain(self):
+        rows = [row(f"x{i}", "صيدلية النهدي", city=None) for i in range(1, 4)] + [row(f"y{i}", "صيدلية النهدي", city="") for i in range(1, 4)]
+        changes, chains = self.decide(rows, {"x1": ("health.pharmacy", "high"), "x2": ("health.pharmacy", "high"), "x3": ("health.pharmacy", "high"), "y1": ("health.pharmacy", "low")})
+        self.assertEqual((changes, chains), ({}, []))
+
     def test_cli_writes_a_new_file_and_never_its_input(self):
         temp = pathlib.Path(tempfile.mkdtemp())
         db = duckdb.connect()
@@ -100,6 +105,15 @@ class ChainConsensusTests(unittest.TestCase):
         self.assertEqual(len(rows), 4)
         self.assertEqual(json.loads((temp / "tax_v2.report.json").read_text())["rows_moved"], 1)
         self.assertNotEqual(run(temp / "tax_v2.parquet").returncode, 0)
+        # nothing to move: the copy and the report are still written
+        result = run(temp / "tax_v3.parquet")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = subprocess.run([sys.executable, str(HERE / "chain_consensus.py"), "--targets", str(temp / "targets.parquet"),
+                                 "--taxonomy", str(temp / "tax_v2.parquet"), "--subs", str(temp / "subs.json"), "--out", str(temp / "tax_v4.parquet")],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((temp / "tax_v4.report.json").read_text())["rows_moved"], 0)
+        self.assertEqual(db.execute(f"select count(*) from read_parquet('{temp / 'tax_v4.parquet'}')").fetchone()[0], 4)
 
 
 if __name__ == "__main__":
