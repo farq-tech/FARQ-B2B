@@ -57,6 +57,72 @@ GENERIC_BRAND_KEYS = frozenset({
 })
 
 
+def fold_key(text):
+    """The brand key's letter folding (brand_sql) for a name read in Python: lower case, one Arabic letter form, letters,
+    digits and single spaces only."""
+    text = (text or "").lower().translate(str.maketrans("أإآةىؤئ", "اااهيوي")).replace("ـ", "")
+    return " ".join("".join(char for char in text if char.isalnum() or char.isspace()).split())
+
+
+def brand_sql(columns):
+    """Select list giving each business its brand label and key: the registered brand name, else the business name
+    cut before a branch suffix ("- العليا", "فرع", brackets); the key compares labels after Arabic letter folding.
+    Also the commercial registration, which joins a brand written in Arabic and in Latin letters."""
+    brand = "nullif(trim(p.brand_name), '')" if "brand_name" in columns else "null"
+    cr = "nullif(trim(p.commercial_license), '')" if "commercial_license" in columns else "null"
+    label = (rf"trim(regexp_replace(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en), "
+             r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i'), '(\s+[0-9٠-٩]+)+$', ''))")
+    # a branch number at the end («الجازع 5», «اوشن ٣١») names the branch, not the brand
+    key = (rf"trim(regexp_replace(regexp_replace(regexp_replace(translate(lower({label}), 'أإآةىؤئـ', 'اااهيوي'), "
+           r"'[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g'), '(\s+[0-9٠-٩]+)+$', ''))")
+    return f"p.poi_key, p.district_ar, {label} brand_label, {key} brand_key, {cr} cr"
+
+
+def group_chains(rows):
+    """Businesses (poi_key, district, label, key, cr) grouped into brands by key. An Arabic key and a Latin key also
+    join when they share commercial registrations and each is the other's strongest partner across scripts: the
+    same brand in two scripts. A join never chains (Arabic to Latin to another Arabic name), so two competitors that
+    a stray registration links stay apart, and keys in the same script never join, so a holding company's brands
+    stay apart. A bare activity word («صيدليه», «pharmacy») names no brand, nor does a district's own name (places the
+    directory names after their district) or a name fragment that opens with «لل» («للملابس الجاهزة»)."""
+    arabic = lambda text: any("؀" <= char <= "ۿ" for char in text)
+    places = {fold_key(district) for _, district, _, _, _ in rows if district}
+    usable = lambda key: bool(key) and len(key) >= 2 and key not in GENERIC_BRAND_KEYS and key not in places and not key.startswith("لل")
+    by_cr = {}
+    for poi, _, _, key, cr in rows:
+        if usable(key) and cr:
+            by_cr.setdefault(cr, {}).setdefault(key, set()).add(poi)
+    # how strongly each Arabic and Latin key are tied: branches sharing a registration, summed over registrations
+    ties = Counter()
+    for keys in by_cr.values():
+        for key, pois in keys.items():
+            for other, others in keys.items():
+                if arabic(key) and not arabic(other):
+                    ties[(key, other)] += min(len(pois), len(others))
+    best_latin, best_arabic = {}, {}
+    for (ar, la), weight in sorted(ties.items(), key=lambda item: (-item[1], item[0])):
+        best_latin.setdefault(ar, la)
+        best_arabic.setdefault(la, ar)
+    partner = {la: ar for ar, la in best_latin.items() if best_arabic.get(la) == ar}
+    groups = {}
+    for poi, district, label, key, _ in rows:
+        if not usable(key):
+            continue
+        group = groups.setdefault(partner.get(key, key), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
+        if poi in group["pois"]:
+            continue
+        group["pois"].add(poi)
+        group["keys"][key] += 1
+        group["labels"][label] += 1
+        if district and district.strip():
+            group["districts"][district] += 1
+    for group in groups.values():
+        # the Arabic spelling names the brand when it has one
+        names = [label for label, _ in group["labels"].most_common() if arabic(label)] or [group["labels"].most_common(1)[0][0]]
+        group["brand"] = names[0]
+    return groups
+
+
 def haversine_km(lon1, lat1, lon2, lat2):
     lon1, lat1, lon2, lat2 = map(math.radians, (lon1, lat1, lon2, lat2))
     return 2 * 6371 * math.asin(math.sqrt(math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2))
@@ -328,61 +394,9 @@ class MarketAnalytics:
         return self._column_names
 
     def _brand_sql(self):
-        """Select list giving each business its brand label and key: the registered brand name, else the business name
-        cut before a branch suffix ("- العليا", "فرع", brackets); the key compares labels after Arabic letter folding.
-        Also the commercial registration, which joins a brand written in Arabic and in Latin letters."""
-        columns = self._columns()
-        brand = "nullif(trim(p.brand_name), '')" if "brand_name" in columns else "null"
-        cr = "nullif(trim(p.commercial_license), '')" if "commercial_license" in columns else "null"
-        label = (rf"trim(regexp_replace(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en), "
-                 r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i'), '(\s+[0-9٠-٩]+)+$', ''))")
-        # a branch number at the end («الجازع 5», «اوشن ٣١») names the branch, not the brand
-        key = (rf"trim(regexp_replace(regexp_replace(regexp_replace(translate(lower({label}), 'أإآةىؤئـ', 'اااهيوي'), "
-               r"'[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g'), '(\s+[0-9٠-٩]+)+$', ''))")
-        return f"p.poi_key, p.district_ar, {label} brand_label, {key} brand_key, {cr} cr"
+        return brand_sql(self._columns())
 
-    @staticmethod
-    def _group_chains(rows):
-        """Businesses (poi_key, district, label, key, cr) grouped into brands by key. An Arabic key and a Latin key also
-        join when they share commercial registrations and each is the other's strongest partner across scripts: the
-        same brand in two scripts. A join never chains (Arabic to Latin to another Arabic name), so two competitors that
-        a stray registration links stay apart, and keys in the same script never join, so a holding company's brands
-        stay apart. A bare activity word («صيدليه», «pharmacy») names no brand."""
-        arabic = lambda text: any("؀" <= char <= "ۿ" for char in text)
-        usable = lambda key: bool(key) and len(key) >= 2 and key not in GENERIC_BRAND_KEYS
-        by_cr = {}
-        for poi, _, _, key, cr in rows:
-            if usable(key) and cr:
-                by_cr.setdefault(cr, {}).setdefault(key, set()).add(poi)
-        # how strongly each Arabic and Latin key are tied: branches sharing a registration, summed over registrations
-        ties = Counter()
-        for keys in by_cr.values():
-            for key, pois in keys.items():
-                for other, others in keys.items():
-                    if arabic(key) and not arabic(other):
-                        ties[(key, other)] += min(len(pois), len(others))
-        best_latin, best_arabic = {}, {}
-        for (ar, la), weight in sorted(ties.items(), key=lambda item: (-item[1], item[0])):
-            best_latin.setdefault(ar, la)
-            best_arabic.setdefault(la, ar)
-        partner = {la: ar for ar, la in best_latin.items() if best_arabic.get(la) == ar}
-        groups = {}
-        for poi, district, label, key, _ in rows:
-            if not usable(key):
-                continue
-            group = groups.setdefault(partner.get(key, key), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
-            if poi in group["pois"]:
-                continue
-            group["pois"].add(poi)
-            group["keys"][key] += 1
-            group["labels"][label] += 1
-            if district and district.strip():
-                group["districts"][district] += 1
-        for group in groups.values():
-            # the Arabic spelling names the brand when it has one
-            names = [label for label, _ in group["labels"].most_common() if arabic(label)] or [group["labels"].most_common(1)[0][0]]
-            group["brand"] = names[0]
-        return groups
+    _group_chains = staticmethod(group_chains)
 
     def _chain_rows(self, where, params):
         with self.lock:
