@@ -102,5 +102,13 @@ class InsightTests(unittest.TestCase):
         self.assertIsNone(insights.district_audience("Jeddah", str(path)))
 
 
+    def test_housing_level_merges_polygons_and_skips_tiny_districts(self):
+        path = self.parquet("hl.parquet", "district_id varchar, district_ar varchar, villas bigint, dwelling_units double", [
+            ("492", "العليا", 100, 300.0), ("493", "العليا", 50, 200.0), ("380", "السليمانية", 10, 1000.0), ("7", "صغير", 5, 20.0)])
+        rows = insights.housing_level(self.db, path, ["492", "493", "380", "7"], {"492": "492", "493": "492", "380": "380", "7": "7"}, {"492": ("العليا", None)})
+        self.assertEqual([(r["district_ar"], r["villa_share_pct"], r["dwelling_units"]) for r in rows], [("العليا", 30.0, 500), ("السليمانية", 1.0, 1000)])
+        self.assertIsNone(insights.housing_level(self.db, None, [], {}, {}))
+
+
 if __name__ == "__main__":
     unittest.main()

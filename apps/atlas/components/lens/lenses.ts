@@ -6,7 +6,7 @@ import type { DistrictRow } from './city-data'
  */
 export type LensId = 'shops' | 'marketers' | 'distributors' | 'analysts'
 
-export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'whatsapp' | 'income' | 'growth' | 'restaurants'
+export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'whatsapp' | 'income' | 'growth' | 'restaurants' | 'villaShare'
 
 export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow) => number | null; unit?: string }> = {
   population: { label: 'السكان', value: (row) => row.population },
@@ -17,6 +17,7 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
   },
   whatsapp: { label: 'منشآت بواتساب', value: (row) => row.whatsapp },
   restaurants: { label: 'مطاعم على تطبيقات التوصيل', value: (row) => row.restaurants },
+  villaShare: { label: 'حصة الفلل من المساكن', value: (row) => row.villaShare, unit: '%' },
   income: { label: 'متوسط الدخل', value: (row) => row.income, unit: 'ر.س' },
   growth: {
     label: 'مبانٍ جديدة وتحت الإنشاء',
@@ -25,10 +26,10 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
 }
 
 export const LENSES: { id: LensId; label: string; metric: MetricId; metrics: MetricId[] }[] = [
-  { id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'population', 'income', 'restaurants', 'growth'] },
-  { id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'restaurants', 'whatsapp'] },
+  { id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'population', 'income', 'villaShare', 'restaurants', 'growth'] },
+  { id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare', 'restaurants', 'whatsapp'] },
   { id: 'distributors', label: 'الموزّعون', metric: 'businesses', metrics: ['businesses', 'restaurants', 'growth', 'population'] },
-  { id: 'analysts', label: 'المحلّلون', metric: 'population', metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'restaurants', 'growth', 'whatsapp'] },
+  { id: 'analysts', label: 'المحلّلون', metric: 'population', metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'villaShare', 'restaurants', 'growth', 'whatsapp'] },
 ]
 
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]

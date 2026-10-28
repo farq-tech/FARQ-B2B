@@ -44,6 +44,35 @@ def growth(db, path, polygon_ids, id_map, names):
     return result
 
 
+MIN_HOUSING_UNITS = 200
+
+
+def housing_level(db, path, polygon_ids, id_map, names):
+    """Share of a canonical district's homes that are villas, from the buildings layer: a named stand-in for income
+    where no income is published (docs/atlas-product-foundation.md §7). A district with fewer than MIN_HOUSING_UNITS
+    dwellings is left out: a handful of buildings is no level."""
+    if not path:
+        return None
+    rows = db.execute("""select district_id, district_ar, villas, dwelling_units from read_parquet(?)
+                         where cast(district_id as varchar) in (select unnest(?::varchar[]))""", [path, list(polygon_ids)]).fetchall()
+    merged = {}
+    for district_id, district_ar, villas, units in rows:
+        canonical = str(id_map.get(str(district_id), district_id))
+        out = merged.setdefault(canonical, {'district_id': canonical, 'district_ar': names.get(canonical, (district_ar, None))[0] or district_ar,
+                                            'villas': 0, 'dwelling_units': 0.0})
+        out['villas'] += int(villas or 0)
+        out['dwelling_units'] += float(units or 0)
+    result = []
+    for row in merged.values():
+        if row['dwelling_units'] < MIN_HOUSING_UNITS:
+            continue
+        row['villa_share_pct'] = round(min(100.0, 100 * row['villas'] / row['dwelling_units']), 1)
+        row['dwelling_units'] = round(row['dwelling_units'])
+        result.append(row)
+    result.sort(key=lambda row: (-row['villa_share_pct'], row['district_ar'] or ''))
+    return result
+
+
 def _haversine_sql(lon_col, lat_col):
     return (f"2 * {EARTH_M} * asin(sqrt(pow(sin(radians({lat_col} - ?) / 2), 2) + "
             f"cos(radians(?)) * cos(radians({lat_col})) * pow(sin(radians({lon_col} - ?) / 2), 2)))")

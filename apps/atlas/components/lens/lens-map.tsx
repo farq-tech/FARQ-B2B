@@ -30,7 +30,7 @@ const TOOLS: { id: ToolId; label: string }[] = [
 // the tool each group starts on (docs/atlas-product-foundation.md §4)
 const START: Record<LensId, ToolId> = { shops: 'gaps', marketers: 'audience', distributors: 'territories', analysts: 'district' }
 
-const format = (value: number | null, unit?: string) => (value == null ? 'غير متاح' : `${numberFormat.format(value)}${unit ? ` ${unit}` : ''}`)
+const format = (value: number | null, unit?: string) => (value == null ? 'غير متاح' : `${numberFormat.format(value)}${unit ? (unit === '%' ? '%' : ` ${unit}`) : ''}`)
 
 /** The explanation of one district's value of the shading metric. */
 function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
@@ -40,6 +40,7 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'residentsPerBusiness': return EXPLAIN.residentsPerBusiness(row.population, row.businesses)
     case 'whatsapp': return EXPLAIN.whatsapp
     case 'restaurants': return EXPLAIN.restaurants
+    case 'villaShare': return EXPLAIN.villaShare
     case 'income': return EXPLAIN.income
     case 'growth': return EXPLAIN.growth(row.underConstruction, row.newBuildings)
   }
