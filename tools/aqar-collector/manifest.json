@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Farq Aqar collector (discovery)",
+  "version": "0.1.0",
+  "description": "Records the data an Aqar search page receives, so Farq Atlas can read listing links, prices and locations.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://sa.aqar.fm/*"],
+  "action": { "default_popup": "popup.html", "default_title": "Farq Aqar collector" },
+  "content_scripts": [
+    { "matches": ["https://sa.aqar.fm/*"], "js": ["inject.js"], "run_at": "document_start", "world": "MAIN" },
+    { "matches": ["https://sa.aqar.fm/*"], "js": ["relay.js"], "run_at": "document_start" }
+  ]
+}

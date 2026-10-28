@@ -6,3 +6,6 @@ tmp/
 .env
 .env.local
 .env.*.local
+
+# raw Aqar collector exports
+aqar-discovery-*.json
