@@ -222,7 +222,8 @@ def territories(features, weights, count):
 INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
 
 
-REAL_ESTATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_districts.json')
+# the district table lives on the service's data volume in production (REAL_ESTATE_DISTRICTS), like the listing cards
+REAL_ESTATE_PATH = os.environ.get('REAL_ESTATE_DISTRICTS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_districts.json')
 
 
 def real_estate(city, path=None):

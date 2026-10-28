@@ -118,6 +118,27 @@ class StartupJobsTests(unittest.TestCase):
                 os.environ.pop(name, None)
             self.assertFalse(startup_jobs._fetch_buildings(target), 'without a configured source nothing is fetched')
 
+    def test_real_estate_inputs_are_fetched_once_per_digest(self):
+        out = Path(tempfile.mkdtemp())
+        files = {'inputs/re-districts.json': b'{"cities": {}}', 'inputs/re-listings.json': b'{"listings": []}'}
+        written = []
+
+        class Client:
+            def download_file(self, bucket, key, path):
+                written.append(key)
+                Path(path).write_bytes(files[key])
+
+        sha = lambda data: __import__('hashlib').sha256(data).hexdigest()
+        env = {'BUCKET': 'farq-data-inputs',
+               'REAL_ESTATE_DISTRICTS': str(out / 'districts.json'), 'REAL_ESTATE_LISTINGS': str(out / 'listings.json'),
+               'FARQ_REAL_ESTATE_DISTRICTS_OBJECT': 'inputs/re-districts.json', 'FARQ_REAL_ESTATE_DISTRICTS_SHA256': sha(files['inputs/re-districts.json']),
+               'FARQ_REAL_ESTATE_LISTINGS_OBJECT': 'inputs/re-listings.json', 'FARQ_REAL_ESTATE_LISTINGS_SHA256': sha(files['inputs/re-listings.json'])}
+        with mock.patch.dict(os.environ, env), mock.patch.dict('sys.modules', {'boto3': mock.Mock(client=lambda *a, **k: Client())}):
+            startup_jobs._real_estate_inputs()
+            self.assertEqual((out / 'listings.json').read_bytes(), files['inputs/re-listings.json'])
+            startup_jobs._real_estate_inputs()
+        self.assertEqual(written, ['inputs/re-districts.json', 'inputs/re-listings.json'], 'an unchanged digest is not fetched again')
+
     def test_the_job_works_in_the_population_folder_and_adopts_a_layer_left_in_the_release(self):
         os.environ['FARQ_BUILD_BUILDING_POPULATION'] = '1'
         aux = Path(tempfile.mkdtemp())
