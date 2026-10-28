@@ -26,10 +26,13 @@ export async function GET(request: NextRequest) {
     const response = await fetch(`${origin}/api/intelligence/map/city/${key}/districts`, { next: { revalidate: 3600 } })
     if (!response.ok) return NextResponse.json({ error: 'unavailable' }, { status: 502 })
     const body = (await response.json()) as { features?: FarqDistrict[]; generated_at?: string | null }
-    const districts = (body.features ?? [])
+    const rows = (body.features ?? [])
       .map((feature) => feature.properties ?? {})
       .filter((p) => p.atlas_district_id && typeof p.places === 'number')
       .map((p) => ({ district_id: String(p.atlas_district_id), restaurants: p.places as number }))
+    // A city Farq does not cover yet comes back as zero in every district. That zero means "not observed", so the
+    // whole city is left out and every district shows «غير متاح».
+    const districts = rows.some((row) => row.restaurants > 0) ? rows : []
     return NextResponse.json(
       { districts, generated_at: body.generated_at ?? null },
       { headers: { 'cache-control': 'public, max-age=600, stale-while-revalidate=3600' } },
