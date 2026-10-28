@@ -37,14 +37,28 @@ def _signature(source, paths, settings=None):
     return {'source': source, 'settings': settings or {}, 'inputs': stats}
 
 
+def _sha256(path):
+    sha = hashlib.sha256()
+    with Path(path).open('rb') as handle:
+        for block in iter(lambda: handle.read(4 * 1024 * 1024), b''):
+            sha.update(block)
+    return sha.hexdigest()
+
+
 def _fetch_buildings(target):
     """Put the building layer on the volume from the project's bucket when it is missing there.
 
-    FARQ_BUILDINGS_OBJECT names the object and FARQ_BUILDINGS_SHA256 its digest; the bucket and its keys come
-    from the Railway bucket variables (BUCKET, ENDPOINT, REGION, ACCESS_KEY_ID, SECRET_ACCESS_KEY). The file is
-    written beside the target, checked against the digest and only then moved into place, so a partial or
-    different download never reaches the job. Returns True when the file is in place."""
-    key, digest = os.environ.get('FARQ_BUILDINGS_OBJECT', '').strip(), os.environ.get('FARQ_BUILDINGS_SHA256', '').strip().lower()
+    FARQ_BUILDINGS_OBJECT names the object and FARQ_BUILDINGS_SHA256 its digest."""
+    return _fetch('building_population', 'buildings', 'FARQ_BUILDINGS', target)
+
+
+def _fetch(job, name, prefix, target):
+    """Download the bucket object <prefix>_OBJECT to target when its digest is <prefix>_SHA256.
+
+    The bucket and its keys come from the Railway bucket variables (BUCKET, ENDPOINT, REGION, ACCESS_KEY_ID,
+    SECRET_ACCESS_KEY). The file is written beside the target, checked against the digest and only then moved into
+    place, so a partial or different download never reaches a reader. Returns True when the file is in place."""
+    key, digest = os.environ.get(f'{prefix}_OBJECT', '').strip(), os.environ.get(f'{prefix}_SHA256', '').strip().lower()
     bucket = os.environ.get('BUCKET', '').strip()
     if not key or not digest or not bucket:
         return False
@@ -55,15 +69,11 @@ def _fetch_buildings(target):
     partial = target.with_name(target.name + '.download')
     try:
         client.download_file(bucket, key, str(partial))
-        sha = hashlib.sha256()
-        with partial.open('rb') as handle:
-            for block in iter(lambda: handle.read(4 * 1024 * 1024), b''):
-                sha.update(block)
-        if sha.hexdigest() != digest:
-            LOGGER.error('startup_job_input_rejected job=building_population input=buildings reason=sha256_mismatch')
+        if _sha256(partial) != digest:
+            LOGGER.error('startup_job_input_rejected job=%s input=%s reason=sha256_mismatch', job, name)
             return False
         os.replace(partial, target)
-        LOGGER.info('startup_job_input_fetched job=building_population input=buildings bytes=%s', target.stat().st_size)
+        LOGGER.info('startup_job_input_fetched job=%s input=%s bytes=%s', job, name, target.stat().st_size)
         return True
     finally:
         partial.unlink(missing_ok=True)
@@ -126,6 +136,22 @@ def _building_population(data_dir, aux_dir=None):
     LOGGER.info('building_population_done %s', json.dumps(report, ensure_ascii=False))
 
 
+def _real_estate_inputs():
+    """Put the real-estate tables (build_real_estate_reference.py) on the volume, where insights reads them through
+    REAL_ESTATE_DISTRICTS and REAL_ESTATE_LISTINGS. Each is fetched again only when its configured digest changes,
+    so a new collection is published by uploading the files and setting the two digests."""
+    for name, prefix, path in (('districts', 'FARQ_REAL_ESTATE_DISTRICTS', os.environ.get('REAL_ESTATE_DISTRICTS')),
+                               ('listings', 'FARQ_REAL_ESTATE_LISTINGS', os.environ.get('REAL_ESTATE_LISTINGS'))):
+        if not path:
+            LOGGER.error('startup_job_skipped job=real_estate_inputs input=%s reason=no_target_path', name)
+            continue
+        target, digest = Path(path), os.environ.get(f'{prefix}_SHA256', '').strip().lower()
+        if target.is_file() and _sha256(target) == digest:
+            LOGGER.info('startup_job_skipped job=real_estate_inputs input=%s reason=inputs_unchanged', name)
+            continue
+        _fetch('real_estate_inputs', name, prefix, target)
+
+
 def _run(name, target, *args):
     try:
         LOGGER.info('startup_job_started job=%s', name)
@@ -140,4 +166,7 @@ def start(data_dir, aux_dir=None):
     if _enabled('FARQ_BUILD_BUILDING_POPULATION'):
         threading.Thread(target=_run, args=('building_population', _building_population, data_dir, aux_dir), daemon=True, name='job-building-population').start()
         started.append('building_population')
+    if os.environ.get('FARQ_REAL_ESTATE_LISTINGS_OBJECT', '').strip():
+        threading.Thread(target=_run, args=('real_estate_inputs', _real_estate_inputs), daemon=True, name='job-real-estate-inputs').start()
+        started.append('real_estate_inputs')
     return started
