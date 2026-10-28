@@ -281,8 +281,10 @@ def _listing_cards(path):
 def real_estate_listings(city, filters, path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
-    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), under a price as
-    advertised and over an area. Sorted with the listings
+    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), a price range as
+    advertised and an area range. An ad that does not state the figure a range asks about is left out of that range,
+    never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
+    and figures that do not need checking. Sorted with the listings
     furthest under their district's median price per m² first, then those without a comparison, then those marked
     for checking; capped at `limit`, while `total` counts every match. None when there is no file yet."""
     try:
@@ -291,13 +293,15 @@ def real_estate_listings(city, filters, path=None):
         return None
     box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
     types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
-    max_price, min_area = filters.get('max_price'), filters.get('min_area')
-    found = [card for card in table.get('listings', []) if card['city'] == city
+    within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
+    publishable = lambda card: (not card.get('check') and card.get('price_sar') is not None and card.get('deal') != 'rent_unstated'
+                                and bool(card.get('photos') or card.get('photo')))
+    found = [card for card in table.get('listings', []) if card['city'] == city and publishable(card)
              and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
              and (not districts or card['district_id'] in districts)
              and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
-             and (max_price is None or card['price_sar'] <= max_price)
-             and (min_area is None or card['area_sqm'] >= min_area)]
+             and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
+             and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))]
     # a card to check (its figures look wrong) goes after every other, then those without a district comparison
     # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
     # so those follow the rest; an ad with photos goes before one without at the same price standing

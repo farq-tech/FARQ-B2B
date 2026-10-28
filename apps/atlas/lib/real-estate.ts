@@ -38,11 +38,15 @@ export type Listing = {
 
 export type ListingKind = 'rent' | 'sale'
 
+/** What Atlas shows of a listing: a price, a stated period, at least one photo, and figures that need no checking.
+ * The service serves only these; the same test here keeps an older service answer to the same standard. */
+export const isPublishable = (listing: Listing) =>
+  !listing.check && listing.price_sar != null && listing.deal !== 'rent_unstated' && ((listing.photos?.length ?? 0) > 0 || !!listing.photo)
+
 export const PERIOD_WORD: Record<Deal, string> = { sale: '', rent_year: 'سنوياً', rent_month: 'شهرياً', rent_unstated: '' }
 export const RENT_DEALS: { id: Deal; label: string }[] = [
   { id: 'rent_year', label: 'سنوي' },
   { id: 'rent_month', label: 'شهري' },
-  { id: 'rent_unstated', label: 'المدة غير مذكورة' },
 ]
 const GROUP_WORD: Record<string, string> = { residential: 'سكن', commercial: 'محل', office: 'مكتب', warehouse: 'مستودع', land: 'أرض', studio: 'استديو' }
 

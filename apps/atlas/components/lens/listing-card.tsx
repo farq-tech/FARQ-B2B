@@ -1,31 +1,36 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, ChevronDown, ExternalLink, Scale, X } from 'lucide-react'
+import { ChevronDown, ExternalLink, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
+import { Lightbox } from '@/components/shared/lightbox'
 
 const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-warning' } as const
 
-/** Every photo of the ad, swiped sideways; a photo that fails to load drops out. */
+/** Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out. */
 export function Gallery({ photos, className = 'h-40' }: { photos: string[]; className?: string }) {
   const [broken, setBroken] = useState<Set<string>>(new Set())
-  const shown = photos.filter((photo) => !broken.has(photo))
+  const [open, setOpen] = useState<number | null>(null)
+  const shown = [...new Set(photos)].filter((photo) => !broken.has(photo))
   if (!shown.length) return null
   return (
     <div className="relative">
-      <div className={cn('flex snap-x snap-mandatory overflow-x-auto', className)} dir="ltr">
-        {shown.map((photo) => (
-          // the ad's own photos, shown from where they are published
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={photo} src={photo} alt="" loading="lazy" onError={() => setBroken((current) => new Set(current).add(photo))}
-            className="h-full w-full shrink-0 snap-center object-cover" />
+      <div className={cn('flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)} dir="ltr">
+        {shown.map((photo, index) => (
+          // the ad's own photos, shown from where they are published; a tap opens them full screen
+          <button key={photo} type="button" onClick={(event) => { event.stopPropagation(); setOpen(index) }} aria-label={`افتح الصورة ${numberFormat.format(index + 1)}`}
+            className="h-full w-full shrink-0 snap-center cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo} alt="" loading="lazy" onError={() => setBroken((current) => new Set(current).add(photo))} className="h-full w-full object-cover" />
+          </button>
         ))}
       </div>
+      {open != null && <Lightbox photos={shown} start={open} onClose={() => setOpen(null)} />}
       {shown.length > 1 && (
         <span className="absolute bottom-2 start-2 rounded-full bg-background/80 px-2 py-0.5 text-sm backdrop-blur">{numberFormat.format(shown.length)} صور</span>
       )}
@@ -52,7 +57,7 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
   const versus = listing.check ? null : versusDistrict(listing)
   const perSqm = perSqmLine(listing)
   const rooms = [
-    listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : 'المساحة غير مذكورة',
+    listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null,
     listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null,
     listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
   ].filter(Boolean)
@@ -68,7 +73,7 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
           {typeLabel(listing.type)} {listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''}{listing.district_ar ? ` · ${listing.district_ar}` : ''}
         </p>
         <p className="text-xl font-bold">{priceLine(listing)}</p>
-        <p className="text-base">{rooms.join(' · ')}</p>
+        {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
         {perSqm && (
           <p className="text-sm">
             <Explained title="سعر المتر" lines={EXPLAIN.listingPerSqm(listing.deal)} className="font-semibold">{perSqm}</Explained>
@@ -79,11 +84,6 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
               </>
             )}
           </p>
-        )}
-        {listing.check && (
-          <Explained title="تحقق من الإعلان" lines={EXPLAIN.listingCheck} className="flex items-center gap-1.5 text-sm text-warning no-underline">
-            <AlertTriangle className="size-4" aria-hidden /> أرقام هذا الإعلان تحتاج تحققاً
-          </Explained>
         )}
         <button onClick={() => setAround((open) => !open)} aria-expanded={around}
           className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-semibold hover:border-primary">
