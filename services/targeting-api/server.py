@@ -968,8 +968,8 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         self._metric_has_request = True
         self._metric_route = route_label(self.path)
-        if self.path == input_upload.PATH:   # streamed to the volume, so it is handled before the body is read into memory
-            status, body = input_upload.receive(self.headers, self.rfile, AUX_DATA_DIR)
+        if self.path in input_upload.INPUTS:   # streamed to the volume, so it is handled before the body is read into memory
+            status, body = input_upload.receive(self.headers, self.rfile, AUX_DATA_DIR, path=self.path)
             LOGGER.info('input_upload status=%s', status)
             self._json(body, status)
             if status == 200:
@@ -1046,6 +1046,14 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('clusters', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/advisor':
+            # the comparison assistant's model call; Atlas checks the user and owns the prompt (advisor_proxy.py)
+            import advisor_proxy
+            try: system, messages = advisor_proxy.read(body)
+            except ValueError: self._json({'error': 'INPUT'}, 400); return
+            status, answer = advisor_proxy.reply(system, messages)
+            LOGGER.info('advisor status=%s', status)
+            self._json(answer, status)
         elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/real-estate-listings', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:

@@ -49,3 +49,19 @@ class InputUploadTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RealEstateUploadTest(unittest.TestCase):
+    def test_each_table_lands_only_at_its_configured_path(self):
+        import hashlib, tempfile
+        out = Path(tempfile.mkdtemp())
+        payload = b'{"listings": []}'
+        env = {'FARQ_INPUT_UPLOAD_TOKEN': 'x' * 40, 'REAL_ESTATE_LISTINGS': str(out / 'real_estate' / 'listings.json'),
+               'FARQ_REAL_ESTATE_LISTINGS_SHA256': hashlib.sha256(payload).hexdigest()}
+        headers = {'Content-Length': str(len(payload)), 'X-Farq-Upload-Token': 'x' * 40}
+        status, _ = input_upload.receive(headers, io.BytesIO(payload), out, env, path='/admin/inputs/real-estate-listings')
+        self.assertEqual(status, 200)
+        self.assertEqual((out / 'real_estate' / 'listings.json').read_bytes(), payload)
+        status, _ = input_upload.receive(headers, io.BytesIO(payload), out, env, path='/admin/inputs/real-estate-districts')
+        self.assertEqual(status, 409, 'a table without its digest and path is refused')
+        self.assertEqual(input_upload.receive(headers, io.BytesIO(payload), out, env, path='/admin/inputs/other')[0], 404)
