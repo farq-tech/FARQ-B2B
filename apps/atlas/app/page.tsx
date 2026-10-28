@@ -17,11 +17,11 @@ const benefits = [
 
 export default function AtlasLandingPage() {
   return (
-    <main className="min-h-dvh bg-background text-foreground">
+    <main className="min-h-dvh text-foreground">
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label="فرق أطلس، الرئيسية">
-            <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b.svg" alt="" className="h-6 w-auto" /><strong className="text-[15px] text-foreground">أطلس</strong></span>
+            <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b-light.svg" alt="" className="h-6 w-auto" /><strong className="text-[15px] text-foreground">أطلس</strong></span>
             <span><strong className="sr-only">فرق أطلس</strong><small className="text-xs text-muted-foreground">منصة الفرص التجارية</small></span>
           </Link>
           <div className="flex items-center gap-2">

@@ -50,49 +50,90 @@
 }
 
 :root {
-  color-scheme: dark;
-  /* Atlas workspace: dark graphite surfaces with Farq's teal action color. */
-  --background: #0d1217;
-  --foreground: #e8eef2;
-  --card: #151c23;
-  --card-foreground: #e8eef2;
-  --popover: #1a232b;
-  --popover-foreground: #e8eef2;
-  --primary: #25c99a;
-  --primary-foreground: #062017;
-  --secondary: #202a32;
-  --secondary-foreground: #dce5ea;
-  --muted: #1b242c;
-  --muted-foreground: #95a3ad;
-  --accent: #17372f;
-  --accent-foreground: #7de5c2;
-  --destructive: #f07870;
-  --warning: #e8b763;
-  --border: #2a3740;
-  --input: #34424c;
-  --ring: #25c99a;
-  --chart-1: #25c99a;
-  --chart-2: #e8b763;
-  --chart-3: #83a4b7;
-  --chart-4: #a98ee8;
-  --chart-5: #f07870;
+  color-scheme: light;
+  /* Atlas workspace: Farq's own light palette (farq Frontend/src/next/tokens.css, owner palette v2), so Atlas and the
+     Farq app read as one product: the olive brand on a pale apple-green wash. */
+  --background: #f8faf5;
+  --foreground: #172a1e;
+  --card: #ffffff;
+  --card-foreground: #172a1e;
+  --popover: #ffffff;
+  --popover-foreground: #172a1e;
+  --primary: #3e573b;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f7ec;
+  --secondary-foreground: #3e573b;
+  --muted: #eff1ef;
+  --muted-foreground: #5b6c60;
+  --accent: #e7f0de;
+  --accent-foreground: #3e573b;
+  --destructive: #b3261e;
+  --warning: #8a5a00;
+  --border: #e2e7e1;
+  --input: #cfd4d1;
+  --ring: #a3b80f;
+  --chart-1: #3e573b;
+  --chart-2: #c48a0a;
+  --chart-3: #5c7f9a;
+  --chart-4: #7b62c4;
+  --chart-5: #b3261e;
   --radius: 0.8rem;
-  --sidebar: #11181e;
-  --sidebar-foreground: #e8eef2;
-  --sidebar-primary: #25c99a;
-  --sidebar-primary-foreground: #062017;
-  --sidebar-accent: #17372f;
-  --sidebar-accent-foreground: #7de5c2;
-  --sidebar-border: #2a3740;
-  --sidebar-ring: #25c99a;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #172a1e;
+  --sidebar-primary: #3e573b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7f0de;
+  --sidebar-accent-foreground: #3e573b;
+  --sidebar-border: #e2e7e1;
+  --sidebar-ring: #a3b80f;
   --map-land: #e9e7e0;
   --map-road: #ffffff;
+  /* the Farq page wash and its pulsing hex dots (farq ui/glass.css .nx-wash / .nx-dots), a touch lighter */
+  --wash:
+    radial-gradient(120% 60% at 100% 0%, color-mix(in srgb, #d5e39a 40%, transparent) 0%, transparent 60%),
+    radial-gradient(90% 50% at 0% 35%, color-mix(in srgb, #e7f0de 80%, transparent) 0%, transparent 65%),
+    radial-gradient(100% 60% at 80% 100%, color-mix(in srgb, #c9ddb7 35%, transparent) 0%, transparent 70%),
+    #f8faf5;
+  --dot: color-mix(in srgb, color-mix(in srgb, color-mix(in srgb, #a3b80f 45%, #afcc98) 80%, #5c7318) 50%, transparent);
+  --dot-r: 1px;
+  --dot-cell: 20px;
+  --dot-row: calc(var(--dot-cell) * 0.8660254);
+}
+
+/* the page wash behind everything, and the hex dots over it; both fixed, so they stay put while pages scroll */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: var(--wash);
+}
+.atlas-dots {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, var(--dot) var(--dot-r), transparent calc(var(--dot-r) + 0.75px)),
+    radial-gradient(circle, var(--dot) var(--dot-r), transparent calc(var(--dot-r) + 0.75px));
+  background-size: var(--dot-cell) calc(var(--dot-row) * 2);
+  background-position: 0 0, calc(var(--dot-cell) / 2) var(--dot-row);
+  opacity: 0.5;
+  transform-origin: 50% 40%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* only opacity and transform breathe, so the layer is painted once */
+  .atlas-dots { will-change: opacity, transform; animation: atlas-dot-pulse 5.2s ease-in-out infinite; }
+}
+@keyframes atlas-dot-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.012); }
 }
 
 .atlas-landing-hero {
   background:
-    radial-gradient(ellipse at 78% 10%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 42%),
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 50%, var(--background)), var(--background));
+    radial-gradient(ellipse at 78% 10%, color-mix(in srgb, #d5e39a 35%, transparent), transparent 45%);
 }
 
 @layer base {
@@ -100,6 +141,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: transparent;
   }
 }

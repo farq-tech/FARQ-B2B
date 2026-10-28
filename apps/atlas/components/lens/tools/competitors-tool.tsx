@@ -29,8 +29,8 @@ function growthLine(growth: Growth): string | null {
 type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: number; residentsPer: number | null }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مقهى']
-// competition reads as heat: dark for few competitors per km², amber for many
-const HEAT = ['#2a2312', '#4a3a12', '#7a5a12', '#b57f12', '#f59e0b']
+// competition reads as heat: pale for few competitors per km², deep amber for many
+const HEAT = ['#fbefd0', '#f6d98f', '#eebc4f', '#d6951a', '#a86c05']
 const NONE = '#1f9a76'   // no competitor of this activity in the district
 
 /**
