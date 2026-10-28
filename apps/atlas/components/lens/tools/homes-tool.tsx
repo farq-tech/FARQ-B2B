@@ -21,16 +21,18 @@ const BEST = 8
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
+  /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
+  preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
 }) {
-  const [kind, setKind] = useState<ListingKind>('rent')
-  const [type, setType] = useState('apartment')
+  const [kind, setKind] = useState<ListingKind>(preset?.kind ?? 'rent')
+  const [type, setType] = useState(preset?.type ?? 'apartment')
   // a rent is searched in one period at a time, the one its ad states; «all» mixes them, so it takes no budget
-  const [rentDeal, setRentDeal] = useState<Deal | 'all'>('rent_year')
+  const [rentDeal, setRentDeal] = useState<Deal | 'all'>(preset?.deal ?? 'rent_year')
   const [budget, setBudget] = useState(0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
   const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: 0, listings: [] })

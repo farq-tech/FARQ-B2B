@@ -81,7 +81,7 @@ function Chips({ options, chosen, onToggle }: { options: string[]; chosen: strin
  * The comparison assistant: a few taps on who it is for and what matters, then the assistant compares the two options
  * from Atlas figures only and may ask a follow-up. It never decides for the person.
  */
-export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubject; rows: DistrictRow[]; onClose: () => void }) {
+export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubject; rows: DistrictRow[]; onClose?: () => void }) {
   const [who, setWho] = useState<string[]>([])
   const [priorities, setPriorities] = useState<string[]>([])
   const [note, setNote] = useState('')
@@ -138,7 +138,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
           <h2 className="flex items-center gap-1.5 text-lg font-bold"><Sparkles className="size-5 text-primary" aria-hidden /> قارن مع المساعد</h2>
           <p className="text-sm text-muted-foreground">{subjectTitle(subject)}</p>
         </div>
-        <button onClick={onClose} aria-label="إغلاق المساعد" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
+        {onClose && <button onClick={onClose} aria-label="إغلاق المساعد" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>}
       </div>
 
       {turns === null ? (
