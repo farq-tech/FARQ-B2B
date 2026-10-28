@@ -11,6 +11,7 @@
 | الدخل | `reference/districts_910ths.json` | الملف نفسه (`build_910ths_reference.py`) | كما ينشره 910ths لكل حي. لا يُدمج دخل حيين، فهو متوسط لكل عامل. |
 | المطاعم على تطبيقات التوصيل | تجميع فرق لكل حي: `GET api.farq.sa/api/intelligence/map/city/<city>/districts` (حقل `places`)، تقرؤه `apps/atlas/app/api/farq/restaurants` | مستودع `farq-tech/farq` (`lib/city-opportunities.js`) | فرق يقرأ حدود الأحياء من هذا الأطلس (ADR 0141 هناك)، فيُربط الصف بـ`atlas_district_id` لا بالاسم. المطعم الذي تتباعد فروعه لا يُنسب لحي. مدينة كل أحيائها صفر تعني أن فرق لا يغطيها بعد، فتظهر «غير متاح». |
 | مستوى الإنفاق (سعر الصنف المعتاد) | تجميع فرق لكل حي: `GET api.farq.sa/api/intelligence/map/city/<city>/menu-prices`، تقرؤه `apps/atlas/app/api/farq/menu-prices` | مستودع `farq-tech/farq` (`lib/menu-price-level.js`، ADR 0143 هناك) | لكل مطعم: وسيط أصنافه بأرخص سعر بين التطبيقات (5 ريالات حتى سقف المستهلك، بلا بوكسات، 10 أصناف على الأقل). لكل حي: وسيط 5 مطاعم على الأقل، وما دون ذلك «غير متاح». |
+| الطلب غير المُلبّى | تجميع فرق لكل حي: `GET api.farq.sa/api/intelligence/demand/city/<city>/districts`، تقرؤه `apps/atlas/app/api/farq/demand` | مستودع `farq-tech/farq` (`lib/search-demand.js`، ADR 0142 هناك) | بحث فرق الذي يحمل موقع المستخدم يُنسب لحيه عند وصوله، ويُعدّ فقط بلا هوية ولا إحداثيات. لا يُعاد حي أو مصطلح إلا بعد 10 عمليات بحث في 3 أيام مختلفة خلال 90 يوماً، وما دون ذلك «غير متاح». |
 
 ## قواعد
 
