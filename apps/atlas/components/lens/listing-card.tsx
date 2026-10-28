@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ExternalLink, Scale, X } from 'lucide-react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { ChevronDown, ExternalLink, GripHorizontal, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
@@ -62,9 +62,44 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
     listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
   ].filter(Boolean)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+
+  // the card can be dragged by its handle anywhere over the map, never past the map's edges; it stays where it was put
+  // when another listing opens
+  const card = useRef<HTMLElement>(null)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number; min: [number, number]; max: [number, number] } | null>(null)
+  const bounds = (ox: number, oy: number) => {
+    const box = card.current?.getBoundingClientRect(), area = card.current?.parentElement?.getBoundingClientRect()
+    if (!box || !area) return { min: [ox, oy] as [number, number], max: [ox, oy] as [number, number] }
+    return { min: [ox + area.left - box.left, oy + area.top - box.top] as [number, number], max: [ox + area.right - box.right, oy + area.bottom - box.bottom] as [number, number] }
+  }
+  const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value))
+  const start = (event: PointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y, ...bounds(offset.x, offset.y) }
+  }
+  const move = (event: PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current
+    if (!d) return
+    setOffset({ x: clamp(d.ox + event.clientX - d.x, d.min[0], d.max[0]), y: clamp(d.oy + event.clientY - d.y, d.min[1], d.max[1]) })
+  }
+  const nudge = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const step = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] }[event.key]
+    if (!step) return
+    event.preventDefault()
+    const { min, max } = bounds(offset.x, offset.y)
+    setOffset({ x: clamp(offset.x + step[0], min[0], max[0]), y: clamp(offset.y + step[1], min[1], max[1]) })
+  }
+
   return (
-    <article aria-label="العرض المختار" className="absolute inset-x-3 bottom-3 z-10 mx-auto max-h-[85%] max-w-sm overflow-y-auto rounded-2xl border bg-card shadow-xl">
-      <button onClick={onClose} aria-label="إغلاق" className="absolute end-2 top-2 z-10 rounded-full bg-background/80 p-1.5 backdrop-blur hover:bg-background">
+    <article ref={card} aria-label="العرض المختار" style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      className="absolute inset-x-3 bottom-3 z-10 mx-auto max-h-[85%] max-w-sm overflow-y-auto rounded-2xl border bg-card shadow-xl">
+      <button type="button" onPointerDown={start} onPointerMove={move} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }} onKeyDown={nudge}
+        aria-label="اسحب لتحريك البطاقة فوق الخريطة" title="اسحب لتحريك البطاقة"
+        className="sticky top-0 z-[5] flex h-7 w-full cursor-grab touch-none items-center justify-center bg-card/90 text-muted-foreground backdrop-blur outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60">
+        <GripHorizontal className="size-5" aria-hidden />
+      </button>
+      <button onClick={onClose} aria-label="إغلاق" className="absolute end-2 top-1 z-10 rounded-full bg-background/80 p-1.5 backdrop-blur hover:bg-background">
         <X className="size-4" aria-hidden />
       </button>
       <Gallery photos={photos} />
