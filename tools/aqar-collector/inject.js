@@ -1,24 +1,11 @@
 // Runs in the page itself: copies every JSON answer the Aqar page receives (fetch and XHR) and the page's embedded
-// state, and hands them to relay.js. Contact details are blanked here, before anything is stored.
+// state, and hands them to relay.js unchanged (contact details are hidden later, when Farq processes the export).
 (() => {
-  const CONTACT_KEY = /phone|mobile|whats|tel|contact|email|owner_name|user_name/i
-  // whoever placed the ad: their whole record is dropped, Atlas links to the listing instead
-  const PERSON_KEY = /^(user|owner|advertiser|agent|publisher)$/i
-  const PHONE = /^(\+?966|00966|0)?5\d{8}$/
   const MAX = 400_000
 
-  const redact = (value, key = '') => {
-    if (PERSON_KEY.test(key) && value != null) return '[hidden]'
-    if (Array.isArray(value)) return value.map((item) => redact(item))
-    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v, k)]))
-    if ((CONTACT_KEY.test(key) || PERSON_KEY.test(key)) && value != null && value !== '') return '[hidden]'
-    if (typeof value === 'string' && PHONE.test(value.replace(/[\s-]/g, ''))) return '[hidden]'
-    return value
-  }
   const send = (kind, url, body) => {
     try {
-      let data = typeof body === 'string' ? JSON.parse(body) : body
-      data = redact(data)
+      const data = typeof body === 'string' ? JSON.parse(body) : body
       let text = JSON.stringify(data)
       if (text.length > MAX) text = text.slice(0, MAX)
       window.postMessage({ source: 'farq-aqar', kind, url: String(url), page: location.href, at: Date.now(), body: text }, '*')
