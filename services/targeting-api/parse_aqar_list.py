@@ -97,15 +97,50 @@ def parse_collected(record, city_en=None):
     }
 
 
+def parse_map_listing(record, city_en=None):
+    """One listing of Aqar's map search (Web.find, kept by tools/aqar-collector) -> a listing dict, or None. It carries
+    its own location, so it joins its district by coordinates. rent_period 3 is the yearly rent the list cards mark
+    «/سنوي»; advertisers sometimes put a monthly figure there, so a text that speaks of a monthly rent and not a
+    yearly one leaves the period unknown. No advertiser field is copied."""
+    title = (record.get('title') or '').strip()
+    head = _TITLE.match(title)
+    property_type = TYPES.get(head.group('type').strip()) if head else None
+    price, area = _number(record.get('price')), _number(record.get('area'))
+    if not property_type or not price or not area:
+        return None
+    kind = 'sale' if head.group('kind') == 'بيع' else 'rent'
+    text = str(record.get('content') or '')
+    period = 'annually' if record.get('rent_period') == 3 and not ('شهري' in text and 'سنوي' not in text) else None
+    location = record.get('location') or {}
+    district = str(record.get('district') or '').strip()
+    # a city outside the alias table keeps Aqar's Arabic name rather than borrowing another city's
+    city = city_en or _CITY_EN.get(canonical_data.district_key(str(record.get('city') or ''))) or record.get('city')
+    path = record.get('path') or ''
+    return {
+        'listingType': kind, 'propertyType': property_type, 'priceSar': price, 'areaSqm': area,
+        'rentPeriod': period if kind == 'rent' else None,
+        'latitude': location.get('lat'), 'longitude': location.get('lng'),
+        'districtArabic': district[3:] if district.startswith('حي ') else district or None,
+        'aqar_district_id': record.get('district_id'), 'city_en': city, 'title': title,
+        'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
+        'aqar_id': str(record.get('id')),
+    }
+
+
 def parse_rows(rows, city_en='Riyadh'):
     """Parsed listings without the repeats a paginated list produces (same photo or same link = same listing).
     Takes either a browser scraper's columns or tools/aqar-collector's records."""
     seen, out = set(), []
     for row in rows:
-        listing = parse_collected(row, city_en) if 'lines' in row else parse_row(row, city_en)
+        if 'location' in row or 'rent_period' in row:
+            listing = parse_map_listing(row, city_en)
+        elif 'lines' in row:
+            listing = parse_collected(row, city_en)
+        else:
+            listing = parse_row(row, city_en)
         if not listing:
             continue
-        key = listing['url'] or listing['image'] or (listing['title'], listing['priceSar'], listing['areaSqm'])
+        key = listing.get('aqar_id') or listing['url'] or listing.get('image') or (listing['title'], listing['priceSar'], listing['areaSqm'])
         if key in seen:
             continue
         seen.add(key)
@@ -131,8 +166,8 @@ def main(argv=None):
             rows = list(csv.DictReader(handle))
     else:
         rows = json.loads(path.read_text(encoding='utf-8'))
-        if isinstance(rows, dict):   # tools/aqar-collector export
-            rows = rows.get('listings', [])
+        if isinstance(rows, dict):   # tools/aqar-collector export: map listings first, they carry a location
+            rows = rows.get('mapListings', []) + rows.get('listings', [])
     listings = parse_rows(rows, args.city)
     for listing in listings:
         listing['city_en'] = listing['city_en'] or 'Riyadh'

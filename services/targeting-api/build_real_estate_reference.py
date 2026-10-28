@@ -27,8 +27,9 @@ MIN_LISTINGS = 5
 
 # property types as the listings name them -> the groups Atlas shows
 GROUPS = {
+    # a room is left out: its listed area is usually the whole building's
     'apartment': 'residential', 'studio': 'residential', 'floor': 'residential', 'villa': 'residential',
-    'house': 'residential', 'room': 'residential', 'building': 'residential',
+    'house': 'residential', 'building': 'residential',
     'store': 'commercial', 'shop': 'commercial', 'showroom': 'commercial', 'office': 'office',
     'warehouse': 'warehouse', 'land': 'land',
 }

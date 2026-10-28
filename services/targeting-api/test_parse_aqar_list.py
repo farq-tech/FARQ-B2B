@@ -43,6 +43,20 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual(reference.price_per_sqm(listing), ('rent', 'residential', 145000 / 300))
         self.assertEqual(len(parse.parse_rows([record, record])), 1)
 
+    def test_map_listing(self):
+        record = {'id': 6896439, 'title': 'فيلا للإيجار في شارع رقم 1095, حي سدرة, مدينة الرياض, منطقة الرياض',
+                  'price': 145000, 'area': 300, 'rent_period': 3, 'content': 'فيلا جديدة الإيجار سنوي',
+                  'location': {'lat': 24.85, 'lng': 46.72}, 'district': 'حي جامعة الأميرة نورة', 'district_id': 1,
+                  'city': 'الرياض', 'path': '/فلل-للإيجار/الرياض/x-6896439', 'imgs': ['a.jpg'], 'user': {'name': 'x'}}
+        listing = parse.parse_map_listing(record)
+        self.assertEqual((listing['latitude'], listing['rentPeriod'], listing['city_en'], listing['url']),
+                         (24.85, 'annually', 'Riyadh', 'https://sa.aqar.fm/فلل-للإيجار/الرياض/x-6896439'))
+        self.assertNotIn('user', listing)
+        monthly = parse.parse_map_listing({**record, 'price': 2500, 'content': 'إيجار شهري'})
+        self.assertIsNone(monthly['rentPeriod'])
+        room = parse.parse_map_listing({**record, 'title': 'غرفة للإيجار في حي العليا, مدينة الرياض', 'area': 2921})
+        self.assertIsNone(reference.price_per_sqm(room))
+
 
 if __name__ == '__main__':
     unittest.main()

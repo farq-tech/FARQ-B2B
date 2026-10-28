@@ -6,7 +6,17 @@ const STATUS = { running: 'يعمل…', done: 'انتهى ✓', blocked: 'أو�
 const urlOf = (segs, page = 1) => `https://sa.aqar.fm/${segs.map(encodeURIComponent).join('/')}${page > 1 ? `/${page}` : ''}`
 const activeTab = async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]
 
+const FAST = { running: 'السحب السريع يعمل…', done: 'السحب السريع انتهى ✓', blocked: 'أوقفه عقار. انتظر قليلاً ثم اضغط السحب السريع للاستئناف.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
+
+async function refreshFast() {
+  const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+  $('fast').textContent = fast?.active ? 'إيقاف السحب السريع' : (fast?.current || fast?.queue?.length ? 'استئناف السحب السريع' : 'سحب سريع من الخريطة')
+  $('fastStatus').textContent = !findTemplate ? 'افتح «الخريطة» في عقار وصغّرها حتى تظهر المدينة كاملة، ثم اضغط.'
+    : fast ? `${FAST[fast.status] || ''} ${fmt.format(fast.stats.requests)} طلب · ${fmt.format(fast.stats.tiles)} مربع انتهى · ${fmt.format(fast.queue.length)} متبقٍ${fast.error ? ` (${fast.error})` : ''}` : ''
+}
+
 async function refresh() {
+  refreshFast()
   const { run } = await get({ run: null })
   const { mapStats } = await get({ mapStats: null })
   $('listings').textContent = `${fmt.format(run?.stats?.listings ?? 0)} إعلان`
@@ -29,6 +39,24 @@ $('start').addEventListener('click', async () => {
   await set({ run })
   chrome.tabs.update(tab.id, { url: urlOf(segs) })
   refresh()
+})
+$('fast').addEventListener('click', async () => {
+  const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+  const tab = await activeTab()
+  if (!findTemplate || !tab?.url?.startsWith('https://sa.aqar.fm/')) { refreshFast(); return }
+  if (fast?.active) { await set({ fast: { ...fast, active: false, status: 'paused' } }); refreshFast(); return }
+  let next = fast
+  if (!fast || (!fast.current && !fast.queue.length)) {
+    // the area the map showed when its last request went out
+    const points = JSON.parse(findTemplate.request).variables?.polygon ?? []
+    if (points.length < 3) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
+    const lats = points.map((p) => p.lat), lngs = points.map((p) => p.lng)
+    const bbox = [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
+    next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
+  }
+  await set({ fast: { ...next, active: true, status: 'running', error: null, beat: Date.now() } })
+  chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' })
+  refreshFast()
 })
 $('pause').addEventListener('click', async () => { const { run } = await get({ run: null }); await set({ run: { ...run, active: false, status: 'paused' } }); refresh() })
 $('resume').addEventListener('click', async () => {
