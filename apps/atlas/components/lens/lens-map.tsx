@@ -13,6 +13,7 @@ import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } fr
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
+import { CompetitorsTool } from './tools/competitors-tool'
 import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import { HomesTool } from './tools/homes-tool'
@@ -27,7 +28,6 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'population': return [populationMethod(row.populationSource)]
     case 'businesses': return EXPLAIN.businesses('district')
     case 'residentsPerBusiness': return EXPLAIN.residentsPerBusiness(row.population, row.businesses)
-    case 'whatsapp': return EXPLAIN.whatsapp
     case 'restaurants': return EXPLAIN.restaurants
     case 'villaShare': return EXPLAIN.villaShare
     case 'shopRent': return EXPLAIN.realEstate(row.realEstate.rent_year_commercial?.listings, 'rent_year')
@@ -98,6 +98,8 @@ export function LensMap() {
   const [overlay, setOverlay] = useState<Overlay>({})
   const [draft, setDraft] = useState('')
   const [search, setSearch] = useState<{ q: string; nonce: number } | null>(null)
+  // the activity «المنافسون» is studying: a picked district then lists its competitors by name
+  const [rival, setRival] = useState<string | null>(null)
   const searchBox = useRef<HTMLInputElement>(null)
   const data = useCityData(city)
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
@@ -129,7 +131,7 @@ export function LensMap() {
   const toggle = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   const cityName = cities.find((item) => item.en === city)?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
-  const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district'].includes(tool)
+  const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
 
   return (
     <main className="flex h-[calc(100dvh-4rem)] flex-col pb-16 lg:pb-0">
@@ -196,6 +198,7 @@ export function LensMap() {
                   </div>
                   {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} />}
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggle} />}
+                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} features={data.features} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} onActivity={setRival} />}
                   {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
                   {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
@@ -206,7 +209,7 @@ export function LensMap() {
                   {(tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
                   )}
-                  {showBusinesses && <BusinessesPanel city={city} districts={chosen.map((row) => row.name)} />}
+                  {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
                   {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggle} full={lens === 'analysts' || tool === 'growth'} />}
                 </>
               )}
