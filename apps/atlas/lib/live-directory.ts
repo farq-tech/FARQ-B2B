@@ -15,7 +15,7 @@ function asText(value: unknown, max: number) {
 export function sanitizeLiveDirectoryEntity(row: Record<string, unknown>): PublicDirectoryEntity {
   const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null
   const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 8) : []
-  return {
+  const entity: PublicDirectoryEntity = {
     id: asText(row.poi_key, 180),
     name: asText(row.name_ar, 180) || asText(row.name_en, 180) || 'منشأة غير مسماة',
     category: asText(row.category_ar, 120) || asText(row.category, 120) || 'غير مصنّف',
@@ -43,6 +43,9 @@ export function sanitizeLiveDirectoryEntity(row: Record<string, unknown>): Publi
     atlasId: asText(row.farq_atlas_id, 32) || undefined,
     status: ['open', 'closed_temporary', 'inactive', 'hidden', 'unknown_empty', 'unknown_invalid', 'closed_permanent'].includes(String(row.status_class)) ? row.status_class as PublicDirectoryEntity['status'] : null,
   }
+  // an optional detail the row does not carry is left out, so the browser gets only the fields that exist
+  for (const key of Object.keys(entity) as (keyof PublicDirectoryEntity)[]) if (entity[key] === undefined) delete entity[key]
+  return entity
 }
 
 export function isMapQuery(value: unknown): value is string {
