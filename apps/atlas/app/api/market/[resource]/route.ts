@@ -17,6 +17,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'market-gaps': ['POST'],
   growth: ['POST'],
   'population-around': ['POST'],
+  'population-within': ['POST'],
   territories: ['POST'],
   'district-income': ['POST'],
   'district-audience': ['POST'],
