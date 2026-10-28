@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Loader2, Megaphone, MessageCircle, Search } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { useAppStore } from '@/lib/store'
@@ -25,7 +25,6 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   const [rows, setRows] = useState<PublicDirectoryEntity[]>([])
   const [total, setTotal] = useState<number | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [whatsappOnly, setWhatsappOnly] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState('')
   const key = districts.join('|')
@@ -65,7 +64,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
     }
   }
 
-  const shown = useMemo(() => (whatsappOnly ? rows.filter((row) => row.whatsapp) : rows), [rows, whatsappOnly])
+  const shown = rows
   const allPicked = shown.length > 0 && shown.every((row) => picked.has(row.id))
   const toggle = (id: string) => setPicked((current) => {
     const next = new Set(current)
@@ -108,9 +107,6 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
         <>
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}</span>
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={whatsappOnly} onChange={(event) => setWhatsappOnly(event.target.checked)} className="size-4 accent-[#25c99a]" /> بواتساب فقط
-            </label>
           </div>
           {shown.length > 0 && (
             <label className="flex items-center gap-2 text-sm font-medium">
@@ -127,7 +123,6 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
                     <span className="block truncate font-medium">{row.name}</span>
                     <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>
                   </span>
-                  {row.whatsapp && <MessageCircle className="size-4 shrink-0 text-primary" aria-label="واتساب" />}
                 </label>
               </li>
             ))}

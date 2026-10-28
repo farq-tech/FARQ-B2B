@@ -27,7 +27,6 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'population': return [populationMethod(row.populationSource)]
     case 'businesses': return EXPLAIN.businesses('district')
     case 'residentsPerBusiness': return EXPLAIN.residentsPerBusiness(row.population, row.businesses)
-    case 'whatsapp': return EXPLAIN.whatsapp
     case 'restaurants': return EXPLAIN.restaurants
     case 'villaShare': return EXPLAIN.villaShare
     case 'shopRent': return EXPLAIN.realEstate(row.realEstate.rent_year_commercial?.listings, 'rent_year')

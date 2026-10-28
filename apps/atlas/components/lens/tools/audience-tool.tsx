@@ -15,7 +15,7 @@ type Sex = 'all' | 'men' | 'women'
 type Nationality = 'all' | 'saudi' | 'non_saudi'
 type Share = { district_ar: string; male_pct: number; saudi_pct: number }
 type Activity = { main_id: string; main_ar: string }
-type Count = { district_ar: string; n: number; n_whatsapp?: number }
+type Count = { district_ar: string; n: number }
 type Scored = { row: DistrictRow; size: number; score: number }
 
 const INCOMES = [0, 8000, 12000, 16000]
@@ -63,7 +63,6 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   const [shares, setShares] = useState<Map<string, Share> | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [mainId, setMainId] = useState('')
-  const [whatsappOnly, setWhatsappOnly] = useState(true)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
@@ -92,7 +91,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
       return score(rows, (row) => {
         const count = counts?.get(row.name)
         if (!counts) return null
-        return count ? (whatsappOnly ? count.n_whatsapp ?? null : count.n) : 0
+        return count ? count.n : 0
       })
     }
     return score(rows, (row) => {
@@ -106,7 +105,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
       const nationalityShare = nationality === 'all' ? 1 : (nationality === 'saudi' ? share!.saudi_pct : 100 - share!.saudi_pct) / 100
       return row.population * sexShare * nationalityShare
     })
-  }, [mode, rows, counts, whatsappOnly, shares, sex, nationality, minIncome])
+  }, [mode, rows, counts, shares, sex, nationality, minIncome])
 
   useEffect(() => {
     const colors = new Map<string, string>()
@@ -117,7 +116,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   const scope = selected.length ? scored.filter((item) => selected.some((row) => row.id === item.row.id)) : scored
   const total = scope.reduce((sum, item) => sum + item.size, 0)
   const unit = mode === 'people' ? 'شخص' : 'منشأة'
-  const explain = mode === 'people' ? EXPLAIN.audiencePeople(sex !== 'all' || nationality !== 'all', minIncome) : EXPLAIN.audienceBusinesses(whatsappOnly)
+  const explain = mode === 'people' ? EXPLAIN.audiencePeople(sex !== 'all' || nationality !== 'all', minIncome) : EXPLAIN.audienceBusinesses
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -138,10 +137,6 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
             <option value="">كل الأنشطة</option>
             {activities.map((activity) => <option key={activity.main_id} value={activity.main_id}>{activity.main_ar}</option>)}
           </select>
-          <label className="flex items-center gap-2 text-base">
-            <input type="checkbox" checked={whatsappOnly} onChange={(event) => setWhatsappOnly(event.target.checked)} className="size-4 accent-[#25c99a]" />
-            التي يمكن الوصول لها بواتساب فقط
-          </label>
         </>
       )}
       {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ الحساب" />}

@@ -14,7 +14,6 @@ export type DistrictRow = {
   population: number | null
   populationSource: string | null
   businesses: number | null
-  whatsapp: number | null
   restaurants: number | null
   income: number | null
   underConstruction: number | null
@@ -37,7 +36,7 @@ export type CityData = {
 }
 
 type PopulationRow = { district_id: string | number; district_ar: string; population: number | null; source?: string | null }
-type CountRow = { district_ar: string; n: number; n_whatsapp?: number }
+type CountRow = { district_ar: string; n: number }
 type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
 type HousingRow = { district_ar: string; villa_share_pct: number }
@@ -88,7 +87,6 @@ export function useCityData(city: string): CityData {
           population: people.get(id)?.population ?? null,
           populationSource: people.get(id)?.source ?? null,
           businesses: c ? c.n : null,
-          whatsapp: c?.n_whatsapp ?? null,
           restaurants: eateries.get(id) ?? null,
           income: pay.get(name)?.income_all ?? null,
           underConstruction: g ? g.under_construction : null,

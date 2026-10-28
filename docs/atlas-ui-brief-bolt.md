@@ -91,7 +91,7 @@ Each lens is one journey. Show **only its own steps and figures**.
 | `shops` | أصحاب المتاجر | ① أين ينقص نشاطي؟ ② قارن المواقع ③ محلات للإيجار | ساكن لكل منشأة · إيجار متر المحل (المدة غير مذكورة) · السكان |
 | `marketers` | المسوّقون | ① أين جمهوري؟ ② منشآت الأحياء والحملة | السكان · متوسط الدخل · حصة الفلل من المساكن |
 | `distributors` | الموزّعون | ① المناطق والمسار ② أين يُبنى الآن؟ | المنشآت · مبانٍ جديدة وتحت الإنشاء · إيجار متر المستودع سنوياً |
-| `analysts` | المحلّلون | ① الأحياء والترتيب ② قارن حيين | all 13 figures |
+| `analysts` | المحلّلون | ① الأحياء والترتيب ② قارن حيين | all 12 figures |
 | `property` | الباحثون عن عقار | ① اختر عقاراً ② تعرّف على الحي | إيجار متر السكن سنوياً · إيجار متر السكن شهرياً · سعر متر السكن للبيع |
 
 ### 4.3 Tools: one component each, in `components/lens/tools/`
@@ -142,7 +142,7 @@ Each lens is one journey. Show **only its own steps and figures**.
 **«أين جمهوري؟» (audience)**
 - **Two modes:** «أستهدف أفراداً» and «أستهدف منشآت».
   - **People:** sex, nationality, and minimum income chips.
-  - **Businesses:** an activity select and «واتساب فقط».
+  - **Businesses:** an activity select.
 - **Data:** `district-audience`, `district-counts`, and `market-summary`.
 - **Score:** each district gets a 0–100 score within the city: its audience ÷ the top district's audience × 100.
 - **Panel:** «حجم الجمهور» total, then the top 10 districts with their score.
@@ -151,7 +151,7 @@ Each lens is one journey. Show **only its own steps and figures**.
 - With no district selected, show the hint «اختر حياً أو أكثر من الخريطة…».
 - Otherwise list the businesses of the selected districts from `POST /api/market/entities` with
   `{city, district, limit:200}`.
-- Controls: a checkbox per row, «اختر الكل», and «بواتساب فقط».
+- Controls: a checkbox per row and «اختر الكل».
 - Three actions: «طلب تسعير», «حملة واتساب», «حفظ قائمة». Each creates a draft and navigates to `/requests/{id}`.
 - **Login:** a 401 shows «لعرض المنشآت… سجّل الدخول».
 
@@ -175,7 +175,7 @@ Each lens is one journey. Show **only its own steps and figures**.
 ### 4.4 District summary card
 
 - **With nothing selected:** the city totals.
-- **With districts selected:** the same figures for the selection: السكان، المنشآت، ساكن لكل منشأة، منشآت بواتساب،
+- **With districts selected:** the same figures for the selection: السكان، المنشآت، ساكن لكل منشأة،
   حصة الفلل، متوسط الدخل، أكبر شريحة عمرية.
 - **Property prices** under the heading «أسعار العقار المعروضة (للمتر)»:
   - One line per group key from `real-estate`, labelled «بيع سكن», «إيجار سكن سنوي», «إيجار سكن شهري»,

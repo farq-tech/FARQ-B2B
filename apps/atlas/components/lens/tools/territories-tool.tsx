@@ -13,7 +13,7 @@ import type { Overlay } from './overlay'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Activity = { main_id: string; main_ar: string }
-type Customer = Stop & { name: string; district_ar: string; whatsapp: boolean }
+type Customer = Stop & { name: string; district_ar: string }
 
 const PALETTE = ['#25c99a', '#38bdf8', '#f472b6', '#facc15', '#a78bfa', '#fb923c', '#e8eef2', '#f87171', '#94a3b8', '#e879f9', '#4ade80', '#60a5fa']
 const DIM = '#27272a'
@@ -185,7 +185,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           )}
           {customers && (
             <p className="text-base">
-              <strong>{numberFormat.format(customers.length)}</strong> منشأة على الخريطة · <strong>{numberFormat.format(customers.filter((item) => item.whatsapp).length)}</strong> بواتساب
+              <strong>{numberFormat.format(customers.length)}</strong> منشأة على الخريطة
             </p>
           )}
         </Step>
