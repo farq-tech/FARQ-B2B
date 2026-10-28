@@ -36,6 +36,7 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'businesses': return EXPLAIN.businesses('district')
     case 'residentsPerBusiness': return EXPLAIN.residentsPerBusiness(row.population, row.businesses)
     case 'whatsapp': return EXPLAIN.whatsapp
+    case 'restaurants': return EXPLAIN.restaurants
     case 'income': return EXPLAIN.income
     case 'growth': return EXPLAIN.growth(row.underConstruction, row.newBuildings)
   }
