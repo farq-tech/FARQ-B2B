@@ -1,4 +1,5 @@
 import { numberFormat } from './insights-api'
+import { PALETTE } from '@/lib/palette'
 
 /** A deal as the ad states it: a sale, or a rent with its own period. Nothing is converted between periods. */
 export type Deal = 'sale' | 'rent_year' | 'rent_month' | 'rent_unstated'
@@ -96,4 +97,4 @@ export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'distr
 
 /** Map dot colour by price against the district: green under, grey near, amber over, blue without a median, dark
  * grey when the ad's figures need checking. */
-export const toneColor = { good: '#25c99a', even: '#a1a1aa', high: '#f59e0b', none: '#60a5fa', check: '#52525b' } as const
+export const toneColor = { good: PALETTE.leaf, even: PALETTE.stone, high: PALETTE.ochre, none: PALETTE.slate, check: PALETTE.bark } as const

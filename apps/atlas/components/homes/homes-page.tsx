@@ -186,7 +186,7 @@ export function HomesPage() {
                     </span>
                     <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
                     {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
-                    {listing.check && <span className="text-xs text-amber-500">أرقام الإعلان تحتاج تحققاً</span>}
+                    {listing.check && <span className="text-xs text-warning">أرقام الإعلان تحتاج تحققاً</span>}
                   </button>
                 </li>
               )

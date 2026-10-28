@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
+import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 
 type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
@@ -30,8 +31,8 @@ type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: num
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مقهى']
 // competition reads as heat: pale for few competitors per km², deep amber for many
-const HEAT = ['#fbefd0', '#f6d98f', '#eebc4f', '#d6951a', '#a86c05']
-const NONE = '#1f9a76'   // no competitor of this activity in the district
+const HEAT = OCHRE_STEPS
+const NONE = PALETTE.sage   // no competitor of this activity in the district
 
 /**
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map

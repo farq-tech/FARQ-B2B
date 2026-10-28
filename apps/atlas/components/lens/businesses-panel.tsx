@@ -110,7 +110,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           </div>
           {shown.length > 0 && (
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(shown.map((row) => row.id)))} className="size-4 accent-[#25c99a]" />
+              <input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(shown.map((row) => row.id)))} className="size-4 accent-primary" />
               اختر الكل ({numberFormat.format(shown.length)})
             </label>
           )}
@@ -118,7 +118,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
             {shown.map((row) => (
               <li key={row.id}>
                 <label className="flex cursor-pointer items-center gap-2 py-2">
-                  <input type="checkbox" checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-[#25c99a]" />
+                  <input type="checkbox" checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{row.name}</span>
                     <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>

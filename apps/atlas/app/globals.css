@@ -51,7 +51,8 @@
 
 :root {
   color-scheme: light;
-  /* Atlas workspace: Farq's own light palette (farq Frontend/src/next/tokens.css, owner palette v2), so Atlas and the
+  /* lib/palette.ts holds the same colours for what code draws (the map, its polygons and pins).
+     Atlas workspace: Farq's own light palette (farq Frontend/src/next/tokens.css, owner palette v2), so Atlas and the
      Farq app read as one product: the olive brand on a pale apple-green wash. */
   --background: #f7f5f1;
   --foreground: #172a1e;
@@ -61,21 +62,21 @@
   --popover-foreground: #172a1e;
   --primary: #3e573b;
   --primary-foreground: #ffffff;
-  --secondary: #f1f7ec;
+  --secondary: #eef2e6;
   --secondary-foreground: #3e573b;
-  --muted: #eff1ef;
-  --muted-foreground: #5b6c60;
+  --muted: #f1eee8;
+  --muted-foreground: #6b6358;
   --accent: #e7f0de;
   --accent-foreground: #3e573b;
   --destructive: #b3261e;
-  --warning: #8a5a00;
-  --border: #e2e7e1;
-  --input: #cfd4d1;
+  --warning: #8f6304;
+  --border: #e6e0d6;
+  --input: #d6cec1;
   --ring: #a3b80f;
   --chart-1: #3e573b;
   --chart-2: #c48a0a;
-  --chart-3: #5c7f9a;
-  --chart-4: #7b62c4;
+  --chart-3: #6f8796;
+  --chart-4: #8a6f9e;
   --chart-5: #b3261e;
   --radius: 0.8rem;
   --sidebar: #ffffff;
@@ -84,9 +85,9 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e7f0de;
   --sidebar-accent-foreground: #3e573b;
-  --sidebar-border: #e2e7e1;
+  --sidebar-border: #e6e0d6;
   --sidebar-ring: #a3b80f;
-  --map-land: #e9e7e0;
+  --map-land: #efebe4;
   --map-road: #ffffff;
   /* the Farq page wash and its pulsing hex dots (farq ui/glass.css .nx-wash / .nx-dots), in a warm stone grey (owner) */
   --wash:

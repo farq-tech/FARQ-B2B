@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { DistrictFeature } from '@/lib/insights-api'
+import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 // five steps from low to high; a district without the figure is left unshaded
-export const SHADES = ['#e3eed5', '#c4dba8', '#99c070', '#6b923a', '#3e573b']   // Farq olive (--primary) for the highest districts
+export const SHADES = OLIVE_STEPS   // Farq olive (--primary) for the highest districts
 
 function boundsOf(features: DistrictFeature[]): [[number, number], [number, number]] | null {
   let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
@@ -112,6 +113,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
             instance.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name_ar'], ['get', 'name']])
           }
         }
+        // the basemap in the Atlas palette: warm stone land, soft water, quiet green parks, white streets
+        for (const layer of instance.getStyle().layers ?? []) {
+          const paint = (property: 'background-color' | 'fill-color' | 'line-color' | 'text-color' | 'text-halo-color', value: string) => { try { instance.setPaintProperty(layer.id, property, value) } catch { /* not this layer's property */ } }
+          if (layer.type === 'background') paint('background-color', PALETTE.land)
+          else if (layer.type === 'fill' && /^water/.test(layer.id)) paint('fill-color', PALETTE.water)
+          else if (layer.type === 'fill' && /landuse|park|national-park|landcover/.test(layer.id)) paint('fill-color', PALETTE.wash)
+          else if (layer.type === 'fill' && /building/.test(layer.id)) paint('fill-color', PALETTE.pebble)
+          else if (layer.type === 'line' && /road|street|bridge|tunnel/.test(layer.id)) paint('line-color', PALETTE.white)
+          else if (layer.type === 'symbol') { paint('text-color', PALETTE.bark); paint('text-halo-color', PALETTE.ground) }
+        }
         instance.addSource('districts', { type: 'geojson', data: EMPTY, promoteId: 'id' })
         // shading and outlines sit under the basemap's place and road names; district names go on top of everything
         const layers = instance.getStyle().layers ?? []
@@ -125,49 +136,49 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
             10, ['case', ['boolean', ['get', '__selected'], false], 0.8, 0.6],
             14, ['case', ['boolean', ['get', '__selected'], false], 0.55, 0.3]],
         } }, firstRoad)
-        instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': '#3e573b', 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
-        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': '#172a1e', 'line-width': 3 } })
+        instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': PALETTE.olive, 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
+        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
           'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
           'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 15, 14, 18],
           'text-padding': 2,
-        }, paint: { 'text-color': '#172a1e', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } })
+        }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 1.6 } })
         instance.addSource('circle', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'circle-fill', type: 'fill', source: 'circle', paint: { 'fill-color': '#3e573b', 'fill-opacity': 0.18 } })
-        instance.addLayer({ id: 'circle-line', type: 'line', source: 'circle', paint: { 'line-color': '#3e573b', 'line-width': 2.5 } })
+        instance.addLayer({ id: 'circle-fill', type: 'fill', source: 'circle', paint: { 'fill-color': PALETTE.olive, 'fill-opacity': 0.14 } })
+        instance.addLayer({ id: 'circle-line', type: 'line', source: 'circle', paint: { 'line-color': PALETTE.olive, 'line-width': 2.5 } })
         instance.addSource('areas', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'area-fill', type: 'fill', source: 'areas', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } })
         instance.addLayer({ id: 'area-line', type: 'line', source: 'areas', paint: { 'line-color': ['get', 'color'], 'line-width': 2.5 } })
         instance.addSource('route', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0d1217', 'line-width': 7 } })
-        instance.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#3e573b', 'line-width': 4 } })
+        instance.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': PALETTE.white, 'line-width': 7 } })
+        instance.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': PALETTE.olive, 'line-width': 4 } })
         instance.addSource('stops', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': '#facc15', 'circle-stroke-color': '#0d1217', 'circle-stroke-width': 1 } })
+        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': PALETTE.ochre, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 } })
         instance.addSource('start', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': '#ffffff', 'circle-stroke-color': '#3e573b', 'circle-stroke-width': 4 } })
+        instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': PALETTE.white, 'circle-stroke-color': PALETTE.olive, 'circle-stroke-width': 4 } })
         instance.addSource('sites', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'site-dot', type: 'circle', source: 'sites', paint: { 'circle-radius': 13, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#0d1217', 'circle-stroke-width': 2 } })
-        instance.addLayer({ id: 'site-label', type: 'symbol', source: 'sites', layout: { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 15, 'text-allow-overlap': true }, paint: { 'text-color': '#0d1217' } })
+        instance.addLayer({ id: 'site-dot', type: 'circle', source: 'sites', paint: { 'circle-radius': 13, 'circle-color': ['get', 'color'], 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 2 } })
+        instance.addLayer({ id: 'site-label', type: 'symbol', source: 'sites', layout: { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 15, 'text-allow-overlap': true }, paint: { 'text-color': PALETTE.white } })
         // listings: grouped into a numbered circle until zoomed in, so a dense district stays readable
         instance.addSource('listings', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 42, clusterMaxZoom: 15 })
         instance.addLayer({ id: 'listing-cluster', type: 'circle', source: 'listings', filter: ['has', 'point_count'], paint: {
-          'circle-color': '#0d1217', 'circle-stroke-color': '#3e573b', 'circle-stroke-width': 2,
+          'circle-color': PALETTE.olive, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 2,
           'circle-radius': ['step', ['get', 'point_count'], 14, 25, 18, 100, 23],
         } })
         instance.addLayer({ id: 'listing-count', type: 'symbol', source: 'listings', filter: ['has', 'point_count'], layout: {
           'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 13, 'text-allow-overlap': true,
-        }, paint: { 'text-color': '#ffffff' } })
+        }, paint: { 'text-color': PALETTE.white } })
         instance.addLayer({ id: 'listing-dot', type: 'circle', source: 'listings', filter: ['!', ['has', 'point_count']], paint: {
           'circle-color': ['get', 'color'], 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 5, 16, 9],
-          'circle-stroke-color': ['case', ['boolean', ['get', 'active'], false], '#ffffff', '#0d1217'],
+          'circle-stroke-color': ['case', ['boolean', ['get', 'active'], false], PALETTE.ink, PALETTE.white],
           'circle-stroke-width': ['case', ['boolean', ['get', 'active'], false], 3, 1.5],
         } })
         // the price beside each single listing once zoomed in, like a price pin
         instance.addLayer({ id: 'listing-price', type: 'symbol', source: 'listings', minzoom: 12.5, filter: ['all', ['!', ['has', 'point_count']], ['has', 'label']], layout: {
           'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.4], 'text-allow-overlap': false,
           'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
-        }, paint: { 'text-color': '#0d1217', 'text-halo-color': '#ffffff', 'text-halo-width': 6 } })
+        }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 6 } })
         instance.on('moveend', () => {
           const b = instance.getBounds()
           if (b) reportBounds.current?.([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
