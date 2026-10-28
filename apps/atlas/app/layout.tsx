@@ -40,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={plex.variable}>
       <body className="font-sans antialiased">
+        <div className="atlas-aurora" aria-hidden><span /><span /><span /><span /></div>
         <div className="atlas-dots" aria-hidden />
         <AppStoreProvider>
           <TooltipProvider delay={300}>
