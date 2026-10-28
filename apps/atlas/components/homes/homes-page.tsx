@@ -1,7 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { List, Loader2, Map as MapIcon, Scale, Search, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Building2, List, Map as MapIcon, Scale, SearchX, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
+import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
+import { Chip } from '@/components/ui/chip'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
@@ -56,6 +61,7 @@ export function HomesPage() {
   const [advise, setAdvise] = useState(false)
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const data = useCityData(city)
 
   useEffect(() => { if (!LISTING_TYPES.find((item) => item.id === type)?.kinds.includes(kind)) setType('apartment') }, [kind, type])
@@ -72,7 +78,7 @@ export function HomesPage() {
       .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? 0, listings: payload.listings ?? [] }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
     return () => { live = false }
-  }, [city, kind, type, deal, budget])
+  }, [city, kind, type, deal, budget, attempt])
 
   // narrowing: the chips first, then (when asked) what the map shows
   const filtered = useMemo(() => {
@@ -103,47 +109,38 @@ export function HomesPage() {
     <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
       {/* the search pill and the chip row, one tap above the results */}
       <header className="flex flex-col gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-1 rounded-full border bg-card p-1.5 shadow-sm">
-          <label className="flex min-w-[8rem] flex-1 flex-col rounded-full px-4 py-1 hover:bg-muted">
-            <span className="text-xs font-semibold">المدينة</span>
-            <select value={city} onChange={(event) => setCity(event.target.value)} className="bg-transparent text-sm text-muted-foreground outline-none">
+        <SearchPill label="ابحث في العروض">
+          <PillField label="المدينة">
+            <select value={city} onChange={(event) => setCity(event.target.value)} className={pillControl}>
               {CITIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
-          </label>
-          <span className="hidden h-8 w-px bg-border sm:block" aria-hidden />
-          <label className="flex min-w-[8rem] flex-1 flex-col rounded-full px-4 py-1 hover:bg-muted">
-            <span className="text-xs font-semibold">إيجار أو شراء</span>
+          </PillField>
+          <PillField label="إيجار أو شراء">
             <select value={kind === 'sale' ? 'sale' : rentDeal} onChange={(event) => { const value = event.target.value; if (value === 'sale') setKind('sale'); else { setKind('rent'); setRentDeal(value as Deal | 'all') } }}
-              className="bg-transparent text-sm text-muted-foreground outline-none">
+              className={pillControl}>
               {RENT_DEALS.map((item) => <option key={item.id} value={item.id}>إيجار {item.label}</option>)}
               <option value="all">إيجار بأي مدة</option>
               <option value="sale">شراء</option>
             </select>
-          </label>
-          <span className="hidden h-8 w-px bg-border sm:block" aria-hidden />
-          <label className="flex min-w-[7rem] flex-1 flex-col rounded-full px-4 py-1 hover:bg-muted">
-            <span className="text-xs font-semibold">النوع</span>
-            <select value={type} onChange={(event) => setType(event.target.value)} className="bg-transparent text-sm text-muted-foreground outline-none">
+          </PillField>
+          <PillField label="النوع" className="min-w-[7rem]">
+            <select value={type} onChange={(event) => setType(event.target.value)} className={pillControl}>
               {types.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
-          </label>
-          <span className="hidden h-8 w-px bg-border sm:block" aria-hidden />
-          <label className="flex min-w-[8rem] flex-1 flex-col rounded-full px-4 py-1 hover:bg-muted">
-            <span className="text-xs font-semibold">الميزانية</span>
-            <select value={budget} disabled={!deal} onChange={(event) => setBudget(Number(event.target.value))} className="bg-transparent text-sm text-muted-foreground outline-none disabled:opacity-50">
+          </PillField>
+          <PillField label="الميزانية">
+            <select value={budget} disabled={!deal} onChange={(event) => setBudget(Number(event.target.value))} className={pillControl}>
               <option value={0}>{deal ? 'أي ميزانية' : 'اختر مدة الإيجار أولاً'}</option>
               {deal && BUDGETS[deal].map((value) => <option key={value} value={value}>حتى {numberFormat.format(value)}{PERIOD_WORD[deal] ? ` ${PERIOD_WORD[deal]}` : ''}</option>)}
             </select>
-          </label>
-          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground" aria-hidden><Search className="size-5" /></span>
-        </div>
-        <div className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto pb-1" role="group" aria-label="تضييق النتائج">
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm text-muted-foreground"><SlidersHorizontal className="size-4" aria-hidden /> تضييق</span>
+          </PillField>
+        </SearchPill>
+        <ChipRow label="تضييق النتائج">
+          <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2 text-sm text-muted-foreground"><SlidersHorizontal className="size-4" aria-hidden /> تضييق</span>
           {CHIPS.map((chip) => (
-            <button key={chip.id} onClick={() => toggleChip(chip.id)} aria-pressed={chips.has(chip.id)}
-              className={cn('shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors', chips.has(chip.id) ? 'border-foreground bg-foreground text-background' : 'hover:border-foreground')}>{chip.label}</button>
+            <Chip key={chip.id} active={chips.has(chip.id)} onClick={() => toggleChip(chip.id)}>{chip.label}</Chip>
           ))}
-        </div>
+        </ChipRow>
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -158,11 +155,20 @@ export function HomesPage() {
               حدّث القائمة عند تحريك الخريطة
             </label>
           </div>
-          {result.status === 'loading' && <Loader2 className="size-6 animate-spin text-primary" aria-label="جارٍ التحميل" />}
-          {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
-          {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
+          {result.status === 'loading' && (
+            // card-shaped placeholders: the grid keeps its place while the listings load
+            <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2" aria-busy="true" aria-label="جارٍ تحميل العروض">
+              {Array.from({ length: 4 }, (_, i) => (
+                <li key={i} className="flex flex-col gap-2">
+                  <Skeleton className="aspect-[20/19] rounded-2xl" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" />
+                </li>
+              ))}
+            </ul>
+          )}
+          {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
+          {result.status === 'ready' && !result.available && <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد. جرّب الرياض أو جدة.`} />}
           {result.status === 'ready' && result.available && visible.length === 0 && (
-            <p className="text-base text-muted-foreground">لا عروض هنا بهذه الشروط. حرّك الخريطة أو أزل بعض الشرائح.</p>
+            <EmptyState icon={SearchX} title="لا عروض بهذه الشروط" body="حرّك الخريطة، أو أزل بعض الشرائح، أو وسّع الميزانية." />
           )}
           <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
             {visible.slice(0, shown).map((listing) => {
@@ -193,7 +199,7 @@ export function HomesPage() {
             })}
           </ul>
           {visible.length > shown && (
-            <button onClick={() => setShown((count) => count + PAGE)} className="mx-auto mt-6 block rounded-full border px-5 py-2 text-sm font-semibold hover:border-foreground">
+            <button onClick={() => setShown((count) => count + PAGE)} className="mx-auto mt-6 block h-10 rounded-full border bg-card px-5 text-sm font-semibold transition-colors outline-none hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60">
               عرض المزيد ({numberFormat.format(visible.length - shown)})
             </button>
           )}

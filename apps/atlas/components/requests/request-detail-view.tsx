@@ -180,7 +180,7 @@ export function RequestDetailView({ id }: { id: string }) {
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{m.body}</p>
                   </div>
-                  <time className="shrink-0 text-[11px] text-muted-foreground" dateTime={m.receivedAt}>
+                  <time className="shrink-0 text-xs text-muted-foreground" dateTime={m.receivedAt}>
                     {formatDateTime(m.receivedAt)}
                   </time>
                 </Link>
@@ -285,6 +285,7 @@ function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBa
       setTimeout(() => setCopied(false), 2000)
     } catch {
       setCopied(false)
+      toast.error('تعذر النسخ', { description: 'المتصفح منع النسخ. حدّد النص وانسخه يدوياً.' })
     }
   }
 

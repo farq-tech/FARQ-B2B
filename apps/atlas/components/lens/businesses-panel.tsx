@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
+import { toast } from 'sonner'
 import { numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { useAppStore } from '@/lib/store'
@@ -85,6 +86,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       districtHint: districts.length === 1 ? districts[0] : undefined,
       liveBusinesses: rows.filter((row) => picked.has(row.id)),
     })
+    toast.success('جُهّزت المسودة', { description: `${numberFormat.format(ids.length)} منشأة، راجعها قبل أي إرسال.` })
     router.push(`/requests/${id}`)
   }
 

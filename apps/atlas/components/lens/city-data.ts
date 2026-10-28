@@ -42,6 +42,8 @@ export type CityData = {
   features: DistrictFeature[]
   rows: DistrictRow[]
   total: number | null
+  /** Load the city again after a failure. */
+  reload?: () => void
 }
 
 type PopulationRow = { district_id: string | number; district_ar: string; population: number | null; source?: string | null }
@@ -70,6 +72,7 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function useCityData(city: string): CityData {
   const [data, setData] = useState<CityData>({ status: 'loading', features: [], rows: [], total: null })
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -133,9 +136,9 @@ export function useCityData(city: string): CityData {
       setData({ status: 'ready', features, rows, total: counts?.total ?? null })
     }).catch(() => { if (active) setData({ status: 'error', features: [], rows: [], total: null }) })
     return () => { active = false }
-  }, [city])
+  }, [city, attempt])
 
-  return data
+  return { ...data, reload: () => setAttempt((n) => n + 1) }
 }
 
 /** Sum of a field over rows; null when any row lacks it, so a partial total is never shown as the whole. */

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { DistrictFeature } from '@/lib/insights-api'
+import { LoadError } from '@/components/shared/load-error'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
@@ -100,7 +101,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     ;(async () => {
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
       const token = response?.ok ? (await response.json()).token : null
-      if (!token) { setError('تعذر تحميل الخريطة.'); return }
+      if (!token) { setError('الخريطة'); return }
       const mapboxgl = (await import('mapbox-gl')).default
       if (disposed || !container.current) return
       mapboxgl.accessToken = token
@@ -257,7 +258,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   return (
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
-      {error && <p className="absolute inset-x-0 top-4 text-center text-sm text-destructive">{error}</p>}
+      {/* a reload brings the map back, so the button offers just that */}
+      {error && <LoadError what={error} onRetry={() => window.location.reload()} className="absolute inset-x-4 top-4 mx-auto max-w-sm bg-card/95 backdrop-blur" />}
     </div>
   )
 }
