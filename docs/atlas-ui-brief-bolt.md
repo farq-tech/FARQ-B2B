@@ -74,10 +74,10 @@ Tailwind CSS, shadcn/ui, lucide-react, and mapbox-gl. The output is merged into 
    - The active chip is outlined.
    - While a step is painting the map itself, replace the chips with one line: «ألوان الخريطة الآن من خطوة «…».»
 3. **Map:**
-   - Mapbox dark style, with Arabic place names (`name_ar` falling back to `name`).
-   - District polygons shaded in **5 quantile steps** of Farq green: `#0f2e25 #134a3b #186b53 #1f9a76 #25c99a`. A
-     district without the figure is not shaded.
-   - Tapping a district selects or deselects it: a white 3px outline.
+   - A Mapbox style that fits your design, with Arabic place names (`name_ar` falling back to `name`).
+   - District polygons shaded in **5 quantile steps** of one colour scale of your choice. A district without the
+     figure is not shaded.
+   - Tapping a district selects or deselects it, with a clear outline.
    - Legend at the bottom start: «أقل ▢▢▢▢▢ أعلى · {figure}», tappable for its explanation.
 4. **Panel:** the lens's **numbered steps** as stacked buttons (①, ②, ③). The active step is highlighted. The step's
    tool renders below. If a search is open, it replaces the steps and has a «إغلاق البحث والعودة للخطوات» link.
@@ -88,7 +88,7 @@ Each lens is one journey. Show **only its own steps and figures**.
 
 | Lens id | Label | Steps, in order | Figures on the map |
 | --- | --- | --- | --- |
-| `shops` | أصحاب المتاجر | ① أين ينقص نشاطي؟ ② قارن المواقع ③ محلات للإيجار | ساكن لكل منشأة · إيجار متر المحل (المدة غير مذكورة) · السكان |
+| `shops` | أصحاب المتاجر | ① أين ينقص نشاطي؟ ② المنافسون ③ قارن المواقع ④ محلات للإيجار | ساكن لكل منشأة · إيجار متر المحل (المدة غير مذكورة) · السكان |
 | `marketers` | المسوّقون | ① أين جمهوري؟ ② منشآت الأحياء والحملة | السكان · متوسط الدخل · حصة الفلل من المساكن |
 | `distributors` | الموزّعون | ① المناطق والمسار ② أين يُبنى الآن؟ | المنشآت · مبانٍ جديدة وتحت الإنشاء · إيجار متر المستودع سنوياً |
 | `analysts` | المحلّلون | ① الأحياء والترتيب ② قارن حيين | all 12 figures |
@@ -102,6 +102,16 @@ Each lens is one journey. Show **only its own steps and figures**.
   rate.
 - **Map:** districts painted by gap size.
 - **Panel:** a ranked list «أكبر فجوة»; tapping a row selects the district.
+
+**«المنافسون» (competitors)**
+- **Input:** any activity as free text («صيدلية»، «مقهى») or a main activity from the market summary. The tool opens
+  already run on a first example so the map is never blank.
+- **Data:** `POST /api/market/district-counts` with `{city, q}` or `{city, main_id}` returns the businesses of that
+  activity per district. The district area comes from its polygon.
+- **Map:** districts painted by competitors per km²; a district with no competitor gets its own colour.
+- **Panel:** the city total, a toggle «الأكثر تنافساً / الأقل تنافساً», and per district: competitors, per km², and
+  residents per competitor. Tapping a district lists its competitors by name (the businesses panel with that
+  activity), with the same quote/campaign/list actions.
 
 **«قارن المواقع» (around)**
 - **Input:** tap the map to drop up to 3 numbered pins. Then choose a reach: 500 م / 1 كم / 2 كم, or 5 / 10 / 15 دقائق
@@ -205,6 +215,28 @@ Each lens is one journey. Show **only its own steps and figures**.
   `{city, q, objective:'purchase', limit:200}`.
 - It has the same three actions: quote request, campaign, and list.
 
+### 4.7 «اسأل أطلس»: the AI side panel (on every screen)
+
+A chat button fixed at the side of the app opens a panel that docks beside the map, the way Cursor's chat docks beside
+the code. The map stays live and visible next to it; on mobile it opens as a full-height sheet.
+
+- **What it is for:** any question about the data, in the user's own words. «وين أفتح مغسلة في شمال الرياض؟»، «أرخص
+  شقق 3 غرف قرب الملقا»، «كم صيدلية في النرجس مقارنة بالياسمين؟»، «أي حي فيه عوائل كثيرة ومقاهي قليلة؟».
+- **Context it sends:** the city, the active lens and step, and the selected districts, shown as removable chips above
+  the input («الرياض · النرجس · أصحاب المتاجر»), so the user sees what the assistant is looking at.
+- **What comes back:** a written answer with real figures, plus actions the client applies to the map:
+  - paint the districts (a figure or the assistant's own ranking), with a legend naming it;
+  - select districts, fly to them, or show listings with filters;
+  - open a lens tool already filled («افتح المنافسون على: مغسلة ملابس»).
+  Each action shows as a button in the answer and is applied when the user taps it, or at once for paint/select.
+- **«كيف حسبتها؟»:** under every answer, a collapsed list of the queries the assistant ran (which figure, which
+  filter, which districts), in plain Arabic. Figures inside the answer are tappable like everywhere else.
+- **Space for queries:** a history of past questions in the panel, and saved questions the user can rerun on another
+  city or district with one tap.
+- **Rules:** the assistant answers only from Atlas data. When it lacks a figure it says «غير متاح» and never guesses.
+  It never sends anything; a request it suggests opens as a draft. Streaming text, a stop button, and the same
+  login/503 states as the comparison assistant.
+
 ## 5. Requests and inbox
 
 - **`/requests`:**
@@ -246,6 +278,15 @@ type Listing = {
 // POST /api/market/entities { city, q?, district?, objective?, limit, offset } → { rows: { id; name; category; district; street; whatsapp: boolean; reason? }[]; total }
 // POST /api/routing/{route|optimized_route|isochrone|sources_to_targets} (Valhalla shapes)
 // POST /api/advisor { facts: string; profile: string; turns: {role:'assistant'|'user'; content}[] } → { reply }
+// POST /api/ask (new: the backend is built in parallel, mock it under mocks/ until then)
+//   { city; lens; step; district_ids: string[]; turns: {role:'assistant'|'user'; content}[] }
+//   → { reply: string; queries: { label: string }[]; actions: AskAction[] }
+type AskAction =
+  | { type: 'paint'; label: string; values: Record<string /* district_id */, number> }
+  | { type: 'select'; district_ids: string[] }
+  | { type: 'focus'; lon: number; lat: number; zoom?: number }
+  | { type: 'listings'; filters: { kind?: 'rent' | 'sale'; deal?: string; types?: string[]; max_price?: number; district_ids?: string[] } }
+  | { type: 'open_tool'; lens: string; tool: string; input?: Record<string, string> }
 // GET /api/mapbox-token → { token }
 // GET|POST /api/requests, PATCH /api/requests/[id]; GET /api/session/me, POST /api/session/login|logout
 ```
@@ -256,15 +297,23 @@ production.
 
 ## 7. Visual design
 
-- **Theme:** dark by default, with a light theme too.
-  - Background `#0d1217`; card `#141b22`.
-  - Primary (Farq green) `#25c99a`, text on primary `#0d1217`.
-  - Amber `#f59e0b` for «above median» and warnings; destructive red for errors.
-- **Typography:** IBM Plex Sans Arabic or Tajawal. Base 16px, panel headings 20px bold, figures 20px bold.
-- **Shape:** cards with radius 16px, 1px borders, no heavy shadows. One accent colour; restraint over decoration.
-- **Spacing:** 12–16px. Touch targets at least 40px.
-- **Required states for every tool:** loading (spinner), empty (one helpful sentence), error (red, from the API),
-  login needed, and «غير متاح».
+The look is yours: colours, type, motion and layout details are not fixed. Be bold and make it feel like a
+world-class product, not a template. Our bar comes from these products; study how they solve the same problems:
+
+- **Map and list side by side:** Airbnb and Zillow search (map with a list that stays in sync, price pins, a card
+  that opens on the map).
+- **Location analytics:** Placer.ai, CARTO, Kepler.gl and Felt (shaded areas, legends, layers, dense data that still
+  reads calmly).
+- **AI beside the work:** Cursor's side chat, Perplexity's answers with their sources, Linear's command menu.
+- **Polish and speed:** Linear, Vercel and Stripe dashboards (typography, spacing, instant feedback, empty states).
+
+Constraints that stay:
+- Dark and light themes, both complete. Arabic-first typography that reads well at 16px and figures that stand out.
+- One colour scale for district shading and a distinct colour for «above median» or warnings, readable in both
+  themes and for colour-blind users.
+- Touch targets at least 40px.
+- **Required states for every tool:** loading, empty (one helpful sentence), error (from the API), login needed, and
+  «غير متاح».
 - **Accessibility:** `role="tablist"` for lenses and steps; `aria-pressed` for chips; focus rings; labels on every
   input.
 

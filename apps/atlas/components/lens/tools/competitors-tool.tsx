@@ -1,0 +1,165 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2 } from 'lucide-react'
+import { Explained } from '@/components/shared/explained'
+import { EXPLAIN } from '@/lib/explanations'
+import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { cn } from '@/lib/utils'
+import type { DistrictRow } from '../city-data'
+import { MapLegend } from './map-legend'
+import type { Overlay } from './overlay'
+
+type Activity = { main_id: string; main_ar: string }
+type Count = { district_ar: string; n: number }
+type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: number; residentsPer: number | null }
+
+const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مقهى']
+// competition reads as heat: dark for few competitors per km², amber for many
+const HEAT = ['#2a2312', '#4a3a12', '#7a5a12', '#b57f12', '#f59e0b']
+const NONE = '#1f9a76'   // no competitor of this activity in the district
+
+/** Area of a district outline in km², on a local flat projection (well under 1% off at district scale). */
+function areaKm2(geometry: DistrictFeature['geometry']): number {
+  const polygons: number[][][][] = geometry?.type === 'Polygon' ? [geometry.coordinates as number[][][]] : geometry?.type === 'MultiPolygon' ? geometry.coordinates as number[][][][] : []
+  let total = 0
+  for (const polygon of polygons) {
+    polygon.forEach((ring, index) => {
+      const lat = (ring.reduce((sum, point) => sum + point[1], 0) / ring.length) * (Math.PI / 180)
+      let twice = 0
+      for (let i = 0; i < ring.length - 1; i++) twice += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
+      const km2 = Math.abs(twice / 2) * 111.32 * 111.32 * Math.cos(lat)
+      total += index === 0 ? km2 : -km2   // inner rings are holes
+    })
+  }
+  return total
+}
+
+/**
+ * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map
+ * shows where competition is dense; a district picked from the list opens its competitors by name.
+ */
+export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onActivity }: {
+  city: string
+  rows: DistrictRow[]
+  features: DistrictFeature[]
+  onOverlay: (overlay: Overlay) => void
+  onSelect: (id: string) => void
+  /** The activity being studied, so the competitors of a picked district can be listed by name. */
+  onActivity: (activity: string | null) => void
+}) {
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [query, setQuery] = useState(EXAMPLES[0])
+  // the map opens painted with the first example; any activity replaces it
+  const [studied, setStudied] = useState<{ q?: string; main_id?: string; label: string } | null>({ q: EXAMPLES[0], label: EXAMPLES[0] })
+  const [counts, setCounts] = useState<Count[] | null>(null)
+  const [order, setOrder] = useState<'dense' | 'light'>('dense')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+
+  useEffect(() => {
+    setCounts(null)
+    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
+      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
+      .catch(() => setActivities([]))
+  }, [city])
+
+  useEffect(() => {
+    if (!studied) return
+    let live = true
+    setStatus('loading')
+    onActivity(studied.q ?? studied.label)
+    postMarket<{ districts?: Count[] }>('district-counts', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) })
+      .then((data) => { if (live) { setCounts(data.districts ?? []); setStatus('idle') } })
+      .catch(() => { if (live) setStatus('error') })
+    return () => { live = false }
+  }, [city, studied, onActivity])
+
+  const areas = useMemo(() => new Map(features.map((feature) => [String(feature.properties.id), areaKm2(feature.geometry)])), [features])
+
+  const table = useMemo<Row[]>(() => {
+    if (!counts) return []
+    const byName = new Map(counts.map((count) => [count.district_ar, count.n]))
+    return rows.flatMap((row) => {
+      const area = areas.get(row.id) ?? 0
+      if (area <= 0) return []
+      const competitors = byName.get(row.name) ?? 0
+      return [{ row, competitors, areaKm2: area, perKm2: competitors / area, residentsPer: row.population != null && competitors ? row.population / competitors : null }]
+    })
+  }, [counts, rows, areas])
+
+  useEffect(() => {
+    if (!table.length) { onOverlay({}); return }
+    const dense = table.filter((item) => item.competitors > 0).map((item) => item.perKm2).sort((a, b) => a - b)
+    const colors = new Map<string, string>()
+    for (const item of table) {
+      if (!item.competitors) { colors.set(item.row.id, NONE); continue }
+      let below = 0
+      while (below < dense.length && dense[below] < item.perKm2) below++
+      colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / dense.length))])
+    }
+    onOverlay({ colors })
+  }, [table, onOverlay])
+
+  const total = counts ? counts.reduce((sum, count) => sum + count.n, 0) : null
+  const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
+    .sort((a, b) => (order === 'dense' ? b.perKm2 - a.perKm2 : a.perKm2 - b.perKm2 || (b.row.population ?? 0) - (a.row.population ?? 0)))
+  const study = (next: { q?: string; main_id?: string; label: string }) => setStudied(next)
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
+      <h2 className="text-xl font-bold">المنافسون</h2>
+      <div className="flex gap-2">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && query.trim()) study({ q: query.trim(), label: query.trim() }) }}
+          placeholder="اكتب نشاطك: صيدلية، مقهى…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
+        <button onClick={() => query.trim() && study({ q: query.trim(), label: query.trim() })} disabled={status === 'loading'}
+          className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
+          {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'ادرس'}
+        </button>
+      </div>
+      <select value={studied?.main_id ?? ''} onChange={(event) => { const item = activities.find((a) => a.main_id === event.target.value); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }}
+        className="h-11 rounded-lg border bg-background px-3 text-base">
+        <option value="">أو اختر نشاطاً رئيسياً</option>
+        {activities.map((item) => <option key={item.main_id} value={item.main_id}>{item.main_ar}</option>)}
+      </select>
+      <div className="flex flex-wrap gap-2">
+          {EXAMPLES.map((example) => (
+            <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} className="rounded-full border px-3 py-1.5 text-sm hover:border-primary hover:text-primary">{example}</button>
+          ))}
+        </div>
+      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {studied && counts && status !== 'loading' && (
+        <>
+          <Explained title="المنافسون في المدينة" lines={EXPLAIN.competitors} className="text-base">
+            <strong>{numberFormat.format(total ?? 0)}</strong> منشأة «{studied.label}» في المدينة
+          </Explained>
+          <MapLegend from="منافسة قليلة" to="منافسة كثيفة" shades={HEAT} extra={{ color: NONE, label: 'لا منافس' }} />
+          <div className="flex gap-1.5" role="group" aria-label="ترتيب الأحياء">
+            {([['dense', 'الأكثر تنافساً'], ['light', 'الأقل تنافساً']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setOrder(id)} aria-pressed={order === id}
+                className={cn('flex-1 rounded-lg border py-2 text-sm', order === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
+            ))}
+          </div>
+          <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
+            {ranked.slice(0, 30).map((item) => (
+              <li key={item.row.id}>
+                <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{item.row.name}</span>
+                    <span className="block text-sm text-muted-foreground">
+                      {item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-end">
+                    <span className="block font-bold">{numberFormat.format(item.competitors)}</span>
+                    <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          <p className="text-sm text-muted-foreground">اضغط على حي لترى منافسيه بالاسم.</p>
+        </>
+      )}
+    </section>
+  )
+}

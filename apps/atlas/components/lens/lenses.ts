@@ -7,7 +7,7 @@ import type { DistrictRow } from './city-data'
 export type LensId = 'shops' | 'marketers' | 'distributors' | 'analysts' | 'property'
 
 /** The insight tools, named by the question each answers; their results are drawn on the one map. */
-export type ToolId = 'district' | 'homes' | 'gaps' | 'audience' | 'businesses' | 'around' | 'growth' | 'territories' | 'compare'
+export type ToolId = 'district' | 'homes' | 'gaps' | 'competitors' | 'audience' | 'businesses' | 'around' | 'growth' | 'territories' | 'compare'
 
 export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'income' | 'growth' | 'restaurants' | 'villaShare' | 'shopRent' | 'shopRentUnstated' | 'homeRent' | 'homeRentMonthly' | 'homePrice' | 'warehouseRent'
 
@@ -39,7 +39,7 @@ export type Lens = { id: LensId; label: string; metric: MetricId; metrics: Metri
 export const LENSES: Lens[] = [
   {
     id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'shopRentUnstated', 'population'],
-    steps: [{ tool: 'gaps', label: 'أين ينقص نشاطي؟' }, { tool: 'around', label: 'قارن المواقع' }, { tool: 'homes', label: 'محلات للإيجار' }],
+    steps: [{ tool: 'gaps', label: 'أين ينقص نشاطي؟' }, { tool: 'competitors', label: 'المنافسون' }, { tool: 'around', label: 'قارن المواقع' }, { tool: 'homes', label: 'محلات للإيجار' }],
   },
   {
     id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare'],
