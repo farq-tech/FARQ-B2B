@@ -93,6 +93,14 @@ class MarketBrandsTests(unittest.TestCase):
         self.assertEqual(profile["activity"], {"main_ar": "صيدليات", "classified": 3, "agree": 2},
                          'the chain takes the activity most of its branches carry; the cosmetics one is named apart')
 
+    def test_a_district_name_or_a_name_fragment_is_no_brand(self):
+        rows = [("p1", "العليا", "العليا", "العليا", None), ("p2", "الملقا", "العليا", "العليا", None),
+                ("p3", "النرجس", "العليا", "العليا", None),
+                ("q1", "العليا", "للملابس الجاهزة", "للملابس الجاهزه", None), ("q2", "الملقا", "للملابس الجاهزة", "للملابس الجاهزه", None),
+                ("r1", "العليا", "صيدلية سيف", "صيدليه سيف", None), ("r2", "الملقا", "صيدلية سيف", "صيدليه سيف", None)]
+        self.assertEqual([group["brand"] for group in market_analytics.group_chains(rows).values()], ["صيدلية سيف"])
+        self.assertEqual(market_analytics.fold_key("الْمَلْقا - أ"), market_analytics.fold_key("الملقا ا"))
+
     def test_history_gives_growth_once_two_snapshots_exist(self):
         path = str(pathlib.Path(self.temp.name) / "chain_history.json")
         self.assertTrue(market_analytics.record_chain_history(self.analytics, path, today="2026-09-01"))
