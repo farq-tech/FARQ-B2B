@@ -12,6 +12,7 @@ import duckdb, subprocess, base64
 from trial_search import Directory
 from directory_tiles import DirectoryTiles, has_usable_whatsapp, is_precise_point, valid_filters
 from market_analytics import MarketAnalytics
+import market_analytics
 import status_policy
 import read_only_test
 from metrics import ServiceMetrics, route_label
@@ -268,6 +269,15 @@ TRIAL_DIRECTORY = Directory(DATA)
 TILES = DirectoryTiles(DATA)
 TRIAL_DIRECTORY.branch_counts = TILES.branch_counts
 MARKET_ANALYTICS = MarketAnalytics(TILES, STREET_DENSITY)
+# chain branch counts per directory snapshot, on the volume so they outlive deploys (market_analytics.record_chain_history)
+CHAIN_HISTORY = os.path.join(AUX_DATA_DIR, 'chain_history.json')
+
+
+def _record_chain_history():
+    try:
+        if market_analytics.record_chain_history(MARKET_ANALYTICS, CHAIN_HISTORY): LOGGER.info('chain_history snapshot recorded')
+    except Exception as error:   # history is an extra; the service runs without it
+        LOGGER.error('chain_history_failed error_type=%s', type(error).__name__)
 
 # ---------- Arabic normalisation ----------
 AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
@@ -1079,9 +1089,18 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('district-points', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/brand-profile':
+            # one chain across every activity in the city: branches per district and the activities they fall under
+            try: self._json(MARKET_ANALYTICS.brand_profile(body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('brand-profile', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/brands':
             # chains of an activity and where their branches are (market_analytics.brands); aggregate counts only
-            try: self._json(MARKET_ANALYTICS.brands(body))
+            try:
+                city = _city(body)
+                self._json(MARKET_ANALYTICS.brands(body, population=district_population_by_name(city), history=market_analytics.read_chain_history(CHAIN_HISTORY)))
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('brands', error)
@@ -1204,4 +1223,5 @@ if __name__ == '__main__':
     print(f"Farq Targeting on http://localhost:{PORT}  (AI: {'on' if API_KEY else 'off — fallback dictionary'})", flush=True)
     import startup_jobs
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
+    threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
     ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
