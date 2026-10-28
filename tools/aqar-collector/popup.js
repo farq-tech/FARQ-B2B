@@ -19,7 +19,7 @@ async function refreshFast() {
 }
 
 async function refresh() {
-  refreshFast()
+  await refreshFast()
   const { run } = await get({ run: null })
   const { mapStats } = await get({ mapStats: null })
   $('listings').textContent = `${fmt.format(run?.stats?.listings ?? 0)} إعلان`
@@ -28,6 +28,8 @@ async function refresh() {
   $('status').textContent = run ? `${STATUS[run.status] || ''}${run.current ? ` — ${run.current.segs.slice(1).join(' / ')} صفحة ${run.current.page}` : ''}` : ''
   $('pause').hidden = !run?.active
   $('resume').hidden = !run || run.active || run.status === 'done'
+  // the same state in the title, for a popup.html opened as a tab and read from outside (e.g. an automation script)
+  document.title = [$('listings').textContent, $('map').textContent, $('fastStatus').textContent].filter(Boolean).join(' · ')
 }
 
 $('start').addEventListener('click', async () => {
@@ -50,15 +52,46 @@ function shownArea(findTemplate) {
   const lats = points.map((p) => p.lat), lngs = points.map((p) => p.lng)
   return [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
 }
+// Saudi Arabia, south-west to north-east; the run cuts it into quarters until a tile holds at most 1,000 listings
+const KINGDOM = [16.0, 34.4, 32.2, 55.7]
+const overlaps = ([s, w, n, e], [bs, bw, bn, be]) => s < bn && n > bs && w < be && e > bw
+// the parts of a tile that lie outside a box: up to four rectangles (south, north, west, east of it)
+function subtract(tile, box) {
+  if (!overlaps(tile, box)) return [tile]
+  const [s, w, n, e] = tile, [bs, bw, bn, be] = box
+  const out = []
+  if (bs > s) out.push([s, w, bs, e])
+  if (bn < n) out.push([bn, w, n, e])
+  const ms = Math.max(s, bs), mn = Math.min(n, bn)
+  if (bw > w) out.push([ms, w, mn, bw])
+  if (be < e) out.push([ms, be, mn, e])
+  return out
+}
 
-async function launch(tab, next) {
+async function launch(next, tab) {
   // beat 0: whichever Aqar page loads next may take the run, should this tab not answer
   await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } })
-  chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' }, () => {
+  if (!tab) {
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    tab = tabs.find((t) => t.active) || tabs[0]
+  }
+  if (!tab) chrome.tabs.create({ url: 'https://sa.aqar.fm/الخريطة', active: false })
+  else chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' }, () => {
     // a tab opened before the extension was (re)loaded has no collector in it: reload it and the run starts there
     if (chrome.runtime.lastError) chrome.tabs.reload(tab.id)
   })
   refreshFast()
+}
+// a new run over these boxes; the area a finished run covered is remembered, so the kingdom run leaves it out
+async function startFast(boxes, fast, tab) {
+  const { covered = [] } = await get({ covered: [] })
+  if (fast?.status === 'done' && fast.root?.length) await set({ covered: [...covered, ...fast.root] })
+  await launch({ queue: boxes.map((bbox) => ({ bbox, depth: 0 })), current: null, root: boxes, stats: { requests: 0, listings: 0, tiles: 0 } }, tab)
+}
+async function kingdomBoxes() {
+  const { covered = [], fast } = await get({ covered: [], fast: null })
+  const done = fast?.status === 'done' && fast.root?.length ? [...covered, ...fast.root] : covered
+  return done.reduce((tiles, box) => tiles.flatMap((tile) => subtract(tile, box)), [KINGDOM])
 }
 
 $('fast').addEventListener('click', async () => {
@@ -66,23 +99,27 @@ $('fast').addEventListener('click', async () => {
   const tab = await activeTab()
   if (!findTemplate || !tab?.url?.startsWith('https://sa.aqar.fm/')) { refreshFast(); return }
   if (fast?.active) { await set({ fast: { ...fast, active: false, status: 'paused' } }); refreshFast(); return }
-  let next = fast
-  if (!fast || (!fast.current && !fast.queue.length)) {
-    const bbox = shownArea(findTemplate)
-    if (!bbox) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
-    next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
-  }
-  await launch(tab, next)
+  if (fast && (fast.current || fast.queue.length)) { await launch(fast, tab); return }
+  const bbox = shownArea(findTemplate)
+  if (!bbox) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
+  await startFast([bbox], fast, tab)
 })
 // a new city: the area on screen now replaces what is left of the last run; collected listings stay
 $('fastArea').addEventListener('click', async () => {
-  const { findTemplate } = await get({ findTemplate: null })
+  const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
   const tab = await activeTab()
   if (!findTemplate || !tab?.url?.startsWith('https://sa.aqar.fm/')) { refreshFast(); return }
   const bbox = shownArea(findTemplate)
   if (!bbox) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
   if (!confirm('بدء سحب المنطقة الظاهرة على الخريطة الآن؟ ما جُمع يبقى، وما تبقى من السحب السابق يُترك.')) return
-  await launch(tab, { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } })
+  await startFast([bbox], fast, tab)
+})
+$('kingdom').addEventListener('click', async () => {
+  const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+  if (!findTemplate) { refreshFast(); return }
+  if (fast?.active) { $('fastStatus').textContent = 'أوقف السحب الجاري أولاً.'; return }
+  if (!confirm('سحب المملكة كلها قد يستغرق ساعات. نبدأ؟')) return
+  await startFast(await kingdomBoxes(), fast)
 })
 $('pause').addEventListener('click', async () => { const { run } = await get({ run: null }); await set({ run: { ...run, active: false, status: 'paused' } }); refresh() })
 $('resume').addEventListener('click', async () => {
@@ -107,3 +144,15 @@ $('export').addEventListener('click', async () => {
 $('clear').addEventListener('click', async () => { if (confirm('مسح كل الإعلانات المجمّعة؟')) { await new Promise((done) => chrome.storage.local.clear(done)); refresh() } })
 refresh()
 setInterval(refresh, 1000)
+// popup.html opened as a tab with a hash runs without a click: #export downloads the export, #kingdom starts the
+// kingdom run, #run=S,W,N,E;S,W,N,E… starts a run over those boxes (an automation script's way in)
+;(async () => {
+  const hash = decodeURIComponent(location.hash)
+  if (hash === '#export') $('export').click()
+  else if (hash === '#kingdom' || hash.startsWith('#run=')) {
+    const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+    if (!findTemplate || fast?.active) return
+    const boxes = hash === '#kingdom' ? await kingdomBoxes() : hash.slice(5).split(';').map((box) => box.split(',').map(Number)).filter((box) => box.length === 4 && box.every(Number.isFinite))
+    if (boxes.length) await startFast(boxes, fast)
+  }
+})()

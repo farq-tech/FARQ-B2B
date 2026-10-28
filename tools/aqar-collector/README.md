@@ -13,6 +13,10 @@ link to each listing reach Atlas.
 - **Fast run (`relay.js`).** «سحب سريع من الخريطة» replays that template: the area the map last showed is cut into
   quarters until a tile holds at most 1,000 listings, and each tile is read 50 at a time with a 2.5–4 s pause. A 429 waits (Retry-After, else 1 min doubling to 10 min), slows the rest of the run by half, and retries by itself. Its state
   lives in storage, so a reloaded tab resumes; a 403 pauses it.
+- **Kingdom run.** «سحب المملكة كلها» queues Saudi Arabia's bounding box minus every area a finished fast run
+  covered (kept under `covered`), so a second press after a city run goes on to the rest. Hours long.
+- **Without a click.** `popup.html` opened as a tab mirrors its status in the tab title; `popup.html#export`
+  downloads the export, `#kingdom` starts the kingdom run, `#run=S,W,N,E;…` a run over given boxes.
 
 Records are kept as received, contact details included; they are hidden when Farq processes the export.
 
