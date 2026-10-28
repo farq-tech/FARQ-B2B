@@ -52,6 +52,21 @@ class InsightTests(unittest.TestCase):
         result = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
         self.assertEqual((result["home_buildings"], result["dwellings"], result["population"], result["people_per_district"]), (2, 10.0, 75, True))
 
+    def test_population_and_businesses_within_a_drive_time_polygon(self):
+        points = self.parquet("pw.parquet", "longitude double, latitude double, district_id varchar, dwellings double, population double", [
+            (46.7000, 24.7000, "1", 4.0, 30.0), (46.7020, 24.7010, "1", 6.0, 45.0), (46.7090, 24.7090, "1", 8.0, 60.0), (46.7500, 24.7000, "2", 100.0, 500.0)])
+        targets = self.parquet("tw.parquet", "poi_key varchar, longitude double, latitude double, category_ar varchar, category varchar", [
+            ("a", 46.7001, 24.7001, "صيدلية", "Pharmacy"), ("b", 46.7091, 24.7091, "مطعم", "Restaurant"), ("c", 46.80, 24.80, "مطعم", "Restaurant")])
+        # an L-shaped area: the box's top-right corner (46.705+, 24.705+) is outside even though it is inside the box
+        shape = {"type": "Polygon", "coordinates": [[[46.695, 24.695], [46.712, 24.695], [46.712, 24.705], [46.705, 24.705], [46.705, 24.712], [46.695, 24.712], [46.695, 24.695]]]}
+        result = insights.population_within(self.db, points, targets, "true", shape, 5.0)
+        self.assertEqual((result["home_buildings"], result["dwellings"], result["population"]), (2, 10.0, 75))
+        self.assertEqual(result["businesses"], 1)
+        self.assertEqual(result["top_activities"], [{"activity": "صيدلية", "n": 1}])
+        hole = {"type": "Polygon", "coordinates": [shape["coordinates"][0], [[46.6995, 24.6995], [46.7005, 24.6995], [46.7005, 24.7005], [46.6995, 24.7005], [46.6995, 24.6995]]]}
+        self.assertEqual(insights.population_within(self.db, points, None, "true", hole, 5.0)["home_buildings"], 1, "a hole is outside")
+        self.assertIsNone(insights.population_within(self.db, points, None, "true", {"type": "Point"}, 5.0)["population"])
+
     def test_territories_are_balanced_runs_of_neighbouring_districts(self):
         features = [{"properties": {"id": i, "ar": f"حي{i}"}, "geometry": square(46.0 + (i % 4) * 0.01, 24.0 + (i // 4) * 0.01)} for i in range(16)]
         weights = {f"حي{i}": 100 for i in range(16)}

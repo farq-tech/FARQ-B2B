@@ -54,8 +54,13 @@ function circlePolygon({ lon, lat, radius_m }: Circle): GeoJSON.Feature<GeoJSON.
  * circle, and take clicks as points instead (`onPick`). The token comes from /api/mapbox-token like every Atlas map.
  */
 export type MapPoint = { id: string; lon: number; lat: number }
+/** A drawn area (a radius or a drive-time area) and the numbered site it belongs to. */
+export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
+export type Site = { id: string; label: string; color: string; lon: number; lat: number }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start }: {
+export { circlePolygon }
+
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -66,6 +71,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   points?: MapPoint[] | null
   lines?: GeoJSON.LineString[] | null
   start?: { lon: number; lat: number } | null
+  areas?: Area[] | null
+  sites?: Site[] | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -112,6 +119,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addSource('circle', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'circle-fill', type: 'fill', source: 'circle', paint: { 'fill-color': '#25c99a', 'fill-opacity': 0.18 } })
         instance.addLayer({ id: 'circle-line', type: 'line', source: 'circle', paint: { 'line-color': '#25c99a', 'line-width': 2.5 } })
+        instance.addSource('areas', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'area-fill', type: 'fill', source: 'areas', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } })
+        instance.addLayer({ id: 'area-line', type: 'line', source: 'areas', paint: { 'line-color': ['get', 'color'], 'line-width': 2.5 } })
         instance.addSource('route', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0d1217', 'line-width': 7 } })
         instance.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#25c99a', 'line-width': 4 } })
@@ -119,6 +129,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': '#facc15', 'circle-stroke-color': '#0d1217', 'circle-stroke-width': 1 } })
         instance.addSource('start', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': '#ffffff', 'circle-stroke-color': '#25c99a', 'circle-stroke-width': 4 } })
+        instance.addSource('sites', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'site-dot', type: 'circle', source: 'sites', paint: { 'circle-radius': 13, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#0d1217', 'circle-stroke-width': 2 } })
+        instance.addLayer({ id: 'site-label', type: 'symbol', source: 'sites', layout: { 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 15, 'text-allow-overlap': true }, paint: { 'text-color': '#0d1217' } })
         instance.on('click', (event) => {
           if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
           const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
@@ -158,6 +171,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     ;(instance.getSource('route') as GeoJSONSource | undefined)?.setData(collection((lines ?? []).map((line) => ({ type: 'Feature', properties: {}, geometry: line }))))
     ;(instance.getSource('start') as GeoJSONSource | undefined)?.setData(collection(start ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [start.lon, start.lat] } }] : []))
   }, [ready, points, lines, start])
+
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance) return
+    ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (areas ?? []).map((area) => ({ type: 'Feature', properties: { id: area.id, color: area.color }, geometry: area.geometry })) })
+    ;(instance.getSource('sites') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (sites ?? []).map((site) => ({ type: 'Feature', properties: { id: site.id, label: site.label, color: site.color }, geometry: { type: 'Point', coordinates: [site.lon, site.lat] } })) })
+  }, [ready, areas, sites])
 
   useEffect(() => {
     const instance = map.current

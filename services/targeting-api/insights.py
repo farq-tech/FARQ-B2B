@@ -81,6 +81,57 @@ def population_around(db, points_path, targets_path, search_sql, lon, lat, radiu
     return result
 
 
+def _inside(x, y, polygons):
+    """Even-odd ray casting over every ring, so holes count as outside."""
+    for rings in polygons:
+        inside = False
+        for ring in rings:
+            j = len(ring) - 1
+            for i in range(len(ring)):
+                xi, yi = ring[i][0], ring[i][1]
+                xj, yj = ring[j][0], ring[j][1]
+                if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+                    inside = not inside
+                j = i
+        if inside:
+            return True
+    return False
+
+
+def population_within(db, points_path, targets_path, search_sql, geometry, household_size):
+    """Homes, people and directory businesses inside a polygon, such as a drive-time area. Same layers and the same
+    people figure as population_around; only the boundary differs. Points are pre-filtered by the polygon's box in
+    SQL and then tested exactly."""
+    polygons = canonical_data._polygons(geometry)
+    coords = [point for rings in polygons for ring in rings for point in ring]
+    result = {'dwellings': None, 'population': None, 'businesses': None, 'top_activities': []}
+    if not coords:
+        return result
+    west, east = min(p[0] for p in coords), max(p[0] for p in coords)
+    south, north = min(p[1] for p in coords), max(p[1] for p in coords)
+    if points_path:
+        has_people = 'population' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [points_path]).fetchall()}
+        people = 'population' if has_people else f'dwellings * {float(household_size)}'
+        rows = db.execute(f"""select longitude, latitude, dwellings, {people} from read_parquet(?)
+                              where longitude between ? and ? and latitude between ? and ?""",
+                          [points_path, west, east, south, north]).fetchall()
+        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        result.update(home_buildings=len(inside), dwellings=round(sum(float(r[2] or 0) for r in inside), 1),
+                      population=round(sum(float(r[3] or 0) for r in inside)), people_per_district=has_people)
+    if targets_path:
+        rows = db.execute(f"""select p.longitude, p.latitude, coalesce(nullif(p.category_ar, ''), p.category) from read_parquet(?) p
+                              where {search_sql} and p.longitude between ? and ? and p.latitude between ? and ?""",
+                          [targets_path, west, east, south, north]).fetchall()
+        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        result['businesses'] = len(inside)
+        counts = {}
+        for row in inside:
+            if row[2]:
+                counts[row[2]] = counts.get(row[2], 0) + 1
+        result['top_activities'] = [{'activity': name, 'n': n} for name, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:10]]
+    return result
+
+
 def _hilbert(n, x, y):
     """Distance along a Hilbert curve on an n×n grid (n a power of two)."""
     d, s = 0, n // 2
