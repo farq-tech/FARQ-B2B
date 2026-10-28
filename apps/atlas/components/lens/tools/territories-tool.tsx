@@ -15,7 +15,7 @@ type Territory = { territory: number; weight: number; districts: { district_ar: 
 type Activity = { main_id: string; main_ar: string }
 type Customer = Stop & { name: string; district_ar: string; whatsapp: boolean }
 
-const PALETTE = ['#d9f99d', '#38bdf8', '#f472b6', '#facc15', '#a78bfa', '#fb923c', '#2dd4bf', '#f87171', '#94a3b8', '#e879f9', '#4ade80', '#60a5fa']
+const PALETTE = ['#25c99a', '#38bdf8', '#f472b6', '#facc15', '#a78bfa', '#fb923c', '#e8eef2', '#f87171', '#94a3b8', '#e879f9', '#4ade80', '#60a5fa']
 const DIM = '#27272a'
 
 function Step({ n, title, done, children }: { n: number; title: string; done?: boolean; children: React.ReactNode }) {
