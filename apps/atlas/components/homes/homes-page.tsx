@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BedSingle, BriefcaseBusiness, Building2, House, LandPlot, Layers, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, Sparkles, Store, Warehouse, X, type LucideIcon } from 'lucide-react'
+import { BedSingle, BriefcaseBusiness, Building2, House, LandPlot, Layers, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, Store, Warehouse, X, type LucideIcon } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow } from '@/components/shared/search-pill'
@@ -250,7 +250,7 @@ export function HomesPage() {
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-20 flex flex-col items-center gap-2 lg:bottom-6">
         {compare.length === 2 && (
           <button onClick={() => setAdvise(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg">
-            <Sparkles className="size-4" aria-hidden /> قارن العرضين مع المساعد
+            <Scale className="size-4" aria-hidden /> قارن العرضين
           </button>
         )}
         <button onClick={() => setMobileMap((value) => !value)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background shadow-lg lg:hidden">

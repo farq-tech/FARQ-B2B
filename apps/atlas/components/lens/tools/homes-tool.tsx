@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, MapPin, Scale, Sparkles, X } from 'lucide-react'
+import { Loader2, MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
@@ -228,13 +228,13 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       {compare.length === 2 && (
         <button onClick={() => setAdvisor({ kind: 'listings', listings: compare })}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground">
-          <Sparkles className="size-4" aria-hidden /> قارن العرضين مع المساعد
+          <Scale className="size-4" aria-hidden /> قارن العرضين
         </button>
       )}
       {selected.length === 2 && (
         <button onClick={() => setAdvisor({ kind: 'districts', rows: selected })}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary">
-          <Sparkles className="size-4" aria-hidden /> قارن {selected[0].name} و{selected[1].name} مع المساعد
+          <Scale className="size-4" aria-hidden /> قارن {selected[0].name} و{selected[1].name}
         </button>
       )}
       {advisor && <AdvisorPanel key={JSON.stringify(advisor.kind === 'listings' ? advisor.listings.map((item) => item.id) : advisor.rows.map((row) => row.id))} subject={advisor} rows={rows} onClose={() => setAdvisor(null)} />}

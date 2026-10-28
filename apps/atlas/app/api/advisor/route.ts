@@ -53,18 +53,18 @@ function targetingHeaders() {
 }
 
 const UPSTREAM_ERRORS: Record<string, [string, number]> = {
-  UNCONFIGURED: ['المساعد غير مفعّل بعد.', 503],
-  REFUSED: ['تعذر على المساعد الرد على هذا الطلب.', 422],
-  BUSY: ['المساعد مشغول، حاول بعد قليل.', 429],
+  UNCONFIGURED: ['المقارنة غير متاحة الآن.', 503],
+  REFUSED: ['تعذرت المقارنة لهذا الطلب.', 422],
+  BUSY: ['الخدمة مشغولة، حاول بعد قليل.', 429],
 }
 
 export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
-  if (!session) return NextResponse.json({ error: 'سجّل الدخول لاستخدام المساعد.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
-  if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لاستخدام المساعد.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
+  if (!session) return NextResponse.json({ error: 'سجّل الدخول لاستخدام المقارنة.' }, { status: 401, headers: { 'cache-control': 'no-store' } })
+  if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لاستخدام المقارنة.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
-  if (!origin || !headers) return NextResponse.json({ error: 'المساعد غير مفعّل بعد.' }, { status: 503, headers: { 'cache-control': 'no-store' } })
+  if (!origin || !headers) return NextResponse.json({ error: 'المقارنة غير متاحة الآن.' }, { status: 503, headers: { 'cache-control': 'no-store' } })
 
   let input: ReturnType<typeof readInput> = null
   try { input = readInput(await request.json()) } catch { input = null }
@@ -78,13 +78,13 @@ export async function POST(request: NextRequest) {
     const response = await fetch(`${origin}/advisor`, { method: 'POST', headers, body: JSON.stringify({ system: SYSTEM, messages }), cache: 'no-store', signal: AbortSignal.timeout(58000) })
     const answer = (await response.json().catch(() => ({}))) as { reply?: string; error?: string }
     if (!response.ok || !answer.reply) {
-      const [error, status] = UPSTREAM_ERRORS[answer.error ?? ''] ?? ['تعذر الاتصال بالمساعد.', 502]
+      const [error, status] = UPSTREAM_ERRORS[answer.error ?? ''] ?? ['تعذر الاتصال بالخدمة.', 502]
       return NextResponse.json({ error }, { status, headers: { 'cache-control': 'no-store' } })
     }
     const result = NextResponse.json({ reply: answer.reply }, { headers: { 'cache-control': 'no-store' } })
     if (refreshed) setSession(result, session)
     return result
   } catch {
-    return NextResponse.json({ error: 'تعذر الاتصال بالمساعد.' }, { status: 502 })
+    return NextResponse.json({ error: 'تعذر الاتصال بالخدمة.' }, { status: 502 })
   }
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Loader2, Send, Sparkles, X } from 'lucide-react'
+import { Loader2, Scale, Send, X } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
@@ -132,13 +132,13 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
     setter((current) => (current.includes(option) ? current.filter((item) => item !== option) : [...current, option]))
 
   return (
-    <section aria-label="المساعد" className="flex flex-col gap-3 rounded-2xl border border-primary/40 bg-card p-4">
+    <section aria-label="المقارنة" className="flex flex-col gap-3 rounded-2xl border border-primary/40 bg-card p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-1.5 text-lg font-bold"><Sparkles className="size-5 text-primary" aria-hidden /> قارن مع المساعد</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-bold"><Scale className="size-5 text-primary" aria-hidden /> المقارنة</h2>
           <p className="text-sm text-muted-foreground">{subjectTitle(subject)}</p>
         </div>
-        {onClose && <button onClick={onClose} aria-label="إغلاق المساعد" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>}
+        {onClose && <button onClick={onClose} aria-label="إغلاق المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>}
       </div>
 
       {turns === null ? (
@@ -155,7 +155,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
             placeholder="شيء آخر؟ مثلاً: عملي في العليا، أو عندي ثلاثة أطفال" className="rounded-lg border bg-background px-3 py-2 text-base" />
           <button onClick={() => void ask([])} disabled={status === 'loading'}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground disabled:opacity-60">
-            {status === 'loading' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />} قارن
+            {status === 'loading' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Scale className="size-4" aria-hidden />} قارن
           </button>
         </>
       ) : (
@@ -166,17 +166,17 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
                 {turn.content}
               </li>
             ))}
-            {status === 'loading' && <li><Loader2 className="size-5 animate-spin text-primary" aria-label="المساعد يكتب" /></li>}
+            {status === 'loading' && <li><Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحضير" /></li>}
           </ol>
           <div className="flex gap-2">
             <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} maxLength={500}
-              placeholder="أجب المساعد أو اسأله" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />
+              placeholder="اكتب سؤالك عن المقارنة" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />
             <button onClick={send} disabled={!draft.trim() || status === 'loading'} aria-label="أرسل"
               className="rounded-lg bg-primary px-3 text-primary-foreground disabled:opacity-50"><Send className="size-4" aria-hidden /></button>
           </div>
         </>
       )}
-      {status === 'login' && <p className="text-base">لاستخدام المساعد <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
+      {status === 'login' && <p className="text-base">لاستخدام المقارنة <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
       {status === 'error' && <p role="alert" className="text-base text-destructive">{message}</p>}
       <p className="text-sm text-muted-foreground">يقارن من أرقام أطلس فقط، ولا يقرر عنك.</p>
     </section>
