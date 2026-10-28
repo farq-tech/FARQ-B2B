@@ -24,6 +24,8 @@ export type Listing = {
   vs_district_pct: number | null
   /** The figures look wrong (a building's area on one flat, a price out of range): shown, never in a median. */
   check: boolean
+  /** The service's city name (city_en), the key every other Atlas call takes. */
+  city: string
   photo: string | null
   photos: string[]
   address: string | null
