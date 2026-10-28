@@ -12,6 +12,8 @@ async function refreshFast() {
   const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
   $('fast').textContent = fast?.active ? 'إيقاف السحب السريع' : (fast?.current || fast?.queue?.length ? 'استئناف السحب السريع' : 'سحب سريع من الخريطة')
   $('fastStatus').textContent = !findTemplate ? 'افتح «الخريطة» في عقار وصغّرها حتى تظهر المدينة كاملة، ثم اضغط.'
+    : fast?.active && Date.now() - (fast.beat || 0) > 30000 && fast.beat ? 'لا يتقدم منذ 30 ثانية. أعد تحميل صفحة عقار ليكمل.'
+    : fast?.active && !fast.beat ? 'يبدأ… (إن طال الانتظار أعد تحميل صفحة عقار)'
     : fast ? `${FAST[fast.status] || ''} ${fmt.format(fast.stats.requests)} طلب · ${fmt.format(fast.stats.tiles)} مربع انتهى · ${fmt.format(fast.queue.length)} متبقٍ${fast.error ? ` (${fast.error})` : ''}` : ''
 }
 
@@ -54,8 +56,12 @@ $('fast').addEventListener('click', async () => {
     const bbox = [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
     next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
   }
-  await set({ fast: { ...next, active: true, status: 'running', error: null, beat: Date.now() } })
-  chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' })
+  // beat 0: whichever Aqar page loads next may take the run, should this tab not answer
+  await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } })
+  chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' }, () => {
+    // a tab opened before the extension was (re)loaded has no collector in it: reload it and the run starts there
+    if (chrome.runtime.lastError) chrome.tabs.reload(tab.id)
+  })
   refreshFast()
 })
 $('pause').addEventListener('click', async () => { const { run } = await get({ run: null }); await set({ run: { ...run, active: false, status: 'paused' } }); refresh() })

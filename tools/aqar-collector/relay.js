@@ -66,6 +66,7 @@ async function fastRun() {
         if (!tile) { await set({ fast: { ...fast, active: false, status: 'done', queue, stats } }); break }
         current = { ...tile, from: 0, total: null }
       }
+      await set({ fast: { ...fast, current, beat: Date.now() } })
       let find
       try {
         find = await ask(findTemplate, current.bbox, current.from)
@@ -88,6 +89,9 @@ async function fastRun() {
       await set({ fast: { ...fast, queue, current, stats, status: 'running', beat: Date.now() } })
       await sleep(PAUSE_MS[0] + Math.random() * (PAUSE_MS[1] - PAUSE_MS[0]))
     }
+  } catch (error) {
+    const { fast } = await get({ fast: null })
+    await set({ fast: { ...fast, active: false, status: 'error', error: String(error?.message || error) } })
   } finally { running = false }
 }
 
