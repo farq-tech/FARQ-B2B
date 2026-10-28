@@ -19,6 +19,8 @@ export type DistrictRow = {
   income: number | null
   underConstruction: number | null
   newBuildings: number | null
+  /** Share of the district's homes that are villas (buildings layer), a stand-in for income where none is published. */
+  villaShare: number | null
 }
 
 export type CityData = {
@@ -32,6 +34,7 @@ type PopulationRow = { district_id: string | number; district_ar: string; popula
 type CountRow = { district_ar: string; n: number; n_whatsapp?: number }
 type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
+type HousingRow = { district_ar: string; villa_share_pct: number }
 type RestaurantRow = { district_id: string; restaurants: number }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -53,8 +56,9 @@ export function useCityData(city: string): CityData {
       optional(postMarket<{ districts?: CountRow[]; total?: number }>('district-counts', { city })),
       optional(postMarket<{ districts?: IncomeRow[] }>('district-income', { city })),
       optional(postMarket<{ districts?: GrowthRow[] }>('growth', { city })),
+      optional(postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
       optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
-    ]).then(([atlas, population, counts, income, growth, restaurants]) => {
+    ]).then(([atlas, population, counts, income, growth, housing, restaurants]) => {
       if (!active) return
       const features = atlas.features ?? []
       const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
@@ -63,6 +67,7 @@ export function useCityData(city: string): CityData {
       const count = byName(counts?.districts)
       const pay = byName(income?.districts)
       const built = byName(growth?.districts)
+      const homes = byName(housing?.districts)
       const rows = features.map((feature): DistrictRow => {
         const id = String(feature.properties.id)
         const name = districtName(feature)
@@ -79,6 +84,7 @@ export function useCityData(city: string): CityData {
           income: pay.get(name)?.income_all ?? null,
           underConstruction: g ? g.under_construction : null,
           newBuildings: g ? g.new_buildings : null,
+          villaShare: homes.get(name)?.villa_share_pct ?? null,
         }
       })
       setData({ status: 'ready', features, rows, total: counts?.total ?? null })
