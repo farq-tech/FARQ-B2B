@@ -43,20 +43,15 @@ $('start').addEventListener('click', async () => {
   chrome.tabs.update(tab.id, { url: urlOf(segs) })
   refresh()
 })
-$('fast').addEventListener('click', async () => {
-  const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
-  const tab = await activeTab()
-  if (!findTemplate || !tab?.url?.startsWith('https://sa.aqar.fm/')) { refreshFast(); return }
-  if (fast?.active) { await set({ fast: { ...fast, active: false, status: 'paused' } }); refreshFast(); return }
-  let next = fast
-  if (!fast || (!fast.current && !fast.queue.length)) {
-    // the area the map showed when its last request went out
-    const points = JSON.parse(findTemplate.request).variables?.polygon ?? []
-    if (points.length < 3) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
-    const lats = points.map((p) => p.lat), lngs = points.map((p) => p.lng)
-    const bbox = [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
-    next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
-  }
+/** The area the map showed when its last request went out, as one tile to start a run from. */
+function shownArea(findTemplate) {
+  const points = JSON.parse(findTemplate.request).variables?.polygon ?? []
+  if (points.length < 3) return null
+  const lats = points.map((p) => p.lat), lngs = points.map((p) => p.lng)
+  return [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
+}
+
+async function launch(tab, next) {
   // beat 0: whichever Aqar page loads next may take the run, should this tab not answer
   await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } })
   chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' }, () => {
@@ -64,6 +59,30 @@ $('fast').addEventListener('click', async () => {
     if (chrome.runtime.lastError) chrome.tabs.reload(tab.id)
   })
   refreshFast()
+}
+
+$('fast').addEventListener('click', async () => {
+  const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+  const tab = await activeTab()
+  if (!findTemplate || !tab?.url?.startsWith('https://sa.aqar.fm/')) { refreshFast(); return }
+  if (fast?.active) { await set({ fast: { ...fast, active: false, status: 'paused' } }); refreshFast(); return }
+  let next = fast
+  if (!fast || (!fast.current && !fast.queue.length)) {
+    const bbox = shownArea(findTemplate)
+    if (!bbox) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
+    next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
+  }
+  await launch(tab, next)
+})
+// a new city: the area on screen now replaces what is left of the last run; collected listings stay
+$('fastArea').addEventListener('click', async () => {
+  const { findTemplate } = await get({ findTemplate: null })
+  const tab = await activeTab()
+  if (!findTemplate || !tab?.url?.startsWith('https://sa.aqar.fm/')) { refreshFast(); return }
+  const bbox = shownArea(findTemplate)
+  if (!bbox) { $('fastStatus').textContent = 'حرّك الخريطة قليلاً ثم اضغط.'; return }
+  if (!confirm('بدء سحب المنطقة الظاهرة على الخريطة الآن؟ ما جُمع يبقى، وما تبقى من السحب السابق يُترك.')) return
+  await launch(tab, { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } })
 })
 $('pause').addEventListener('click', async () => { const { run } = await get({ run: null }); await set({ run: { ...run, active: false, status: 'paused' } }); refresh() })
 $('resume').addEventListener('click', async () => {
