@@ -111,6 +111,10 @@ def parse_map_listing(record, city_en=None):
     kind = 'sale' if head.group('kind') == 'بيع' else 'rent'
     text = str(record.get('content') or '')
     period = 'annually' if record.get('rent_period') == 3 and not ('شهري' in text and 'سنوي' not in text) else None
+    # the yearly total of twelve monthly payments, when it is many times the price, shows the price is a month's rent
+    twelve = _number(record.get('price_12_payments'))
+    if kind == 'rent' and twelve and twelve >= 6 * price:
+        period = 'monthly'
     location = record.get('location') or {}
     district = str(record.get('district') or '').strip()
     # a city outside the alias table keeps Aqar's Arabic name rather than borrowing another city's

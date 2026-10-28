@@ -36,6 +36,10 @@ GROUPS = {
 RENT_PER_YEAR = {'annually': 1, 'yearly': 1, 'monthly': 12}
 # outside these a figure is a typo or a different unit (a total for a compound, a daily chalet), not a price per m²
 PER_SQM_BOUNDS = {'sale': (100, 100_000), 'rent': (20, 10_000)}
+# one home listed with the whole building's or plot's area: beyond these the m² is not the unit's
+MAX_AREA = {'apartment': 400, 'studio': 150, 'floor': 800}
+# a yearly rent below this for a home is a month's rent whose period was not marked
+MIN_YEARLY_HOME_RENT = 6_000
 
 
 def _number(value):
@@ -53,11 +57,15 @@ def price_per_sqm(listing):
     price, area = _number(listing.get('priceSar')), _number(listing.get('areaSqm'))
     if kind not in PER_SQM_BOUNDS or not group or not price or not area:
         return None
+    if area > MAX_AREA.get(str(listing.get('propertyType') or '').lower(), float('inf')):
+        return None
     if kind == 'rent':
         factor = RENT_PER_YEAR.get(str(listing.get('rentPeriod') or '').lower())
         if not factor:   # a daily or unlabelled period is not a yearly rent
             return None
         price *= factor
+        if group == 'residential' and price < MIN_YEARLY_HOME_RENT:
+            return None
     value = price / area
     low, high = PER_SQM_BOUNDS[kind]
     return (kind, group, value) if low <= value <= high else None

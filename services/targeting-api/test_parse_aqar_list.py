@@ -56,6 +56,16 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertIsNone(monthly['rentPeriod'])
         room = parse.parse_map_listing({**record, 'title': 'غرفة للإيجار في حي العليا, مدينة الرياض', 'area': 2921})
         self.assertIsNone(reference.price_per_sqm(room))
+        twelve = parse.parse_map_listing({**record, 'title': 'دور للإيجار في حي طويق, مدينة الرياض', 'price': 3750,
+                                          'area': 175, 'content': '', 'price_12_payments': 45600})
+        self.assertEqual(twelve['rentPeriod'], 'monthly')
+        self.assertEqual(reference.price_per_sqm(twelve), ('rent', 'residential', 3750 * 12 / 175))
+        unmarked = parse.parse_map_listing({**record, 'title': 'شقة للإيجار في حي طويق, مدينة الرياض', 'price': 2000,
+                                            'area': 94, 'content': ''})
+        self.assertIsNone(reference.price_per_sqm(unmarked))
+        building = parse.parse_map_listing({**record, 'title': 'شقة للإيجار في حي طويق, مدينة الرياض', 'price': 26000,
+                                            'area': 900, 'content': ''})
+        self.assertIsNone(reference.price_per_sqm(building))
 
 
 if __name__ == '__main__':
