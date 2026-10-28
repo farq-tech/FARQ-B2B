@@ -52,6 +52,21 @@ class InsightTests(unittest.TestCase):
         result = insights.population_around(self.db, points, None, "true", 46.7005, 24.7003, 500, 5.0)
         self.assertEqual((result["home_buildings"], result["dwellings"], result["population"], result["people_per_district"]), (2, 10.0, 75, True))
 
+    def test_population_and_businesses_within_a_drive_time_polygon(self):
+        points = self.parquet("pw.parquet", "longitude double, latitude double, district_id varchar, dwellings double, population double", [
+            (46.7000, 24.7000, "1", 4.0, 30.0), (46.7020, 24.7010, "1", 6.0, 45.0), (46.7090, 24.7090, "1", 8.0, 60.0), (46.7500, 24.7000, "2", 100.0, 500.0)])
+        targets = self.parquet("tw.parquet", "poi_key varchar, longitude double, latitude double, category_ar varchar, category varchar", [
+            ("a", 46.7001, 24.7001, "صيدلية", "Pharmacy"), ("b", 46.7091, 24.7091, "مطعم", "Restaurant"), ("c", 46.80, 24.80, "مطعم", "Restaurant")])
+        # an L-shaped area: the box's top-right corner (46.705+, 24.705+) is outside even though it is inside the box
+        shape = {"type": "Polygon", "coordinates": [[[46.695, 24.695], [46.712, 24.695], [46.712, 24.705], [46.705, 24.705], [46.705, 24.712], [46.695, 24.712], [46.695, 24.695]]]}
+        result = insights.population_within(self.db, points, targets, "true", shape, 5.0)
+        self.assertEqual((result["home_buildings"], result["dwellings"], result["population"]), (2, 10.0, 75))
+        self.assertEqual(result["businesses"], 1)
+        self.assertEqual(result["top_activities"], [{"activity": "صيدلية", "n": 1}])
+        hole = {"type": "Polygon", "coordinates": [shape["coordinates"][0], [[46.6995, 24.6995], [46.7005, 24.6995], [46.7005, 24.7005], [46.6995, 24.7005], [46.6995, 24.6995]]]}
+        self.assertEqual(insights.population_within(self.db, points, None, "true", hole, 5.0)["home_buildings"], 1, "a hole is outside")
+        self.assertIsNone(insights.population_within(self.db, points, None, "true", {"type": "Point"}, 5.0)["population"])
+
     def test_territories_are_balanced_runs_of_neighbouring_districts(self):
         features = [{"properties": {"id": i, "ar": f"حي{i}"}, "geometry": square(46.0 + (i % 4) * 0.01, 24.0 + (i // 4) * 0.01)} for i in range(16)]
         weights = {f"حي{i}": 100 for i in range(16)}
@@ -76,6 +91,23 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(table["unit"], "SAR/month")
         self.assertIsNone(insights.district_income("Jeddah", str(path)))
         self.assertIsNone(insights.district_income("Riyadh", str(self.root / "missing.json")))
+
+
+    def test_district_audience_keeps_only_measured_shares(self):
+        path = self.root / "audience.json"
+        path.write_text(json.dumps({"cities": {"Riyadh": [
+            {"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}, {"district_ar": "سكيرينة", "male_pct": None, "saudi_pct": 40.0}]}}, ensure_ascii=False), encoding="utf-8")
+        table = insights.district_audience("Riyadh", str(path))
+        self.assertEqual(table["districts"], [{"district_ar": "الربيع", "male_pct": 51.2, "saudi_pct": 80.1}])
+        self.assertIsNone(insights.district_audience("Jeddah", str(path)))
+
+
+    def test_housing_level_merges_polygons_and_skips_tiny_districts(self):
+        path = self.parquet("hl.parquet", "district_id varchar, district_ar varchar, villas bigint, dwelling_units double", [
+            ("492", "العليا", 100, 300.0), ("493", "العليا", 50, 200.0), ("380", "السليمانية", 10, 1000.0), ("7", "صغير", 5, 20.0)])
+        rows = insights.housing_level(self.db, path, ["492", "493", "380", "7"], {"492": "492", "493": "492", "380": "380", "7": "7"}, {"492": ("العليا", None)})
+        self.assertEqual([(r["district_ar"], r["villa_share_pct"], r["dwelling_units"]) for r in rows], [("العليا", 30.0, 500), ("السليمانية", 1.0, 1000)])
+        self.assertIsNone(insights.housing_level(self.db, None, [], {}, {}))
 
 
 if __name__ == "__main__":

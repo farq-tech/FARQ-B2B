@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
@@ -11,23 +11,26 @@ import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { LENSES, METRICS, lensById, type LensId, type MetricId } from './lenses'
 import { AroundTool } from './tools/around-tool'
+import { AudienceTool } from './tools/audience-tool'
+import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
 
 /** The insight tools, named by the question each one answers; their results are drawn on the one map. */
-type ToolId = 'district' | 'gaps' | 'around' | 'growth' | 'territories'
+type ToolId = 'district' | 'gaps' | 'audience' | 'around' | 'growth' | 'territories'
 const TOOLS: { id: ToolId; label: string }[] = [
   { id: 'district', label: 'الحي' },
   { id: 'gaps', label: 'أين ينقص نشاطي؟' },
-  { id: 'around', label: 'كم شخص حول موقع؟' },
+  { id: 'audience', label: 'أين جمهوري؟' },
+  { id: 'around', label: 'قارن المواقع' },
   { id: 'growth', label: 'أين يُبنى الآن؟' },
   { id: 'territories', label: 'تقسيم المندوبين' },
 ]
 // the tool each group starts on (docs/atlas-product-foundation.md §4)
-const START: Record<LensId, ToolId> = { shops: 'gaps', marketers: 'district', distributors: 'territories', analysts: 'district' }
+const START: Record<LensId, ToolId> = { shops: 'gaps', marketers: 'audience', distributors: 'territories', analysts: 'district' }
 
-const format = (value: number | null, unit?: string) => (value == null ? 'غير متاح' : `${numberFormat.format(value)}${unit ? ` ${unit}` : ''}`)
+const format = (value: number | null, unit?: string) => (value == null ? 'غير متاح' : `${numberFormat.format(value)}${unit ? (unit === '%' ? '%' : ` ${unit}`) : ''}`)
 
 /** The explanation of one district's value of the shading metric. */
 function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
@@ -38,6 +41,7 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'whatsapp': return EXPLAIN.whatsapp
     case 'restaurants': return EXPLAIN.restaurants
     case 'menuPrice': return EXPLAIN.menuPrice(row.menuPricePlaces)
+    case 'villaShare': return EXPLAIN.villaShare
     case 'income': return EXPLAIN.income
     case 'growth': return EXPLAIN.growth(row.underConstruction, row.newBuildings)
   }
@@ -85,14 +89,21 @@ export function LensMap() {
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
 
   useEffect(() => { setSelected([]) }, [city])
-  useEffect(() => { setMetric(lensById(lens).metric); setTool(START[lens]) }, [lens])
+  // a link's ?tool= wins once over the lens's starting tool
+  const presetTool = useRef<ToolId | null>(null)
+  useEffect(() => { setMetric(lensById(lens).metric); setTool(presetTool.current ?? START[lens]); presetTool.current = null }, [lens])
   useEffect(() => {
     setOverlay({})
     if (tool === 'growth') setMetric('growth')
   }, [tool])
   useEffect(() => {
-    const preset = new URLSearchParams(window.location.search).get('tool')
-    if (preset && TOOLS.some((item) => item.id === preset)) setTool(preset as ToolId)
+    const query = new URLSearchParams(window.location.search)
+    // old «السوق» links carry a goal; each goal lands on the lens it served
+    const goalLens: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', 'find-supplier': 'distributors', network: 'distributors' }
+    const presetLens = query.get('lens') ?? goalLens[query.get('goal') ?? '']
+    if (presetLens && LENSES.some((item) => item.id === presetLens)) setLens(presetLens as LensId)
+    const preset = query.get('tool')
+    if (preset && TOOLS.some((item) => item.id === preset)) { presetTool.current = presetLens && presetLens !== 'shops' ? (preset as ToolId) : null; setTool(preset as ToolId) }
   }, [])
 
   const steps = useMemo(() => shadeSteps(new Map(data.rows.map((row) => [row.id, METRICS[metric].value(row)]))), [data.rows, metric])
@@ -127,7 +138,7 @@ export function LensMap() {
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[50vh] shrink-0 lg:h-auto lg:flex-1">
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} />
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} />
           {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="absolute bottom-3 start-3 flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
             <span className="text-muted-foreground">أقل</span>
             {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}
@@ -151,11 +162,13 @@ export function LensMap() {
                 ))}
               </div>
               {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} />}
+              {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggle} />}
               {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
               {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
               {(tool === 'district' || tool === 'growth' || selected.length > 0) && tool !== 'around' && (
                 <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
               )}
+              {selected.length > 0 && tool !== 'around' && <BusinessesPanel city={city} districts={chosen.map((row) => row.name)} />}
               {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggle} full={lens === 'analysts' || tool === 'growth'} />}
             </>
           )}

@@ -82,6 +82,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         {single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />}
         {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />}
         {single && <Figure label="سعر الصنف المعتاد" value={show(single.menuPrice, ' ر.س')} explain={EXPLAIN.menuPrice(single.menuPricePlaces)} />}
+        {single && lens !== 'distributors' && <Figure label="حصة الفلل من المساكن" value={single.villaShare == null ? 'غير متاح' : `${Math.round(single.villaShare)}%`} explain={EXPLAIN.villaShare} />}
         {single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(single.income, ' ر.س')} explain={EXPLAIN.income} />}
         {single && lens !== 'marketers' && (
           <Figure label="مبانٍ جديدة وتحت الإنشاء"

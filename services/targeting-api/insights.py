@@ -44,6 +44,35 @@ def growth(db, path, polygon_ids, id_map, names):
     return result
 
 
+MIN_HOUSING_UNITS = 200
+
+
+def housing_level(db, path, polygon_ids, id_map, names):
+    """Share of a canonical district's homes that are villas, from the buildings layer: a named stand-in for income
+    where no income is published (docs/atlas-product-foundation.md §7). A district with fewer than MIN_HOUSING_UNITS
+    dwellings is left out: a handful of buildings is no level."""
+    if not path:
+        return None
+    rows = db.execute("""select district_id, district_ar, villas, dwelling_units from read_parquet(?)
+                         where cast(district_id as varchar) in (select unnest(?::varchar[]))""", [path, list(polygon_ids)]).fetchall()
+    merged = {}
+    for district_id, district_ar, villas, units in rows:
+        canonical = str(id_map.get(str(district_id), district_id))
+        out = merged.setdefault(canonical, {'district_id': canonical, 'district_ar': names.get(canonical, (district_ar, None))[0] or district_ar,
+                                            'villas': 0, 'dwelling_units': 0.0})
+        out['villas'] += int(villas or 0)
+        out['dwelling_units'] += float(units or 0)
+    result = []
+    for row in merged.values():
+        if row['dwelling_units'] < MIN_HOUSING_UNITS:
+            continue
+        row['villa_share_pct'] = round(min(100.0, 100 * row['villas'] / row['dwelling_units']), 1)
+        row['dwelling_units'] = round(row['dwelling_units'])
+        result.append(row)
+    result.sort(key=lambda row: (-row['villa_share_pct'], row['district_ar'] or ''))
+    return result
+
+
 def _haversine_sql(lon_col, lat_col):
     return (f"2 * {EARTH_M} * asin(sqrt(pow(sin(radians({lat_col} - ?) / 2), 2) + "
             f"cos(radians(?)) * cos(radians({lat_col})) * pow(sin(radians({lon_col} - ?) / 2), 2)))")
@@ -78,6 +107,57 @@ def population_around(db, points_path, targets_path, search_sql, lon, lat, radiu
         result['top_activities'] = [{'activity': name, 'n': n} for name, n in db.execute(
             f"""select coalesce(nullif(p.category_ar, ''), p.category) activity, count(*) n from read_parquet(?) p where {where}
                 and coalesce(nullif(p.category_ar, ''), p.category) is not null group by 1 order by 2 desc, 1 limit 10""", params).fetchall()]
+    return result
+
+
+def _inside(x, y, polygons):
+    """Even-odd ray casting over every ring, so holes count as outside."""
+    for rings in polygons:
+        inside = False
+        for ring in rings:
+            j = len(ring) - 1
+            for i in range(len(ring)):
+                xi, yi = ring[i][0], ring[i][1]
+                xj, yj = ring[j][0], ring[j][1]
+                if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+                    inside = not inside
+                j = i
+        if inside:
+            return True
+    return False
+
+
+def population_within(db, points_path, targets_path, search_sql, geometry, household_size):
+    """Homes, people and directory businesses inside a polygon, such as a drive-time area. Same layers and the same
+    people figure as population_around; only the boundary differs. Points are pre-filtered by the polygon's box in
+    SQL and then tested exactly."""
+    polygons = canonical_data._polygons(geometry)
+    coords = [point for rings in polygons for ring in rings for point in ring]
+    result = {'dwellings': None, 'population': None, 'businesses': None, 'top_activities': []}
+    if not coords:
+        return result
+    west, east = min(p[0] for p in coords), max(p[0] for p in coords)
+    south, north = min(p[1] for p in coords), max(p[1] for p in coords)
+    if points_path:
+        has_people = 'population' in {row[0] for row in db.execute('describe select * from read_parquet(?)', [points_path]).fetchall()}
+        people = 'population' if has_people else f'dwellings * {float(household_size)}'
+        rows = db.execute(f"""select longitude, latitude, dwellings, {people} from read_parquet(?)
+                              where longitude between ? and ? and latitude between ? and ?""",
+                          [points_path, west, east, south, north]).fetchall()
+        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        result.update(home_buildings=len(inside), dwellings=round(sum(float(r[2] or 0) for r in inside), 1),
+                      population=round(sum(float(r[3] or 0) for r in inside)), people_per_district=has_people)
+    if targets_path:
+        rows = db.execute(f"""select p.longitude, p.latitude, coalesce(nullif(p.category_ar, ''), p.category) from read_parquet(?) p
+                              where {search_sql} and p.longitude between ? and ? and p.latitude between ? and ?""",
+                          [targets_path, west, east, south, north]).fetchall()
+        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        result['businesses'] = len(inside)
+        counts = {}
+        for row in inside:
+            if row[2]:
+                counts[row[2]] = counts.get(row[2], 0) + 1
+        result['top_activities'] = [{'activity': name, 'n': n} for name, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:10]]
     return result
 
 
@@ -140,6 +220,20 @@ def territories(features, weights, count):
 
 
 INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
+
+
+AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
+
+
+def district_audience(city, path=None):
+    """Measured audience shares by district: the share of men and of Saudis, from the 910ths reference table. A
+    district without a measured share is left out, so the caller shows «غير متاح» for it rather than a guess."""
+    table = district_reference.load(path or district_reference.PATH)
+    rows = ((table or {}).get('cities') or {}).get(city)
+    if rows is None:
+        return None
+    return {'districts': [{'district_ar': row['district_ar'], **{key: row.get(key) for key in AUDIENCE_FIELDS}} for row in rows
+                          if all(row.get(key) is not None for key in AUDIENCE_FIELDS)]}
 
 
 def district_income(city, path=None):
