@@ -107,6 +107,11 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
       mapboxgl.accessToken = token
       const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance
+      // a map drawn while its box was hidden or smaller (the phone's list view, a sheet) keeps that size until told:
+      // follow the box, so showing it fills the screen
+      const watch = new ResizeObserver(() => instance.resize())
+      watch.observe(container.current)
+      instance.once('remove', () => watch.disconnect())
       instance.on('load', () => {
         // place names on the basemap in Arabic where Mapbox has them
         for (const layer of instance.getStyle().layers ?? []) {
