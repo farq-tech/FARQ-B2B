@@ -51,16 +51,36 @@ const quarters = ([s, w, n, e]) => {
   return [[s, w, lat, lng], [s, lng, lat, e], [lat, w, n, lng], [lat, lng, n, e]]
 }
 
+const ANSWER_MS = 60000
+let asked = 0
+
+/** One request sent by the page itself (inject.js), so it carries the page's session exactly as Aqar's own do. */
+function pageFetch(url, headers, body) {
+  const id = `${Date.now()}-${++asked}`
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { window.removeEventListener('message', listen); reject(Object.assign(new Error('no answer'), { network: true })) }, ANSWER_MS)
+    function listen(event) {
+      if (event.source !== window || event.data?.source !== 'farq-aqar-answer' || event.data.id !== id) return
+      clearTimeout(timer)
+      window.removeEventListener('message', listen)
+      resolve(event.data)
+    }
+    window.addEventListener('message', listen)
+    window.postMessage({ source: 'farq-aqar-ask', id, url, headers, body }, '*')
+  })
+}
+
 async function ask(template, bbox, from) {
   const body = JSON.parse(template.request)
   body.variables = { ...body.variables, size: SIZE, from, polygon: polygonOf(bbox) }
-  const response = await fetch(template.url, { method: 'POST', credentials: 'include', headers: { ...template.headers, 'content-type': 'application/json' }, body: JSON.stringify(body) })
-  if (!response.ok) {
-    const retryAfter = Number(response.headers.get('retry-after')) * 1000 || 0
-    throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status, retryAfter })
+  const answer = await pageFetch(template.url, { ...template.headers, 'content-type': 'application/json' }, JSON.stringify(body))
+  if (answer.status === 0) throw Object.assign(new Error(answer.error || 'Failed to fetch'), { network: true })
+  if (answer.status < 200 || answer.status >= 300) {
+    throw Object.assign(new Error(`HTTP ${answer.status}`), { status: answer.status, retryAfter: Number(answer.retryAfter) * 1000 || 0 })
   }
-  const find = (await response.json())?.data?.Web?.find
-  if (!find) throw new Error('no find in answer')
+  let find = null
+  try { find = JSON.parse(answer.text)?.data?.Web?.find } catch { find = null }
+  if (!find) throw Object.assign(new Error('no find in answer'), { network: true })
   return find
 }
 
@@ -83,11 +103,13 @@ async function fastRun() {
       try {
         find = await ask(findTemplate, current.bbox, current.from)
       } catch (error) {
-        if (error.status === 429) {
+        if (error.status === 429 || error.network) {
           // too fast: wait as asked (or longer each time), slow down for good, and try the same request again
           const strikes = (fast.strikes || 0) + 1
           const wait = Math.max(error.retryAfter, Math.min(WAIT_429_MS[1], WAIT_429_MS[0] * 2 ** (strikes - 1)))
-          await set({ fast: { ...fast, current, strikes, slow: (fast.slow || 1) * SLOWER, status: 'waiting', until: Date.now() + wait, error: 'HTTP 429', beat: Date.now() + wait } })
+          // a dropped connection is waited out the same way, without slowing the run
+          const slow = error.status === 429 ? (fast.slow || 1) * SLOWER : fast.slow || 1
+          await set({ fast: { ...fast, current, strikes, slow, status: 'waiting', until: Date.now() + wait, error: error.network ? 'انقطع الاتصال' : 'HTTP 429', beat: Date.now() + wait } })
           await sleep(wait)
           continue
         }

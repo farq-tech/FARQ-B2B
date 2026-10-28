@@ -26,6 +26,19 @@
     return response
   }
 
+  // the fast run's requests go out from here, as the page's own, with its session and in its own way
+  window.addEventListener('message', async (event) => {
+    if (event.source !== window || event.data?.source !== 'farq-aqar-ask') return
+    const { id, url, body, headers } = event.data
+    try {
+      const response = await realFetch(url, { method: 'POST', credentials: 'include', headers, body })
+      const text = await response.text()
+      window.postMessage({ source: 'farq-aqar-answer', id, status: response.status, retryAfter: response.headers.get('retry-after'), text }, '*')
+    } catch (error) {
+      window.postMessage({ source: 'farq-aqar-answer', id, status: 0, error: String(error?.message || error) }, '*')
+    }
+  })
+
   const open = XMLHttpRequest.prototype.open
   const send = XMLHttpRequest.prototype.send
   XMLHttpRequest.prototype.open = function (method, url, ...rest) { this.__farqUrl = String(url); return open.call(this, method, url, ...rest) }
