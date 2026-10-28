@@ -1,10 +1,13 @@
 import type { DistrictRow } from './city-data'
 
 /**
- * The four user groups of docs/atlas-product-foundation.md. A lens chooses what the map shades by default and
- * which figures come first; it never hides another group's figures for good.
+ * The five user groups of docs/atlas-product-foundation.md. A lens is one journey: its own steps (the tools, in the
+ * order a decision takes) and the three figures that shade its map; the analysts' lens keeps every figure.
  */
-export type LensId = 'shops' | 'marketers' | 'distributors' | 'analysts'
+export type LensId = 'shops' | 'marketers' | 'distributors' | 'analysts' | 'property'
+
+/** The insight tools, named by the question each answers; their results are drawn on the one map. */
+export type ToolId = 'district' | 'homes' | 'gaps' | 'audience' | 'businesses' | 'around' | 'growth' | 'territories' | 'compare'
 
 export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'whatsapp' | 'income' | 'growth' | 'restaurants' | 'villaShare' | 'shopRent' | 'shopRentUnstated' | 'homeRent' | 'homeRentMonthly' | 'homePrice' | 'warehouseRent'
 
@@ -32,11 +35,30 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
   },
 }
 
-export const LENSES: { id: LensId; label: string; metric: MetricId; metrics: MetricId[] }[] = [
-  { id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'shopRent', 'shopRentUnstated', 'population', 'income', 'villaShare', 'restaurants', 'growth'] },
-  { id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare', 'homePrice', 'restaurants', 'whatsapp'] },
-  { id: 'distributors', label: 'الموزّعون', metric: 'businesses', metrics: ['businesses', 'warehouseRent', 'restaurants', 'growth', 'population'] },
-  { id: 'analysts', label: 'المحلّلون', metric: 'population', metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'villaShare', 'shopRent', 'shopRentUnstated', 'homeRent', 'homeRentMonthly', 'homePrice', 'restaurants', 'growth', 'whatsapp'] },
+export type Lens = { id: LensId; label: string; metric: MetricId; metrics: MetricId[]; steps: { tool: ToolId; label: string }[] }
+
+export const LENSES: Lens[] = [
+  {
+    id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'shopRentUnstated', 'population'],
+    steps: [{ tool: 'gaps', label: 'أين ينقص نشاطي؟' }, { tool: 'around', label: 'قارن المواقع' }, { tool: 'homes', label: 'محلات للإيجار' }],
+  },
+  {
+    id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare'],
+    steps: [{ tool: 'audience', label: 'أين جمهوري؟' }, { tool: 'businesses', label: 'منشآت الأحياء والحملة' }],
+  },
+  {
+    id: 'distributors', label: 'الموزّعون', metric: 'businesses', metrics: ['businesses', 'growth', 'warehouseRent'],
+    steps: [{ tool: 'territories', label: 'المناطق والمسار' }, { tool: 'growth', label: 'أين يُبنى الآن؟' }],
+  },
+  {
+    id: 'analysts', label: 'المحلّلون', metric: 'population',
+    metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'villaShare', 'shopRent', 'shopRentUnstated', 'homeRent', 'homeRentMonthly', 'homePrice', 'restaurants', 'growth', 'whatsapp'],
+    steps: [{ tool: 'district', label: 'الأحياء والترتيب' }, { tool: 'compare', label: 'قارن حيين' }],
+  },
+  {
+    id: 'property', label: 'الباحثون عن عقار', metric: 'homeRent', metrics: ['homeRent', 'homeRentMonthly', 'homePrice'],
+    steps: [{ tool: 'homes', label: 'اختر عقاراً' }, { tool: 'district', label: 'تعرّف على الحي' }],
+  },
 ]
 
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]
