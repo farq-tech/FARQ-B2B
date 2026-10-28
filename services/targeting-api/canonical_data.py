@@ -30,7 +30,7 @@ import shapely.geometry
 import shapely.ops
 
 LOGGER = logging.getLogger('farq.targeting')
-VERSION = 4   # bump when the rules below change so cached copies are rebuilt
+VERSION = 5   # bump when the rules below change so cached copies are rebuilt
 
 # key -> (English, Arabic); keep in step with services/data-cleaning/city_names.py
 CITY_ALIAS = {
@@ -260,6 +260,12 @@ def canonical_districts(collection, corrections):
                     for field in ('en', 'district_en'):
                         if props.get(field):
                             props[field] = f"{props[field]} ({qualifier[1]})"
+            for field in ('ar', 'district_ar'):   # the official atlas spells a district without «حي» («حي العمامرة» is العمامرة)
+                if isinstance(props.get(field), str) and props[field].startswith('حي '):
+                    props[field] = props[field][3:].strip()
+            city = canonical_city(props.get('city_en'))
+            if city:   # the source carries a full address («جدة, مدينة, , منطقة مكة المكرمة , …»); the city table has the name
+                props['city_ar'] = city[1]
             for member_props, _ in chosen:
                 id_map[str(member_props['id'])] = canonical_id
             features.append({'type': 'Feature', 'id': canonical_id, 'properties': props, 'geometry': geometry})
