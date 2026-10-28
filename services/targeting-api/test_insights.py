@@ -121,7 +121,7 @@ class InsightTests(unittest.TestCase):
 
     def test_real_estate_listings_filter_and_put_the_best_value_first(self):
         card = {"city": "Riyadh", "kind": "rent", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
-                "price_sar": 60000, "area_sqm": 120}
+                "price_sar": 60000, "area_sqm": 120, "photo": "p.jpg"}
         cards = [dict(card, id="a", vs_district_pct=5), dict(card, id="b", vs_district_pct=-10), dict(card, id="c", vs_district_pct=None),
                  dict(card, id="d", kind="sale", vs_district_pct=-50), dict(card, id="e", lon=46.9, vs_district_pct=-20),
                  dict(card, id="f", price_sar=90000, vs_district_pct=-30)]
@@ -131,6 +131,29 @@ class InsightTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in found["listings"]], ["b", "a", "c"])
         self.assertEqual(found["total"], 3)
         self.assertIsNone(insights.real_estate_listings("Riyadh", {}, str(self.root / "missing.json")))
+
+    def test_real_estate_listings_ranges_leave_out_ads_without_the_figure(self):
+        card = {"city": "Riyadh", "kind": "rent", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7, "vs_district_pct": None, "photos": ["p.jpg"]}
+        cards = [dict(card, id="a", price_sar=40000, area_sqm=90), dict(card, id="b", price_sar=45000, area_sqm=200),
+                 dict(card, id="c", price_sar=70000, area_sqm=None), dict(card, id="d", price_sar=55000, area_sqm=150)]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        ids = lambda filters: [c["id"] for c in insights.real_estate_listings("Riyadh", filters, str(path))["listings"]]
+        self.assertEqual(sorted(ids({})), ["a", "b", "c", "d"])
+        self.assertEqual(sorted(ids({"min_area": 100})), ["b", "d"], 'an ad without an area is not taken as 0 m²')
+        self.assertEqual(sorted(ids({"min_price": 50000, "max_price": 60000})), ["d"])
+        self.assertEqual(sorted(ids({"max_area": 160})), ["a", "d"])
+
+    def test_real_estate_listings_serve_only_publishable_ads(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
+                "price_sar": 40000, "area_sqm": 90, "photos": ["p.jpg"]}
+        cards = [dict(card, id="ok"), dict(card, id="check", check=True), dict(card, id="no_price", price_sar=None),
+                 dict(card, id="no_photo", photos=[]), dict(card, id="no_period", deal="rent_unstated"), dict(card, id="one_photo", photos=[], photo="p.jpg")]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        found = insights.real_estate_listings("Riyadh", {}, str(path))
+        self.assertEqual(sorted(c["id"] for c in found["listings"]), ["ok", "one_photo"])
+        self.assertEqual(found["total"], 2)
 
 
 class RegisteredDealsTest(unittest.TestCase):

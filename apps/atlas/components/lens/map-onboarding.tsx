@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CircleHelp, MousePointerClick, Sparkles, X } from 'lucide-react'
+import { CircleHelp, Info, MousePointerClick, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trackOnboardingStep } from '@/lib/commercial-metrics'
 import { LENSES, type LensId } from './lenses'
@@ -132,7 +132,7 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
   // on phones the hint sits under the bottom sheet: pulled up to full, the sheet's handle stays in reach
   return (
     <div role="status" className={`${card} top-3 max-lg:z-[15]`}>
-      <p className="flex items-center gap-2 font-bold"><Sparkles className="size-5 text-primary" aria-hidden />كل رقم له مصدر</p>
+      <p className="flex items-center gap-2 font-bold"><Info className="size-5 text-primary" aria-hidden />كل رقم له مصدر</p>
       <p className="mt-1 text-sm leading-7 text-muted-foreground">اضغط أي رقم عليه علامة «i» في اللوحة، وتشوف كيف حسبناه ومن وين.</p>
       <div className="mt-2 flex items-center justify-between">
         <Button size="sm" variant="ghost" onClick={() => go('completed', 'button')}>فهمت</Button>

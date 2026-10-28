@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, MapPin, Scale, Sparkles, X } from 'lucide-react'
+import { Loader2, MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { areaKm2, distanceKm } from '@/lib/geo-measure'
-import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
+import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
@@ -91,7 +91,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       ...(budget && deal ? { max_price: budget } : {}),
       ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
     })
-      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? 0, listings: data.listings ?? [] }) })
+      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? 0, listings: (data.listings ?? []).filter(isPublishable) }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
     return () => { live = false }
   }, [city, kind, type, deal, budget, districtKey])
@@ -105,7 +105,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
-      color: toneColor[listing.check ? 'check' : versusDistrict(listing)?.tone ?? 'none'],
+      color: toneColor[versusDistrict(listing)?.tone ?? 'none'],
     }))
     onOverlay({
       listings: dots,
@@ -228,13 +228,13 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       {compare.length === 2 && (
         <button onClick={() => setAdvisor({ kind: 'listings', listings: compare })}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground">
-          <Sparkles className="size-4" aria-hidden /> قارن العرضين مع المساعد
+          <Scale className="size-4" aria-hidden /> قارن العرضين
         </button>
       )}
       {selected.length === 2 && (
         <button onClick={() => setAdvisor({ kind: 'districts', rows: selected })}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary">
-          <Sparkles className="size-4" aria-hidden /> قارن {selected[0].name} و{selected[1].name} مع المساعد
+          <Scale className="size-4" aria-hidden /> قارن {selected[0].name} و{selected[1].name}
         </button>
       )}
       {advisor && <AdvisorPanel key={JSON.stringify(advisor.kind === 'listings' ? advisor.listings.map((item) => item.id) : advisor.rows.map((row) => row.id))} subject={advisor} rows={rows} onClose={() => setAdvisor(null)} />}

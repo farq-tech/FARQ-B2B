@@ -16,7 +16,7 @@ const plex = IBM_Plex_Sans_Arabic({
 
 export const metadata: Metadata = {
   title: 'فرق أطلس | خريطة الفرص والتوريد',
-  description: 'منصة سعودية لاكتشاف الموردين والمشترين، طلبات التسعير، وذكاء السوق واستهداف المنشآت.',
+  description: 'منصة سعودية لاكتشاف الموردين والمشترين، طلبات التسعير، وبيانات السوق واستهداف المنشآت.',
   icons: {
     icon: [
       { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },

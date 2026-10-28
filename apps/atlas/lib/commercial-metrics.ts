@@ -81,4 +81,3 @@ type OnboardingStep = 'shown' | 'goal_picked' | 'district_picked' | 'completed' 
 export function trackOnboardingStep(step: OnboardingStep, detail: { lens?: string; at?: string; via?: 'explain' | 'button' } = {}) {
   track('atlas_onboarding_step', { step, ...detail })
 }
-

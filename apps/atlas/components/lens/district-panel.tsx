@@ -19,7 +19,7 @@ type Profile = {
 }
 
 // sale first, then each rent period on its own line
-const DEAL_ORDER = ['sale_', 'rent_year_', 'rent_month_', 'rent_unstated_']
+const DEAL_ORDER = ['sale_', 'rent_year_', 'rent_month_']
 const dealRank = (key: string) => DEAL_ORDER.findIndex((prefix) => key.startsWith(prefix))
 
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
@@ -127,7 +127,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           <p className="mb-1 text-sm font-semibold text-muted-foreground">أسعار العقار المعروضة (للمتر)</p>
           <ul className="space-y-1.5 text-base">
             {/* studio prices rank districts poorly against official rents, so they stay out of the district comparison */}
-            {Object.entries(single.realEstate).filter(([group]) => !group.endsWith('_studio')).sort(([a], [b]) => dealRank(a) - dealRank(b) || a.localeCompare(b)).map(([group, figure]) => (
+            {Object.entries(single.realEstate).filter(([group]) => !group.endsWith('_studio') && !group.startsWith('rent_unstated_')).sort(([a], [b]) => dealRank(a) - dealRank(b) || a.localeCompare(b)).map(([group, figure]) => (
               <li key={group} className="flex justify-between gap-2">
                 <span>{groupLabel(group)}</span>
                 <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">
