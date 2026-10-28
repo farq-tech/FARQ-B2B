@@ -222,6 +222,68 @@ def territories(features, weights, count):
 INCOME_FIELDS = ('income_all', 'income_male', 'income_female', 'income_saudi', 'income_non_saudi')
 
 
+REAL_ESTATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_districts.json')
+
+
+def real_estate(city, path=None):
+    """Asking prices per district from build_real_estate_reference.py: per property group, the listings and the median
+    price per m² (sale) or per m² per year (rent). None when there is no table for the city yet."""
+    try:
+        with open(path or REAL_ESTATE_PATH, encoding='utf-8') as handle:
+            table = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    rows = (table.get('cities') or {}).get(city)
+    if rows is None:
+        return None
+    return {'retrieved': table.get('retrieved'), 'min_listings': table.get('min_listings'), 'unit': table.get('unit'), 'districts': rows}
+
+
+# the listing cards are a data file, not source: kept on the service's data volume (REAL_ESTATE_LISTINGS), never in Git
+REAL_ESTATE_LISTINGS_PATH = os.environ.get('REAL_ESTATE_LISTINGS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_listings.json')
+LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
+                 'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
+LISTINGS_MAX = 1500
+_listings_cache = {}
+
+
+def _listing_cards(path):
+    """The listing cards file, read once per change on disk."""
+    stamp = os.path.getmtime(path)
+    cached = _listings_cache.get(path)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    with open(path, encoding='utf-8') as handle:
+        table = json.load(handle)
+    _listings_cache[path] = (stamp, table)
+    return table
+
+
+def real_estate_listings(city, filters, path=None):
+    """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
+    --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
+    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), under a price as
+    advertised and over an area. Sorted with the listings
+    furthest under their district's median price per m² first, then those without a comparison, then those marked
+    for checking; capped at `limit`, while `total` counts every match. None when there is no file yet."""
+    try:
+        table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
+    except (OSError, ValueError):
+        return None
+    box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
+    types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
+    max_price, min_area = filters.get('max_price'), filters.get('min_area')
+    found = [card for card in table.get('listings', []) if card['city'] == city
+             and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
+             and (not districts or card['district_id'] in districts)
+             and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
+             and (max_price is None or card['price_sar'] <= max_price)
+             and (min_area is None or card['area_sqm'] >= min_area)]
+    # a card to check (its figures look wrong) goes after every other, then those without a district comparison
+    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, card.get('vs_district_pct') or 0))
+    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': found[:filters.get('limit') or LISTINGS_MAX]}
+
+
 AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')
 
 

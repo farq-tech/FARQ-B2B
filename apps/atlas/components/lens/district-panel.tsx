@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
+import { groupLabel } from '@/lib/real-estate'
 import { sumOf, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
 
@@ -15,6 +16,10 @@ type Profile = {
   ages: { age_group: string; total: number }[]
   main_activities: { main_ar: string; n: number }[]
 }
+
+// sale first, then each rent period on its own line
+const DEAL_ORDER = ['sale_', 'rent_year_', 'rent_month_', 'rent_unstated_']
+const dealRank = (key: string) => DEAL_ORDER.findIndex((prefix) => key.startsWith(prefix))
 
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
@@ -78,7 +83,6 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />
         {lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={people != null && businesses ? show(people / businesses) : 'غير متاح'} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />}
         <Figure label="مطاعم على تطبيقات التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />
-        {(lens === 'marketers' || lens === 'analysts' || selected.length > 0) && <Figure label="منشآت بواتساب" value={show(sumOf(scope, 'whatsapp'))} explain={EXPLAIN.whatsapp} />}
         {single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />}
         {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />}
         {single && lens !== 'distributors' && <Figure label="حصة الفلل من المساكن" value={single.villaShare == null ? 'غير متاح' : `${Math.round(single.villaShare)}%`} explain={EXPLAIN.villaShare} />}
@@ -99,6 +103,19 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
             </li>
           ))}
         </ul>
+      )}
+      {single && Object.keys(single.realEstate).length > 0 && (
+        <div className="mt-4">
+          <p className="mb-1 text-sm font-semibold text-muted-foreground">أسعار العقار المعروضة (للمتر)</p>
+          <ul className="space-y-1.5 text-base">
+            {Object.entries(single.realEstate).sort(([a], [b]) => dealRank(a) - dealRank(b) || a.localeCompare(b)).map(([group, figure]) => (
+              <li key={group} className="flex justify-between gap-2">
+                <span>{groupLabel(group)}</span>
+                <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">{show(figure!.median, ' ر.س')}</Explained>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {single && profile && profile.main_activities.length > 0 && (
         <div className="mt-4">

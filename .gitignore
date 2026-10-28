@@ -6,3 +6,10 @@ tmp/
 .env
 .env.local
 .env.*.local
+
+# raw Aqar collector exports
+aqar-discovery-*.json
+
+# listing cards are data, served from the data volume
+services/targeting-api/reference/real_estate_listings.json
+apps/atlas/tsconfig.tsbuildinfo
