@@ -11,6 +11,8 @@ import { numberFormat } from '@/lib/insights-api'
  */
 export function Lightbox({ photos, start, onClose }: { photos: string[]; start: number; onClose: () => void }) {
   const strip = useRef<HTMLDivElement>(null)
+  const dialog = useRef<HTMLDivElement>(null)
+  const closer = useRef<HTMLButtonElement>(null)
   const [index, setIndex] = useState(start)
 
   const go = (to: number) => {
@@ -25,13 +27,25 @@ export function Lightbox({ photos, start, onClose }: { photos: string[]; start: 
     if (node) node.scrollLeft = start * node.clientWidth
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = overflow }
+    // focus moves into the viewer and goes back to the photo it was opened from
+    const opener = document.activeElement as HTMLElement | null
+    closer.current?.focus()
+    return () => { document.body.style.overflow = overflow; opener?.focus() }
   }, [start])
 
   useEffect(() => {
     // the strip runs left to right like the photos; in Arabic the right arrow still means «the next one»
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
+      else if (event.key === 'Tab') {
+        // Tab stays inside the viewer: from its last button back to its first, and the other way
+        const buttons = [...(dialog.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])].filter((button) => button.offsetParent)
+        if (!buttons.length) return
+        const [first, last] = [buttons[0], buttons[buttons.length - 1]]
+        if (!dialog.current?.contains(document.activeElement)) { event.preventDefault(); first.focus() }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+      }
       else if (event.key === 'ArrowLeft') go(index + 1)
       else if (event.key === 'ArrowRight') go(index - 1)
     }
@@ -40,9 +54,9 @@ export function Lightbox({ photos, start, onClose }: { photos: string[]; start: 
   })
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="صور الإعلان" className="fixed inset-0 z-[70] flex flex-col bg-black/95 text-white animate-in fade-in duration-200">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label="صور الإعلان" className="fixed inset-0 z-[70] flex flex-col bg-black/95 text-white animate-in fade-in duration-200">
       <div className="flex items-center justify-between px-4 py-3">
-        <button onClick={onClose} aria-label="إغلاق الصور" className="grid size-10 place-items-center rounded-full bg-white/10 outline-none hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/70">
+        <button ref={closer} onClick={onClose} aria-label="إغلاق الصور" className="grid size-10 place-items-center rounded-full bg-white/10 outline-none hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/70">
           <X className="size-5" aria-hidden />
         </button>
         <span dir="ltr" className="text-sm tabular-nums" aria-live="polite">{numberFormat.format(index + 1)} / {numberFormat.format(photos.length)}</span>
