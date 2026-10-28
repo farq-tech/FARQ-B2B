@@ -1079,6 +1079,13 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('district-points', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/brands':
+            # chains of an activity and where their branches are (market_analytics.brands); aggregate counts only
+            try: self._json(MARKET_ANALYTICS.brands(body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('brands', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path in ('/market-summary', '/district-counts', '/district-insights', '/who-buys'):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
             try:

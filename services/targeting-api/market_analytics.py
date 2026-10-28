@@ -28,6 +28,7 @@ USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
     '^(9665[0-9]{8}|009665[0-9]{8}|05[0-9]{8}|5[0-9]{8})$'
 )"""
 
+BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع."
 MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام، ولا يعني نية الشراء."
@@ -238,6 +239,70 @@ class MarketAnalytics:
             "specialty_available": specialty_available,
             "scope": {"bounds": bounds} if bounds else {},
             "basis": MARKET_BASIS,
+        }
+
+    def _columns(self):
+        if getattr(self, "_column_names", None) is None:
+            with self.lock:
+                self._column_names = {row[0] for row in self.db.execute("describe select * from read_parquet(?)", [self.data]).fetchall()}
+        return self._column_names
+
+    def brands(self, body):
+        """Chains of an activity in a city: directory businesses grouped by brand, a brand being the registered brand
+        name or else the business name cut before a branch suffix ("- العليا", "فرع", brackets), compared after Arabic
+        letter normalisation. A brand counts as a chain from `min_branches` locations (default 3). Returns the chains
+        ranked by locations, each with the districts it covers, and how much of the activity chains hold."""
+        min_branches = body.get("min_branches", 3)
+        if not isinstance(min_branches, int) or isinstance(min_branches, bool) or not 2 <= min_branches <= 50:
+            raise ValueError("min_branches")
+        limit = body.get("limit", 30)
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise ValueError("limit")
+        city, _, where, params, specialty_available, bounds = self._where(body)
+        brand = "nullif(trim(p.brand_name), '')" if "brand_name" in self._columns() else "null"
+        query = rf"""
+            with base as (
+                select distinct p.poi_key, p.district_ar,
+                       trim(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en),
+                                           '\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i')) brand_label
+                from read_parquet(?) p where {where}
+            ),
+            keyed as (
+                select *, trim(regexp_replace(regexp_replace(translate(lower(brand_label), 'أإآةىؤئـ', 'اااهيوي'),
+                                                             '[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g')) brand_key
+                from base
+            ),
+            chains as (
+                select brand_key, mode(brand_label) brand, count(*) branches, count(distinct district_ar) districts
+                from keyed where length(brand_key) >= 2 group by brand_key having count(*) >= ?
+            )
+            select c.brand, c.branches, c.districts,
+                   (select list({{'district_ar': k.district_ar, 'n': k.n}} order by k.n desc, k.district_ar)
+                    from (select district_ar, count(*) n from keyed
+                          where brand_key = c.brand_key and length(trim(coalesce(district_ar, ''))) > 0
+                          group by district_ar) k) by_district
+            from chains c order by c.branches desc, c.brand
+        """
+        with self.lock:
+            rows = self.db.execute(query, params + [min_branches]).fetchall()
+            total = self.db.execute(f"select count(distinct p.poi_key) from read_parquet(?) p where {where}", params).fetchone()[0]
+        in_chains = sum(row[1] for row in rows)
+        return {
+            "ok": True,
+            "city": city,
+            "min_branches": min_branches,
+            "total": total,
+            "chains": len(rows),
+            "in_chains": in_chains,
+            "brands": [
+                {"brand": name, "branches": branches, "districts": districts,
+                 "share_pct": round(100 * branches / total, 1) if total else None,
+                 "by_district": [dict(item) for item in (by_district or [])[:80]]}
+                for name, branches, districts, by_district in rows[:limit]
+            ],
+            "specialty_available": specialty_available,
+            "scope": {"bounds": bounds} if bounds else {},
+            "basis": BRANDS_BASIS,
         }
 
     def market_gaps(self, body, population):
