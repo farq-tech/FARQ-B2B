@@ -241,7 +241,8 @@ def real_estate(city, path=None):
 
 # the listing cards are a data file, not source: kept on the service's data volume (REAL_ESTATE_LISTINGS), never in Git
 REAL_ESTATE_LISTINGS_PATH = os.environ.get('REAL_ESTATE_LISTINGS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference', 'real_estate_listings.json')
-LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'store', 'showroom', 'office', 'warehouse', 'land')
+LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
+                 'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
 LISTINGS_MAX = 1500
 _listings_cache = {}
 
@@ -261,22 +262,25 @@ def _listing_cards(path):
 def real_estate_listings(city, filters, path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
-    under a price and over an area. Sorted with the listings furthest under their district's median price per m²
-    first (a listing whose district has no median goes last), capped at `limit`; `total` counts every match. None
-    when there is no file yet."""
+    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), under a price as
+    advertised and over an area. Sorted with the listings
+    furthest under their district's median price per m² first, then those without a comparison, then those marked
+    for checking; capped at `limit`, while `total` counts every match. None when there is no file yet."""
     try:
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
         return None
     box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
-    types, kind = set(filters.get('types') or []), filters.get('kind')
+    types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
     max_price, min_area = filters.get('max_price'), filters.get('min_area')
     found = [card for card in table.get('listings', []) if card['city'] == city
-             and (not kind or card['kind'] == kind) and (not types or card['type'] in types)
+             and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
              and (not districts or card['district_id'] in districts)
              and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
-             and (max_price is None or card['price_sar'] <= max_price) and (min_area is None or card['area_sqm'] >= min_area)]
-    found.sort(key=lambda card: (card.get('vs_district_pct') is None, card.get('vs_district_pct') or 0))
+             and (max_price is None or card['price_sar'] <= max_price)
+             and (min_area is None or card['area_sqm'] >= min_area)]
+    # a card to check (its figures look wrong) goes after every other, then those without a district comparison
+    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, card.get('vs_district_pct') or 0))
     return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': found[:filters.get('limit') or LISTINGS_MAX]}
 
 

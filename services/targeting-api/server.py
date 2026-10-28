@@ -199,9 +199,11 @@ def insight_response(path, body):
         if ids is not None and not (isinstance(ids, list) and len(ids) <= 50 and all(isinstance(v, str) and len(v) <= 40 for v in ids)): raise ValueError('district_ids')
         kind = body.get('kind')
         if kind not in (None, 'rent', 'sale'): raise ValueError('kind')
+        deal = body.get('deal')
+        if deal not in (None, 'sale', 'rent_year', 'rent_month', 'rent_unstated'): raise ValueError('deal')
         types = body.get('types')
         if types is not None and not (isinstance(types, list) and all(t in insights.LISTING_TYPES for t in types)): raise ValueError('types')
-        filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'types': types,
+        filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'deal': deal, 'types': types,
                    'max_price': body.get('max_price') and _number(body, 'max_price', 1, 1e9), 'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6),
                    'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
         table = insights.real_estate_listings(city, filters)

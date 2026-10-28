@@ -31,6 +31,13 @@ function keep(listings) {
 window.addEventListener('message', (event) => {
   if (event.source !== window || event.data?.source !== 'farq-aqar') return
   const { url, request, headers, response, page } = event.data
+  if (event.data.type === 'contact') {
+    writes = writes.then(async () => {
+      const { contactSamples } = await get({ contactSamples: [] })
+      await set({ contactSamples: [...contactSamples, { url, request, headers, response, page, at: new Date().toISOString() }].slice(-40) })
+    })
+    return
+  }
   let listings = []
   try { listings = JSON.parse(response)?.data?.Web?.find?.listings ?? [] } catch { return }
   keep(listings)
@@ -113,3 +120,11 @@ async function fastRun() {
 chrome.runtime.onMessage.addListener((message) => { if (message?.cmd === 'fast-run') fastRun() })
 // a run whose tab was reloaded or closed is picked up again by the next Aqar page that opens
 get({ fast: null }).then(({ fast }) => { if (fast?.active && Date.now() - (fast.beat || 0) > HEARTBEAT_MS) fastRun() })
+
+// a chat page the user opens from a listing: its address shows how a conversation is reached
+if (/chat|محادث|message/i.test(decodeURIComponent(location.pathname))) {
+  writes = writes.then(async () => {
+    const { contactSamples } = await get({ contactSamples: [] })
+    await set({ contactSamples: [...contactSamples, { url: location.href, page: document.referrer, kind: 'chat-page', at: new Date().toISOString() }].slice(-40) })
+  })
+}

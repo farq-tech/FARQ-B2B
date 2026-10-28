@@ -29,13 +29,15 @@ class RealEstateReferenceTests(unittest.TestCase):
         doc = ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28')
         riyadh = doc['cities']['Riyadh']
         self.assertEqual([r['district_ar'] for r in riyadh], ['العليا'], 'a group under 5 listings is left out')
-        self.assertEqual(riyadh[0]['groups'], {'rent_residential': {'listings': 5, 'median_sar_per_sqm': 517}})
+        self.assertEqual(riyadh[0]['groups'], {'rent_year_residential': {'listings': 5, 'median_sar_per_sqm': 517}})
         self.assertNotIn('9665', str(doc), 'no advertiser detail leaves the script')
 
-    def test_monthly_rent_is_made_yearly_and_unknown_periods_are_dropped(self):
-        self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 5000, 100, period='monthly'))[2], 600)
-        self.assertIsNone(ref.price_per_sqm(listing('rent', 'apartment', 22800, 35, period=3)))
-        self.assertIsNone(ref.price_per_sqm(listing('rent', 'chalet', 500, 300, period='daily')))
+    def test_each_rent_period_keeps_its_own_figure_and_nothing_is_converted(self):
+        self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 5000, 100, period='monthly')), ('rent_month', 'commercial', 50))
+        self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period='annually')), ('rent_year', 'commercial', 600))
+        self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period=None)), ('rent_unstated', 'commercial', 600))
+        self.assertIsNone(ref.price_per_sqm(listing('rent', 'apartment', 3000, 100, period='annually')), 'a «yearly» 3,000 is a month')
+        self.assertIsNone(ref.price_per_sqm(listing('rent', 'chalet', 500, 300, period='daily')), 'a chalet has no group')
         self.assertIsNone(ref.price_per_sqm(listing('sale', 'apartment', 900000, 0)))
         self.assertIsNone(ref.price_per_sqm(listing('sale', 'land', 5, 1000)), 'a price per m² below the floor is a typo')
 
@@ -68,14 +70,31 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(first['vs_district_pct'], -3)   # 500 per m² against the district's 516.67
         self.assertFalse({'sellerPhone', 'sellerName'} & set(first))
 
-    def test_a_card_far_below_its_district_is_not_offered(self):
+    def test_every_located_listing_is_a_card_and_doubtful_ones_are_marked(self):
         rows = [dict(listing('rent', 'apartment', 60000, 120), aqar_id=str(i)) for i in range(5)]
-        rows.append(dict(listing('rent', 'apartment', 10000, 120), aqar_id='odd'))   # 83% under: a wrong figure
+        rows.append(dict(listing('rent', 'apartment', 10000, 120), aqar_id='odd'))           # 83% under: a wrong figure
+        rows.append(dict(listing('rent', 'room', 15000, 900), aqar_id='room'))               # a room: no median
+        rows.append(dict(listing('rent', 'apartment', 3500, 100, period='monthly'), aqar_id='month'))
         cards = []
         doc = ref.build(rows, {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
-        self.assertEqual(len(cards), 5)
-        self.assertNotIn('odd', [card['id'] for card in cards])
-        self.assertEqual(doc['cities']['Riyadh'][0]['groups']['rent_residential']['listings'], 6)
+        by_id = {card['id']: card for card in cards}
+        self.assertEqual(len(cards), 8, 'nothing is left off the map')
+        self.assertTrue(by_id['odd']['check'] and by_id['room']['check'])
+        self.assertFalse(by_id['0']['check'])
+        self.assertEqual((by_id['month']['deal'], by_id['month']['price_sar'], by_id['month']['sar_per_sqm']), ('rent_month', 3500, 35))
+        groups = doc['cities']['Riyadh'][0]['groups']
+        self.assertEqual(groups['rent_year_residential']['listings'], 6, 'the odd one still counts once in its own median')
+        self.assertNotIn('rent_month_residential', groups, 'one monthly rent is not a median')
+
+    def test_a_listing_without_figures_or_outside_every_district_is_still_a_card_with_all_its_photos(self):
+        bare = dict(listing('rent', 'store', None, None), aqar_id='bare', images=['a.jpg', 'b.jpg'])
+        away = dict(listing('sale', 'villa', 2_000_000, 400, lon=50.0, lat=26.0), aqar_id='away', city_en='Dammam')
+        cards = []
+        ref.build([bare, away], {'Riyadh': ATLAS}, 'd', cards=cards)
+        by_id = {card['id']: card for card in cards}
+        self.assertEqual((by_id['bare']['price_sar'], by_id['bare']['sar_per_sqm'], by_id['bare']['check']), (None, None, True))
+        self.assertEqual(by_id['bare']['photos'], ['https://images.aqar.fm/webp/750x0/props/a.jpg', 'https://images.aqar.fm/webp/750x0/props/b.jpg'])
+        self.assertEqual((by_id['away']['city'], by_id['away']['district_id']), ('Dammam', None))
 
 
 if __name__ == '__main__':

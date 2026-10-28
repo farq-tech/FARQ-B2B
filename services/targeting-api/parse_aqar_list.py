@@ -14,8 +14,16 @@ TYPES = {
     'شقة': 'apartment', 'استوديو': 'studio', 'دور': 'floor', 'فيلا': 'villa', 'بيت': 'house', 'غرفة': 'room',
     'عمارة': 'building', 'محل': 'store', 'محلات': 'store', 'معرض': 'showroom', 'مكتب تجاري': 'office', 'مكتب': 'office',
     'مستودع': 'warehouse', 'أرض': 'land', 'ارض': 'land', 'استراحة': 'rest_house', 'شاليه': 'chalet', 'مزرعة': 'farm',
-    'مصنع': 'factory',
+    'مصنع': 'factory', 'ورشة': 'workshop', 'مجمع': 'compound',
 }
+# the rent period an advertiser wrote in the text, when the text names one and only one
+_MONTHLY, _YEARLY = re.compile('شهري|شهريا|بالشهر|الشهر'), re.compile('سنوي|سنويا|بالسنة|السنة|في السنه')
+
+
+def text_period(text):
+    """'monthly' or 'annually' when the ad's text names exactly one of them, else None."""
+    monthly, yearly = bool(_MONTHLY.search(text or '')), bool(_YEARLY.search(text or ''))
+    return 'monthly' if monthly and not yearly else 'annually' if yearly and not monthly else None
 _TITLE = re.compile(r'^(?P<type>.+?)\s+لل(?P<kind>إيجار|ايجار|بيع)\b')
 _DISTRICT = re.compile(r'حي\s+([^,،]+)')
 _NUMBER = re.compile(r'[\d٠-٩][\d٠-٩,٬]*(?:\.\d+)?')
@@ -33,27 +41,26 @@ def _number(text):
 
 
 def parse_row(row, city_en='Riyadh'):
-    """One exported row -> a listing dict, or None when the card has no readable type, deal, price or area."""
+    """One exported row -> a listing dict, or None for a row that is no listing card (no deal in its title). A card
+    without a price or an area is kept; the figures that need them are left out later."""
     title = (row.get('name') or '').strip()
     head = _TITLE.match(title)
     if not head:
         return None
-    property_type = TYPES.get(head.group('type').strip())
+    property_type = TYPES.get(head.group('type').strip(), 'other')
     district = _DISTRICT.search(title)
     price = _number(row.get('data') or row.get('brand'))
     area = _number(row.get('data2'))
-    if not property_type or not price or not area:
-        return None
     kind = 'sale' if head.group('kind') == 'بيع' else 'rent'
-    # «/سنوي» on the card while the advertiser writes a monthly rent in the text: the period is unknown, so no figure
-    yearly = '/سنوي' in str(row.get('brand') or '') and 'شهري' not in str(row.get('description') or '')
+    # the card's «/سنوي» or «/شهري», else what the text says; neither leaves the period unknown (None), never assumed
+    label = str(row.get('brand') or '')
+    period = 'annually' if '/سنوي' in label else 'monthly' if '/شهري' in label else text_period(str(row.get('description') or ''))
     return {
         'listingType': kind,
         'propertyType': property_type,
         'priceSar': price,
         'areaSqm': area,
-        # a list card marks only yearly rents; anything else has no period we can trust
-        'rentPeriod': 'annually' if kind == 'rent' and yearly else None,
+        'rentPeriod': period if kind == 'rent' else None,
         'districtArabic': district.group(1).strip() if district else None,
         'city_en': city_en,
         'title': title,
@@ -66,25 +73,27 @@ _CITY_EN = {canonical_data.district_key(ar): en for en, ar in canonical_data.CIT
 _PERIOD = {'/سنوي': 'annually', '/شهري': 'monthly'}
 
 
+def _kind(head, slug):
+    """'sale' | 'rent' from the title («… للبيع في …»), else from the link's first segment («شقق-للإيجار»), else None."""
+    if head:
+        return 'sale' if head.group('kind') == 'بيع' else 'rent'
+    return 'sale' if 'للبيع' in slug else 'rent' if 'للإيجار' in slug or 'للايجار' in slug else None
+
+
 def parse_collected(record, city_en=None):
-    """One listing from tools/aqar-collector -> a listing dict, or None. The card's text arrives as lines; its link
-    path is type / city / region / district / street-id, and the district there is Aqar's own filing of the listing,
-    preferred over the street address in the title."""
+    """One listing from tools/aqar-collector -> a listing dict; every card is kept, whatever it lacks. The card's
+    text arrives as lines; its link path is type / city / region / district / street-id, and the district there is
+    Aqar's own filing of the listing, preferred over the street address in the title."""
     lines = [str(line).strip() for line in record.get('lines') or [] if str(line).strip()]
+    path = record.get('path') or []
     title = next((line for line in lines if _TITLE.match(line)), '')
     head = _TITLE.match(title)
-    property_type = TYPES.get(head.group('type').strip()) if head else None
+    property_type = TYPES.get(head.group('type').strip(), 'other') if head else 'other'
     price_line = next((line for line in lines if '§' in line or 'ريال' in line), '')
     area_line = next((line for line in lines if 'م²' in line), '')
     price, area = _number(price_line), _number(area_line)
-    if not property_type or not price or not area:
-        return None
-    kind = 'sale' if head.group('kind') == 'بيع' else 'rent'
-    period = next((value for label, value in _PERIOD.items() if label in price_line), None)
-    description = max(lines, key=len)
-    if period == 'annually' and 'شهري' in description:
-        period = None
-    path = record.get('path') or []
+    kind = _kind(head, path[0] if path else '')
+    period = next((value for label, value in _PERIOD.items() if label in price_line), None) or text_period(max(lines, key=len, default=''))
     district = next((segment[3:].replace('-', ' ') for segment in path[2:4] if segment.startswith('حي-')), None)
     if not district:
         found = _DISTRICT.search(title)
@@ -98,28 +107,26 @@ def parse_collected(record, city_en=None):
 
 
 def parse_map_listing(record, city_en=None):
-    """One listing of Aqar's map search (Web.find, kept by tools/aqar-collector) -> a listing dict, or None. It carries
-    its own location, so it joins its district by coordinates. rent_period 3 is the yearly rent the list cards mark
-    «/سنوي»; advertisers sometimes put a monthly figure there, so a text that speaks of a monthly rent and not a
-    yearly one leaves the period unknown. No advertiser field is copied."""
+    """One listing of Aqar's map search (Web.find, kept by tools/aqar-collector) -> a listing dict; every listing is
+    kept, whatever it lacks (a price on request, no area, an unnamed type). It carries its own location, so it joins
+    its district by coordinates. The rent period is the one the ad states, or None. No advertiser field is copied."""
     title = (record.get('title') or '').strip()
+    path = record.get('path') or ''
     head = _TITLE.match(title)
-    property_type = TYPES.get(head.group('type').strip()) if head else None
+    property_type = TYPES.get(head.group('type').strip(), 'other') if head else 'other'
     price, area = _number(record.get('price')), _number(record.get('area'))
-    if not property_type or not price or not area:
-        return None
-    kind = 'sale' if head.group('kind') == 'بيع' else 'rent'
+    kind = _kind(head, path.strip('/').split('/')[0] if path else '')
     text = str(record.get('content') or '')
-    period = 'annually' if record.get('rent_period') == 3 and not ('شهري' in text and 'سنوي' not in text) else None
-    # the yearly total of twelve monthly payments, when it is many times the price, shows the price is a month's rent
+    # the period as the ad states it, never assumed: what the text says first (an advertiser who writes «شهري» under
+    # Aqar's yearly field means monthly), then a twelve-payment total many times the price (the price is a month's
+    # rent, whatever the field says), then Aqar's field (3 is the «/سنوي» of the list cards); otherwise unknown (None)
     twelve = _number(record.get('price_12_payments'))
-    if kind == 'rent' and twelve and twelve >= 6 * price:
-        period = 'monthly'
+    period = (text_period(text) or ('monthly' if twelve and price and twelve >= 6 * price else None)
+              or ('annually' if record.get('rent_period') == 3 else None))
     location = record.get('location') or {}
     district = str(record.get('district') or '').strip()
     # a city outside the alias table keeps Aqar's Arabic name rather than borrowing another city's
     city = city_en or _CITY_EN.get(canonical_data.district_key(str(record.get('city') or ''))) or record.get('city')
-    path = record.get('path') or ''
     return {
         'listingType': kind, 'propertyType': property_type, 'priceSar': price, 'areaSqm': area,
         'rentPeriod': period if kind == 'rent' else None,
@@ -145,7 +152,7 @@ def parse_rows(rows, city_en='Riyadh'):
             listing = parse_row(row, city_en)
         if not listing:
             continue
-        key = listing.get('aqar_id') or listing['url'] or listing.get('image') or (listing['title'], listing['priceSar'], listing['areaSqm'])
+        key = listing.get('aqar_id') or listing.get('url') or listing.get('image') or (listing['title'], listing['priceSar'], listing['areaSqm'])
         if key in seen:
             continue
         seen.add(key)

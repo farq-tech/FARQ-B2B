@@ -79,7 +79,7 @@ $('export').addEventListener('click', async () => {
   const pick = (prefix) => Object.entries(all).filter(([key]) => key.startsWith(prefix)).map(([, value]) => value)
   const listings = pick('l:')
   const mapListings = pick('m:')
-  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), listings, mapListings, findTemplate: all.findTemplate ?? null })], { type: 'application/json' })
+  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), listings, mapListings, findTemplate: all.findTemplate ?? null, contactSamples: all.contactSamples ?? [] })], { type: 'application/json' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
   link.download = `aqar-listings-${listings.length + mapListings.length}-${Date.now()}.json`
