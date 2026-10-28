@@ -179,3 +179,10 @@ body::before {
     background: transparent;
   }
 }
+
+/* the onboarding hint's target: a soft olive ring that breathes, still when motion is reduced */
+.coach-target { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: 0.5rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .coach-target { animation: coach-ring 1.6s ease-in-out infinite; }
+}
+@keyframes coach-ring { 50% { outline-color: color-mix(in oklab, var(--ring) 35%, transparent); outline-offset: 6px; } }
