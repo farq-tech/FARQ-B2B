@@ -29,6 +29,7 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
     case 'businesses': return EXPLAIN.businesses('district')
     case 'residentsPerBusiness': return EXPLAIN.residentsPerBusiness(row.population, row.businesses)
     case 'restaurants': return EXPLAIN.restaurants
+    case 'unmet': return EXPLAIN.unmet(row.searches, row.unmetSearches)
     case 'villaShare': return EXPLAIN.villaShare
     case 'shopRent': return EXPLAIN.realEstate(row.realEstate.rent_year_commercial?.listings, 'rent_year')
     case 'shopRentUnstated': return EXPLAIN.realEstate(row.realEstate.rent_unstated_commercial?.listings, 'rent_unstated')

@@ -82,6 +82,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         <Figure label="السكان" value={show(people)} explain={EXPLAIN.population(scope.map((row) => row.populationSource), people)} />
         <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />
         {lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={people != null && businesses ? show(people / businesses) : 'غير متاح'} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />}
+        {single && <Figure label="بحث بلا نتيجة" value={single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : 'غير متاح'} explain={EXPLAIN.unmet(single.searches, single.unmetSearches)} />}
         <Figure label="مطاعم على تطبيقات التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />
         {single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />}
         {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />}
@@ -103,6 +104,16 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
             </li>
           ))}
         </ul>
+      )}
+      {single && single.unmetTerms.length > 0 && (
+        <div className="mt-4">
+          <Explained title="يبحثون عنه ولا يجدونه" lines={EXPLAIN.unmet(single.searches, single.unmetSearches)} className="mb-1 text-sm font-semibold text-muted-foreground">يبحثون عنه ولا يجدونه</Explained>
+          <ul className="space-y-1.5 text-base">
+            {single.unmetTerms.map((row) => (
+              <li key={row.term} className="flex justify-between"><span>{row.term}</span><span className="font-semibold">{numberFormat.format(row.unmet)} من {numberFormat.format(row.searches)}</span></li>
+            ))}
+          </ul>
+        </div>
       )}
       {single && Object.keys(single.realEstate).length > 0 && (
         <div className="mt-4">

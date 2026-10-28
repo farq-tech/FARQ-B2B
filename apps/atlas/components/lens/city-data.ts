@@ -5,8 +5,8 @@ import { districtName, postMarket, type DistrictFeature } from '@/lib/insights-a
 
 /**
  * One row per canonical district of a city, joined from the golden tables (docs/golden-data.md): the outline and
- * name from the atlas, population by district id, directory counts by canonical name, income and growth, and restaurants on delivery apps by
- * district id from Farq. A missing figure stays null and is shown as «غير متاح», never as zero.
+ * name from the atlas, population by district id, directory counts by canonical name, income and growth, restaurants on delivery apps and unmet
+ * searches by district id from Farq. A missing figure stays null and is shown as «غير متاح», never as zero.
  */
 export type DistrictRow = {
   id: string
@@ -15,6 +15,10 @@ export type DistrictRow = {
   populationSource: string | null
   businesses: number | null
   restaurants: number | null
+  /** Located Farq searches near the district in 90 days, and how many found nothing (null below the threshold). */
+  searches: number | null
+  unmetSearches: number | null
+  unmetTerms: DemandTerm[]
   income: number | null
   underConstruction: number | null
   newBuildings: number | null
@@ -42,6 +46,8 @@ type GrowthRow = { district_ar: string; under_construction: number; new_building
 type HousingRow = { district_ar: string; villa_share_pct: number }
 type RealEstateRow = { district_id: string; groups: Partial<Record<RealEstateGroup, { listings: number; median_sar_per_sqm: number }>> }
 type RestaurantRow = { district_id: string; restaurants: number }
+export type DemandTerm = { term: string; searches: number; unmet: number }
+type DemandRow = { district_id: string; searches: number; unmet: number; unmetTerms: DemandTerm[] }
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
@@ -65,11 +71,13 @@ export function useCityData(city: string): CityData {
       optional(postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
       optional(postMarket<{ districts?: RealEstateRow[] }>('real-estate', { city })),
       optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
-    ]).then(([atlas, population, counts, income, growth, housing, property, restaurants]) => {
+      optional(getJson<{ districts?: DemandRow[] }>(`/api/farq/demand?city=${encodeURIComponent(city)}`)),
+    ]).then(([atlas, population, counts, income, growth, housing, property, restaurants, demand]) => {
       if (!active) return
       const features = atlas.features ?? []
       const people = new Map((population?.districts ?? []).map((row) => [String(row.district_id), row]))
       const eateries = new Map((restaurants?.districts ?? []).map((row) => [row.district_id, row.restaurants]))
+      const wanted = new Map((demand?.districts ?? []).map((row) => [row.district_id, row]))
       const byName = <R extends { district_ar: string }>(list?: R[]) => new Map((list ?? []).map((row) => [row.district_ar, row]))
       const count = byName(counts?.districts)
       const pay = byName(income?.districts)
@@ -88,6 +96,9 @@ export function useCityData(city: string): CityData {
           populationSource: people.get(id)?.source ?? null,
           businesses: c ? c.n : null,
           restaurants: eateries.get(id) ?? null,
+          searches: wanted.get(id)?.searches ?? null,
+          unmetSearches: wanted.get(id)?.unmet ?? null,
+          unmetTerms: wanted.get(id)?.unmetTerms ?? [],
           income: pay.get(name)?.income_all ?? null,
           underConstruction: g ? g.under_construction : null,
           newBuildings: g ? g.new_buildings : null,
@@ -104,7 +115,7 @@ export function useCityData(city: string): CityData {
 }
 
 /** Sum of a field over rows; null when any row lacks it, so a partial total is never shown as the whole. */
-export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource' | 'realEstate'>): number | null {
+export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource' | 'unmetTerms' | 'realEstate'>): number | null {
   if (!rows.length || rows.some((row) => row[key] == null)) return null
   return rows.reduce((total, row) => total + (row[key] as number), 0)
 }
