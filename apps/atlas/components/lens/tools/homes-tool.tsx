@@ -1,29 +1,52 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Scale, Sparkles, X } from 'lucide-react'
+import { Loader2, MapPin, Scale, Sparkles, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { areaKm2, distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
 import { ListingCard } from '../listing-card'
+import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }
 const LIMIT = 1500
 const BEST = 8
+const MY_POINT_KEY = 'atlas.myPoint'
+
+function readPoint(): MyPoint | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(MY_POINT_KEY) ?? 'null') as MyPoint | null
+    return value && typeof value.lon === 'number' && typeof value.lat === 'number' ? value : null
+  } catch { return null }
+}
+function savePoint(point: MyPoint | null) {
+  try { if (point) localStorage.setItem(MY_POINT_KEY, JSON.stringify(point)); else localStorage.removeItem(MY_POINT_KEY) } catch { /* the point stays for this visit */ }
+}
+
+/** The ad's first photo, small, beside its line in the list; nothing when it fails to load. */
+function Thumb({ src }: { src: string | null }) {
+  const [broken, setBroken] = useState(false)
+  if (!src || broken) return <span className="size-14 shrink-0 rounded-lg bg-muted" aria-hidden />
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-14 shrink-0 rounded-lg object-cover" />
+}
 
 /**
  * «اختر عقاراً»: the current listings that match a deal, a property type and a budget, as dots on the map coloured by
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset }: {
+export function HomesTool({ city, rows, features = [], selected, onOverlay, preset }: {
   city: string
   rows: DistrictRow[]
+  /** District outlines, for each listing's district density. */
+  features?: DistrictFeature[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
@@ -40,6 +63,18 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
   const [advisor, setAdvisor] = useState<AdvisorSubject | null>(null)
+  // the viewer's own point (work, a school…): kept in this browser only, measured from every home
+  const [myPoint, setMyPoint] = useState<MyPoint | null>(null)
+  const [picking, setPicking] = useState(false)
+  const [nearest, setNearest] = useState(false)
+  useEffect(() => { setMyPoint(readPoint()) }, [])
+  const density = useMemo(() => {
+    const areas = new Map(features.map((feature) => [String(feature.properties.id), areaKm2(feature.geometry)]))
+    return new Map(rows.map((row) => {
+      const area = areas.get(row.id) ?? 0
+      return [row.id, row.population != null && area > 0 ? row.population / area : null]
+    }))
+  }, [rows, features])
   const districtIds = selected.map((row) => row.id)
   const districtKey = districtIds.join('|')
 
@@ -76,9 +111,17 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
       listings: dots,
       onListing: (id) => { const listing = byId.get(id); if (listing) setActive(listing) },
       focus,
-      popup: active ? <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)} /> : null,
+      popup: active ? <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
+        myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
+      start: myPoint,
+      onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay])
+  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density])
+
+  // the list in the server's best-value order, or nearest to the viewer's point first
+  const shown = useMemo(() => (nearest && myPoint
+    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
+    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
 
   const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${numberFormat.format(selected.length)} أحياء`) : 'في المدينة'
   const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
@@ -113,6 +156,26 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
         </select>
       )}
 
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border p-2">
+        <MapPin className="size-4 text-primary" aria-hidden />
+        {picking ? (
+          <>
+            <span className="text-sm font-semibold">اضغط على الخريطة في مكان عملك أو أي نقطة تهمك</span>
+            <button onClick={() => setPicking(false)} className="text-sm text-muted-foreground underline">إلغاء</button>
+          </>
+        ) : myPoint ? (
+          <>
+            <span className="text-sm">نقطتك محددة</span>
+            <button onClick={() => setNearest((value) => !value)} aria-pressed={nearest}
+              className={cn('rounded-full border px-3 py-1 text-sm', nearest ? 'border-primary text-primary' : 'hover:border-primary')}>الأقرب لنقطتي أولاً</button>
+            <button onClick={() => setPicking(true)} className="text-sm text-muted-foreground underline">غيّرها</button>
+            <button onClick={() => { setMyPoint(null); savePoint(null); setNearest(false) }} className="text-sm text-muted-foreground underline">احذفها</button>
+          </>
+        ) : (
+          <button onClick={() => setPicking(true)} className="text-sm font-semibold text-primary">حدد نقطتك (عملك، مدرسة أولادك…) لنقيس المسافة منها</button>
+        )}
+      </div>
+
       {result.status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
       {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
@@ -124,16 +187,18 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
           </p>
           {result.listings.length > 0 && (
             <div>
-              <Explained title="أنسب العروض" lines={EXPLAIN.bestListings} className="mb-1 text-sm font-semibold text-muted-foreground">أنسب العروض</Explained>
+              <Explained title={nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'} lines={EXPLAIN.bestListings} className="mb-1 text-sm font-semibold text-muted-foreground">{nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'}</Explained>
               <ol className="divide-y">
-                {result.listings.slice(0, BEST).map((listing) => {
+                {shown.map((listing) => {
                   const versus = versusDistrict(listing)
                   return (
                     <li key={listing.id}>
                       <button onClick={() => open(listing)} className={cn('flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary', active?.id === listing.id && 'text-primary')}>
-                        <span className="min-w-0">
+                        <Thumb src={listing.photo} />
+                        <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
                           {versus && <span className={cn('block text-sm', versus.tone === 'good' ? 'text-primary' : 'text-muted-foreground')}>{versus.text}</span>}
+                          {myPoint && <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(distanceKm(listing, myPoint) * 10) / 10)} كم من نقطتك</span>}
                         </span>
                         <span className="shrink-0 text-sm font-semibold">{priceLine(listing)}</span>
                       </button>

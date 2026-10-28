@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, ExternalLink, Scale, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ExternalLink, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
+import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 
 const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-amber-500' } as const
 
@@ -37,12 +38,17 @@ function Gallery({ photos }: { photos: string[] }) {
  * price per m² stands against the same deal in its district. Two actions only: open the ad itself, or put the
  * listing in the comparison.
  */
-export function ListingCard({ listing, comparing, onCompare, onClose }: {
+export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = null, density = null }: {
   listing: Listing
   comparing: boolean
   onCompare: () => void
   onClose: () => void
+  /** The viewer's own point (work, school…), measured from the home. */
+  myPoint?: MyPoint | null
+  /** Residents per km² of the listing's district. */
+  density?: number | null
 }) {
+  const [around, setAround] = useState(false)
   const versus = listing.check ? null : versusDistrict(listing)
   const perSqm = perSqmLine(listing)
   const rooms = [
@@ -52,7 +58,7 @@ export function ListingCard({ listing, comparing, onCompare, onClose }: {
   ].filter(Boolean)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
   return (
-    <article aria-label="العرض المختار" className="absolute inset-x-3 bottom-3 z-10 mx-auto max-w-sm overflow-hidden rounded-2xl border bg-card shadow-xl">
+    <article aria-label="العرض المختار" className="absolute inset-x-3 bottom-3 z-10 mx-auto max-h-[85%] max-w-sm overflow-y-auto rounded-2xl border bg-card shadow-xl">
       <button onClick={onClose} aria-label="إغلاق" className="absolute end-2 top-2 z-10 rounded-full bg-background/80 p-1.5 backdrop-blur hover:bg-background">
         <X className="size-4" aria-hidden />
       </button>
@@ -79,6 +85,12 @@ export function ListingCard({ listing, comparing, onCompare, onClose }: {
             <AlertTriangle className="size-4" aria-hidden /> أرقام هذا الإعلان تحتاج تحققاً
           </Explained>
         )}
+        <button onClick={() => setAround((open) => !open)} aria-expanded={around}
+          className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-semibold hover:border-primary">
+          حول العقار: مدارس، مستشفى، المطار، وسط المدينة{myPoint ? '، نقطتك' : ''}
+          <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
+        </button>
+        {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           {listing.url ? (
             <a href={listing.url} target="_blank" rel="noopener noreferrer"
