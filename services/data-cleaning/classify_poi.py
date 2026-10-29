@@ -134,11 +134,14 @@ def main(argv=None):
     main_out, sub_out, main_conf_out = [], [], []
     for r, (mp, mc, sp, sc) in enumerate(zip(main_pred, main_conf, sub_pred, sub_conf)):
         parent = sub_main.get(sp)
-        if sc >= a.sub_min and parent is not None:
+        j = main_col.get(parent)
+        parent_conf = float(main_proba[r, j]) if j is not None else 0.0
+        # a kept sub needs both gates: its own, and its parent main clearing main_min — so neither level is ever emitted
+        # below its threshold. When the parent main is too weak, the sub is dropped and the gated main path is used.
+        if sc >= a.sub_min and parent is not None and parent_conf >= a.main_min:
             sub_out.append(sp)
             main_out.append(parent)
-            j = main_col.get(parent)
-            main_conf_out.append(float(main_proba[r, j]) if j is not None else float(mc))
+            main_conf_out.append(parent_conf)   # the main model's probability of the emitted parent main
         else:
             sub_out.append(None)
             main_out.append(mp if mc >= a.main_min else None)

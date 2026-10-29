@@ -60,6 +60,14 @@ class ClassifyTests(unittest.TestCase):
         c1 = duckdb.sql(f"select cls_main_confidence from read_parquet('{out}') where poi_key = 'hh:1'").fetchone()[0]
         self.assertTrue(0.0 <= c1 <= 1.0)
 
+    def test_no_main_is_emitted_below_its_gate(self):
+        out = self.tmp / 'est_gate.parquet'
+        self.assertEqual(self.run_cli(out, ('--main-min', '0.5', '--sub-min', '0.0')).returncode, 0)
+        # a kept sub forces its parent main, which must itself clear the main gate — so no emitted main is below it
+        low = duckdb.sql(f"""select count(*) from read_parquet('{out}')
+            where cls_main_estimate is not null and cls_main_confidence < 0.5""").fetchone()[0]
+        self.assertEqual(low, 0, 'the main gate holds even when the main is a kept sub\'s parent')
+
     def test_a_high_gate_keeps_nothing_rather_than_guessing(self):
         out = self.tmp / 'est_hi.parquet'
         r = self.run_cli(out, ('--main-min', '1.01', '--sub-min', '1.01'))
