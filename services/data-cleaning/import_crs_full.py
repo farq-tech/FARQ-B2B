@@ -8,7 +8,7 @@ street, building number, postal code, floor, district/city, opening hours, descr
 duplicate-of id and Google id. Read-only.
 The CR database (crs_fixed.duckdb, 256,963 CRs) is the preferred source: its `raw_json.data.last_log` holds the same state as JSON, so
 nothing is shifted. It is read through unpack_raw_json.py (same latest-approved rule, same patterns) into the same columns; a list of
-links keeps its first valid link, as the CSV holds one.
+links keeps its first valid link, as the CSV holds one; opening hours are written in the directory's readable format.
 Usage: python3 import_crs_full.py [crs_fixed.duckdb | crs_export.csv] [out.parquet]
 Output: /Users/m4pro/farq-taxonomy-data/enrich/crs_latest.parquet unless out.parquet is given"""
 import collections, csv, re, sys, json
@@ -31,13 +31,16 @@ def first_link(v):
     return json.loads(v)[0] if v and v.startswith('[') else v
 def from_raw_json(path):
     """Latest approved CR per entity from crs_fixed.duckdb's raw_json, as the CSV path's records (shift 0)."""
+    from hudhud_fill import hours
     from unpack_raw_json import read_crs, unpack
     rows, _, _ = unpack(read_crs(path, collections.Counter()), {})
     out = []
     for x in rows:
         rec = {'eid': x['poi_key'][3:], 'last_operation': x['last_operation'], 'verified_at': x['verified_at'], 'surveyor': x['surveyor'], 'shift': 0}
         for c in CHECK:
-            rec[c] = x['opening_hours'] if c == 'opening_hours_regular_hours' else x.get(c)
+            # hours in the directory's own format («Sun: 08:30 - 23:30 | …», 00:00-00:00 = open all day), as hudhud_fill.py writes
+            # them, so a surveyor's hours never replace readable hours with raw JSON in the golden set
+            rec[c] = hours(x['opening_hours']) if c == 'opening_hours_regular_hours' else x.get(c)
         for src, col in EXTRA.items():
             v = x.get(src)
             rec[col] = v if src not in ('menu_link', 'order_link', 'reservation_link') or v is None or v.startswith('[') else json.dumps([v])
