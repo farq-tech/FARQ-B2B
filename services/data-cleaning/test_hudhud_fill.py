@@ -28,9 +28,18 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual(account('snapchat', '@cafe_x'), 'https://www.snapchat.com/add/cafe_x')
         self.assertEqual(account('x_link', 'twitter.com/cafe'), 'https://twitter.com/cafe')
         self.assertIsNone(account('instagram', 'https://facebook.com/cafe'), "another site's link is refused")
+        for bad in ('https://evil.sa/instagram.com/cafe', 'https://instagram.com@evil.sa/cafe', 'https://instagram.com.evil.sa/cafe'):
+            self.assertIsNone(account('instagram', bad), bad)
+        self.assertEqual(account('instagram', 'https://www.instagram.com/cafe/'), 'https://www.instagram.com/cafe/')
+        self.assertEqual(account('instagram', '@cafe.name'), 'https://instagram.com/cafe.name', 'a dotted handle is a handle')
+        self.assertEqual(account('instagram', 'cafe.name'), 'https://instagram.com/cafe.name')
+        self.assertIsNone(account('instagram', 'www.evil.sa'))
+        self.assertIsNone(account('instagram', 'cafe.com.sa'), 'a bare domain is a website, not a handle')
         self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
                          'Sun: 08:30 - 23:30')
         self.assertIsNone(hours('not json'))
+        for odd in ('[null]', '"x"', '{"day": "Monday"}', '[{"day": "Monday", "hours": "08:00"}]', '[{"day": "Monday", "hours": [null]}]'):
+            self.assertIsNone(hours(odd), odd)
         self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "00:00", "close": "00:00"}]}]'), 'Mon: 00:00 - 24:00', 'open all day')
         self.assertIsNone(hours('[{"day": "Monday", "hours": [{"open": "08:00", "close": "08:00"}]}]'), 'another equal pair: not guessed')
         self.assertEqual([floor(v) for v in ('0', 'GF', '2.0', 'B1', 'open')], ['0', '0', '2', 'B1', None])
@@ -59,7 +68,7 @@ class FillTests(unittest.TestCase):
                    'snapchat', 'menu_link', 'google_place_id', 'working_hours', 'description_ar', 'description_en', 'tradename', 'name_en',
                    'commercial_license', 'rating', 'reviews_count', 'phone_raw', 'phone_norm', 'phone_kind', 'phone_source']
         db.execute(f"create table t(poi_key varchar, hudhud_id bigint, city_en varchar, completeness_pct double, {', '.join(c + ' varchar' for c in columns)})")
-        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, email) values ('hh:1', 1, 'Riyadh', 66.7, null), ('hh:2', 2, 'Riyadh', 83.3, 'kept@x.sa')")
+        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, email) values ('hh:1', 1, 'Riyadh', 66.7, 'null'), ('hh:2', 2, 'Riyadh', 83.3, 'kept@x.sa')")
         db.execute(f"copy t to '{temp / 't.parquet'}' (format parquet)")
         crs = duckdb.connect(str(temp / 'crs.duckdb'))
         trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_phone_number', 'trx_additional_feature', 'trx_national_address', 'trx_postal_code',
@@ -76,11 +85,15 @@ class FillTests(unittest.TestCase):
         result = run(temp / 't_hudhud.parquet')
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = db.execute(f"select poi_key, email, floor_no, completeness_pct, hudhud_filled from read_parquet('{temp / 't_hudhud.parquet'}') order by 1").fetchall()
-        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no']), 'a first contact adds one completeness point')
+        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no']), 'a «null» text is empty to the update as to fills(); a first contact adds one completeness point')
         self.assertEqual(rows[1], ('hh:2', 'kept@x.sa', '1', 83.3, ['floor_no']), 'an existing e-mail is never replaced')
         report = json.loads((temp / 't_hudhud.report.json').read_text())
         self.assertEqual((report['existing_values_changed'], report['rows_given_a_first_contact']), (0, 1))
         self.assertNotEqual(run(temp / 't_hudhud.parquet').returncode, 0, 'never writes over an existing snapshot')
+        again = subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't_hudhud.parquet'),
+                                '--crs', str(temp / 'crs.duckdb'), '--out', str(temp / 't_again.parquet')], capture_output=True, text=True)
+        self.assertEqual(again.returncode, 0, 'nothing left to fill still writes the copy and its report: ' + again.stderr)
+        self.assertEqual(json.loads((temp / 't_again.report.json').read_text())['rows_filled'], 0)
 
 
 if __name__ == '__main__':
