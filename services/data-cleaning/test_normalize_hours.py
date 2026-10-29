@@ -95,6 +95,21 @@ class ScriptTests(unittest.TestCase):
             self.assertEqual(report['rows_rewritten'], {'hudhud_json -> readable': 1, 'no_hours_placeholder -> empty': 1})
             self.assertNotEqual(run(out).returncode, 0, 'refuses to overwrite an existing snapshot')
 
+    def test_a_snapshot_with_nothing_to_change_is_still_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = f'{tmp}/t.parquet', f'{tmp}/t_hours.parquet'
+            db = duckdb.connect()
+            db.execute("create table t(poi_key varchar, working_hours varchar)")
+            db.executemany("insert into t values (?, ?)", [('a', 'Sun: 08:00 - 17:00'), ('b', None)])
+            db.execute(f"copy t to '{src}' (format parquet)")
+            result = subprocess.run([sys.executable, str(HERE / 'normalize_hours.py'), '--targets', src, '--out', out],
+                                    capture_output=True, text=True, cwd=HERE)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(db.execute(f"select * from read_parquet('{out}') order by poi_key").fetchall(),
+                             [('a', 'Sun: 08:00 - 17:00'), ('b', None)])
+            report = json.loads(pathlib.Path(f'{tmp}/t_hours.report.json').read_text(encoding='utf-8'))
+            self.assertEqual(report['rows_rewritten'], {})
+
 
 if __name__ == '__main__':
     unittest.main()

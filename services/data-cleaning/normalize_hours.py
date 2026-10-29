@@ -246,7 +246,9 @@ def main():
     values = [v for (v,) in db.execute("select distinct working_hours from t where nullif(trim(working_hours), '') is not null").fetchall()]
     new = {v: normalize(v) for v in values}
     db.execute("create table m(old varchar, new varchar)")
-    db.executemany("insert into m values (?, ?)", [(o, n) for o, n in new.items() if n != o])
+    changes = [(o, n) for o, n in new.items() if n != o]
+    if changes:  # duckdb refuses an empty batch; a snapshot already readable still gets its copy and report
+        db.executemany("insert into m values (?, ?)", changes)
     def counted():
         found = collections.Counter()
         for v, n in db.execute("select working_hours, count(*) from t group by 1").fetchall():
