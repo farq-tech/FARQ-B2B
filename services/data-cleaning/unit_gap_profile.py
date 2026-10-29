@@ -30,7 +30,8 @@ Figures:
   sa_urbi, short address whose businesses spread over SPREAD_M m, surveyor vs Urbi national building number).
   candidates = candidates_no_conflict + conflict_among_candidates (checked).
 - conflict_without_candidate: rows with a disagreement but no single candidate: an Urbi card with two building ids
-  (so no urbi_id), several distinct short addresses in one source (so no sa_*), or two national building numbers without a building candidate (a building number alone, without
+  (so no urbi_id), several distinct short addresses in one source (so no sa_*), a point inside several footprints
+  (so no footprint), several building numbers in one source, or two national building numbers without a building candidate (a building number alone, without
   a postal code, is no building identifier by the 3.2.1 rule).
 - agreement: on rows where two comparable values are both present, how many agree. A full count of that overlap, not
   a sample, and agreement, not precision.
@@ -81,6 +82,11 @@ def valid_floor(col):
     return f"(lower({value}) not in {FLOOR_EMPTY} and regexp_full_match({value}, '{sql_pattern(FLOOR)}', 'i'))"
 
 
+def one_value(expr):
+    """(the value when the rows of one business carry exactly one, several distinct ones) for a non-empty expr."""
+    return (f"case when count(distinct {expr}) = 1 then max({expr}) end", f"count(distinct {expr}) > 1")
+
+
 def one_short_address(col):
     """The short address when the rows of one business carry exactly one; several distinct ones are a conflict."""
     code = f"upper(replace({col}, ' ', ''))"
@@ -100,6 +106,8 @@ def build(c, a):
     urbi_rx = sql_pattern(URBI_BUILDING)
     crs_sa, crs_sa_multi = one_short_address('national_address')
     urbi_sa, urbi_sa_multi = one_short_address('makani')
+    crs_bno, crs_bno_multi = one_value("nullif(regexp_replace(cast(building_no as varchar), '[^0-9]', '', 'g'), '')")
+    urbi_bno, urbi_bno_multi = one_value("nullif(regexp_replace(building_number, '[^0-9]', '', 'g'), '')")
     g_text = ', '.join(sorted({col for alias, cols in TEXT_FIELDS.values() if alias == 'g' for col in cols}))
     c.execute(f"""create temp table pts as
         select poi_key, coalesce(city_en, 'unknown') as city, latitude as lat, longitude as lon, {g_text}
@@ -108,7 +116,7 @@ def build(c, a):
     c.execute(f"""create temp table crs as
         select poi_key,
                {crs_sa} as sa_crs, {crs_sa_multi} as sa_crs_multi,
-               max(nullif(regexp_replace(cast(building_no as varchar), '[^0-9]', '', 'g'), '')) as bno_crs,
+               {crs_bno} as bno_crs, {crs_bno_multi} as bno_crs_multi,
                bool_or({valid_floor('floorno')}) as floor_crs
         from read_parquet('{a.crs}') group by poi_key""")
     u_cols = TEXT_FIELDS['urbi_card'][1]
@@ -124,7 +132,7 @@ def build(c, a):
                     as urbi_id_multi,
                {urbi_sa} as sa_urbi, {urbi_sa_multi} as sa_urbi_multi,
                bool_or({valid_floor('floor')}) as floor_urbi,
-               max(nullif(regexp_replace(building_number, '[^0-9]', '', 'g'), '')) as bno_urbi,
+               {urbi_bno} as bno_urbi, {urbi_bno_multi} as bno_urbi_multi,
                bool_or({has_unit_text(u_cols)}) as text_urbi_card
         from ({urbi}) group by poi_key""")
     c.execute(f"""create temp table fsq as
@@ -148,6 +156,8 @@ def build(c, a):
     c.execute(f"""create temp table ev as
         select p.poi_key, p.city, p.lat, p.lon, {g_flags},
                case when pip.n_fp = 1 then pip.footprint end as footprint,
+               coalesce(pip.n_fp, 0) > 1 as fp_multi,
+               coalesce(u.bno_urbi_multi, false) or coalesce(r.bno_crs_multi, false) as bno_multi,
                u.urbi_id, coalesce(u.urbi_id_multi, false) as urbi_id_multi, u.sa_urbi, u.bno_urbi,
                coalesce(u.sa_urbi_multi, false) or coalesce(r.sa_crs_multi, false) as sa_multi,
                r.sa_crs, r.bno_crs,
@@ -182,7 +192,8 @@ def build(c, a):
                    o.occupants, ({any_text}) as unit_text
             from ev e left join sa_spread s using (poi_key) left join occ o using (footprint))
         select *, n_sources > 0 as candidate,
-               x_fp_urbi or x_sa or x_bno or x_spread or urbi_id_multi or sa_multi as conflict from x""")
+               x_fp_urbi or x_sa or x_bno or x_spread or urbi_id_multi or sa_multi or bno_multi or fp_multi
+                 as conflict from x""")
 
 
 def per_city(c, where):
@@ -196,6 +207,8 @@ def per_city(c, where):
         count(*) filter (where not candidate and urbi_id_multi) as wo_urbi_card_two_buildings,
         count(*) filter (where not candidate and x_bno) as wo_building_no,
         count(*) filter (where not candidate and sa_multi) as wo_sa_multi,
+        count(*) filter (where not candidate and bno_multi) as wo_bno_multi,
+        count(*) filter (where not candidate and fp_multi) as wo_fp_multi,
         count(*) filter (where footprint is not null) as src_footprint,
         count(*) filter (where urbi_id is not null) as src_urbi_id,
         count(*) filter (where sa_crs is not null) as src_sa_crs,
@@ -214,6 +227,8 @@ def per_city(c, where):
         count(*) filter (where candidate and x_bno) as c_bno,
         count(*) filter (where candidate and urbi_id_multi) as c_urbi_multi,
         count(*) filter (where candidate and sa_multi) as c_sa_multi,
+        count(*) filter (where candidate and bno_multi) as c_bno_multi,
+        count(*) filter (where candidate and fp_multi) as c_fp_multi,
         count(*) filter (where candidate and not conflict and has_floor) as cand_floor,
         count(*) filter (where candidate and not conflict and unit_text) as cand_unit_text,
         count(*) filter (where footprint is not null and occupants = 1 and not conflict) as cand_sole_occupant,
@@ -249,6 +264,8 @@ def shape(raw):
             'urbi_card_two_building_ids': figure(raw['wo_urbi_card_two_buildings'], 'row', n),
             'national_building_no': figure(raw['wo_building_no'], 'row', n),
             'several_short_addresses': figure(raw['wo_sa_multi'], 'row', n),
+            'several_national_building_nos': figure(raw['wo_bno_multi'], 'row', n),
+            'point_in_several_footprints': figure(raw['wo_fp_multi'], 'row', n),
         },
         'by_source': {k: figure(raw[f'src_{k}'], 'row', n) for k in sources},
         'exclusive_single_source': {k: figure(raw[f'only_{k}'], 'row', cand) for k in sources},
@@ -265,6 +282,8 @@ def shape(raw):
             'national_building_no': figure(raw['c_bno'], 'row', cand),
             'urbi_card_two_building_ids': figure(raw['c_urbi_multi'], 'row', cand),
             'several_short_addresses': figure(raw['c_sa_multi'], 'row', cand),
+            'several_national_building_nos': figure(raw['c_bno_multi'], 'row', cand),
+            'point_in_several_footprints': figure(raw['c_fp_multi'], 'row', cand),
         },
         'unit_candidates': {
             'candidate_building_plus_valid_floor': figure(raw['cand_floor'], 'row', n),
