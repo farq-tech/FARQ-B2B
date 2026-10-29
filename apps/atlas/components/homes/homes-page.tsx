@@ -221,6 +221,7 @@ export function HomesPage() {
                     </span>
                     <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
                     {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
+                    {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
                   </button>
                 </li>
               )

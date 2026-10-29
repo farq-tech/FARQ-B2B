@@ -5,7 +5,7 @@ import { ChevronDown, ExternalLink, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
-import { ageLabel, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { ageLabel, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -85,6 +85,12 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
           {typeLabel(listing.type)} {listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''}{listing.district_ar ? ` · ${listing.district_ar}` : ''}
         </p>
         <p className="text-xl font-bold">{priceLine(listing)}</p>
+        {listing.signal && (
+          <p className="text-sm">
+            <Explained title={listing.signal.label} lines={signalLines(listing.signal, listing.type)}
+              className="rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">{listing.signal.label}</Explained>
+          </p>
+        )}
         {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
         <p className="text-sm">
           <Explained title="عمر العقار" lines={EXPLAIN.listingAge(listing.age_source)} className="text-sm">
