@@ -34,7 +34,7 @@ ACCOUNT = {'instagram': ('instagram.com', 'https://instagram.com/{}'), 'x_link':
 
 def text(v):
     v = '' if v is None else str(v).strip()
-    return '' if v.lower() in ('', 'null', 'none', 'nan', '[]', '{}') else v
+    return '' if v.lower() in EMPTY else v
 
 
 def phone(*values):
@@ -127,6 +127,12 @@ FIELDS = {
     'reviews_count': ('trx_reviews_count', lambda v: str(int(float(text(v)))) if re.match(r'^\d+(\.0)?$', text(v)) and float(text(v)) > 0 else None),
 }
 CONTACT = ('phone_norm', 'email', 'website')
+EMPTY = ('', 'null', 'none', 'nan', '[]', '{}')
+
+
+def empty(column):
+    """SQL test matching text(): a value fills() treats as empty is the value the update replaces."""
+    return f"(lower(trim(coalesce({column}::varchar, ''))) in {EMPTY})"
 
 
 def fills(snapshot, hudhud):
@@ -189,19 +195,18 @@ def main():
     db.execute(f"create table t as select * from read_parquet('{args.targets}')")
     for column in columns:
         db.execute(f"""update t set {column} = f.val from f where f.col = '{column}' and f.hid = cast(t.hudhud_id as varchar)
-                       and nullif(trim(t.{column}::varchar), '') is null""")
+                       and {empty(f't.{column}')}""")
     db.execute("""create table filled as select hid, list(col order by col) cols from f where col not in ('phone_raw', 'phone_kind', 'phone_source') group by 1""")
     db.execute("alter table t add column hudhud_filled varchar[]")
     db.execute("update t set hudhud_filled = filled.cols from filled where filled.hid = cast(t.hudhud_id as varchar)")
     # a first contact adds one of the six completeness points (build_golden.py: phone, e-mail or website)
     db.execute(f"""update t set completeness_pct = round(100.0 * least(6, round(coalesce(t.completeness_pct, 0) * 6 / 100) + 1) / 6, 1)
                    from read_parquet('{args.targets}') o where o.poi_key = t.poi_key and t.hudhud_filled is not null
-                   and nullif(trim(o.phone_norm), '') is null and nullif(trim(o.email), '') is null and nullif(trim(o.website), '') is null
-                   and (nullif(trim(t.phone_norm), '') is not null or nullif(trim(t.email), '') is not null or nullif(trim(t.website), '') is not null)""")
+                   and {' and '.join(empty(f'o.{c}') for c in CONTACT)} and not ({' and '.join(empty(f't.{c}') for c in CONTACT)})""")
 
     # no existing value may change: every column but the filled ones and completeness is compared with the input
     changed = db.execute(f"""select count(*) from read_parquet('{args.targets}') o join t using (poi_key)
-        where {' or '.join(f"(nullif(trim(o.{c}::varchar), '') is not null and o.{c}::varchar is distinct from t.{c}::varchar)" for c in columns)}""").fetchone()[0]
+        where {' or '.join(f"(not {empty(f'o.{c}')} and o.{c}::varchar is distinct from t.{c}::varchar)" for c in columns)}""").fetchone()[0]
     count = db.execute(f"select (select count(*) from read_parquet('{args.targets}')), (select count(*) from t)").fetchone()
     if changed or count[0] != count[1]:
         sys.exit(f'refused: {changed} existing values changed or rows {count} differ')
