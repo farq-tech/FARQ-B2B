@@ -183,7 +183,7 @@ python3 -I services/data-cleaning/lifecycle_profile.py crs_and_logs_linked_20250
 |---|---|
 | `event_id` | |
 | `source_record_id` | **أساس الحدث**: كل حدث يأتي من سجل مصدر |
-| `farq_atlas_id` | **فارغ** حتى تُحسم الهوية، ويُملأ من `record_links` حين تُحسم |
+| `farq_atlas_id` | **لا يُخزَّن في الحدث.** الحدث لا يتغير بعد كتابته. المنشأة تُستنتج عند القراءة من `record_links` بمفتاح `source_record_id`، وكل ربط أو فك ربط يُكتب حدث `identity_resolved` جديداً، فيبقى تاريخ الحسم نفسه محفوظاً |
 | `type` | الجدول التالي |
 | `effective_at`, `effective_precision` | متى وقع التغيير فعلاً، **فقط إن ذكره المصدر صراحة**: `day` · `month` · `unknown`. وإلا يبقى فارغاً |
 | `observed_at` | تاريخ صف المصدر: `created_at` للسجل، وتاريخ التقاط TRX، وتاريخ الاستبيان |
