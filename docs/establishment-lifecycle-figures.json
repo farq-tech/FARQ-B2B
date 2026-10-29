@@ -222,6 +222,19 @@
    "denominator": 61440
   }
  },
+ "review_team": {
+  "editors": 85,
+  "editors_with_1000_rows": 39,
+  "reviewers_of_others": 45,
+  "reviewers_with_1000_reviews": 23,
+  "decided_rows": 358960,
+  "decided_by_someone_else": 77958,
+  "approvals_per_reviewer_day": {
+   "median": 20,
+   "p75": 53,
+   "reviewer_days": 1869
+  }
+ },
  "not_measurable_here": [
   "closed-then-reopened blocker: the POI logs carry no status field; CR requests do (693 only)"
  ]

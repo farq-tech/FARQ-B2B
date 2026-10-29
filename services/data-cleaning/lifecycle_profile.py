@@ -158,6 +158,23 @@ def any_word_disjoint_v3(a, b):
     return bool(wa and wb and not wa & wb)
 
 
+def review_team(logs):
+    """Who edits and who reviews in the log, as counts only: editors, reviewers of someone else's row, and the pace of
+    those reviews (approvals per reviewer and calendar day)."""
+    count = collections.Counter
+    decided = [r for r in logs if r['review_status'] in ('approved', 'rejected')]
+    other = [r for r in decided if r['updated_by'] and r['updated_by'] != r['created_by']]
+    editors = count(r['created_by'] for r in logs if r['created_by'])
+    reviewers = count(r['updated_by'] for r in other)
+    per_day = sorted(count((r['updated_by'], int(number(r['created_at']) or 0)) for r in other if r['review_status'] == 'approved').values())
+    return {
+        'editors': len(editors), 'editors_with_1000_rows': sum(v >= 1000 for v in editors.values()),
+        'reviewers_of_others': len(reviewers), 'reviewers_with_1000_reviews': sum(v >= 1000 for v in reviewers.values()),
+        'decided_rows': len(decided), 'decided_by_someone_else': len(other),
+        'approvals_per_reviewer_day': {'median': per_day[len(per_day) // 2], 'p75': per_day[3 * len(per_day) // 4], 'reviewer_days': len(per_day)},
+    }
+
+
 def profile(book):
     logs, crs = book['All_POI_Logs'], book['All_CRs_Data']
     count = collections.Counter
@@ -223,6 +240,7 @@ def profile(book):
         'same_source_poi_would_link': figure(len(multi) - blocked, 'transaction', len(multi), 'transactions with names disjoint or spread over 200 m (blocked to review)'),
         'same_source_poi_blocked_to_review': figure(blocked, 'transaction', len(multi)),
         'same_source_poi_would_link_by_stratum': {('a_comparable' if k == 'shared' else 'b_not_comparable'): figure(v, 'transaction', len(multi) - blocked) for k, v in linked_by_kind.items()},
+        'review_team': review_team(logs),
         'not_measurable_here': ['closed-then-reopened blocker: the POI logs carry no status field; CR requests do (693 only)'],
     }
 
