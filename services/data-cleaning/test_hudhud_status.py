@@ -23,6 +23,11 @@ class DecideTests(unittest.TestCase):
         self.assertIsNone(decide('permanently_closed', 'temporary closed'), 'never lightened')
         self.assertIsNone(decide('temporarily_closed', 'open'), 'never reopened')
         self.assertIsNone(decide('hidden', 'permanently closed'), 'another value is left as it is')
+        self.assertEqual(decide(None, 'closed'), 'permanently_closed', "HudHud's bare «closed» is permanent")
+        for spelling in ('temporary closed', 'Temporarily Closed', 'مغلق مؤقتاً'):
+            self.assertEqual(decide(spelling, 'permanently closed'), 'permanently_closed', spelling)
+            self.assertIsNone(decide(spelling, 'temporary closed'), spelling)
+        self.assertIsNone(decide('unknown', 'permanently closed'), 'an unrecognised value is left as it is')
 
     def test_values_are_read_by_the_status_policy(self):
         self.assertEqual(status_policy.normalize('permanently_closed')['status_normalized'], 'closed_permanent')

@@ -41,7 +41,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, golden, input_upload, tempfile
+import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -195,6 +195,21 @@ def insight_response(path, body):
         table = insights.real_estate(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/price-estimate':
+        city = _city(body)
+        district_id = body.get('district_id')
+        if not isinstance(district_id, str) or not 1 <= len(district_id) <= 40: raise ValueError('district_id')
+        if body.get('deal') not in price_estimate.DEALS: raise ValueError('deal')
+        if body.get('type') not in price_estimate.TYPES: raise ValueError('type')
+        for key, allowed in (('age', price_estimate.AGE_BANDS), ('streets', price_estimate.STREETS), ('street_width', price_estimate.WIDTHS), ('furnished', ('no', 'yes'))):
+            if body.get(key) is not None and body.get(key) not in allowed: raise ValueError(key)
+        query = {key: body.get(key) for key in ('district_id', 'deal', 'type', 'age', 'streets', 'street_width', 'furnished')}
+        query['area_sqm'] = _number(body, 'area_sqm', 10, 100000)
+        try:
+            result = price_estimate.estimate(city, query)
+        except (OSError, ValueError):
+            return {'ok': True, 'city': city, 'available': False, 'reason': 'no_listings'}
+        return {'ok': True, 'city': city, **result}
     if path == '/real-estate-listings':
         city = _city(body)
         box = body.get('bbox')

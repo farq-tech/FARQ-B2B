@@ -6,7 +6,7 @@ A step after the golden export and the HudHud fill, before publishing, like chai
 - the snapshot's company_status is written only when it is empty or a lighter closure (a permanent closure outranks a
   temporary one); any other value is left as it is, and no place is reopened;
 - the values are the ones status_policy.py reads: `permanently_closed` (hidden from search, map and campaigns) and
-  `temporarily_closed` (shown labelled, never in campaigns);
+  `temporarily_closed` (shown labelled; a campaign may still reach it, owner decision of 2026-10-15 in SEND_CLASSES);
 - `company_status_source` names the source and the date of HudHud's state, e.g. `hudhud_cr:2025-08-28`.
 The script refuses to write if any column other than these two changes, or the row count differs.
 
@@ -21,19 +21,28 @@ import json
 import os
 import sys
 
+import pathlib
+
 import duckdb
 
-CLOSURE = {'permanently closed': 'permanently_closed', 'temporary closed': 'temporarily_closed'}
-RANK = {'': 0, 'temporarily_closed': 1, 'permanently_closed': 2}   # only these values may be replaced
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'targeting-api'))
+import status_policy  # noqa: E402
+
+# HudHud's own values; a bare «closed» is a permanent closure, as import_crs_full.py and status_policy read it
+CLOSURE = {'permanently closed': 'permanently_closed', 'closed': 'permanently_closed', 'temporary closed': 'temporarily_closed'}
+# the snapshot's value is ranked by the shared status policy, so every spelling of a closure counts the same;
+# a class missing here (open, inactive, hidden, invalid …) is never replaced
+RANK = {'unknown_empty': 0, 'closed_temporary': 1, 'closed_permanent': 2}
+WRITTEN = {'temporarily_closed': 1, 'permanently_closed': 2}
 
 
 def decide(current, hudhud_status):
     """The status to write, or None to leave the snapshot's value. current: the snapshot's company_status."""
     new = CLOSURE.get((hudhud_status or '').strip().lower())
-    now = (current or '').strip().lower()
-    if not new or now not in RANK:
+    now = RANK.get(status_policy.normalize(current)['status_normalized'])
+    if not new or now is None:
         return None
-    return new if RANK[new] > RANK[now] else None
+    return new if WRITTEN[new] > now else None
 
 
 def main():
