@@ -58,7 +58,7 @@ async function launch(tab, next) {
   await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } })
   chrome.tabs.sendMessage(tab.id, { cmd: 'fast-run' }, () => {
     // a tab opened before the extension was (re)loaded has no collector in it: reload it and the run starts there
-    if (chrome.runtime.lastError) chrome.tabs.reload(tab.id)
+    if (chrome.runtime.lastError && /establish connection|Receiving end/.test(chrome.runtime.lastError.message)) chrome.tabs.reload(tab.id)
   })
   refreshFast()
 }
@@ -137,13 +137,38 @@ setInterval(refresh, 1000)
 ;(async () => {
   const hash = decodeURIComponent(location.hash)
   if (hash === '#export') $('export').click()
+  else if (hash === '#stop') {
+    const { fast } = await get({ fast: null })
+    if (fast?.active) await set({ fast: { ...fast, active: false, status: 'paused' } })
+    exportStatus = 'STOPPED'
+  }
+  else if (hash === '#reload') chrome.runtime.reload()
+  else if (hash === '#ping') {
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    const answers = await Promise.all(tabs.map((t) => new Promise((done) => chrome.tabs.sendMessage(t.id, { cmd: 'ping' }, (r) => done({ id: t.id, active: t.active, discarded: t.discarded, status: t.status, r: r || chrome.runtime.lastError?.message })))))
+    exportStatus = 'PING ' + JSON.stringify(answers)
+  }
+  else if (hash === '#template') {
+    const { findTemplate } = await get({ findTemplate: null })
+    exportStatus = 'TEMPLATE ' + (findTemplate?.request || '').slice(0, 2500)
+  }
+  else if (hash === '#state') {
+    const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+    const { queue, ...rest } = fast || {}
+    exportStatus = 'STATE v' + chrome.runtime.getManifest().version + ' ' + JSON.stringify({ ...rest, queueLength: queue?.length, templateAt: findTemplate?.at, templateUrl: findTemplate?.url, templatePage: findTemplate?.page, templateWide: /listings\{age /.test(findTemplate?.request || '') }).slice(0, 1500)
+  }
+  else if (hash.startsWith('#peek=')) {
+    const id = hash.slice(6)
+    const found = await get(`m:${id}`)
+    exportStatus = found[`m:${id}`] ? 'PEEK ' + JSON.stringify(found[`m:${id}`]).slice(0, 1200) : 'PEEK none'
+  }
   else if (hash.startsWith('#run=')) {
     const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
     if (!findTemplate || fast?.active) return
     const queue = hash.slice(5).split(';').map((box) => box.split(',').map(Number)).filter((box) => box.length === 4 && box.every(Number.isFinite)).map((bbox) => ({ bbox, depth: 0 }))
     if (!queue.length) return
     const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
-    const tab = tabs.find((t) => t.active) || tabs[0]
+    const tab = tabs.sort((a, b) => b.id - a.id)[0]
     const next = { queue, current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
     if (tab) await launch(tab, next)
     else { await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } }); chrome.tabs.create({ url: 'https://sa.aqar.fm/الخريطة', active: false }) }

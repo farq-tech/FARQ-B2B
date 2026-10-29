@@ -12,6 +12,8 @@ const get = (keys) => new Promise((done) => chrome.storage.local.get(keys, done)
 const set = (items) => new Promise((done) => chrome.storage.local.set(items, done))
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 let writes = Promise.resolve()
+const LOG = []
+const log = (...a) => { LOG.push(new Date().toISOString().slice(11, 19) + ' ' + a.map((x) => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ')); console.log(...a) }
 
 // a listing already kept gains the fields a later answer carries that it lacks (a run with EXTRA_FIELDS after one
 // without); its first collected_at stays
@@ -67,9 +69,11 @@ function pageFetch(url, headers, body) {
       if (event.source !== window || event.data?.source !== 'farq-aqar-answer' || event.data.id !== id) return
       clearTimeout(timer)
       window.removeEventListener('message', listen)
+      log('[farq] answer', id, event.data.status, (event.data.text || '').length)
       resolve(event.data)
     }
     window.addEventListener('message', listen)
+    log('[farq] ask', id, url)
     window.postMessage({ source: 'farq-aqar-ask', id, url, headers, body }, '*')
   })
 }
@@ -91,7 +95,9 @@ function widen(query) {
 async function ask(template, bbox, from) {
   const body = JSON.parse(template.request)
   if (typeof body.query === 'string') body.query = widen(body.query)
-  body.variables = { ...body.variables, size: SIZE, from, polygon: polygonOf(bbox) }
+  // the whole area, whatever filter the map had on when its request was kept
+  const { where, daily_renting_filter, sov_listings, ...variables } = body.variables || {}
+  body.variables = { ...variables, size: SIZE, from, polygon: polygonOf(bbox) }
   const answer = await pageFetch(template.url, { ...template.headers, 'content-type': 'application/json' }, JSON.stringify(body))
   if (answer.status === 0) throw Object.assign(new Error(answer.error || 'Failed to fetch'), { network: true })
   if (answer.status < 200 || answer.status >= 300) {
@@ -105,6 +111,7 @@ async function ask(template, bbox, from) {
 
 let running = false
 async function fastRun() {
+  log('[farq] fastRun start', location.href)
   if (running) return
   running = true
   try {
@@ -122,6 +129,7 @@ async function fastRun() {
       try {
         find = await ask(findTemplate, current.bbox, current.from)
       } catch (error) {
+        log('[farq] ask failed', error.status, error.message)
         if (error.status === 429 || error.network) {
           // too fast: wait as asked (or longer each time), slow down for good, and try the same request again
           const strikes = (fast.strikes || 0) + 1
@@ -137,6 +145,7 @@ async function fastRun() {
         break
       }
       const listings = find.listings ?? []
+      log('[farq] got total', find.total, 'listings', listings.length, 'first', listings[0]?.id, 'age' in (listings[0] || {}), 'cat', listings[0]?.category)
       const fresh = await keep(listings)
       stats = { ...stats, requests: stats.requests + 1, listings: stats.listings + fresh }
       if (current.from === 0 && find.total > TILE_MAX && current.depth < MAX_DEPTH) {
@@ -153,14 +162,17 @@ async function fastRun() {
       await sleep((PAUSE_MS[0] + Math.random() * (PAUSE_MS[1] - PAUSE_MS[0])) * (fast.slow || 1))
     }
   } catch (error) {
+    log('[farq] fastRun crashed', String(error))
     const { fast } = await get({ fast: null })
     await set({ fast: { ...fast, active: false, status: 'error', error: String(error?.message || error) } })
   } finally { running = false }
 }
 
-chrome.runtime.onMessage.addListener((message) => { if (message?.cmd === 'fast-run') fastRun() })
+chrome.runtime.onMessage.addListener((message, sender, reply) => { log('[farq] message', message); if (message?.cmd === 'fast-run') { fastRun(); reply({ ok: true }) } if (message?.cmd === 'ping') reply({ ok: true, running, href: location.href, log: LOG.slice(-8) }) })
 // a run whose tab was reloaded or closed is picked up again by the next Aqar page that opens
 get({ fast: null }).then(({ fast }) => { if (fast?.active && Date.now() - (fast.beat || 0) > HEARTBEAT_MS) fastRun() })
+// and a run that stalled (its tab reloaded mid-request, or the page slept) is taken up again by any open Aqar page
+setInterval(() => { if (running) return; get({ fast: null }).then(({ fast }) => { if (fast?.active && fast.status !== 'waiting' && Date.now() - (fast.beat || 0) > 45000) fastRun() }) }, 20000)
 
 // a chat page the user opens from a listing: its address shows how a conversation is reached
 if (/chat|محادث|message/i.test(decodeURIComponent(location.pathname))) {

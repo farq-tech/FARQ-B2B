@@ -33,11 +33,14 @@
   window.addEventListener('message', async (event) => {
     if (event.source !== window || event.data?.source !== 'farq-aqar-ask') return
     const { id, url, body, headers } = event.data
+    console.log('[farq-page] ask received', id, url)
     try {
       const response = await realFetch(url, { method: 'POST', credentials: 'include', headers, body })
       const text = await response.text()
+      console.log('[farq-page] answered', id, response.status, text.length)
       window.postMessage({ source: 'farq-aqar-answer', id, status: response.status, retryAfter: response.headers.get('retry-after'), text }, '*')
     } catch (error) {
+      console.log('[farq-page] fetch failed', id, String(error))
       window.postMessage({ source: 'farq-aqar-answer', id, status: 0, error: String(error?.message || error) }, '*')
     }
   })
