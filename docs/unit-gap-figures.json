@@ -1,5 +1,5 @@
 {
- "definitions": "one column each, kept apart so every figure says which source it rests on:\n- footprint  the 2GIS footprint (`HouseId`) that contains the point. Spatial: a candidate by the 3.2.1 rule.\n- urbi_id    the 2GIS building id of the matched Urbi card (pattern URBI_BUILDING). The card was matched to the row\n             by name/phone and distance, so the link itself is a candidate until a sample checks it.\n- sa_crs     short national address (pattern SHORT_ADDRESS) from the surveyor change request.\n- sa_urbi    short national address in the Urbi card's `makani` column.\nEvery count of these is a count of candidates. None becomes the `building` level of 3.2.1 or `site_basis = unit`\nhere; that needs the validation sample of 3.2.2 (Wilson applies there, not to these full counts).\n\nFigures:\n- candidates: rows with at least one building-evidence candidate.\n- exclusive_single_source: rows whose ONLY candidate is that source. Together with two_or_more_sources they add up\n  to `candidates`. This is not the marginal gain of a source added after the others.\n- conflict_among_candidates: candidate rows where comparable values disagree (footprint vs urbi_id, sa_crs vs\n  sa_urbi, short address whose businesses spread over SPREAD_M m, surveyor vs Urbi national building number).\n  candidates = candidates_no_conflict + conflict_among_candidates (checked).\n- conflict_without_candidate: rows with a disagreement but no single candidate: an Urbi card with two building ids\n  (so no urbi_id), or two national building numbers without a building candidate (a building number alone, without\n  a postal code, is no building identifier by the 3.2.1 rule).\n- agreement: on rows where two comparable values are both present, how many agree. A full count of that overlap, not\n  a sample, and agreement, not precision.\n- unit_text: a unit word WITH a number (محل/مكتب/وحدة/معرض … رقم 12, shop/unit/office/suite 12 …) in the name,\n  address, street, description, trade name or legal name fields listed in TEXT_FIELDS. A text form, not a verified\n  unit: names often number an organisation (a Hajj service office) rather than a unit.\n- unit_field: a structured unit or shop number field. None of the inputs has one.",
+ "definitions": "one column each, kept apart so every figure says which source it rests on:\n- footprint  the 2GIS footprint (`HouseId`) that contains the point. Spatial: a candidate by the 3.2.1 rule.\n- urbi_id    the 2GIS building id of the matched Urbi card (pattern URBI_BUILDING). The card was matched to the row\n             by name/phone and distance, so the link itself is a candidate until a sample checks it.\n- sa_crs     short national address (pattern SHORT_ADDRESS) from the surveyor change request.\n- sa_urbi    short national address in the Urbi card's `makani` column.\nEvery count of these is a count of candidates. None becomes the `building` level of 3.2.1 or `site_basis = unit`\nhere; that needs the validation sample of 3.2.2 (Wilson applies there, not to these full counts).\n\nFigures:\n- candidates: rows with at least one building-evidence candidate.\n- exclusive_single_source: rows whose ONLY candidate is that source. Together with two_or_more_sources they add up\n  to `candidates`. This is not the marginal gain of a source added after the others.\n- conflict_among_candidates: candidate rows where comparable values disagree (footprint vs urbi_id, sa_crs vs\n  sa_urbi, short address whose businesses spread over SPREAD_M m, surveyor vs Urbi national building number).\n  candidates = candidates_no_conflict + conflict_among_candidates (checked).\n- conflict_without_candidate: rows with a disagreement but no single candidate: an Urbi card with two building ids\n  (so no urbi_id), several distinct short addresses in one source (so no sa_*), or two national building numbers without a building candidate (a building number alone, without\n  a postal code, is no building identifier by the 3.2.1 rule).\n- agreement: on rows where two comparable values are both present, how many agree. A full count of that overlap, not\n  a sample, and agreement, not precision.\n- unit_text: a unit word WITH a number (محل/مكتب/وحدة/معرض … رقم 12, shop/unit/office/suite 12 …) in the name,\n  address, street, description, trade name or legal name fields listed in TEXT_FIELDS. A text form, not a verified\n  unit: names often number an organisation (a Hajj service office) rather than a unit.\n- unit_field: a structured unit or shop number field. None of the inputs has one.",
  "text_fields": {
   "name": [
    "name_ar",
@@ -34,34 +34,39 @@
    "excludes": "not in_golden; district/city precision; not the 3.2.1 release"
   },
   "candidates": {
-   "value": 1418587,
+   "value": 1418514,
    "unit": "row",
    "denominator": 2166200
   },
   "candidates_no_conflict": {
-   "value": 1407778,
+   "value": 1407769,
    "unit": "row",
    "denominator": 2166200
   },
   "conflict_among_candidates": {
-   "value": 10809,
+   "value": 10745,
    "unit": "row",
    "denominator": 2166200
   },
   "conflict_without_candidate": {
-   "value": 411,
+   "value": 484,
    "unit": "row",
    "denominator": 2166200,
    "excludes": "rows with a candidate"
   },
   "conflict_without_candidate_by_kind": {
    "urbi_card_two_building_ids": {
-    "value": 411,
+    "value": 484,
     "unit": "row",
     "denominator": 2166200
    },
    "national_building_no": {
-    "value": 0,
+    "value": 3,
+    "unit": "row",
+    "denominator": 2166200
+   },
+   "several_short_addresses": {
+    "value": 73,
     "unit": "row",
     "denominator": 2166200
    }
@@ -83,37 +88,37 @@
     "denominator": 2166200
    },
    "sa_urbi": {
-    "value": 26833,
+    "value": 26339,
     "unit": "row",
     "denominator": 2166200
    }
   },
   "exclusive_single_source": {
    "footprint": {
-    "value": 1266254,
+    "value": 1266628,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "urbi_id": {
-    "value": 11900,
+    "value": 11902,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "sa_crs": {
-    "value": 5548,
+    "value": 5560,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "sa_urbi": {
-    "value": 149,
+    "value": 76,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    }
   },
   "two_or_more_sources": {
-   "value": 134736,
+   "value": 134348,
    "unit": "row",
-   "denominator": 1418587
+   "denominator": 1418514
   },
   "agreement": {
    "footprint_vs_urbi_id": {
@@ -123,9 +128,9 @@
     "excludes": "rows where either value is missing"
    },
    "sa_crs_vs_sa_urbi": {
-    "value": 1844,
+    "value": 1834,
     "unit": "row",
-    "denominator": 2349,
+    "denominator": 2312,
     "excludes": "rows where either value is missing"
    },
    "surveyor_vs_urbi_national_building_no": {
@@ -139,32 +144,37 @@
    "footprint_vs_urbi_id": {
     "value": 6781,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "sa_crs_vs_sa_urbi": {
-    "value": 505,
+    "value": 478,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "short_address_spread_over_150m": {
-    "value": 816,
+    "value": 747,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "national_building_no": {
-    "value": 299,
+    "value": 296,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
    },
    "urbi_card_two_building_ids": {
-    "value": 2845,
+    "value": 2772,
     "unit": "row",
-    "denominator": 1418587
+    "denominator": 1418514
+   },
+   "several_short_addresses": {
+    "value": 421,
+    "unit": "row",
+    "denominator": 1418514
    }
   },
   "unit_candidates": {
    "candidate_building_plus_valid_floor": {
-    "value": 8727,
+    "value": 21507,
     "unit": "row",
     "denominator": 2166200
    },
@@ -174,7 +184,7 @@
     "denominator": 2166200
    },
    "sole_targetable_occupant_of_footprint": {
-    "value": 141641,
+    "value": 141638,
     "unit": "row",
     "denominator": 2166200
    }
@@ -231,34 +241,39 @@
     "excludes": "not in_golden; district/city precision; not the 3.2.1 release"
    },
    "candidates": {
-    "value": 671909,
+    "value": 671836,
     "unit": "row",
     "denominator": 778251
    },
    "candidates_no_conflict": {
-    "value": 667908,
+    "value": 667899,
     "unit": "row",
     "denominator": 778251
    },
    "conflict_among_candidates": {
-    "value": 4001,
+    "value": 3937,
     "unit": "row",
     "denominator": 778251
    },
    "conflict_without_candidate": {
-    "value": 13,
+    "value": 86,
     "unit": "row",
     "denominator": 778251,
     "excludes": "rows with a candidate"
    },
    "conflict_without_candidate_by_kind": {
     "urbi_card_two_building_ids": {
-     "value": 13,
+     "value": 86,
      "unit": "row",
      "denominator": 778251
     },
     "national_building_no": {
-     "value": 0,
+     "value": 3,
+     "unit": "row",
+     "denominator": 778251
+    },
+    "several_short_addresses": {
+     "value": 73,
      "unit": "row",
      "denominator": 778251
     }
@@ -280,37 +295,37 @@
      "denominator": 778251
     },
     "sa_urbi": {
-     "value": 26833,
+     "value": 26339,
      "unit": "row",
      "denominator": 778251
     }
    },
    "exclusive_single_source": {
     "footprint": {
-     "value": 619362,
+     "value": 619736,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "urbi_id": {
-     "value": 680,
+     "value": 682,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "sa_crs": {
-     "value": 5515,
+     "value": 5527,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "sa_urbi": {
-     "value": 149,
+     "value": 76,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     }
    },
    "two_or_more_sources": {
-    "value": 46203,
+    "value": 45815,
     "unit": "row",
-    "denominator": 671909
+    "denominator": 671836
    },
    "agreement": {
     "footprint_vs_urbi_id": {
@@ -320,9 +335,9 @@
      "excludes": "rows where either value is missing"
     },
     "sa_crs_vs_sa_urbi": {
-     "value": 1844,
+     "value": 1834,
      "unit": "row",
-     "denominator": 2349,
+     "denominator": 2312,
      "excludes": "rows where either value is missing"
     },
     "surveyor_vs_urbi_national_building_no": {
@@ -336,32 +351,37 @@
     "footprint_vs_urbi_id": {
      "value": 2187,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "sa_crs_vs_sa_urbi": {
-     "value": 505,
+     "value": 478,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "short_address_spread_over_150m": {
-     "value": 816,
+     "value": 747,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "national_building_no": {
-     "value": 299,
+     "value": 296,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
     },
     "urbi_card_two_building_ids": {
-     "value": 631,
+     "value": 558,
      "unit": "row",
-     "denominator": 671909
+     "denominator": 671836
+    },
+    "several_short_addresses": {
+     "value": 421,
+     "unit": "row",
+     "denominator": 671836
     }
    },
    "unit_candidates": {
     "candidate_building_plus_valid_floor": {
-     "value": 4400,
+     "value": 16453,
      "unit": "row",
      "denominator": 778251
     },
@@ -371,7 +391,7 @@
      "denominator": 778251
     },
     "sole_targetable_occupant_of_footprint": {
-     "value": 58567,
+     "value": 58564,
      "unit": "row",
      "denominator": 778251
     }
@@ -455,6 +475,11 @@
      "denominator": 374480
     },
     "national_building_no": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 374480
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 374480
@@ -552,11 +577,16 @@
      "value": 886,
      "unit": "row",
      "denominator": 313069
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 313069
     }
    },
    "unit_candidates": {
     "candidate_building_plus_valid_floor": {
-     "value": 1201,
+     "value": 1362,
      "unit": "row",
      "denominator": 374480
     },
@@ -653,6 +683,11 @@
      "value": 0,
      "unit": "row",
      "denominator": 159354
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 159354
     }
    },
    "by_source": {
@@ -743,6 +778,11 @@
      "denominator": 125945
     },
     "urbi_card_two_building_ids": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 125945
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 125945
@@ -847,6 +887,11 @@
      "value": 0,
      "unit": "row",
      "denominator": 154980
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 154980
     }
    },
    "by_source": {
@@ -941,11 +986,16 @@
      "value": 401,
      "unit": "row",
      "denominator": 126070
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 126070
     }
    },
    "unit_candidates": {
     "candidate_building_plus_valid_floor": {
-     "value": 584,
+     "value": 706,
      "unit": "row",
      "denominator": 154980
     },
@@ -1039,6 +1089,11 @@
      "denominator": 138452
     },
     "national_building_no": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 138452
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 138452
@@ -1136,11 +1191,16 @@
      "value": 927,
      "unit": "row",
      "denominator": 117071
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 117071
     }
    },
    "unit_candidates": {
     "candidate_building_plus_valid_floor": {
-     "value": 2542,
+     "value": 2986,
      "unit": "row",
      "denominator": 138452
     },
@@ -1237,6 +1297,11 @@
      "value": 0,
      "unit": "row",
      "denominator": 70927
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 70927
     }
    },
    "by_source": {
@@ -1327,6 +1392,11 @@
      "denominator": 64433
     },
     "urbi_card_two_building_ids": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 64433
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 64433
@@ -1431,6 +1501,11 @@
      "value": 0,
      "unit": "row",
      "denominator": 67348
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 67348
     }
    },
    "by_source": {
@@ -1521,6 +1596,11 @@
      "denominator": 0
     },
     "urbi_card_two_building_ids": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 0
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 0
@@ -1625,6 +1705,11 @@
      "value": 0,
      "unit": "row",
      "denominator": 41504
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 41504
     }
    },
    "by_source": {
@@ -1715,6 +1800,11 @@
      "denominator": 0
     },
     "urbi_card_two_building_ids": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 0
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 0
@@ -1819,6 +1909,11 @@
      "value": 0,
      "unit": "row",
      "denominator": 32917
+    },
+    "several_short_addresses": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 32917
     }
    },
    "by_source": {
@@ -1909,6 +2004,11 @@
      "denominator": 0
     },
     "urbi_card_two_building_ids": {
+     "value": 0,
+     "unit": "row",
+     "denominator": 0
+    },
+    "several_short_addresses": {
      "value": 0,
      "unit": "row",
      "denominator": 0
@@ -2014,6 +2114,11 @@
     "value": 0,
     "unit": "row",
     "denominator": 347987
+   },
+   "several_short_addresses": {
+    "value": 0,
+    "unit": "row",
+    "denominator": 347987
    }
   },
   "by_source": {
@@ -2104,6 +2209,11 @@
     "denominator": 90
    },
    "urbi_card_two_building_ids": {
+    "value": 0,
+    "unit": "row",
+    "denominator": 90
+   },
+   "several_short_addresses": {
     "value": 0,
     "unit": "row",
     "denominator": 90
