@@ -1,0 +1,87 @@
+"""HudHud fill on synthetic rows: python3 -m unittest test_hudhud_fill (from services/data-cleaning)."""
+import json
+import pathlib
+import subprocess
+import sys
+import tempfile
+import unittest
+
+import duckdb
+
+HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from hudhud_fill import account, fills, floor, hours, phone, website  # noqa: E402
+
+LIVE = {'trx_state': 'ready to publish', 'trx_is_deleted': 'false', 'trx_status': 'open'}
+
+
+class CleanerTests(unittest.TestCase):
+    def test_phone_prefers_a_mobile_and_writes_the_snapshot_format(self):
+        self.assertEqual(phone('+966114463611', '{"phone_numbers": ["0598371899"]}'), ('+966598371899', 'mobile'))
+        self.assertEqual(phone('011 446 3611'), ('+966114463611', 'landline'))
+        self.assertEqual(phone('+966920000702'), ('+966920000702', 'landline'))
+        self.assertEqual(phone('+9668002442225'), ('+9668002442225', 'landline'))
+        self.assertIsNone(phone('19996'), 'a short code has no +966 form in the snapshot')
+        self.assertIsNone(phone('1144666310114468028'), 'two numbers run together are not guessed apart')
+
+    def test_accounts_hours_floor_website(self):
+        self.assertEqual(account('snapchat', '@cafe_x'), 'https://www.snapchat.com/add/cafe_x')
+        self.assertEqual(account('x_link', 'twitter.com/cafe'), 'https://twitter.com/cafe')
+        self.assertIsNone(account('instagram', 'https://facebook.com/cafe'), "another site's link is refused")
+        self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
+                         'Sun: 08:30 - 23:30')
+        self.assertIsNone(hours('not json'))
+        self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "00:00", "close": "00:00"}]}]'), 'Mon: 00:00 - 24:00', 'open all day')
+        self.assertIsNone(hours('[{"day": "Monday", "hours": [{"open": "08:00", "close": "08:00"}]}]'), 'another equal pair: not guessed')
+        self.assertEqual([floor(v) for v in ('0', 'GF', '2.0', 'B1', 'open')], ['0', '0', '2', 'B1', None])
+        self.assertEqual(website('https://www.farq.sa/'), 'farq.sa')
+        self.assertIsNone(website('https://google.com/maps/place/x'))
+
+
+class FillTests(unittest.TestCase):
+    def test_only_empty_fields_of_live_places(self):
+        snapshot = {'1': {'email': '', 'phone_norm': '', 'national_address': 'RCWA0001'},
+                    '2': {'email': ''}, '3': {'email': ''}, '4': {'email': ''}}
+        hudhud = {'1': {**LIVE, 'trx_email': 'Info@Cafe.sa', 'trx_national_address': 'RHSA7359', 'trx_phone_number': '0551234567'},
+                  '2': {**LIVE, 'trx_status': 'permanently closed', 'trx_email': 'a@b.sa'},
+                  '3': {**LIVE, 'trx_state': 'draft', 'trx_email': 'a@b.sa'},
+                  '4': {**LIVE, 'trx_email': 'not an email'}}
+        new, refused = fills(snapshot, hudhud)
+        self.assertEqual(new, {'1': {'email': 'info@cafe.sa', 'phone_raw': '+966551234567', 'phone_norm': '+966551234567',
+                                     'phone_kind': 'mobile', 'phone_source': 'hudhud_cr'}},
+                         'an existing national address is kept; closed and draft places are left alone')
+        self.assertEqual(refused['email'], 1)
+
+    def test_cli_writes_a_new_file_and_never_changes_a_value(self):
+        temp = pathlib.Path(tempfile.mkdtemp())
+        db = duckdb.connect()
+        columns = ['national_address', 'postal_code', 'building_no', 'floor_no', 'email', 'website', 'instagram', 'x_link', 'tiktok',
+                   'snapchat', 'menu_link', 'google_place_id', 'working_hours', 'description_ar', 'description_en', 'tradename', 'name_en',
+                   'commercial_license', 'rating', 'reviews_count', 'phone_raw', 'phone_norm', 'phone_kind', 'phone_source']
+        db.execute(f"create table t(poi_key varchar, hudhud_id bigint, city_en varchar, completeness_pct double, {', '.join(c + ' varchar' for c in columns)})")
+        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, email) values ('hh:1', 1, 'Riyadh', 66.7, null), ('hh:2', 2, 'Riyadh', 83.3, 'kept@x.sa')")
+        db.execute(f"copy t to '{temp / 't.parquet'}' (format parquet)")
+        crs = duckdb.connect(str(temp / 'crs.duckdb'))
+        trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_phone_number', 'trx_additional_feature', 'trx_national_address', 'trx_postal_code',
+               'trx_building_no', 'trx_floorno', 'trx_email', 'trx_website', 'trx_instagram', 'trx_x_link', 'trx_tiktok', 'trx_snapchat',
+               'trx_menu_link', 'trx_google_id', 'trx_opening_hours_regular_hours', 'trx_description_ar', 'trx_description_en', 'trx_tradename',
+               'trx_name_en', 'trx_licenseno', 'trx_rating', 'trx_reviews_count']
+        crs.execute(f"create table crs(cr_entity_id varchar, {', '.join(c + ' varchar' for c in trx)})")
+        crs.execute("insert into crs(cr_entity_id, trx_state, trx_is_deleted, trx_status, trx_email, trx_floorno) values "
+                    "('1.0', 'ready to publish', 'false', 'open', 'new@x.sa', '0'), ('2.0', 'ready to publish', 'false', 'open', 'other@x.sa', '1')")
+        crs.close()
+        run = lambda out: subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't.parquet'),
+                                          '--crs', str(temp / 'crs.duckdb'), '--out', str(out)], capture_output=True, text=True)
+        self.assertNotEqual(run(temp / 't.parquet').returncode, 0, 'never writes over its input')
+        result = run(temp / 't_hudhud.parquet')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = db.execute(f"select poi_key, email, floor_no, completeness_pct, hudhud_filled from read_parquet('{temp / 't_hudhud.parquet'}') order by 1").fetchall()
+        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no']), 'a first contact adds one completeness point')
+        self.assertEqual(rows[1], ('hh:2', 'kept@x.sa', '1', 83.3, ['floor_no']), 'an existing e-mail is never replaced')
+        report = json.loads((temp / 't_hudhud.report.json').read_text())
+        self.assertEqual((report['existing_values_changed'], report['rows_given_a_first_contact']), (0, 1))
+        self.assertNotEqual(run(temp / 't_hudhud.parquet').returncode, 0, 'never writes over an existing snapshot')
+
+
+if __name__ == '__main__':
+    unittest.main()
