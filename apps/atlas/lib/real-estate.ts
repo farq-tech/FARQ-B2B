@@ -13,7 +13,7 @@ export type MarketSignal = {
   deal_pct: number
   neighbours: string[]
   /** The nearest districts with registered deals, which the deal figure is measured against. */
-  deal_neighbours: string[]
+  deal_neighbours?: string[]
 }
 
 /** One current listing as the targeting service serves it (build_real_estate_reference.py --listings-out). */
@@ -135,11 +135,13 @@ export const toneColor = { good: PALETTE.leaf, even: PALETTE.stone, high: PALETT
 const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل' : 'أعلى'} بـ ${numberFormat.format(Math.abs(pct))}% من`
 /** What the signal rests on, for its explanation: the two figures and the districts they are measured against. */
 export function signalLines(signal: MarketSignal, type: string): string[] {
+  // a service from before deal_neighbours compared the deals with the rent neighbours' list
+  const dealNeighbours = signal.deal_neighbours ?? signal.neighbours
   return [
     `إيجار ${typeLabel(type)} المعروض في الحي ${versusWords(signal.rent_pct)} أقرب ${numberFormat.format(signal.neighbours.length)} أحياء: ${signal.neighbours.join('، ')}.`,
-    signal.deal_neighbours.join() === signal.neighbours.join()
+    dealNeighbours.join() === signal.neighbours.join()
       ? `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} نفس الجيران.`
-      : `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(signal.deal_neighbours.length)} أحياء لها صفقات: ${signal.deal_neighbours.join('، ')}.`,
+      : `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(dealNeighbours.length)} أحياء لها صفقات: ${dealNeighbours.join('، ')}.`,
     {
       cheaper_area: 'الإيجار والبيع كلاهما أقل: الحي نفسه أرخص، لا الإعلانات وحدها.',
       rent_under_value: 'الإيجار أقل مما يباع به الحي: مكسب للمستأجر، وعائد أقل لمن يشتري ليؤجر. قد يعني أيضاً مباني أقدم.',
