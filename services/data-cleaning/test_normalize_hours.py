@@ -62,7 +62,8 @@ class NormalizeTests(unittest.TestCase):
 
     def test_unread_values_stay_and_empty_ones_become_empty(self):
         for v in (f'Sun: 9{NNBSP}AM–9Sun:30{NNBSP}PM', f'1: 9{NNBSP}AM–9{NNBSP}AM', '1: Closed|2: Closed', '09:00-17:00', '24h', 'الرياض',
-                  'Sun: 08:00 - 17:00; Sun: 09:00 - 17:00'):
+                  'Sun: 08:00 - 17:00; Sun: 09:00 - 17:00', 'Sun: 08:00 - 08:00; Mon: 09:00 - 17:00', 'Sun: 00:00 - 00:00',
+                  'Mon 9:00-9:00, break 13:00-16:00', 'Su 08:00-08:00'):
             self.assertEqual(normalize(v), v)
         for v in ('Sun: {}; Mon: {}; Tue: {}', 'Sun:  -  | Mon:  - ', '[]', '{"timezone": "Asia/Riyadh", "regular_hours": []}',
                   'Refused to provide information', 'custom_hours', 'Asia/Riyadh', '[{"id": "1", "media_url": "https://x/y.jpeg"}]'):

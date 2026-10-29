@@ -75,7 +75,10 @@ def spans(body):
     for span in re.split(r', ?', body):
         m = H24.match(span)
         if m:
-            out.append(f'{clock(m[1], m[2])} - {clock(m[3], m[4])}')
+            start, end = clock(m[1], m[2]), clock(m[3], m[4])
+            if start == end:
+                raise Unread  # an equal pair outside HudHud JSON has no stated meaning: none, or all day
+            out.append(f'{start} - {end}')
             continue
         m = H12.match(span)
         if not m:
@@ -174,7 +177,7 @@ def ranges(v):
         if brk:
             o, c, bs, be = (clock(*t.split(':')) for t in brk.groups())
             # a close at or before the opening is after midnight («9:00-1:00, break 14:00-16:00»)
-            if not (o < bs < be and (be < c or c <= o)):
+            if not (o < bs < be and (be < c or c < o)):
                 raise Unread
             s = [f'{o} - {bs}', f'{be} - {c}']
         else:
