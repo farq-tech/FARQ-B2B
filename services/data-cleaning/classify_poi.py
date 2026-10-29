@@ -126,21 +126,31 @@ def main(argv=None):
     Xte = features(False, [r[1] for r in rows], vecs)
     main_pred, main_conf, _ = top(main_clf, Xte)
     sub_pred, sub_conf, _ = top(sub_clf, Xte)
-    # gate: a label below its confidence is dropped to None, so an unsure row stays unclassified rather than guessed
-    main_kept = np.where(main_conf >= a.main_min, main_pred, None)
-    sub_kept = np.where(sub_conf >= a.sub_min, sub_pred, None)
+    # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.
+    # the two models are independent, so a kept sub could sit under a different main — an impossible pair. A kept sub
+    # fixes its taxonomy parent as the main (and is dropped if that parent is unknown), so the two levels never disagree.
+    main_out, sub_out = [], []
+    for mp, mc, sp, sc in zip(main_pred, main_conf, sub_pred, sub_conf):
+        main = mp if mc >= a.main_min else None
+        parent = sub_main.get(sp)
+        if sc >= a.sub_min and parent is not None:
+            sub_out.append(sp)
+            main_out.append(parent)   # the sub's parent is the main, whatever the main model alone said
+        else:
+            sub_out.append(None)
+            main_out.append(main)
 
     out = db.from_arrow(__import__('pyarrow').table({
         'poi_key': keys,
-        'cls_main_estimate': [x if x is not None else None for x in main_kept],
+        'cls_main_estimate': main_out,
         'cls_main_confidence': [round(float(c), 4) for c in main_conf],
-        'cls_sub_estimate': [x if x is not None else None for x in sub_kept],
+        'cls_sub_estimate': sub_out,
         'cls_sub_confidence': [round(float(c), 4) for c in sub_conf],
         'cls_estimate_source': ['model_name_tfidf'] * len(keys),
     }))
     out.to_parquet(a.out)
-    kept_main = int((main_conf >= a.main_min).sum())
-    kept_sub = int((sub_conf >= a.sub_min).sum())
+    kept_main = sum(1 for x in main_out if x is not None)
+    kept_sub = sum(1 for x in sub_out if x is not None)
     report['scored'] = len(keys)
     report['kept_main'] = kept_main
     report['kept_sub'] = kept_sub

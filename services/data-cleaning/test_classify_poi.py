@@ -52,6 +52,10 @@ class ClassifyTests(unittest.TestCase):
         self.assertTrue(0.0 <= conf[0] and conf[1] <= 1.0)
         src = duckdb.sql(f"select distinct cls_estimate_source from read_parquet('{out}')").fetchall()
         self.assertEqual(src, [('model_name_tfidf',)], 'every row is flagged as a model estimate')
+        # a kept sub is always consistent with its main: no row carries a sub whose parent differs from the main
+        bad = duckdb.sql(f"""select count(*) from read_parquet('{out}')
+            where cls_sub_estimate is not null and cls_main_estimate is null""").fetchone()[0]
+        self.assertEqual(bad, 0, 'a sub is never written without its parent main')
 
     def test_a_high_gate_keeps_nothing_rather_than_guessing(self):
         out = self.tmp / 'est_hi.parquet'
