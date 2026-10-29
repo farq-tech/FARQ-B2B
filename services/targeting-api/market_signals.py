@@ -2,7 +2,7 @@
 together with the prices paid there (registered sale deals). A listing carries its district's signal as a tag.
 
 For one type (apartment, floor, villa) of yearly rent, a district is scored when it and each of its NEIGHBOURS
-nearest districts have MIN_LISTINGS publishable listings of the type (with a photo, as served), the farthest within MAX_KM, and it has
+nearest districts have MIN_LISTINGS publishable listings of the type, the farthest within MAX_KM, and it has
 MIN_DEALS registered residential deals against neighbours of its own on the same terms. The rent figure is its median
 price per m² against the median of the neighbours' medians; the deal figure the same for prices paid. Three signals:
 
@@ -49,10 +49,9 @@ def _pct(value, against):
 
 def compute(cards, deals, seed=7):
     """cards: listing cards of one city; deals: that city's rows of registered_deals.json. Returns
-    {(district_id, type): {kind, label, rent_pct, deal_pct, listings, neighbours, deal_neighbours}} for every scored district."""
-    # the same listings insights.real_estate_listings serves (a photo among them), so a signal rests on offers people can open
+    {(district_id, type): {kind, label, rent_pct, deal_pct, listings, neighbours}} for every scored district."""
     rows = [c for c in cards if c.get('deal') == 'rent_year' and not c.get('check') and c.get('price_sar')
-            and c.get('area_sqm') and c.get('district_id') and c.get('type') in TYPES and (c.get('photos') or c.get('photo'))]
+            and c.get('area_sqm') and c.get('district_id') and c.get('type') in TYPES]
     points, names = {}, {}
     for card in rows:
         points.setdefault(card['district_id'], []).append((card['lon'], card['lat']))
@@ -95,8 +94,7 @@ def compute(cards, deals, seed=7):
                 elif rent >= RENT_PCT and low >= RENT_PCT / 2 and deal <= 0:
                     signal = 'rent_over_value'
             out[(key, kind)] = {'kind': signal, 'label': LABELS.get(signal), 'rent_pct': round(rent), 'deal_pct': round(deal),
-                                'listings': len(values[key]), 'neighbours': [names[k] for k in near],
-                                'deal_neighbours': [names[k] for k in near_paid]}
+                                'listings': len(values[key]), 'neighbours': [names[k] for k in near]}
     return out
 
 
@@ -118,4 +116,4 @@ def tag(card, signals):
     found = signals.get((card.get('district_id'), card.get('type')))
     if not found or not found['kind']:
         return None
-    return {key: found[key] for key in ('kind', 'label', 'rent_pct', 'deal_pct', 'neighbours', 'deal_neighbours')}
+    return {key: found[key] for key in ('kind', 'label', 'rent_pct', 'deal_pct', 'neighbours')}
