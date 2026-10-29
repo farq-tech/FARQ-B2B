@@ -45,7 +45,7 @@
   "3": 12219,
   "4": 5411,
   "5": 3365,
-  "6": 6431
+  "6+": 6431
  },
  "multi_row_transactions": {
   "value": 61928,
@@ -209,6 +209,18 @@
   "value": 488,
   "unit": "transaction",
   "denominator": 61928
+ },
+ "same_source_poi_would_link_by_stratum": {
+  "a_comparable": {
+   "value": 60658,
+   "unit": "transaction",
+   "denominator": 61440
+  },
+  "b_not_comparable": {
+   "value": 782,
+   "unit": "transaction",
+   "denominator": 61440
+  }
  },
  "not_measurable_here": [
   "closed-then-reopened blocker: the POI logs carry no status field; CR requests do (693 only)"

@@ -178,7 +178,7 @@ def profile(book):
             pairs[(name_changed(a, b), band)] += 1
 
     multi = {t: rows for t, rows in by_tx.items() if len(rows) > 1}
-    spread, disjoint_v3, relation, blocked = 0, 0, count(), 0
+    spread, disjoint_v3, relation, blocked, linked_by_kind = 0, 0, count(), 0, count()
     for rows in multi.values():
         far = [metres(a, b) for i, a in enumerate(rows) for b in rows[i + 1:]]
         is_far = max((d for d in far if d is not None), default=0) > 200
@@ -188,6 +188,8 @@ def profile(book):
         kind = 'disjoint' if 'disjoint' in relations else 'shared' if 'shared' in relations else 'not_comparable'
         relation[kind] += 1
         blocked += is_far or kind == 'disjoint'
+        if not (is_far or kind == 'disjoint'):
+            linked_by_kind[kind] += 1
 
     deletes = [r for r in logs if r['operation'] == 'delete']
     cr_deletes = [c for c in crs if c['operation'] == 'delete']
@@ -202,7 +204,7 @@ def profile(book):
         'log_span': [day(min(stamps)), day(max(stamps))],
         'log_rows_by_operation': {k: figure(v, 'log row', len(logs)) for k, v in count(r['operation'] for r in logs).items()},
         'transactions': figure(len(by_tx), 'transaction', excludes='rows without transaction_id'),
-        'transactions_by_rows': {str(k): v for k, v in sorted(count(min(len(v), 6) for v in by_tx.values()).items())},
+        'transactions_by_rows': {('6+' if k == 6 else str(k)): v for k, v in sorted(count(min(len(v), 6) for v in by_tx.values()).items())},
         'multi_row_transactions': figure(len(multi), 'transaction', len(by_tx)),
         'trx_id_equals_transaction_id': figure(sum(r['trx.id'] == r['transaction_id'] for r in logs if r['trx.id']), 'log row', sum(bool(r['trx.id']) for r in logs)),
         'cr_requests': figure(len(crs), 'CR request'),
@@ -220,6 +222,7 @@ def profile(book):
         'multi_row_transactions_by_name_relation': {k: figure(v, 'transaction', len(multi)) for k, v in relation.items()},
         'same_source_poi_would_link': figure(len(multi) - blocked, 'transaction', len(multi), 'transactions with names disjoint or spread over 200 m (blocked to review)'),
         'same_source_poi_blocked_to_review': figure(blocked, 'transaction', len(multi)),
+        'same_source_poi_would_link_by_stratum': {('a_comparable' if k == 'shared' else 'b_not_comparable'): figure(v, 'transaction', len(multi) - blocked) for k, v in linked_by_kind.items()},
         'not_measurable_here': ['closed-then-reopened blocker: the POI logs carry no status field; CR requests do (693 only)'],
     }
 
