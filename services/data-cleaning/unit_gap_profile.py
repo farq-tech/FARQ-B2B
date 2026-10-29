@@ -54,6 +54,7 @@ from unit_evidence_inventory import FLOOR, SHORT_ADDRESS, URBI_BUILDING  # noqa:
 
 SPREAD_M = 150
 FLOOR_EMPTY = "('', 'none', 'null', 'nan')"   # as unit_evidence_inventory.floor_of: 0 is the ground floor
+ID_EMPTY = "('', 'none', 'null', 'nan', '0')"   # as unit_evidence_inventory.clean: 0 is a missing identifier
 UNIT_AR = r'(محل|المحل|وحدة|الوحدة|مكتب|المكتب|معرض|المعرض|شقة|الشقة|جناح|كشك|دكان|بسطة)\s*(رقم|ر\.|no\.?|#)?\s*[0-9٠-٩]{1,4}([^0-9٠-٩]|$)'
 UNIT_EN = r'(?i)\b(shop|unit|office|suite|store|kiosk|booth|showroom|flat|apt|apartment|stall|ste)\b\.?\s*(no\.?|number|num|#)?\s*[0-9]{1,4}[a-z]?\b'
 # field family -> (table alias, columns) of the text searched for unit_text
@@ -85,9 +86,11 @@ def valid_floor(col):
 
 
 def building_digits(col):
-    """Digits of a building number, dropping a float's .0 first as unit_evidence_inventory.digits does (1234.0 -> 1234)."""
-    text = f"regexp_replace(trim(cast({col} as varchar)), '\\.0$', '')"
-    return f"nullif(regexp_replace({text}, '[^0-9]', '', 'g'), '')"
+    """Digits of a building number, read as unit_evidence_inventory.digits reads it, then keeping digits only:
+    an empty value (clean: '', none, null, nan, 0) is missing, and a float's .0 is dropped (1234.0 -> 1234)."""
+    raw = f"trim(cast({col} as varchar))"
+    text = f"regexp_replace({raw}, '\\.0$', '')"
+    return f"case when lower({raw}) in {ID_EMPTY} then null else nullif(regexp_replace({text}, '[^0-9]', '', 'g'), '') end"
 
 
 def one_value(expr):
