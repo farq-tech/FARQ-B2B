@@ -35,9 +35,12 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual(account('instagram', 'cafe.name'), 'https://instagram.com/cafe.name')
         self.assertIsNone(account('instagram', 'www.evil.sa'))
         self.assertIsNone(account('instagram', 'cafe.com.sa'), 'a bare domain is a website, not a handle')
+        self.assertIsNone(account('instagram', 'https://[instagram.com/foo'), 'a malformed link is refused, not fatal')
         self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
                          'Sun: 08:30 - 23:30')
         self.assertIsNone(hours('not json'))
+        self.assertIsNone(hours('[{"day": "Monday", "hours": [{"open": "25:30", "close": "08:75"}]}]'), 'impossible times are refused')
+        self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "16:00", "close": "24:00"}]}]'), 'Mon: 16:00 - 24:00')
         for odd in ('[null]', '"x"', '{"day": "Monday"}', '[{"day": "Monday", "hours": "08:00"}]', '[{"day": "Monday", "hours": [null]}]'):
             self.assertIsNone(hours(odd), odd)
         self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "00:00", "close": "00:00"}]}]'), 'Mon: 00:00 - 24:00', 'open all day')
@@ -45,6 +48,14 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual([floor(v) for v in ('0', 'GF', '2.0', 'B1', 'open')], ['0', '0', '2', 'B1', None])
         self.assertEqual(website('https://www.farq.sa/'), 'farq.sa')
         self.assertIsNone(website('https://google.com/maps/place/x'))
+        from hudhud_fill import FIELDS
+        name_en = FIELDS['name_en'][1]
+        for junk in ('www.example.com', 'maps.app.goo.gl/x', 'ChIJuc0sAEAGLz4RJ3A9PIvA9SI', 'Unavailable', '2025-04-15T10:14:01.612Z', 'https://x.sa'):
+            self.assertIsNone(name_en(junk), junk)
+        self.assertEqual(name_en('Blue Cafe'), 'Blue Cafe')
+        self.assertIsNone(FIELDS['tradename'][1]('غير معروف'))
+        rating = FIELDS['rating'][1]
+        self.assertEqual([rating(v) for v in ('4.5', '5', '5.0', '5.7', '0', '6')], ['4.5', '5', '5.0', None, None, None])
 
 
 class FillTests(unittest.TestCase):
@@ -67,17 +78,18 @@ class FillTests(unittest.TestCase):
         columns = ['national_address', 'postal_code', 'building_no', 'floor_no', 'email', 'website', 'instagram', 'x_link', 'tiktok',
                    'snapchat', 'menu_link', 'google_place_id', 'working_hours', 'description_ar', 'description_en', 'tradename', 'name_en',
                    'commercial_license', 'rating', 'reviews_count', 'phone_raw', 'phone_norm', 'phone_kind', 'phone_source']
-        db.execute(f"create table t(poi_key varchar, hudhud_id bigint, city_en varchar, completeness_pct double, {', '.join(c + ' varchar' for c in columns)})")
-        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, email) values ('hh:1', 1, 'Riyadh', 66.7, 'null'), ('hh:2', 2, 'Riyadh', 83.3, 'kept@x.sa')")
+        db.execute(f"create table t(poi_key varchar, hudhud_id bigint, city_en varchar, completeness_pct double, search_text varchar, {', '.join(c + ' varchar' for c in columns)})")
+        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, search_text, email) values ('hh:1', 1, 'Riyadh', 66.7, 'مقهى', 'null'), ('hh:2', 2, 'Riyadh', 83.3, 'مكتب', 'kept@x.sa')")
         db.execute(f"copy t to '{temp / 't.parquet'}' (format parquet)")
         crs = duckdb.connect(str(temp / 'crs.duckdb'))
         trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_phone_number', 'trx_additional_feature', 'trx_national_address', 'trx_postal_code',
                'trx_building_no', 'trx_floorno', 'trx_email', 'trx_website', 'trx_instagram', 'trx_x_link', 'trx_tiktok', 'trx_snapchat',
                'trx_menu_link', 'trx_google_id', 'trx_opening_hours_regular_hours', 'trx_description_ar', 'trx_description_en', 'trx_tradename',
                'trx_name_en', 'trx_licenseno', 'trx_rating', 'trx_reviews_count']
-        crs.execute(f"create table crs(cr_entity_id varchar, {', '.join(c + ' varchar' for c in trx)})")
-        crs.execute("insert into crs(cr_entity_id, trx_state, trx_is_deleted, trx_status, trx_email, trx_floorno) values "
-                    "('1.0', 'ready to publish', 'false', 'open', 'new@x.sa', '0'), ('2.0', 'ready to publish', 'false', 'open', 'other@x.sa', '1')")
+        crs.execute(f"create table crs(cr_entity_id varchar, cr_id varchar, cr_created_at varchar, trx_updated_at varchar, {', '.join(c + ' varchar' for c in trx)})")
+        crs.execute("insert into crs(cr_entity_id, cr_id, cr_created_at, trx_updated_at, trx_state, trx_is_deleted, trx_status, trx_email, trx_floorno, trx_name_en) values "
+                    "('1.0', 'a', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'new@x.sa', '0', 'Blue Cafe'), "
+                    "('1.0', 'b', '2025-05-01', '2025-05-02', 'ready to publish', 'false', 'open', 'old@x.sa', '3', 'Old Name'), ('2.0', 'c', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'other@x.sa', '1', null)")
         crs.close()
         run = lambda out: subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't.parquet'),
                                           '--crs', str(temp / 'crs.duckdb'), '--out', str(out)], capture_output=True, text=True)
@@ -85,7 +97,9 @@ class FillTests(unittest.TestCase):
         result = run(temp / 't_hudhud.parquet')
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = db.execute(f"select poi_key, email, floor_no, completeness_pct, hudhud_filled from read_parquet('{temp / 't_hudhud.parquet'}') order by 1").fetchall()
-        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no']), 'a «null» text is empty to the update as to fills(); a first contact adds one completeness point')
+        self.assertEqual(db.execute(f"select search_text from read_parquet('{temp / 't_hudhud.parquet'}') order by poi_key").fetchall(),
+                         [('مقهى blue cafe',), ('مكتب',)], 'a filled English name joins the search text')
+        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no', 'name_en']), 'the most recently updated CR row is used whole; a «null» text is empty to the update as to fills(); a first contact adds one completeness point')
         self.assertEqual(rows[1], ('hh:2', 'kept@x.sa', '1', 83.3, ['floor_no']), 'an existing e-mail is never replaced')
         report = json.loads((temp / 't_hudhud.report.json').read_text())
         self.assertEqual((report['existing_values_changed'], report['rows_given_a_first_contact']), (0, 1))

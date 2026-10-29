@@ -26,6 +26,7 @@ import urllib.parse
 import duckdb
 
 AR = re.compile('[؀-ۿ]')
+CLOCK = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')   # a real time of day; «25:30» or «08:75» is refused
 DAYS = {'Sunday': 'Sun', 'Monday': 'Mon', 'Tuesday': 'Tue', 'Wednesday': 'Wed', 'Thursday': 'Thu', 'Friday': 'Fri', 'Saturday': 'Sat'}
 FLOOR = re.compile(r'^(G|GF|M|MZ|B\d{0,2}|-?\d{1,3})$', re.I)
 FLOOR_SAME = {'G': '0', 'GF': '0', 'MZ': 'M'}
@@ -71,9 +72,13 @@ def account(field, v):
         # a link counts only when its host is the platform itself (or a subdomain), never a path, a login part or
         # a longer name that merely contains it («instagram.com.evil.sa», «evil.sa/instagram.com»)
         url = v if re.match(r'^https?://', v, re.I) else 'https://' + v
-        parsed = urllib.parse.urlsplit(url)
-        host = (parsed.hostname or '').lower()
-        if parsed.username is None and parsed.password is None and any(host == h or host.endswith('.' + h) for h in hosts):
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            host = (parsed.hostname or '').lower()
+            login = parsed.username is not None or parsed.password is not None
+        except ValueError:   # a malformed link («https://[instagram.com/x») is refused alone, never fatal
+            return None
+        if not login and any(host == h or host.endswith('.' + h) for h in hosts):
             return url
         return None
     if re.match(r'^@?[A-Za-z0-9_.-]{2,40}$', v):
@@ -99,7 +104,7 @@ def hours(v):
         # Any other equal pair («08:00 - 08:00») has no stated meaning and is left out
         spans = [f"{h.get('open')} - {'24:00' if h.get('open') == h.get('close') == '00:00' else h.get('close')}"
                  for h in (day.get('hours') or []) if isinstance(h, dict)
-                 and re.match(r'^\d{2}:\d{2}$', str(h.get('open'))) and re.match(r'^\d{2}:\d{2}$', str(h.get('close')))
+                 and CLOCK.match(str(h.get('open'))) and (CLOCK.match(str(h.get('close'))) or h.get('close') == '24:00')
                  and (h.get('open') != h.get('close') or h.get('open') == '00:00')]
         if name and spans:
             parts.append(f"{name}: {', '.join(spans)}")
@@ -136,13 +141,26 @@ FIELDS = {
     'working_hours': ('trx_opening_hours_regular_hours', hours),
     'description_ar': ('trx_description_ar', lambda v: text(v) if AR.search(text(v)) and len(text(v)) < 2000 else None),
     'description_en': ('trx_description_en', lambda v: text(v) if re.search('[A-Za-z]', text(v)) and len(text(v)) < 2000 and not text(v).startswith('http') else None),
-    'tradename': ('trx_tradename', lambda v: text(v) if len(text(v)) < 200 and not text(v).startswith('http') else None),
-    'name_en': ('trx_name_en', lambda v: text(v) if re.search('[A-Za-z]', text(v)) and len(text(v)) < 200 and not text(v).startswith('http') else None),
+    'tradename': ('trx_tradename', lambda v: name(v)),
+    'name_en': ('trx_name_en', lambda v: name(v) if re.search('[A-Za-z]', text(v)) else None),
     'commercial_license': ('trx_licenseno', lambda v: text(v)[:10] if re.match(r'^\d{10}(\.0)?$', text(v)) else None),
-    'rating': ('trx_rating', lambda v: text(v) if re.match(r'^[0-5](\.\d+)?$', text(v)) and float(text(v)) > 0 else None),
+    'rating': ('trx_rating', lambda v: text(v) if re.match(r'^[0-5](\.\d+)?$', text(v)) and 0 < float(text(v)) <= 5 else None),
     'reviews_count': ('trx_reviews_count', lambda v: str(int(float(text(v)))) if re.match(r'^\d+(\.0)?$', text(v)) and float(text(v)) > 0 else None),
 }
 CONTACT = ('phone_norm', 'email', 'website')
+# build_golden.py's ph_null: words that stand for no name, links and Google ids are not names; an ISO timestamp
+# («2025-04-15T10:14:01.612Z», seen as a name in the directory) is not one either
+PLACEHOLDER = {'unavailable', 'null', 'none', 'nan', 'n/a', 'na', 'point', 'name', 'false', 'true', 'test', 'لا اسم', 'لا يوجد',
+               'بدون اسم', 'غير معروف', '-', '.', '0', 'epsg:4326'}
+
+
+def name(v):
+    """A display name, or None when it is a placeholder, a link, a Google id or a timestamp."""
+    v = text(v)
+    if (not v or len(v) >= 200 or v.lower() in PLACEHOLDER or re.match(r'^(https?://|www\.|maps\.app)', v, re.I)
+            or re.match(r'^ChIJ[A-Za-z0-9_-]{10,}$', v) or re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}', v)):
+        return None
+    return v
 EMPTY = ('', 'null', 'none', 'nan', '[]', '{}')
 
 
@@ -202,7 +220,11 @@ def main():
         f"select cast(hudhud_id as varchar), {', '.join(f'{c}::varchar' for c in columns)} from read_parquet('{args.targets}') where hudhud_id is not null").fetchall()}
     trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_phone_number', 'trx_additional_feature'] + sorted({s for s, _ in FIELDS.values()})
     hudhud = {hid: dict(zip(trx, rest)) for hid, *rest in db.execute(
-        f"select split_part(cr_entity_id::varchar, '.', 1), {', '.join(f'any_value({c})::varchar' for c in trx)} from c.crs group by 1").fetchall()}
+        # one row per place: trx_* is the place's current state, the same on every CR of it (checked on 2025-08: no place
+        # differs), and the most recently updated row is taken so that a later export that differs never mixes rows
+        f"""select split_part(cr_entity_id::varchar, '.', 1), {', '.join(f'{c}::varchar' for c in trx)} from c.crs
+            qualify row_number() over (partition by split_part(cr_entity_id::varchar, '.', 1)
+                                       order by trx_updated_at desc nulls last, cr_created_at desc, cr_id desc) = 1""").fetchall()}
     new, refused = fills(snapshot, hudhud)
 
     rows = [(hid, column, value) for hid, values in new.items() for column, value in values.items()]
@@ -218,6 +240,11 @@ def main():
         db.execute("alter table t add column hudhud_filled varchar[]")
     db.execute("""update t set hudhud_filled = list_sort(list_distinct(coalesce(t.hudhud_filled, []::varchar[]) || filled.cols))
                   from filled where filled.hid = cast(t.hudhud_id as varchar)""")
+    # search_text is lower(concat_ws(' ', name_ar, name_en, …)) (export_golden_targets.py) and the search matches any part
+    # of it, so a filled English name is added to it; without this a search for the new name would miss the place
+    if 'search_text' in have:
+        db.execute("""update t set search_text = lower(concat_ws(' ', t.search_text, t.name_en))
+                      from f where f.col = 'name_en' and f.hid = cast(t.hudhud_id as varchar)""")
     # a first contact adds one of the six completeness points (build_golden.py: phone, e-mail or website)
     db.execute(f"""update t set completeness_pct = round(100.0 * least(6, round(coalesce(t.completeness_pct, 0) * 6 / 100) + 1) / 6, 1)
                    from read_parquet('{args.targets}') o where o.poi_key = t.poi_key and t.hudhud_filled is not null
