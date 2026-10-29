@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { GripHorizontal, Minus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +35,24 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     if (!box || !area) return { min: [ox, oy] as [number, number], max: [ox, oy] as [number, number] }
     return { min: [ox + area.left - box.left, oy + area.top - box.top] as [number, number], max: [ox + area.right - box.right, oy + area.bottom - box.bottom] as [number, number] }
   }
+  // a card that grows after it was moved (a taller listing, «حول العقار» opened) is pulled back inside the map, so its
+  // bar and its buttons never end up past the map's edge
+  const fit = () => {
+    if (drag.current || grow.current) return
+    setOffset((current) => {
+      const { min, max } = bounds(current.x, current.y)
+      const x = clamp(current.x, min[0], Math.max(min[0], max[0])), y = clamp(current.y, min[1], Math.max(min[1], max[1]))
+      return x === current.x && y === current.y ? current : { x, y }
+    })
+  }
+  useEffect(() => {
+    const node = card.current
+    if (!node || folded) return
+    const watch = new ResizeObserver(fit)
+    watch.observe(node)
+    return () => watch.disconnect()
+  }, [folded])
+
   const start = (event: PointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('[data-window-button]')) return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -70,7 +88,9 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     const g = grow.current
     grow.current = null
     if (!g || !size) return
-    if (size.w < FOLD_W || size.h < FOLD_H) { setSize({ w: g.w, h: g.h }); setOffset({ x: g.ox, y: g.oy }); setFolded(true) }
+    if (size.w < FOLD_W || size.h < FOLD_H) { setSize({ w: g.w, h: g.h }); setOffset({ x: g.ox, y: g.oy }); setFolded(true); return }
+    // resize notices were ignored while the corner was held: fit once it is let go, after the new size is drawn
+    requestAnimationFrame(fit)
   }
 
   if (folded) {

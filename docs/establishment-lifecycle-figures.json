@@ -1,0 +1,228 @@
+{
+ "log_rows": {
+  "value": 361137,
+  "unit": "log row"
+ },
+ "log_rows_without_transaction_id": {
+  "value": 1719,
+  "unit": "log row",
+  "denominator": 361137
+ },
+ "log_rows_without_transaction_id_by_operation_and_review": {
+  "create|rejected": 769,
+  "create|draft": 949,
+  "create|under_review": 1
+ },
+ "log_span": [
+  "2024-10-09",
+  "2025-08-28"
+ ],
+ "log_rows_by_operation": {
+  "delete": {
+   "value": 79396,
+   "unit": "log row",
+   "denominator": 361137
+  },
+  "create": {
+   "value": 70199,
+   "unit": "log row",
+   "denominator": 361137
+  },
+  "update": {
+   "value": 211542,
+   "unit": "log row",
+   "denominator": 361137
+  }
+ },
+ "transactions": {
+  "value": 230596,
+  "unit": "transaction",
+  "excludes": "rows without transaction_id"
+ },
+ "transactions_by_rows": {
+  "1": 168668,
+  "2": 34502,
+  "3": 12219,
+  "4": 5411,
+  "5": 3365,
+  "6+": 6431
+ },
+ "multi_row_transactions": {
+  "value": 61928,
+  "unit": "transaction",
+  "denominator": 230596
+ },
+ "trx_id_equals_transaction_id": {
+  "value": 359418,
+  "unit": "log row",
+  "denominator": 359418
+ },
+ "cr_requests": {
+  "value": 693,
+  "unit": "CR request"
+ },
+ "cr_entity_id_equals_transaction_id": {
+  "value": 693,
+  "unit": "CR request",
+  "denominator": 693
+ },
+ "delete_log_rows_with_duplicate_of_id": {
+  "value": 314,
+  "unit": "log row",
+  "denominator": 79396
+ },
+ "cr_delete_requests_by_previous_status": {
+  "open": {
+   "value": 108,
+   "unit": "CR request",
+   "denominator": 191
+  },
+  "(empty)": {
+   "value": 81,
+   "unit": "CR request",
+   "denominator": 191
+  },
+  "temporary closed": {
+   "value": 2,
+   "unit": "CR request",
+   "denominator": 191
+  }
+ },
+ "cr_requests_by_new_status": {
+  "open": {
+   "value": 614,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "(empty)": {
+   "value": 29,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "permanently closed": {
+   "value": 33,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "temporary closed": {
+   "value": 17,
+   "unit": "CR request",
+   "denominator": 693
+  }
+ },
+ "cr_requests_with_identity_field": {
+  "national_address": {
+   "value": 501,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "phone_number": {
+   "value": 442,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "brand_id": {
+   "value": 145,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "floorno": {
+   "value": 74,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "licenseno": {
+   "value": 49,
+   "unit": "CR request",
+   "denominator": 693
+  },
+  "building_no": {
+   "value": 21,
+   "unit": "CR request",
+   "denominator": 693
+  }
+ },
+ "update_pairs": {
+  "value": 113958,
+  "unit": "update pair",
+  "excludes": "rows without transaction_id; unapproved rows"
+ },
+ "update_pairs_by_name_change_and_distance": {
+  "name_changed=False|0": 68227,
+  "name_changed=False|<10": 9066,
+  "name_changed=False|<200": 297,
+  "name_changed=False|<50": 5200,
+  "name_changed=False|>=200": 107,
+  "name_changed=False|unknown": 14445,
+  "name_changed=True|0": 13422,
+  "name_changed=True|<10": 705,
+  "name_changed=True|<200": 60,
+  "name_changed=True|<50": 625,
+  "name_changed=True|>=200": 9,
+  "name_changed=True|unknown": 1795
+ },
+ "update_pairs_name_changed": {
+  "value": 16616,
+  "unit": "update pair",
+  "denominator": 113958
+ },
+ "update_pairs_moved_over_50m": {
+  "value": 473,
+  "unit": "update pair",
+  "denominator": 113958
+ },
+ "multi_row_transactions_spread_over_200m": {
+  "value": 118,
+  "unit": "transaction",
+  "denominator": 61928
+ },
+ "multi_row_transactions_names_disjoint_v3_any_word": {
+  "value": 380,
+  "unit": "transaction",
+  "denominator": 61928,
+  "excludes": "v3 rule, kept for reconciliation"
+ },
+ "multi_row_transactions_by_name_relation": {
+  "shared": {
+   "value": 60773,
+   "unit": "transaction",
+   "denominator": 61928
+  },
+  "not_comparable": {
+   "value": 783,
+   "unit": "transaction",
+   "denominator": 61928
+  },
+  "disjoint": {
+   "value": 372,
+   "unit": "transaction",
+   "denominator": 61928
+  }
+ },
+ "same_source_poi_would_link": {
+  "value": 61440,
+  "unit": "transaction",
+  "denominator": 61928,
+  "excludes": "transactions with names disjoint or spread over 200 m (blocked to review)"
+ },
+ "same_source_poi_blocked_to_review": {
+  "value": 488,
+  "unit": "transaction",
+  "denominator": 61928
+ },
+ "same_source_poi_would_link_by_stratum": {
+  "a_comparable": {
+   "value": 60658,
+   "unit": "transaction",
+   "denominator": 61440
+  },
+  "b_not_comparable": {
+   "value": 782,
+   "unit": "transaction",
+   "denominator": 61440
+  }
+ },
+ "not_measurable_here": [
+  "closed-then-reopened blocker: the POI logs carry no status field; CR requests do (693 only)"
+ ]
+}
