@@ -216,7 +216,11 @@ def main():
         f"select cast(hudhud_id as varchar), {', '.join(f'{c}::varchar' for c in columns)} from read_parquet('{args.targets}') where hudhud_id is not null").fetchall()}
     trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_phone_number', 'trx_additional_feature'] + sorted({s for s, _ in FIELDS.values()})
     hudhud = {hid: dict(zip(trx, rest)) for hid, *rest in db.execute(
-        f"select split_part(cr_entity_id::varchar, '.', 1), {', '.join(f'any_value({c})::varchar' for c in trx)} from c.crs group by 1").fetchall()}
+        # one row per place: trx_* is the place's current state, the same on every CR of it (checked on 2025-08: no place
+        # differs), and the most recently updated row is taken so that a later export that differs never mixes rows
+        f"""select split_part(cr_entity_id::varchar, '.', 1), {', '.join(f'{c}::varchar' for c in trx)} from c.crs
+            qualify row_number() over (partition by split_part(cr_entity_id::varchar, '.', 1)
+                                       order by trx_updated_at desc nulls last, cr_created_at desc, cr_id desc) = 1""").fetchall()}
     new, refused = fills(snapshot, hudhud)
 
     rows = [(hid, column, value) for hid, values in new.items() for column, value in values.items()]
