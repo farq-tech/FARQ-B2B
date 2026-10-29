@@ -28,7 +28,8 @@ export type DistrictRow = {
   /** Share of the district's homes that are villas (buildings layer), a stand-in for income where none is published. */
   villaShare: number | null
   /** Median asking price per m² from current listings (rent per year), by property group; null below the listing floor. */
-  realEstate: Partial<Record<RealEstateGroup, { median: number; listings: number }>>
+  /** Per group: the median and its listings, and the same split by the building's age where enough ads state it (new = 2 years or less). */
+  realEstate: Partial<Record<RealEstateGroup, { median: number; listings: number; byAge?: { new?: { median: number; listings: number }; older?: { median: number; listings: number } } }>>
   /** Median price per m² paid in registered sale deals, by classification, and the deals behind it. */
   deals: { residential: { median: number; deals: number } | null; commercial: { median: number; deals: number } | null }
 }
@@ -51,7 +52,8 @@ type CountRow = { district_ar: string; n: number }
 type IncomeRow = { district_ar: string; income_all?: number | null }
 type GrowthRow = { district_ar: string; under_construction: number; new_buildings: number }
 type HousingRow = { district_ar: string; villa_share_pct: number }
-type RealEstateRow = { district_id: string; groups: Partial<Record<RealEstateGroup, { listings: number; median_sar_per_sqm: number }>> }
+type AgeBand = { listings: number; median_sar_per_sqm: number }
+type RealEstateRow = { district_id: string; groups: Partial<Record<RealEstateGroup, { listings: number; median_sar_per_sqm: number; by_age?: { new?: AgeBand; older?: AgeBand } }>> }
 type DealRow = { district_ar: string; residential?: { deals: number; median_sar_per_sqm: number }; commercial?: { deals: number; median_sar_per_sqm: number } }
 type RestaurantRow = { district_id: string; restaurants: number }
 type MenuPriceRow = { district_id: string; price: number; places: number | null }
@@ -130,7 +132,10 @@ export function useCityData(city: string): CityData {
             const pick = (value?: { deals: number; median_sar_per_sqm: number }) => (value ? { median: value.median_sar_per_sqm, deals: value.deals } : null)
             return { residential: pick(row?.residential), commercial: pick(row?.commercial) }
           })(),
-          realEstate: Object.fromEntries(Object.entries(listings.get(id) ?? {}).map(([group, value]) => [group, { median: value!.median_sar_per_sqm, listings: value!.listings }])),
+          realEstate: Object.fromEntries(Object.entries(listings.get(id) ?? {}).map(([group, value]) => [group, {
+            median: value!.median_sar_per_sqm, listings: value!.listings,
+            ...(value!.by_age ? { byAge: Object.fromEntries(Object.entries(value!.by_age).map(([band, figure]) => [band, { median: figure!.median_sar_per_sqm, listings: figure!.listings }])) } : {}),
+          }])),
         }
       })
       setData({ status: 'ready', features, rows, total: counts?.total ?? null })

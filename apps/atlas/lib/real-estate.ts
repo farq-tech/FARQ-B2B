@@ -34,6 +34,10 @@ export type Listing = {
   livings?: number
   wc?: number
   street_width?: number
+  /** The building's age in years (0 = new); absent when the ad states none. */
+  age?: number
+  /** Where the age came from: Aqar's own field, or read from the ad's description. */
+  age_source?: 'aqar' | 'text'
 }
 
 export type ListingKind = 'rent' | 'sale'
@@ -77,6 +81,15 @@ export const BUDGETS: Record<Deal, number[]> = {
   rent_month: [2000, 3000, 5000, 8000, 12000],
   rent_unstated: [30000, 50000, 80000, 120000, 200000],
   sale: [700000, 1000000, 1500000, 2500000, 4000000],
+}
+
+/** «جديد»، «سنة»، «سنتان»، «5 سنوات»، «12 سنة»: a building's age the way it is said; «غير متاح» when unstated. */
+export function ageLabel(age: number | null | undefined): string {
+  if (age == null) return 'غير متاح'
+  if (age === 0) return 'جديد'
+  if (age === 1) return 'سنة'
+  if (age === 2) return 'سنتان'
+  return `${numberFormat.format(age)} ${age <= 10 ? 'سنوات' : 'سنة'}`
 }
 
 export const sar = (value: number) => `${numberFormat.format(Math.round(value))} ريال`

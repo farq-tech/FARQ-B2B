@@ -16,6 +16,8 @@ export type HomeFilters = {
   livings: number
   wc: number
   street: number
+  /** The oldest building wanted, in years (0 = new only); null for any age. */
+  maxAge: number | null
   belowMedian: boolean
   sort: SortId
 }
@@ -24,7 +26,7 @@ export type SortId = 'best' | 'price_asc' | 'price_desc' | 'area_desc' | 'sqm_as
 
 export const DEFAULT_FILTERS: HomeFilters = {
   kind: 'rent', rentDeal: 'rent_year', types: ['apartment'], districts: [],
-  minPrice: null, maxPrice: null, minArea: null, maxArea: null, beds: 0, livings: 0, wc: 0, street: 0,
+  minPrice: null, maxPrice: null, minArea: null, maxArea: null, beds: 0, livings: 0, wc: 0, street: 0, maxAge: null,
   belowMedian: false, sort: 'best',
 }
 
@@ -46,6 +48,9 @@ export function offersLabel(count: number): string {
 /** «3+» steps for rooms and the like; 0 means any. */
 export const COUNT_STEPS = [0, 1, 2, 3, 4, 5]
 export const STREET_STEPS = [0, 12, 15, 20, 30]
+/** Building age steps: any, new, and «up to N years». */
+export const AGE_STEPS: (number | null)[] = [null, 0, 2, 5, 10]
+export const ageStepLabel = (step: number | null) => (step == null ? 'أي عمر' : step === 0 ? 'جديد' : step === 2 ? 'سنتان أو أقل' : `حتى ${numberFormat.format(step)} سنوات`)
 
 export const dealOf = (filters: Pick<HomeFilters, 'kind' | 'rentDeal'>): Deal => (filters.kind === 'sale' ? 'sale' : filters.rentDeal)
 
@@ -57,6 +62,7 @@ const atLeast = (value: number | undefined, step: number) => !step || (value ?? 
 export function applyFilters(listings: Listing[], filters: HomeFilters): Listing[] {
   const kept = listings.filter((l) => isPublishable(l) && within(l.price_sar, filters.minPrice, filters.maxPrice) && within(l.area_sqm, filters.minArea, filters.maxArea)
     && atLeast(l.beds, filters.beds) && atLeast(l.livings, filters.livings) && atLeast(l.wc, filters.wc) && atLeast(l.street_width, filters.street)
+    && within(l.age, null, filters.maxAge)
     && (!filters.belowMedian || (l.vs_district_pct ?? 0) < 0))
   if (filters.sort === 'best') return kept
   // an ad without the figure a sort reads goes last, in the service's order
@@ -86,6 +92,7 @@ export function activeFilters(filters: HomeFilters, districtName: (id: string) =
   if (filters.livings) out.push({ id: 'livings', label: `${numberFormat.format(filters.livings)}+ صالات`, clear: { livings: 0 } })
   if (filters.wc) out.push({ id: 'wc', label: `${numberFormat.format(filters.wc)}+ دورات مياه`, clear: { wc: 0 } })
   if (filters.street) out.push({ id: 'street', label: `شارع ${numberFormat.format(filters.street)} م فأكثر`, clear: { street: 0 } })
+  if (filters.maxAge != null) out.push({ id: 'age', label: `عمر العقار: ${ageStepLabel(filters.maxAge)}`, clear: { maxAge: null } })
   if (filters.belowMedian) out.push({ id: 'below', label: 'أقل من وسيط الحي', clear: { belowMedian: false } })
   if (filters.sort !== 'best') out.push({ id: 'sort', label: SORTS.find((item) => item.id === filters.sort)?.label ?? '', clear: { sort: 'best' } })
   return out

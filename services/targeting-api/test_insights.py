@@ -144,6 +144,17 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(sorted(ids({"min_price": 50000, "max_price": 60000})), ["d"])
         self.assertEqual(sorted(ids({"max_area": 160})), ["a", "d"])
 
+    def test_real_estate_listings_by_building_age_leave_out_ads_that_state_none(self):
+        card = {"city": "Riyadh", "kind": "rent", "type": "floor", "district_id": "1", "lon": 46.7, "lat": 24.7, "vs_district_pct": None,
+                "photos": ["p.jpg"], "price_sar": 100000, "area_sqm": 180}
+        cards = [dict(card, id="new", age=0), dict(card, id="two", age=2), dict(card, id="old", age=11), dict(card, id="unknown")]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        ids = lambda filters: sorted(c["id"] for c in insights.real_estate_listings("Riyadh", filters, str(path))["listings"])
+        self.assertEqual(ids({"max_age": 0}), ["new"], '0 means new only, not «no filter»')
+        self.assertEqual(ids({"max_age": 2}), ["new", "two"], 'an ad that states no age is not taken as new')
+        self.assertEqual(ids({}), ["new", "old", "two", "unknown"])
+
     def test_real_estate_listings_serve_only_publishable_ads(self):
         card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
                 "price_sar": 40000, "area_sqm": 90, "photos": ["p.jpg"]}

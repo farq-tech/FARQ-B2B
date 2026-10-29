@@ -42,6 +42,18 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual(reference.price_per_sqm(listing), ('rent_year', 'residential', 145000 / 300))
         self.assertEqual(len(parse.parse_rows([record, record])), 1)
 
+    def test_building_age_from_aqar_then_from_the_description(self):
+        self.assertEqual(parse.text_age('عمر العقار: 5 سنوات'), 5)
+        self.assertEqual(parse.text_age('عمر العقار سنتين'), 2)
+        self.assertEqual(parse.text_age('عمر العقار ١٢ سنة'), 12)
+        self.assertEqual(parse.text_age('شقة جديدة لم تسكن'), 0)
+        self.assertEqual(parse.text_age('أول ساكن'), 0)
+        self.assertIsNone(parse.text_age('مطبخ جديد ومكيفات'), 'a new kitchen is not a new building')
+        self.assertIsNone(parse.text_age('قريب من شارع عمر بن الخطاب'), 'a street named Umar is not an age')
+        self.assertEqual(parse.listing_age({'age': 11}, 'شقة جديدة'), (11, 'aqar'), "Aqar's own field wins")
+        self.assertEqual(parse.listing_age({}, 'عمر العقار 4 سنوات'), (4, 'text'))
+        self.assertEqual(parse.listing_age({'age': None}, ''), (None, None))
+
     def test_map_listing(self):
         record = {'id': 6896439, 'title': 'فيلا للإيجار في شارع رقم 1095, حي سدرة, مدينة الرياض, منطقة الرياض',
                   'price': 145000, 'area': 300, 'rent_period': 3, 'content': 'فيلا جديدة الإيجار سنوي',
