@@ -53,6 +53,77 @@ def listing_age(record, text):
     return (found, 'text') if found is not None else (None, None)
 
 
+# the facade as Aqar's street_direction codes it, read off the words of the 15,000 ads whose text names one too:
+# 1-4 one street, 5-8 a corner, 9 three streets, 10 four streets, 11 and 12 two opposite streets
+FACADES = {1: 'شمالية', 2: 'شرقية', 3: 'غربية', 4: 'جنوبية', 5: 'شمالية شرقية', 6: 'جنوبية شرقية', 7: 'جنوبية غربية',
+           8: 'شمالية غربية', 9: 'ثلاث واجهات', 10: 'أربع واجهات', 11: 'شمالية جنوبية', 12: 'شرقية غربية'}
+_FACADE_TEXT = re.compile(r'واجه[ةه]?\s*[:：\-]?\s*(?:ال)?(شمالي|جنوبي|شرقي|غربي)[ةه]?\s*(?:و\s*)?(?:ال)?(شمالي|جنوبي|شرقي|غربي)?[ةه]?')
+_FACADE_BY_WORDS = {('شمالي',): 1, ('شرقي',): 2, ('غربي',): 3, ('جنوبي',): 4, ('شمالي', 'شرقي'): 5, ('جنوبي', 'شرقي'): 6,
+                    ('جنوبي', 'غربي'): 7, ('شمالي', 'غربي'): 8, ('شمالي', 'جنوبي'): 11, ('شرقي', 'غربي'): 12}
+_FACADE_COUNT = re.compile(r'(ثلاث|ثلاثة|3)\s*(?:واجهات|شوارع)|(أربع|اربع|أربعة|اربعة|4)\s*(?:واجهات|شوارع)')
+
+
+def text_facade(text):
+    """The facade's code (FACADES) as the description names it, else None. «واجهة شمالية شرقية» before «واجهة شمالية»;
+    «ثلاث شوارع» and «أربع شوارع» are counts, not directions."""
+    text = str(text or '').translate(_ARABIC_DIGITS)
+    found = _FACADE_TEXT.search(text)
+    if found:
+        words = tuple(sorted(w for w in found.groups() if w))
+        for key, code in _FACADE_BY_WORDS.items():
+            if tuple(sorted(key)) == words:
+                return code
+    count = _FACADE_COUNT.search(text)
+    return (9 if count.group(1) else 10) if count else None
+
+
+def listing_facade(record, text):
+    """(facade in words, where it came from): Aqar's street_direction code, else the description, else (None, None)."""
+    code = record.get('street_direction')
+    if isinstance(code, (int, float)) and not isinstance(code, bool) and int(code) in FACADES:
+        return FACADES[int(code)], 'aqar'
+    found = text_facade(text)
+    return (FACADES[found], 'text') if found else (None, None)
+
+
+# the number of floors as the description states it: «دورين», «ثلاثة أدوار», «4 أدوار», «دور واحد»; «الدور الأرضي»
+# describes one floor of the building and is no count
+_FLOORS_WORDS = {'واحد': 1, 'دورين': 2, 'ثلاث': 3, 'ثلاثة': 3, 'أربع': 4, 'اربع': 4, 'أربعة': 4, 'اربعة': 4, 'خمس': 5, 'خمسة': 5}
+_FLOORS = re.compile(r'دور\s*(واحد)\b|(دورين)|(ثلاث|ثلاثة|أربع|اربع|أربعة|اربعة|خمس|خمسة|\d{1,2})\s*(?:أدوار|ادوار|طوابق)')
+
+
+def text_floors(text):
+    """The building's floors as the description states them, else None."""
+    found = _FLOORS.search(str(text or '').translate(_ARABIC_DIGITS))
+    if not found:
+        return None
+    word = next(group for group in found.groups() if group)
+    value = _FLOORS_WORDS.get(word) or (int(word) if word.isdigit() else None)
+    return value if value and value <= 30 else None
+
+
+# the street's width as the description states it: «شارع 20», «شارع عرض 15م», «عرض الشارع: 25», «20م شارع»
+_STREET = re.compile(r'(?:عرض\s*(?:ال)?شارع|شارع\s*(?:عرض|بعرض)?|شوارع\s*(?:عرض|بعرض)?)\s*[:：\-]?\s*(\d{1,3})\s*(?:م|متر)?\b|(\d{1,3})\s*(?:م|متر)\s*شارع')
+
+
+def text_street_width(text):
+    """The street's width in metres as the description states it (4 to 100), else None."""
+    found = _STREET.search(str(text or '').translate(_ARABIC_DIGITS))
+    if not found:
+        return None
+    value = int(next(group for group in found.groups() if group))
+    return value if 4 <= value <= 100 else None
+
+
+def listing_street_width(record, text):
+    """(width in metres, where it came from): Aqar's street_width field when set, else the description."""
+    width = record.get('street_width')
+    if isinstance(width, (int, float)) and not isinstance(width, bool) and 4 <= width <= 100:
+        return int(width), 'aqar'
+    found = text_street_width(text)
+    return (found, 'text') if found else (None, None)
+
+
 _TITLE = re.compile(r'^(?P<type>.+?)\s+لل(?P<kind>إيجار|ايجار|بيع)\b')
 _DISTRICT = re.compile(r'حي\s+([^,،]+)')
 _NUMBER = re.compile(r'[\d٠-٩][\d٠-٩,٬]*(?:\.\d+)?')
@@ -155,6 +226,9 @@ def parse_map_listing(record, city_en=None):
     location = record.get('location') or {}
     district = str(record.get('district') or '').strip()
     age, age_source = listing_age(record, text)
+    facade, facade_source = listing_facade(record, text)
+    floors = text_floors(text)
+    street_width, street_width_source = listing_street_width(record, text)
     # a city outside the alias table keeps Aqar's Arabic name rather than borrowing another city's
     city = city_en or _CITY_EN.get(canonical_data.district_key(str(record.get('city') or ''))) or record.get('city')
     return {
@@ -163,7 +237,10 @@ def parse_map_listing(record, city_en=None):
         'latitude': location.get('lat'), 'longitude': location.get('lng'),
         'districtArabic': district[3:] if district.startswith('حي ') else district or None,
         'aqar_district_id': record.get('district_id'), 'city_en': city, 'title': title,
-        **{key: record.get(key) for key in ('beds', 'livings', 'wc', 'street_width')},
+        **{key: record.get(key) for key in ('beds', 'livings', 'wc')},
+        'street_width': street_width, 'street_width_source': street_width_source,
+        'facade': facade, 'facade_source': facade_source,
+        'floors': floors, 'floors_source': 'text' if floors is not None else None,
         'age': age, 'age_source': age_source,
         'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
         'aqar_id': str(record.get('id')),

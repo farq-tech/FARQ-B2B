@@ -54,6 +54,25 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual(parse.listing_age({}, 'عمر العقار 4 سنوات'), (4, 'text'))
         self.assertEqual(parse.listing_age({'age': None}, ''), (None, None))
 
+    def test_facade_floors_and_street_width_from_aqar_then_from_the_description(self):
+        self.assertEqual(parse.listing_facade({'street_direction': 5}, 'واجهة غربية'), ('شمالية شرقية', 'aqar'), "Aqar's code wins")
+        self.assertEqual(parse.listing_facade({'street_direction': 9}, ''), ('ثلاث واجهات', 'aqar'))
+        self.assertEqual(parse.listing_facade({'street_direction': None}, 'فيلا واجهة شمالية شرقية'), ('شمالية شرقية', 'text'))
+        self.assertEqual(parse.text_facade('شقة واجهه جنوبيه'), 4)
+        self.assertEqual(parse.text_facade('ارض زاوية ثلاث شوارع'), 9)
+        self.assertIsNone(parse.text_facade('قريبة من الواجهة البحرية'), 'a sea front names no direction')
+        self.assertEqual(parse.text_floors('فيلا دورين وملحق'), 2)
+        self.assertEqual(parse.text_floors('عمارة 4 أدوار'), 4)
+        self.assertEqual(parse.text_floors('عمارة ٣ طوابق'), 3)
+        self.assertEqual(parse.text_floors('بيت دور واحد'), 1)
+        self.assertIsNone(parse.text_floors('الدور الأرضي مجلس وصالة'), 'one floor of the building is no count')
+        self.assertEqual(parse.listing_street_width({'street_width': 15}, 'شارع 20'), (15, 'aqar'))
+        self.assertEqual(parse.listing_street_width({'street_width': 0}, 'شارع عرض 25م'), (25, 'text'))
+        self.assertEqual(parse.text_street_width('عرض الشارع: 18'), 18)
+        self.assertEqual(parse.text_street_width('على شارع ١٥ م'), 15)
+        self.assertIsNone(parse.text_street_width('شارع 200'), 'no street is 200 m wide')
+        self.assertIsNone(parse.text_street_width('شارع الملك فهد'), 'a street name is no width')
+
     def test_map_listing(self):
         record = {'id': 6896439, 'title': 'فيلا للإيجار في شارع رقم 1095, حي سدرة, مدينة الرياض, منطقة الرياض',
                   'price': 145000, 'area': 300, 'rent_period': 3, 'content': 'فيلا جديدة الإيجار سنوي',
@@ -63,6 +82,9 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual((listing['latitude'], listing['rentPeriod'], listing['city_en'], listing['url']),
                          (24.85, 'annually', 'Riyadh', 'https://sa.aqar.fm/فلل-للإيجار/الرياض/x-6896439'))
         self.assertNotIn('user', listing)
+        self.assertEqual((listing['facade'], listing['floors'], listing['street_width']), (None, None, None))
+        rich = parse.parse_map_listing({**record, 'street_direction': 2, 'street_width': 20, 'content': 'فيلا دورين'})
+        self.assertEqual((rich['facade'], rich['facade_source'], rich['floors'], rich['street_width']), ('شرقية', 'aqar', 2, 20))
         monthly = parse.parse_map_listing({**record, 'price': 2500, 'content': 'إيجار شهري'})
         self.assertEqual(monthly['rentPeriod'], 'monthly', 'the text wins over Aqar\'s yearly field')
         self.assertIsNone(parse.parse_map_listing({**record, 'rent_period': None, 'content': ''})['rentPeriod'])
