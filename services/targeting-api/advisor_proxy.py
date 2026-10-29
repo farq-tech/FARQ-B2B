@@ -64,7 +64,10 @@ def upstream_error(error):
         body = json.loads(error.read() or b'{}')
     except Exception:  # an error with no body (or one that cannot be read) still gets its status logged
         return 'unreadable'
-    detail = body.get('error') or {}
+    # any JSON may come back (a list, a string, an «error» that is not an object): only an object is read
+    if not isinstance(body, dict):
+        return 'unreadable'
+    detail = body.get('error') if isinstance(body.get('error'), dict) else {}
     headers = getattr(error, 'headers', None) or {}
     request_id = body.get('request_id') or headers.get('request-id', '')
     return f"type={detail.get('type', '?')} message={str(detail.get('message', ''))[:200]} request_id={request_id}"

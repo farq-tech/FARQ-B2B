@@ -61,3 +61,12 @@ class AdvisorErrorLogTest(unittest.TestCase):
         self.assertIn('authentication_error', line)
         self.assertIn('req_1', line)
         self.assertNotIn('secret-key', line)
+
+    def test_an_error_body_of_any_shape_still_gives_the_plain_state(self):
+        for payload in (b'[1, 2]', b'"text"', b'{"error": "flat"}', b'{"error": [1]}', b'null'):
+            def failing(request, timeout, payload=payload):
+                raise urllib.error.HTTPError(request.full_url, 400, 'Bad Request', {}, io.BytesIO(payload))
+
+            with self.assertLogs('farq.targeting.advisor', 'WARNING'):
+                self.assertEqual(advisor_proxy.reply('s', [{'role': 'user', 'content': 'a'}], {'ANTHROPIC_API_KEY': 'k'}, failing),
+                                 (502, {'error': 'UPSTREAM'}))
