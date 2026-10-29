@@ -8,7 +8,8 @@ rules; tests assert they agree.
 
 Owner rules (2026-10-15):
   * closed_permanent          -> hidden from search, map and campaigns
-  * closed_temporary, inactive -> may be shown (labelled), never in campaigns
+  * closed_temporary, inactive -> may be shown (labelled); campaigns: see SEND_CLASSES below (owner decision of
+    2026-10-15: open or temporarily closed with a verified WhatsApp may be messaged; inactive may not)
   * empty / invalid / unknown / hidden / draft / archived / any other lifecycle -> not eligible
     to send by default; their *display* stays as it is today until reviewed
   * Atlas campaign calls may explicitly allow unknown_empty only; known closed,
