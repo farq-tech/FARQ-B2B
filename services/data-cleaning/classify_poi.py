@@ -124,35 +124,41 @@ def main(argv=None):
     rows = db.execute(f"select poi_key, {text_expr(db, a.targets)} feat from read_parquet('{a.targets}')").fetchall()
     keys = [r[0] for r in rows]
     Xte = features(False, [r[1] for r in rows], vecs)
-    main_pred, main_conf, main_proba = top(main_clf, Xte)
-    sub_pred, sub_conf, _ = top(sub_clf, Xte)
     main_col = {c: i for i, c in enumerate(main_clf.classes_)}
     # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.
     # the two models are independent, so a kept sub could sit under a different main — an impossible pair. A kept sub
-    # fixes its taxonomy parent as the main (dropped if that parent is unknown), so the two levels never disagree, and
-    # cls_main_confidence is always the main model's own probability of the main it emits, not of some other label.
-    main_out, sub_out, main_conf_out = [], [], []
-    for r, (mp, mc, sp, sc) in enumerate(zip(main_pred, main_conf, sub_pred, sub_conf)):
-        parent = sub_main.get(sp)
-        j = main_col.get(parent)
-        parent_conf = float(main_proba[r, j]) if j is not None else 0.0
-        # a kept sub needs both gates: its own, and its parent main clearing main_min — so neither level is ever emitted
-        # below its threshold. When the parent main is too weak, the sub is dropped and the gated main path is used.
-        if sc >= a.sub_min and parent is not None and parent_conf >= a.main_min:
-            sub_out.append(sp)
-            main_out.append(parent)
-            main_conf_out.append(parent_conf)   # the main model's probability of the emitted parent main
-        else:
-            sub_out.append(None)
-            main_out.append(mp if mc >= a.main_min else None)
-            main_conf_out.append(float(mc))   # the top main's confidence, recorded even when its label is below the gate
+    # fixes its taxonomy parent as the main (dropped if that parent is unknown or below the main gate), so the two
+    # levels never disagree, and cls_main_confidence is always the main model's own probability of the main it emits.
+    # Scored in row batches: a dense proba for the whole snapshot (1.9M × 431 subs ≈ 6.6 GiB) would exhaust the host,
+    # and only each row's top label and its probability are kept.
+    main_out, sub_out, main_conf_out, sub_conf_out = [], [], [], []
+    BATCH = 50000
+    for start in range(0, Xte.shape[0], BATCH):
+        Xc = Xte[start:start + BATCH]
+        main_pred, main_conf, main_proba = top(main_clf, Xc)
+        sub_pred, sub_conf, _ = top(sub_clf, Xc)   # the chunk's sub proba is freed after this line
+        for r, (mp, mc, sp, sc) in enumerate(zip(main_pred, main_conf, sub_pred, sub_conf)):
+            parent = sub_main.get(sp)
+            j = main_col.get(parent)
+            parent_conf = float(main_proba[r, j]) if j is not None else 0.0
+            # a kept sub needs both gates: its own, and its parent main clearing main_min — so neither level is ever
+            # emitted below its threshold. When the parent main is too weak, the sub is dropped and the gated main used.
+            if sc >= a.sub_min and parent is not None and parent_conf >= a.main_min:
+                sub_out.append(sp)
+                main_out.append(parent)
+                main_conf_out.append(parent_conf)
+            else:
+                sub_out.append(None)
+                main_out.append(mp if mc >= a.main_min else None)
+                main_conf_out.append(float(mc))   # the top main's confidence, recorded even when below the gate
+            sub_conf_out.append(float(sc))
 
     out = db.from_arrow(__import__('pyarrow').table({
         'poi_key': keys,
         'cls_main_estimate': main_out,
         'cls_main_confidence': [round(c, 4) for c in main_conf_out],
         'cls_sub_estimate': sub_out,
-        'cls_sub_confidence': [round(float(c), 4) for c in sub_conf],
+        'cls_sub_confidence': [round(c, 4) for c in sub_conf_out],
         'cls_estimate_source': ['model_name_tfidf'] * len(keys),
     }))
     out.to_parquet(a.out)
