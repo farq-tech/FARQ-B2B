@@ -5,7 +5,7 @@ import { ChevronDown, ExternalLink, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
-import { perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { ageLabel, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -86,6 +86,11 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
         </p>
         <p className="text-xl font-bold">{priceLine(listing)}</p>
         {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
+        <p className="text-sm">
+          <Explained title="عمر العقار" lines={EXPLAIN.listingAge(listing.age_source)} className="text-sm">
+            عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span>
+          </Explained>
+        </p>
         {perSqm && (
           <p className="text-sm">
             <Explained title="سعر المتر" lines={EXPLAIN.listingPerSqm(listing.deal)} className="font-semibold">{perSqm}</Explained>

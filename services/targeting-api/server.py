@@ -212,6 +212,8 @@ def insight_response(path, body):
         filters = {'bbox': box, 'district_ids': ids, 'kind': kind, 'deal': deal, 'types': types,
                    'min_price': body.get('min_price') and _number(body, 'min_price', 1, 1e9), 'max_price': body.get('max_price') and _number(body, 'max_price', 1, 1e9),
                    'min_area': body.get('min_area') and _number(body, 'min_area', 1, 1e6), 'max_area': body.get('max_area') and _number(body, 'max_area', 1, 1e6),
+                   # 0 is a real answer here («new only»), so it is read when present, not when truthy
+                   'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
                    'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}

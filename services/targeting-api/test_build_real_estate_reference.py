@@ -32,6 +32,18 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(riyadh[0]['groups'], {'rent_year_residential': {'listings': 5, 'median_sar_per_sqm': 517, 'reliable': False}})
         self.assertNotIn('9665', str(doc), 'no advertiser detail leaves the script')
 
+    def test_a_district_splits_its_figure_by_building_age_where_ads_state_it(self):
+        rows = [dict(listing('rent', 'floor', 100000 + i * 1000, 160), age=0) for i in range(5)]        # five new
+        rows += [dict(listing('rent', 'floor', 60000 + i * 1000, 160), age=11) for i in range(5)]      # five older
+        rows += [listing('rent', 'floor', 80000, 160) for _ in range(3)]                                # three unstated
+        cards = []
+        group = ref.build(rows, {'Riyadh': ATLAS}, 'd', cards=cards)['cities']['Riyadh'][0]['groups']['rent_year_residential']
+        self.assertEqual(group['listings'], 13, 'every ad counts in the district figure, stated age or not')
+        self.assertEqual(group['by_age'], {'new': {'listings': 5, 'median_sar_per_sqm': 638}, 'older': {'listings': 5, 'median_sar_per_sqm': 388}})
+        self.assertEqual(sorted({card.get('age') for card in cards}, key=str), [0, 11, None])
+        thin = ref.build([dict(r, age=0) for r in rows[:3]] + rows[5:10], {'Riyadh': ATLAS}, 'd')['cities']['Riyadh'][0]['groups']['rent_year_residential']
+        self.assertEqual(list(thin['by_age']), ['older'], 'a band under the listing floor is left out, not shown thin')
+
     def test_each_rent_period_keeps_its_own_figure_and_nothing_is_converted(self):
         self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 5000, 100, period='monthly')), ('rent_month', 'commercial', 50))
         self.assertEqual(ref.price_per_sqm(listing('rent', 'store', 60000, 100, period='annually')), ('rent_year', 'commercial', 600))

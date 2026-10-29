@@ -24,6 +24,35 @@ def text_period(text):
     """'monthly' or 'annually' when the ad's text names exactly one of them, else None."""
     monthly, yearly = bool(_MONTHLY.search(text or '')), bool(_YEARLY.search(text or ''))
     return 'monthly' if monthly and not yearly else 'annually' if yearly and not monthly else None
+# the building's age as the ad's text states it: «عمر العقار: 5 سنوات», «عمر العقار سنتين», or a phrase that says it has
+# never been lived in («جديد لم يسكن», «أول ساكن», «شقة جديدة»). Read from the description only: a title names streets
+# («شارع عمر المختار»), and a lone «جديد» is as often the kitchen as the building
+_AGE = re.compile(r'عمر\s*(?:العقار|المبنى|البناء|البيت|الفيلا|الشقة|الشقه|الدور)?\s*[:：\-]?\s*(\d{1,2}|سنه|سنة|سنتين|سنتان)(?!\d)')
+_NEW = re.compile(r'لم\s*(?:ي|ت)سكن|(?:اول|أول)\s*ساكن|حديث(?:ة|ه)?\s*البناء|'
+                  r'(?:شقة|شقه|فيلا|فيلة|دور|عمارة|عماره|بيت|وحدة|وحده)\s+(?:جديد|جديده|جديدة)(?![\w])')
+_AGE_WORDS = {'سنه': 1, 'سنة': 1, 'سنتين': 2, 'سنتان': 2}
+
+
+def text_age(text):
+    """The building's age in years as the description states it, 0 for «new, never lived in», else None."""
+    text = str(text or '').translate(_ARABIC_DIGITS)
+    found = _AGE.search(text)
+    if found:
+        value = found.group(1)
+        return _AGE_WORDS.get(value, None) if not value.isdigit() else int(value)
+    return 0 if _NEW.search(text) else None
+
+
+def listing_age(record, text):
+    """(age in years, where it came from): Aqar's own age field when the record carries it (a listing's detail page
+    does, its map search does not), else the description, else (None, None) and Atlas shows «غير متاح»."""
+    age = record.get('age')
+    if isinstance(age, (int, float)) and not isinstance(age, bool) and 0 <= age <= 99:
+        return int(age), 'aqar'
+    found = text_age(text)
+    return (found, 'text') if found is not None else (None, None)
+
+
 _TITLE = re.compile(r'^(?P<type>.+?)\s+لل(?P<kind>إيجار|ايجار|بيع)\b')
 _DISTRICT = re.compile(r'حي\s+([^,،]+)')
 _NUMBER = re.compile(r'[\d٠-٩][\d٠-٩,٬]*(?:\.\d+)?')
@@ -125,6 +154,7 @@ def parse_map_listing(record, city_en=None):
               or ('annually' if record.get('rent_period') == 3 else None))
     location = record.get('location') or {}
     district = str(record.get('district') or '').strip()
+    age, age_source = listing_age(record, text)
     # a city outside the alias table keeps Aqar's Arabic name rather than borrowing another city's
     city = city_en or _CITY_EN.get(canonical_data.district_key(str(record.get('city') or ''))) or record.get('city')
     return {
@@ -134,6 +164,7 @@ def parse_map_listing(record, city_en=None):
         'districtArabic': district[3:] if district.startswith('حي ') else district or None,
         'aqar_district_id': record.get('district_id'), 'city_en': city, 'title': title,
         **{key: record.get(key) for key in ('beds', 'livings', 'wc', 'street_width')},
+        'age': age, 'age_source': age_source,
         'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
         'aqar_id': str(record.get('id')),
     }
