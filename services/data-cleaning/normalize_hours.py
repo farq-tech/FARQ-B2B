@@ -153,7 +153,8 @@ def from_json(v):
         inner = trx['opening_hours']
         if inner is None:
             return None
-        inner = normalize(inner if isinstance(inner, str) else json.dumps(inner))
+        # read, not normalize: a nested value that is not read (`Sun: 99:99 - 99:99`) keeps the whole reply as it is
+        inner = read(inner if isinstance(inner, str) else json.dumps(inner))
         if inner is not None and not READABLE.match(inner):
             raise Unread
         return inner
@@ -203,23 +204,30 @@ def ranges(v):
     return join(days)
 
 
-def normalize(v):
-    """The value in the readable form, None when it holds no hours, or the value itself when any part is not read."""
+def read(v):
+    """The value in the readable form, or None when it holds no hours; Unread when any part is not read."""
     t = text(v)
     if not t:
-        return None if str(v).strip() in ('[]', '{}') else v
+        if str(v).strip() in ('[]', '{}'):
+            return None
+        raise Unread
     if t.lower() in NO_HOURS:
         return None
+    if t[0] in '{[':
+        return from_json(t)
+    if re.match(r'^(Sun|Mon|Tue|Wed|Thu|Fri|Sat|[1-7]):|^(Su|Mo|Tu|We|Th|Fr|Sa) \d', t):
+        return labelled(t)
+    if re.match(r'^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(-\w{3})? ', t):
+        return ranges(t)
+    raise Unread
+
+
+def normalize(v):
+    """The value in the readable form, None when it holds no hours, or the value itself when any part is not read."""
     try:
-        if t[0] in '{[':
-            return from_json(t)
-        if re.match(r'^(Sun|Mon|Tue|Wed|Thu|Fri|Sat|[1-7]):|^(Su|Mo|Tu|We|Th|Fr|Sa) \d', t):
-            return labelled(t)
-        if re.match(r'^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(-\w{3})? ', t):
-            return ranges(t)
+        return read(v)
     except Unread:
-        pass
-    return v
+        return v
 
 
 def shape(v):
