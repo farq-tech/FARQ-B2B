@@ -19,12 +19,16 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 5194,
-    "pct": 0.61
+    "n": 4974,
+    "pct": 0.58
    },
    "building": {
-    "n": 49987,
-    "pct": 5.86
+    "n": 48552,
+    "pct": 5.69
+   },
+   "conflict": {
+    "n": 1655,
+    "pct": 0.19
    },
    "none": {
     "n": 797638,
@@ -37,12 +41,16 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 1282,
-    "pct": 0.34
+    "n": 1311,
+    "pct": 0.35
    },
    "building": {
-    "n": 58135,
-    "pct": 15.38
+    "n": 57082,
+    "pct": 15.1
+   },
+   "conflict": {
+    "n": 1024,
+    "pct": 0.27
    },
    "none": {
     "n": 318525,
@@ -55,12 +63,16 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 695,
-    "pct": 0.43
+    "n": 679,
+    "pct": 0.42
    },
    "building": {
-    "n": 23507,
-    "pct": 14.56
+    "n": 23039,
+    "pct": 14.27
+   },
+   "conflict": {
+    "n": 484,
+    "pct": 0.3
    },
    "none": {
     "n": 137210,
@@ -73,12 +85,16 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 3012,
-    "pct": 2.16
+    "n": 2946,
+    "pct": 2.11
    },
    "building": {
-    "n": 15697,
-    "pct": 11.26
+    "n": 14660,
+    "pct": 10.51
+   },
+   "conflict": {
+    "n": 1103,
+    "pct": 0.79
    },
    "none": {
     "n": 120716,
@@ -95,6 +111,10 @@
     "pct": 0.0
    },
    "building": {
+    "n": 0,
+    "pct": 0.0
+   },
+   "conflict": {
     "n": 0,
     "pct": 0.0
    },
@@ -116,6 +136,10 @@
     "n": 0,
     "pct": 0.0
    },
+   "conflict": {
+    "n": 0,
+    "pct": 0.0
+   },
    "none": {
     "n": 69585,
     "pct": 100.0
@@ -131,8 +155,12 @@
     "pct": 0.0
    },
    "building": {
-    "n": 112,
+    "n": 111,
     "pct": 0.02
+   },
+   "conflict": {
+    "n": 1,
+    "pct": 0.0
    },
    "none": {
     "n": 490744,
@@ -145,12 +173,16 @@
     "pct": 0.0
    },
    "floor": {
-    "n": 10183,
-    "pct": 0.45
+    "n": 9910,
+    "pct": 0.44
    },
    "building": {
-    "n": 147438,
-    "pct": 6.55
+    "n": 143444,
+    "pct": 6.37
+   },
+   "conflict": {
+    "n": 4267,
+    "pct": 0.19
    },
    "none": {
     "n": 2092502,
@@ -451,25 +483,35 @@
   "all": 50205
  },
  "conflicts_by_kind_and_city": {
-  "short_address": {
-   "Riyadh": 1269,
-   "Jeddah": 0,
-   "Makkah Al Mukarramah": 0,
-   "Al Madinah Al Munawwarah": 0,
+  "urbi_building": {
+   "Riyadh": 644,
+   "Jeddah": 1024,
+   "Makkah Al Mukarramah": 484,
+   "Al Madinah Al Munawwarah": 1103,
    "Dammam": 0,
    "Al Khobar": 0,
-   "other": 0,
-   "all": 1269
+   "other": 1,
+   "all": 3256
   },
   "floor": {
-   "Riyadh": 10,
+   "Riyadh": 41,
+   "Jeddah": 0,
+   "Makkah Al Mukarramah": 0,
+   "Al Madinah Al Munawwarah": 1,
+   "Dammam": 0,
+   "Al Khobar": 0,
+   "other": 0,
+   "all": 42
+  },
+  "short_address": {
+   "Riyadh": 1502,
    "Jeddah": 0,
    "Makkah Al Mukarramah": 0,
    "Al Madinah Al Munawwarah": 0,
    "Dammam": 0,
    "Al Khobar": 0,
    "other": 0,
-   "all": 10
+   "all": 1502
   }
  },
  "candidates_spatial_not_counted": {

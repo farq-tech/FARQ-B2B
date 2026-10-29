@@ -15,6 +15,8 @@ Evidence levels, strongest first; a level counts only from an explicit field, ea
 - floor: a valid floor value together with an explicit building identifier from the same source.
 - building: an explicit building identifier: Urbi building id, HudHud building id, national short address, building
   number with postal code, Makani, or a HudHud physical parent (mall or complex).
+- conflict: two different explicit building identifiers of one kind (across sources or within one); unresolved, so
+  not counted as building evidence. Two different floors keep the building level only.
 - none: no explicit building identifier in any source.
 Spatial matches (a point inside a footprint, a branch within 50 m with the same name) are candidates, reported apart,
 and never raise a level.
@@ -105,8 +107,10 @@ def xlsx_rows(path, sheet_index=0):
             cells = {}
             for c in el.findall('m:c', NS):
                 v = c.find('m:v', NS)
+                # shared strings, plain values, and inline strings (<is><t>…</t></is>, rich text split over runs)
                 cells[column(c.get('r'))] = (shared[int(v.text)] if c.get('t') == 's' and v is not None
-                                             else v.text if v is not None else '')
+                                             else v.text if v is not None
+                                             else ''.join(t.text or '' for t in c.iter('{%s}t' % NS['m'])))
             el.clear()
             values = [cells.get(i, '') for i in range(max(cells) + 1)] if cells else []
             if header is None:
@@ -135,8 +139,8 @@ def main():
     release = {key: (city or '', hh) for key, city, hh in db.execute(
         "select poi_key, city_en, cast(hudhud_id as varchar) from read_parquet(?)", [args.release]).fetchall()}
     by_hudhud = {digits(hh): key for key, (_, hh) in release.items() if hh}
-    # per business, per source: (building ids, floor)
-    evidence = collections.defaultdict(dict)
+    # per business, per source: every (building ids, floor) row; a source can hold several rows for one business
+    evidence = collections.defaultdict(lambda: collections.defaultdict(list))
 
     def add(source, key, row):
         if key not in release:
@@ -144,7 +148,7 @@ def main():
         ids = building_ids(row)
         floor = floor_of(row) if ids else None
         if ids or floor:
-            evidence[key][source] = (ids, floor)
+            evidence[key][source].append((ids, floor))
 
     for key, number, address, postal, floor in db.execute(
             "select poi_key, building_no, national_address, postal_code, floor_no from read_parquet(?)", [args.release]).fetchall():
@@ -176,7 +180,7 @@ def main():
             key = by_hudhud.get(digits(poi))
             if key and BUILDING_NO.match(digits(number)):
                 # the surveyor's building number has no postal code: it names a building only with the release's postal code
-                evidence[key]['field_survey'] = ({'survey_building_no': digits(number)}, floor_of({'floor': floor}))
+                evidence[key]['field_survey'].append(({'survey_building_no': digits(number)}, floor_of({'floor': floor})))
 
     # Urbi brand branches: no key to the release, so a same-name branch within 50 m is a candidate only
     urbi_candidates = collections.Counter()
@@ -206,24 +210,26 @@ def main():
     # a surveyor's building number without a postal code is not unique across the city: kept, but not a building id
     explicit = lambda ids: {k: v for k, v in ids.items() if k != 'survey_building_no'}
 
-    def level(sources):
-        best = 'none'
-        for ids, floor in ((explicit(i), f) for i, f in sources.values()):
-            if floor and ids:
-                return 'floor'
-            if ids:
-                best = 'building'
-        return best
-
     def conflicts(sources):
+        """Kinds that carry two different values for one business, across sources and within one source."""
         seen = collections.defaultdict(set)
         floors = set()
-        for ids, floor in sources.values():
-            for kind, value in ids.items():
-                seen[kind].add(value)
-            if floor:
-                floors.add(floor)
+        for rows in sources.values():
+            for ids, floor in rows:
+                for kind, value in explicit(ids).items():
+                    seen[kind].add(value)
+                if floor:
+                    floors.add(floor)
         return [kind for kind, values in seen.items() if len(values) > 1] + (['floor'] if len(floors) > 1 else [])
+
+    def level(sources, clash):
+        """A building conflict is unresolved evidence, never a level; a floor conflict keeps the building level only."""
+        if any(kind != 'floor' for kind in clash):
+            return 'conflict'
+        rows = [(explicit(ids), floor) for rows in sources.values() for ids, floor in rows]
+        if any(ids and floor for ids, floor in rows) and 'floor' not in clash:
+            return 'floor'
+        return 'building' if any(ids for ids, _ in rows) else 'none'
 
     city_of = lambda key: release[key][0] if release[key][0] in CITIES else 'other'
     totals = collections.Counter(city_of(k) for k in release)
@@ -233,17 +239,19 @@ def main():
     multi = collections.Counter()
     conflict = collections.defaultdict(collections.Counter)
     for key in release:
-        sources = {s: v for s, v in evidence.get(key, {}).items() if v[0]}
+        sources = {s: [row for row in rows if row[0]] for s, rows in evidence.get(key, {}).items()}
+        sources = {s: rows for s, rows in sources.items() if rows}
         city = city_of(key)
-        levels[city][level(sources)] += 1
+        clash = conflicts(sources)
+        levels[city][level(sources, clash)] += 1
+        for kind in clash:
+            conflict[kind][city] += 1
         for source in sources:
             by_source[source][city] += 1
         if len(sources) == 1:
             only_source[next(iter(sources))][city] += 1
         elif len(sources) > 1:
             multi[city] += 1
-            for kind in conflicts(sources):
-                conflict[kind][city] += 1
 
     share = lambda n, d: round(100 * n / d, 2) if d else None
     cities = list(CITIES) + ['other', 'all']
@@ -253,7 +261,7 @@ def main():
         'rows_by_city': {c: total(totals, c) for c in cities},
         'survey_rows_read': survey_rows,
         'level_by_city': {c: {lv: {'n': n, 'pct': share(n, total(totals, c))}
-                              for lv in ('unit', 'floor', 'building', 'none')
+                              for lv in ('unit', 'floor', 'building', 'conflict', 'none')
                               for n in [sum(levels[cc][lv] for cc in levels) if c == 'all' else levels[c][lv]]}
                           for c in cities},
         'source_coverage_by_city': {s: {c: {'n': total(v, c), 'pct': share(total(v, c), total(totals, c))} for c in cities} for s, v in by_source.items()},
