@@ -216,6 +216,21 @@ def insight_response(path, body):
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/price-estimate':
+        city = _city(body)
+        deal = body.get('deal')
+        if deal not in insights.ESTIMATE_DEALS: raise ValueError('deal')
+        kind = body.get('type')
+        if kind not in insights.LISTING_TYPES: raise ValueError('type')
+        district = body.get('district_id')
+        if district is not None and not (isinstance(district, str) and 1 <= len(district) <= 40): raise ValueError('district_id')
+        subject = {'deal': deal, 'type': kind, 'area_sqm': _number(body, 'area_sqm', 10, 100_000), 'district_id': district,
+                   'beds': body.get('beds') and int(_number(body, 'beds', 1, 20))}
+        if body.get('lon') is not None or body.get('lat') is not None:
+            subject['lon'], subject['lat'] = _number(body, 'lon', 34, 56), _number(body, 'lat', 16, 33)
+        table = insights.price_estimate(city, subject)
+        if table is None: return {'ok': True, 'city': city, 'available': False}
+        return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/housing-level':
         city = _city(body)
         with LOCK:
@@ -1070,7 +1085,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/price-estimate', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))

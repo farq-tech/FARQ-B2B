@@ -5,6 +5,7 @@ import glob
 import json
 import math
 import os
+import statistics
 
 import canonical_data
 import district_reference
@@ -309,6 +310,73 @@ def real_estate_listings(city, filters, path=None):
     found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
                                  card.get('vs_district_pct') or 0))
     return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': found[:filters.get('limit') or LISTINGS_MAX]}
+
+
+# a price estimate for a real-estate office: comparable current listings, never a model the listings cannot show
+ESTIMATE_DEALS = ('sale', 'rent_year', 'rent_month')
+ESTIMATE_MIN = 5          # below this many comparables the estimate is «غير متاح»
+ESTIMATE_RELIABLE = 10
+ESTIMATE_AREA_BAND = 0.3  # a comparable's area within ±30% of the unit's
+ESTIMATE_RADIUS_M = 2500  # «nearby» when the district alone has too few
+ESTIMATE_SHOWN = 12
+ESTIMATE_ROUND = {'sale': 10_000, 'rent_year': 1_000, 'rent_month': 100}
+
+
+def _metres(lon1, lat1, lon2, lat2):
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 2 * EARTH_M * math.asin(math.sqrt(a))
+
+
+def price_estimate(city, subject, path=None):
+    """An asking-price range for one unit from the current listings like it, for a real-estate office pricing a
+    client's property. subject: deal (sale | rent_year | rent_month), type, area_sqm, and optionally district_id,
+    beds, lon/lat (a pin; else the district's own listings give its centre).
+
+    A comparable is a listing of the same deal and type, with an area within ±ESTIMATE_AREA_BAND, whose figures need no
+    checking. The narrowest scope with at least ESTIMATE_MIN comparables is used: the district with the same rooms, the
+    district, then within ESTIMATE_RADIUS_M. The range is the lower quartile, the median and the upper quartile of
+    their price per m², times the unit's area, rounded. Features the ads do not state (age, yard, garage, finish) are
+    not in it. `estimate` is None when no scope has enough, with the count found; None when there is no file yet."""
+    try:
+        table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
+    except (OSError, ValueError):
+        return None
+    deal, kind, area = subject['deal'], subject['type'], subject['area_sqm']
+    district, beds = subject.get('district_id'), subject.get('beds')
+    cards = [card for card in table.get('listings', []) if card.get('city') == city]
+    low, high = area * (1 - ESTIMATE_AREA_BAND), area * (1 + ESTIMATE_AREA_BAND)
+    alike = [card for card in cards if not card.get('check') and card.get('deal') == deal and card.get('type') == kind
+             and card.get('price_sar') and card.get('area_sqm') and low <= card['area_sqm'] <= high]
+    centre = (subject['lon'], subject['lat']) if subject.get('lon') is not None and subject.get('lat') is not None else None
+    if centre is None and district:
+        # the middle of the district's listings of any kind: a centre the listings themselves give
+        own = [card for card in cards if card.get('district_id') == district]
+        if own:
+            centre = (statistics.median(c['lon'] for c in own), statistics.median(c['lat'] for c in own))
+    scopes = []
+    if district and beds:
+        scopes.append(('district_rooms', [c for c in alike if c.get('district_id') == district and c.get('beds') == beds]))
+    if district:
+        scopes.append(('district', [c for c in alike if c.get('district_id') == district]))
+    if centre:
+        scopes.append(('nearby', [c for c in alike if _metres(centre[0], centre[1], c['lon'], c['lat']) <= ESTIMATE_RADIUS_M]))
+    result = {'retrieved': table.get('retrieved'), 'deal': deal, 'type': kind, 'area_sqm': area, 'min_comparables': ESTIMATE_MIN,
+              'area_band_pct': round(100 * ESTIMATE_AREA_BAND), 'radius_m': ESTIMATE_RADIUS_M}
+    chosen = next(((scope, found) for scope, found in scopes if len(found) >= ESTIMATE_MIN), None)
+    if chosen is None:
+        return {**result, 'estimate': None, 'scope': None, 'comparables_found': max((len(found) for _, found in scopes), default=0), 'comparables': []}
+    scope, found = chosen
+    per_sqm = sorted(card['price_sar'] / card['area_sqm'] for card in found)
+    q1, median, q3 = statistics.quantiles(per_sqm, n=4, method='inclusive')
+    step = ESTIMATE_ROUND[deal]
+    price = lambda value: int(round(value * area / step) * step)
+    # the closest in area first, then (with a centre) the nearest
+    closeness = lambda card: (abs(card['area_sqm'] - area), _metres(centre[0], centre[1], card['lon'], card['lat']) if centre else 0)
+    return {**result, 'scope': scope, 'comparables_found': len(found), 'reliable': len(found) >= ESTIMATE_RELIABLE,
+            'estimate': {'low_sar': price(q1), 'mid_sar': price(median), 'high_sar': price(q3),
+                         'median_sar_per_sqm': round(median), 'low_sar_per_sqm': round(q1), 'high_sar_per_sqm': round(q3)},
+            'comparables': sorted(found, key=closeness)[:ESTIMATE_SHOWN]}
 
 
 AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')

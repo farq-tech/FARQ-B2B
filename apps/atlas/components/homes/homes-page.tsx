@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
+import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -14,6 +14,7 @@ import { numberFormat, postMarket } from '@/lib/insights-api'
 import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
+import { PriceEstimateSheet } from './price-estimate-sheet'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
@@ -42,6 +43,7 @@ export function HomesPage() {
   const [city, setCity] = useState<string>('Riyadh')
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_FILTERS)
   const [sheet, setSheet] = useState(false)
+  const [pricing, setPricing] = useState(false)
   const { kind, types } = filters
   const deal = dealOf(filters)
   const typesKey = types.join(','), districtsKey = filters.districts.join(',')
@@ -126,6 +128,11 @@ export function HomesPage() {
             <SlidersHorizontal className="size-5" aria-hidden />
             {applied.length > 0 && <span className="absolute -top-1 -end-1 grid size-5 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{numberFormat.format(applied.length)}</span>}
           </button>
+          {/* for a real-estate office: a price range for a client's unit from the listings like it */}
+          <button onClick={() => setPricing(true)} aria-label="تسعير عقار"
+            className="flex h-12 shrink-0 items-center gap-2 rounded-full border bg-card px-3 text-sm font-semibold outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60 sm:px-4">
+            <Calculator className="size-5" aria-hidden /><span className="hidden sm:inline">تسعير عقار</span>
+          </button>
         </div>
         <nav aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
           {kindTypes.map((item) => {
@@ -154,6 +161,8 @@ export function HomesPage() {
       <HomesFilters open={sheet} onClose={() => setSheet(false)} filters={filters} onChange={change} districts={districtList}
         cities={CITIES} city={city} onCity={setCity}
         count={visible.length} loading={result.status === 'loading'} />
+      <PriceEstimateSheet key={city} open={pricing} onClose={() => setPricing(false)} city={city} cityAr={cityAr} districts={districtList}
+        onComparable={(listing) => { setPricing(false); open(listing) }} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* results: two columns of photo cards */}

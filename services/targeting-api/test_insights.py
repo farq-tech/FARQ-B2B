@@ -156,6 +156,51 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(found["total"], 2)
 
 
+    def estimate_file(self, cards):
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"retrieved": "2026-10-28", "listings": cards}), encoding="utf-8")
+        return str(path)
+
+    def test_price_estimate_takes_the_narrowest_scope_with_enough_comparables(self):
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "apartment", "district_id": "1", "lon": 46.70, "lat": 24.70}
+        same_rooms = [dict(card, id=f"r{i}", beds=3, area_sqm=160, price_sar=price) for i, price in enumerate([80000, 88000, 96000, 104000, 112000])]
+        other = [dict(card, id="two", beds=2, area_sqm=150, price_sar=60000),
+                 dict(card, id="far_area", beds=3, area_sqm=400, price_sar=300000),            # outside ±30%
+                 dict(card, id="checked", beds=3, area_sqm=160, price_sar=10000, check=True),  # figures to check
+                 dict(card, id="month", deal="rent_month", beds=3, area_sqm=160, price_sar=8000),
+                 dict(card, id="villa", type="villa", beds=3, area_sqm=160, price_sar=200000)]
+        found = insights.price_estimate("Riyadh", {"deal": "rent_year", "type": "apartment", "area_sqm": 160, "district_id": "1", "beds": 3},
+                                        self.estimate_file(same_rooms + other))
+        self.assertEqual(found["scope"], "district_rooms")
+        self.assertEqual(found["comparables_found"], 5)
+        self.assertFalse(found["reliable"])
+        # per m²: 500, 550, 600, 650, 700 -> quartiles 550 / 600 / 650, times 160 m², to the nearest 1,000
+        self.assertEqual(found["estimate"], {"low_sar": 88000, "mid_sar": 96000, "high_sar": 104000,
+                                             "median_sar_per_sqm": 600, "low_sar_per_sqm": 550, "high_sar_per_sqm": 650})
+        self.assertEqual(sorted(c["id"] for c in found["comparables"]), [f"r{i}" for i in range(5)])
+
+    def test_price_estimate_widens_to_the_district_then_nearby(self):
+        card = {"city": "Riyadh", "deal": "sale", "type": "villa", "area_sqm": 300, "price_sar": 1500000}
+        district = [dict(card, id=f"d{i}", district_id="1", lon=46.70, lat=24.70, beds=5) for i in range(3)]
+        near = [dict(card, id=f"n{i}", district_id="2", lon=46.71, lat=24.70) for i in range(3)]   # about 1 km away
+        far = [dict(card, id=f"f{i}", district_id="3", lon=46.90, lat=24.70) for i in range(10)]   # about 20 km away
+        path = self.estimate_file(district + near + far)
+        found = insights.price_estimate("Riyadh", {"deal": "sale", "type": "villa", "area_sqm": 300, "district_id": "1", "beds": 4}, path)
+        self.assertEqual(found["scope"], "nearby")
+        self.assertEqual(found["comparables_found"], 6)
+        self.assertEqual(found["estimate"]["mid_sar"], 1500000)
+        self.assertEqual([c["id"] for c in found["comparables"][:3]], ["d0", "d1", "d2"], "the nearest first at the same area")
+
+    def test_price_estimate_is_not_available_below_the_minimum(self):
+        card = {"city": "Riyadh", "deal": "rent_year", "type": "floor", "district_id": "1", "lon": 46.7, "lat": 24.7, "area_sqm": 170, "price_sar": 90000}
+        path = self.estimate_file([dict(card, id=f"x{i}") for i in range(4)] + [dict(card, id="jeddah", city="Jeddah")])
+        found = insights.price_estimate("Riyadh", {"deal": "rent_year", "type": "floor", "area_sqm": 170, "district_id": "1"}, path)
+        self.assertIsNone(found["estimate"])
+        self.assertEqual(found["comparables_found"], 4)
+        self.assertEqual(found["comparables"], [])
+        self.assertIsNone(insights.price_estimate("Riyadh", {"deal": "sale", "type": "floor", "area_sqm": 170}, str(self.root / "missing.json")))
+
+
 class RegisteredDealsTest(unittest.TestCase):
     def test_the_city_table_or_none(self):
         import json, tempfile
