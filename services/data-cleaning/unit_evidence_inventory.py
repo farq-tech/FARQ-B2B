@@ -162,8 +162,12 @@ def geography(db, args, release, evidence, level_of, city_of, explicit):
     explicit Urbi building and a footprint around its point, so it carries no confidence interval."""
     C = collections.Counter
     db.execute('LOAD spatial')
+    # a HouseId held by several features is ambiguous (build_business_building_links.py excludes it too): such features
+    # are left out of every footprint, and an explicit id that names one is counted apart
     db.execute("""create table b as select HouseId::varchar h, Number n, PostIndex pi, Purpose purpose,
-                  ST_GeomFromHEXWKB(geometry_wkb_hex) g from read_parquet(?)""", [args.buildings])
+                  ST_GeomFromHEXWKB(geometry_wkb_hex) g from read_parquet(?) qualify count(*) over (partition by HouseId) = 1""", [args.buildings])
+    ambiguous = {h for (h,) in db.execute(
+        "select HouseId::varchar from read_parquet(?) group by 1 having count(*) > 1", [args.buildings]).fetchall()}
     layer = {h: (n, pi, purpose) for h, n, pi, purpose in db.execute("select h, n, pi, purpose from b").fetchall()}
     db.execute("create table p as select poi_key, ST_Point(longitude, latitude) g from read_parquet(?) "
                "where latitude is not null and longitude is not null", [args.release])
@@ -185,9 +189,10 @@ def geography(db, args, release, evidence, level_of, city_of, explicit):
         footprint['one' if len(houses) == 1 else 'several' if houses else 'none'][city] += 1
         for source, rows in sources.items():
             for house in urbi_of(rows):
-                in_layer[source]['in_layer' if house in layer else 'not_in_layer'] += 1
+                in_layer[source]['in_layer' if house in layer else 'ambiguous_in_layer' if house in ambiguous else 'not_in_layer'] += 1
             urbi = urbi_of(rows)
-            if lv != 'conflict' and len(urbi) == 1:
+            # agreement only for an id the layer names unambiguously; the others are counted above
+            if lv != 'conflict' and len(urbi) == 1 and next(iter(urbi)) in layer:
                 house = next(iter(urbi))
                 agreement[source]['same' if house in houses else 'different' if houses else 'no_footprint_at_point'] += 1
         urbi = urbi_of([row for rows in sources.values() for row in rows])
@@ -206,7 +211,8 @@ def geography(db, args, release, evidence, level_of, city_of, explicit):
 
     out = {
         'inputs_sha256': {'buildings': sha256(args.buildings), 'card_links': sha256(args.card_links) if args.card_links else None},
-        'layer_rows': db.execute("select count(*) from b").fetchone()[0], 'layer_unique_house_ids': len(layer),
+        'layer_rows': db.execute("select count(*) from read_parquet(?)", [args.buildings]).fetchone()[0],
+        'layer_unique_house_ids': len(layer), 'layer_ambiguous_house_ids_left_out': len(ambiguous),
         # 2GIS fields that could carry a unit or a floor count; empty means the layer cannot give the unit level
         'layer_fields_filled': dict(zip(('number', 'post_index', 'number_and_post_index', 'apartments', 'entrances', 'elevation'), db.execute(
             """select count(*) filter (where nullif(trim(Number), '') is not null), count(*) filter (where nullif(trim(PostIndex), '') is not null),

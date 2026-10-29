@@ -12,7 +12,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from unit_evidence_inventory import building_ids, floor_of, geography  # noqa: E402
 
-A, B = '70030076000000011', '70030076000000012'
+A, B, D = '70030076000000011', '70030076000000012', '70030076000000013'
 
 
 def square(x, y, side=0.001):
@@ -25,7 +25,9 @@ class GeographyTests(unittest.TestCase):
         db = duckdb.connect()
         db.execute('LOAD spatial')
         db.execute(f"""copy (select * from (values ('{A}', '1111', '12345', 'Shop', null, null, '1', ST_AsHEXWKB(ST_GeomFromText('{square(46.0, 24.0)}'))),
-                                                   ('{B}', '2222', null, 'Villa', null, null, '2', ST_AsHEXWKB(ST_GeomFromText('{square(46.01, 24.0)}'))))
+                                                   ('{B}', '2222', null, 'Villa', null, null, '2', ST_AsHEXWKB(ST_GeomFromText('{square(46.01, 24.0)}'))),
+                                                   ('{D}', null, null, null, null, null, '1', ST_AsHEXWKB(ST_GeomFromText('{square(46.02, 24.0)}'))),
+                                                   ('{D}', null, null, null, null, null, '1', ST_AsHEXWKB(ST_GeomFromText('{square(46.02, 24.0)}'))))
                         t(HouseId, Number, PostIndex, Purpose, Apartments, Entrances, Elevation, geometry_wkb_hex)) to '{temp / 'b.parquet'}' (format parquet)""")
         db.execute("create table r(poi_key varchar, city_en varchar, latitude double, longitude double)")
         db.executemany("insert into r values (?, 'Riyadh', ?, ?)", points)
@@ -38,8 +40,10 @@ class GeographyTests(unittest.TestCase):
         return geography(duckdb.connect(), args, release, evidence, level_of, lambda key: 'Riyadh', explicit)
 
     def test_footprint_agreement_and_gain(self):
-        points = [('same', 24.0005, 46.0005), ('other', 24.0005, 46.0105), ('bare', 24.0005, 46.0005), ('far', 25.0, 47.0)]
+        points = [('same', 24.0005, 46.0005), ('other', 24.0005, 46.0105), ('bare', 24.0005, 46.0005), ('far', 25.0, 47.0),
+                  ('twin', 24.0005, 46.0205)]
         evidence = {'same': {'urbi_card_building': [({'urbi_building': A}, None)]},
+                    'twin': {'urbi_card_building': [({'urbi_building': D}, None)]},
                     'other': {'urbi_card_building': [({'urbi_building': A}, None)]}}
         geo = self.run_geo(points, evidence)
         self.assertEqual(dict(geo['explicit_urbi_vs_footprint_at_point_by_source']['urbi_card_building']), {'same': 1, 'different': 1})
@@ -47,7 +51,9 @@ class GeographyTests(unittest.TestCase):
         self.assertEqual(gain['containment_one_building']['Riyadh'], 1, 'a footprint is a candidate for a business without evidence')
         self.assertEqual(gain['no_footprint']['Riyadh'], 1)
         self.assertEqual(geo['layer_fields_filled']['number_and_post_index'], 1)
-        self.assertEqual(geo['urbi_ids_found_in_layer_by_source']['urbi_card_building'], {'in_layer': 2})
+        self.assertEqual(geo['urbi_ids_found_in_layer_by_source']['urbi_card_building'], {'in_layer': 2, 'ambiguous_in_layer': 1})
+        self.assertEqual(geo['points_by_footprint']['none']['Riyadh'], 2, 'two features with one HouseId are no footprint, not a match')
+        self.assertEqual(geo['layer_ambiguous_house_ids_left_out'], 1)
 
 
 class FieldTests(unittest.TestCase):

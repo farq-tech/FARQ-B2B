@@ -577,7 +577,8 @@
    "card_links": "94f158171164324ef2eb384572c8854958721fdf221db836d187f4c26d603b14"
   },
   "layer_rows": 1800958,
-  "layer_unique_house_ids": 1799884,
+  "layer_unique_house_ids": 1798979,
+  "layer_ambiguous_house_ids_left_out": 905,
   "layer_fields_filled": {
    "number": 885306,
    "post_index": 217909,
@@ -588,24 +589,24 @@
   },
   "points_by_footprint": {
    "none": {
-    "Riyadh": 186681,
-    "Jeddah": 70728,
-    "Makkah Al Mukarramah": 39691,
-    "Al Madinah Al Munawwarah": 24800,
-    "Dammam": 32349,
-    "Al Khobar": 5575,
+    "Riyadh": 188395,
+    "Jeddah": 70971,
+    "Makkah Al Mukarramah": 39760,
+    "Al Madinah Al Munawwarah": 25157,
+    "Dammam": 36897,
+    "Al Khobar": 6795,
     "other": 490856,
-    "all": 850680
+    "all": 858831
    },
    "one": {
-    "Riyadh": 666129,
-    "Jeddah": 307214,
-    "Makkah Al Mukarramah": 121661,
-    "Al Madinah Al Munawwarah": 114575,
-    "Dammam": 125735,
-    "Al Khobar": 64008,
+    "Riyadh": 664415,
+    "Jeddah": 306971,
+    "Makkah Al Mukarramah": 121592,
+    "Al Madinah Al Munawwarah": 114218,
+    "Dammam": 121187,
+    "Al Khobar": 62788,
     "other": 0,
-    "all": 1399322
+    "all": 1391171
    },
    "several": {
     "Riyadh": 9,
@@ -621,32 +622,35 @@
   "urbi_ids_found_in_layer_by_source": {
    "western_cleaning_attrs": {
     "not_in_layer": 1644,
-    "in_layer": 104396
+    "in_layer": 104327,
+    "ambiguous_in_layer": 69
    },
    "urbi_card_building": {
-    "in_layer": 36010,
-    "not_in_layer": 1022
+    "in_layer": 35240,
+    "not_in_layer": 1022,
+    "ambiguous_in_layer": 770
    },
    "cleaned_data_attrs": {
-    "in_layer": 29680,
-    "not_in_layer": 352
+    "in_layer": 29558,
+    "not_in_layer": 352,
+    "ambiguous_in_layer": 122
    }
   },
   "explicit_urbi_vs_footprint_at_point_by_source": {
-   "western_cleaning_attrs": {
-    "no_footprint_at_point": 11200,
-    "same": 83974,
-    "different": 4410
-   },
    "urbi_card_building": {
-    "same": 32400,
-    "different": 3412,
-    "no_footprint_at_point": 923
+    "same": 31630,
+    "different": 3311,
+    "no_footprint_at_point": 12
+   },
+   "western_cleaning_attrs": {
+    "same": 83928,
+    "no_footprint_at_point": 9977,
+    "different": 4264
    },
    "cleaned_data_attrs": {
-    "same": 20772,
-    "no_footprint_at_point": 5227,
-    "different": 1972
+    "same": 20668,
+    "no_footprint_at_point": 4957,
+    "different": 1900
    }
   },
   "layer_number_postal_vs_stated": {
@@ -663,24 +667,24 @@
   },
   "net_gain_for_businesses_without_evidence": {
    "no_footprint": {
-    "Riyadh": 174729,
-    "Jeddah": 65533,
-    "Makkah Al Mukarramah": 35394,
-    "Al Madinah Al Munawwarah": 22048,
-    "Dammam": 32246,
-    "Al Khobar": 5544,
+    "Riyadh": 176232,
+    "Jeddah": 65737,
+    "Makkah Al Mukarramah": 35462,
+    "Al Madinah Al Munawwarah": 22384,
+    "Dammam": 36297,
+    "Al Khobar": 6584,
     "other": 490743,
-    "all": 826237
+    "all": 833439
    },
    "containment_one_building": {
-    "Riyadh": 616997,
-    "Jeddah": 249948,
-    "Makkah Al Mukarramah": 101026,
-    "Al Madinah Al Munawwarah": 94284,
-    "Dammam": 111119,
-    "Al Khobar": 58761,
+    "Riyadh": 615494,
+    "Jeddah": 249744,
+    "Makkah Al Mukarramah": 100958,
+    "Al Madinah Al Munawwarah": 93948,
+    "Dammam": 107068,
+    "Al Khobar": 57721,
     "other": 0,
-    "all": 1232135
+    "all": 1224933
    },
    "new_from_card_crosswalk": {
     "Riyadh": 5904,
@@ -705,10 +709,10 @@
   },
   "urbi_workbook_ids_recovered": {
    "rows_with_float_id": 133577,
-   "float_shared_by_several_layer_ids": 80192,
-   "recovered_exactly_one": 129517,
-   "recovered_with_floor": 72139,
-   "not_recovered": 4060,
+   "float_shared_by_several_layer_ids": 80095,
+   "recovered_exactly_one": 128995,
+   "recovered_with_floor": 71849,
+   "not_recovered": 4582,
    "note": "recovered ids name the branch building; the branch has no key to the release, so a business link stays a candidate"
   },
   "osm_candidates": {
@@ -722,26 +726,6 @@
     "other": 1333,
     "all": 4642
    },
-   "number_postal": {
-    "Riyadh": 24,
-    "Jeddah": 12,
-    "Makkah Al Mukarramah": 3,
-    "Al Madinah Al Munawwarah": 6,
-    "Dammam": 2,
-    "Al Khobar": 5,
-    "other": 8,
-    "all": 60
-   },
-   "number_postal_new": {
-    "Riyadh": 17,
-    "Jeddah": 7,
-    "Makkah Al Mukarramah": 2,
-    "Al Madinah Al Munawwarah": 4,
-    "Dammam": 1,
-    "Al Khobar": 4,
-    "other": 8,
-    "all": 43
-   },
    "floor": {
     "Riyadh": 23,
     "Jeddah": 6,
@@ -752,6 +736,16 @@
     "other": 4,
     "all": 36
    },
+   "number_postal": {
+    "Riyadh": 24,
+    "Jeddah": 12,
+    "Makkah Al Mukarramah": 3,
+    "Al Madinah Al Munawwarah": 6,
+    "Dammam": 2,
+    "Al Khobar": 5,
+    "other": 8,
+    "all": 60
+   },
    "number_postal_other_kind_only": {
     "Riyadh": 7,
     "Jeddah": 5,
@@ -761,6 +755,16 @@
     "Al Khobar": 1,
     "other": 0,
     "all": 17
+   },
+   "number_postal_new": {
+    "Riyadh": 17,
+    "Jeddah": 7,
+    "Makkah Al Mukarramah": 2,
+    "Al Madinah Al Munawwarah": 4,
+    "Dammam": 1,
+    "Al Khobar": 4,
+    "other": 8,
+    "all": 43
    }
   },
   "osm_whole_extract_nodes_with": {

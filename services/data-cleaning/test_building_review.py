@@ -34,17 +34,20 @@ class PageTests(unittest.TestCase):
         db.execute('LOAD spatial')
         square = lambda x: f"ST_AsHEXWKB(ST_GeomFromText('POLYGON(({x} 24, {x + 0.0002} 24, {x + 0.0002} 24.0002, {x} 24.0002, {x} 24))'))"
         db.execute(f"""copy (select * from (values ('A', '1', '12345', 'تجاري', '2', {square(46.0)}), ('B', null, null, null, '1', {square(46.0003)}),
-                                                   ('C', null, null, null, '1', {square(46.5)}))
+                                                   ('C', null, null, null, '1', {square(46.5)}),
+                                                   ('E', null, null, null, '1', {square(46.0)}), ('E', null, null, null, '1', {square(46.0)}))
                         t(HouseId, Number, PostIndex, building_use_ar, Elevation, geometry_wkb_hex)) to '{temp / 'b.parquet'}' (format parquet)""")
         with open(temp / 's.csv', 'w', newline='', encoding='utf-8') as handle:
             writer = csv.writer(handle)
             writer.writerow(['stratum', 'poi_key', 'city_en', 'name_ar', 'name_en', 'latitude', 'longitude', 'proposed_house_id'])
             writer.writerow(['containment_only', 'k1', 'Riyadh', 'محل', '', '24.0001', '46.0001', 'A'])
             writer.writerow(['card_crosswalk_only', 'k2', 'Riyadh', 'محل', '', '24.0001', '46.0001', 'missing'])
-        first, second = links(str(temp / 's.csv'), str(temp / 'b.parquet'))
+            writer.writerow(['card_crosswalk_only', 'k3', 'Riyadh', 'محل', '', '24.0001', '46.0001', 'E'])
+        first, second, third = links(str(temp / 's.csv'), str(temp / 'b.parquet'))
         self.assertEqual((first['number'], first['post'], first['use']), ('1', '12345', 'تجاري'))
         self.assertEqual(len(first['near']), 1, 'B is a neighbour; C is too far')
         self.assertIsNone(second['building'], 'a building missing from the layer is shown as unavailable, not guessed')
+        self.assertIsNone(third['building'], 'a HouseId held by two features is ambiguous: no building is drawn')
 
 
 if __name__ == '__main__':

@@ -25,8 +25,10 @@ def links(sample, buildings):
     rows = list(csv.DictReader(open(sample, encoding='utf-8')))
     db = duckdb.connect()
     db.execute('LOAD spatial')
+    # a HouseId held by several features is ambiguous (as in build_business_building_links.py): left out, so the link
+    # shows no building rather than one of them
     db.execute("""create table b as select HouseId::varchar h, Number n, PostIndex pi, building_use_ar use_ar, Elevation floors,
-                  ST_GeomFromHEXWKB(geometry_wkb_hex) g from read_parquet(?)""", [buildings])
+                  ST_GeomFromHEXWKB(geometry_wkb_hex) g from read_parquet(?) qualify count(*) over (partition by HouseId) = 1""", [buildings])
     db.execute("create table s(i integer, h varchar, lon double, lat double)")
     db.executemany("insert into s values (?, ?, ?, ?)",
                    [(i, r['proposed_house_id'], float(r['longitude']), float(r['latitude'])) for i, r in enumerate(rows)])
@@ -228,6 +230,25 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') show(at + 1);
   else if (e.key === 'ArrowRight') show(at - 1);
 });
+// RFC 4180: quoted fields may hold commas, doubled quotes and line breaks (a note written over several lines)
+function parseCsv(text) {
+  const rows = []; let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') { row.push(field); field = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += ch;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
 const cell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
 document.getElementById('export').onclick = () => {
   const head = ['stratum', 'poi_key', 'proposed_house_id', 'review_same_building', 'review_note', 'reviewed_at'];
@@ -242,7 +263,7 @@ document.getElementById('export').onclick = () => {
 document.getElementById('importBtn').onclick = () => document.getElementById('import').click();
 document.getElementById('import').onchange = async e => {
   const text = (await e.target.files[0].text()).replace(/^﻿/, '');
-  const rows = text.split(/\r?\n/).filter(Boolean).map(r => (r.match(/("([^"]|"")*"|[^,]*)(,|$)/g) || []).map(c => c.replace(/,$/, '').replace(/^"|"$/g, '').replace(/""/g, '"')));
+  const rows = parseCsv(text).filter(r => r.some(Boolean));
   const head = rows.shift();
   const col = n => head.indexOf(n);
   for (const r of rows) if (r[col('review_same_building')]) answers[r[col('poi_key')]] = { answer: r[col('review_same_building')], note: r[col('review_note')], at: r[col('reviewed_at')] };
