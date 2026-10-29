@@ -1,5 +1,5 @@
 {
- "definitions": "one column each, kept apart so every figure says which source it rests on:\n- footprint  the 2GIS footprint (`HouseId`) that contains the point. Spatial: a candidate by the 3.2.1 rule.\n- urbi_id    the 2GIS building id of the matched Urbi card (pattern URBI_BUILDING). The card was matched to the row\n             by name/phone and distance, so the link itself is a candidate until a sample checks it.\n- sa_crs     short national address (pattern SHORT_ADDRESS) from the surveyor change request.\n- sa_urbi    short national address in the Urbi card's `makani` column.\nEvery count of these is a count of candidates. None becomes the `building` level of 3.2.1 or `site_basis = unit`\nhere; that needs the validation sample of 3.2.2 (Wilson applies there, not to these full counts).\n\nFigures:\n- candidates: rows with at least one building-evidence candidate.\n- exclusive_single_source: rows whose ONLY candidate is that source. Together with two_or_more_sources they add up\n  to `candidates`. This is not the marginal gain of a source added after the others.\n- conflict_among_candidates: candidate rows where comparable values disagree (footprint vs urbi_id, sa_crs vs\n  sa_urbi, short address whose businesses spread over SPREAD_M m, surveyor vs Urbi national building number).\n  candidates = candidates_no_conflict + conflict_among_candidates (checked).\n- conflict_without_candidate: rows with a disagreement but no single candidate: an Urbi card with two building ids\n  (so no urbi_id), several distinct short addresses in one source (so no sa_*), a point inside several footprints\n  (so no footprint), several building numbers in one source, or two national building numbers without a building candidate (a building number alone, without\n  a postal code, is no building identifier by the 3.2.1 rule).\n- agreement: on rows where two comparable values are both present, how many agree. A full count of that overlap, not\n  a sample, and agreement, not precision.\n- unit_text: a unit word WITH a number (محل/مكتب/وحدة/معرض … رقم 12, shop/unit/office/suite 12 …) in the name,\n  address, street, description, trade name or legal name fields listed in TEXT_FIELDS. A text form, not a verified\n  unit: names often number an organisation (a Hajj service office) rather than a unit.\n- unit_field: a structured unit or shop number field. None of the inputs has one.",
+ "definitions": "one column each, kept apart so every figure says which source it rests on:\n- footprint  the 2GIS footprint (`HouseId`) that contains the point. Spatial: a candidate by the 3.2.1 rule.\n- urbi_id    the 2GIS building id of the matched Urbi card (pattern URBI_BUILDING). The card was matched to the row\n             by name/phone and distance, so the link itself is a candidate until a sample checks it.\n- sa_crs     short national address (pattern SHORT_ADDRESS) from the surveyor change request.\n- sa_urbi    short national address in the Urbi card's `makani` column.\nEvery count of these is a count of candidates. None becomes the `building` level of 3.2.1 or `site_basis = unit`\nhere; that needs the validation sample of 3.2.2 (Wilson applies there, not to these full counts).\n\nFigures:\n- candidates: rows with at least one building-evidence candidate.\n- exclusive_single_source: rows whose ONLY candidate is that source. Together with two_or_more_sources they add up\n  to `candidates`. This is not the marginal gain of a source added after the others.\n- conflict_among_candidates: candidate rows where comparable values disagree (footprint vs urbi_id, sa_crs vs\n  sa_urbi, short address whose two farthest businesses are over SPREAD_M m apart (every business on that code),\n  surveyor vs Urbi national building number).\n  candidates = candidates_no_conflict + conflict_among_candidates (checked).\n- conflict_without_candidate: rows with a disagreement but no single candidate: an Urbi card with two building ids\n  (so no urbi_id), several distinct short addresses in one source (so no sa_*), a point inside several footprints\n  (so no footprint), several building numbers in one source, or two national building numbers without a building candidate (a building number alone, without\n  a postal code, is no building identifier by the 3.2.1 rule).\n- agreement: on rows where two comparable values are both present, how many agree. A full count of that overlap, not\n  a sample, and agreement, not precision.\n- unit_text: a unit word WITH a number (محل/مكتب/وحدة/معرض … رقم 12, shop/unit/office/suite 12 …) in the name,\n  address, street, description, trade name or legal name fields listed in TEXT_FIELDS. A text form, not a verified\n  unit: names often number an organisation (a Hajj service office) rather than a unit.\n- unit_field: a structured unit or shop number field. None of the inputs has one.",
  "text_fields": {
   "name": [
    "name_ar",
@@ -39,12 +39,12 @@
    "denominator": 2166200
   },
   "candidates_no_conflict": {
-   "value": 1407752,
+   "value": 1403655,
    "unit": "row",
    "denominator": 2166200
   },
   "conflict_among_candidates": {
-   "value": 10762,
+   "value": 14859,
    "unit": "row",
    "denominator": 2166200
   },
@@ -162,7 +162,7 @@
     "denominator": 1418514
    },
    "short_address_spread_over_150m": {
-    "value": 747,
+    "value": 4991,
     "unit": "row",
     "denominator": 1418514
    },
@@ -194,17 +194,17 @@
   },
   "unit_candidates": {
    "candidate_building_plus_valid_floor": {
-    "value": 21506,
+    "value": 19408,
     "unit": "row",
     "denominator": 2166200
    },
    "candidate_building_plus_unit_text": {
-    "value": 617,
+    "value": 612,
     "unit": "row",
     "denominator": 2166200
    },
    "sole_targetable_occupant_of_footprint": {
-    "value": 141638,
+    "value": 141628,
     "unit": "row",
     "denominator": 2166200
    }
@@ -266,12 +266,12 @@
     "denominator": 778251
    },
    "candidates_no_conflict": {
-    "value": 667899,
+    "value": 663802,
     "unit": "row",
     "denominator": 778251
    },
    "conflict_among_candidates": {
-    "value": 3937,
+    "value": 8034,
     "unit": "row",
     "denominator": 778251
    },
@@ -389,7 +389,7 @@
      "denominator": 671836
     },
     "short_address_spread_over_150m": {
-     "value": 747,
+     "value": 4991,
      "unit": "row",
      "denominator": 671836
     },
@@ -421,17 +421,17 @@
    },
    "unit_candidates": {
     "candidate_building_plus_valid_floor": {
-     "value": 16453,
+     "value": 14355,
      "unit": "row",
      "denominator": 778251
     },
     "candidate_building_plus_unit_text": {
-     "value": 152,
+     "value": 147,
      "unit": "row",
      "denominator": 778251
     },
     "sole_targetable_occupant_of_footprint": {
-     "value": 58564,
+     "value": 58554,
      "unit": "row",
      "denominator": 778251
     }

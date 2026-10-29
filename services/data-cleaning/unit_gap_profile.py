@@ -28,7 +28,8 @@ Figures:
 - exclusive_single_source: rows whose ONLY candidate is that source. Together with two_or_more_sources they add up
   to `candidates`. This is not the marginal gain of a source added after the others.
 - conflict_among_candidates: candidate rows where comparable values disagree (footprint vs urbi_id, sa_crs vs
-  sa_urbi, short address whose businesses spread over SPREAD_M m, surveyor vs Urbi national building number).
+  sa_urbi, short address whose two farthest businesses are over SPREAD_M m apart (every business on that code),
+  surveyor vs Urbi national building number).
   candidates = candidates_no_conflict + conflict_among_candidates (checked).
 - conflict_without_candidate: rows with a disagreement but no single candidate: an Urbi card with two building ids
   (so no urbi_id), several distinct short addresses in one source (so no sa_*), a point inside several footprints
@@ -167,14 +168,16 @@ def build(c, a):
                coalesce(f.text_foursquare_address, false) as text_foursquare_address
         from pts p left join pip using (poi_key) left join urbi u using (poi_key)
              left join crs r using (poi_key) left join fsq f using (poi_key)""")
-    # Short addresses whose businesses spread more than SPREAD_M metres: the code points at one building.
+    # A short address names one building, so when the FARTHEST pair of its businesses is more than SPREAD_M metres
+    # apart the code is in doubt for every business on it (not only for the ones far from a centre).
     c.execute(f"""create temp table sa_spread as
         with s as (select poi_key, lat, lon, sa_crs as code from ev where sa_crs is not null
                    union select poi_key, lat, lon, sa_urbi from ev where sa_urbi is not null),
-             centre as (select code, avg(lat) as clat, avg(lon) as clon, count(*) as n from s group by code)
-        select distinct s.poi_key from s join centre using (code)
-        where n > 1   -- st_distance_sphere takes (lat, lon); st_contains above stays x = lon
-          and st_distance_sphere(st_point(s.lat, s.lon), st_point(centre.clat, centre.clon)) > {SPREAD_M}""")
+             far as (select a.code   -- st_distance_sphere takes (lat, lon); st_contains above stays x = lon
+                     from s a join s b on a.code = b.code and a.poi_key < b.poi_key
+                     group by a.code
+                     having max(st_distance_sphere(st_point(a.lat, a.lon), st_point(b.lat, b.lon))) > {SPREAD_M})
+        select distinct s.poi_key from s join far using (code)""")
     c.execute("""create temp table occ as select footprint, count(*) as occupants from ev
                  where footprint is not null group by footprint""")
     any_text = ' or '.join(f'text_{fam}' for fam in TEXT_FIELDS)
