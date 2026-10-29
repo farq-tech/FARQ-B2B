@@ -56,6 +56,19 @@ class MarketSignalTests(unittest.TestCase):
         far = [dict(c, lon=c['lon'] + 1) if c['district_id'] == 'n4' else c for c in cards]
         self.assertNotIn(('t', 'apartment'), market_signals.compute(far, deals))
 
+    def test_listings_without_a_photo_do_not_count(self):
+        cards, deals = _city(400, 4000)
+        bare = [dict(c, photo=None) if c['district_id'] == 't' and int(c['id'].split('-')[1]) >= 10 else c for c in cards]
+        self.assertNotIn(('t', 'apartment'), market_signals.compute(bare, deals))
+
+    def test_the_deal_neighbours_are_the_ones_with_deals(self):
+        cards, deals = _city(400, 4000)
+        cards += _cards('x', 46.701, 500)  # nearest of all, with listings but no registered deals
+        found = market_signals.compute(cards, deals)[('t', 'apartment')]
+        self.assertIn('حي x', found['neighbours'])
+        self.assertNotIn('حي x', found['deal_neighbours'])
+        self.assertEqual(len(found['deal_neighbours']), 5)
+
     def test_a_listing_carries_its_district_signal_only_for_yearly_rent(self):
         cards, deals = _city(400, 4000)
         signals = market_signals.compute(cards, deals)
