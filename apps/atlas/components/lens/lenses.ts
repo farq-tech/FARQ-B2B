@@ -1,4 +1,5 @@
 import type { DistrictRow } from './city-data'
+import { residentsPer } from '@/lib/audience'
 
 /**
  * The five user groups of docs/atlas-product-foundation.md. A lens is one journey: its own steps (the tools, in the
@@ -21,7 +22,7 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
   businesses: { label: 'المنشآت', value: (row) => row.businesses },
   residentsPerBusiness: {
     label: 'ساكن لكل منشأة',
-    value: (row) => (row.population != null && row.businesses ? Math.round(row.population / row.businesses) : null),
+    value: (row) => { const value = residentsPer(row.population, row.businesses); return value == null ? null : Math.round(value) },
   },
   restaurants: { label: 'مطاعم على تطبيقات التوصيل', value: (row) => row.restaurants },
   menuPrice: { label: 'سعر الصنف المعتاد', value: (row) => row.menuPrice, unit: 'ر.س' },

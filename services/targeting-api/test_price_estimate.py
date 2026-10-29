@@ -56,3 +56,15 @@ class PriceEstimateTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class InsightRoutesTests(unittest.TestCase):
+    def test_every_path_insight_response_answers_is_routed_to_it(self):
+        """A path insight_response handles but the request handler does not route answers 404 in production (as
+        /price-estimate did): the two lists must name the same paths."""
+        import re
+        source = (pathlib.Path(__file__).resolve().parent / 'server.py').read_text(encoding='utf-8')
+        body = source.split('def insight_response', 1)[1].split('\ndef ', 1)[0]
+        answered = set(re.findall(r"if path == '(/[a-z-]+)'", body))
+        routed = re.search(r"elif self\.path in \(([^)]*'/real-estate-listings'[^)]*)\)", source).group(1)
+        self.assertEqual(answered - set(re.findall(r"'(/[a-z-]+)'", routed)), set())

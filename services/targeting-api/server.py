@@ -1087,7 +1087,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/price-estimate', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))
