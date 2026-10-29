@@ -156,10 +156,15 @@ python3 -I services/data-cleaning/lifecycle_profile.py crs_and_logs_linked_20250
 - `source_records`:
   - `source_record_id` (المفتاح، مثل `poi_log:567668`)، و`source`، و`source_poi_id` (معرّف المعاملة أو النقطة في المصدر).
   - القيم كما وردت، و`observed_at`، و`ingested_at`.
-- `record_links`: ربط سجل مصدر بمنشأة، وهو اختياري.
-  - `source_record_id`، و`farq_atlas_id`.
-  - `method`: `rule:<name>@<version>` أو `human:<reviewer>`، و`confidence`، و`decided_at`.
-  - **غياب الرابط هو حالة `unresolved` نفسها.**
+- `record_links`: **جدول نسخ**، إضافة فقط. كل صف نسخة واحدة من ربط سجل مصدر بمنشأة، بمدة صلاحيتها:
+  - `link_id`: ثابت لكل نسخة، ولا يُعاد.
+  - `source_record_id`، و`farq_atlas_id`. القيمة الفارغة تعني «فُكّ الربط»، فهي نسخة صريحة لا حذف.
+  - `valid_from`، و`valid_to` (فارغ للنسخة السارية).
+  - `decision_event_id`: حدث `identity_resolved` الذي أنشأ النسخة.
+  - `method`: `rule:<name>@<version>` أو `human:<reviewer>`، و`confidence`.
+- **لا يُعدَّل صف في `record_links` ولا يُحذف.** تغيير الربط يكتب نسخة جديدة، ويغلق السابقة بـ `valid_to` يساوي `valid_from` للجديدة. إغلاق الصلاحية هو التعديل الوحيد المسموح، ويُسجَّل حدثاً.
+- **غياب أي نسخة سارية هو حالة `unresolved` نفسها.**
+- **القراءة في زمن معيّن:** «إلى أي منشأة كان هذا السجل مربوطاً في التاريخ ت؟» هي النسخة التي يقع ت بين `valid_from` و`valid_to`. فإعادة بناء أي حدث قديم بربطه وقت صدوره ممكنة دائماً، وكذلك بربطه اليوم.
 
 ### 3.5 ثلاث حالات منفصلة
 
@@ -184,7 +189,7 @@ python3 -I services/data-cleaning/lifecycle_profile.py crs_and_logs_linked_20250
 |---|---|
 | `event_id` | |
 | `source_record_id` | **أساس الحدث**: كل حدث يأتي من سجل مصدر |
-| `farq_atlas_id` | **لا يُخزَّن في الحدث.** الحدث لا يتغير بعد كتابته. المنشأة تُستنتج عند القراءة من `record_links` بمفتاح `source_record_id`، وكل ربط أو فك ربط يُكتب حدث `identity_resolved` جديداً، فيبقى تاريخ الحسم نفسه محفوظاً |
+| `farq_atlas_id` | **لا يُخزَّن في الحدث.** الحدث لا يتغير بعد كتابته. المنشأة تُستنتج عند القراءة من نسخ `record_links` بمفتاح `source_record_id`: بنسخة زمن الحدث لمعرفة ربطه يومها، أو بالنسخة السارية لمعرفة ربطه اليوم |
 | `type` | الجدول التالي |
 | `effective_at`, `effective_precision` | متى وقع التغيير فعلاً، **فقط إن ذكره المصدر صراحة**: `day` · `month` · `unknown`. وإلا يبقى فارغاً |
 | `observed_at` | تاريخ صف المصدر: `created_at` للسجل، وتاريخ التقاط TRX، وتاريخ الاستبيان |
@@ -200,7 +205,7 @@ python3 -I services/data-cleaning/lifecycle_profile.py crs_and_logs_linked_20250
 | `attribute_changed` | تغيّر اسم أو تصنيف أو هاتف أو ساعات… | `before`, `after` |
 | `site_reassigned` | المنشأة نفسها انتقلت | `from_site_id`, `to_site_id`, `from_lonlat`, `to_lonlat`, `evidence_source`, `confidence` |
 | `lifecycle_observed` | المصدر يذكر حالة: open أو temporary closed أو permanently closed | الحالة كما وردت. `effective_at` فقط إن ذُكر تاريخ الإغلاق صراحة |
-| `identity_resolved` | ربط سجل بمنشأة، أو حكم تكرار، أو فصل | `method`, `confidence` |
+| `identity_resolved` | ربط سجل بمنشأة، أو فك ربطه، أو حكم تكرار، أو فصل | `link_id` (النسخة التي أنشأها في `record_links`)، و`previous_link_id` إن وُجد، و`method`، و`confidence` |
 | `quality_changed` | تغيّر صلاحية البيانات | السبب |
 | `record_withdrawn` | المصدر حذف السجل | السبب كما ورد أو `unstated`. **لا يغيّر أي حالة بنفسه** |
 | `succeeded_by` | منشأة جديدة خلفت أخرى في الوحدة نفسها | `predecessor_id`, `successor_id`، والدليل |
