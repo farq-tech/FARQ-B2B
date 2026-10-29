@@ -23,6 +23,7 @@ import sys
 
 import duckdb
 import numpy as np
+import pyarrow as pa
 from scipy.sparse import hstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import SGDClassifier
@@ -153,13 +154,14 @@ def main(argv=None):
                 main_conf_out.append(float(mc))   # the top main's confidence, recorded even when below the gate
             sub_conf_out.append(float(sc))
 
-    out = db.from_arrow(__import__('pyarrow').table({
-        'poi_key': keys,
-        'cls_main_estimate': main_out,
-        'cls_main_confidence': [round(c, 4) for c in main_conf_out],
-        'cls_sub_estimate': sub_out,
-        'cls_sub_confidence': [round(c, 4) for c in sub_conf_out],
-        'cls_estimate_source': ['model_name_tfidf'] * len(keys),
+    # explicit types so the schema is stable even when every estimate is gated out (all-None stays a string column)
+    out = db.from_arrow(pa.table({
+        'poi_key': pa.array(keys, pa.string()),
+        'cls_main_estimate': pa.array(main_out, pa.string()),
+        'cls_main_confidence': pa.array([round(c, 4) for c in main_conf_out], pa.float64()),
+        'cls_sub_estimate': pa.array(sub_out, pa.string()),
+        'cls_sub_confidence': pa.array([round(c, 4) for c in sub_conf_out], pa.float64()),
+        'cls_estimate_source': pa.array(['model_name_tfidf'] * len(keys), pa.string()),
     }))
     out.to_parquet(a.out)
     kept_main = sum(1 for x in main_out if x is not None)

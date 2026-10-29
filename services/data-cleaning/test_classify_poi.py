@@ -74,6 +74,9 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         kept = duckdb.sql(f"select count(cls_main_estimate), count(cls_sub_estimate) from read_parquet('{out}')").fetchone()
         self.assertEqual(kept, (0, 0), 'above the gate everything is left unclassified, never guessed')
+        # the schema stays string even when every estimate is gated out (not an inferred null column)
+        types = dict(duckdb.sql(f"select column_name, column_type from (describe select * from read_parquet('{out}'))").fetchall())
+        self.assertEqual((types['cls_main_estimate'], types['cls_sub_estimate']), ('VARCHAR', 'VARCHAR'))
         # the confidence is still recorded even when the label is dropped
         self.assertEqual(duckdb.sql(f"select count(cls_main_confidence) from read_parquet('{out}')").fetchone()[0], 3)
 
