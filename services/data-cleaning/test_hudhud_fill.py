@@ -47,6 +47,9 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual([floor(v) for v in ('0', 'GF', '2.0', 'B1', 'open')], ['0', '0', '2', 'B1', None])
         self.assertEqual(website('https://www.farq.sa/'), 'farq.sa')
         self.assertIsNone(website('https://google.com/maps/place/x'))
+        from hudhud_fill import FIELDS
+        rating = FIELDS['rating'][1]
+        self.assertEqual([rating(v) for v in ('4.5', '5', '5.0', '5.7', '0', '6')], ['4.5', '5', '5.0', None, None, None])
 
 
 class FillTests(unittest.TestCase):

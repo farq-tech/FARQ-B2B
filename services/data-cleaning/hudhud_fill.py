@@ -140,7 +140,7 @@ FIELDS = {
     'tradename': ('trx_tradename', lambda v: text(v) if len(text(v)) < 200 and not text(v).startswith('http') else None),
     'name_en': ('trx_name_en', lambda v: text(v) if re.search('[A-Za-z]', text(v)) and len(text(v)) < 200 and not text(v).startswith('http') else None),
     'commercial_license': ('trx_licenseno', lambda v: text(v)[:10] if re.match(r'^\d{10}(\.0)?$', text(v)) else None),
-    'rating': ('trx_rating', lambda v: text(v) if re.match(r'^[0-5](\.\d+)?$', text(v)) and float(text(v)) > 0 else None),
+    'rating': ('trx_rating', lambda v: text(v) if re.match(r'^[0-5](\.\d+)?$', text(v)) and 0 < float(text(v)) <= 5 else None),
     'reviews_count': ('trx_reviews_count', lambda v: str(int(float(text(v)))) if re.match(r'^\d+(\.0)?$', text(v)) and float(text(v)) > 0 else None),
 }
 CONTACT = ('phone_norm', 'email', 'website')
