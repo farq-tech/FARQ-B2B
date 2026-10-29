@@ -36,7 +36,11 @@ class NormalizeTests(unittest.TestCase):
                                                                                "[{'day': 'Monday', 'hours': [{'open': '10:00', 'close': '22:00'}]}]}"}}})
         self.assertEqual(normalize(reply), 'Mon: 10:00 - 22:00')
         self.assertIsNone(normalize(json.dumps({'success': True, 'data': {'trx': {'opening_hours': None}}})))
-        for data in ([1, 2], None, {'trx': [1]}, {'trx': {}}, {'trx': {'opening_hours': 'not hours'}}):
+        self.assertEqual(normalize(json.dumps({'success': True, 'data': {'trx': {'opening_hours': 'Sun: 09:00 - 17:00'}}})),
+                         'Sun: 09:00 - 17:00', 'a readable nested value is kept')
+        for data in ([1, 2], None, {'trx': [1]}, {'trx': {}}, {'trx': {'opening_hours': 'not hours'}},
+                     {'trx': {'opening_hours': 'Sun: 99:99 - 99:99'}},                          # readable shape, impossible time
+                     {'trx': {'opening_hours': 'Sun: 09:00 - 17:00 | Sun: 10:00 - 18:00'}}):  # a day twice
             v = json.dumps({'success': True, 'data': data})
             self.assertEqual(normalize(v), v, 'a reply of another shape stays as it is')
 
