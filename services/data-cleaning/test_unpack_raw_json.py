@@ -58,8 +58,17 @@ class CleanTests(unittest.TestCase):
         by = {r['poi_key']: r for r in rows}
         self.assertEqual((by['hh:7']['name_ar'], by['hh:7']['surveyor']), ('جديد', 'b'), 'latest by time, then by the larger id; rejected is skipped')
         self.assertTrue(by['hh:8']['deleted'])
-        self.assertEqual((profile['places'], profile['records_without_fields'], profile['not_unpacked']), (2, 1, {'new_key': 1}))
+        self.assertEqual((profile['places'], profile['records_without_fields'], profile['not_unpacked']), (3, 1, {'new_key': 1}),
+                         'a record with unreadable raw_json is still a place')
         self.assertEqual(columns, ['name_ar'], 'only keys the source holds become columns')
+
+    def test_unreadable_latest_delete_and_half_coordinate_columns(self):
+        rows, profile, columns = unpack([
+            ('7', '2025-01-01', '10', 'create', 'a', 'approved', 'poi', {'name_ar': 'مقهى', 'latitude': '24.7'}),
+            ('7', '2025-02-01', '11', 'delete', 'b', 'approved', 'poi', None)], {})
+        self.assertEqual((rows[0]['deleted'], rows[0]['name_ar'], profile['records_without_fields']), (True, None, 1),
+                         'an approved delete with unreadable raw_json is still the latest record')
+        self.assertIn('longitude', columns, 'a source with latitude only still gets both coordinate columns')
 
 
 class CliTests(unittest.TestCase):

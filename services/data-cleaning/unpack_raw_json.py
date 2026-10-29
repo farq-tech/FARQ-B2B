@@ -222,8 +222,9 @@ def unpack(records, others):
     for place, at, rid, op, by, status, entity, flat in records:
         n += 1
         if flat is None:
+            # still a record: an approved delete with unreadable fields must stay the place's latest, not be skipped
             bad += 1
-            continue
+            flat = {}
         for k, v in flat.items():
             present[k] += 1
             kinds[k][type(v).__name__] += 1
@@ -252,6 +253,8 @@ def unpack(records, others):
         'places': len(rows), 'places_deleted': sum(r['deleted'] for r in rows),
         'per_field': {k: {'valid': valid[k], 'dropped': dropped[k]} for k in FIELDS if present[k]},
     }
+    # a coordinate is a column only with its pair, so a source holding one of the two keys still writes both
+    present['latitude'] = present['longitude'] = present['latitude'] or present['longitude']
     return rows, profile, [c for k, (c, _) in FIELDS.items() if present[k]] + (['duplicate_of'] if present['duplicate_of_id'] else [])
 
 
