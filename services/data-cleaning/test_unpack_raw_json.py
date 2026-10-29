@@ -80,6 +80,8 @@ class CliTests(unittest.TestCase):
             ('hh:2', false, '+966114463611', 'مكتب', '[{"day": "Sunday", "hours": []}]', 'hh:5')) t(poi_key, deleted, phone, name_ar, opening_hours, duplicate_of)""")
         for col in ('name_en', 'tradename', 'website', 'email', 'instagram', 'hh_status'):
             db.execute(f'alter table c add column {col} varchar')
+        db.execute("alter table c add column rating double")
+        db.execute("update c set rating = 4.0 where poi_key = 'hh:2'")
         db.execute(f"copy c to '{self.temp / 'crs_latest.parquet'}' (format parquet)")
 
     def run_cli(self, source, out):
@@ -94,7 +96,7 @@ class CliTests(unittest.TestCase):
         con.executemany('insert into crs values (?, ?, ?, ?, ?, ?, ?, ?)', [
             ('1', '2025-08-01', '100', 'update', 'a', 'approved', 'poi', cr(phone_number='+966551234567', name_ar='مقهى', opening_hours=HOURS)),
             ('1', '2025-09-01', '101', 'update', 'b', 'draft', 'poi', cr(phone_number='+966500000000')),
-            ('2', '2025-08-01', '102', 'update', 'c', 'approved', 'poi', cr(phone_number='+966114463611', duplicate_of_id=5, email='x@y.sa')),
+            ('2', '2025-08-01', '102', 'update', 'c', 'approved', 'poi', cr(phone_number='+966114463611', duplicate_of_id=5, email='x@y.sa', rating=4)),
             ('3', '2025-08-01', '103', 'create', 'd', 'approved', 'poi', cr(phone_number='1933', additional_feature={'phone_numbers': ['0598371899']}))])
         con.close()
         out = self.temp / 'crs_raw_json.parquet'
@@ -110,6 +112,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(v['phones'], {'crs_places_given_a_first_phone_live': 1, 'places_with_extra_phones': 1, 'extra_phones': 1})
         self.assertEqual((v['fields']['opening_hours']['adds_where_crs_empty'], v['fields']['duplicate_of']['same'],
                           v['fields']['email']['adds_where_crs_empty']), (1, 1, 1))
+        self.assertEqual((v['fields']['rating']['same'], v['fields']['rating']['differs']), (1, 0), 'rating 4 equals crs_latest 4.0')
         self.assertEqual(report['profile']['per_field']['phone_number'], {'valid': 2, 'dropped': 1})
         self.assertIn('data.trx', report['profile']['not_unpacked'])
         self.assertNotEqual(self.run_cli(source, out).returncode, 0, 'never writes over an existing file')

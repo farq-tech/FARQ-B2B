@@ -263,18 +263,22 @@ def compare(db, out, crs, columns):
     (`_live`: the place is not deleted here), values for places it does not have at all, and agreement where both have one.
     List and JSON fields can differ only in format (crs_latest comes from a flattened CSV), so `differs` is a ceiling there."""
     j = f"read_parquet('{out}') o left join read_parquet('{crs}') c using(poi_key)"
+    numeric = {r[0] for r in db.execute(f"describe select * from read_parquet('{crs}')").fetchall()
+               if r[1] in ('DOUBLE', 'FLOAT', 'INTEGER', 'BIGINT', 'DECIMAL')}
     fields = {}
     for ours in columns:
         theirs = VERSUS.get(ours)
         if theirs is None:
             continue
+        # a number is compared as a number: our text «4» equals crs_latest's 4.0
+        a, b = (f'try_cast(o.{ours} as double)', f'c.{theirs}::double') if theirs in numeric else (f'o.{ours}', f'c.{theirs}::varchar')
         q = db.execute(f"""select
             count(*) filter (where o.{ours} is not null and c.poi_key is not null and c.{theirs} is null),
             count(*) filter (where o.{ours} is not null and c.poi_key is not null and c.{theirs} is null and not o.deleted),
             count(*) filter (where o.{ours} is not null and c.poi_key is null),
             count(*) filter (where o.{ours} is not null and c.poi_key is null and not o.deleted),
-            count(*) filter (where o.{ours} = c.{theirs}::varchar),
-            count(*) filter (where o.{ours} <> c.{theirs}::varchar) from {j}""").fetchone()
+            count(*) filter (where {a} = {b}),
+            count(*) filter (where {a} <> {b}) from {j}""").fetchone()
         fields[ours] = dict(zip(('adds_where_crs_empty', 'adds_where_crs_empty_live', 'adds_place_not_in_crs',
                                  'adds_place_not_in_crs_live', 'same', 'differs'), q))
     for theirs in sorted(set(VERSUS.values()) - {VERSUS[c] for c in columns if c in VERSUS}):
