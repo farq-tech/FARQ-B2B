@@ -72,9 +72,13 @@ def account(field, v):
         # a link counts only when its host is the platform itself (or a subdomain), never a path, a login part or
         # a longer name that merely contains it («instagram.com.evil.sa», «evil.sa/instagram.com»)
         url = v if re.match(r'^https?://', v, re.I) else 'https://' + v
-        parsed = urllib.parse.urlsplit(url)
-        host = (parsed.hostname or '').lower()
-        if parsed.username is None and parsed.password is None and any(host == h or host.endswith('.' + h) for h in hosts):
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            host = (parsed.hostname or '').lower()
+            login = parsed.username is not None or parsed.password is not None
+        except ValueError:   # a malformed link («https://[instagram.com/x») is refused alone, never fatal
+            return None
+        if not login and any(host == h or host.endswith('.' + h) for h in hosts):
             return url
         return None
     if re.match(r'^@?[A-Za-z0-9_.-]{2,40}$', v):

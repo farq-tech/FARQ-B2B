@@ -35,6 +35,7 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual(account('instagram', 'cafe.name'), 'https://instagram.com/cafe.name')
         self.assertIsNone(account('instagram', 'www.evil.sa'))
         self.assertIsNone(account('instagram', 'cafe.com.sa'), 'a bare domain is a website, not a handle')
+        self.assertIsNone(account('instagram', 'https://[instagram.com/foo'), 'a malformed link is refused, not fatal')
         self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
                          'Sun: 08:30 - 23:30')
         self.assertIsNone(hours('not json'))
