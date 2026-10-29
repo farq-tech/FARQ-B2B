@@ -92,12 +92,17 @@ export function MapWindow({ label, onClose, tab, children, className }: {
       <div onPointerDown={start} onPointerMove={move} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}
         className="sticky top-0 z-[5] flex h-8 w-full cursor-grab touch-none items-center justify-center bg-card/90 backdrop-blur active:cursor-grabbing">
         {/* the Mac's window buttons, where the Mac puts them */}
-        <div dir="ltr" className="group absolute top-1/2 left-3 flex -translate-y-1/2 gap-2">
-          <button data-window-button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-3.5 place-items-center rounded-full bg-[#ff5f57] text-[#4d0000] outline-none ring-1 ring-black/10 focus-visible:ring-2 focus-visible:ring-ring">
-            <X className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
+        {/* each dot is the Mac's 14px, inside a 32px button so a finger finds it on a phone */}
+        <div dir="ltr" className="group absolute top-1/2 left-1 flex -translate-y-1/2">
+          <button data-window-button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-8 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="grid size-3.5 place-items-center rounded-full bg-[#ff5f57] text-[#4d0000] ring-1 ring-black/10">
+              <X className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
+            </span>
           </button>
-          <button data-window-button onClick={() => setFolded(true)} aria-label={`صغّر إلى تبويب: ${label}`} className="grid size-3.5 place-items-center rounded-full bg-[#febc2e] text-[#5a3d00] outline-none ring-1 ring-black/10 focus-visible:ring-2 focus-visible:ring-ring">
-            <Minus className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
+          <button data-window-button onClick={() => setFolded(true)} aria-label={`صغّر إلى تبويب: ${label}`} className="-ms-2 grid size-8 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="grid size-3.5 place-items-center rounded-full bg-[#febc2e] text-[#5a3d00] ring-1 ring-black/10">
+              <Minus className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
+            </span>
           </button>
         </div>
         <button type="button" onKeyDown={nudge} aria-label="اسحب لتحريك البطاقة فوق الخريطة" title="اسحب لتحريك البطاقة"
@@ -108,7 +113,7 @@ export function MapWindow({ label, onClose, tab, children, className }: {
       {children}
       <button type="button" onPointerDown={startGrow} onPointerMove={moveGrow} onPointerUp={endGrow} onPointerCancel={endGrow}
         aria-label="اسحب لتكبير البطاقة أو تصغيرها" title="كبّر أو صغّر"
-        className="sticky bottom-0 z-[5] -mt-5 mr-auto block size-5 cursor-nesw-resize touch-none text-muted-foreground/70 outline-none">
+        className="sticky bottom-0 z-[5] -mt-8 mr-auto grid size-8 cursor-nesw-resize touch-none place-items-end justify-items-start p-1 text-muted-foreground/70 outline-none focus-visible:text-primary">
         <svg viewBox="0 0 20 20" className="size-5" aria-hidden><path d="M3 9 L11 17 M3 14 L6 17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
       </button>
     </article>
