@@ -121,22 +121,22 @@ def main(argv=None):
     main_clf = model().fit(Xtr, mains)
     sub_clf = model().fit(features(False, [t for t, k in zip(texts, smask) if k], vecs), sub[smask])
 
-    rows = db.execute(f"select poi_key, {text_expr(db, a.targets)} feat from read_parquet('{a.targets}')").fetchall()
-    keys = [r[0] for r in rows]
-    Xte = features(False, [r[1] for r in rows], vecs)
     main_col = {c: i for i, c in enumerate(main_clf.classes_)}
     # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.
     # the two models are independent, so a kept sub could sit under a different main — an impossible pair. A kept sub
     # fixes its taxonomy parent as the main (dropped if that parent is unknown or below the main gate), so the two
     # levels never disagree, and cls_main_confidence is always the main model's own probability of the main it emits.
-    # Scored in row batches: a dense proba for the whole snapshot (1.9M × 431 subs ≈ 6.6 GiB) would exhaust the host,
-    # and only each row's top label and its probability are kept.
-    main_out, sub_out, main_conf_out, sub_conf_out = [], [], [], []
+    # The snapshot is streamed and scored in batches: materializing every target's features and a dense proba
+    # (1.9M × 431 subs ≈ 6.6 GiB) would exhaust a data-cleaning host; each batch builds its own features and keeps
+    # only each row's top label and probability.
+    keys, main_out, sub_out, main_conf_out, sub_conf_out = [], [], [], [], []
     BATCH = 50000
-    for start in range(0, Xte.shape[0], BATCH):
-        Xc = Xte[start:start + BATCH]
+    cur = db.execute(f"select poi_key, {text_expr(db, a.targets)} feat from read_parquet('{a.targets}')")
+    while batch := cur.fetchmany(BATCH):
+        keys.extend(row[0] for row in batch)
+        Xc = features(False, [row[1] for row in batch], vecs)
         main_pred, main_conf, main_proba = top(main_clf, Xc)
-        sub_pred, sub_conf, _ = top(sub_clf, Xc)   # the chunk's sub proba is freed after this line
+        sub_pred, sub_conf, _ = top(sub_clf, Xc)   # the batch's features and sub proba are freed each iteration
         for r, (mp, mc, sp, sc) in enumerate(zip(main_pred, main_conf, sub_pred, sub_conf)):
             parent = sub_main.get(sp)
             j = main_col.get(parent)
