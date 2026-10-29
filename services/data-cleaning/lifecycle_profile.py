@@ -51,6 +51,8 @@ restaurant restaurants cafe coffee pharmacy grocery supermarket market hyper cen
 trading shop store stores branch office showroom workshop laundry salon barber bakery clinic complex warehouse factory
 services service the and for of al el llc ltd limited saudi arabia riyadh jeddah dammam
 '''.split())
+# compared after «ال» is dropped too, so «الرياض» and «رياض» are both generic
+GENERIC_AR = GENERIC_AR | {w[2:] for w in GENERIC_AR if w.startswith('ال') and len(w) > 4}
 AR_DIGITS = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
 AR_LETTERS = str.maketrans({'أ': 'ا', 'إ': 'ا', 'آ': 'ا', 'ٱ': 'ا', 'ى': 'ي', 'ة': 'ه', 'ؤ': 'و', 'ئ': 'ي'})
 
@@ -123,6 +125,8 @@ def arabic_words(text):
     words = set()
     for word in re.split(r'[^\w]+', text):
         word = re.sub(r'[A-Za-z_]', '', word)
+        if word in GENERIC_AR:
+            continue
         if word.startswith('ال') and len(word) > 4:
             word = word[2:]
         if len(word) >= 2 and not word.isdigit() and word not in GENERIC_AR:

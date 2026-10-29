@@ -184,29 +184,29 @@
  },
  "multi_row_transactions_by_name_relation": {
   "shared": {
-   "value": 60786,
+   "value": 60773,
    "unit": "transaction",
    "denominator": 61928
   },
   "not_comparable": {
-   "value": 771,
+   "value": 783,
    "unit": "transaction",
    "denominator": 61928
   },
   "disjoint": {
-   "value": 371,
+   "value": 372,
    "unit": "transaction",
    "denominator": 61928
   }
  },
  "same_source_poi_would_link": {
-  "value": 61441,
+  "value": 61440,
   "unit": "transaction",
   "denominator": 61928,
   "excludes": "transactions with names disjoint or spread over 200 m (blocked to review)"
  },
  "same_source_poi_blocked_to_review": {
-  "value": 487,
+  "value": 488,
   "unit": "transaction",
   "denominator": 61928
  },
