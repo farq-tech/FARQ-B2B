@@ -12,6 +12,7 @@ import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { residentsPer } from '@/lib/audience'
 
 type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
@@ -105,7 +106,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
       const area = areas.get(row.id) ?? 0
       if (area <= 0) return []
       const competitors = byName.get(row.name) ?? 0
-      return [{ row, competitors, areaKm2: area, perKm2: competitors / area, residentsPer: row.population != null && competitors ? row.population / competitors : null }]
+      return [{ row, competitors, areaKm2: area, perKm2: competitors / area, residentsPer: residentsPer(row.population, competitors) }]
     })
   }, [counts, rows, areas])
 
