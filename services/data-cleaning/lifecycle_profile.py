@@ -160,7 +160,8 @@ def any_word_disjoint_v3(a, b):
 
 def review_team(logs):
     """Who edits and who reviews in the log, as counts only: editors, reviewers of someone else's row, and the pace of
-    those reviews (approvals per reviewer and calendar day)."""
+    those reviews (approvals per reviewer and calendar day). The log has no review timestamp, so the day is the edit's
+    created_at day: a proxy for the decision day, said so in the output."""
     count = collections.Counter
     decided = [r for r in logs if r['review_status'] in ('approved', 'rejected')]
     other = [r for r in decided if r['updated_by'] and r['updated_by'] != r['created_by']]
@@ -171,7 +172,8 @@ def review_team(logs):
         'editors': len(editors), 'editors_with_1000_rows': sum(v >= 1000 for v in editors.values()),
         'reviewers_of_others': len(reviewers), 'reviewers_with_1000_reviews': sum(v >= 1000 for v in reviewers.values()),
         'decided_rows': len(decided), 'decided_by_someone_else': len(other),
-        'approvals_per_reviewer_day': {'median': per_day[len(per_day) // 2], 'p75': per_day[3 * len(per_day) // 4], 'reviewer_days': len(per_day)},
+        'approvals_per_reviewer_day': {'median': per_day[len(per_day) // 2], 'p75': per_day[3 * len(per_day) // 4], 'reviewer_days': len(per_day),
+                                       'day_basis': 'created_at of the edit; the log has no review timestamp'},
     }
 
 

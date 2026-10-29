@@ -232,7 +232,8 @@
   "approvals_per_reviewer_day": {
    "median": 20,
    "p75": 53,
-   "reviewer_days": 1869
+   "reviewer_days": 1869,
+   "day_basis": "created_at of the edit; the log has no review timestamp"
   }
  },
  "not_measurable_here": [

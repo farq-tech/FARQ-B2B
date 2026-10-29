@@ -37,6 +37,9 @@ BUILDING_NO = re.compile(r'^\d{4}$')
 POSTAL = re.compile(r'^\d{5}$')
 URBI_BUILDING = re.compile(r'^700300\d{11}$')
 FLOOR = re.compile(r'^(G|GF|UG|LG|M|MZ|B\d{0,2}|P\d{0,2}|R|RF|L?-?\d{1,3}|ground|first|second|third|basement|mezzanine)$', re.I)
+# spellings of one floor, so 0 and GF are not a conflict
+FLOOR_SAME = {'G': '0', 'GF': '0', 'GROUND': '0', 'FIRST': '1', 'SECOND': '2', 'THIRD': '3',
+              'BASEMENT': 'B', 'MZ': 'M', 'MEZZANINE': 'M', 'RF': 'R'}
 CITIES = ('Riyadh', 'Jeddah', 'Makkah Al Mukarramah', 'Al Madinah Al Munawwarah', 'Dammam', 'Al Khobar')
 NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
       'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
@@ -77,8 +80,13 @@ def building_ids(row):
 
 
 def floor_of(row):
-    value = clean(row.get('floor'))
-    return value.upper() if FLOOR.match(value) else None
+    # ground floor is often 0: keep it here, unlike identifiers where 0 means missing
+    value = '' if row.get('floor') is None else str(row.get('floor')).strip()
+    value = value[:-2] if value.endswith('.0') else value
+    if not FLOOR.match(value):
+        return None
+    value = value.upper()
+    return FLOOR_SAME.get(value, value[1:] if value.startswith('L') and value[1:].lstrip('-').isdigit() else value)
 
 
 def xlsx_rows(path, sheet_index=0):
