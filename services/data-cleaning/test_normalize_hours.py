@@ -42,6 +42,8 @@ class NormalizeTests(unittest.TestCase):
 
     def test_hudhud_json_that_is_not_fully_read_stays(self):
         for v in (hudhud(('Sunday', '08:00', '08:00')),             # an equal pair other than 00:00 has no stated meaning
+                  hudhud(('Sunday', '24:00', '02:00')),             # only a close can be 24:00
+                  hudhud(('Sunday', '08:00', '17:00'), ('Monday', '24:00', '03:00')),
                   hudhud(('Sunday', '08:00', '17:00'))[:-20],       # cut off
                   hudhud(('Someday', '08:00', '17:00'))):
             self.assertEqual(normalize(v), v)
@@ -66,7 +68,7 @@ class NormalizeTests(unittest.TestCase):
     def test_unread_values_stay_and_empty_ones_become_empty(self):
         for v in (f'Sun: 9{NNBSP}AM–9Sun:30{NNBSP}PM', f'1: 9{NNBSP}AM–9{NNBSP}AM', '1: Closed|2: Closed', '09:00-17:00', '24h', 'الرياض',
                   'Sun: 08:00 - 17:00; Sun: 09:00 - 17:00', 'Sun: 08:00 - 08:00; Mon: 09:00 - 17:00', 'Sun: 00:00 - 00:00',
-                  'Mon 9:00-9:00, break 13:00-16:00', 'Su 08:00-08:00'):
+                  'Mon 9:00-9:00, break 13:00-16:00', 'Su 08:00-08:00', 'Sun: 24:00 - 02:00'):
             self.assertEqual(normalize(v), v)
         for v in ('Sun: {}; Mon: {}; Tue: {}', 'Sun:  -  | Mon:  - ', '[]', '{"timezone": "Asia/Riyadh", "regular_hours": []}',
                   'Refused to provide information', 'custom_hours', 'Asia/Riyadh', '[{"id": "1", "media_url": "https://x/y.jpeg"}]'):

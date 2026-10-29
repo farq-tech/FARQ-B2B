@@ -49,6 +49,7 @@ class Unread(Exception):
 
 
 def clock(h, m='00', limit=24):
+    """«HH:MM»; an opening passes limit=23, since only a close can be 24:00."""
     h, m = int(h), int(m or 0)
     if h > limit or m > 59 or (h == 24 and m):
         raise Unread
@@ -75,7 +76,7 @@ def spans(body):
     for span in re.split(r', ?', body):
         m = H24.match(span)
         if m:
-            start, end = clock(m[1], m[2]), clock(m[3], m[4])
+            start, end = clock(m[1], m[2], 23), clock(m[3], m[4])
             if start == end:
                 raise Unread  # an equal pair outside HudHud JSON has no stated meaning: none, or all day
             out.append(f'{start} - {end}')
@@ -119,12 +120,16 @@ def hudhud(days):
                 m = re.match(r'^(\d{1,2}):(\d{2})$', str(h.get(k)).strip())
                 if not m:
                     raise Unread
-                h[k] = clock(m[1], m[2])
+                h[k] = clock(m[1], m[2], 23 if k == 'open' else 24)
             if h['open'] == h['close'] != '00:00':
                 raise Unread
     if not any(day.get('hours') for day in days):
         return None
-    return hours(json.dumps(days))
+    out = hours(json.dumps(days))
+    # hours() leaves out a span it does not read; then the value is not fully read and stays as it is
+    if (out or '').count(' - ') != sum(len(day.get('hours') or []) for day in days):
+        raise Unread
+    return out
 
 
 def from_json(v):
@@ -183,7 +188,7 @@ def ranges(v):
         body = m[3]
         brk = re.match(r'^(\d{1,2}:\d{2})-(\d{1,2}:\d{2}), break (\d{1,2}:\d{2})-(\d{1,2}:\d{2})$', body)
         if brk:
-            o, c, bs, be = (clock(*t.split(':')) for t in brk.groups())
+            o, c, bs, be = (clock(*t.split(':'), limit) for t, limit in zip(brk.groups(), (23, 24, 24, 23)))
             # a close at or before the opening is after midnight («9:00-1:00, break 14:00-16:00»)
             if not (o < bs < be and (be < c or c < o)):
                 raise Unread
