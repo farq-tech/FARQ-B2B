@@ -44,7 +44,7 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
  * price per m² stands against the same deal in its district. Two actions only: open the ad itself, or put the
  * listing in the comparison.
  */
-export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = null, density = null }: {
+export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = null, density = null, className }: {
   listing: Listing
   comparing: boolean
   onCompare: () => void
@@ -53,6 +53,8 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
   myPoint?: MyPoint | null
   /** Residents per km² of the listing's district. */
   density?: number | null
+  /** Where the window sits, when the page floats its own buttons over the foot of the map. */
+  className?: string
 }) {
   const [around, setAround] = useState(false)
   const versus = listing.check ? null : versusDistrict(listing)
@@ -76,7 +78,7 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
   )
 
   return (
-    <MapWindow label="العرض المختار" onClose={onClose} tab={tab}>
+    <MapWindow label="العرض المختار" onClose={onClose} tab={tab} className={className}>
       <Gallery photos={photos} />
       <div className="flex flex-col gap-1.5 p-3">
         <p className="text-sm text-muted-foreground">
