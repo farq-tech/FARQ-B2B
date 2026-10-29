@@ -84,6 +84,12 @@ def valid_floor(col):
     return f"(lower({value}) not in {FLOOR_EMPTY} and regexp_full_match({value}, '{sql_pattern(FLOOR)}', 'i'))"
 
 
+def building_digits(col):
+    """Digits of a building number, dropping a float's .0 first as unit_evidence_inventory.digits does (1234.0 -> 1234)."""
+    text = f"regexp_replace(trim(cast({col} as varchar)), '\\.0$', '')"
+    return f"nullif(regexp_replace({text}, '[^0-9]', '', 'g'), '')"
+
+
 def one_value(expr):
     """(the value when the rows of one business carry exactly one, several distinct ones) for a non-empty expr."""
     return (f"case when count(distinct {expr}) = 1 then max({expr}) end", f"count(distinct {expr}) > 1")
@@ -108,8 +114,8 @@ def build(c, a):
     urbi_rx = sql_pattern(URBI_BUILDING)
     crs_sa, crs_sa_multi = one_short_address('national_address')
     urbi_sa, urbi_sa_multi = one_short_address('makani')
-    crs_bno, crs_bno_multi = one_value("nullif(regexp_replace(cast(building_no as varchar), '[^0-9]', '', 'g'), '')")
-    urbi_bno, urbi_bno_multi = one_value("nullif(regexp_replace(building_number, '[^0-9]', '', 'g'), '')")
+    crs_bno, crs_bno_multi = one_value(building_digits('building_no'))
+    urbi_bno, urbi_bno_multi = one_value(building_digits('building_number'))
     g_text = ', '.join(sorted({col for alias, cols in TEXT_FIELDS.values() if alias == 'g' for col in cols}))
     c.execute(f"""create temp table pts as
         select poi_key, coalesce(city_en, 'unknown') as city, latitude as lat, longitude as lon, {g_text}
