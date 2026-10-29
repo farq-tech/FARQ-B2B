@@ -31,6 +31,10 @@ class CleanerTests(unittest.TestCase):
         for bad in ('https://evil.sa/instagram.com/cafe', 'https://instagram.com@evil.sa/cafe', 'https://instagram.com.evil.sa/cafe'):
             self.assertIsNone(account('instagram', bad), bad)
         self.assertEqual(account('instagram', 'https://www.instagram.com/cafe/'), 'https://www.instagram.com/cafe/')
+        self.assertEqual(account('instagram', '@cafe.name'), 'https://instagram.com/cafe.name', 'a dotted handle is a handle')
+        self.assertEqual(account('instagram', 'cafe.name'), 'https://instagram.com/cafe.name')
+        self.assertIsNone(account('instagram', 'www.evil.sa'))
+        self.assertIsNone(account('instagram', 'cafe.com.sa'), 'a bare domain is a website, not a handle')
         self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
                          'Sun: 08:30 - 23:30')
         self.assertIsNone(hours('not json'))

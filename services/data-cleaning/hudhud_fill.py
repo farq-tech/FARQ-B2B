@@ -64,7 +64,10 @@ def account(field, v):
     """An account as a full URL; a bare handle is expanded, another site's link is refused."""
     v = text(v)
     hosts, template = ACCOUNT[field]
-    if '/' in v or '.' in v.split('?')[0].lstrip('@'):
+    # a link starts with a scheme or www., has a path, names a platform, or is a bare domain («cafe.com.sa»);
+    # a dotted handle («@cafe.name», «cafe.name») is a handle
+    if re.match(r'^(https?://|www\.)', v, re.I) or '/' in v or any(h in v.lower() for h in hosts) \
+            or (not v.startswith('@') and re.search(r'\.(com|net|org|sa|co|io|me|info|biz)$', v, re.I)):
         # a link counts only when its host is the platform itself (or a subdomain), never a path, a login part or
         # a longer name that merely contains it («instagram.com.evil.sa», «evil.sa/instagram.com»)
         url = v if re.match(r'^https?://', v, re.I) else 'https://' + v
