@@ -12,6 +12,8 @@ export type MarketSignal = {
   /** Its registered deals' median price per m² against its nearest districts'. */
   deal_pct: number
   neighbours: string[]
+  /** The nearest districts with registered deals, which the deal figure is measured against. */
+  deal_neighbours: string[]
 }
 
 /** One current listing as the targeting service serves it (build_real_estate_reference.py --listings-out). */
@@ -135,7 +137,9 @@ const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل
 export function signalLines(signal: MarketSignal, type: string): string[] {
   return [
     `إيجار ${typeLabel(type)} المعروض في الحي ${versusWords(signal.rent_pct)} أقرب ${numberFormat.format(signal.neighbours.length)} أحياء: ${signal.neighbours.join('، ')}.`,
-    `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} نفس الجيران.`,
+    signal.deal_neighbours.join() === signal.neighbours.join()
+      ? `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} نفس الجيران.`
+      : `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(signal.deal_neighbours.length)} أحياء لها صفقات: ${signal.deal_neighbours.join('، ')}.`,
     {
       cheaper_area: 'الإيجار والبيع كلاهما أقل: الحي نفسه أرخص، لا الإعلانات وحدها.',
       rent_under_value: 'الإيجار أقل مما يباع به الحي: مكسب للمستأجر، وعائد أقل لمن يشتري ليؤجر. قد يعني أيضاً مباني أقدم.',
