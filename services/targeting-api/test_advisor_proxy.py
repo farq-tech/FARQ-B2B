@@ -45,3 +45,19 @@ class AdvisorProxyTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class AdvisorErrorLogTest(unittest.TestCase):
+    def test_an_api_error_is_logged_with_its_type_and_message_not_the_key(self):
+        def denied(request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 401, 'Unauthorized', {'request-id': 'req_1'},
+                                         io.BytesIO(json.dumps({'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}}).encode()))
+
+        with self.assertLogs('farq.targeting.advisor', 'WARNING') as logs:
+            status, body = advisor_proxy.reply('s', [{'role': 'user', 'content': 'a'}], {'ANTHROPIC_API_KEY': 'secret-key'}, denied)
+        self.assertEqual((status, body), (502, {'error': 'UPSTREAM'}))
+        line = logs.output[0]
+        self.assertIn('http=401', line)
+        self.assertIn('authentication_error', line)
+        self.assertIn('req_1', line)
+        self.assertNotIn('secret-key', line)
