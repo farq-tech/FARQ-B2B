@@ -219,6 +219,11 @@ def main():
         db.execute("alter table t add column hudhud_filled varchar[]")
     db.execute("""update t set hudhud_filled = list_sort(list_distinct(coalesce(t.hudhud_filled, []::varchar[]) || filled.cols))
                   from filled where filled.hid = cast(t.hudhud_id as varchar)""")
+    # search_text is lower(concat_ws(' ', name_ar, name_en, …)) (export_golden_targets.py) and the search matches any part
+    # of it, so a filled English name is added to it; without this a search for the new name would miss the place
+    if 'search_text' in have:
+        db.execute("""update t set search_text = lower(concat_ws(' ', t.search_text, t.name_en))
+                      from f where f.col = 'name_en' and f.hid = cast(t.hudhud_id as varchar)""")
     # a first contact adds one of the six completeness points (build_golden.py: phone, e-mail or website)
     db.execute(f"""update t set completeness_pct = round(100.0 * least(6, round(coalesce(t.completeness_pct, 0) * 6 / 100) + 1) / 6, 1)
                    from read_parquet('{args.targets}') o where o.poi_key = t.poi_key and t.hudhud_filled is not null

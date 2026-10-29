@@ -72,8 +72,8 @@ class FillTests(unittest.TestCase):
         columns = ['national_address', 'postal_code', 'building_no', 'floor_no', 'email', 'website', 'instagram', 'x_link', 'tiktok',
                    'snapchat', 'menu_link', 'google_place_id', 'working_hours', 'description_ar', 'description_en', 'tradename', 'name_en',
                    'commercial_license', 'rating', 'reviews_count', 'phone_raw', 'phone_norm', 'phone_kind', 'phone_source']
-        db.execute(f"create table t(poi_key varchar, hudhud_id bigint, city_en varchar, completeness_pct double, {', '.join(c + ' varchar' for c in columns)})")
-        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, email) values ('hh:1', 1, 'Riyadh', 66.7, 'null'), ('hh:2', 2, 'Riyadh', 83.3, 'kept@x.sa')")
+        db.execute(f"create table t(poi_key varchar, hudhud_id bigint, city_en varchar, completeness_pct double, search_text varchar, {', '.join(c + ' varchar' for c in columns)})")
+        db.execute("insert into t(poi_key, hudhud_id, city_en, completeness_pct, search_text, email) values ('hh:1', 1, 'Riyadh', 66.7, 'مقهى', 'null'), ('hh:2', 2, 'Riyadh', 83.3, 'مكتب', 'kept@x.sa')")
         db.execute(f"copy t to '{temp / 't.parquet'}' (format parquet)")
         crs = duckdb.connect(str(temp / 'crs.duckdb'))
         trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_phone_number', 'trx_additional_feature', 'trx_national_address', 'trx_postal_code',
@@ -81,8 +81,8 @@ class FillTests(unittest.TestCase):
                'trx_menu_link', 'trx_google_id', 'trx_opening_hours_regular_hours', 'trx_description_ar', 'trx_description_en', 'trx_tradename',
                'trx_name_en', 'trx_licenseno', 'trx_rating', 'trx_reviews_count']
         crs.execute(f"create table crs(cr_entity_id varchar, {', '.join(c + ' varchar' for c in trx)})")
-        crs.execute("insert into crs(cr_entity_id, trx_state, trx_is_deleted, trx_status, trx_email, trx_floorno) values "
-                    "('1.0', 'ready to publish', 'false', 'open', 'new@x.sa', '0'), ('2.0', 'ready to publish', 'false', 'open', 'other@x.sa', '1')")
+        crs.execute("insert into crs(cr_entity_id, trx_state, trx_is_deleted, trx_status, trx_email, trx_floorno, trx_name_en) values "
+                    "('1.0', 'ready to publish', 'false', 'open', 'new@x.sa', '0', 'Blue Cafe'), ('2.0', 'ready to publish', 'false', 'open', 'other@x.sa', '1', null)")
         crs.close()
         run = lambda out: subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't.parquet'),
                                           '--crs', str(temp / 'crs.duckdb'), '--out', str(out)], capture_output=True, text=True)
@@ -90,7 +90,9 @@ class FillTests(unittest.TestCase):
         result = run(temp / 't_hudhud.parquet')
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = db.execute(f"select poi_key, email, floor_no, completeness_pct, hudhud_filled from read_parquet('{temp / 't_hudhud.parquet'}') order by 1").fetchall()
-        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no']), 'a «null» text is empty to the update as to fills(); a first contact adds one completeness point')
+        self.assertEqual(db.execute(f"select search_text from read_parquet('{temp / 't_hudhud.parquet'}') order by poi_key").fetchall(),
+                         [('مقهى blue cafe',), ('مكتب',)], 'a filled English name joins the search text')
+        self.assertEqual(rows[0], ('hh:1', 'new@x.sa', '0', 83.3, ['email', 'floor_no', 'name_en']), 'a «null» text is empty to the update as to fills(); a first contact adds one completeness point')
         self.assertEqual(rows[1], ('hh:2', 'kept@x.sa', '1', 83.3, ['floor_no']), 'an existing e-mail is never replaced')
         report = json.loads((temp / 't_hudhud.report.json').read_text())
         self.assertEqual((report['existing_values_changed'], report['rows_given_a_first_contact']), (0, 1))
