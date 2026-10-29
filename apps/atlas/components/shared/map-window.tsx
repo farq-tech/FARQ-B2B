@@ -37,17 +37,17 @@ export function MapWindow({ label, onClose, tab, children, className }: {
   }
   // a card that grows after it was moved (a taller listing, «حول العقار» opened) is pulled back inside the map, so its
   // bar and its buttons never end up past the map's edge
+  const fit = () => {
+    if (drag.current || grow.current) return
+    setOffset((current) => {
+      const { min, max } = bounds(current.x, current.y)
+      const x = clamp(current.x, min[0], Math.max(min[0], max[0])), y = clamp(current.y, min[1], Math.max(min[1], max[1]))
+      return x === current.x && y === current.y ? current : { x, y }
+    })
+  }
   useEffect(() => {
     const node = card.current
     if (!node || folded) return
-    const fit = () => {
-      if (drag.current || grow.current) return
-      setOffset((current) => {
-        const { min, max } = bounds(current.x, current.y)
-        const x = clamp(current.x, min[0], Math.max(min[0], max[0])), y = clamp(current.y, min[1], Math.max(min[1], max[1]))
-        return x === current.x && y === current.y ? current : { x, y }
-      })
-    }
     const watch = new ResizeObserver(fit)
     watch.observe(node)
     return () => watch.disconnect()
@@ -88,7 +88,9 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     const g = grow.current
     grow.current = null
     if (!g || !size) return
-    if (size.w < FOLD_W || size.h < FOLD_H) { setSize({ w: g.w, h: g.h }); setOffset({ x: g.ox, y: g.oy }); setFolded(true) }
+    if (size.w < FOLD_W || size.h < FOLD_H) { setSize({ w: g.w, h: g.h }); setOffset({ x: g.ox, y: g.oy }); setFolded(true); return }
+    // resize notices were ignored while the corner was held: fit once it is let go, after the new size is drawn
+    requestAnimationFrame(fit)
   }
 
   if (folded) {
