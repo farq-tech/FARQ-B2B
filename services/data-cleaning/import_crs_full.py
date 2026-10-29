@@ -36,7 +36,7 @@ def from_raw_json(path):
     rows, _, _ = unpack(read_crs(path, collections.Counter()), {})
     out = []
     for x in rows:
-        rec = {'eid': x['poi_key'][3:], 'last_operation': x['last_operation'], 'verified_at': x['verified_at'], 'surveyor': x['surveyor'], 'shift': 0}
+        rec = {'eid': x['poi_key'][3:], 'last_operation': x['last_operation'], 'deleted': x['deleted'], 'verified_at': x['verified_at'], 'surveyor': x['surveyor'], 'shift': 0}
         for c in CHECK:
             # hours in the directory's own format («Sun: 08:30 - 23:30 | …», 00:00-00:00 = open all day), as hudhud_fill.py writes
             # them, so a surveyor's hours never replace readable hours with raw JSON in the golden set
@@ -65,7 +65,7 @@ def from_csv(path):
         latest[eid] = (at, row, d)
     out = []
     for eid, (at, row, d) in latest.items():
-        rec = {'eid': eid, 'last_operation': row[ix['cr_operation']], 'verified_at': at, 'surveyor': row[ix['cr_created_by']], 'shift': d}
+        rec = {'eid': eid, 'last_operation': row[ix['cr_operation']], 'deleted': row[ix['cr_operation']] == 'delete', 'verified_at': at, 'surveyor': row[ix['cr_created_by']], 'shift': d}
         for c, chk in CHECK.items():
             v = get(row, c, d)
             rec[c] = v if v and v.lower() not in ('null', 'none', 'nan') and chk(v) else None
@@ -73,7 +73,7 @@ def from_csv(path):
     return out
 out = from_raw_json(F) if F.endswith('.duckdb') else from_csv(F)
 db = duckdb.connect(); db.execute("SET threads=8")
-cols = ['eid', 'last_operation', 'verified_at', 'surveyor', 'shift'] + list(CHECK) + list(EXTRA.values())
+cols = ['eid', 'last_operation', 'deleted', 'verified_at', 'surveyor', 'shift'] + list(CHECK) + list(EXTRA.values())
 db.execute("create table l (" + ", ".join(f'"{c}" varchar' for c in cols) + ")")
 db.executemany(f"insert into l values ({', '.join('?' * len(cols))})", [[str(x[c]) if x.get(c) is not None else None for c in cols] for x in out])
 db.execute("create table hmap (hid varchar, sub_id varchar, confidence varchar, hsub varchar)")
@@ -82,7 +82,7 @@ db.executemany("insert into hmap values (?,?,?,?)", [(x['hudhud_sub_id'].split('
 db.execute("""create table subpick as select eid, arg_min(h.sub_id, case h.confidence when 'high' then 0 when 'medium' then 1 else 2 end) sub_id,
    arg_min(h.hsub, case h.confidence when 'high' then 0 when 'medium' then 1 else 2 end) hsub, min(h.confidence) conf
    from (select eid, unnest(regexp_extract_all(sub_categories_ids, '[0-9]+')) hid from l) x join hmap h using(hid) group by eid""")
-db.execute(f"""copy (select 'hh:' || l.eid poi_key, l.last_operation, l.last_operation='delete' deleted, l.status hh_status, l.verified_at, l.surveyor, l.shift::int shift,
+db.execute(f"""copy (select 'hh:' || l.eid poi_key, l.last_operation, l.deleted='True' deleted, l.status hh_status, l.verified_at, l.surveyor, l.shift::int shift,
    s.sub_id, s.hsub hudhud_sub, s.conf sub_confidence, l.name_ar, l.name_en, l.phone_number phone, l.website, l.email, l.instagram,
    l.licenseno license_no, l.national_address, l.building_no, l.postal_code, l.streetname_ar street_ar, l.streetname_en street_en,
    l.district_ar, l.district_en, l.city_ar, l.city_en, l.opening_hours_regular_hours opening_hours,
