@@ -13,14 +13,18 @@ const set = (items) => new Promise((done) => chrome.storage.local.set(items, don
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 let writes = Promise.resolve()
 
+// a listing already kept gains the fields a later answer carries that it lacks (a run with EXTRA_FIELDS after one
+// without); its first collected_at stays
 function keep(listings) {
   writes = writes.then(async () => {
     const now = new Date().toISOString()
     const { mapStats } = await get({ mapStats: { answers: 0, listings: 0 } })
     const known = await get(listings.map((listing) => `m:${listing.id}`))
     const fresh = listings.filter((listing) => !known[`m:${listing.id}`])
+    const richer = listings.filter((listing) => known[`m:${listing.id}`] && Object.keys(listing).some((key) => !(key in known[`m:${listing.id}`])))
     await set({
       ...Object.fromEntries(fresh.map((listing) => [`m:${listing.id}`, { ...listing, collected_at: now }])),
+      ...Object.fromEntries(richer.map((listing) => [`m:${listing.id}`, { ...listing, ...known[`m:${listing.id}`], updated_at: now }])),
       mapStats: { answers: mapStats.answers + 1, listings: mapStats.listings + fresh.length },
     })
     return fresh.length
@@ -70,8 +74,23 @@ function pageFetch(url, headers, body) {
   })
 }
 
+// listing fields the map's own query leaves out and the server gives when asked (found 2026-10-29 by asking): the
+// building's age, its rooms, the plot's width and length, the features, the licence and deed, and the dates
+const EXTRA_FIELDS = ['age', 'rooms', 'width', 'length', 'stairs', 'furnished', 'maid', 'driver', 'lift', 'ketchen', 'ac',
+  'duplex', 'pool', 'basement', 'backyard', 'car_entrance', 'extra_unit', 'tent', 'playground', 'two_entrances',
+  'apartment_in_villa', 'private_roof', 'stores', 'family', 'men_place', 'create_time', 'refresh', 'last_update',
+  'rega_licensed', 'ad_license_number', 'deed_area', 'rega_rooms', 'rega_category', 'usages', 'verified', 'user_type',
+  'location_street', 'location_district', 'location_building_number']
+
+/** The template's query with EXTRA_FIELDS added to its listing fields (once; the fragment serves both finds). */
+function widen(query) {
+  const wanted = EXTRA_FIELDS.filter((field) => !new RegExp(`[{ ]${field}[ }]`).test(query))
+  return wanted.length ? query.replace('listings{', `listings{${wanted.join(' ')} `) : query
+}
+
 async function ask(template, bbox, from) {
   const body = JSON.parse(template.request)
+  if (typeof body.query === 'string') body.query = widen(body.query)
   body.variables = { ...body.variables, size: SIZE, from, polygon: polygonOf(bbox) }
   const answer = await pageFetch(template.url, { ...template.headers, 'content-type': 'application/json' }, JSON.stringify(body))
   if (answer.status === 0) throw Object.assign(new Error(answer.error || 'Failed to fetch'), { network: true })

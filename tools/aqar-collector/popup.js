@@ -28,6 +28,8 @@ async function refresh() {
   $('status').textContent = run ? `${STATUS[run.status] || ''}${run.current ? ` — ${run.current.segs.slice(1).join(' / ')} صفحة ${run.current.page}` : ''}` : ''
   $('pause').hidden = !run?.active
   $('resume').hidden = !run || run.active || run.status === 'done'
+  // the same state in the title, for a popup.html opened as a tab and read from outside (an automation script)
+  document.title = [exportStatus, $('listings').textContent, $('map').textContent, $('fastStatus').textContent].filter(Boolean).join(' · ')
 }
 
 $('start').addEventListener('click', async () => {
@@ -93,17 +95,57 @@ $('resume').addEventListener('click', async () => {
   chrome.tabs.update(tab.id, { url: urlOf(run.current.segs, run.current.page) })
   refresh()
 })
-$('export').addEventListener('click', async () => {
-  const all = await get(null)
-  const pick = (prefix) => Object.entries(all).filter(([key]) => key.startsWith(prefix)).map(([, value]) => value)
-  const listings = pick('l:')
-  const mapListings = pick('m:')
-  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), listings, mapListings, findTemplate: all.findTemplate ?? null, contactSamples: all.contactSamples ?? [] })], { type: 'application/json' })
+// records are read in batches and written as one JSON text each: the whole store at once (150,000+ listings) is
+// more memory than a popup gets, and a single JSON string that long is more than JavaScript allows
+let exportStatus = ''
+async function exportAll() {
+  const BATCH = 2000
+  const keys = chrome.storage.local.getKeys ? await chrome.storage.local.getKeys() : Object.keys(await get(null))
+  const { findTemplate = null, contactSamples = [] } = await get({ findTemplate: null, contactSamples: [] })
+  const parts = ['{"exported":', JSON.stringify(new Date().toISOString())]
+  let total = 0
+  for (const [name, prefix] of [['listings', 'l:'], ['mapListings', 'm:']]) {
+    const mine = keys.filter((key) => key.startsWith(prefix))
+    parts.push(`,${JSON.stringify(name)}:[`)
+    let first = true
+    for (let i = 0; i < mine.length; i += BATCH) {
+      const chunk = await get(mine.slice(i, i + BATCH))
+      for (const key of mine.slice(i, i + BATCH)) {
+        if (!(key in chunk)) continue
+        parts.push(first ? '' : ',', JSON.stringify(chunk[key]))
+        first = false
+        total += 1
+      }
+      exportStatus = `يصدّر ${fmt.format(Math.min(i + BATCH, mine.length))} / ${fmt.format(mine.length)} ${name}`
+    }
+    parts.push(']')
+  }
+  parts.push(',"findTemplate":', JSON.stringify(findTemplate), ',"contactSamples":', JSON.stringify(contactSamples), '}')
+  const blob = new Blob(parts, { type: 'application/json' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `aqar-listings-${listings.length + mapListings.length}-${Date.now()}.json`
+  link.download = `aqar-listings-${total}-${Date.now()}.json`
   link.click()
-})
+  exportStatus = `صُدّر ${fmt.format(total)}`
+}
+$('export').addEventListener('click', () => exportAll().catch((error) => { exportStatus = `فشل التصدير: ${error?.message || error}` }))
 $('clear').addEventListener('click', async () => { if (confirm('مسح كل الإعلانات المجمّعة؟')) { await new Promise((done) => chrome.storage.local.clear(done)); refresh() } })
 refresh()
 setInterval(refresh, 1000)
+// popup.html opened as a tab with a hash acts without a click (an automation script's way in): #export downloads the
+// export; #run=S,W,N,E;S,W,N,E… starts a fast run over those boxes in an open Aqar tab, or opens one
+;(async () => {
+  const hash = decodeURIComponent(location.hash)
+  if (hash === '#export') $('export').click()
+  else if (hash.startsWith('#run=')) {
+    const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
+    if (!findTemplate || fast?.active) return
+    const queue = hash.slice(5).split(';').map((box) => box.split(',').map(Number)).filter((box) => box.length === 4 && box.every(Number.isFinite)).map((bbox) => ({ bbox, depth: 0 }))
+    if (!queue.length) return
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    const tab = tabs.find((t) => t.active) || tabs[0]
+    const next = { queue, current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
+    if (tab) await launch(tab, next)
+    else { await set({ fast: { ...next, active: true, status: 'running', error: null, beat: 0 } }); chrome.tabs.create({ url: 'https://sa.aqar.fm/الخريطة', active: false }) }
+  }
+})()
