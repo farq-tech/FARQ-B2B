@@ -21,6 +21,7 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 
 import duckdb
 
@@ -28,8 +29,8 @@ AR = re.compile('[؀-ۿ]')
 DAYS = {'Sunday': 'Sun', 'Monday': 'Mon', 'Tuesday': 'Tue', 'Wednesday': 'Wed', 'Thursday': 'Thu', 'Friday': 'Fri', 'Saturday': 'Sat'}
 FLOOR = re.compile(r'^(G|GF|M|MZ|B\d{0,2}|-?\d{1,3})$', re.I)
 FLOOR_SAME = {'G': '0', 'GF': '0', 'MZ': 'M'}
-ACCOUNT = {'instagram': ('instagram.com', 'https://instagram.com/{}'), 'x_link': ('(x|twitter).com', 'https://x.com/{}'),
-           'tiktok': ('tiktok.com', 'https://www.tiktok.com/@{}'), 'snapchat': ('snapchat.com', 'https://www.snapchat.com/add/{}')}
+ACCOUNT = {'instagram': (('instagram.com',), 'https://instagram.com/{}'), 'x_link': (('x.com', 'twitter.com'), 'https://x.com/{}'),
+           'tiktok': (('tiktok.com',), 'https://www.tiktok.com/@{}'), 'snapchat': (('snapchat.com',), 'https://www.snapchat.com/add/{}')}
 
 
 def text(v):
@@ -62,9 +63,16 @@ def numbers(*values):
 def account(field, v):
     """An account as a full URL; a bare handle is expanded, another site's link is refused."""
     v = text(v)
-    host, template = ACCOUNT[field]
-    if re.search(host, v, re.I):
-        return v if v.startswith('http') else 'https://' + v
+    hosts, template = ACCOUNT[field]
+    if '/' in v or '.' in v.split('?')[0].lstrip('@'):
+        # a link counts only when its host is the platform itself (or a subdomain), never a path, a login part or
+        # a longer name that merely contains it («instagram.com.evil.sa», «evil.sa/instagram.com»)
+        url = v if re.match(r'^https?://', v, re.I) else 'https://' + v
+        parsed = urllib.parse.urlsplit(url)
+        host = (parsed.hostname or '').lower()
+        if parsed.username is None and parsed.password is None and any(host == h or host.endswith('.' + h) for h in hosts):
+            return url
+        return None
     if re.match(r'^@?[A-Za-z0-9_.-]{2,40}$', v):
         return template.format(v.lstrip('@'))
     return None
@@ -76,14 +84,19 @@ def hours(v):
         days = json.loads(text(v) or 'null')
     except ValueError:
         return None
+    if not isinstance(days, list):
+        return None
     parts = []
-    for day in days or []:
-        name = DAYS.get((day or {}).get('day'))
+    for day in days:
+        # a valid JSON value of another shape («[null]», a string, hours that are not a list) is skipped, never fatal
+        if not isinstance(day, dict) or not isinstance(day.get('hours') or [], list):
+            continue
+        name = DAYS.get(day.get('day'))
         # HudHud writes a day open all day as «00:00 - 00:00» (owner, 2026-10-29); the snapshot writes it «00:00 - 24:00».
         # Any other equal pair («08:00 - 08:00») has no stated meaning and is left out
         spans = [f"{h.get('open')} - {'24:00' if h.get('open') == h.get('close') == '00:00' else h.get('close')}"
-                 for h in (day.get('hours') or [])
-                 if re.match(r'^\d{2}:\d{2}$', str(h.get('open'))) and re.match(r'^\d{2}:\d{2}$', str(h.get('close')))
+                 for h in (day.get('hours') or []) if isinstance(h, dict)
+                 and re.match(r'^\d{2}:\d{2}$', str(h.get('open'))) and re.match(r'^\d{2}:\d{2}$', str(h.get('close')))
                  and (h.get('open') != h.get('close') or h.get('open') == '00:00')]
         if name and spans:
             parts.append(f"{name}: {', '.join(spans)}")
@@ -191,14 +204,17 @@ def main():
 
     rows = [(hid, column, value) for hid, values in new.items() for column, value in values.items()]
     db.execute("create table f(hid varchar, col varchar, val varchar)")
-    db.executemany("insert into f values (?, ?, ?)", rows)
+    if rows:   # nothing to fill still writes the unchanged copy and its report
+        db.executemany("insert into f values (?, ?, ?)", rows)
     db.execute(f"create table t as select * from read_parquet('{args.targets}')")
     for column in columns:
         db.execute(f"""update t set {column} = f.val from f where f.col = '{column}' and f.hid = cast(t.hudhud_id as varchar)
                        and {empty(f't.{column}')}""")
     db.execute("""create table filled as select hid, list(col order by col) cols from f where col not in ('phone_raw', 'phone_kind', 'phone_source') group by 1""")
-    db.execute("alter table t add column hudhud_filled varchar[]")
-    db.execute("update t set hudhud_filled = filled.cols from filled where filled.hid = cast(t.hudhud_id as varchar)")
+    if 'hudhud_filled' not in have:   # a snapshot filled before keeps its list, and new fields join it
+        db.execute("alter table t add column hudhud_filled varchar[]")
+    db.execute("""update t set hudhud_filled = list_sort(list_distinct(coalesce(t.hudhud_filled, []::varchar[]) || filled.cols))
+                  from filled where filled.hid = cast(t.hudhud_id as varchar)""")
     # a first contact adds one of the six completeness points (build_golden.py: phone, e-mail or website)
     db.execute(f"""update t set completeness_pct = round(100.0 * least(6, round(coalesce(t.completeness_pct, 0) * 6 / 100) + 1) / 6, 1)
                    from read_parquet('{args.targets}') o where o.poi_key = t.poi_key and t.hudhud_filled is not null

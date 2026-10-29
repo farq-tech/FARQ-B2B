@@ -28,9 +28,14 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual(account('snapchat', '@cafe_x'), 'https://www.snapchat.com/add/cafe_x')
         self.assertEqual(account('x_link', 'twitter.com/cafe'), 'https://twitter.com/cafe')
         self.assertIsNone(account('instagram', 'https://facebook.com/cafe'), "another site's link is refused")
+        for bad in ('https://evil.sa/instagram.com/cafe', 'https://instagram.com@evil.sa/cafe', 'https://instagram.com.evil.sa/cafe'):
+            self.assertIsNone(account('instagram', bad), bad)
+        self.assertEqual(account('instagram', 'https://www.instagram.com/cafe/'), 'https://www.instagram.com/cafe/')
         self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
                          'Sun: 08:30 - 23:30')
         self.assertIsNone(hours('not json'))
+        for odd in ('[null]', '"x"', '{"day": "Monday"}', '[{"day": "Monday", "hours": "08:00"}]', '[{"day": "Monday", "hours": [null]}]'):
+            self.assertIsNone(hours(odd), odd)
         self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "00:00", "close": "00:00"}]}]'), 'Mon: 00:00 - 24:00', 'open all day')
         self.assertIsNone(hours('[{"day": "Monday", "hours": [{"open": "08:00", "close": "08:00"}]}]'), 'another equal pair: not guessed')
         self.assertEqual([floor(v) for v in ('0', 'GF', '2.0', 'B1', 'open')], ['0', '0', '2', 'B1', None])
@@ -81,6 +86,10 @@ class FillTests(unittest.TestCase):
         report = json.loads((temp / 't_hudhud.report.json').read_text())
         self.assertEqual((report['existing_values_changed'], report['rows_given_a_first_contact']), (0, 1))
         self.assertNotEqual(run(temp / 't_hudhud.parquet').returncode, 0, 'never writes over an existing snapshot')
+        again = subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't_hudhud.parquet'),
+                                '--crs', str(temp / 'crs.duckdb'), '--out', str(temp / 't_again.parquet')], capture_output=True, text=True)
+        self.assertEqual(again.returncode, 0, 'nothing left to fill still writes the copy and its report: ' + again.stderr)
+        self.assertEqual(json.loads((temp / 't_again.report.json').read_text())['rows_filled'], 0)
 
 
 if __name__ == '__main__':
