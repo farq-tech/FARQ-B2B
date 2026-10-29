@@ -36,6 +36,9 @@ class NormalizeTests(unittest.TestCase):
                                                                                "[{'day': 'Monday', 'hours': [{'open': '10:00', 'close': '22:00'}]}]}"}}})
         self.assertEqual(normalize(reply), 'Mon: 10:00 - 22:00')
         self.assertIsNone(normalize(json.dumps({'success': True, 'data': {'trx': {'opening_hours': None}}})))
+        for data in ([1, 2], None, {'trx': [1]}, {'trx': {}}, {'trx': {'opening_hours': 'not hours'}}):
+            v = json.dumps({'success': True, 'data': data})
+            self.assertEqual(normalize(v), v, 'a reply of another shape stays as it is')
 
     def test_hudhud_json_that_is_not_fully_read_stays(self):
         for v in (hudhud(('Sunday', '08:00', '08:00')),             # an equal pair other than 00:00 has no stated meaning

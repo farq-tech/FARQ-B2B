@@ -142,8 +142,16 @@ def from_json(v):
     if set(d) == {'timezone', 'regular_hours'}:
         return hudhud(d['regular_hours'])
     if set(d) == {'success', 'data'}:
-        inner = ((d['data'] or {}).get('trx') or {}).get('opening_hours')
-        return None if inner is None else normalize(inner)
+        trx = d['data'].get('trx') if isinstance(d['data'], dict) else None
+        if not isinstance(trx, dict) or 'opening_hours' not in trx:
+            raise Unread  # a reply of another shape is left as it is, never fatal
+        inner = trx['opening_hours']
+        if inner is None:
+            return None
+        inner = normalize(inner if isinstance(inner, str) else json.dumps(inner))
+        if inner is not None and not READABLE.match(inner):
+            raise Unread
+        return inner
     if d and set(d) <= set(ARABIC):
         return join([(ARABIC[k], spans(str(b))) for k, b in d.items()])
     raise Unread
