@@ -26,6 +26,7 @@ import urllib.parse
 import duckdb
 
 AR = re.compile('[؀-ۿ]')
+CLOCK = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')   # a real time of day; «25:30» or «08:75» is refused
 DAYS = {'Sunday': 'Sun', 'Monday': 'Mon', 'Tuesday': 'Tue', 'Wednesday': 'Wed', 'Thursday': 'Thu', 'Friday': 'Fri', 'Saturday': 'Sat'}
 FLOOR = re.compile(r'^(G|GF|M|MZ|B\d{0,2}|-?\d{1,3})$', re.I)
 FLOOR_SAME = {'G': '0', 'GF': '0', 'MZ': 'M'}
@@ -99,7 +100,7 @@ def hours(v):
         # Any other equal pair («08:00 - 08:00») has no stated meaning and is left out
         spans = [f"{h.get('open')} - {'24:00' if h.get('open') == h.get('close') == '00:00' else h.get('close')}"
                  for h in (day.get('hours') or []) if isinstance(h, dict)
-                 and re.match(r'^\d{2}:\d{2}$', str(h.get('open'))) and re.match(r'^\d{2}:\d{2}$', str(h.get('close')))
+                 and CLOCK.match(str(h.get('open'))) and (CLOCK.match(str(h.get('close'))) or h.get('close') == '24:00')
                  and (h.get('open') != h.get('close') or h.get('open') == '00:00')]
         if name and spans:
             parts.append(f"{name}: {', '.join(spans)}")

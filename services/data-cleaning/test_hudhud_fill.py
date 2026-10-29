@@ -38,6 +38,8 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual(hours('[{"day": "Sunday", "hours": [{"open": "08:30", "close": "23:30"}]}, {"day": "Friday", "hours": []}]'),
                          'Sun: 08:30 - 23:30')
         self.assertIsNone(hours('not json'))
+        self.assertIsNone(hours('[{"day": "Monday", "hours": [{"open": "25:30", "close": "08:75"}]}]'), 'impossible times are refused')
+        self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "16:00", "close": "24:00"}]}]'), 'Mon: 16:00 - 24:00')
         for odd in ('[null]', '"x"', '{"day": "Monday"}', '[{"day": "Monday", "hours": "08:00"}]', '[{"day": "Monday", "hours": [null]}]'):
             self.assertIsNone(hours(odd), odd)
         self.assertEqual(hours('[{"day": "Monday", "hours": [{"open": "00:00", "close": "00:00"}]}]'), 'Mon: 00:00 - 24:00', 'open all day')
