@@ -60,6 +60,11 @@ def _number(value):
     return number if number > 0 else None
 
 
+def _age(value):
+    """A building's age in whole years, 0 (new) included; None when the ad states none."""
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 99 else None
+
+
 def deal_of(listing):
     """'sale', or the rent with the period its ad states: 'rent_year' | 'rent_month' | 'rent_unstated'; None otherwise."""
     kind = listing.get('listingType')
@@ -132,7 +137,9 @@ PHOTO_URL = 'https://images.aqar.fm/webp/350x0/props/{}'
 GALLERY_URL = 'https://images.aqar.fm/webp/750x0/props/{}'
 AD_URL = 'https://sa.aqar.fm/ad/{}/ar'
 # the fields a listing card shows; nothing about who placed the ad
-CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width')
+CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width', 'age', 'age_source')
+# a building this many years old or less counts as new when a district's prices are split by age
+NEW_MAX_AGE = 2
 
 
 def _rounded(value):
@@ -176,6 +183,8 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
     indexes = {city: district_index(collection) for city, collection in atlases.items()}
     by_name = {city: name_index(index) for city, index in indexes.items()}
     values = defaultdict(list)
+    # the same figures split by the building's age, where the ad states it: new (NEW_MAX_AGE years or less) and older
+    by_age = defaultdict(list)
     names, seen, placed, by_coordinates = {}, 0, 0, 0
     for listing in listings:
         found_figure = assess(listing)
@@ -204,6 +213,9 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
             if figure:
                 kind, group, value = figure
                 values[(city, district_id, kind, group)].append(value)
+                age = _age(listing.get('age'))
+                if age is not None:
+                    by_age[(city, district_id, kind, group, 'new' if age <= NEW_MAX_AGE else 'older')].append(value)
                 placed += 1
             if cards is not None and lon is not None:
                 cards.append(_card(listing, city, district_id, district_ar, found_figure))
@@ -215,8 +227,15 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
         if len(prices) < MIN_LISTINGS:
             continue
         row = cities[city].setdefault(district_id, {'district_id': district_id, 'district_ar': names[(city, district_id)], 'groups': {}})
-        row['groups'][f'{kind}_{group}'] = {'listings': len(prices), 'median_sar_per_sqm': round(statistics.median(prices)),
-                                            'reliable': len(prices) >= RELIABLE_LISTINGS}
+        figure = {'listings': len(prices), 'median_sar_per_sqm': round(statistics.median(prices)),
+                  'reliable': len(prices) >= RELIABLE_LISTINGS}
+        # a band shows only with as many listings as a figure needs; an ad that states no age is in neither band
+        bands = {band: {'listings': len(found), 'median_sar_per_sqm': round(statistics.median(found))}
+                 for band in ('new', 'older') for found in [by_age.get((city, district_id, kind, group, band), [])]
+                 if len(found) >= MIN_LISTINGS}
+        if bands:
+            figure['by_age'] = bands
+        row['groups'][f'{kind}_{group}'] = figure
     if cards is not None:
         # each card against its district's median for the same deal and group, when the district has one
         for card in cards:
@@ -230,6 +249,7 @@ def build(listings, atlases, retrieved, default_city=None, cards=None):
         'source': 'asking prices of current property listings, joined to atlas districts by coordinates',
         'retrieved': retrieved,
         'min_listings': MIN_LISTINGS,
+        'new_max_age': NEW_MAX_AGE,
         'unit': {'sale': 'SAR per m²', 'rent_year': 'SAR per m² per year', 'rent_month': 'SAR per m² per month',
                  'rent_unstated': 'SAR per m² for a period the ad does not state'},
         'listings_with_price': seen,

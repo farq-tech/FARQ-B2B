@@ -128,11 +128,19 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           <ul className="space-y-1.5 text-base">
             {/* studio prices rank districts poorly against official rents, so they stay out of the district comparison */}
             {Object.entries(single.realEstate).filter(([group]) => !group.endsWith('_studio') && !group.startsWith('rent_unstated_')).sort(([a], [b]) => dealRank(a) - dealRank(b) || a.localeCompare(b)).map(([group, figure]) => (
-              <li key={group} className="flex justify-between gap-2">
-                <span>{groupLabel(group)}</span>
-                <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">
-                  {show(figure!.median, ' ر.س')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-warning">عينة صغيرة</span>}
-                </Explained>
+              <li key={group} className="flex flex-col gap-0.5">
+                <span className="flex justify-between gap-2">
+                  <span>{groupLabel(group)}</span>
+                  <Explained title={groupLabel(group)} lines={EXPLAIN.realEstate(figure!.listings, group)} className="shrink-0 font-semibold">
+                    {show(figure!.median, ' ر.س')}{figure!.listings < RELIABLE_LISTINGS && <span className="ms-1 text-sm font-normal text-warning">عينة صغيرة</span>}
+                  </Explained>
+                </span>
+                {/* the same figure split by the building's age, where enough ads state it */}
+                {figure!.byAge && (
+                  <Explained title={`${groupLabel(group)} حسب عمر العقار`} lines={EXPLAIN.realEstateByAge(figure!.byAge.new?.listings, figure!.byAge.older?.listings)} className="self-end text-sm text-muted-foreground">
+                    جديد (سنتان أو أقل): {figure!.byAge.new ? show(figure!.byAge.new.median, ' ر.س') : 'غير متاح'} · أقدم: {figure!.byAge.older ? show(figure!.byAge.older.median, ' ر.س') : 'غير متاح'}
+                  </Explained>
+                )}
               </li>
             ))}
           </ul>

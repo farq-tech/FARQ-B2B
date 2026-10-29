@@ -282,7 +282,7 @@ def real_estate_listings(city, filters, path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
     optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), a price range as
-    advertised and an area range. An ad that does not state the figure a range asks about is left out of that range,
+    advertised, an area range and a building no older than `max_age` years. An ad that does not state the figure a range asks about is left out of that range,
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
     and figures that do not need checking. Sorted with the listings
     furthest under their district's median price per m² first, then those without a comparison, then those marked
@@ -301,7 +301,8 @@ def real_estate_listings(city, filters, path=None):
              and (not districts or card['district_id'] in districts)
              and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
              and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
-             and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))]
+             and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
+             and within(card.get('age'), None, filters.get('max_age'))]
     # a card to check (its figures look wrong) goes after every other, then those without a district comparison
     # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
     # so those follow the rest; an ad with photos goes before one without at the same price standing

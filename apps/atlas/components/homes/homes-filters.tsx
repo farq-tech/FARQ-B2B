@@ -7,7 +7,7 @@ import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { LISTING_TYPES, PERIOD_WORD, RENT_DEALS } from '@/lib/real-estate'
-import { COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
+import { AGE_STEPS, COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, ageStepLabel, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { cn } from '@/lib/utils'
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
@@ -148,6 +148,12 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
           </Section>
           <Section title="عرض الشارع">
             <Steps steps={STREET_STEPS} value={filters.street} onChange={(street) => onChange({ street })} label={(step) => `${numberFormat.format(step)} م فأكثر`} />
+          </Section>
+
+          <Section title="عمر العقار" hint="كما ذكره الإعلان. إذا اخترت عمراً لا تظهر الإعلانات التي لا تذكر عمر العقار.">
+            <div className="flex flex-wrap gap-2">
+              {AGE_STEPS.map((step) => <Chip key={String(step)} active={filters.maxAge === step} onClick={() => onChange({ maxAge: step })}>{ageStepLabel(step)}</Chip>)}
+            </div>
           </Section>
 
           <Section title="مقارنة بالحي" hint="سعر المتر أقل من الوسيط: نصف عروض الحي المماثلة أرخص منه ونصفها أغلى.">
