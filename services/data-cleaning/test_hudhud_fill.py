@@ -48,6 +48,11 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual(website('https://www.farq.sa/'), 'farq.sa')
         self.assertIsNone(website('https://google.com/maps/place/x'))
         from hudhud_fill import FIELDS
+        name_en = FIELDS['name_en'][1]
+        for junk in ('www.example.com', 'maps.app.goo.gl/x', 'ChIJuc0sAEAGLz4RJ3A9PIvA9SI', 'Unavailable', '2025-04-15T10:14:01.612Z', 'https://x.sa'):
+            self.assertIsNone(name_en(junk), junk)
+        self.assertEqual(name_en('Blue Cafe'), 'Blue Cafe')
+        self.assertIsNone(FIELDS['tradename'][1]('غير معروف'))
         rating = FIELDS['rating'][1]
         self.assertEqual([rating(v) for v in ('4.5', '5', '5.0', '5.7', '0', '6')], ['4.5', '5', '5.0', None, None, None])
 

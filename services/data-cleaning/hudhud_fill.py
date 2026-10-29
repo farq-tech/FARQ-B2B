@@ -137,13 +137,26 @@ FIELDS = {
     'working_hours': ('trx_opening_hours_regular_hours', hours),
     'description_ar': ('trx_description_ar', lambda v: text(v) if AR.search(text(v)) and len(text(v)) < 2000 else None),
     'description_en': ('trx_description_en', lambda v: text(v) if re.search('[A-Za-z]', text(v)) and len(text(v)) < 2000 and not text(v).startswith('http') else None),
-    'tradename': ('trx_tradename', lambda v: text(v) if len(text(v)) < 200 and not text(v).startswith('http') else None),
-    'name_en': ('trx_name_en', lambda v: text(v) if re.search('[A-Za-z]', text(v)) and len(text(v)) < 200 and not text(v).startswith('http') else None),
+    'tradename': ('trx_tradename', lambda v: name(v)),
+    'name_en': ('trx_name_en', lambda v: name(v) if re.search('[A-Za-z]', text(v)) else None),
     'commercial_license': ('trx_licenseno', lambda v: text(v)[:10] if re.match(r'^\d{10}(\.0)?$', text(v)) else None),
     'rating': ('trx_rating', lambda v: text(v) if re.match(r'^[0-5](\.\d+)?$', text(v)) and 0 < float(text(v)) <= 5 else None),
     'reviews_count': ('trx_reviews_count', lambda v: str(int(float(text(v)))) if re.match(r'^\d+(\.0)?$', text(v)) and float(text(v)) > 0 else None),
 }
 CONTACT = ('phone_norm', 'email', 'website')
+# build_golden.py's ph_null: words that stand for no name, links and Google ids are not names; an ISO timestamp
+# («2025-04-15T10:14:01.612Z», seen as a name in the directory) is not one either
+PLACEHOLDER = {'unavailable', 'null', 'none', 'nan', 'n/a', 'na', 'point', 'name', 'false', 'true', 'test', 'لا اسم', 'لا يوجد',
+               'بدون اسم', 'غير معروف', '-', '.', '0', 'epsg:4326'}
+
+
+def name(v):
+    """A display name, or None when it is a placeholder, a link, a Google id or a timestamp."""
+    v = text(v)
+    if (not v or len(v) >= 200 or v.lower() in PLACEHOLDER or re.match(r'^(https?://|www\.|maps\.app)', v, re.I)
+            or re.match(r'^ChIJ[A-Za-z0-9_-]{10,}$', v) or re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}', v)):
+        return None
+    return v
 EMPTY = ('', 'null', 'none', 'nan', '[]', '{}')
 
 
