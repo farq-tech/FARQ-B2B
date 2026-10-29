@@ -1,6 +1,7 @@
 """Spatial and linked building-evidence CANDIDATES for point businesses, and unit-number forms in their text
-(docs/establishment-lifecycle.md 3.2.2). Complements unit_evidence_inventory.py (3.2.1), which counts explicit
-evidence over the whole release and leaves the footprint containment unmeasured.
+(docs/establishment-lifecycle.md 3.2.2). A cross-check next to unit_evidence_inventory.py (3.2.1), which counts
+explicit evidence and footprint containment over the whole release: this adds per-row agreement and conflicts between
+sources, multiple values within one source as conflicts, and unit-number forms in text.
 
 Read-only: reads the golden set and the evidence files, prints JSON with aggregate counts per city (no business rows).
 Needs duckdb with the spatial extension, so it runs without -I. From services/data-cleaning:
