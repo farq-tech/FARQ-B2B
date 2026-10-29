@@ -10,6 +10,7 @@ plain shares of it (no sampling, so no confidence interval). Run from the reposi
         --buildings /Users/m4pro/farq-taxonomy-data/server_inputs/buildings.parquet \
         --card-links /Users/m4pro/farq-taxonomy-data/server_inputs/card_build_links.csv \
         --osm /Users/m4pro/farq-taxonomy-data/raw/osm/osm_nodes_ksa.parquet \
+        --crs-db /Users/m4pro/Desktop/crs_fixed.duckdb \
         --sample-out /Users/m4pro/farq-taxonomy-data/analysis/building_link_review_sample.csv \
         > docs/unit-evidence-inventory.json
 
@@ -306,6 +307,7 @@ def main():
     parser.add_argument('--buildings')
     parser.add_argument('--card-links')
     parser.add_argument('--osm')
+    parser.add_argument('--crs-db')
     parser.add_argument('--sample-out')
     parser.add_argument('--sample-size', type=int, default=300)
     args = parser.parse_args()
@@ -353,6 +355,16 @@ def main():
             prefix, _, card = key.partition(':')
             if prefix in CARD_KEYS and card in cards:
                 add('urbi_card_building', key, {'urbi_building_id': cards[card]})
+    if args.crs_db:
+        # the full HudHud change-request database: each place's current state (trx_*), the same on every CR of it
+        db.execute(f"attach '{args.crs_db}' as crs (read_only)")
+        for hid, address, number, postal, floor, parent in db.execute("""select split_part(cr_entity_id::varchar, '.', 1),
+                any_value(trx_national_address), any_value(trx_building_no)::varchar, any_value(trx_postal_code)::varchar,
+                any_value(trx_floorno)::varchar, any_value(trx_physical_parent)::varchar from crs.crs group by 1""").fetchall():
+            key = by_hudhud.get(hid)
+            if key:
+                add('hudhud_cr_current', key, {'national_address': address, 'building_no': number, 'postal_code': postal,
+                                               'physical_parent': parent, 'floor': floor})
     survey_rows = 0
     if args.survey:
         db.execute('LOAD spatial')

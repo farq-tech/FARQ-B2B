@@ -1,0 +1,509 @@
+{
+ "database": {
+  "change_requests": 256963,
+  "places": 168533,
+  "first_cr": "2024-10-09 17:30:05.065+03",
+  "last_cr": "2025-08-28 15:39:53.105+03",
+  "cr_by_status_and_operation": {
+   "approved|update": 156453,
+   "approved|delete": 60810,
+   "approved|create": 37045,
+   "draft|create": 670,
+   "under_review|delete": 579,
+   "rejected|update": 450,
+   "rejected|delete": 299,
+   "rejected|create": 241,
+   "draft|update": 212,
+   "under_review|update": 197,
+   "draft|delete": 6,
+   "under_review|create": 1
+  },
+  "places_by_current_state": {
+   "ready to publish|deleted=false": 105259,
+   "archived|deleted=true": 61409,
+   "in progress|deleted=false": 1129,
+   "draft|deleted=false": 352,
+   "draft|deleted=true": 234,
+   "ready to publish|deleted=true": 131,
+   "in progress|deleted=true": 19,
+   "(none)|deleted=(none)": 0
+  },
+  "places_by_source": {
+   "poi_portal": 124390,
+   "survey_app": 38559,
+   "bot_scraper": 4861,
+   "(none)": 336,
+   "spd": 304,
+   "riyadh_gmb": 78,
+   "hudhud_app": 4,
+   "system": 1
+  }
+ },
+ "coverage": {
+  "places": 168534,
+  "places_in_release": 80358,
+  "places_in_existing_crs_import": 97513,
+  "places_in_release_not_in_existing_import": 30180,
+  "live_places": 105259
+ },
+ "fields_live_places_in_release": {
+  "name_ar": {
+   "same": 63567,
+   "differs": 15967,
+   "release_only": 32,
+   "fill": 17
+  },
+  "name_en": {
+   "same": 45340,
+   "differs": 8122,
+   "fill": 1308,
+   "both_empty": 10483,
+   "release_only": 14330
+  },
+  "phone": {
+   "same": 36803,
+   "fill": 6760,
+   "release_only": 9619,
+   "both_empty": 22181,
+   "differs": 4220
+  },
+  "website": {
+   "same": 16589,
+   "both_empty": 47811,
+   "release_only": 9422,
+   "differs": 2495,
+   "fill": 3266
+  },
+  "email": {
+   "both_empty": 65194,
+   "fill": 7461,
+   "release_only": 3545,
+   "same": 2704,
+   "differs": 679
+  },
+  "instagram": {
+   "both_empty": 62963,
+   "fill": 4040,
+   "same": 6731,
+   "release_only": 4581,
+   "differs": 1268
+  },
+  "license": {
+   "release_only": 11020,
+   "both_empty": 63516,
+   "same": 4821,
+   "fill": 81,
+   "differs": 145
+  },
+  "national_address": {
+   "fill": 19615,
+   "both_empty": 34639,
+   "same": 25329
+  },
+  "building_no": {
+   "both_empty": 75925,
+   "differs": 59,
+   "fill": 925,
+   "release_only": 1537,
+   "same": 1137
+  },
+  "postal_code": {
+   "both_empty": 61653,
+   "fill": 8431,
+   "same": 9499
+  },
+  "street_ar": {
+   "differs": 12265,
+   "same": 27847,
+   "release_only": 33542,
+   "fill": 1466,
+   "both_empty": 4463
+  },
+  "district_ar": {
+   "same": 74458,
+   "differs": 4705,
+   "release_only": 389,
+   "both_empty": 31
+  },
+  "floor": {
+   "both_empty": 62354,
+   "fill": 17080,
+   "differs": 52,
+   "release_only": 97
+  },
+  "opening_hours": {
+   "same": 42320,
+   "release_only": 12378,
+   "both_empty": 13654,
+   "fill": 11231
+  },
+  "google_id": {
+   "differs": 546,
+   "fill": 12395,
+   "same": 38450,
+   "both_empty": 26502,
+   "release_only": 1690
+  },
+  "menu_link": {
+   "both_empty": 77085,
+   "fill": 2056,
+   "same": 426,
+   "release_only": 15,
+   "differs": 1
+  },
+  "description_ar": {
+   "both_empty": 58760,
+   "fill": 15106,
+   "release_only": 442,
+   "differs": 1125,
+   "same": 4150
+  },
+  "description_en": {
+   "fill": 3763,
+   "both_empty": 56580,
+   "release_only": 12273,
+   "same": 4177,
+   "differs": 2790
+  },
+  "tradename": {
+   "both_empty": 57775,
+   "same": 8588,
+   "fill": 11223,
+   "differs": 1379,
+   "release_only": 618
+  },
+  "x_link": {
+   "both_empty": 68418,
+   "fill": 6459,
+   "same": 2991,
+   "differs": 239,
+   "release_only": 1476
+  },
+  "snapchat": {
+   "both_empty": 75305,
+   "same": 611,
+   "fill": 3627,
+   "release_only": 24,
+   "differs": 16
+  },
+  "tiktok": {
+   "both_empty": 72811,
+   "fill": 5504,
+   "same": 1208,
+   "differs": 22,
+   "release_only": 38
+  },
+  "order_link": {
+   "both_empty": 79579,
+   "release_only": 4
+  },
+  "reservation_link": {
+   "both_empty": 79105,
+   "release_only": 478
+  },
+  "full_address_ar": {
+   "release_only": 71330,
+   "differs": 8253
+  },
+  "rating": {
+   "same": 36795,
+   "release_only": 11369,
+   "fill": 607,
+   "both_empty": 28337,
+   "differs": 2475
+  },
+  "reviews_count": {
+   "same": 37986,
+   "release_only": 6596,
+   "fill": 505,
+   "both_empty": 33462,
+   "differs": 1034
+  }
+ },
+ "fill_by_city_top": {
+  "name_ar": {
+   "Riyadh": 17
+  },
+  "name_en": {
+   "Riyadh": 1301,
+   "Diriyah": 6,
+   "Al Muzahimiyah": 1
+  },
+  "phone": {
+   "Riyadh": 6735,
+   "Diriyah": 21,
+   "Al Uyaynah": 2,
+   "Al Jubaylah": 1,
+   "Al Hayathim": 1
+  },
+  "website": {
+   "Riyadh": 3253,
+   "Diriyah": 9,
+   "Al Uyaynah": 2,
+   "Al Majmaah": 1,
+   "Al Hayathim": 1
+  },
+  "email": {
+   "Riyadh": 7425,
+   "Diriyah": 27,
+   "(none)": 3,
+   "Al Uyaynah": 2,
+   "Al Majmaah": 1,
+   "Dahl Hit": 1
+  },
+  "instagram": {
+   "Riyadh": 4031,
+   "Diriyah": 7,
+   "Al Muzahimiyah": 1,
+   "Al Hayathim": 1
+  },
+  "license": {
+   "Riyadh": 81
+  },
+  "national_address": {
+   "Riyadh": 19605,
+   "Diriyah": 5,
+   "(none)": 3,
+   "Dahl Hit": 1,
+   "Al Hair": 1
+  },
+  "building_no": {
+   "Riyadh": 921,
+   "Diriyah": 4
+  },
+  "postal_code": {
+   "Riyadh": 8372,
+   "Diriyah": 59
+  },
+  "street_ar": {
+   "Riyadh": 1451,
+   "Diriyah": 12,
+   "(none)": 3
+  },
+  "floor": {
+   "Riyadh": 17028,
+   "Diriyah": 51,
+   "Al Uyaynah": 1
+  },
+  "opening_hours": {
+   "Riyadh": 11187,
+   "Diriyah": 25,
+   "Al Uyaynah": 14,
+   "Al Jubaylah": 3,
+   "Al Majmaah": 1,
+   "Al Hayathim": 1
+  },
+  "google_id": {
+   "Riyadh": 12318,
+   "Diriyah": 71,
+   "(none)": 3,
+   "Dahl Hit": 1,
+   "Al Hayathim": 1,
+   "Al Hair": 1
+  },
+  "menu_link": {
+   "Riyadh": 2037,
+   "Diriyah": 17,
+   "Dahl Hit": 1,
+   "Al Jubaylah": 1
+  },
+  "description_ar": {
+   "Riyadh": 15071,
+   "Diriyah": 34,
+   "Dahl Hit": 1
+  },
+  "description_en": {
+   "Riyadh": 3736,
+   "Diriyah": 23,
+   "(none)": 3,
+   "Dahl Hit": 1
+  },
+  "tradename": {
+   "Riyadh": 11181,
+   "Diriyah": 37,
+   "(none)": 3,
+   "Dahl Hit": 1,
+   "Al Jubaylah": 1
+  },
+  "x_link": {
+   "Riyadh": 6423,
+   "Diriyah": 29,
+   "(none)": 3,
+   "Al Muzahimiyah": 1,
+   "Dahl Hit": 1,
+   "Al Jubaylah": 1
+  },
+  "snapchat": {
+   "Riyadh": 3617,
+   "Diriyah": 8,
+   "Al Jubaylah": 1,
+   "Al Hayathim": 1
+  },
+  "tiktok": {
+   "Riyadh": 5489,
+   "Diriyah": 13,
+   "Al Jubaylah": 1,
+   "(none)": 1
+  },
+  "rating": {
+   "Riyadh": 592,
+   "Diriyah": 14,
+   "Al Hayathim": 1
+  },
+  "reviews_count": {
+   "Riyadh": 504,
+   "Al Hayathim": 1
+  }
+ },
+ "coordinates_hudhud_vs_release": {
+  "<20m": 77593,
+  "20-100m": 1762,
+  ">=500m": 114,
+  "100-500m": 114
+ },
+ "phones_live_places_in_release": {
+  "landline|already_in_release": 10994,
+  "landline|release_has_another": 2079,
+  "landline|release_has_none": 3090,
+  "mobile|already_in_release": 25533,
+  "mobile|release_has_another": 3417,
+  "mobile|release_has_none": 4848,
+  "places_with_a_new_mobile": 7670,
+  "places_with_two_or_more_numbers": 1968
+ },
+ "hudhud_tradename_vs_release_legal_name": {
+  "release_legal_empty": 18989,
+  "differs": 1179,
+  "same": 436,
+  "contains": 586
+ },
+ "attributes_without_a_release_column": {
+  "places_with_media": 34848,
+  "places_with_logo": 9134,
+  "places_with_amenities": 28867,
+  "places_with_brand_id": 11863,
+  "places_verified_by_google": 0,
+  "places_with_license_link": 2803,
+  "places_with_secondary_no": 230,
+  "places_with_physical_parent": 552
+ },
+ "name_ar_differs_by_kind": {
+  "one_contains_the_other": 5653,
+  "no_shared_word": 4372,
+  "shared_word": 3451,
+  "release_name_reads_like_a_description": 2500
+ },
+ "category_live_places_in_release": {
+  "same": 63406,
+  "differs|release_confidence=medium": 4452,
+  "differs|release_confidence=high": 3540,
+  "hudhud_sub_not_mapped": 4076,
+  "differs|release_confidence=low": 4109
+ },
+ "lifecycle": {
+  "  of_which_release_says_closed": 9,
+  "  of_which_release_says_temporarily_closed": 170,
+  "history_closed_then_reopened": 59,
+  "history_open_then_closed": 155,
+  "in_release_but_deleted_in_hudhud": 2,
+  "in_release_hudhud_state=draft": 303,
+  "in_release_hudhud_state=in progress": 470,
+  "in_release_live_but_permanently_closed": 473,
+  "in_release_live_but_temporarily_closed": 1878,
+  "live_open_missing_from_release|duplicate_copy|hudhud_has_name=False": 2,
+  "live_open_missing_from_release|duplicate_copy|hudhud_has_name=True": 6164,
+  "live_open_missing_from_release|google_permanently_closed|hudhud_has_name=True": 24,
+  "live_open_missing_from_release|hudhud_deleted|hudhud_has_name=True": 435,
+  "live_open_missing_from_release|in_golden_but_not_in_release|hudhud_has_name=True": 5,
+  "live_open_missing_from_release|no_name|hudhud_has_name=False": 7,
+  "live_open_missing_from_release|no_name|hudhud_has_name=True": 9587,
+  "live_open_missing_from_release|non_commercial|hudhud_has_name=False": 3,
+  "live_open_missing_from_release|non_commercial|hudhud_has_name=True": 8104,
+  "live_open_missing_from_release|vacant_unit|hudhud_has_name=True": 5,
+  "places_with_two_or_more_approved_crs": 43920
+ },
+ "live_open_missing_from_release_checked_by_name": {
+  "no_name": {
+   "places": 9587,
+   "same_name_within_100m_in_release": 7124,
+   "not_found": 2463
+  },
+  "non_commercial": {
+   "places": 8104,
+   "same_name_within_100m_in_release": 640,
+   "not_found": 7464
+  },
+  "duplicate_copy": {
+   "places": 6164,
+   "same_name_within_100m_in_release": 2845,
+   "not_found": 3319
+  },
+  "hudhud_deleted": {
+   "places": 435,
+   "same_name_within_100m_in_release": 134,
+   "not_found": 301
+  },
+  "google_permanently_closed": {
+   "places": 24,
+   "same_name_within_100m_in_release": 4,
+   "not_found": 20
+  },
+  "in_golden_but_not_in_release": {
+   "places": 5,
+   "same_name_within_100m_in_release": 1,
+   "not_found": 4
+  },
+  "vacant_unit": {
+   "places": 5,
+   "same_name_within_100m_in_release": 1,
+   "not_found": 4
+  }
+ },
+ "approved_updates_by_field_changed": {
+  "location": 75461,
+  "name_ar": 66545,
+  "sub_categories_ids": 63718,
+  "district": 60087,
+  "category_id": 59775,
+  "status": 58213,
+  "is_trending": 57793,
+  "is_landmark": 57501,
+  "city": 57361,
+  "is_iconic": 57058,
+  "is_regional": 57043,
+  "streetname_en": 56821,
+  "opening_hours": 55364,
+  "national_address": 51125,
+  "streetname_ar": 50371,
+  "name_en": 49788,
+  "media": 48278,
+  "phone_number": 45693,
+  "rating": 41023,
+  "reviews_count": 40274,
+  "full_address_en": 39173,
+  "website": 22532,
+  "postal_code": 21327,
+  "tradename": 20321,
+  "verified_by_google": 15534
+ },
+ "side_tables": {
+  "districts": 2190,
+  "territories": 6693,
+  "users": 122
+ },
+ "hudhud_districts_table": {
+  "admin_level=10|not_in_release_spelling": 203,
+  "admin_level=10|spelled_as_release": 1822,
+  "admin_level=4|not_in_release_spelling": 12,
+  "admin_level=4|spelled_as_release": 1,
+  "admin_level=6|not_in_release_spelling": 112,
+  "admin_level=6|spelled_as_release": 40
+ },
+ "survey_territories_by_status": {
+  "Open": 3143,
+  "Off-Plan": 2415,
+  "Closed": 1020,
+  "Planned": 91,
+  "In progress": 24
+ }
+}
