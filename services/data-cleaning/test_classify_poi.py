@@ -56,6 +56,9 @@ class ClassifyTests(unittest.TestCase):
         bad = duckdb.sql(f"""select count(*) from read_parquet('{out}')
             where cls_sub_estimate is not null and cls_main_estimate is null""").fetchone()[0]
         self.assertEqual(bad, 0, 'a sub is never written without its parent main')
+        # cls_main_confidence describes the emitted main: for hh:1 (bakery) it is the main model's P(food main)
+        c1 = duckdb.sql(f"select cls_main_confidence from read_parquet('{out}') where poi_key = 'hh:1'").fetchone()[0]
+        self.assertTrue(0.0 <= c1 <= 1.0)
 
     def test_a_high_gate_keeps_nothing_rather_than_guessing(self):
         out = self.tmp / 'est_hi.parquet'

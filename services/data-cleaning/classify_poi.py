@@ -124,26 +124,30 @@ def main(argv=None):
     rows = db.execute(f"select poi_key, {text_expr(db, a.targets)} feat from read_parquet('{a.targets}')").fetchall()
     keys = [r[0] for r in rows]
     Xte = features(False, [r[1] for r in rows], vecs)
-    main_pred, main_conf, _ = top(main_clf, Xte)
+    main_pred, main_conf, main_proba = top(main_clf, Xte)
     sub_pred, sub_conf, _ = top(sub_clf, Xte)
+    main_col = {c: i for i, c in enumerate(main_clf.classes_)}
     # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.
     # the two models are independent, so a kept sub could sit under a different main — an impossible pair. A kept sub
-    # fixes its taxonomy parent as the main (and is dropped if that parent is unknown), so the two levels never disagree.
-    main_out, sub_out = [], []
-    for mp, mc, sp, sc in zip(main_pred, main_conf, sub_pred, sub_conf):
-        main = mp if mc >= a.main_min else None
+    # fixes its taxonomy parent as the main (dropped if that parent is unknown), so the two levels never disagree, and
+    # cls_main_confidence is always the main model's own probability of the main it emits, not of some other label.
+    main_out, sub_out, main_conf_out = [], [], []
+    for r, (mp, mc, sp, sc) in enumerate(zip(main_pred, main_conf, sub_pred, sub_conf)):
         parent = sub_main.get(sp)
         if sc >= a.sub_min and parent is not None:
             sub_out.append(sp)
-            main_out.append(parent)   # the sub's parent is the main, whatever the main model alone said
+            main_out.append(parent)
+            j = main_col.get(parent)
+            main_conf_out.append(float(main_proba[r, j]) if j is not None else float(mc))
         else:
             sub_out.append(None)
-            main_out.append(main)
+            main_out.append(mp if mc >= a.main_min else None)
+            main_conf_out.append(float(mc))   # the top main's confidence, recorded even when its label is below the gate
 
     out = db.from_arrow(__import__('pyarrow').table({
         'poi_key': keys,
         'cls_main_estimate': main_out,
-        'cls_main_confidence': [round(float(c), 4) for c in main_conf],
+        'cls_main_confidence': [round(c, 4) for c in main_conf_out],
         'cls_sub_estimate': sub_out,
         'cls_sub_confidence': [round(float(c), 4) for c in sub_conf],
         'cls_estimate_source': ['model_name_tfidf'] * len(keys),
