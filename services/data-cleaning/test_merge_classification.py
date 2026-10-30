@@ -15,13 +15,19 @@ from contract_family import Tagger  # noqa: E402
 
 ONTO = {
     'version': 'test-v1',
+    # MEP vetoes paint-only suppliers; the tiles family lifts that veto for itself
+    'sectors': {'MEP': {'hard_conflicts': ['paint_only_supplier']}},
     'families': [
         {'id': 'hvac_equipment', 'label_ar': 'تكييف', 'sector': 'MEP', 'strong_terms': ['تكييف', 'air conditioning']},
         {'id': 'structural_steel', 'label_ar': 'حديد إنشائي', 'sector': 'METALS', 'strong_terms': ['قطاع'],
          'term_guards': [{'terms': ['قطاع'], 'require_any': ['حديد'], 'block_any': ['جبس']}]},
         {'id': 'sanitary_ware', 'label_ar': 'أدوات صحية', 'sector': 'MEP', 'strong_terms': ['مغاسل'],
-         'negative_terms': ['سيارات'], 'hard_conflicts': ['paints']},
-        {'id': 'paints', 'label_ar': 'دهانات', 'sector': 'FIN', 'strong_terms': ['دهانات']},
+         'negative_terms': ['سيارات'], 'preferred_archetypes': ['sanitary_ware_supplier']},
+        {'id': 'paints', 'label_ar': 'دهانات', 'sector': 'FIN', 'strong_terms': ['دهانات'],
+         'preferred_archetypes': ['paint_only_supplier'], 'hard_conflicts': ['sanitary_ware_supplier']},
+        {'id': 'tiles', 'label_ar': 'بلاط', 'sector': 'MEP', 'strong_terms': ['بلاط'],
+         'term_guards': [{'terms': ['بلاط'], 'block_any': ['سيراميك صحي']}],
+         'preferred_archetypes': ['tile_supplier'], 'hard_conflict_exceptions': ['paint_only_supplier']},
         {'id': 'ict', 'label_ar': 'شبكات', 'sector': 'ICT', 'strong_terms': ['الن']},
     ],
 }
@@ -49,7 +55,14 @@ class TaggerTests(unittest.TestCase):
 
     def test_negative_term_and_hard_conflict(self):
         self.assertEqual(self.fam('مغاسل سيارات توب'), (None, 'guarded_out'), 'a car wash is not sanitary ware')
-        self.assertEqual(self.fam('مغاسل ودهانات'), (None, 'ambiguous_conflict'))
+        self.assertEqual(self.fam('مغاسل ودهانات'), (None, 'ambiguous_conflict'),
+                         'each vetoes the archetype the other prefers (family and inherited sector vetoes)')
+        self.assertEqual(self.fam('دهانات وبلاط'), ('paints', 'strong_term'),
+                         'a sector veto lifted by the family\'s own exception is no conflict')
+
+    def test_guard_without_require_only_blocks(self):
+        self.assertEqual(self.fam('مؤسسة بلاط الشرق'), ('tiles', 'strong_term'), 'no require_any: the term decides')
+        self.assertEqual(self.fam('بلاط سيراميك صحي'), (None, 'guarded_out'))
         self.assertEqual(self.fam('مقاولات عامة'), (None, 'no_strong_term'))
 
 
@@ -111,7 +124,9 @@ class CliTests(unittest.TestCase):
                          'an estimate read from the description is kept even when both names are placeholders')
         rep = json.loads((self.tmp / 'merged.report.json').read_text(encoding='utf-8'))
         self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept']), (9, 2, 1, 1))
-        self.assertTrue((self.tmp / 'merged_review_sample.csv').exists())
+        sample = duckdb.sql(f"select bucket, count(*) from read_csv('{self.tmp / 'merged_review_sample.csv'}') group by 1").fetchall()
+        self.assertEqual(dict(sample), {'model_added': 2, 'needs_review': 1, 'invalid_name': 2},
+                         'every bucket is sampled from its own rows')
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
 
     def test_family_only_for_contractors(self):

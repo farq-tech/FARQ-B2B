@@ -9,7 +9,9 @@ The ontology was built for bill-of-quantities lines, not company names, so only 
 - a term guard drops a match when none of its `require_any` words is present, or any of its `block_any` words is;
 - a family's `negative_terms` drop it;
 - weak terms alone never decide, so they are not read;
-- two surviving families in hard conflict leave the row ambiguous, with no family.
+- two surviving families in hard conflict leave the row ambiguous, with no family. `hard_conflicts` name supplier
+  archetypes (inherited from the sector, less the family's `hard_conflict_exceptions`), so two families conflict when
+  one vetoes an archetype the other prefers, as in procurementOntology.ts.
 Family ids and the ontology version are read from the file, never copied, because the ontology splits families over time.
 
 Reads its inputs read-only; writes a new parquet, a report and a review sample next to it. Never writes over a file.
@@ -52,7 +54,12 @@ class Tagger:
         self.version = onto['version']
         self.families = onto['families']
         nt = lambda terms: [t for t in (norm(x).strip() for x in terms or []) if t]
-        self.hard = {f['id']: set(f.get('hard_conflicts') or []) for f in self.families}
+        sectors = onto.get('sectors') or {}
+        self.hard, self.pref = {}, {}
+        for f in self.families:
+            veto = set((sectors.get(f.get('sector')) or {}).get('hard_conflicts') or []) | set(f.get('hard_conflicts') or [])
+            self.hard[f['id']] = veto - set(f.get('hard_conflict_exceptions') or [])
+            self.pref[f['id']] = set(f.get('preferred_archetypes') or [])
         self.fam, self.single, self.multi = [], collections.defaultdict(list), collections.defaultdict(list)
         for i, f in enumerate(self.families):
             strong = set(nt(f.get('strong_terms')))
@@ -83,7 +90,7 @@ class Tagger:
             if any(self._present(n, name, words) for n in f['neg']):
                 continue
             ok = [t for t in sorted(f['strong'] & hits)
-                  if not any(t in g['terms'] and (not any(self._present(r, name, words) for r in g['require'])
+                  if not any(t in g['terms'] and ((g['require'] and not any(self._present(r, name, words) for r in g['require']))
                                                   or any(self._present(b, name, words) for b in g['block']))
                              for g in f['guards'])]
             if ok:
@@ -91,7 +98,7 @@ class Tagger:
         if not cands:
             return None, 'guarded_out', []
         ids = [f['id'] for f, _ in cands]
-        if any(b in self.hard[x] for x in ids for b in ids if x != b):
+        if any(self.hard[x] & self.pref[y] for x in ids for y in ids if x != y):
             return None, 'ambiguous_conflict', ids
         best, ev = max(cands, key=lambda c: (sum(len(t) for t in c[1]), c[0]['id']))   # the longest evidence wins
         return best, 'strong_term', ev

@@ -108,14 +108,11 @@ def main(argv=None):
     }
     side[1].write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding='utf-8')
     s = a.sample_seed
-    db.execute(f"""copy (
-      (select 'model_added' bucket, poi_key, name_ar, name_en, final_sub, final_main, final_confidence, dir_sub
-         from o where model_added using sample 100 rows (reservoir, {s}))
-      union all (select 'needs_review', poi_key, name_ar, name_en, final_sub, final_main, final_confidence, est_sub
-         from o where needs_review using sample 60 rows (reservoir, {s}))
-      union all (select 'invalid_name', poi_key, name_ar, name_en, final_sub, final_main, final_confidence, est_sub
-         from o where invalid_name using sample 40 rows (reservoir, {s}))
-    ) to '{side[2]}' (header, delimiter ',')""")
+    # sample within each bucket (a SAMPLE clause runs before WHERE, so it would sample the whole table first)
+    pick = lambda where, n, tag: (f"(select * from (select '{tag}' bucket, poi_key, name_ar, name_en, final_sub, final_main, "
+                                  f"final_confidence, dir_sub, est_sub from o where {where}) using sample {n} rows (reservoir, {s}))")
+    db.execute(f"""copy ({pick('model_added', 100, 'model_added')} union all {pick('needs_review', 60, 'needs_review')}
+                       union all {pick('invalid_name', 40, 'invalid_name')}) to '{side[2]}' (header, delimiter ',')""")
     side[2].write_bytes(b'\xef\xbb\xbf' + side[2].read_bytes())   # BOM so a spreadsheet opens the Arabic correctly
     print(json.dumps({k: v for k, v in rep.items() if k not in ('by_main', 'inputs')}, ensure_ascii=False))
 
