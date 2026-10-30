@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
 import { ListingCard } from '../listing-card'
+import { ListingCompare } from '../listing-compare'
 import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -67,6 +68,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
   const [advisor, setAdvisor] = useState<AdvisorSubject | null>(null)
+  const [sideBySide, setSideBySide] = useState(false)
   // the viewer's own point (work, a school…): kept in this browser only, measured from every home
   const [myPoint, setMyPoint] = useState<MyPoint | null>(null)
   const [picking, setPicking] = useState(false)
@@ -116,6 +118,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       onListing: (id) => { const listing = byId.get(id); if (listing) setActive(listing) },
       focus,
       popup: active ? <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
+        compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
@@ -230,7 +233,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
         </div>
       )}
       {compare.length === 2 && (
-        <button onClick={() => setAdvisor({ kind: 'listings', listings: compare })}
+        <button onClick={() => setSideBySide(true)}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground">
           <Scale className="size-4" aria-hidden /> قارن العرضين
         </button>
@@ -240,6 +243,10 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary">
           <Scale className="size-4" aria-hidden /> قارن {selected[0].name} و{selected[1].name}
         </button>
+      )}
+      {sideBySide && compare.length === 2 && (
+        <ListingCompare listings={[compare[0], compare[1]]} onClose={() => setSideBySide(false)} onRemove={toggleCompare}
+          onAdvisor={() => { setSideBySide(false); setAdvisor({ kind: 'listings', listings: compare }) }} />
       )}
       {advisor && <AdvisorPanel key={JSON.stringify(advisor.kind === 'listings' ? advisor.listings.map((item) => item.id) : advisor.rows.map((row) => row.id))} subject={advisor} rows={rows} onClose={() => setAdvisor(null)} />}
     </section>
