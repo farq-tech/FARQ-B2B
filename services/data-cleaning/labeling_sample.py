@@ -18,6 +18,7 @@ import os
 
 import duckdb
 from openpyxl import Workbook
+from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 
 NO_CATEGORY = ('Unclassified', 'Company (activity unknown)', 'Shop (activity unknown)')
@@ -67,7 +68,9 @@ def write(rows, mains, path):
     lists = wb.create_sheet('mains')
     for name in mains + [CANNOT_TELL]:
         lists.append([name])
-    dv = DataValidation(type='list', formula1=f'=mains!$A$1:$A${len(mains) + 1}', allow_blank=True)
+    # a defined name, not a direct reference to another sheet, so every Excel version shows the dropdown
+    wb.defined_names['main_list'] = DefinedName('main_list', attr_text=f'mains!$A$1:$A${len(mains) + 1}')
+    dv = DataValidation(type='list', formula1='=main_list', allow_blank=True)
     ws.add_data_validation(dv)
     col = chr(ord('A') + COLUMNS.index('label_main'))
     dv.add(f'{col}2:{col}{len(rows) + 1}')

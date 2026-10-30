@@ -46,6 +46,10 @@ class LabelingSampleTests(unittest.TestCase):
                              'a source name beginning with «=» stays text, never a formula')
             self.assertNotIn('Unclassified', {r[7] for r in got}, 'a placeholder category counts as none')
             self.assertEqual([c.value for c in load_workbook(out)['mains']['A']], ['سيارات', 'أغذية', 'لا يمكن التحديد'])
+            wb = load_workbook(out)
+            self.assertEqual(wb.defined_names['main_list'].attr_text, 'mains!$A$1:$A$3')
+            self.assertEqual([v.formula1 for v in wb['sample'].data_validations.dataValidation], ['=main_list'],
+                             'the dropdown reads a defined name, not another sheet directly')
             r = subprocess.run(cmd, capture_output=True, text=True)
             self.assertNotEqual(r.returncode, 0, 'never overwrites')
 
