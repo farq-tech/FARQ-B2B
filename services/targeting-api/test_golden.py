@@ -37,6 +37,11 @@ class GoldenPopulationTests(unittest.TestCase):
         self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (4000.0, 30000.0), "the building model's split when every part has one")
         self.assertEqual(out["النرجس"]["source"], "910ths.sa")
 
+    def test_population_is_whole_people(self):
+        out = {r["district_ar"]: r for r in golden.population(self.rows(), "Riyadh", {"2": 58770.9, "3": 7.6}, self.path)}
+        self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (58771, 8))
+        self.assertTrue(all(isinstance(out[name]["population"], int) for name in ("الربيع", "النرجس", "الملقا") if out[name]["source"] != golden.WORLDPOP))
+
     def test_building_total_counts_only_when_every_polygon_is_calibrated(self):
         built = golden.building_totals([("10", 100.0, "910ths.sa"), ("11", 50.0, "worldpop_city_total"), ("12", 70.0, "910ths.sa")], {"11": "10"})
         self.assertEqual(built, {"12": 70.0})

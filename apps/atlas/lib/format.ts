@@ -23,7 +23,7 @@ export const formatNumber = (n: number) => numFmt.format(n)
 export const formatSar = (n: number) => `${numFmt.format(n)} ر.س`
 
 export function formatPhone(p: string | null) {
-  if (!p) return 'غير متوفر'
+  if (!p) return 'غير متاح'
   return `${p.slice(0, 4)} ${p.slice(4, 6)} ${p.slice(6, 9)} ${p.slice(9)}`
 }
 

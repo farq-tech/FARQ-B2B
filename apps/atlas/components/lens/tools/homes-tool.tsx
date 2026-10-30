@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { areaKm2, distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
@@ -127,7 +127,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
     ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
     : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
 
-  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${numberFormat.format(selected.length)} أحياء`) : 'في المدينة'
+  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
   const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
 
   return (

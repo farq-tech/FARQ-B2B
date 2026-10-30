@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { groupLabel } from '@/lib/real-estate'
 import { RELIABLE_LISTINGS } from './lenses'
 import { sumOf, type DistrictRow } from './city-data'
@@ -67,7 +67,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
     ? `${Math.round((100 * male) / (male + female))}% · ${Math.round((100 * female) / (male + female))}%`
     : 'غير متاح'
   const topAge = profile?.ages.length ? [...profile.ages].sort((a, b) => b.total - a.total)[0] : null
-  const title = single ? single.name : selected.length ? `${numberFormat.format(selected.length)} أحياء` : cityName
+  const title = single ? single.name : selected.length ? counted(selected.length, 'district') : cityName
   const scopeKind = single ? 'district' : selected.length ? 'districts' : 'city'
 
   return (
