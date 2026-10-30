@@ -20,6 +20,7 @@ import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
 import { LensMapCanvas, type ListingDot } from '../lens/lens-map-canvas'
 import { Gallery, ListingCard } from '../lens/listing-card'
+import { ListingCompare } from '../lens/listing-compare'
 
 const LIMIT = 1500
 const PAGE = 24
@@ -55,6 +56,7 @@ export function HomesPage() {
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
+  const [sideBySide, setSideBySide] = useState(false)
   const [advise, setAdvise] = useState(false)
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
@@ -246,6 +248,7 @@ export function HomesPage() {
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
               onListing={(id) => { const listing = byId.get(id); if (listing) setActive(listing) }} onBounds={setBounds} />
             {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
+              compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
               className="bottom-20 max-h-[calc(100%-6rem)] lg:bottom-3 lg:max-h-[85%]" />}
           </div>
         </section>
@@ -253,8 +256,14 @@ export function HomesPage() {
 
       {/* the comparison tray and the one switch between list and map on a phone */}
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-20 flex flex-col items-center gap-2 lg:bottom-6">
+        {compare.length === 1 && (
+          <p role="status" className="pointer-events-auto inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-semibold shadow-lg">
+            <Scale className="size-4 text-primary" aria-hidden /> عقار واحد في المقارنة · أضف الثاني
+            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
+          </p>
+        )}
         {compare.length === 2 && (
-          <button onClick={() => setAdvise(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg">
+          <button onClick={() => setSideBySide(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg">
             <Scale className="size-4" aria-hidden /> قارن العرضين
           </button>
         )}
@@ -262,6 +271,10 @@ export function HomesPage() {
           {mobileMap ? <><List className="size-4" aria-hidden /> القائمة</> : <><MapIcon className="size-4" aria-hidden /> الخريطة</>}
         </button>
       </div>
+      {sideBySide && compare.length === 2 && (
+        <ListingCompare listings={[compare[0], compare[1]]} onClose={() => setSideBySide(false)} onRemove={toggleCompare}
+          onAdvisor={() => { setSideBySide(false); setAdvise(true) }} />
+      )}
       {advise && compare.length === 2 && (
         <div className="fixed inset-0 z-30 grid place-items-center bg-background/70 p-4 backdrop-blur" role="dialog" aria-label="مقارنة العرضين">
           <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-4">
