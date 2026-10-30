@@ -31,16 +31,34 @@ import re
 import sys
 
 import duckdb
+from urllib.parse import urlparse
 
 from hudhud_fill import text  # same emptiness rule as the fill step
 
-GMAPS = re.compile(r'^https://(www\.google\.[a-z.]+/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl/maps)/', re.I)
+# a Google host that owns Maps: google.<tld> or google.<cc>.<tld>, optionally www./maps. — anchored at both ends
+# so an extra label (the attacker's www.google.com.evil.sa) never matches; the short links are listed outright
+GOOGLE_HOST = re.compile(r'^(www\.|maps\.)?google\.(com|[a-z]{2}|com\.[a-z]{2}|co\.[a-z]{2})$')
+SHORT_HOSTS = {'goo.gl', 'maps.app.goo.gl'}
 
 
 def gmaps(v):
-    """A Google Maps place URL, or None. Only Google's own hosts, https, bounded length."""
+    """A Google Maps URL, or None. The host is parsed (not matched as a substring) and must be Google's own; the link
+    must be a Maps one — a /maps path, a maps.* host, or a ?cid= place query. https only, bounded length."""
     v = text(v)
-    return v if v and len(v) <= 600 and GMAPS.match(v) else None
+    if not v or len(v) > 600:
+        return None
+    try:
+        u = urlparse(v)
+    except ValueError:
+        return None
+    host = (u.hostname or '').lower()
+    if u.scheme != 'https' or not host:
+        return None
+    if host in SHORT_HOSTS:
+        return v
+    if GOOGLE_HOST.match(host) and (u.path.startswith('/maps') or host.startswith('maps.') or 'cid=' in (u.query or '')):
+        return v
+    return None
 
 
 def logo(v):
@@ -138,8 +156,10 @@ def main():
     db.execute("""update t set hudhud_enriched = list_sort(list_distinct(coalesce(t.hudhud_enriched, []::varchar[]) || enr.cols))
                   from enr where enr.hid = cast(t.hudhud_id as varchar)""")
 
-    # no existing value may change: every input column except the new ones is compared byte-for-byte with the input
-    check = [c for c in have if c != 'hudhud_enriched']
+    # no existing value may change. The new columns are excluded here — filling their empty rows is the whole point,
+    # and a column that already existed is guarded instead by `overwrote` below (empty → value only), exactly as
+    # hudhud_fill leaves the fields it fills out of its own no-change check.
+    check = [c for c in have if c != 'hudhud_enriched' and c not in NEW_FIELDS]
     changed = db.execute(f"""select count(*) from read_parquet('{args.targets}') o join t using (poi_key)
         where {' or '.join(f'o.{c}::varchar is distinct from t.{c}::varchar' for c in check)}""").fetchone()[0]
     # a new column that already existed may only go empty → value (never value → changed value)

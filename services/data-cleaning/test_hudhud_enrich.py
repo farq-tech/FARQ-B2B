@@ -17,9 +17,12 @@ LIVE = {'trx_state': 'ready to publish', 'trx_is_deleted': 'false', 'trx_status'
 
 class CleanerTests(unittest.TestCase):
     def test_gmaps_only_google_hosts(self):
-        self.assertEqual(gmaps('https://www.google.com/maps/place/x/@24.8,46.7,17z'), 'https://www.google.com/maps/place/x/@24.8,46.7,17z')
-        self.assertEqual(gmaps('https://maps.app.goo.gl/abc'), 'https://maps.app.goo.gl/abc')
+        for ok in ('https://www.google.com/maps/place/x/@24.8,46.7,17z', 'https://maps.app.goo.gl/abc',
+                   'https://www.google.com/maps?cid=12345',           # a query form, no slash after «maps»
+                   'https://maps.google.com/?cid=9', 'https://www.google.com.sa/maps/place/x', 'https://goo.gl/maps/x'):
+            self.assertEqual(gmaps(ok), ok, ok)
         for bad in ('http://www.google.com/maps/x', 'https://evil.sa/maps/', 'https://google.com.evil.sa/maps/x',
+                    'https://www.google.com.evil.sa/maps/x',          # an extra label after the real host is not Google
                     'https://www.google.com/search?q=x', 'not a url', ''):
             self.assertIsNone(gmaps(bad), bad)
 
@@ -80,6 +83,28 @@ class EnrichTests(unittest.TestCase):
         self.assertEqual((report['rows_enriched'], report['refused_by_field'].get('google_maps_url')), (2, 1))
         self.assertEqual(sorted(report['columns_added']), ['google_maps_url', 'hudhud_confidence', 'logo_url'])
         self.assertNotEqual(run(temp / 't_enriched.parquet').returncode, 0, 'never writes over an existing snapshot')
+
+    def test_cli_fills_preexisting_empty_columns_without_refusing(self):
+        # the columns are already on the snapshot (a re-run, or a second pass): empty rows are filled and that is not a
+        # change to refuse, while a value already there is kept (the Codex finding on the unchanged-value check)
+        temp = pathlib.Path(tempfile.mkdtemp())
+        db = duckdb.connect()
+        db.execute("create table t(poi_key varchar, hudhud_id bigint, google_maps_url varchar, logo_url varchar, hudhud_confidence double)")
+        db.execute("insert into t values ('hh:1', 1, NULL, NULL, NULL), ('hh:5', 5, 'https://www.google.com/maps/place/keep', NULL, NULL)")
+        db.execute(f"copy t to '{temp / 't.parquet'}' (format parquet)")
+        crs = duckdb.connect(str(temp / 'crs.duckdb'))
+        trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_google_url', 'trx_logo', 'trx_confidence']
+        crs.execute(f"create table crs(cr_entity_id varchar, cr_id varchar, cr_created_at varchar, trx_updated_at varchar, {', '.join(c + ' varchar' for c in trx)})")
+        crs.execute("insert into crs(cr_entity_id, cr_id, cr_created_at, trx_updated_at, trx_state, trx_is_deleted, trx_status, trx_google_url, trx_logo, trx_confidence) values "
+                    "('1.0', 'a', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'https://www.google.com/maps/place/x', NULL, '88'), "
+                    "('5.0', 'e', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'https://www.google.com/maps/place/other', NULL, '70')")
+        crs.close()
+        result = subprocess.run([sys.executable, str(HERE / 'hudhud_enrich.py'), '--targets', str(temp / 't.parquet'),
+                                 '--crs', str(temp / 'crs.duckdb'), '--out', str(temp / 't2.parquet')], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, 'filling an empty cell of an existing column is not a refused change: ' + result.stderr)
+        rows = db.execute(f"select poi_key, google_maps_url, hudhud_confidence from read_parquet('{temp / 't2.parquet'}') order by poi_key").fetchall()
+        self.assertEqual(rows[0], ('hh:1', 'https://www.google.com/maps/place/x', 88.0), 'an empty cell is filled')
+        self.assertEqual(rows[1], ('hh:5', 'https://www.google.com/maps/place/keep', 70.0), 'a value already there is never overwritten')
 
 
 if __name__ == '__main__':
