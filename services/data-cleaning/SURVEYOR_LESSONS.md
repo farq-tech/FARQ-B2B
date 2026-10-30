@@ -1,4 +1,4 @@
-# Lessons from HudHud surveyors (CRs, POI logs, TRX after cleaning; 2024-10 → 2025-08)
+# Lessons from SPD surveyors (CRs, POI logs, TRX after cleaning; 2024-10 → 2025-08)
 
 These are human judgements made in the field. They are used as ground truth.
 

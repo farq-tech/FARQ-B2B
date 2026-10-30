@@ -1,7 +1,7 @@
 """Search lexicon: every word or phrase a Saudi buyer/seller may type, mapped to Farq subcategories (and through them to product families).
 Built from our own evidence, no external service:
  1. raw activity labels (activity_map.csv, high/medium) — official/ISIC-style wording;
- 2. HudHud category names and their Arabic/English search keywords (transaction_management_complete.db `categories`, via hudhud_sub_map);
+ 2. SPD category names and their Arabic/English search keywords (transaction_management_complete.db `categories`, via spd_sub_map);
  3. category labels seen on matched rows: 2GIS/Urbi categories, Google types (Serper cache), Overture categories, OSM types;
  4. name mining: words and two-word phrases that are frequent in the names of rows confidently classified to one subcategory and rare
     elsewhere (precision >= 0.6, support >= 15) — this catches market words like «منجرة», «بوية», «جبسن», brand-free trade words.
@@ -25,7 +25,7 @@ def add(term, sub, src, w=1):
     votes[t][sub] += w; srcs[t].add(src)
 for r in csv.DictReader(open(T + 'activity_map.csv', encoding='utf-8-sig')):
     if r['confidence'] in ('high', 'medium'): add(r['raw_activity'], r['sub_id'], 'activity_map', 5)
-hm = {r['hudhud_sub_id'].split('.')[0]: r for r in csv.DictReader(open(T + 'hudhud_sub_map.csv', encoding='utf-8'))}
+hm = {r['hudhud_sub_id'].split('.')[0]: r for r in csv.DictReader(open(T + 'spd_sub_map.csv', encoding='utf-8'))}
 for r in hm.values():
     if r['confidence'] in ('high', 'medium'): add(r['hudhud_sub_ar'], r['sub_id'], 'hudhud_category', 5); add(r['hudhud_sub_en'], r['sub_id'], 'hudhud_category', 5)
 for s in SUBS.values():

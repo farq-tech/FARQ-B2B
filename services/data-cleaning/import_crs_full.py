@@ -1,9 +1,9 @@
-"""Full HudHud change-request history («crs_export.csv», 110,831 CRs, 409 columns), read in place. The export flattens nested fields
+"""Full SPD change-request history («crs_export.csv», 110,831 CRs, 409 columns), read in place. The export flattens nested fields
 (opening hours …) into a varying number of cells, so about two thirds of the rows are shifted one column to the right from the
 `last_log_*` block on. Each row's shift is detected from anchor columns (coordinates, category ids, review status, status, city,
 district) and every value is validated by its pattern after shifting; an invalid value is dropped, never guessed.
 For every entity the LATEST APPROVED CR gives the surveyor-verified state: deletion, open/closed status, subcategories (through
-hudhud_sub_map.csv), names, phones, website, e-mail, socials (Instagram, X, Snapchat, TikTok), menu/order/reservation links, licence, national address,
+spd_sub_map.csv), names, phones, website, e-mail, socials (Instagram, X, Snapchat, TikTok), menu/order/reservation links, licence, national address,
 street, building number, postal code, floor, district/city, opening hours, description, trade name, amenities, brand, rating, reviews,
 duplicate-of id and Google id. Read-only.
 The CR database (crs_fixed.duckdb, 256,963 CRs) is the preferred source: its `raw_json.data.last_log` holds the same state as JSON, so
@@ -31,14 +31,14 @@ def first_link(v):
     return json.loads(v)[0] if v and v.startswith('[') else v
 def from_raw_json(path):
     """Latest approved CR per entity from crs_fixed.duckdb's raw_json, as the CSV path's records (shift 0)."""
-    from hudhud_fill import hours
+    from spd_fill import hours
     from unpack_raw_json import read_crs, unpack
     rows, _, _ = unpack(read_crs(path, collections.Counter()), {})
     out = []
     for x in rows:
         rec = {'eid': x['poi_key'][3:], 'last_operation': x['last_operation'], 'verified_at': x['verified_at'], 'surveyor': x['surveyor'], 'shift': 0}
         for c in CHECK:
-            # hours in the directory's own format («Sun: 08:30 - 23:30 | …», 00:00-00:00 = open all day), as hudhud_fill.py writes
+            # hours in the directory's own format («Sun: 08:30 - 23:30 | …», 00:00-00:00 = open all day), as spd_fill.py writes
             # them, so a surveyor's hours never replace readable hours with raw JSON in the golden set
             rec[c] = hours(x['opening_hours']) if c == 'opening_hours_regular_hours' else x.get(c)
         for src, col in EXTRA.items():
@@ -78,7 +78,7 @@ db.execute("create table l (" + ", ".join(f'"{c}" varchar' for c in cols) + ")")
 db.executemany(f"insert into l values ({', '.join('?' * len(cols))})", [[str(x[c]) if x.get(c) is not None else None for c in cols] for x in out])
 db.execute("create table hmap (hid varchar, sub_id varchar, confidence varchar, hsub varchar)")
 db.executemany("insert into hmap values (?,?,?,?)", [(x['hudhud_sub_id'].split('.')[0], x['sub_id'], x['confidence'], x['hudhud_sub_en'])
-                                                     for x in csv.DictReader(open(T + 'hudhud_sub_map.csv', encoding='utf-8'))])
+                                                     for x in csv.DictReader(open(T + 'spd_sub_map.csv', encoding='utf-8'))])
 db.execute("""create table subpick as select eid, arg_min(h.sub_id, case h.confidence when 'high' then 0 when 'medium' then 1 else 2 end) sub_id,
    arg_min(h.hsub, case h.confidence when 'high' then 0 when 'medium' then 1 else 2 end) hsub, min(h.confidence) conf
    from (select eid, unnest(regexp_extract_all(sub_categories_ids, '[0-9]+')) hid from l) x join hmap h using(hid) group by eid""")

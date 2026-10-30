@@ -1,4 +1,4 @@
-"""HudHud fill on synthetic rows: python3 -m unittest test_hudhud_fill (from services/data-cleaning)."""
+"""SPD fill on synthetic rows: python3 -m unittest test_spd_fill (from services/data-cleaning)."""
 import json
 import pathlib
 import subprocess
@@ -10,7 +10,7 @@ import duckdb
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from hudhud_fill import account, fills, floor, hours, phone, website  # noqa: E402
+from spd_fill import account, fills, floor, hours, phone, website  # noqa: E402
 
 LIVE = {'trx_state': 'ready to publish', 'trx_is_deleted': 'false', 'trx_status': 'open'}
 
@@ -48,7 +48,7 @@ class CleanerTests(unittest.TestCase):
         self.assertEqual([floor(v) for v in ('0', 'GF', '2.0', 'B1', 'open')], ['0', '0', '2', 'B1', None])
         self.assertEqual(website('https://www.farq.sa/'), 'farq.sa')
         self.assertIsNone(website('https://google.com/maps/place/x'))
-        from hudhud_fill import FIELDS
+        from spd_fill import FIELDS
         name_en = FIELDS['name_en'][1]
         for junk in ('www.example.com', 'maps.app.goo.gl/x', 'ChIJuc0sAEAGLz4RJ3A9PIvA9SI', 'Unavailable', '2025-04-15T10:14:01.612Z', 'https://x.sa'):
             self.assertIsNone(name_en(junk), junk)
@@ -91,7 +91,7 @@ class FillTests(unittest.TestCase):
                     "('1.0', 'a', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'new@x.sa', '0', 'Blue Cafe'), "
                     "('1.0', 'b', '2025-05-01', '2025-05-02', 'ready to publish', 'false', 'open', 'old@x.sa', '3', 'Old Name'), ('2.0', 'c', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'other@x.sa', '1', null)")
         crs.close()
-        run = lambda out: subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't.parquet'),
+        run = lambda out: subprocess.run([sys.executable, str(HERE / 'spd_fill.py'), '--targets', str(temp / 't.parquet'),
                                           '--crs', str(temp / 'crs.duckdb'), '--out', str(out)], capture_output=True, text=True)
         self.assertNotEqual(run(temp / 't.parquet').returncode, 0, 'never writes over its input')
         result = run(temp / 't_hudhud.parquet')
@@ -104,7 +104,7 @@ class FillTests(unittest.TestCase):
         report = json.loads((temp / 't_hudhud.report.json').read_text())
         self.assertEqual((report['existing_values_changed'], report['rows_given_a_first_contact']), (0, 1))
         self.assertNotEqual(run(temp / 't_hudhud.parquet').returncode, 0, 'never writes over an existing snapshot')
-        again = subprocess.run([sys.executable, str(HERE / 'hudhud_fill.py'), '--targets', str(temp / 't_hudhud.parquet'),
+        again = subprocess.run([sys.executable, str(HERE / 'spd_fill.py'), '--targets', str(temp / 't_hudhud.parquet'),
                                 '--crs', str(temp / 'crs.duckdb'), '--out', str(temp / 't_again.parquet')], capture_output=True, text=True)
         self.assertEqual(again.returncode, 0, 'nothing left to fill still writes the copy and its report: ' + again.stderr)
         self.assertEqual(json.loads((temp / 't_again.report.json').read_text())['rows_filled'], 0)

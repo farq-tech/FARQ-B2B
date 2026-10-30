@@ -1,4 +1,4 @@
-"""Two-level POI classifier (estimate layer) from the HudHud surveyor-verified categories.
+"""Two-level POI classifier (estimate layer) from the SPD surveyor-verified categories.
 
 A place's name tells its activity for the common cases, but a third of the taxonomy's sub-categories have no training
 example and many names are not descriptive («شركة التجارية», «هايبر ماركت»), so a name model plateaus at the sub level.

@@ -1,19 +1,19 @@
-"""Mark places HudHud's surveyors closed: each place's current state in the full HudHud change-request database.
+"""Mark places SPD's surveyors closed: each place's current state in the full SPD change-request database.
 
-A step after the golden export and the HudHud fill, before publishing, like chain_consensus.py and hudhud_fill.py. Rules:
-- only places live in HudHud (`ready to publish`, not deleted) whose current status is `permanently closed` or
+A step after the golden export and the SPD fill, before publishing, like chain_consensus.py and spd_fill.py. Rules:
+- only places live in SPD (`ready to publish`, not deleted) whose current status is `permanently closed` or
   `temporary closed`;
 - the snapshot's company_status is written only when it is empty or a lighter closure (a permanent closure outranks a
   temporary one); any other value is left as it is, and no place is reopened;
 - the values are the ones status_policy.py reads: `permanently_closed` (hidden from search, map and campaigns) and
   `temporarily_closed` (shown labelled; a campaign may still reach it, owner decision of 2026-10-15 in SEND_CLASSES);
-- `company_status_source` names the source and the date of HudHud's state, e.g. `hudhud_cr:2025-08-28`.
+- `company_status_source` names the source and the date of SPD's state, e.g. `hudhud_cr:2025-08-28`.
 The script refuses to write if any column other than these two changes, or the row count differs.
 
 Reads the snapshot and the database (read-only); writes a new snapshot and a report next to it. Never writes over its input
 or the served files.
 
-    python3 hudhud_status.py --targets T.parquet --crs crs_fixed.duckdb --out T_closed.parquet
+    python3 spd_status.py --targets T.parquet --crs crs_fixed.duckdb --out T_closed.parquet
 """
 import argparse
 import collections
@@ -28,7 +28,7 @@ import duckdb
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'targeting-api'))
 import status_policy  # noqa: E402
 
-# HudHud's own values; a bare «closed» is a permanent closure, as import_crs_full.py and status_policy read it
+# SPD's own values; a bare «closed» is a permanent closure, as import_crs_full.py and status_policy read it
 CLOSURE = {'permanently closed': 'permanently_closed', 'closed': 'permanently_closed', 'temporary closed': 'temporarily_closed'}
 # the snapshot's value is ranked by the shared status policy, so every spelling of a closure counts the same;
 # a class missing here (open, inactive, hidden, invalid …) is never replaced
@@ -36,9 +36,9 @@ RANK = {'unknown_empty': 0, 'closed_temporary': 1, 'closed_permanent': 2}
 WRITTEN = {'temporarily_closed': 1, 'permanently_closed': 2}
 
 
-def decide(current, hudhud_status):
+def decide(current, spd_status):
     """The status to write, or None to leave the snapshot's value. current: the snapshot's company_status."""
-    new = CLOSURE.get((hudhud_status or '').strip().lower())
+    new = CLOSURE.get((spd_status or '').strip().lower())
     now = RANK.get(status_policy.normalize(current)['status_normalized'])
     if not new or now is None:
         return None
@@ -61,7 +61,7 @@ def main():
     have = [name for name, *_ in db.execute(f"describe select * from read_parquet('{args.targets}')").fetchall()]
     if 'hudhud_id' not in have or 'company_status' not in have:
         sys.exit('refused: the snapshot has no hudhud_id or company_status column')
-    # one row per place, as in hudhud_fill.py: the most recently updated CR row, used whole
+    # one row per place, as in spd_fill.py: the most recently updated CR row, used whole
     hudhud = {hid: (status, at) for hid, state, deleted, status, at in db.execute("""
         select split_part(cr_entity_id::varchar, '.', 1), trx_state, trx_is_deleted::varchar, trx_status, left(trx_updated_at::varchar, 10)
         from c.crs qualify row_number() over (partition by split_part(cr_entity_id::varchar, '.', 1)

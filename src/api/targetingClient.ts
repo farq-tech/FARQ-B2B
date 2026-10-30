@@ -66,7 +66,7 @@ export type TargetRow = {
   match?: 'product' | 'seller'
   /** AI fit: L likely · M maybe · N not · null = not checked */
   ai?: 'L' | 'M' | 'N' | null
-  /** HudHud surveyors deleted this place after a field visit (closed or duplicate): shown last, never a campaign recipient. */
+  /** SPD surveyors deleted this place after a field visit (closed or duplicate): shown last, never a campaign recipient. */
   hudhud_deleted?: boolean
   sendable?: boolean
   warning?: string
@@ -370,7 +370,7 @@ export const templateFits = (t: MetaTemplate) => {
 }
 /** Normalize a valid Saudi mobile only when the directory source flags it as WhatsApp. The flag is not independent verification. */
 /** «مغلق مؤقتاً» / «غير نشط» shown next to a result. Campaign eligibility is rechecked by the send API. */
-export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في هدهد' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
+export const statusLabel = (r: TargetRow): string | null => (r.hudhud_deleted ? 'محذوفة في SPD' : r.status_class === 'closed_temporary' ? 'مغلق مؤقتاً' : r.status_class === 'inactive' ? 'غير نشط' : null)
 export const hasUnconfirmedStatus = (r: Pick<TargetRow, 'status_class'>): boolean => ['hidden', 'unknown_empty', 'unknown_invalid'].includes(r.status_class || '')
 export const waNumber = (r: TargetRow) => {
   if (r.has_whatsapp !== true) return null
