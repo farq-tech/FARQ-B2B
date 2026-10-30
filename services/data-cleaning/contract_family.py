@@ -8,7 +8,7 @@ The ontology was built for bill-of-quantities lines, not company names, so only 
   Substring matching is not used: a short term inside an unrelated word («الن» in «النابغة») is the main error it causes;
 - a term guard drops a match when none of its `require_any` words is present, any of its `block_any` words is, or one
   of its `blocked_by_head` words comes before the term («عزل ارضيات» is insulation, «لاصق بلاط» an adhesive);
-- a family's `negative_terms` drop it;
+- a family's `negative_terms`, and its sector's (inherited, as mergeRules does), drop it;
 - weak terms alone never decide, so they are not read;
 - two surviving families in hard conflict, a best match whose evidence another surviving family also carries (a
   strong term shared by two families, such as «دش طوارئ»), or two families tied on evidence length, leave the row
@@ -67,19 +67,23 @@ class Tagger:
         for i, f in enumerate(self.families):
             strong = set(nt(f.get('strong_terms')))
             self.fam.append({'id': f['id'], 'label': f.get('label_ar'), 'sector': f.get('sector'), 'strong': strong,
-                             'neg': nt(f.get('negative_terms')),
+                             'neg': nt((sectors.get(f.get('sector')) or {}).get('negative_terms')) + nt(f.get('negative_terms')),
                              'guards': [{'terms': set(nt(g.get('terms'))), 'require': nt(g.get('require_any')),
                                          'block': nt(g.get('block_any')), 'head': nt(g.get('blocked_by_head'))}
                                         for g in f.get('term_guards') or []]})
             for t in strong:
                 (self.multi if ' ' in t else self.single)[t].append(i)
+        self.by_first = collections.defaultdict(list)   # phrases by their first word, so a name checks only its own
+        for t in self.multi:
+            self.by_first[t.split()[0]].append(t)
 
     @staticmethod
     def _words(name):
         return {b for w in name.split() for b in bases(w)}
 
-    def _present(self, term, name, words):
-        return term in words if ' ' not in term else f' {term} ' in name
+    def _present(self, term, toks, words):
+        """The term is in the name: a word with or without a proclitic, or a phrase whose first word may carry one."""
+        return term in words if ' ' not in term else self._at(term, toks) is not None
 
     @staticmethod
     def _at(term, toks):
@@ -90,13 +94,13 @@ class Tagger:
                 return i
         return None
 
-    def _allowed(self, t, g, name, words, toks):
+    def _allowed(self, t, g, words, toks):
         """A guard on term t lets it decide (procurementOntology.ts guardAllows)."""
         if t not in g['terms']:
             return True
-        if g['require'] and not any(self._present(r, name, words) for r in g['require']):
+        if g['require'] and not any(self._present(r, toks, words) for r in g['require']):
             return False
-        if any(self._present(b, name, words) for b in g['block']):
+        if any(self._present(b, toks, words) for b in g['block']):
             return False
         at = self._at(t, toks)
         for h in g['head']:   # a head word before the term makes the term the object, not the product
@@ -109,15 +113,16 @@ class Tagger:
         """(family or None, status, evidence terms or conflicting ids) for one raw name."""
         name = norm(raw)
         words, toks = self._words(name), name.split()
-        hits = {t for t in words if t in self.single} | {t for t in self.multi if f' {t} ' in name}
+        hits = {t for t in words if t in self.single} | {
+            t for w in words for t in self.by_first.get(w, ()) if self._at(t, toks) is not None}
         if not hits:
             return None, 'no_strong_term', []
         cands = []
         for i in sorted({i for t in hits for i in self.single.get(t, []) + self.multi.get(t, [])}):
             f = self.fam[i]
-            if any(self._present(n, name, words) for n in f['neg']):
+            if any(self._present(n, toks, words) for n in f['neg']):
                 continue
-            ok = [t for t in sorted(f['strong'] & hits) if all(self._allowed(t, g, name, words, toks) for g in f['guards'])]
+            ok = [t for t in sorted(f['strong'] & hits) if all(self._allowed(t, g, words, toks) for g in f['guards'])]
             if ok:
                 cands.append((f, ok))
         if not cands:

@@ -16,7 +16,7 @@ from contract_family import Tagger  # noqa: E402
 ONTO = {
     'version': 'test-v1',
     # MEP vetoes paint-only suppliers; the tiles family lifts that veto for itself
-    'sectors': {'MEP': {'hard_conflicts': ['paint_only_supplier']}},
+    'sectors': {'MEP': {'hard_conflicts': ['paint_only_supplier']}, 'SAFETY': {'negative_terms': ['خرسانه']}},
     'families': [
         {'id': 'hvac_equipment', 'label_ar': 'تكييف', 'sector': 'MEP', 'strong_terms': ['تكييف', 'air conditioning']},
         {'id': 'structural_steel', 'label_ar': 'حديد إنشائي', 'sector': 'METALS', 'strong_terms': ['قطاع'],
@@ -30,6 +30,7 @@ ONTO = {
          'preferred_archetypes': ['tile_supplier'], 'hard_conflict_exceptions': ['paint_only_supplier']},
         {'id': 'ict', 'label_ar': 'شبكات', 'sector': 'ICT', 'strong_terms': ['الن']},
         {'id': 'first_aid', 'label_ar': 'إسعافات', 'sector': 'SAFETY', 'strong_terms': ['دش طوارئ']},
+        {'id': 'fire', 'label_ar': 'إطفاء', 'sector': 'SAFETY', 'strong_terms': ['نظام اطفاء']},
         {'id': 'lab_fitout', 'label_ar': 'مختبرات', 'sector': 'LAB', 'strong_terms': ['دش طوارئ', 'مختبرات']},
     ],
 }
@@ -46,6 +47,7 @@ class TaggerTests(unittest.TestCase):
     def test_strong_term_with_proclitic_and_phrase(self):
         self.assertEqual(self.fam('مؤسسة النور للتكييف'), ('hvac_equipment', 'strong_term'))
         self.assertEqual(self.fam('Gulf Air Conditioning Co'), ('hvac_equipment', 'strong_term'))
+        self.assertEqual(self.fam('مؤسسة بنظام اطفاء'), ('fire', 'strong_term'), 'a proclitic on a phrase\'s first word')
 
     def test_no_substring_match(self):
         self.assertEqual(self.fam('مقاولات النابغة'), (None, 'no_strong_term'), 'a short term never matches inside a word')
@@ -77,6 +79,7 @@ class TaggerTests(unittest.TestCase):
         self.assertEqual(self.fam('تكييف ومغاسل'), (None, 'ambiguous_shared_term'),
                          'equally long evidence for two families is a tie, not a pick by ontology order')
         self.assertEqual(self.fam('مقاولات عامة'), (None, 'no_strong_term'))
+        self.assertEqual(self.fam('نظام اطفاء وخرسانه'), (None, 'guarded_out'), 'a sector\'s negative term is inherited')
 
 
 class CliTests(unittest.TestCase):
