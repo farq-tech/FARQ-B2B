@@ -14,7 +14,7 @@ import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
-import { MapSheet, PEEK, type SheetSnap } from './map-sheet'
+import { HALF, MapSheet, PEEK, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
@@ -105,6 +105,9 @@ function StepTab({ index, label, active, onClick }: { index: number; label: stri
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
 const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
 
+// the fixed district filter writes into the same `selected` as a map tap; this value marks «several chosen on the map»
+const DISTRICTS_MULTI = '__multi__'
+
 /**
  * Atlas map with one journey per user group (docs/atlas-product-foundation.md §4): the group's steps in order, its
  * three figures on the map, and one business search for every group.
@@ -155,8 +158,26 @@ export function LensMap() {
   const steps = useMemo(() => shadeSteps(new Map(data.rows.map((row) => [row.id, METRICS[metric].value(row)]))), [data.rows, metric])
   const chosen = data.rows.filter((row) => selected.includes(row.id))
   const toggle = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  // a district picked from a list takes the map to it (a click on the map is already looking at it); on a phone a full
+  // sheet drops to half so the district shows above it
+  const [zoomTo, setZoomTo] = useState<{ id: string; nonce: number; cover: number } | null>(null)
+  const flyTo = (id: string) => {
+    const phone = !window.matchMedia('(min-width: 64rem)').matches
+    if (phone) setSheet('half')
+    setZoomTo({ id, nonce: Date.now(), cover: phone ? HALF : 0 })
+  }
+  const pickFromList = (id: string) => { setSelected([id]); flyTo(id) }
+  const toggleFromList = (id: string) => { if (!selected.includes(id)) flyTo(id); toggle(id) }
   const cityName = cities.find((item) => item.en === city)?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
+  // the fixed «الحي» filter: a non-map way to focus one district, kept in sync with map taps and steady across lenses
+  const districtOptions = useMemo<[string, string][]>(() => {
+    const sorted = [...data.rows].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map((row) => [row.id, row.name] as [string, string])
+    const base: [string, string][] = [['', 'كل الأحياء'], ...sorted]
+    return selected.length > 1 ? [[DISTRICTS_MULTI, `${numberFormat.format(selected.length)} أحياء مختارة`], ...base] : base
+  }, [data.rows, selected.length])
+  const districtValue = selected.length === 1 ? selected[0] : selected.length > 1 ? DISTRICTS_MULTI : ''
+  const pickDistrict = (value: string) => { if (value !== DISTRICTS_MULTI) setSelected(value ? [value] : []) }
   const submit = () => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }
   // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait
   const colorsNote = overlay.colors ? `ألوان الخريطة من «${step?.label}»` : null
@@ -171,6 +192,11 @@ export function LensMap() {
           <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
             <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className={pillControl}>
               {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
+            </select>
+          </PillField>
+          <PillField label="الحي" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
+            <select aria-label="الحي" value={districtValue} onChange={(e) => pickDistrict(e.target.value)} className={pillControl} disabled={!data.rows.length}>
+              {districtOptions.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
             </select>
           </PillField>
           <PillField label="أنا من" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[13rem]">
@@ -192,7 +218,7 @@ export function LensMap() {
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} focus={overlay.focus} />
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} focus={overlay.focus} zoomTo={zoomTo} />
           {overlay.popup}
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} />
           {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
@@ -205,6 +231,7 @@ export function LensMap() {
             </form>
             <div className="pointer-events-auto -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="المدينة والفئة والمقياس">
               <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
+              <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
               {colorsNote
                 ? <span className="inline-flex h-9 shrink-0 items-center rounded-full border bg-card/95 px-3.5 text-sm text-muted-foreground shadow-sm">{colorsNote}</span>
@@ -241,9 +268,9 @@ export function LensMap() {
                       <StepTab key={item.tool} index={index} label={item.label} active={tool === item.tool} onClick={() => setTool(item.tool)} />
                     ))}
                   </div>
-                  {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} />}
-                  {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggle} />}
-                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} features={data.features} onOverlay={onOverlay} onSelect={(id) => setSelected([id])} onActivity={setRival}
+                  {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} />}
+                  {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} />}
+                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} features={data.features} onOverlay={onOverlay} onSelect={pickFromList} onActivity={setRival}
                     onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
                   {tool === 'around' && <AroundTool onOverlay={onOverlay} />}
                   {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
@@ -256,7 +283,7 @@ export function LensMap() {
                     <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
-                  {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggle} full={lens === 'analysts' || tool === 'growth'} />}
+                  {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} full={lens === 'analysts' || tool === 'growth'} />}
                 </>
               )}
             </>
