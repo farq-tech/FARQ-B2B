@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { useAppStore } from '@/lib/store'
 import type { RequestType } from '@/lib/types'
@@ -90,7 +90,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
     router.push(`/requests/${id}`)
   }
 
-  const where = !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : `${numberFormat.format(districts.length)} أحياء`
+  const where = !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : counted(districts.length, 'district')
 
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">

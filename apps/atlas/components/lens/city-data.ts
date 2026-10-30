@@ -72,6 +72,19 @@ async function getJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
+/** The district shapes are the one source the map cannot open without: a brief upstream hiccup (5xx or a dropped
+ * connection) gets one quiet retry before the visitor sees «تعذر تحميل بيانات المدينة». */
+async function getRequired<T>(url: string): Promise<T> {
+  try {
+    return await getJson<T>(url)
+  } catch (error) {
+    const status = Number((error as Error).message)
+    if (status && status < 500) throw error
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    return getJson<T>(url)
+  }
+}
+
 export function useCityData(city: string): CityData {
   const [data, setData] = useState<CityData>({ status: 'loading', features: [], rows: [], total: null })
   const [attempt, setAttempt] = useState(0)
@@ -81,7 +94,7 @@ export function useCityData(city: string): CityData {
     setData({ status: 'loading', features: [], rows: [], total: null })
     const optional = <T,>(promise: Promise<T>) => promise.catch(() => null)
     Promise.all([
-      getJson<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`),
+      getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`),
       optional(getJson<{ districts?: PopulationRow[] }>(`/api/market/population-districts?city=${encodeURIComponent(city)}`)),
       optional(postMarket<{ districts?: CountRow[]; total?: number }>('district-counts', { city })),
       optional(postMarket<{ districts?: IncomeRow[] }>('district-income', { city })),

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { planRoute, type Point, type RoutePart, type Stop } from '@/lib/route-plan'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
@@ -164,9 +164,9 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 <button onClick={() => setRep(index)} className={cn('flex w-full items-center gap-2 rounded-lg border p-2 text-start text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
                   <span className="size-3.5 shrink-0 rounded-sm" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                   <span className="font-bold">المندوب {numberFormat.format(index + 1)}</span>
-                  <span className="truncate text-sm text-muted-foreground">{numberFormat.format(group.districts.length)} أحياء</span>
+                  <span className="truncate text-sm text-muted-foreground">{counted(group.districts.length, 'district')}</span>
                   <Explained title={`حصة المندوب ${numberFormat.format(index + 1)}`} lines={EXPLAIN.territory(weight)} className="ms-auto shrink-0 font-semibold">
-                    {numberFormat.format(Math.round(group.weight))}
+                    {weight === 'population' ? `${numberFormat.format(Math.round(group.weight))} ساكن` : counted(Math.round(group.weight), 'business')}
                   </Explained>
                 </button>
               </li>
