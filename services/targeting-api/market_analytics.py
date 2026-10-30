@@ -30,7 +30,7 @@ USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
 )"""
 
 NEAR_BASIS = "أقرب الأماكن من دليل فرق في دائرة 6 كم، والمسافة خط مستقيم. نوع المدرسة (حكومية أو أهلية) من اسمها؛ ما لا يذكر اسمه النوع يظهر «مدرسة» فقط."
-BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع ورقمه وكلمة النشاط («صيدلية النهدي» و«النهدي» سلسلة واحدة). الاسمان العربي واللاتيني بسجل تجاري مشترك سلسلة واحدة إذا كان كل منهما أقرب اسم للآخر، ولا تتسلسل الأسماء، وكلمة النشاط وحدها ليست سلسلة."
+BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع ورقمه وكلمة النشاط («صيدلية النهدي» و«النهدي» سلسلة واحدة). الاسمان العربي واللاتيني بسجل تجاري مشترك سلسلة واحدة إذا كان كل منهما أقرب اسم للآخر، وبلا سجل مشترك إذا تطابق نطقهما ولم يشبهه اسم آخر في النشاط، ولا تتسلسل الأسماء، وكلمة النشاط وحدها ليست سلسلة."
 MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام، ولا يعني نية الشراء."
@@ -65,7 +65,38 @@ CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
     "للتجاره", "تجاره", "التجاريه", "شركات",
     # a kind of shop, not a brand: «مغاسل», «بخاري», «اسواق مركزيه», «غسيل سيارات» are many unrelated shops
     "مغاسل", "laundries", "اسواق", "مركزيه", "المركزيه", "غسيل", "سيارات", "السيارات", "بخاري", "البخاري",
+    "ملابس", "clothes", "cleaners", "المحدوده", "محدوده", "للاطعمه", "دونتس", "دونات", "donuts",
+    "car", "cars", "wash", "carwash", "كار", "واش", "وواش",
 })
+
+# Letters to the consonant skeleton a name keeps across scripts: «الجبر» and «aljabr» are both «jbr», «دانكن» and
+# «dunkin» both «dnkn». Vowels, long vowels and «ع» drop; close sounds share one letter (ق ك خ -> k, ز -> s).
+_AR_SOUND = str.maketrans({"ب": "b", "ت": "t", "ث": "t", "ج": "j", "ح": "h", "خ": "k", "د": "d", "ذ": "d", "ر": "r",
+                           "ز": "s", "س": "s", "ش": "s", "ص": "s", "ض": "d", "ط": "t", "ظ": "z", "ع": "", "غ": "g",
+                           "ف": "f", "ق": "k", "ك": "k", "ل": "l", "م": "m", "ن": "n", "ه": "h", "و": "", "ي": "",
+                           "ا": "", "ء": ""})
+_LATIN_PAIRS = (("sh", "s"), ("th", "t"), ("kh", "k"), ("gh", "G"), ("ph", "f"), ("ck", "k"), ("ch", "s"))
+_LATIN_SOUND = str.maketrans({"c": "k", "q": "k", "x": "k", "v": "f", "p": "b", "g": "j", "z": "s", "G": "g",
+                              "a": "", "e": "", "i": "", "o": "", "u": "", "y": "", "w": ""})
+
+
+def sound_key(core):
+    """The consonant skeleton of a brand core, comparable between an Arabic and a Latin spelling."""
+    arabic = any("؀" <= char <= "ۿ" for char in core)
+    parts = []
+    for word in core.split():
+        if arabic:
+            word = word[2:] if word.startswith("ال") and len(word) > 3 else word
+            word = word[:-1] if word.endswith("ه") and len(word) > 2 else word   # ta marbuta, folded to ه
+            parts.append(word.translate(_AR_SOUND))
+        else:
+            word = word[2:] if word.startswith(("al", "el")) and len(word) > 4 else word
+            for pair, letter in _LATIN_PAIRS:
+                word = word.replace(pair, letter)
+            word = word[:-1] if word.endswith("h") and len(word) > 2 else word
+            parts.append(word.translate(_LATIN_SOUND))
+    skeleton = "".join(parts)
+    return "".join(char for index, char in enumerate(skeleton) if not index or char != skeleton[index - 1])
 
 
 def brand_core(key):
@@ -124,6 +155,19 @@ def group_chains(rows):
         best_latin.setdefault(ar, la)
         best_arabic.setdefault(la, ar)
     partner = {la: ar for ar, la in best_latin.items() if best_arabic.get(la) == ar}
+    # the same brand in two scripts with no shared registration on file: an Arabic and a Latin core still unpaired
+    # join when their sound (sound_key) matches each other and no other name, paired or not, so two names alike in
+    # sound stay apart and a name already paired by registration keeps a sound from looking unique
+    paired = set(partner) | set(partner.values())
+    by_sound = {}
+    for core in {core for core in cores.values() if usable(core)}:
+        sound = sound_key(core)
+        if len(sound) >= 3:
+            by_sound.setdefault(sound, []).append(core)
+    for names in by_sound.values():
+        ar, la = [name for name in names if arabic(name)], [name for name in names if not arabic(name)]
+        if len(ar) == 1 and len(la) == 1 and not paired & {ar[0], la[0]}:
+            partner[la[0]] = ar[0]
     groups = {}
     for poi, district, label, key, _ in rows:
         core = cores[key]

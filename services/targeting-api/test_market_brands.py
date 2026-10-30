@@ -119,6 +119,25 @@ class MarketBrandsTests(unittest.TestCase):
         self.assertEqual({core: len(group["pois"]) for core, group in market_analytics.group_chains(rows).items()}, {"عنوان القهوه": 2},
                          'the company form is the same brand, and a kind of shop is no brand')
 
+    def test_a_brand_in_two_scripts_without_a_shared_registration_joins_by_sound(self):
+        rows = [("j1", "العليا", "مغسلة الجبر", "مغسله الجبر", None), ("j2", "الملقا", "Aljabr Laundry", "aljabr laundry", None),
+                ("d1", "العليا", "دانكن", "دانكن", None), ("d2", "الملقا", "دانكن دونتس", "دانكن دونتس", None),
+                ("d3", "النرجس", "Dunkin' Donuts", "dunkin donuts", None)]
+        groups = market_analytics.group_chains(rows)
+        self.assertEqual({core: len(group["pois"]) for core, group in groups.items()}, {"الجبر": 2, "دانكن": 3})
+        self.assertEqual(groups["الجبر"]["brand"], "مغسلة الجبر", 'the Arabic spelling names the brand')
+
+    def test_a_sound_shared_by_two_names_joins_neither(self):
+        rows = [("s1", "العليا", "سمر", "سمر", None), ("s2", "الملقا", "سامر", "سامر", None), ("s3", "النرجس", "Samar", "samar", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["samar", "سامر", "سمر"], 'two Arabic names sound like the Latin one')
+        # a Latin name already paired by registration is not taken again by sound
+        rows = [("r1", "العليا", "ليمون", "ليمون", "CR-1"), ("r2", "الملقا", "Lemon", "lemon", "CR-1"),
+                ("r3", "النرجس", "لامون", "لامون", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["لامون", "ليمون"])
+        # nor does a pair by registration leave a look-alike unique: «limon» sounds like the paired «ليمون» too
+        rows += [("r4", "العليا", "Limon", "limon", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["limon", "لامون", "ليمون"])
+
     def test_history_gives_growth_once_two_snapshots_exist(self):
         path = str(pathlib.Path(self.temp.name) / "chain_history.json")
         self.assertTrue(market_analytics.record_chain_history(self.analytics, path, today="2026-09-01"))
