@@ -10,8 +10,9 @@ The ontology was built for bill-of-quantities lines, not company names, so only 
   of its `blocked_by_head` words comes before the term («عزل ارضيات» is insulation, «لاصق بلاط» an adhesive);
 - a family's `negative_terms` drop it;
 - weak terms alone never decide, so they are not read;
-- two surviving families in hard conflict, or a best match whose evidence another surviving family also carries (a
-  strong term shared by two families, such as «دش طوارئ»), leave the row ambiguous, with no family. `hard_conflicts` name supplier
+- two surviving families in hard conflict, a best match whose evidence another surviving family also carries (a
+  strong term shared by two families, such as «دش طوارئ»), or two families tied on evidence length, leave the row
+  ambiguous, with no family. `hard_conflicts` name supplier
   archetypes (inherited from the sector, less the family's `hard_conflict_exceptions`), so two families conflict when
   one vetoes an archetype the other prefers, as in procurementOntology.ts.
 Family ids and the ontology version are read from the file, never copied, because the ontology splits families over time.
@@ -124,9 +125,12 @@ class Tagger:
         ids = [f['id'] for f, _ in cands]
         if any(self.hard[x] & self.pref[y] for x in ids for y in ids if x != y):
             return None, 'ambiguous_conflict', ids
-        best, ev = max(cands, key=lambda c: sum(len(t) for t in c[1]))   # the longest evidence wins
-        shared = [f['id'] for f, e in cands if f is not best and set(ev) <= set(e)]
-        if shared:   # another family has all the same evidence: nothing tells them apart
+        score = lambda e: sum(len(t) for t in e)
+        best, ev = max(cands, key=lambda c: score(c[1]))   # the longest evidence wins
+        # another family has all the same evidence, or as much of its own: nothing tells them apart, and the ontology's
+        # order must not decide
+        shared = [f['id'] for f, e in cands if f is not best and (set(ev) <= set(e) or score(e) == score(ev))]
+        if shared:
             return None, 'ambiguous_shared_term', [best['id']] + shared
         return best, 'strong_term', ev
 

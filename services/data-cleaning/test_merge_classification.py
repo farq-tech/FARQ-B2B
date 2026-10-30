@@ -74,6 +74,8 @@ class TaggerTests(unittest.TestCase):
     def test_shared_term_is_ambiguous(self):
         self.assertEqual(self.fam('مؤسسة دش طوارئ'), (None, 'ambiguous_shared_term'))
         self.assertEqual(self.fam('دش طوارئ مختبرات'), ('lab_fitout', 'strong_term'), 'more evidence tells them apart')
+        self.assertEqual(self.fam('تكييف ومغاسل'), (None, 'ambiguous_shared_term'),
+                         'equally long evidence for two families is a tie, not a pick by ontology order')
         self.assertEqual(self.fam('مقاولات عامة'), (None, 'no_strong_term'))
 
 
