@@ -16,7 +16,7 @@ import type { Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
 
-type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }
+type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
 const LIMIT = 1500
 const BEST = 8
 const MY_POINT_KEY = 'atlas.myPoint'
@@ -62,7 +62,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
   const [rentDeal, setRentDeal] = useStickyState<Deal | 'all'>(`${sticky}.rentDeal`, preset?.deal ?? 'rent_year')
   const [budget, setBudget] = useStickyState(`${sticky}.budget`, 0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
-  const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: 0, listings: [] })
+  const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: null, listings: [] })
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -95,8 +95,8 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       ...(budget && deal ? { max_price: budget } : {}),
       ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
     })
-      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? 0, listings: (data.listings ?? []).filter(isPublishable) }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
+      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? null, listings: (data.listings ?? []).filter(isPublishable) }) })
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
   }, [city, kind, type, deal, budget, districtKey])
 
@@ -186,8 +186,8 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
-            {numberFormat.format(result.total)} عرضاً {where}
-            {result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
+            {result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}
+            {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
           {result.listings.length > 0 && (
             <div>
