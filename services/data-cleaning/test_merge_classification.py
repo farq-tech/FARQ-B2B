@@ -26,9 +26,11 @@ ONTO = {
         {'id': 'paints', 'label_ar': 'دهانات', 'sector': 'FIN', 'strong_terms': ['دهانات'],
          'preferred_archetypes': ['paint_only_supplier'], 'hard_conflicts': ['sanitary_ware_supplier']},
         {'id': 'tiles', 'label_ar': 'بلاط', 'sector': 'MEP', 'strong_terms': ['بلاط'],
-         'term_guards': [{'terms': ['بلاط'], 'block_any': ['سيراميك صحي']}],
+         'term_guards': [{'terms': ['بلاط'], 'block_any': ['سيراميك صحي'], 'blocked_by_head': ['لاصق', 'عزل']}],
          'preferred_archetypes': ['tile_supplier'], 'hard_conflict_exceptions': ['paint_only_supplier']},
         {'id': 'ict', 'label_ar': 'شبكات', 'sector': 'ICT', 'strong_terms': ['الن']},
+        {'id': 'first_aid', 'label_ar': 'إسعافات', 'sector': 'SAFETY', 'strong_terms': ['دش طوارئ']},
+        {'id': 'lab_fitout', 'label_ar': 'مختبرات', 'sector': 'LAB', 'strong_terms': ['دش طوارئ', 'مختبرات']},
     ],
 }
 
@@ -63,6 +65,15 @@ class TaggerTests(unittest.TestCase):
     def test_guard_without_require_only_blocks(self):
         self.assertEqual(self.fam('مؤسسة بلاط الشرق'), ('tiles', 'strong_term'), 'no require_any: the term decides')
         self.assertEqual(self.fam('بلاط سيراميك صحي'), (None, 'guarded_out'))
+
+    def test_blocked_by_head(self):
+        self.assertEqual(self.fam('شركة لاصق بلاط'), (None, 'guarded_out'), 'an adhesive for tiles is not tiles')
+        self.assertEqual(self.fam('شركة عزل ارضيات وبلاط'), (None, 'guarded_out'))
+        self.assertEqual(self.fam('بلاط ولاصق'), ('tiles', 'strong_term'), 'a head word after the term does not block it')
+
+    def test_shared_term_is_ambiguous(self):
+        self.assertEqual(self.fam('مؤسسة دش طوارئ'), (None, 'ambiguous_shared_term'))
+        self.assertEqual(self.fam('دش طوارئ مختبرات'), ('lab_fitout', 'strong_term'), 'more evidence tells them apart')
         self.assertEqual(self.fam('مقاولات عامة'), (None, 'no_strong_term'))
 
 
