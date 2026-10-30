@@ -5,13 +5,23 @@ import { Megaphone, X } from 'lucide-react'
 import { RELEASE } from '@/lib/release'
 
 const KEY = 'atlas.whats-new'
+// set once a visitor has been through the map's first-visit tour (map-onboarding.tsx)
+const ONBOARDING_KEY = 'atlas.onboarding.map'
 
-/** One line on what changed in this release, until the visitor closes it; it stays closed until the next release. */
+/**
+ * One line on what changed in this release, until the visitor closes it; it stays closed until the next release.
+ * A first visit has nothing to compare with, and the map's goal question is already open, so the release counts as
+ * seen without the bar.
+ */
 export function WhatsNew() {
   // hidden until mounted, so the server render and a visitor who closed it never flash the bar
   const [open, setOpen] = useState(false)
   useEffect(() => {
-    try { setOpen(localStorage.getItem(KEY) !== RELEASE.id) } catch { setOpen(false) }
+    try {
+      const seen = localStorage.getItem(KEY)
+      if (seen === null && localStorage.getItem(ONBOARDING_KEY) === null) localStorage.setItem(KEY, RELEASE.id)
+      else setOpen(seen !== RELEASE.id)
+    } catch { setOpen(false) }
   }, [])
   if (!open) return null
   const close = () => {
