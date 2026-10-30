@@ -156,16 +156,17 @@ def group_chains(rows):
         best_arabic.setdefault(la, ar)
     partner = {la: ar for ar, la in best_latin.items() if best_arabic.get(la) == ar}
     # the same brand in two scripts with no shared registration on file: an Arabic and a Latin core still unpaired
-    # join when their sound (sound_key) matches each other and no other name, so two names alike in sound stay apart
+    # join when their sound (sound_key) matches each other and no other name, paired or not, so two names alike in
+    # sound stay apart and a name already paired by registration keeps a sound from looking unique
     paired = set(partner) | set(partner.values())
     by_sound = {}
-    for core in {core for core in cores.values() if usable(core) and core not in paired}:
+    for core in {core for core in cores.values() if usable(core)}:
         sound = sound_key(core)
         if len(sound) >= 3:
             by_sound.setdefault(sound, []).append(core)
     for names in by_sound.values():
         ar, la = [name for name in names if arabic(name)], [name for name in names if not arabic(name)]
-        if len(ar) == 1 and len(la) == 1:
+        if len(ar) == 1 and len(la) == 1 and not paired & {ar[0], la[0]}:
             partner[la[0]] = ar[0]
     groups = {}
     for poi, district, label, key, _ in rows:

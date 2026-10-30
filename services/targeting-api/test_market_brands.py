@@ -134,6 +134,9 @@ class MarketBrandsTests(unittest.TestCase):
         rows = [("r1", "العليا", "ليمون", "ليمون", "CR-1"), ("r2", "الملقا", "Lemon", "lemon", "CR-1"),
                 ("r3", "النرجس", "لامون", "لامون", None)]
         self.assertEqual(sorted(market_analytics.group_chains(rows)), ["لامون", "ليمون"])
+        # nor does a pair by registration leave a look-alike unique: «limon» sounds like the paired «ليمون» too
+        rows += [("r4", "العليا", "Limon", "limon", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["limon", "لامون", "ليمون"])
 
     def test_history_gives_growth_once_two_snapshots_exist(self):
         path = str(pathlib.Path(self.temp.name) / "chain_history.json")
