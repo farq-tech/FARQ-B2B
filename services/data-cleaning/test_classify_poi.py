@@ -23,9 +23,13 @@ class ClassifyTests(unittest.TestCase):
                    "deleted boolean, sub_id varchar, sub_confidence varchar)")
         db.executemany("insert into l values (?, null, null, null, false, ?, 'high')", rows)
         db.execute(f"copy l to '{self.tmp / 'labels.parquet'}' (format parquet)")
-        db.execute("create table t(poi_key varchar, name_ar varchar, name_en varchar)")
-        db.executemany("insert into t values (?, ?, null)",
-                       [('hh:1', 'مخبز الفردوس'), ('hh:2', 'حلاق الشباب'), ('hh:3', 'xyz')])
+        db.execute("create table t(poi_key varchar, name_ar varchar, name_en varchar, source_license_name varchar)")
+        db.executemany("insert into t values (?, ?, null, null)",
+                       [('hh:1', 'مخبز الفردوس'), ('hh:2', 'حلاق الشباب'), ('hh:3', 'xyz'),
+                        ('hh:4', 'False'), ('hh:5', 'محل مغلق'), ('hh:6', '123'), ('hh:7', None),
+                        ('hh:8', '١٢٣'), ('hh:9', '، ؟ ۔')])
+        # a licence-only place: no name_ar, «NULL» name_en, its name only in the licence file
+        db.execute("insert into t values ('lic:1', null, 'NULL', 'مخبز الواحة')")
         db.execute(f"copy t to '{self.tmp / 'targets.parquet'}' (format parquet)")
         tax = {'subs': [{'sub_id': 'food.bakery', 'main_ar': 'أغذية ومشروبات'},
                         {'sub_id': 'beauty.barber', 'main_ar': 'تجميل وعناية شخصية'}]}
@@ -48,6 +52,7 @@ class ClassifyTests(unittest.TestCase):
             f"select poi_key, cls_main_estimate, cls_sub_estimate from read_parquet('{out}') order by poi_key").fetchall()}
         self.assertEqual(got['hh:1'], ('أغذية ومشروبات', 'food.bakery'), 'a bakery name lands in the food main and bakery sub')
         self.assertEqual(got['hh:2'], ('تجميل وعناية شخصية', 'beauty.barber'))
+        self.assertEqual(got['lic:1'], ('أغذية ومشروبات', 'food.bakery'), 'the licence name is read when name_ar is missing')
         conf = duckdb.sql(f"select min(cls_main_confidence), max(cls_main_confidence) from read_parquet('{out}')").fetchone()
         self.assertTrue(0.0 <= conf[0] and conf[1] <= 1.0)
         src = duckdb.sql(f"select distinct cls_estimate_source from read_parquet('{out}')").fetchall()
@@ -78,7 +83,18 @@ class ClassifyTests(unittest.TestCase):
         types = dict(duckdb.sql(f"select column_name, column_type from (describe select * from read_parquet('{out}'))").fetchall())
         self.assertEqual((types['cls_main_estimate'], types['cls_sub_estimate']), ('VARCHAR', 'VARCHAR'))
         # the confidence is still recorded even when the label is dropped
-        self.assertEqual(duckdb.sql(f"select count(cls_main_confidence) from read_parquet('{out}')").fetchone()[0], 3)
+        self.assertEqual(duckdb.sql(f"select count(cls_main_confidence) from read_parquet('{out}')").fetchone()[0], 4)
+
+    def test_a_name_that_says_nothing_is_not_scored(self):
+        out = self.tmp / 'est_blank.parquet'
+        self.assertEqual(self.run_cli(out, ('--main-min', '0.0', '--sub-min', '0.0')).returncode, 0)
+        got = duckdb.sql(f"""select poi_key, cls_main_estimate, cls_main_confidence, cls_sub_estimate
+            from read_parquet('{out}') where poi_key in ('hh:4', 'hh:5', 'hh:6', 'hh:7', 'hh:8', 'hh:9') order by poi_key""").fetchall()
+        # «False», «محل مغلق», Latin or Arabic-Indic digits, Arabic punctuation and no name: no category and no
+        # confidence, even with the gates at zero
+        self.assertEqual(got, [(k, None, None, None) for k in ('hh:4', 'hh:5', 'hh:6', 'hh:7', 'hh:8', 'hh:9')])
+        report = json.loads((self.tmp / 'est_blank.report.json').read_text(encoding='utf-8'))
+        self.assertEqual((report['scored'], report['skipped_non_descriptive']), (4, 6))
 
     def test_refuses_to_overwrite_an_input_or_an_existing_file(self):
         self.assertNotEqual(self.run_cli(self.tmp / 'labels.parquet').returncode, 0, 'never writes over an input')
@@ -86,7 +102,7 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(self.run_cli(out, ('--main-min', '0.0')).returncode, 0)
         self.assertNotEqual(self.run_cli(out).returncode, 0, 'never writes over an existing file')
         report = json.loads((self.tmp / 'est.report.json').read_text(encoding='utf-8'))
-        self.assertEqual(report['scored'], 3)
+        self.assertEqual(report['scored'], 4)
         self.assertEqual(report['gates'], {'main_min': 0.0, 'sub_min': 0.80})
 
 

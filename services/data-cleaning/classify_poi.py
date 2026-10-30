@@ -33,14 +33,38 @@ from sklearn.model_selection import train_test_split
 MAIN_MIN, SUB_MIN = 0.60, 0.80   # a label is kept only at or above its gate; everything below stays unclassified
 
 
+# A field holding one of these says nothing about the activity: an export artefact («NULL», «False») or a state of the
+# premises («محل مغلق», «For Rent»). Such a field is read as empty, so a row named only that is never given a category
+# (a place named «False» was estimated a restaurant, «محل مغلق» a shop).
+PLACEHOLDERS = ('null', 'none', 'nan', 'false', 'true', 'n/a', 'na', '-', '.', '0', 'without', 'untapped', 'unknown',
+                'غير معروف', 'بدون', 'بدون اسم', 'لا يوجد', 'لايوجد')
+STATES = ('closed', 'closed store', 'closed stores', 'closed shop', 'for rent', 'a rent store', 'rent store',
+          'under construction', 'vacant', 'empty', 'محل مغلق', 'محلات مغلقة', 'مغلق', 'مقفل', 'محل مقفل', 'للإيجار',
+          'للايجار', 'محل للإيجار', 'محل للايجار', 'تحت الإنشاء', 'تحت الانشاء', 'فارغ', 'شاغر')
+NON_DESCRIPTIVE = PLACEHOLDERS + STATES
+# a Latin or Arabic letter; the Arabic block's digits (٠-٩, ۰-۹) and punctuation (، ؛ ؟ ٪ ۔) are not letters
+LETTER = '[A-Za-z\u0621-\u064A\u066E-\u066F\u0671-\u06D3\u06D5\u06EE-\u06EF\u06FA-\u06FC]'
+
+
+def field(c, width=None):
+    """One text column as SQL, empty when it holds a non-descriptive value or no letter at all."""
+    v = f"substr({c},1,{width})" if width else c
+    words = ', '.join("'" + w.replace("'", "''") + "'" for w in NON_DESCRIPTIVE)
+    return (f"case when {c} is null or lower(trim({c})) in ({words}) "
+            f"or not regexp_matches({c}, '{LETTER}') then '' else {v} end")
+
+
 def text_expr(db, path):
     """A name/text SQL expression over whichever of the text columns this parquet carries (a snapshot may lack
-    `tradename` or a description), so the same features train and score across files."""
+    `tradename` or a description), so the same features train and score across files. Empty when no column says
+    anything about the activity, and then the row is not scored."""
     have = {r[0] for r in db.execute(f"describe select * from read_parquet('{path}')").fetchall()}
-    parts = [f"coalesce({c},'')" for c in ('name_ar', 'name_en', 'tradename') if c in have]
+    # source_license_name is the Arabic name a licence file carries; licence-only places have no name_ar and an
+    # «NULL» or machine-translated name_en, so without it most of them have nothing to read.
+    parts = [field(c) for c in ('name_ar', 'name_en', 'tradename', 'source_license_name') if c in have]
     if 'description_ar' in have:
-        parts.append("coalesce(substr(description_ar,1,200),'')")
-    return " || ' | ' || ".join(parts)
+        parts.append(field('description_ar', 200))
+    return "trim(" + " || ' | ' || ".join(parts) + ", ' |')"
 
 
 def features(fit, texts, vecs=None):
@@ -81,6 +105,29 @@ def held_out(texts, y, labels):
     return {'rows': len(y), 'classes': len(set(y)), 'top1': round(acc, 4), 'top3': round(t3, 4) if t3 else None}
 
 
+def effect(db, targets, out, sub_main):
+    """What the layer would add to the snapshot, and a check it never trained on. A snapshot that carries the current
+    classification (`sub_id`, `classification_method`, `cls_confidence`) is measured twice:
+    - `unclassified`: rows with no `sub_id` today (the only rows the lowest-priority layer can fill), and how many get
+      a main or a sub estimate.
+    - `agreement_with_rules`: on rows a rule classified with high confidence (exact category mapping, not the surveyor
+      rows the model learned from), how often the emitted main matches the main of the rule's sub."""
+    have = {r[0] for r in db.execute(f"describe select * from read_parquet('{targets}')").fetchall()}
+    if not {'sub_id', 'classification_method', 'cls_confidence'} <= have:
+        return {}
+    db.execute('create or replace temp table sub_main as select * from (values ' +
+               ', '.join("('" + k.replace("'", "''") + "', '" + v.replace("'", "''") + "')" for k, v in sub_main.items()) +
+               ') v(sub_id, main_ar)' if sub_main else 'create or replace temp table sub_main(sub_id varchar, main_ar varchar)')
+    j = f"read_parquet('{targets}') t join read_parquet('{out}') e using (poi_key)"
+    u = db.execute(f"""select count(*), count(e.cls_main_estimate), count(e.cls_sub_estimate)
+        from {j} where t.sub_id is null""").fetchone()
+    g = db.execute(f"""select count(*), sum((e.cls_main_estimate = m.main_ar)::int)
+        from {j} join sub_main m on m.sub_id = t.sub_id
+        where t.classification_method is not null and t.cls_confidence = 'high' and e.cls_main_estimate is not null""").fetchone()
+    return {'unclassified': {'rows': u[0], 'kept_main': u[1], 'kept_sub': u[2]},
+            'agreement_with_rules': {'rows': g[0], 'agree_pct': round(100 * g[1] / g[0], 1) if g[0] else None}}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--labels', required=True, help='crs_latest.parquet (surveyor-verified categories) for training')
@@ -102,9 +149,9 @@ def main(argv=None):
     db = duckdb.connect()
     db.execute('SET threads=8')
     LTEXT = text_expr(db, a.labels)
-    train = db.execute(f"""select {LTEXT} feat, sub_id from read_parquet('{a.labels}')
-        where not deleted and sub_id is not null and sub_confidence in ('high','medium')
-        and length(trim(coalesce(name_ar,'') || coalesce(name_en,'') || coalesce(tradename,''))) >= 2""").fetchall()
+    train = db.execute(f"""select feat, sub_id from (select {LTEXT} feat, sub_id, deleted, sub_confidence
+        from read_parquet('{a.labels}')) where not deleted and sub_id is not null and sub_confidence in ('high','medium')
+        and length(feat) >= 2""").fetchall()
     texts = [r[0] for r in train]
     sub = np.array([r[1] for r in train])
     mains = np.array([sub_main.get(s, 'غير مصنّف') for s in sub])
@@ -130,10 +177,20 @@ def main(argv=None):
     # The snapshot is streamed and scored in batches: materializing every target's features and a dense proba
     # (1.9M × 431 subs ≈ 6.6 GiB) would exhaust a data-cleaning host; each batch builds its own features and keeps
     # only each row's top label and probability.
+    # A row with no descriptive text is written with no estimate and no confidence: it was not scored, not scored low.
     keys, main_out, sub_out, main_conf_out, sub_conf_out = [], [], [], [], []
+    skipped = 0
     BATCH = 50000
     cur = db.execute(f"select poi_key, {text_expr(db, a.targets)} feat from read_parquet('{a.targets}')")
     while batch := cur.fetchmany(BATCH):
+        blank = [row for row in batch if len(row[1]) < 2]
+        for row in blank:
+            keys.append(row[0])
+            main_out.append(None); sub_out.append(None); main_conf_out.append(None); sub_conf_out.append(None)
+        skipped += len(blank)
+        batch = [row for row in batch if len(row[1]) >= 2]
+        if not batch:
+            continue
         keys.extend(row[0] for row in batch)
         Xc = features(False, [row[1] for row in batch], vecs)
         main_pred, main_conf, main_proba = top(main_clf, Xc)
@@ -158,23 +215,25 @@ def main(argv=None):
     out = db.from_arrow(pa.table({
         'poi_key': pa.array(keys, pa.string()),
         'cls_main_estimate': pa.array(main_out, pa.string()),
-        'cls_main_confidence': pa.array([round(c, 4) for c in main_conf_out], pa.float64()),
+        'cls_main_confidence': pa.array([None if c is None else round(c, 4) for c in main_conf_out], pa.float64()),
         'cls_sub_estimate': pa.array(sub_out, pa.string()),
-        'cls_sub_confidence': pa.array([round(c, 4) for c in sub_conf_out], pa.float64()),
+        'cls_sub_confidence': pa.array([None if c is None else round(c, 4) for c in sub_conf_out], pa.float64()),
         'cls_estimate_source': pa.array(['model_name_tfidf'] * len(keys), pa.string()),
     }))
     out.to_parquet(a.out)
     kept_main = sum(1 for x in main_out if x is not None)
     kept_sub = sum(1 for x in sub_out if x is not None)
-    report['scored'] = len(keys)
+    report['scored'] = len(keys) - skipped
+    report['skipped_non_descriptive'] = skipped
     report['kept_main'] = kept_main
     report['kept_sub'] = kept_sub
     report['kept_main_pct'] = round(kept_main / len(keys), 4) if keys else 0
+    report.update(effect(db, a.targets, a.out, sub_main))
     report['out'] = os.path.abspath(a.out)
     with open(report_path, 'w', encoding='utf-8') as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1)
     print(json.dumps({'training_rows': report['training_rows'], 'held_out_main': report['held_out_main'],
-                      'held_out_sub': report['held_out_sub'], 'scored': len(keys),
+                      'held_out_sub': report['held_out_sub'], 'scored': report['scored'], 'skipped': skipped,
                       'kept_main': kept_main, 'kept_sub': kept_sub}, ensure_ascii=False))
 
 
