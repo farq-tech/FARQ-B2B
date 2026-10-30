@@ -42,6 +42,8 @@ STATES = ('closed', 'closed store', 'closed stores', 'closed shop', 'for rent', 
           'under construction', 'vacant', 'empty', 'محل مغلق', 'محلات مغلقة', 'مغلق', 'مقفل', 'محل مقفل', 'للإيجار',
           'للايجار', 'محل للإيجار', 'محل للايجار', 'تحت الإنشاء', 'تحت الانشاء', 'فارغ', 'شاغر')
 NON_DESCRIPTIVE = PLACEHOLDERS + STATES
+# a Latin or Arabic letter; the Arabic block's digits (٠-٩, ۰-۹) and punctuation (، ؛ ؟ ٪ ۔) are not letters
+LETTER = '[A-Za-z\u0621-\u064A\u066E-\u066F\u0671-\u06D3\u06D5\u06EE-\u06EF\u06FA-\u06FC]'
 
 
 def field(c, width=None):
@@ -49,7 +51,7 @@ def field(c, width=None):
     v = f"substr({c},1,{width})" if width else c
     words = ', '.join("'" + w.replace("'", "''") + "'" for w in NON_DESCRIPTIVE)
     return (f"case when {c} is null or lower(trim({c})) in ({words}) "
-            f"or not regexp_matches({c}, '[A-Za-z\u0600-\u06FF]') then '' else {v} end")
+            f"or not regexp_matches({c}, '{LETTER}') then '' else {v} end")
 
 
 def text_expr(db, path):
