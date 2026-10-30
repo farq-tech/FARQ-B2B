@@ -20,6 +20,10 @@ ONTO = {
     'families': [
         {'id': 'hvac_equipment', 'label_ar': 'تكييف', 'sector': 'MEP', 'strong_terms': ['تكييف', 'air conditioning']},
         {'id': 'structural_steel', 'label_ar': 'حديد إنشائي', 'sector': 'METALS', 'strong_terms': ['قطاع'],
+         'context_terms': ['steel', 'حديد'],
+         'categories': [{'id': 'sections', 'strong_terms': ['steel section'],
+                         'intents': [{'id': 'cold', 'strong_terms': ['cold formed section', 'مرازب'],
+                                      'term_guards': [{'terms': ['مرازب'], 'block_any': ['خشب']}]}]}],
          'term_guards': [{'terms': ['قطاع'], 'require_any': ['حديد'], 'block_any': ['جبس']}]},
         {'id': 'sanitary_ware', 'label_ar': 'أدوات صحية', 'sector': 'MEP', 'strong_terms': ['مغاسل'],
          'negative_terms': ['سيارات'], 'preferred_archetypes': ['sanitary_ware_supplier']},
@@ -67,6 +71,12 @@ class TaggerTests(unittest.TestCase):
     def test_guard_without_require_only_blocks(self):
         self.assertEqual(self.fam('مؤسسة بلاط الشرق'), ('tiles', 'strong_term'), 'no require_any: the term decides')
         self.assertEqual(self.fam('بلاط سيراميك صحي'), (None, 'guarded_out'))
+
+    def test_descendant_terms_name_the_family(self):
+        self.assertEqual(self.fam('Gulf Cold Formed Section Steel'), ('structural_steel', 'strong_term'))
+        self.assertEqual(self.fam('مصنع مرازب حديد'), ('structural_steel', 'strong_term'))
+        self.assertEqual(self.fam('مرازب حديد خشب'), (None, 'guarded_out'), 'an intent\'s own guard applies to its term')
+        self.assertEqual(self.fam('مرازب الرياض'), (None, 'guarded_out'), 'below the family a term needs its context')
 
     def test_blocked_by_head(self):
         self.assertEqual(self.fam('شركة لاصق بلاط'), (None, 'guarded_out'), 'an adhesive for tiles is not tiles')

@@ -4,7 +4,8 @@ Only rows whose merged sub is `contract.*` are read. The family is a new column 
 changes the main or the sub, and a row with no evidence stays «غير متاح».
 
 The ontology was built for bill-of-quantities lines, not company names, so only its decisive evidence is used:
-- a strong term decides, matched as a whole word (an Arabic proclitic such as «لل» or «وال» is allowed) or as a phrase.
+- a strong term decides (declared on the family; one declared only on a category or intent also needs a context term
+  of that branch in the name), matched as a whole word (an Arabic proclitic such as «لل» or «وال» is allowed) or as a phrase.
   Substring matching is not used: a short term inside an unrelated word («الن» in «النابغة») is the main error it causes;
 - a term guard drops a match when none of its `require_any` words is present, any of its `block_any` words is, or one
   of its `blocked_by_head` words comes before the term («عزل ارضيات» is insulation, «لاصق بلاط» an adhesive);
@@ -64,13 +65,24 @@ class Tagger:
             self.hard[f['id']] = veto - set(f.get('hard_conflict_exceptions') or [])
             self.pref[f['id']] = set(f.get('preferred_archetypes') or [])
         self.fam, self.single, self.multi = [], collections.defaultdict(list), collections.defaultdict(list)
+        guards = lambda node: [{'terms': set(nt(g.get('terms'))), 'require': nt(g.get('require_any')),
+                                'block': nt(g.get('block_any')), 'head': nt(g.get('blocked_by_head'))}
+                               for g in node.get('term_guards') or []]
         for i, f in enumerate(self.families):
-            strong = set(nt(f.get('strong_terms')))
+            # A term declared on a category or intent names this family too, under the guards of every node above it.
+            # Those terms name a product line («بصمه» is a fingerprint reader), and in a company name they are often
+            # just a word («بصمة الرياض للمقاولات»), so below the family level a term also needs one of its path's
+            # context terms in the name. Family-level terms decide alone, as before.
+            ctx = lambda *ns: [t for n in ns for t in nt(n.get('context_terms'))]
+            nodes = [(set(nt(f.get('strong_terms'))), guards(f), [])]
+            for c in f.get('categories') or []:
+                nodes.append((set(nt(c.get('strong_terms'))), guards(f) + guards(c), ctx(f, c)))
+                nodes += [(set(nt(x.get('strong_terms'))), guards(f) + guards(c) + guards(x), ctx(f, c, x))
+                          for x in c.get('intents') or []]
+            strong = set().union(*(n[0] for n in nodes))
             self.fam.append({'id': f['id'], 'label': f.get('label_ar'), 'sector': f.get('sector'), 'strong': strong,
                              'neg': nt((sectors.get(f.get('sector')) or {}).get('negative_terms')) + nt(f.get('negative_terms')),
-                             'guards': [{'terms': set(nt(g.get('terms'))), 'require': nt(g.get('require_any')),
-                                         'block': nt(g.get('block_any')), 'head': nt(g.get('blocked_by_head'))}
-                                        for g in f.get('term_guards') or []]})
+                             'nodes': nodes})
             for t in strong:
                 (self.multi if ' ' in t else self.single)[t].append(i)
         self.by_first = collections.defaultdict(list)   # phrases by their first word, so a name checks only its own
@@ -122,7 +134,10 @@ class Tagger:
             f = self.fam[i]
             if any(self._present(n, toks, words) for n in f['neg']):
                 continue
-            ok = [t for t in sorted(f['strong'] & hits) if all(self._allowed(t, g, words, toks) for g in f['guards'])]
+            ok = [t for t in sorted(f['strong'] & hits)   # the term decides at some node that declares it
+                  if any(t in terms and all(self._allowed(t, g, words, toks) for g in gs)
+                         and (not need or any(self._present(c, toks, words) for c in need if c != t))
+                         for terms, gs, need in f['nodes'])]
             if ok:
                 cands.append((f, ok))
         if not cands:
