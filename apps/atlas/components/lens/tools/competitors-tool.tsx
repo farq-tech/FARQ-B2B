@@ -12,6 +12,7 @@ import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { residentsPer } from '@/lib/audience'
 
 type Activity = { main_id: string; main_ar: string }
@@ -52,12 +53,12 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
   onAllBranches: (brand: string) => void
 }) {
   const [activities, setActivities] = useState<Activity[]>([])
-  const [query, setQuery] = useState(EXAMPLES[0])
-  // the map opens painted with the first example; any activity replaces it
-  const [studied, setStudied] = useState<{ q?: string; main_id?: string; label: string } | null>({ q: EXAMPLES[0], label: EXAMPLES[0] })
+  // the map opens painted with the activity studied in any step; any other activity replaces it
+  const [studied, setStudied] = useStudiedActivity()
+  const [query, setQuery] = useState(studied.q ?? '')
   const [counts, setCounts] = useState<Count[] | null>(null)
-  const [order, setOrder] = useState<'dense' | 'light'>('dense')
-  const [view, setView] = useState<'districts' | 'brands'>('districts')
+  const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'dense')
+  const [view, setView] = useStickyState<'districts' | 'brands'>('competitors.view', 'districts')
   const [brands, setBrands] = useState<Brands | null>(null)
   const [brand, setBrand] = useState<Brand | null>(null)
   const [profile, setProfile] = useState<Profile | null | 'error'>(null)
@@ -141,7 +142,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
   const total = counts ? counts.reduce((sum, count) => sum + count.n, 0) : null
   const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense' ? b.perKm2 - a.perKm2 : a.perKm2 - b.perKm2 || (b.row.population ?? 0) - (a.row.population ?? 0)))
-  const study = (next: { q?: string; main_id?: string; label: string }) => setStudied(next)
+  const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
     // a district picked while a chain is open lists that chain's branches there

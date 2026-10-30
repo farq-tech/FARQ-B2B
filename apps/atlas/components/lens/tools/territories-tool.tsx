@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import type { Overlay } from './overlay'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
+import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Activity = { main_id: string; main_ar: string }
@@ -42,9 +43,9 @@ const duration = (seconds: number) => {
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
   const [activities, setActivities] = useState<Activity[]>([])
-  const [mainId, setMainId] = useState('')
-  const [count, setCount] = useState(5)
-  const [weight, setWeight] = useState<'population' | 'businesses'>('businesses')
+  const [mainId, setMainId] = useStudiedMainId(activities)
+  const [count, setCount] = useStickyState('territories.count', 5)
+  const [weight, setWeight] = useStickyState<'population' | 'businesses'>('territories.weight', 'businesses')
   const [groups, setGroups] = useState<Territory[] | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [rep, setRep] = useState<number | null>(null)

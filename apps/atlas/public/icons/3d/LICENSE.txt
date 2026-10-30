@@ -1,23 +1,33 @@
-Icons in this folder are Microsoft Fluent Emoji 3D (https://github.com/microsoft/fluentui-emoji), resized to 128 px.
+Farq Atlas 3D icon assets
+=========================
 
-    MIT License
+The PNG icons in this directory are custom assets prepared for Farq Atlas and may be used by Farq commercially at no charge. They contain no third-party marks.
 
-    Copyright (c) Microsoft Corporation.
+The new 3D illustrations were generated using the FLUX.1 [schnell] model. The model is released under Apache License 2.0; its model licence does not itself define rights in any particular generated output. Model information: https://huggingface.co/black-forest-labs/FLUX.1-schnell
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+Microsoft Fluent Emoji legacy attribution
+-----------------------------------------
+The previous versions of several icons in this directory were Microsoft Fluent Emoji 3D. The files delivered here are replacement artwork, not Microsoft artwork. This attribution and licence are retained for copies of the former Fluent Emoji assets that may remain in repository history or other distributions.
 
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
+Source: https://github.com/microsoft/fluentui-emoji
+Copyright (c) Microsoft Corporation.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
