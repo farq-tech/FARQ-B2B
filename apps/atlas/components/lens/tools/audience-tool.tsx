@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { nationalityAudience, sexAudience, type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
@@ -170,7 +170,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
       {status !== 'loading' && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${numberFormat.format(selected.length)} أحياء محددة` : 'في المدينة'}</p>
+          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'}</p>
           {figures.map((figure) => (
             <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold">
               {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}

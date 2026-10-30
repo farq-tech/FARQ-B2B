@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { ltr, numberFormat, percent, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { counted, ltr, nounAfter, numberFormat, percent, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { areaKm2 } from '@/lib/geo-measure'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
@@ -25,12 +25,12 @@ type Uncovered = { district_ar: string; population: number; businesses: number }
 type Brands = { total: number; chains: number; in_chains: number; brands: Brand[]; uncovered?: Uncovered[]; uncovered_by?: string[] }
 type Profile = { branches: number; districts: number; activity: { main_ar: string; classified: number; agree: number } | null; activities: { main_ar: string; n: number }[] }
 
-/** «+5 فرعاً منذ 1 سبتمبر 2026», or null while the directory history has one snapshot. */
+/** «+5 فروع منذ 1 سبتمبر 2026», or null while the directory history has one snapshot. */
 function growthLine(growth: Growth): string | null {
   if (!growth) return null
   const change = growth.now - growth.before
   const since = growth.since ? ` منذ ${formatDate(growth.since)}` : ''
-  return change === 0 ? `بلا تغيير${since}` : `${ltr(`${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))}`)} فرعاً${since}`
+  return change === 0 ? `بلا تغيير${since}` : `${ltr(`${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))}`)} ${nounAfter(change, 'branch')}${since}`
 }
 type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: number; residentsPer: number | null }
 
@@ -228,10 +228,10 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
                       <span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{item.brand}</span>
-                        <span className="block text-sm text-muted-foreground">في {numberFormat.format(item.districts)} حياً{growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}</span>
+                        <span className="block text-sm text-muted-foreground">في {counted(item.districts, 'district')}{growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}</span>
                       </span>
                       <span className="shrink-0 text-end">
-                        <span className="block font-bold">{numberFormat.format(item.branches)} فرعاً</span>
+                        <span className="block font-bold">{counted(item.branches, 'branch')}</span>
                         <span className="block text-sm text-muted-foreground">{item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`}</span>
                       </span>
                     </button>
@@ -263,7 +263,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
           {view === 'brands' && brand && (
             <>
               <button onClick={() => pickBrand(null)} className="self-start text-sm font-semibold text-primary underline">كل السلاسل</button>
-              <p className="text-base"><strong>{brand.brand}</strong>: {numberFormat.format(brand.branches)} فرعاً في {numberFormat.format(brand.districts)} حياً لهذا النشاط</p>
+              <p className="text-base"><strong>{brand.brand}</strong>: {counted(brand.branches, 'branch')} في {counted(brand.districts, 'district')} لهذا النشاط</p>
               <Explained title="توسّع السلسلة" lines={EXPLAIN.chainGrowth} className="self-start text-sm">
                 التوسّع: {growthLine(brand.growth) ?? 'غير متاح'}
               </Explained>
@@ -271,7 +271,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
               {profile === 'error' && <p className="text-sm text-muted-foreground">بقية فروع السلسلة غير متاحة الآن.</p>}
               {profile && profile !== 'error' && (
                 <div className="flex flex-col gap-1 rounded-xl border p-3 text-base">
-                  <p>في المدينة كلها: <strong>{numberFormat.format(profile.branches)}</strong> فرعاً في {numberFormat.format(profile.districts)} حياً</p>
+                  <p>في المدينة كلها: <strong>{counted(profile.branches, 'branch')}</strong> في {counted(profile.districts, 'district')}</p>
                   {/* a chain is one business with one activity; branches the directory files elsewhere are named, not spread over activities */}
                   <p>النشاط: <strong>{profile.activity?.main_ar ?? 'غير متاح'}</strong></p>
                   {profile.activity && profile.activity.classified > profile.activity.agree && (
