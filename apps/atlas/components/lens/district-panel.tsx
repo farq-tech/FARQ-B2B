@@ -9,13 +9,14 @@ import { groupLabel } from '@/lib/real-estate'
 import { RELIABLE_LISTINGS } from './lenses'
 import { sumOf, type DistrictRow } from './city-data'
 import type { LensId } from './lenses'
+import { Icon3D } from '@/components/shared/icon-3d'
 
 type Profile = {
   male: number | null
   female: number | null
   saudi_pct: number | null
   ages: { age_group: string; total: number }[]
-  main_activities: { main_ar: string; n: number }[]
+  main_activities: { main_id?: string; main_ar: string; n: number }[]
 }
 
 // sale first, then each rent period on its own line
@@ -151,7 +152,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           <Explained title="أكثر الأنشطة" lines={EXPLAIN.activities} className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة</Explained>
           <ul className="space-y-1.5 text-base">
             {profile.main_activities.slice(0, 5).map((row) => (
-              <li key={row.main_ar} className="flex justify-between"><span>{row.main_ar}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
+              <li key={row.main_ar} className="flex items-center justify-between gap-2"><span className="flex items-center gap-2">{row.main_id && <Icon3D type={`main-${row.main_id}`} className="size-7" />}{row.main_ar}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
             ))}
           </ul>
         </div>

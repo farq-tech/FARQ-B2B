@@ -12,6 +12,7 @@ import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Mode = 'people' | 'businesses'
 type Share = DistrictShare & { district_ar: string }
@@ -162,10 +163,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
         </>
       ) : (
         <>
-          <select value={mainId} onChange={(event) => setMainId(event.target.value)} className="rounded-lg border bg-background px-3 py-2 text-base">
-            <option value="">كل الأنشطة</option>
-            {activities.map((activity) => <option key={activity.main_id} value={activity.main_id}>{activity.main_ar}</option>)}
-          </select>
+          <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
       {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ الحساب" />}
