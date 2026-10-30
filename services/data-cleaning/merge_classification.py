@@ -8,7 +8,9 @@ model only fills what the directory does not already know (docs/atlas-classifica
   3. the model's sub, for rows with no confident directory sub and a name that describes something.
   4. else the model's main only («تقدير»), else nothing («غير متاح»).
 Where the directory (high/medium) and the model give different subs, the directory sub stays and the row is flagged
-`needs_review`. A broken name («False», «null», digits only) never takes an estimate.
+`needs_review`. A row whose text says nothing (every field the classifier reads is empty, a placeholder such as «False» or «null», a
+state such as «محل مغلق», or has no letter) never takes an estimate. That test is `classify_poi.text_expr`, so a row
+the classifier scored from its trade name, licence name or description is not discarded here.
 
 Reads every input read-only; writes a new parquet, a report and a review sample next to it. Never writes over an
 existing file.
@@ -24,10 +26,8 @@ import sys
 
 import duckdb
 
-BROKEN = "('', 'false', 'none', 'null', 'nan', 'true', '.', '-')"
-# A name is usable when it is not an export artefact and carries at least one letter (Arabic or Latin).
-NAME_OK = (f"not (lower(trim(coalesce(name_ar, ''))) in {BROKEN} and lower(trim(coalesce(name_en, ''))) in {BROKEN}) "
-           "and (regexp_matches(coalesce(name_ar, ''), '[ء-يA-Za-z]') or regexp_matches(coalesce(name_en, ''), '[A-Za-z]'))")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from classify_poi import text_expr  # noqa: E402  the classifier's own text, so both steps agree on what is readable
 
 
 def parse(argv):
@@ -59,7 +59,7 @@ def main(argv=None):
 
     db.execute(f"""create table m as
     with h as (
-      select poi_key, name_ar, name_en, sub_id dir_sub, cls_confidence dir_conf, ({NAME_OK}) name_ok,
+      select poi_key, name_ar, name_en, sub_id dir_sub, cls_confidence dir_conf, length({text_expr(db, a.targets)}) > 0 name_ok,
              case when sub_id is not null and sub_id not like 'unc.%' and cls_confidence in ('high', 'medium') then sub_id end rules_sub
       from read_parquet('{a.targets}')),
      vac as ({vac}),

@@ -57,8 +57,9 @@ class CliTests(unittest.TestCase):
     def setUp(self):
         self.tmp = pathlib.Path(tempfile.mkdtemp())
         db = duckdb.connect()
-        db.execute('create table t(poi_key varchar, name_ar varchar, name_en varchar, sub_id varchar, cls_confidence varchar)')
-        db.executemany('insert into t values (?, ?, ?, ?, ?)', [
+        db.execute('create table t(poi_key varchar, name_ar varchar, name_en varchar, sub_id varchar, cls_confidence varchar, '
+                   'description_ar varchar)')
+        db.executemany('insert into t values (?, ?, ?, ?, ?, null)', [
             ('a', 'مخبز الصباح', None, 'food.bakery', 'high'),           # directory wins, model agrees
             ('b', 'مخبز الحي', None, 'food.bakery', 'medium'),           # directory wins, model disagrees -> review
             ('c', 'حلاق النخبة', None, 'unc.unknown', 'low'),            # model fills the sub
@@ -68,13 +69,16 @@ class CliTests(unittest.TestCase):
             ('g', 'مؤسسة التبريد للتكييف', None, 'contract.hvac', 'high'),
             ('h', 'مقاولات النابغة', None, 'contract.general', 'medium'),
         ])
+        # no usable name, but a descriptive description the classifier also reads: its estimate is kept
+        db.execute("insert into t values ('i', 'NULL', 'False', null, null, 'مخبز ومعجنات طازجة')")
         db.execute(f"copy t to '{self.tmp / 'targets.parquet'}' (format parquet)")
         db.execute('create table e(poi_key varchar, cls_main_estimate varchar, cls_main_confidence double, '
                    'cls_sub_estimate varchar, cls_sub_confidence double, cls_estimate_source varchar)')
         db.executemany("insert into e values (?, ?, ?, ?, ?, 'model_name_tfidf')", [
             ('a', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.9), ('b', 'أغذية ومشروبات', 0.9, 'food.sweets', 0.85),
             ('c', 'تجميل وعناية شخصية', 0.95, 'beauty.barber', 0.9), ('d', 'خدمات أعمال ومهنية', 0.7, None, None),
-            ('e', 'أغذية ومشروبات', 0.97, 'food.restaurant', 0.9), ('f', 'أغذية ومشروبات', 0.7, 'food.grocery', 0.8)])
+            ('e', 'أغذية ومشروبات', 0.97, 'food.restaurant', 0.9), ('f', 'أغذية ومشروبات', 0.7, 'food.grocery', 0.8),
+            ('i', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85)])
         db.execute(f"copy e to '{self.tmp / 'est.parquet'}' (format parquet)")
         db.execute("create table v as select 'f' poi_key, 'vacant' AS source union all select 'a', 'activity'")
         db.execute(f"copy v to '{self.tmp / 'vac.parquet'}' (format parquet)")
@@ -102,9 +106,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(got['c'], ['beauty.barber', 'تجميل وعناية شخصية', 'model_estimate', False, False])
         self.assertEqual(got['d'], [None, 'خدمات أعمال ومهنية', 'model_estimate_main_only', False, False])
         self.assertEqual(got['e'], [None, None, 'none', False, True], 'a broken name takes no estimate')
-        self.assertEqual(got['f'], [None, None, 'vacant', False, False], 'a vacant unit stays «شاغر»')
+        self.assertEqual(got['f'], [None, None, 'vacant', False, True], 'a vacant unit stays «شاغر», and its name says nothing')
+        self.assertEqual(got['i'], ['food.bakery', 'أغذية ومشروبات', 'model_estimate', False, False],
+                         'an estimate read from the description is kept even when both names are placeholders')
         rep = json.loads((self.tmp / 'merged.report.json').read_text(encoding='utf-8'))
-        self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept']), (8, 1, 1, 1))
+        self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept']), (9, 2, 1, 1))
         self.assertTrue((self.tmp / 'merged_review_sample.csv').exists())
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
 
