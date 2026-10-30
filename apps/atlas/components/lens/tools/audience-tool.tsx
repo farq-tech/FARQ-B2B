@@ -11,6 +11,7 @@ import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
+import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 
 type Mode = 'people' | 'businesses'
 type Share = DistrictShare & { district_ar: string }
@@ -60,14 +61,14 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
 }) {
-  const [mode, setMode] = useState<Mode>('people')
-  const [sex, setSex] = useState<Sex>('all')
-  const [nationality, setNationality] = useState<Nationality>('all')
-  const [minIncome, setMinIncome] = useState(0)
-  const [rankBy, setRankBy] = useState<'sex' | 'nationality'>('sex')
+  const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
+  const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
+  const [nationality, setNationality] = useStickyState<Nationality>('audience.nationality', 'all')
+  const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
+  const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const [shares, setShares] = useState<Map<string, Share> | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
-  const [mainId, setMainId] = useState('')
+  const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 

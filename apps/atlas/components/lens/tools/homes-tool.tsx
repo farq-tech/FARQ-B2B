@@ -14,6 +14,7 @@ import { ListingCard } from '../listing-card'
 import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { useStickyState } from '@/lib/sticky-state'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }
 const LIMIT = 1500
@@ -53,11 +54,13 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
 }) {
-  const [kind, setKind] = useState<ListingKind>(preset?.kind ?? 'rent')
-  const [type, setType] = useState(preset?.type ?? 'apartment')
+  // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
+  const sticky = `homes.${preset ? 'preset' : 'plain'}`
+  const [kind, setKind] = useStickyState<ListingKind>(`${sticky}.kind`, preset?.kind ?? 'rent')
+  const [type, setType] = useStickyState(`${sticky}.type`, preset?.type ?? 'apartment')
   // a rent is searched in one period at a time, the one its ad states; «all» mixes them, so it takes no budget
-  const [rentDeal, setRentDeal] = useState<Deal | 'all'>(preset?.deal ?? 'rent_year')
-  const [budget, setBudget] = useState(0)
+  const [rentDeal, setRentDeal] = useStickyState<Deal | 'all'>(`${sticky}.rentDeal`, preset?.deal ?? 'rent_year')
+  const [budget, setBudget] = useStickyState(`${sticky}.budget`, 0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
   const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: 0, listings: [] })
   const [active, setActive] = useState<Listing | null>(null)
