@@ -7,7 +7,11 @@ export type SheetSnap = 'peek' | 'half' | 'full'
 
 /** The sheet's height at each stop; the map above it ends at the peek height so its attribution stays in view. */
 export const PEEK = '8.5rem'
-const HEIGHT: Record<SheetSnap, string> = { peek: PEEK, half: '55%', full: 'calc(100% - 4rem)' }
+/** The peek in pixels (8.5rem at the 16px root). */
+export const PEEK_PX = 136
+/** The share of the screen the half sheet covers. */
+export const HALF = 0.55
+const HEIGHT: Record<SheetSnap, string> = { peek: PEEK, half: `${HALF * 100}%`, full: 'calc(100% - 4rem)' }
 const NEXT: Record<SheetSnap, SheetSnap> = { peek: 'half', half: 'full', full: 'peek' }
 const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف الشاشة', full: 'كاملة' }
 
@@ -41,7 +45,7 @@ export function MapSheet({ snap, onSnap, title, children }: { snap: SheetSnap; o
     // let go: the nearest stop wins, and a quick flick goes one stop further in its direction
     const box = sheet.current?.parentElement?.getBoundingClientRect().height ?? window.innerHeight
     const height = current.height + (current.y - event.clientY)
-    const stops: [SheetSnap, number][] = [['peek', 136], ['half', box * 0.55], ['full', box - 64]]
+    const stops: [SheetSnap, number][] = [['peek', PEEK_PX], ['half', box * HALF], ['full', box - 64]]
     const nearest = stops.reduce((best, stop) => (Math.abs(stop[1] - height) < Math.abs(best[1] - height) ? stop : best))[0]
     setDragged(null)
     onSnap(nearest)

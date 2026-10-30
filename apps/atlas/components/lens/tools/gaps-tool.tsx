@@ -11,6 +11,8 @@ import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { useStudiedActivity } from '@/lib/sticky-state'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Activity = { main_id: string; main_ar: string }
 type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
@@ -27,21 +29,28 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
   onSelect: (id: string) => void
 }) {
   const [activities, setActivities] = useState<Activity[]>([])
-  const [query, setQuery] = useState('')
-  const [mainId, setMainId] = useState('')
+  // the activity is shared with the other steps, so «المنافسون» opens on the one picked here
+  const [studied, setStudied] = useStudiedActivity()
+  const [query, setQuery] = useState(studied.q ?? '')
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
   useEffect(() => {
-    setResult(null)
-    // the map opens painted: the first example runs at once, and any activity replaces it
-    setQuery(EXAMPLES[0])
-    run(EXAMPLES[0], '')
     postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
       .then((payload) => setActivities(payload.summary?.main_activities ?? []))
       .catch(() => setActivities([]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city])
+
+  // the map opens painted with the studied activity; any other activity replaces it
+  useEffect(() => {
+    let live = true
+    setStatus('loading')
+    const body: Record<string, unknown> = { city, min_population: 5000, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
+    postMarket<Result>('market-gaps', body)
+      .then((data) => { if (live) { setResult(data); setStatus('idle') } })
+      .catch(() => { if (live) setStatus('error') })
+    return () => { live = false }
+  }, [city, studied])
 
   useEffect(() => {
     if (!result) { onOverlay({}); return }
@@ -57,17 +66,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
     onOverlay({ colors })
   }, [result, rows, onOverlay])
 
-  async function run(text: string, main: string) {
-    if (!text && !main) return
-    setStatus('loading')
-    try {
-      const body: Record<string, unknown> = { city, min_population: 5000, limit: 200, ...(text ? { q: text } : { main_id: main }) }
-      setResult(await postMarket<Result>('market-gaps', body))
-      setStatus('idle')
-    } catch {
-      setStatus('error')
-    }
-  }
+  const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
 
   const ids = new Map(rows.map((row) => [row.name, row.id]))
   const gaps = result?.districts.filter((row) => row.shortfall > 0) ?? []
@@ -76,19 +75,17 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">أين ينقص نشاطي؟</h2>
       <div className="flex gap-2">
-        <input value={query} onChange={(e) => { setQuery(e.target.value); setMainId('') }} onKeyDown={(e) => { if (e.key === 'Enter') run(query.trim(), '') }}
+        <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') study(query.trim()) }}
           placeholder="اكتب نشاطك: صيدلية، مغسلة…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-        <button onClick={() => run(query.trim(), mainId)} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
+        <button onClick={() => study(query.trim())} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'احسب'}
         </button>
       </div>
-      <select value={mainId} onChange={(e) => { setMainId(e.target.value); setQuery(''); run('', e.target.value) }} className="h-11 rounded-lg border bg-background px-3 text-base">
-        <option value="">أو اختر نشاطاً رئيسياً</option>
-        {activities.map((item) => <option key={item.main_id} value={item.main_id}>{item.main_ar}</option>)}
-      </select>
+      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
+        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
       <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
-            <button key={example} onClick={() => { setQuery(example); run(example, '') }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
+            <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}

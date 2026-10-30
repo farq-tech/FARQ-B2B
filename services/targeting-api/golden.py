@@ -61,10 +61,11 @@ def population(rows, city, buildings=None, path=district_reference.PATH):
         built = buildings.get(str(row.get('district_id')))
         if ref and ref.get('population'):
             figure = shares.get(id(row), float(ref['population']))
-            row.update(population=round(figure, 1), source=district_reference.SOURCE, license=None,
+            # whole people: a split share or a building model gives fractions, and «58,770.9 ساكن» is not a count
+            row.update(population=round(figure), source=district_reference.SOURCE, license=None,
                        year=year if year is not None else row.get('year'), coverage_pct=100.0)
         elif built is not None:
-            row.update(population=round(built, 1), source=BUILDINGS, license=None, coverage_pct=100.0)
+            row.update(population=round(built), source=BUILDINGS, license=None, coverage_pct=100.0)
         else:
             row['source'] = WORLDPOP
     return rows

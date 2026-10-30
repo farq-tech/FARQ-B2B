@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { nationalityAudience, sexAudience, type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
+import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Mode = 'people' | 'businesses'
 type Share = DistrictShare & { district_ar: string }
@@ -60,14 +62,14 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
 }) {
-  const [mode, setMode] = useState<Mode>('people')
-  const [sex, setSex] = useState<Sex>('all')
-  const [nationality, setNationality] = useState<Nationality>('all')
-  const [minIncome, setMinIncome] = useState(0)
-  const [rankBy, setRankBy] = useState<'sex' | 'nationality'>('sex')
+  const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
+  const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
+  const [nationality, setNationality] = useStickyState<Nationality>('audience.nationality', 'all')
+  const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
+  const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const [shares, setShares] = useState<Map<string, Share> | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
-  const [mainId, setMainId] = useState('')
+  const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
@@ -161,17 +163,14 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
         </>
       ) : (
         <>
-          <select value={mainId} onChange={(event) => setMainId(event.target.value)} className="rounded-lg border bg-background px-3 py-2 text-base">
-            <option value="">كل الأنشطة</option>
-            {activities.map((activity) => <option key={activity.main_id} value={activity.main_id}>{activity.main_ar}</option>)}
-          </select>
+          <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
       {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ الحساب" />}
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
       {status !== 'loading' && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${numberFormat.format(selected.length)} أحياء محددة` : 'في المدينة'}</p>
+          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'}</p>
           {figures.map((figure) => (
             <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold">
               {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}

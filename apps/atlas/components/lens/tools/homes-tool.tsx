@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { areaKm2, distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
@@ -14,8 +14,9 @@ import { ListingCard } from '../listing-card'
 import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { useStickyState } from '@/lib/sticky-state'
 
-type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }
+type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
 const LIMIT = 1500
 const BEST = 8
 const MY_POINT_KEY = 'atlas.myPoint'
@@ -53,13 +54,15 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
 }) {
-  const [kind, setKind] = useState<ListingKind>(preset?.kind ?? 'rent')
-  const [type, setType] = useState(preset?.type ?? 'apartment')
+  // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
+  const sticky = `homes.${preset ? 'preset' : 'plain'}`
+  const [kind, setKind] = useStickyState<ListingKind>(`${sticky}.kind`, preset?.kind ?? 'rent')
+  const [type, setType] = useStickyState(`${sticky}.type`, preset?.type ?? 'apartment')
   // a rent is searched in one period at a time, the one its ad states; «all» mixes them, so it takes no budget
-  const [rentDeal, setRentDeal] = useState<Deal | 'all'>(preset?.deal ?? 'rent_year')
-  const [budget, setBudget] = useState(0)
+  const [rentDeal, setRentDeal] = useStickyState<Deal | 'all'>(`${sticky}.rentDeal`, preset?.deal ?? 'rent_year')
+  const [budget, setBudget] = useStickyState(`${sticky}.budget`, 0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
-  const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: 0, listings: [] })
+  const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: null, listings: [] })
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -92,8 +95,8 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       ...(budget && deal ? { max_price: budget } : {}),
       ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
     })
-      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? 0, listings: (data.listings ?? []).filter(isPublishable) }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
+      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? null, listings: (data.listings ?? []).filter(isPublishable) }) })
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
   }, [city, kind, type, deal, budget, districtKey])
 
@@ -124,7 +127,7 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
     ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
     : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
 
-  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${numberFormat.format(selected.length)} أحياء`) : 'في المدينة'
+  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
   const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
 
   return (
@@ -183,8 +186,8 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
-            {numberFormat.format(result.total)} عرضاً {where}
-            {result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
+            {result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}
+            {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
           {result.listings.length > 0 && (
             <div>

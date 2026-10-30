@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Loader2, Scale, Send, X } from 'lucide-react'
-import { numberFormat } from '@/lib/insights-api'
+import { ltr, numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from './city-data'
@@ -46,7 +46,7 @@ function listingFacts(listing: Listing, letter: string): string {
     listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : 'المساحة غير مذكورة',
     perSqmLine(listing) ?? 'سعر المتر غير متاح',
     ...(listing.check ? ['أرقام الإعلان تحتاج تحققاً'] : []),
-    `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : `${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`}`,
+    `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : ltr(`${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`)}`,
     `غرف النوم ${figure(listing.beds)}`,
     `دورات المياه ${figure(listing.wc)}`,
     `عرض الشارع ${figure(listing.street_width, ' م')}`,
