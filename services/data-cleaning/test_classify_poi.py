@@ -96,6 +96,35 @@ class ClassifyTests(unittest.TestCase):
         report = json.loads((self.tmp / 'est_blank.report.json').read_text(encoding='utf-8'))
         self.assertEqual((report['scored'], report['skipped_non_descriptive']), (4, 6))
 
+    def test_rule_rows_teach_a_class_the_surveyors_never_labelled(self):
+        # pharmacies exist only as rule-classified licence rows; with them in training an unclassified pharmacy is
+        # estimated, and with --train-methods empty (surveyor labels only) the model has never seen the class
+        db = duckdb.connect()
+        db.execute("create table t(poi_key varchar, name_ar varchar, name_en varchar, source_license_name varchar, "
+                   "sub_id varchar, classification_method varchar, cls_confidence varchar)")
+        rows = [(f'lic:{i}', None, 'NULL', 'صيدلية ' + n, 'health.pharmacy', 'exact_qgis_category_to_rubricator', 'high')
+                for i, n in enumerate(('الشفاء', 'النهدي', 'الدواء', 'الحياة', 'الأمل', 'السلامة', 'العافية', 'الرعاية',
+                                       'الصحة', 'البلسم', 'الطب', 'المجد', 'الهدى', 'الفيصل', 'الوفاء'))]
+        rows.append(('lic:new', None, 'NULL', 'صيدلية الروضة', None, None, 'unknown'))
+        db.executemany("insert into t values (?, ?, ?, ?, ?, ?, ?)", rows)
+        db.execute(f"copy t to '{self.tmp / 'rules.parquet'}' (format parquet)")
+        tax = json.loads((self.tmp / 'tax.json').read_text(encoding='utf-8'))
+        tax['subs'].append({'sub_id': 'health.pharmacy', 'main_ar': 'صحة وطب'})
+        (self.tmp / 'tax.json').write_text(json.dumps(tax, ensure_ascii=False), encoding='utf-8')
+        def run(out, extra=()):
+            r = subprocess.run([sys.executable, str(HERE / 'classify_poi.py'), '--labels', str(self.tmp / 'labels.parquet'),
+                                '--targets', str(self.tmp / 'rules.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                                '--out', str(out), '--main-min', '0.0', '--sub-min', '0.0', *extra],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return duckdb.sql(f"select cls_main_estimate from read_parquet('{out}') where poi_key = 'lic:new'").fetchone()[0]
+        self.assertEqual(run(self.tmp / 'with_rules.parquet'), 'صحة وطب')
+        self.assertNotEqual(run(self.tmp / 'surveyor_only.parquet', ('--train-methods', '')), 'صحة وطب')
+        report = json.loads((self.tmp / 'with_rules.report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['training_surveyor_rows'], 12)
+        self.assertGreater(report['training_rule_rows'], 0)
+        self.assertLess(report['training_rule_rows'], 15, 'a fifth of the rule rows is held out of training')
+
     def test_refuses_to_overwrite_an_input_or_an_existing_file(self):
         self.assertNotEqual(self.run_cli(self.tmp / 'labels.parquet').returncode, 0, 'never writes over an input')
         out = self.tmp / 'est.parquet'

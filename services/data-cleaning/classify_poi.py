@@ -31,6 +31,10 @@ from sklearn.metrics import accuracy_score, top_k_accuracy_score
 from sklearn.model_selection import train_test_split
 
 MAIN_MIN, SUB_MIN = 0.60, 0.80   # a label is kept only at or above its gate; everything below stays unclassified
+# Rule classifications in the snapshot that also train the model. The exact QGIS-category mapping labels a licence
+# place from its licence category, not its name, so its names are an independent label of the same kind of place as
+# the unclassified rows (licence-only, no surveyor). A fifth of them (by poi_key) is held out to measure the model.
+TRAIN_METHODS = ('exact_qgis_category_to_rubricator',)
 
 
 # A field holding one of these says nothing about the activity: an export artefact («NULL», «False») or a state of the
@@ -105,13 +109,43 @@ def held_out(texts, y, labels):
     return {'rows': len(y), 'classes': len(set(y)), 'top1': round(acc, 4), 'top3': round(t3, 4) if t3 else None}
 
 
-def effect(db, targets, out, sub_main):
+def rule_rows(db, targets, methods):
+    """(train, held-out) rows of (text, sub_id) from the snapshot's high-confidence rule classifications by `methods`;
+    empty when the snapshot does not carry its classification or no method is given."""
+    have = {r[0] for r in db.execute(f"describe select * from read_parquet('{targets}')").fetchall()}
+    if not methods or not {'sub_id', 'classification_method', 'cls_confidence'} <= have:
+        return [], []
+    ms = ', '.join("'" + m.replace("'", "''") + "'" for m in methods)
+    rows = db.execute(f"""select feat, sub_id, hash(poi_key) % 5 = 0 from (select {text_expr(db, targets)} feat, sub_id,
+        poi_key, classification_method, cls_confidence from read_parquet('{targets}'))
+        where classification_method in ({ms}) and cls_confidence = 'high' and sub_id is not null and length(feat) >= 2
+        order by poi_key""").fetchall()
+    return [(t, s) for t, s, h in rows if not h], [(t, s) for t, s, h in rows if h]
+
+
+def gated(clf, vecs, rows, sub_main, gates=(0.6, 0.7, 0.8, 0.9)):
+    """Coverage and main accuracy at each gate on held-out rows whose text never appeared in training (a repeated
+    chain name would otherwise be a free hit)."""
+    if not rows:
+        return {}
+    X = features(False, [t for t, _ in rows], vecs)
+    pred, conf, _ = top(clf, X)
+    gold = np.array([sub_main.get(s) for _, s in rows])
+    out = {'rows': len(rows)}
+    for g in gates:
+        k = conf >= g
+        out[f'{g:.1f}'] = {'coverage_pct': round(100 * float(k.mean()), 1),
+                           'accuracy_pct': round(100 * float((pred[k] == gold[k]).mean()), 1) if k.any() else None}
+    return out
+
+
+def effect(db, targets, out, sub_main, trained_methods=()):
     """What the layer would add to the snapshot, and a check it never trained on. A snapshot that carries the current
     classification (`sub_id`, `classification_method`, `cls_confidence`) is measured twice:
     - `unclassified`: rows with no `sub_id` today (the only rows the lowest-priority layer can fill), and how many get
       a main or a sub estimate.
-    - `agreement_with_rules`: on rows a rule classified with high confidence (exact category mapping, not the surveyor
-      rows the model learned from), how often the emitted main matches the main of the rule's sub."""
+    - `agreement_with_rules`: on rows a rule classified with high confidence (not the surveyor rows the model learned
+      from, nor a method it trained on), how often the emitted main matches the main of the rule's sub."""
     have = {r[0] for r in db.execute(f"describe select * from read_parquet('{targets}')").fetchall()}
     if not {'sub_id', 'classification_method', 'cls_confidence'} <= have:
         return {}
@@ -123,7 +157,8 @@ def effect(db, targets, out, sub_main):
         from {j} where t.sub_id is null""").fetchone()
     g = db.execute(f"""select count(*), sum((e.cls_main_estimate = m.main_ar)::int)
         from {j} join sub_main m on m.sub_id = t.sub_id
-        where t.classification_method is not null and t.cls_confidence = 'high' and e.cls_main_estimate is not null""").fetchone()
+        where t.classification_method is not null and t.cls_confidence = 'high' and e.cls_main_estimate is not null
+        and t.classification_method not in (select unnest(?::varchar[]))""", [list(trained_methods)]).fetchone()
     return {'unclassified': {'rows': u[0], 'kept_main': u[1], 'kept_sub': u[2]},
             'agreement_with_rules': {'rows': g[0], 'agree_pct': round(100 * g[1] / g[0], 1) if g[0] else None}}
 
@@ -135,6 +170,9 @@ def main(argv=None):
     ap.add_argument('--taxonomy', required=True, help='farq_taxonomy.json (maps sub_id to its main category)')
     ap.add_argument('--out', required=True, help='new parquet; the report is written beside it as .report.json')
     ap.add_argument('--main-min', type=float, default=MAIN_MIN, help=f'keep a main-category estimate at this confidence (default {MAIN_MIN})')
+    ap.add_argument('--train-methods', default=','.join(TRAIN_METHODS),
+                    help='comma list of snapshot classification methods whose high-confidence rows also train the model; '
+                         f'empty for surveyor labels only (default {",".join(TRAIN_METHODS)})')
     ap.add_argument('--sub-min', type=float, default=SUB_MIN, help=f'keep a sub-category estimate at this confidence (default {SUB_MIN})')
     a = ap.parse_args(argv)
     report_path = os.path.splitext(a.out)[0] + '.report.json'
@@ -152,6 +190,10 @@ def main(argv=None):
     train = db.execute(f"""select feat, sub_id from (select {LTEXT} feat, sub_id, deleted, sub_confidence
         from read_parquet('{a.labels}')) where not deleted and sub_id is not null and sub_confidence in ('high','medium')
         and length(feat) >= 2""").fetchall()
+    methods = tuple(m for m in a.train_methods.split(',') if m)
+    rules_train, rules_test = rule_rows(db, a.targets, methods)
+    surveyor_rows = len(train)
+    train = train + rules_train
     texts = [r[0] for r in train]
     sub = np.array([r[1] for r in train])
     mains = np.array([sub_main.get(s, 'غير مصنّف') for s in sub])
@@ -161,13 +203,17 @@ def main(argv=None):
     smask = np.array([s in keep for s in sub])
 
     report = {'labels': os.path.abspath(a.labels), 'targets': os.path.abspath(a.targets),
-              'training_rows': len(texts), 'held_out_main': held_out(texts, mains, None),
+              'training_rows': len(texts), 'training_surveyor_rows': surveyor_rows,
+              'training_rule_rows': len(rules_train), 'train_methods': list(methods), 'held_out_main': held_out(texts, mains, None),
               'held_out_sub': held_out([t for t, k in zip(texts, smask) if k], sub[smask], None),
               'gates': {'main_min': a.main_min, 'sub_min': a.sub_min}}
 
     Xtr, vecs = features(True, texts)
     main_clf = model().fit(Xtr, mains)
     sub_clf = model().fit(features(False, [t for t, k in zip(texts, smask) if k], vecs), sub[smask])
+
+    seen = set(texts)
+    report['held_out_rules'] = gated(main_clf, vecs, [r for r in rules_test if r[0] not in seen], sub_main)
 
     main_col = {c: i for i, c in enumerate(main_clf.classes_)}
     # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.
@@ -228,7 +274,7 @@ def main(argv=None):
     report['kept_main'] = kept_main
     report['kept_sub'] = kept_sub
     report['kept_main_pct'] = round(kept_main / len(keys), 4) if keys else 0
-    report.update(effect(db, a.targets, a.out, sub_main))
+    report.update(effect(db, a.targets, a.out, sub_main, methods))
     report['out'] = os.path.abspath(a.out)
     with open(report_path, 'w', encoding='utf-8') as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1)
