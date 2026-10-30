@@ -57,7 +57,9 @@ def text_expr(db, path):
     `tradename` or a description), so the same features train and score across files. Empty when no column says
     anything about the activity, and then the row is not scored."""
     have = {r[0] for r in db.execute(f"describe select * from read_parquet('{path}')").fetchall()}
-    parts = [field(c) for c in ('name_ar', 'name_en', 'tradename') if c in have]
+    # source_license_name is the Arabic name a licence file carries; licence-only places have no name_ar and an
+    # «NULL» or machine-translated name_en, so without it most of them have nothing to read.
+    parts = [field(c) for c in ('name_ar', 'name_en', 'tradename', 'source_license_name') if c in have]
     if 'description_ar' in have:
         parts.append(field('description_ar', 200))
     return "trim(" + " || ' | ' || ".join(parts) + ", ' |')"
