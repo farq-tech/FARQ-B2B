@@ -1,4 +1,4 @@
-import { numberFormat } from './insights-api'
+import { numberFormat, percent } from './insights-api'
 import { PALETTE } from '@/lib/palette'
 
 /** A deal as the ad states it: a sale, or a rent with its own period. Nothing is converted between periods. */
@@ -123,8 +123,8 @@ export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'distr
   if (pct == null) return null
   if (Math.abs(pct) < 5) return { text: `قريب من وسيط ${listing.district_ar}`, tone: 'even' }
   return pct < 0
-    ? { text: `أقل من وسيط ${listing.district_ar} بـ ${numberFormat.format(-pct)}%`, tone: 'good' }
-    : { text: `أعلى من وسيط ${listing.district_ar} بـ ${numberFormat.format(pct)}%`, tone: 'high' }
+    ? { text: `أقل من وسيط ${listing.district_ar} بـ ${percent(-pct)}`, tone: 'good' }
+    : { text: `أعلى من وسيط ${listing.district_ar} بـ ${percent(pct)}`, tone: 'high' }
 }
 
 /** Map dot colour by price against the district: green under, grey near, amber over, blue without a median, dark
@@ -132,7 +132,7 @@ export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'distr
 export const toneColor = { good: PALETTE.leaf, even: PALETTE.stone, high: PALETTE.ochre, none: PALETTE.slate, check: PALETTE.bark } as const
 
 // in words, not a sign: «+22%» flips to «22%+» inside an Arabic line
-const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل' : 'أعلى'} بـ ${numberFormat.format(Math.abs(pct))}% من`
+const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل' : 'أعلى'} بـ ${percent(Math.abs(pct))} من`
 /** What the signal rests on, for its explanation: the two figures and the districts they are measured against. */
 export function signalLines(signal: MarketSignal, type: string): string[] {
   // a service from before deal_neighbours compared the deals with the rent neighbours' list

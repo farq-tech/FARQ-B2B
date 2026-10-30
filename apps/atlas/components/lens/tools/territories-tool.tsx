@@ -12,6 +12,7 @@ import type { DistrictRow } from '../city-data'
 import type { Overlay } from './overlay'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Activity = { main_id: string; main_ar: string }
@@ -139,10 +140,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       <h2 className="text-xl font-bold">تقسيم المندوبين</h2>
 
       <Step n={1} title="نشاط عملائك" done={Boolean(mainId)}>
-        <select value={mainId} onChange={(e) => setMainId(e.target.value)} className="h-11 w-full rounded-lg border bg-background px-3 text-base">
-          <option value="">كل المنشآت</option>
-          {activities.map((item) => <option key={item.main_id} value={item.main_id}>{item.main_ar}</option>)}
-        </select>
+        <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
       </Step>
 
       <Step n={2} title="المندوبون" done={Boolean(groups)}>

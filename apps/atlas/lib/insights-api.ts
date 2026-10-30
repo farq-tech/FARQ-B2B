@@ -7,6 +7,15 @@ export type City = { en: string; ar: string | null; districts?: number }
 // every figure in Atlas is written in English digits with English separators (docs/atlas-product-foundation.md §5)
 export const numberFormat = new Intl.NumberFormat('en-US')
 
+/**
+ * Keeps a signed number, a percentage or a date in reading order inside an Arabic line. After an Arabic word the
+ * browser reads Latin digits as Arabic numbers, which detaches their sign: «48%» shows as «%48», «−2» as «2−» and
+ * «2026-10-28» as «28-10-2026». A left-to-right isolate keeps the figure whole.
+ */
+export const ltr = (text: string) => `\u2066${text}\u2069`
+/** «48%», kept whole inside an Arabic line. */
+export const percent = (value: number) => ltr(`${numberFormat.format(value)}%`)
+
 /** POST a read-only market resource through the Atlas proxy and surface its Arabic error. */
 export async function postMarket<T>(resource: string, body: unknown): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, {
