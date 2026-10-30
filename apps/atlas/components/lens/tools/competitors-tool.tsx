@@ -14,7 +14,6 @@ import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { residentsPer } from '@/lib/audience'
-import { formatDate } from '@/lib/format'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Activity = { main_id: string; main_ar: string }
@@ -25,12 +24,11 @@ type Uncovered = { district_ar: string; population: number; businesses: number }
 type Brands = { total: number; chains: number; in_chains: number; brands: Brand[]; uncovered?: Uncovered[]; uncovered_by?: string[] }
 type Profile = { branches: number; districts: number; activity: { main_ar: string; classified: number; agree: number } | null; activities: { main_ar: string; n: number }[] }
 
-/** «+5 فروع منذ 1 سبتمبر 2026», or null while the directory history has one snapshot. */
+/** «+5 فروع», or null until the service has a long enough directory history (market_analytics.chain_growth). */
 function growthLine(growth: Growth): string | null {
   if (!growth) return null
   const change = growth.now - growth.before
-  const since = growth.since ? ` منذ ${formatDate(growth.since)}` : ''
-  return change === 0 ? `بلا تغيير${since}` : `${ltr(`${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))}`)} ${nounAfter(change, 'branch')}${since}`
+  return change === 0 ? 'بلا تغيير' : `${ltr(`${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))}`)} ${nounAfter(change, 'branch')}`
 }
 type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: number; residentsPer: number | null }
 
