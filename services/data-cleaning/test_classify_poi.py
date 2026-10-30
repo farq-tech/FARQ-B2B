@@ -25,7 +25,8 @@ class ClassifyTests(unittest.TestCase):
         db.execute(f"copy l to '{self.tmp / 'labels.parquet'}' (format parquet)")
         db.execute("create table t(poi_key varchar, name_ar varchar, name_en varchar)")
         db.executemany("insert into t values (?, ?, null)",
-                       [('hh:1', 'مخبز الفردوس'), ('hh:2', 'حلاق الشباب'), ('hh:3', 'xyz')])
+                       [('hh:1', 'مخبز الفردوس'), ('hh:2', 'حلاق الشباب'), ('hh:3', 'xyz'),
+                        ('hh:4', 'False'), ('hh:5', 'محل مغلق'), ('hh:6', '123'), ('hh:7', None)])
         db.execute(f"copy t to '{self.tmp / 'targets.parquet'}' (format parquet)")
         tax = {'subs': [{'sub_id': 'food.bakery', 'main_ar': 'أغذية ومشروبات'},
                         {'sub_id': 'beauty.barber', 'main_ar': 'تجميل وعناية شخصية'}]}
@@ -79,6 +80,16 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual((types['cls_main_estimate'], types['cls_sub_estimate']), ('VARCHAR', 'VARCHAR'))
         # the confidence is still recorded even when the label is dropped
         self.assertEqual(duckdb.sql(f"select count(cls_main_confidence) from read_parquet('{out}')").fetchone()[0], 3)
+
+    def test_a_name_that_says_nothing_is_not_scored(self):
+        out = self.tmp / 'est_blank.parquet'
+        self.assertEqual(self.run_cli(out, ('--main-min', '0.0', '--sub-min', '0.0')).returncode, 0)
+        got = duckdb.sql(f"""select poi_key, cls_main_estimate, cls_main_confidence, cls_sub_estimate
+            from read_parquet('{out}') where poi_key in ('hh:4', 'hh:5', 'hh:6', 'hh:7') order by poi_key""").fetchall()
+        # «False», «محل مغلق», digits and no name: no category and no confidence, even with the gates at zero
+        self.assertEqual(got, [(k, None, None, None) for k in ('hh:4', 'hh:5', 'hh:6', 'hh:7')])
+        report = json.loads((self.tmp / 'est_blank.report.json').read_text(encoding='utf-8'))
+        self.assertEqual((report['scored'], report['skipped_non_descriptive']), (3, 4))
 
     def test_refuses_to_overwrite_an_input_or_an_existing_file(self):
         self.assertNotEqual(self.run_cli(self.tmp / 'labels.parquet').returncode, 0, 'never writes over an input')
