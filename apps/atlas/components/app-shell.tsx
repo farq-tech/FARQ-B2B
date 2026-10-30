@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, House, Inbox, LogIn, Map as MapIcon, type LucideIcon } from 'lucide-react'
+import { ClipboardList, House, Inbox, LogIn, LogOut, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -42,17 +42,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [sessionChecked, setSessionChecked] = useState(false)
 
+  // The shell stays mounted across client navigation, so the session is read again on the way out of
+  // the landing and login pages: signing in there and landing on /map shows the account straight away.
+  const ownHeader = pathname === '/' || pathname === '/login'
   useEffect(() => {
+    if (ownHeader) return
     let active = true
     fetch('/api/session/me', { cache: 'no-store' })
       .then(async (response) => {
         const payload = await response.json().catch(() => null) as { data?: { user?: SessionUser } } | null
-        if (active && response.ok && payload?.data?.user) setUser(payload.data.user)
+        if (active) setUser(response.ok && payload?.data?.user ? payload.data.user : null)
       })
       .catch(() => undefined)
       .finally(() => { if (active) setSessionChecked(true) })
     return () => { active = false }
-  }, [])
+  }, [ownHeader])
+
+  const signOut = async () => {
+    await fetch('/api/session/logout', { method: 'POST' }).catch(() => undefined)
+    setUser(null)
+  }
 
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
@@ -65,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || false
 
   // The landing page owns its own header and calls to action.
-  if (pathname === '/' || pathname === '/login') return <>{children}</>
+  if (ownHeader) return <>{children}</>
 
   return (
     <div className="min-h-dvh">
@@ -95,10 +104,19 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="mr-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {user ? (
-            <div className="flex items-center gap-2.5" aria-label="الحساب المسجل">
-              <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground" aria-hidden>{userInitial(user)}</span>
-              <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline">{user.displayName || user.email || 'الحساب المسجل'}</span>
-            </div>
+            <details className="relative">
+              <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-full [&::-webkit-details-marker]:hidden" aria-label="الحساب المسجل">
+                <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground" aria-hidden>{userInitial(user)}</span>
+                <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline">{user.displayName || user.email || 'الحساب المسجل'}</span>
+              </summary>
+              <div className="absolute left-0 top-11 z-50 w-56 rounded-xl border bg-card p-2 shadow-lg">
+                <p className="truncate px-2 py-1.5 text-xs text-muted-foreground">{user.email || user.displayName || 'الحساب المسجل'}</p>
+                <button type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium hover:bg-muted">
+                  <LogOut className="size-4" aria-hidden />
+                  خروج
+                </button>
+              </div>
+            </details>
           ) : sessionChecked ? (
             <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
               <LogIn className="size-3.5" aria-hidden />
