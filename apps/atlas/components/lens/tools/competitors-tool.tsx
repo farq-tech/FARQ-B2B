@@ -14,6 +14,7 @@ import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { residentsPer } from '@/lib/audience'
+import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Activity = { main_id: string; main_ar: string }
@@ -59,6 +60,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
   const [counts, setCounts] = useState<Count[] | null>(null)
   // the city's count from the service, which includes businesses with no reliable district
   const [cityTotal, setCityTotal] = useState<number | null>(null)
+  const [understood, setUnderstood] = useState<Understanding>(null)
   const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'dense')
   const [view, setView] = useStickyState<'districts' | 'brands'>('competitors.view', 'districts')
   const [brands, setBrands] = useState<Brands | null>(null)
@@ -91,11 +93,11 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
     onActivity(studied.q ?? studied.label)
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     Promise.all([
-      postMarket<{ districts?: Count[]; total?: number }>('district-counts', activity),
+      postMarket<{ districts?: Count[]; total?: number; understood?: Understanding }>('district-counts', activity),
       // chains are a second reading of the same businesses; the districts still show when they are unavailable
       postMarket<Brands>('brands', { ...activity, limit: 50 }).catch(() => null),
     ])
-      .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setBrands(chains); setStatus('idle') } })
+      .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
   }, [city, studied, onActivity])
@@ -170,6 +172,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status !== 'loading' && studied.q && <Understood value={understood} />}
       {studied && counts && status !== 'loading' && (
         <>
           <Explained title="المنافسون في المدينة" lines={EXPLAIN.competitors} className="text-base">

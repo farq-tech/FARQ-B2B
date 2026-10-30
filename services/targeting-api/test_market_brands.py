@@ -127,6 +127,27 @@ class MarketBrandsTests(unittest.TestCase):
         self.assertEqual({core: len(group["pois"]) for core, group in groups.items()}, {"الجبر": 2, "دانكن": 3})
         self.assertEqual(groups["الجبر"]["brand"], "مغسلة الجبر", 'the Arabic spelling names the brand')
 
+    def test_a_company_name_ending_in_a_brand_is_that_brand(self):
+        rows = [(f"d{i}", "العليا", "دانكن", "دانكن", None) for i in range(4)]
+        rows += [(f"s{i}", "الملقا", "شركة شهية المحدودة للاطعمة دانكن", "شركه شهيه المحدوده للاطعمه دانكن", None) for i in range(3)]
+        rows += [("m1", "النرجس", "مؤسسة محمد علي", "مؤسسه محمد علي", None), ("m2", "العليا", "علي", "علي", None)]
+        groups = market_analytics.group_chains(rows)
+        self.assertEqual(len(groups["دانكن"]["pois"]), 7, 'the operating company is the brand it runs')
+        self.assertIn("محمد علي", groups, 'a name ending in a small shop\'s name keeps its own')
+        rows = [("b1", "العليا", "بوفية", "بوفيه", None), ("b2", "الملقا", "مطعم باكستاني", "مطعم باكستاني", None),
+                ("b3", "النرجس", "مطعم اكلات شعبية حجازية ويمنية", "مطعم اكلات شعبيه حجازيه ويمنيه", None),
+                ("b4", "العليا", "Dunkin Dontes", "dunkin dontes", None), ("b5", "الملقا", "دانكن", "دانكن", None)]
+        self.assertEqual({core: len(group["pois"]) for core, group in market_analytics.group_chains(rows).items()}, {"دانكن": 2},
+                         'a cuisine or what is served names no brand')
+
+    def test_a_category_after_a_comma_is_not_the_brand(self):
+        db = duckdb.connect()
+        db.execute("create table p(poi_key varchar, district_ar varchar, name_ar varchar, name_en varchar)")
+        db.executemany("insert into p values (?, 'العليا', ?, null)", [("1", "ماك, محل مستحضرات"), ("2", "ماك"), ("3", "نكس، متجر")])
+        labels = db.execute(f"select {market_analytics.brand_sql({'name_ar'})} from p order by poi_key").fetchall()
+        db.close()
+        self.assertEqual([row[2] for row in labels], ["ماك", "ماك", "نكس"])
+
     def test_a_sound_shared_by_two_names_joins_neither(self):
         rows = [("s1", "العليا", "سمر", "سمر", None), ("s2", "الملقا", "سامر", "سامر", None), ("s3", "النرجس", "Samar", "samar", None)]
         self.assertEqual(sorted(market_analytics.group_chains(rows)), ["samar", "سامر", "سمر"], 'two Arabic names sound like the Latin one')
