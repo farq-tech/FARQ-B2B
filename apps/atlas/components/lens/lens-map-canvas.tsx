@@ -260,6 +260,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
 
   useEffect(() => {
     const instance = map.current
+    const bounds = boundsOf(features)
+    if (ready && instance && bounds) instance.fitBounds(bounds, { padding: 24, duration: 0 })
+  }, [ready, features])
+
+  useEffect(() => {
+    const instance = map.current
     const feature = zoomTo && features.find((item) => String(item.properties.id) === zoomTo.id)
     const bounds = feature ? boundsOf([feature]) : null
     if (!ready || !instance || !bounds || !zoomTo) return
@@ -270,14 +276,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     const top = phone ? 120 : 48
     if (top + bottom >= height - 40) return
     instance.fitBounds(bounds, { padding: { top, bottom, left: 32, right: 32 }, maxZoom: 15, duration: 900 })
+    // runs after the city framing above, so a pick made while the map loads still lands once it is ready;
     // features stay out of the dependencies: a repaint of the same city never moves the camera again
   }, [ready, zoomTo])
-
-  useEffect(() => {
-    const instance = map.current
-    const bounds = boundsOf(features)
-    if (ready && instance && bounds) instance.fitBounds(bounds, { padding: 24, duration: 0 })
-  }, [ready, features])
 
   return (
     <div className="relative h-full w-full">
