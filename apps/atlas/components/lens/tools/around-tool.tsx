@@ -10,6 +10,7 @@ import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { residentsPer } from '@/lib/audience'
+import { useStickyState } from '@/lib/sticky-state'
 
 type Within = { population: number | null; dwellings: number | null; businesses: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
@@ -51,7 +52,7 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  */
 export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => void }) {
   const [sites, setSites] = useState<(Point & { id: number })[]>([])
-  const [reach, setReach] = useState<Reach>(REACHES[1])
+  const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
   const [results, setResults] = useState<Record<string, Result>>({})
   const nextId = useRef(1)
   const requested = useRef(new Set<string>())

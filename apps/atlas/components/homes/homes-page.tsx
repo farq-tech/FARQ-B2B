@@ -11,7 +11,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
@@ -21,7 +21,6 @@ import { useCityData } from '../lens/city-data'
 import { LensMapCanvas, type ListingDot } from '../lens/lens-map-canvas'
 import { Gallery, ListingCard } from '../lens/listing-card'
 
-const CITIES = [['Riyadh', 'الرياض'], ['Jeddah', 'جدة'], ['Dammam', 'الدمام'], ['Al Khobar', 'الخبر'], ['Makkah Al Mukarramah', 'مكة المكرمة']] as const
 const LIMIT = 1500
 const PAGE = 24
 const NO_STEPS = new Map<string, number>()
@@ -40,6 +39,8 @@ function shortPrice(price: number | null): string | undefined {
  * assistant. Modelled on the search-results-with-map pattern (Screenrove: airbnb-product-results).
  */
 export function HomesPage() {
+  const cities = useCities()
+  const cityOptions = useMemo(() => cities.map((item) => [item.en, item.ar || item.en] as const), [cities])
   const [city, setCity] = useState<string>('Riyadh')
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_FILTERS)
   const [sheet, setSheet] = useState(false)
@@ -47,7 +48,7 @@ export function HomesPage() {
   const deal = dealOf(filters)
   const typesKey = types.join(','), districtsKey = filters.districts.join(',')
   const change = useCallback((next: Partial<HomeFilters>) => setFilters((current) => ({ ...current, ...next })), [])
-  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }>({ status: 'loading', available: true, total: 0, listings: [] })
+  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }>({ status: 'loading', available: true, total: null, listings: [] })
   const [inView, setInView] = useState(true)
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null)
   const [hover, setHover] = useState<string | null>(null)
@@ -78,8 +79,8 @@ export function HomesPage() {
       city, kind, types, deal, limit: LIMIT, ...(filters.maxPrice ? { max_price: filters.maxPrice } : {}),
       ...(filters.districts.length ? { district_ids: filters.districts } : {}),
     })
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? 0, listings: payload.listings ?? [] }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
+      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: payload.listings ?? [] }) })
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
   }, [city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
 
@@ -106,7 +107,7 @@ export function HomesPage() {
   const districtName = useCallback((id: string) => districtList.find((item) => item.id === id)?.name ?? 'حي', [districtList])
   const applied = activeFilters(filters, districtName)
   const dealLabel = kind === 'sale' ? 'شراء' : `إيجار ${RENT_DEALS.find((item) => item.id === filters.rentDeal)?.label ?? ''}`
-  const cityAr = CITIES.find(([id]) => id === city)?.[1] ?? city
+  const cityAr = cities.find((item) => item.en === city)?.ar || city
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
@@ -158,7 +159,7 @@ export function HomesPage() {
         )}
       </header>
       <HomesFilters open={sheet} onClose={() => setSheet(false)} filters={filters} onChange={change} districts={districtList}
-        cities={CITIES} city={city} onCity={setCity}
+        cities={cityOptions} city={city} onCity={setCity}
         count={visible.length} loading={result.status === 'loading'} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -168,7 +169,7 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? `${result.total != null && result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
             <label className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
@@ -221,6 +222,7 @@ export function HomesPage() {
                     </span>
                     <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
                     {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
+                    {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
                   </button>
                 </li>
               )
@@ -231,7 +233,7 @@ export function HomesPage() {
               عرض المزيد ({numberFormat.format(visible.length - shown)})
             </button>
           )}
-          {result.status === 'ready' && result.total > result.listings.length && (
+          {result.status === 'ready' && result.total != null && result.total > result.listings.length && (
             <p className="mt-4 text-center text-xs text-muted-foreground">
               <Explained title="أنسب العروض" lines={EXPLAIN.bestListings} className="text-xs">في المدينة {numberFormat.format(result.total)} عرضاً، والمعروض أنسب {numberFormat.format(result.listings.length)} منها</Explained>
             </p>

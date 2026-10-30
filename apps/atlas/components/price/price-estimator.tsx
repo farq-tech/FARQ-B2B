@@ -8,11 +8,10 @@ import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { typeLabel } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 
-const CITIES = [['Riyadh', 'الرياض'], ['Jeddah', 'جدة'], ['Dammam', 'الدمام'], ['Al Khobar', 'الخبر'], ['Makkah Al Mukarramah', 'مكة المكرمة']] as const
 const DEALS = [['rent_year', 'إيجار سنوي'], ['rent_month', 'إيجار شهري'], ['sale', 'بيع']] as const
 const KINDS = ['apartment', 'floor', 'villa'] as const
 const AGES = [['0', 'جديد'], ['1-2', 'سنة أو سنتان'], ['3-5', '3–5 سنوات'], ['6-10', '6–10 سنوات'], ['11+', '11 سنة فأكثر']] as const
@@ -57,6 +56,7 @@ const sar = (value: number) => `${numberFormat.format(value)} ريال`
  * adjustment with its percentage, and the comparables themselves, so the number can be checked.
  */
 export function PriceEstimator() {
+  const cities = useCities()
   const [city, setCity] = useState('Riyadh')
   const [districts, setDistricts] = useState<{ id: string; name: string }[] | null>(null)
   const [district, setDistrict] = useState('')
@@ -103,7 +103,7 @@ export function PriceEstimator() {
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-semibold">المدينة
             <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl border bg-background px-3 text-base font-normal">
-              {CITIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
@@ -151,12 +151,14 @@ export function PriceEstimator() {
               <div className="mt-3 h-2 rounded-full bg-gradient-to-l from-primary/80 via-primary/40 to-primary/10" aria-hidden />
               <p className="mt-3 text-sm text-muted-foreground">
                 <Explained title="كيف حسبناه" lines={[
-                  `من ${numberFormat.format(result.comparables ?? 0)} عرضاً حالياً من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).`,
+                  result.comparables != null
+                    ? `من ${numberFormat.format(result.comparables)} عرضاً حالياً من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).`
+                    : 'من العروض الحالية من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).',
                   'المدى هو الربع الأدنى والأعلى من سعر المتر في هذه العروض، والوسط وسيطها، مضروبة في مساحتك.',
                   'ثم نعدّل للفروق التي ثبت أثرها في نموذج عروض شمال الرياض: العمر، وعدد الشوارع، وعرض الشارع، والتأثيث. حقول مثل المكيفات والحوش وغرفة العاملة لا تدخل لأن عقار لا يعبئها بانتظام.',
                   'أسعار معروضة لا عقود، والعقود عادة أقل بنحو 5–10%.',
                 ]} className="text-sm">
-                  من {numberFormat.format(result.comparables ?? 0)} عرضاً مشابهاً في {result.scope?.map((s) => s.district_ar).filter(Boolean).join('، ')}
+                  {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'} في {result.scope?.map((s) => s.district_ar).filter(Boolean).join('، ')}
                 </Explained>
               </p>
             </div>

@@ -105,6 +105,9 @@ function StepTab({ index, label, active, onClick }: { index: number; label: stri
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
 const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
 
+// the fixed district filter writes into the same `selected` as a map tap; this value marks «several chosen on the map»
+const DISTRICTS_MULTI = '__multi__'
+
 /**
  * Atlas map with one journey per user group (docs/atlas-product-foundation.md §4): the group's steps in order, its
  * three figures on the map, and one business search for every group.
@@ -157,6 +160,14 @@ export function LensMap() {
   const toggle = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   const cityName = cities.find((item) => item.en === city)?.ar || city
   const step = active.steps.find((item) => item.tool === tool)
+  // the fixed «الحي» filter: a non-map way to focus one district, kept in sync with map taps and steady across lenses
+  const districtOptions = useMemo<[string, string][]>(() => {
+    const sorted = [...data.rows].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map((row) => [row.id, row.name] as [string, string])
+    const base: [string, string][] = [['', 'كل الأحياء'], ...sorted]
+    return selected.length > 1 ? [[DISTRICTS_MULTI, `${numberFormat.format(selected.length)} أحياء مختارة`], ...base] : base
+  }, [data.rows, selected.length])
+  const districtValue = selected.length === 1 ? selected[0] : selected.length > 1 ? DISTRICTS_MULTI : ''
+  const pickDistrict = (value: string) => { if (value !== DISTRICTS_MULTI) setSelected(value ? [value] : []) }
   const submit = () => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }
   // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait
   const colorsNote = overlay.colors ? `ألوان الخريطة من «${step?.label}»` : null
@@ -171,6 +182,11 @@ export function LensMap() {
           <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
             <select aria-label="المدينة" value={city} onChange={(e) => setCity(e.target.value)} className={pillControl}>
               {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
+            </select>
+          </PillField>
+          <PillField label="الحي" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
+            <select aria-label="الحي" value={districtValue} onChange={(e) => pickDistrict(e.target.value)} className={pillControl} disabled={!data.rows.length}>
+              {districtOptions.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
             </select>
           </PillField>
           <PillField label="أنا من" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[13rem]">
@@ -205,6 +221,7 @@ export function LensMap() {
             </form>
             <div className="pointer-events-auto -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="المدينة والفئة والمقياس">
               <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
+              <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
               {colorsNote
                 ? <span className="inline-flex h-9 shrink-0 items-center rounded-full border bg-card/95 px-3.5 text-sm text-muted-foreground shadow-sm">{colorsNote}</span>

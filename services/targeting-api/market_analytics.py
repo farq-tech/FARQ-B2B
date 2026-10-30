@@ -30,7 +30,7 @@ USABLE_WHATSAPP_SQL = """coalesce(p.has_whatsapp, false) and regexp_matches(
 )"""
 
 NEAR_BASIS = "أقرب الأماكن من دليل فرق في دائرة 6 كم، والمسافة خط مستقيم. نوع المدرسة (حكومية أو أهلية) من اسمها؛ ما لا يذكر اسمه النوع يظهر «مدرسة» فقط."
-BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع ورقمه. الاسمان العربي واللاتيني بسجل تجاري مشترك سلسلة واحدة إذا كان كل منهما أقرب اسم للآخر، ولا تتسلسل الأسماء، وكلمة النشاط وحدها ليست سلسلة."
+BRANDS_BASIS = "السلسلة: اسم تجاري له عدد الفروع المحدد أو أكثر (3 افتراضياً) في دليل فرق داخل المدينة لهذا النشاط، بعد توحيد كتابة الاسم وحذف اسم الفرع ورقمه وكلمة النشاط («صيدلية النهدي» و«النهدي» سلسلة واحدة). الاسمان العربي واللاتيني بسجل تجاري مشترك سلسلة واحدة إذا كان كل منهما أقرب اسم للآخر، وبلا سجل مشترك إذا تطابق نطقهما ولم يشبهه اسم آخر في النشاط، ولا تتسلسل الأسماء، وكلمة النشاط وحدها ليست سلسلة."
 MARKET_BASIS = (
     "حصر سجلات الدليل غير المغلقة نهائياً في المدينة؛ الأحياء تعتمد على الإسناد الموثوق. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام، ولا يعني نية الشراء."
@@ -57,6 +57,54 @@ GENERIC_BRAND_KEYS = frozenset({
 })
 
 
+# Words that say what a business is or how it is registered, not which brand it is. Dropped to find a name's core,
+# so «صيدليه النهدي», «النهدي», «nahdi pharmacy» and «al nahdi medical company pharmacy» meet as «النهدي» / «nahdi».
+CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
+    "صيدليات", "pharmacies", "الطبيه", "طبيه", "للادويه", "ادويه", "مطاعم", "restaurants", "مقاهي",
+    "al", "el", "the", "and", "for", "of", "medical", "co", "est", "group", "trading",
+    "للتجاره", "تجاره", "التجاريه", "شركات",
+    # a kind of shop, not a brand: «مغاسل», «بخاري», «اسواق مركزيه», «غسيل سيارات» are many unrelated shops
+    "مغاسل", "laundries", "اسواق", "مركزيه", "المركزيه", "غسيل", "سيارات", "السيارات", "بخاري", "البخاري",
+    "ملابس", "clothes", "cleaners", "المحدوده", "محدوده", "للاطعمه", "دونتس", "دونات", "donuts",
+    "car", "cars", "wash", "carwash", "كار", "واش", "وواش",
+})
+
+# Letters to the consonant skeleton a name keeps across scripts: «الجبر» and «aljabr» are both «jbr», «دانكن» and
+# «dunkin» both «dnkn». Vowels, long vowels and «ع» drop; close sounds share one letter (ق ك خ -> k, ز -> s).
+_AR_SOUND = str.maketrans({"ب": "b", "ت": "t", "ث": "t", "ج": "j", "ح": "h", "خ": "k", "د": "d", "ذ": "d", "ر": "r",
+                           "ز": "s", "س": "s", "ش": "s", "ص": "s", "ض": "d", "ط": "t", "ظ": "z", "ع": "", "غ": "g",
+                           "ف": "f", "ق": "k", "ك": "k", "ل": "l", "م": "m", "ن": "n", "ه": "h", "و": "", "ي": "",
+                           "ا": "", "ء": ""})
+_LATIN_PAIRS = (("sh", "s"), ("th", "t"), ("kh", "k"), ("gh", "G"), ("ph", "f"), ("ck", "k"), ("ch", "s"))
+_LATIN_SOUND = str.maketrans({"c": "k", "q": "k", "x": "k", "v": "f", "p": "b", "g": "j", "z": "s", "G": "g",
+                              "a": "", "e": "", "i": "", "o": "", "u": "", "y": "", "w": ""})
+
+
+def sound_key(core):
+    """The consonant skeleton of a brand core, comparable between an Arabic and a Latin spelling."""
+    arabic = any("؀" <= char <= "ۿ" for char in core)
+    parts = []
+    for word in core.split():
+        if arabic:
+            word = word[2:] if word.startswith("ال") and len(word) > 3 else word
+            word = word[:-1] if word.endswith("ه") and len(word) > 2 else word   # ta marbuta, folded to ه
+            parts.append(word.translate(_AR_SOUND))
+        else:
+            word = word[2:] if word.startswith(("al", "el")) and len(word) > 4 else word
+            for pair, letter in _LATIN_PAIRS:
+                word = word.replace(pair, letter)
+            word = word[:-1] if word.endswith("h") and len(word) > 2 else word
+            parts.append(word.translate(_LATIN_SOUND))
+    skeleton = "".join(parts)
+    return "".join(char for index, char in enumerate(skeleton) if not index or char != skeleton[index - 1])
+
+
+def brand_core(key):
+    """A brand key without its filler words and stray single letters («صيدليه الدواء s» -> «الدواء»); empty when
+    nothing names a brand («the», «pharmacy pharmacy»)."""
+    return " ".join(word for word in key.split() if len(word) > 1 and word not in CORE_FILLER)
+
+
 def fold_key(text):
     """The brand key's letter folding (brand_sql) for a name read in Python: lower case, one Arabic letter form, letters,
     digits and single spaces only."""
@@ -79,19 +127,22 @@ def brand_sql(columns):
 
 
 def group_chains(rows):
-    """Businesses (poi_key, district, label, key, cr) grouped into brands by key. An Arabic key and a Latin key also
-    join when they share commercial registrations and each is the other's strongest partner across scripts: the
-    same brand in two scripts. A join never chains (Arabic to Latin to another Arabic name), so two competitors that
-    a stray registration links stay apart, and keys in the same script never join, so a holding company's brands
-    stay apart. A bare activity word («صيدليه», «pharmacy») names no brand, nor does a district's own name (places the
-    directory names after their district) or a name fragment that opens with «لل» («للملابس الجاهزة»)."""
+    """Businesses (poi_key, district, label, key, cr) grouped into brands by the core of their key (brand_core), so
+    a name with and without its activity word («صيدليه النهدي», «النهدي») is one brand. An Arabic core and a Latin
+    core also join when they share commercial registrations and each is the other's strongest partner across
+    scripts: the same brand in two scripts. A join never chains (Arabic to Latin to
+    another Arabic name), so two competitors that a stray registration links stay apart, and different cores in the
+    same script never join, so a holding company's brands stay apart. Filler alone («صيدليه», «the») names no brand,
+    nor does a district's own name (places the directory names after their district) or a name fragment that opens
+    with «لل» («للملابس الجاهزة»)."""
     arabic = lambda text: any("؀" <= char <= "ۿ" for char in text)
     places = {fold_key(district) for _, district, _, _, _ in rows if district}
-    usable = lambda key: bool(key) and len(key) >= 2 and key not in GENERIC_BRAND_KEYS and key not in places and not key.startswith("لل")
+    usable = lambda core: bool(core) and len(core) >= 2 and core not in places and not core.startswith("لل")
+    cores = {key: brand_core(key or "") for _, _, _, key, _ in rows}
     by_cr = {}
     for poi, _, _, key, cr in rows:
-        if usable(key) and cr:
-            by_cr.setdefault(cr, {}).setdefault(key, set()).add(poi)
+        if usable(cores[key]) and cr:
+            by_cr.setdefault(cr, {}).setdefault(cores[key], set()).add(poi)
     # how strongly each Arabic and Latin key are tied: branches sharing a registration, summed over registrations
     ties = Counter()
     for keys in by_cr.values():
@@ -104,11 +155,25 @@ def group_chains(rows):
         best_latin.setdefault(ar, la)
         best_arabic.setdefault(la, ar)
     partner = {la: ar for ar, la in best_latin.items() if best_arabic.get(la) == ar}
+    # the same brand in two scripts with no shared registration on file: an Arabic and a Latin core still unpaired
+    # join when their sound (sound_key) matches each other and no other name, paired or not, so two names alike in
+    # sound stay apart and a name already paired by registration keeps a sound from looking unique
+    paired = set(partner) | set(partner.values())
+    by_sound = {}
+    for core in {core for core in cores.values() if usable(core)}:
+        sound = sound_key(core)
+        if len(sound) >= 3:
+            by_sound.setdefault(sound, []).append(core)
+    for names in by_sound.values():
+        ar, la = [name for name in names if arabic(name)], [name for name in names if not arabic(name)]
+        if len(ar) == 1 and len(la) == 1 and not paired & {ar[0], la[0]}:
+            partner[la[0]] = ar[0]
     groups = {}
     for poi, district, label, key, _ in rows:
-        if not usable(key):
+        core = cores[key]
+        if not usable(core):
             continue
-        group = groups.setdefault(partner.get(key, key), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
+        group = groups.setdefault(partner.get(core, core), {"keys": Counter(), "labels": Counter(), "pois": set(), "districts": Counter()})
         if poi in group["pois"]:
             continue
         group["pois"].add(poi)
@@ -128,13 +193,26 @@ def haversine_km(lon1, lat1, lon2, lat2):
     return 2 * 6371 * math.asin(math.sqrt(math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2))
 
 
+# A snapshot is taken whenever the directory file changes, and a rebuild (classification, closures, name merging)
+# changes it as much as real openings do: over days the difference is the pipeline, not the chain. Growth is shown
+# once the history spans long enough for openings and closures to outweigh a rebuild.
+MIN_GROWTH_DAYS = 30
+
+
 def chain_growth(history, city, keys):
     """A brand's whole-city branches in the oldest and newest directory snapshots of the chain history, or None while
-    the history holds fewer than two snapshots (shown as «غير متاح»)."""
+    the history holds fewer than two snapshots or spans under MIN_GROWTH_DAYS (shown as «غير متاح»)."""
+    import datetime
     snapshots = (history or {}).get("snapshots") or []
     if len(snapshots) < 2:
         return None
     first, last = snapshots[0], snapshots[-1]
+    try:
+        span = (datetime.date.fromisoformat(last.get("date")) - datetime.date.fromisoformat(first.get("date"))).days
+    except (TypeError, ValueError):
+        return None
+    if span < MIN_GROWTH_DAYS:
+        return None
     count = lambda snapshot: sum((snapshot.get("cities", {}).get(city) or {}).get(key, 0) for key in keys)
     return {"since": first.get("date"), "before": count(first), "now": count(last)}
 
