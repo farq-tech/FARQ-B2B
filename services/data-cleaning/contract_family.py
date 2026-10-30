@@ -1,0 +1,151 @@
+"""A third level (product family) for contractors, from Farq Bina's procurement ontology (src/lib/procurementOntology.data.json).
+
+Only rows whose merged sub is `contract.*` are read. The family is a new column with its source and evidence; it never
+changes the main or the sub, and a row with no evidence stays «غير متاح».
+
+The ontology was built for bill-of-quantities lines, not company names, so only its decisive evidence is used:
+- a strong term decides, matched as a whole word (an Arabic proclitic such as «لل» or «وال» is allowed) or as a phrase.
+  Substring matching is not used: a short term inside an unrelated word («الن» in «النابغة») is the main error it causes;
+- a term guard drops a match when none of its `require_any` words is present, or any of its `block_any` words is;
+- a family's `negative_terms` drop it;
+- weak terms alone never decide, so they are not read;
+- two surviving families in hard conflict leave the row ambiguous, with no family.
+Family ids and the ontology version are read from the file, never copied, because the ontology splits families over time.
+
+Reads its inputs read-only; writes a new parquet, a report and a review sample next to it. Never writes over a file.
+
+    python3 contract_family.py --merged classification_merged.parquet --ontology procurementOntology.data.json --out contract_family.parquet
+"""
+import argparse
+import collections
+import json
+import os
+import pathlib
+import re
+import sys
+
+import duckdb
+import pyarrow as pa
+
+DIAC = re.compile('[ؐ-ًؚ-ٰٟۖ-ۭـ]')
+FOLD = str.maketrans('إأآىة', 'ااايه')
+CLITICS = ('وال', 'فال', 'بال', 'كال', 'لل', 'ال', 'و', 'ف', 'ب', 'ك', 'ل')
+
+
+def norm(s):
+    """Lower case, no diacritics, folded alef/ya/ta marbuta, punctuation as spaces, padded with one space each side."""
+    s = DIAC.sub('', (s or '').lower()).translate(FOLD)
+    return ' ' + re.sub(r'\s+', ' ', re.sub(r'[^\w؀-ۿ]+', ' ', s)).strip() + ' '
+
+
+def bases(token):
+    """The token and the token without each Arabic proclitic, so «للتكييف» also reads as «تكييف»."""
+    out = {token}
+    for p in CLITICS:
+        if token.startswith(p) and len(token) > len(p) + 1:
+            out.add(token[len(p):])
+    return out
+
+
+class Tagger:
+    def __init__(self, onto):
+        self.version = onto['version']
+        self.families = onto['families']
+        nt = lambda terms: [t for t in (norm(x).strip() for x in terms or []) if t]
+        self.hard = {f['id']: set(f.get('hard_conflicts') or []) for f in self.families}
+        self.fam, self.single, self.multi = [], collections.defaultdict(list), collections.defaultdict(list)
+        for i, f in enumerate(self.families):
+            strong = set(nt(f.get('strong_terms')))
+            self.fam.append({'id': f['id'], 'label': f.get('label_ar'), 'sector': f.get('sector'), 'strong': strong,
+                             'neg': nt(f.get('negative_terms')),
+                             'guards': [{'terms': set(nt(g.get('terms'))), 'require': nt(g.get('require_any')),
+                                         'block': nt(g.get('block_any'))} for g in f.get('term_guards') or []]})
+            for t in strong:
+                (self.multi if ' ' in t else self.single)[t].append(i)
+
+    @staticmethod
+    def _words(name):
+        return {b for w in name.split() for b in bases(w)}
+
+    def _present(self, term, name, words):
+        return term in words if ' ' not in term else f' {term} ' in name
+
+    def tag(self, raw):
+        """(family or None, status, evidence terms or conflicting ids) for one raw name."""
+        name = norm(raw)
+        words = self._words(name)
+        hits = {t for t in words if t in self.single} | {t for t in self.multi if f' {t} ' in name}
+        if not hits:
+            return None, 'no_strong_term', []
+        cands = []
+        for i in sorted({i for t in hits for i in self.single.get(t, []) + self.multi.get(t, [])}):
+            f = self.fam[i]
+            if any(self._present(n, name, words) for n in f['neg']):
+                continue
+            ok = [t for t in sorted(f['strong'] & hits)
+                  if not any(t in g['terms'] and (not any(self._present(r, name, words) for r in g['require'])
+                                                  or any(self._present(b, name, words) for b in g['block']))
+                             for g in f['guards'])]
+            if ok:
+                cands.append((f, ok))
+        if not cands:
+            return None, 'guarded_out', []
+        ids = [f['id'] for f, _ in cands]
+        if any(b in self.hard[x] for x in ids for b in ids if x != b):
+            return None, 'ambiguous_conflict', ids
+        best, ev = max(cands, key=lambda c: (sum(len(t) for t in c[1]), c[0]['id']))   # the longest evidence wins
+        return best, 'strong_term', ev
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    p.add_argument('--merged', required=True, help='merge_classification.py output (poi_key, name_ar, name_en, final_sub)')
+    p.add_argument('--ontology', required=True, help='procurementOntology.data.json')
+    p.add_argument('--out', required=True)
+    a = p.parse_args(argv)
+    out = pathlib.Path(a.out)
+    side = [out, out.with_suffix('.report.json'), out.with_name(out.stem + '_review_sample.csv')]
+    for f in side:
+        if f.exists() or os.path.abspath(f) in {os.path.abspath(a.merged), os.path.abspath(a.ontology)}:
+            sys.exit(f'refusing to overwrite {f}')
+
+    tagger = Tagger(json.load(open(a.ontology, encoding='utf-8')))
+    source = f'procurement_ontology:{tagger.version}'
+    db = duckdb.connect()
+    rows = db.execute(f"""select poi_key, name_ar, name_en, final_sub from read_parquet('{a.merged}')
+                          where final_sub like 'contract.%' order by poi_key""").fetchall()
+    cols = collections.defaultdict(list)
+    status_n, fam_n = collections.Counter(), collections.Counter()
+    for key, na, ne, sub in rows:
+        fam, status, ev = tagger.tag(f'{na or ""} | {ne or ""}')
+        status_n[status] += 1
+        if fam:
+            fam_n[fam['id']] += 1
+        for c, v in (('poi_key', key), ('name_ar', na), ('name_en', ne), ('final_sub', sub),
+                     ('family_id', fam and fam['id']), ('family_label_ar', fam and fam['label']),
+                     ('family_sector', fam and fam['sector']), ('family_source', source if fam else None),
+                     ('family_status', status), ('family_evidence', ' ; '.join(ev) or None)):
+            cols[c].append(v)
+    db.register('t', pa.table(cols) if rows else pa.table({c: pa.array([], pa.string()) for c in (
+        'poi_key', 'name_ar', 'name_en', 'final_sub', 'family_id', 'family_label_ar', 'family_sector',
+        'family_source', 'family_status', 'family_evidence')}))
+    db.execute(f"copy t to '{out}' (format parquet, compression zstd)")
+
+    label = {f['id']: f.get('label_ar') for f in tagger.families}
+    rep = {'ontology_version': tagger.version, 'families_in_ontology': len(tagger.families), 'contract_rows': len(rows),
+           'tagged': sum(fam_n.values()), 'tagged_pct': round(sum(fam_n.values()) / len(rows), 4) if rows else 0,
+           'by_status': dict(status_n), 'by_family': {f'{k} ({label.get(k, "")})': v for k, v in fam_n.most_common()}}
+    side[1].write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding='utf-8')
+    db.execute(f"""copy (
+      (select family_id, family_label_ar, name_ar, name_en, final_sub, family_evidence from t
+         where family_id is not null order by hash(poi_key) limit 160)
+      union all (select '(ambiguous)', null, name_ar, name_en, final_sub, family_evidence from t
+         where family_status = 'ambiguous_conflict' order by hash(poi_key) limit 40)
+    ) to '{side[2]}' (header, delimiter ',')""")
+    side[2].write_bytes(b'\xef\xbb\xbf' + side[2].read_bytes())
+    print(json.dumps({k: rep[k] for k in ('ontology_version', 'contract_rows', 'tagged', 'tagged_pct', 'by_status')},
+                     ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main()
