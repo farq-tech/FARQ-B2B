@@ -152,6 +152,43 @@ setInterval(refresh, 1000)
     const { findTemplate } = await get({ findTemplate: null })
     exportStatus = 'TEMPLATE ' + (findTemplate?.request || '').slice(0, 2500)
   }
+  else if (hash === '#resume') {
+    const { fast } = await get({ fast: null })
+    if (fast && !fast.active && (fast.current || fast.queue?.length)) {
+      const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+      const tab = tabs.sort((a, b) => b.id - a.id)[0]
+      const next = { ...fast, strikes: 0, slow: Math.max(1.5, Math.min(fast.slow || 1, 2)) }
+      if (tab) await launch(tab, next)
+      exportStatus = 'RESUMED'
+    } else exportStatus = 'NOTHING TO RESUME'
+  }
+  else if (hash === '#sample') {
+    const keys = (await chrome.storage.local.getKeys()).filter((k) => k.startsWith('m:'))
+    const pick = keys.filter((_, i) => i % Math.ceil(keys.length / 4000) === 0)
+    const got = await get(pick)
+    const rows = Object.values(got)
+    const n = (f) => rows.filter(f).length
+    exportStatus = 'SAMPLE ' + JSON.stringify({ total: keys.length, sampled: rows.length, withAge: n((r) => 'age' in r), ageKnown: n((r) => typeof r.age === 'number' && r.age > 0), withRooms: n((r) => typeof r.rooms === 'number'), withWidth: n((r) => typeof r.width === 'number' && r.width > 0), withCreateTime: n((r) => !!r.create_time), withLicense: n((r) => !!r.ad_license_number), updatedToday: n((r) => (r.updated_at || r.collected_at || '') > '2026-10-29T17:38'), newToday: n((r) => (r.collected_at || '') > '2026-10-29T17:38') })
+  }
+  else if (hash.startsWith('#push=')) {
+    // sends the store to a local receiver in parts of 2,000 listings, for an export too large for a browser download
+    const base = hash.slice(6)
+    const BATCH = 2000
+    const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith('m:'))
+    const send = (path, body) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status) })
+    try {
+      let sent = 0
+      for (let i = 0; i < keys.length; i += BATCH) {
+        const chunk = await get(keys.slice(i, i + BATCH))
+        await send(`part?name=m&i=${i / BATCH}`, JSON.stringify(Object.values(chunk)))
+        sent += Object.keys(chunk).length
+        exportStatus = `PUSH ${fmt.format(sent)} / ${fmt.format(keys.length)}`
+      }
+      const { findTemplate = null } = await get({ findTemplate: null })
+      await send('done', JSON.stringify({ exported: new Date().toISOString(), total: sent, findTemplate }))
+      exportStatus = `PUSHED ${fmt.format(sent)}`
+    } catch (error) { exportStatus = `PUSH FAILED ${error?.message || error}` }
+  }
   else if (hash === '#state') {
     const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
     const { queue, ...rest } = fast || {}

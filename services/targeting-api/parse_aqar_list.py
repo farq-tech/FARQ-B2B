@@ -43,13 +43,23 @@ def text_age(text):
     return 0 if _NEW.search(text) else None
 
 
+# fields the collector asks the map query for beyond the map's own (tools/aqar-collector/relay.js EXTRA_FIELDS)
+AQAR_EXTRA_FIELDS = ('rooms', 'stairs', 'furnished', 'maid', 'driver', 'lift', 'ketchen', 'ac', 'duplex', 'pool',
+                     'basement', 'backyard', 'car_entrance', 'extra_unit', 'tent', 'playground', 'two_entrances',
+                     'apartment_in_villa', 'private_roof', 'stores', 'family', 'men_place', 'create_time', 'refresh',
+                     'last_update', 'rega_licensed', 'ad_license_number', 'deed_area', 'rega_rooms', 'rega_category',
+                     'usages', 'verified', 'user_type', 'location_street', 'location_district',
+                     'location_building_number')
+
+
 def listing_age(record, text):
     """(age in years, where it came from): Aqar's own age field when the record carries it (a listing's detail page
     does, its map search does not), else the description, else (None, None) and Atlas shows «غير متاح»."""
     age = record.get('age')
-    if isinstance(age, (int, float)) and not isinstance(age, bool) and 0 <= age <= 99:
-        return int(age), 'aqar'
     found = text_age(text)
+    if isinstance(age, (int, float)) and not isinstance(age, bool) and 0 <= age <= 99:
+        # Aqar's 0 is both «new» and «not stated» (land, unfilled forms): an age the text names wins over it
+        return (found, 'text') if age == 0 and found else (int(age), 'aqar')
     return (found, 'text') if found is not None else (None, None)
 
 
@@ -244,6 +254,8 @@ def parse_map_listing(record, city_en=None):
         'age': age, 'age_source': age_source,
         'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
         'aqar_id': str(record.get('id')),
+        # what the collector's widened map query carries, passed through as Aqar names it (only when stated)
+        **{key: record[key] for key in AQAR_EXTRA_FIELDS if record.get(key) not in (None, '', [])},
     }
 
 
