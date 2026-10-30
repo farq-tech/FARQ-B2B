@@ -4,11 +4,17 @@ The served snapshot carries its classification (`sub_id` + `cls_confidence`), bu
 categories. `classify_poi.py` writes a model estimate for the same keys. This step joins them in a fixed order, so the
 model only fills what the directory does not already know (docs/atlas-classification-policy.md):
   1. vacant (`--vacancy`, rows whose source = 'vacant'): stays «شاغر» and takes no estimate.
-  2. the directory's sub at high or medium confidence. Never overwritten.
-  3. the model's sub, for rows with no confident directory sub and a name that describes something.
-  4. else the model's main only («تقدير»), else nothing («غير متاح»).
-Where the directory (high/medium) and the model give different subs, the directory sub stays and the row is flagged
-`needs_review`. A row whose text says nothing (every field the classifier reads is empty, a placeholder such as «False» or «null», a
+  2. the directory's sub at high confidence. Never overwritten.
+  3. the directory's sub at medium confidence, unless the model names a different main at OVERRIDE_MIN or more.
+  4. the directory's sub at low confidence when the model gives the same sub; else its main alone when the model gives
+     the same main at CONFIRM_MIN or more. Two independent readings that agree are kept; a low one alone is not.
+  5. the model's sub, for rows with no directory sub kept and a name that describes something.
+  6. else the model's main only («تقدير»), else nothing («غير متاح»).
+The thresholds are measured against surveyor labels the model never saw (docs/opportunity-map-improvement-log.md):
+the main of a medium directory sub is right 78% of the time, 96.8% when the model agrees, and where the model names
+another main at 0.80+ the model is right 96.4%; a low one is right 38%, 95.7% when the model agrees.
+Where the directory (high/medium) and the model give different subs, or the model overrode a medium one, the row is
+flagged `needs_review`. A row whose text says nothing (every field the classifier reads is empty, a placeholder such as «False» or «null», a
 state such as «محل مغلق», or has no letter) never takes an estimate. That test is `classify_poi.text_expr`, so a row
 the classifier scored from its trade name, licence name or description is not discarded here.
 
@@ -28,6 +34,9 @@ import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from classify_poi import text_expr  # noqa: E402  the classifier's own text, so both steps agree on what is readable
+
+
+CONFIRM_MIN, OVERRIDE_MIN = 0.60, 0.80
 
 
 def parse(argv):
@@ -60,35 +69,52 @@ def main(argv=None):
     db.execute(f"""create table m as
     with h as (
       select poi_key, name_ar, name_en, sub_id dir_sub, cls_confidence dir_conf, length({text_expr(db, a.targets)}) > 0 name_ok,
-             case when sub_id is not null and sub_id not like 'unc.%' and cls_confidence in ('high', 'medium') then sub_id end rules_sub
+             case when sub_id is not null and sub_id not like 'unc.%' then sub_id end dir_valid
       from read_parquet('{a.targets}')),
      vac as ({vac}),
      est as (select poi_key, cls_sub_estimate est_sub, cls_sub_confidence est_sub_conf,
                     cls_main_estimate est_main, cls_main_confidence est_main_conf from read_parquet('{a.estimates}'))
-    select h.*, vac.poi_key is not null is_vacant, est_sub, est_sub_conf, est_main, est_main_conf
-    from h left join vac using (poi_key) left join est using (poi_key)""")
+    select h.*, sm.main_ar dir_main, vac.poi_key is not null is_vacant, est_sub, est_sub_conf, est_main, est_main_conf
+    from h left join submain sm on sm.sub_id = h.dir_valid left join vac using (poi_key) left join est using (poi_key)""")
+    db.execute(f"""create table k as select m.*,
+      coalesce(dir_conf = 'medium' and est_main is not null and est_main_conf >= {OVERRIDE_MIN} and est_main <> dir_main,
+               false) overridden,
+      coalesce(dir_conf not in ('high', 'medium') and est_sub = dir_valid, false) low_confirmed,
+      coalesce(dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and est_main = dir_main
+               and est_main_conf >= {CONFIRM_MIN}, false) low_main_confirmed
+    from m""")
+    db.execute("""create table m2 as select k.*,
+      case when dir_valid is null then null
+           when dir_conf = 'high' or (dir_conf = 'medium' and not overridden) or low_confirmed then dir_valid end rules_sub
+    from k""")
 
     db.execute("""create table f as
-    select m.*,
+    select m2.*,
       case when is_vacant then null when rules_sub is not null then rules_sub
+           when low_main_confirmed then null
            when name_ok and est_sub is not null then est_sub end final_sub,
-      case when is_vacant then 'vacant' when rules_sub is not null then 'directory_' || dir_conf
+      case when is_vacant then 'vacant' when low_confirmed then 'directory_low_confirmed'
+           when rules_sub is not null then 'directory_' || dir_conf
+           when low_main_confirmed then 'directory_low_main_confirmed'
            when name_ok and est_sub is not null then 'model_estimate'
            when name_ok and est_main is not null then 'model_estimate_main_only' else 'none' end final_source,
-      case when is_vacant then null when rules_sub is not null then dir_conf
+      case when is_vacant then null when low_confirmed then 'low+model:' || cast(round(est_sub_conf, 2) as varchar)
+           when rules_sub is not null then dir_conf
+           when low_main_confirmed then 'low+model_main:' || cast(round(est_main_conf, 2) as varchar)
            when name_ok and est_sub is not null then 'estimate:' || cast(round(est_sub_conf, 2) as varchar)
            when name_ok and est_main is not null then 'estimate_main:' || cast(round(est_main_conf, 2) as varchar)
       end final_confidence,
-      coalesce(rules_sub is not null and est_sub is not null and rules_sub <> est_sub, false) needs_review,
+      coalesce(rules_sub is not null and est_sub is not null and rules_sub <> est_sub, false) or overridden needs_review,
       not name_ok invalid_name,
-      not is_vacant and name_ok and rules_sub is null and est_sub is not null model_added
-    from m""")
+      not is_vacant and name_ok and rules_sub is null and not low_main_confirmed and est_sub is not null model_added
+    from m2""")
     db.execute("""create table o as
     select f.*, case when final_sub is not null then sm.main_ar
+                     when final_source = 'directory_low_main_confirmed' then dir_main
                      when final_source = 'model_estimate_main_only' then est_main end final_main
     from f left join submain sm on sm.sub_id = f.final_sub""")
     db.execute(f"""copy (select poi_key, name_ar, name_en, final_sub, final_main, final_source, final_confidence,
-                        needs_review, invalid_name, model_added, dir_sub, dir_conf, est_sub, est_sub_conf
+                        needs_review, invalid_name, model_added, overridden, dir_sub, dir_conf, est_sub, est_sub_conf
                  from o order by poi_key) to '{out}' (format parquet, compression zstd)""")
 
     one = lambda q: db.execute(q).fetchone()[0]
@@ -100,9 +126,12 @@ def main(argv=None):
         'by_source': dict(db.execute('select final_source, count(*) from o group by 1 order by 2 desc').fetchall()),
         'model_added_sub': one('select count(*) from o where model_added'),
         'needs_review': one('select count(*) from o where needs_review'),
+        'overridden': one('select count(*) from o where overridden'),
+        'with_final_main': one('select count(final_main) from o'),
+        'thresholds': {'confirm_min': CONFIRM_MIN, 'override_min': OVERRIDE_MIN},
         'invalid_name': one('select count(*) from o where invalid_name'),
         'vacant_kept': one("select count(*) from o where final_source = 'vacant'"),
-        'coverage_before_pct': round(one('select count(rules_sub) from o') / n, 4) if n else 0,
+        'coverage_before_pct': round(one("select count(dir_valid) from o where dir_conf in ('high', 'medium')") / n, 4) if n else 0,
         'coverage_after_pct': round(one('select count(final_sub) from o') / n, 4) if n else 0,
         'by_main': dict(db.execute('select coalesce(final_main, \'غير متاح\'), count(*) from o group by 1 order by 2 desc').fetchall()),
     }

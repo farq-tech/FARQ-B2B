@@ -224,7 +224,7 @@ def main(argv=None):
     # (1.9M × 431 subs ≈ 6.6 GiB) would exhaust a data-cleaning host; each batch builds its own features and keeps
     # only each row's top label and probability.
     # A row with no descriptive text is written with no estimate and no confidence: it was not scored, not scored low.
-    keys, main_out, sub_out, main_conf_out, sub_conf_out = [], [], [], [], []
+    keys, main_out, sub_out, main_conf_out, sub_conf_out, main_top, main_top_conf = [], [], [], [], [], [], []
     skipped = 0
     BATCH = 50000
     cur = db.execute(f"select poi_key, {text_expr(db, a.targets)} feat from read_parquet('{a.targets}')")
@@ -233,6 +233,7 @@ def main(argv=None):
         for row in blank:
             keys.append(row[0])
             main_out.append(None); sub_out.append(None); main_conf_out.append(None); sub_conf_out.append(None)
+            main_top.append(None); main_top_conf.append(None)
         skipped += len(blank)
         batch = [row for row in batch if len(row[1]) >= 2]
         if not batch:
@@ -242,6 +243,8 @@ def main(argv=None):
         main_pred, main_conf, main_proba = top(main_clf, Xc)
         sub_pred, sub_conf, _ = top(sub_clf, Xc)   # the batch's features and sub proba are freed each iteration
         for r, (mp, mc, sp, sc) in enumerate(zip(main_pred, main_conf, sub_pred, sub_conf)):
+            # the ungated top main, for agreement with another source only (merge_classification.py); never shown alone
+            main_top.append(mp); main_top_conf.append(round(float(mc), 4))
             parent = sub_main.get(sp)
             j = main_col.get(parent)
             parent_conf = float(main_proba[r, j]) if j is not None else 0.0
@@ -264,6 +267,8 @@ def main(argv=None):
         'cls_main_confidence': pa.array([None if c is None else round(c, 4) for c in main_conf_out], pa.float64()),
         'cls_sub_estimate': pa.array(sub_out, pa.string()),
         'cls_sub_confidence': pa.array([None if c is None else round(c, 4) for c in sub_conf_out], pa.float64()),
+        'cls_main_top': pa.array(main_top, pa.string()),
+        'cls_main_top_confidence': pa.array(main_top_conf, pa.float64()),
         'cls_estimate_source': pa.array(['model_name_tfidf'] * len(keys), pa.string()),
     }))
     out.to_parquet(a.out)

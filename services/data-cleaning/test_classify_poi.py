@@ -47,7 +47,7 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         cols = {c[0] for c in duckdb.sql(f"describe select * from read_parquet('{out}')").fetchall()}
         self.assertEqual(cols, {'poi_key', 'cls_main_estimate', 'cls_main_confidence', 'cls_sub_estimate',
-                                'cls_sub_confidence', 'cls_estimate_source'})
+                                'cls_sub_confidence', 'cls_main_top', 'cls_main_top_confidence', 'cls_estimate_source'})
         got = {k: (m, s) for k, m, s in duckdb.sql(
             f"select poi_key, cls_main_estimate, cls_sub_estimate from read_parquet('{out}') order by poi_key").fetchall()}
         self.assertEqual(got['hh:1'], ('أغذية ومشروبات', 'food.bakery'), 'a bakery name lands in the food main and bakery sub')

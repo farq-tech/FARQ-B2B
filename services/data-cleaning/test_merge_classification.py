@@ -109,6 +109,10 @@ class CliTests(unittest.TestCase):
             ('f', 'محل مغلق', None, 'food.grocery', 'high'),             # vacant: stays «شاغر»
             ('g', 'مؤسسة التبريد للتكييف', None, 'contract.hvac', 'high'),
             ('h', 'مقاولات النابغة', None, 'contract.general', 'medium'),
+            ('j', 'صالون الأناقة', None, 'food.grocery', 'medium'),       # medium, the model names another main at 0.9
+            ('k', 'مخبز الشروق', None, 'food.bakery', 'low'),            # low, the model gives the same sub
+            ('l', 'مخبز الغروب', None, 'food.bakery', 'low'),            # low, the model gives the same main only
+            ('m', 'مؤسسة البيان', None, 'food.bakery', 'low'),           # low, the model does not agree: dropped
         ])
         # no usable name, but a descriptive description the classifier also reads: its estimate is kept
         db.execute("insert into t values ('i', 'NULL', 'False', null, null, 'مخبز ومعجنات طازجة')")
@@ -119,7 +123,9 @@ class CliTests(unittest.TestCase):
             ('a', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.9), ('b', 'أغذية ومشروبات', 0.9, 'food.sweets', 0.85),
             ('c', 'تجميل وعناية شخصية', 0.95, 'beauty.barber', 0.9), ('d', 'خدمات أعمال ومهنية', 0.7, None, None),
             ('e', 'أغذية ومشروبات', 0.97, 'food.restaurant', 0.9), ('f', 'أغذية ومشروبات', 0.7, 'food.grocery', 0.8),
-            ('i', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85)])
+            ('i', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85),
+            ('j', 'تجميل وعناية شخصية', 0.9, 'beauty.barber', 0.85), ('k', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85),
+            ('l', 'أغذية ومشروبات', 0.7, None, 0.4), ('m', 'خدمات أعمال ومهنية', 0.65, None, 0.3)])
         db.execute(f"copy e to '{self.tmp / 'est.parquet'}' (format parquet)")
         db.execute("create table v as select 'f' poi_key, 'vacant' AS source union all select 'a', 'activity'")
         db.execute(f"copy v to '{self.tmp / 'vac.parquet'}' (format parquet)")
@@ -150,10 +156,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(got['f'], [None, None, 'vacant', False, True], 'a vacant unit stays «شاغر», and its name says nothing')
         self.assertEqual(got['i'], ['food.bakery', 'أغذية ومشروبات', 'model_estimate', False, False],
                          'an estimate read from the description is kept even when both names are placeholders')
+        self.assertEqual(got['j'], ['beauty.barber', 'تجميل وعناية شخصية', 'model_estimate', True, False],
+                         'a medium sub the model contradicts at 0.80+ gives way to the model, and is flagged')
+        self.assertEqual(got['k'], ['food.bakery', 'أغذية ومشروبات', 'directory_low_confirmed', False, False],
+                         'a low sub the model repeats is kept')
+        self.assertEqual(got['l'], [None, 'أغذية ومشروبات', 'directory_low_main_confirmed', False, False],
+                         'a low sub whose main the model repeats keeps that main only')
+        self.assertEqual(got['m'], [None, 'خدمات أعمال ومهنية', 'model_estimate_main_only', False, False],
+                         'a low sub the model does not repeat is not shown')
         rep = json.loads((self.tmp / 'merged.report.json').read_text(encoding='utf-8'))
-        self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept']), (9, 2, 1, 1))
+        self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept'], rep['overridden']),
+                         (13, 3, 2, 1, 1))
         sample = duckdb.sql(f"select bucket, count(*) from read_csv('{self.tmp / 'merged_review_sample.csv'}') group by 1").fetchall()
-        self.assertEqual(dict(sample), {'model_added': 2, 'needs_review': 1, 'invalid_name': 2},
+        self.assertEqual(dict(sample), {'model_added': 3, 'needs_review': 2, 'invalid_name': 2},
                          'every bucket is sampled from its own rows')
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
 
