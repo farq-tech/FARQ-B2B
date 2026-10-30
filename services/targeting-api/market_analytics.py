@@ -62,6 +62,9 @@ GENERIC_BRAND_KEYS = frozenset({
 CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
     "صيدليات", "pharmacies", "الطبيه", "طبيه", "للادويه", "ادويه", "مطاعم", "restaurants", "مقاهي",
     "al", "el", "the", "and", "for", "of", "medical", "co", "est", "group", "trading",
+    "للتجاره", "تجاره", "التجاريه", "شركات",
+    # a kind of shop, not a brand: «مغاسل», «بخاري», «اسواق مركزيه», «غسيل سيارات» are many unrelated shops
+    "مغاسل", "laundries", "اسواق", "مركزيه", "المركزيه", "غسيل", "سيارات", "السيارات", "بخاري", "البخاري",
 })
 
 
