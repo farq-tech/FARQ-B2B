@@ -66,8 +66,16 @@ CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
     # a kind of shop, not a brand: «مغاسل», «بخاري», «اسواق مركزيه», «غسيل سيارات» are many unrelated shops
     "مغاسل", "laundries", "اسواق", "مركزيه", "المركزيه", "غسيل", "سيارات", "السيارات", "بخاري", "البخاري",
     "ملابس", "clothes", "cleaners", "المحدوده", "محدوده", "للاطعمه", "دونتس", "دونات", "donuts",
-    "car", "cars", "wash", "carwash", "كار", "واش", "وواش",
+    "car", "cars", "wash", "carwash", "كار", "واش", "وواش", "dontes", "donut", "doughnuts",
+    # what is served or sold, or a cuisine: «بوفية», «مطعم باكستاني», «اكلات شعبية» are many unrelated places
+    "بوفيه", "بوفيات", "اكلات", "شعبيه", "شعبي", "باكستاني", "هندي", "يمني", "يمنيه", "ويمنيه", "حجازي", "حجازيه",
+    "لتقديم", "الوجبات", "للوجبات", "وجبات", "السريعه", "سريعه", "المشروبات", "تلميع",
+    "مستحضرات", "لمستحضرات", "التجميل", "cosmetic", "cosmetics",
 })
+
+# Words that mark a registered company's own name: one that ends in a brand it runs is that brand
+# («شركة شهية المحدودة للأطعمة دانكن», «Al-Shaya International Trade Company Starbucks»).
+COMPANY_WORDS = frozenset({"شركه", "مؤسسه", "المحدوده", "محدوده", "company", "international", "ltd", "llc", "est"})
 
 # Letters to the consonant skeleton a name keeps across scripts: «الجبر» and «aljabr» are both «jbr», «دانكن» and
 # «dunkin» both «dnkn». Vowels, long vowels and «ع» drop; close sounds share one letter (ق ك خ -> k, ز -> s).
@@ -114,12 +122,12 @@ def fold_key(text):
 
 def brand_sql(columns):
     """Select list giving each business its brand label and key: the registered brand name, else the business name
-    cut before a branch suffix ("- العليا", "فرع", brackets); the key compares labels after Arabic letter folding.
+    cut before a branch suffix ("- العليا", "فرع", brackets) or a category after a comma ("ماك, محل مستحضرات"); the key compares labels after Arabic letter folding.
     Also the commercial registration, which joins a brand written in Arabic and in Latin letters."""
     brand = "nullif(trim(p.brand_name), '')" if "brand_name" in columns else "null"
     cr = "nullif(trim(p.commercial_license), '')" if "commercial_license" in columns else "null"
     label = (rf"trim(regexp_replace(regexp_replace(coalesce({brand}, nullif(trim(p.name_ar), ''), p.name_en), "
-             r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[].*$', '', 'i'), '(\s+[0-9٠-٩]+)+$', ''))")
+             r"'\s+(-|–|\||فرع|branch)(\s.*)?$|\s*[\(\[,،].*$', '', 'i'), '(\s+[0-9٠-٩]+)+$', ''))")
     # a branch number at the end («الجازع 5», «اوشن ٣١») names the branch, not the brand
     key = (rf"trim(regexp_replace(regexp_replace(regexp_replace(translate(lower({label}), 'أإآةىؤئـ', 'اااهيوي'), "
            r"'[^\pL\pN ]', '', 'g'), '\s+', ' ', 'g'), '(\s+[0-9٠-٩]+)+$', ''))")
@@ -139,6 +147,14 @@ def group_chains(rows):
     places = {fold_key(district) for _, district, _, _, _ in rows if district}
     usable = lambda core: bool(core) and len(core) >= 2 and core not in places and not core.startswith("لل")
     cores = {key: brand_core(key or "") for _, _, _, key, _ in rows}
+    # a company name joins the longest ending that is a chain of its own at least as large («شهيه دانكن» -> «دانكن»),
+    # so a person's name («مؤسسه محمد علي») never folds into a small shop called «علي»
+    size = Counter(cores[key] for _, _, _, key, _ in rows)
+    for key, core in cores.items():
+        words = core.split()
+        if len(words) > 1 and set((key or "").split()) & COMPANY_WORDS:
+            tails = (" ".join(words[start:]) for start in range(1, len(words)))
+            cores[key] = next((tail for tail in tails if usable(tail) and size[tail] >= max(3, size[core])), core)
     by_cr = {}
     for poi, _, _, key, cr in rows:
         if usable(cores[key]) and cr:
@@ -436,8 +452,17 @@ class MarketAnalytics:
             "truncated": len(rows) > limit,
         }
 
+    def _understood(self, body, subs):
+        """The subcategories a typed activity was read as, so the reader sees what is counted («مغسلة» -> laundries)
+        and can retype it when the reading is wrong; None for a main activity picked from the list."""
+        tx = self._tx()
+        if not body.get("q") or not subs or tx is None:
+            return None
+        labels = list(dict.fromkeys(tx.subs[sub]["sub_ar"] for sub in subs if sub in tx.subs))
+        return {"labels": labels[:4], "more": max(0, len(labels) - 4)}
+
     def district_counts(self, body):
-        city, _, where, params, specialty_available, bounds = self._where(body)
+        city, subs, where, params, specialty_available, bounds = self._where(body)
         query = f"""
             select p.district_ar, count(distinct p.poi_key) n,
                    count(distinct p.poi_key) filter (where {USABLE_WHATSAPP_SQL}) n_whatsapp,
@@ -460,6 +485,7 @@ class MarketAnalytics:
                 for name, n, whatsapp, wholesale in rows
             ],
             "total": total,
+            "understood": self._understood(body, subs),
             "specialty_available": specialty_available,
             "scope": {"bounds": bounds} if bounds else {},
             "basis": MARKET_BASIS,
@@ -491,7 +517,7 @@ class MarketAnalytics:
         limit = body.get("limit", 30)
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
             raise ValueError("limit")
-        city, _, where, params, specialty_available, bounds = self._where(body)
+        city, subs, where, params, specialty_available, bounds = self._where(body)
         rows = self._chain_rows(where, params)
         total = len({row[0] for row in rows})
         chains = sorted((group for group in self._group_chains(rows).values() if len(group["pois"]) >= min_branches),
@@ -504,6 +530,7 @@ class MarketAnalytics:
             "total": total,
             "chains": len(chains),
             "in_chains": in_chains,
+            "understood": self._understood(body, subs),
             "brands": [
                 {"brand": group["brand"], "keys": [key for key, _ in group["keys"].most_common(10)],
                  "branches": len(group["pois"]), "districts": len(group["districts"]),
@@ -636,14 +663,15 @@ class MarketAnalytics:
         limit = body.get("limit", 30)
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 200:
             raise ValueError("limit")
-        counts = {row["district_ar"]: row["n"] for row in self.district_counts(body)["districts"]}
+        counted = self.district_counts(body)
+        counts = {row["district_ar"]: row["n"] for row in counted["districts"]}
         city = body.get("city")
         known = {name: row for name, row in population.items() if row.get("population")}
         covered = [name for name in known if counts.get(name)]
         city_population = sum(known[name]["population"] for name in covered)
         city_businesses = sum(counts[name] for name in covered)
         if not city_businesses or not city_population:
-            return {"ok": True, "city": city, "residents_per_business": None, "districts": [], "basis": MARKET_GAPS_BASIS,
+            return {"ok": True, "city": city, "residents_per_business": None, "districts": [], "understood": counted["understood"], "basis": MARKET_GAPS_BASIS,
                     "message": "لا توجد منشآت مطابقة في أحياء معروفة السكان لحساب معدل المدينة."}
         rate = city_population / city_businesses
         rows = []
@@ -671,6 +699,7 @@ class MarketAnalytics:
             "residents_per_business": round(rate),
             "districts_with_population": len(known),
             "districts": rows[:limit],
+            "understood": counted["understood"],
             "basis": MARKET_GAPS_BASIS,
         }
 
