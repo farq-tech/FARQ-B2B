@@ -12,11 +12,12 @@ import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
+import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Activity = { main_id: string; main_ar: string }
 type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
-type Result = { residents_per_business: number | null; districts: Gap[] }
+type Result = { residents_per_business: number | null; districts: Gap[]; understood?: Understanding }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
@@ -76,7 +77,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
       <h2 className="text-xl font-bold">أين ينقص نشاطي؟</h2>
       <div className="flex gap-2">
         <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') study(query.trim()) }}
-          placeholder="اكتب نشاطك: صيدلية، مغسلة…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
+          placeholder="اكتب نشاطك: صيدلية، مغسلة ملابس…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
         <button onClick={() => study(query.trim())} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'احسب'}
         </button>
@@ -89,6 +90,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status !== 'loading' && studied.q && <Understood value={result?.understood} />}
       {result && result.residents_per_business == null && <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>}
       {result && result.residents_per_business != null && (
         <>
