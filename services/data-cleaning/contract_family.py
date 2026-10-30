@@ -4,7 +4,7 @@ Only rows whose merged sub is `contract.*` are read. The family is a new column 
 changes the main or the sub, and a row with no evidence stays «غير متاح».
 
 The ontology was built for bill-of-quantities lines, not company names, so only its decisive evidence is used:
-- a strong term decides (declared on the family; one declared only on a category or intent also needs a context term
+- a strong term decides (declared on the family; one declared only on a category or an intent (of the family or of a category) also needs a context term
   of that branch in the name), matched as a whole word (an Arabic proclitic such as «لل» or «وال» is allowed) or as a phrase.
   Substring matching is not used: a short term inside an unrelated word («الن» in «النابغة») is the main error it causes;
 - a term guard drops a match when none of its `require_any` words is present, any of its `block_any` words is, or one
@@ -75,6 +75,7 @@ class Tagger:
             # context terms in the name. Family-level terms decide alone, as before.
             ctx = lambda *ns: [t for n in ns for t in nt(n.get('context_terms'))]
             nodes = [(set(nt(f.get('strong_terms'))), guards(f), [])]
+            nodes += [(set(nt(x.get('strong_terms'))), guards(f) + guards(x), ctx(f, x)) for x in f.get('intents') or []]
             for c in f.get('categories') or []:
                 nodes.append((set(nt(c.get('strong_terms'))), guards(f) + guards(c), ctx(f, c)))
                 nodes += [(set(nt(x.get('strong_terms'))), guards(f) + guards(c) + guards(x), ctx(f, c, x))

@@ -21,6 +21,7 @@ ONTO = {
         {'id': 'hvac_equipment', 'label_ar': 'تكييف', 'sector': 'MEP', 'strong_terms': ['تكييف', 'air conditioning']},
         {'id': 'structural_steel', 'label_ar': 'حديد إنشائي', 'sector': 'METALS', 'strong_terms': ['قطاع'],
          'context_terms': ['steel', 'حديد'],
+         'intents': [{'id': 'gi_coil', 'strong_terms': ['لفه صاج']}],
          'categories': [{'id': 'sections', 'strong_terms': ['steel section'],
                          'intents': [{'id': 'cold', 'strong_terms': ['cold formed section', 'مرازب'],
                                       'term_guards': [{'terms': ['مرازب'], 'block_any': ['خشب']}]}]}],
@@ -77,6 +78,7 @@ class TaggerTests(unittest.TestCase):
         self.assertEqual(self.fam('مصنع مرازب حديد'), ('structural_steel', 'strong_term'))
         self.assertEqual(self.fam('مرازب حديد خشب'), (None, 'guarded_out'), 'an intent\'s own guard applies to its term')
         self.assertEqual(self.fam('مرازب الرياض'), (None, 'guarded_out'), 'below the family a term needs its context')
+        self.assertEqual(self.fam('مؤسسة لفه صاج حديد'), ('structural_steel', 'strong_term'), 'a direct family intent')
 
     def test_blocked_by_head(self):
         self.assertEqual(self.fam('شركة لاصق بلاط'), (None, 'guarded_out'), 'an adhesive for tiles is not tiles')
