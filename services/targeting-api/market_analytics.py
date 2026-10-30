@@ -128,13 +128,26 @@ def haversine_km(lon1, lat1, lon2, lat2):
     return 2 * 6371 * math.asin(math.sqrt(math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2))
 
 
+# A snapshot is taken whenever the directory file changes, and a rebuild (classification, closures, name merging)
+# changes it as much as real openings do: over days the difference is the pipeline, not the chain. Growth is shown
+# once the history spans long enough for openings and closures to outweigh a rebuild.
+MIN_GROWTH_DAYS = 30
+
+
 def chain_growth(history, city, keys):
     """A brand's whole-city branches in the oldest and newest directory snapshots of the chain history, or None while
-    the history holds fewer than two snapshots (shown as «غير متاح»)."""
+    the history holds fewer than two snapshots or spans under MIN_GROWTH_DAYS (shown as «غير متاح»)."""
+    import datetime
     snapshots = (history or {}).get("snapshots") or []
     if len(snapshots) < 2:
         return None
     first, last = snapshots[0], snapshots[-1]
+    try:
+        span = (datetime.date.fromisoformat(last.get("date")) - datetime.date.fromisoformat(first.get("date"))).days
+    except (TypeError, ValueError):
+        return None
+    if span < MIN_GROWTH_DAYS:
+        return None
     count = lambda snapshot: sum((snapshot.get("cities", {}).get(city) or {}).get(key, 0) for key in keys)
     return {"since": first.get("date"), "before": count(first), "now": count(last)}
 

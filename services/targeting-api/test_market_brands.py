@@ -110,6 +110,13 @@ class MarketBrandsTests(unittest.TestCase):
         growth = market_analytics.chain_growth(history, "Riyadh", ["صيدليه النهدي"])
         self.assertEqual(growth, {"since": "2026-09-01", "before": 4, "now": 9})
 
+    def test_growth_waits_for_a_history_longer_than_a_rebuild(self):
+        two_days = {"snapshots": [{"date": "2026-10-28", "cities": {"Riyadh": {"صيدليه النهدي": 400}}},
+                                  {"date": "2026-10-30", "cities": {"Riyadh": {"صيدليه النهدي": 430}}}]}
+        self.assertIsNone(market_analytics.chain_growth(two_days, "Riyadh", ["صيدليه النهدي"]), 'two days of rebuilds are not growth')
+        undated = {"snapshots": [{"cities": {}}, {"date": "2026-12-01", "cities": {}}]}
+        self.assertIsNone(market_analytics.chain_growth(undated, "Riyadh", ["صيدليه النهدي"]))
+
 
 if __name__ == "__main__":
     unittest.main()
