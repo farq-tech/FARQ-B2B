@@ -15,6 +15,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { residentsPer } from '@/lib/audience'
 import { formatDate } from '@/lib/format'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
@@ -163,11 +164,8 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'ادرس'}
         </button>
       </div>
-      <select value={studied?.main_id ?? ''} onChange={(event) => { const item = activities.find((a) => a.main_id === event.target.value); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }}
-        className="h-11 rounded-lg border bg-background px-3 text-base">
-        <option value="">أو اختر نشاطاً رئيسياً</option>
-        {activities.map((item) => <option key={item.main_id} value={item.main_id}>{item.main_ar}</option>)}
-      </select>
+      <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
+        onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} />
       <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
             <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
