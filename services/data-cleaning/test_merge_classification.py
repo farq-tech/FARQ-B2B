@@ -179,12 +179,12 @@ class CliTests(unittest.TestCase):
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
 
     def test_agreement_reads_the_ungated_top_main(self):
-        # the estimate's display gate (0.9 here) hid the main, but the top main still confirms a low row and overrides
+        # the estimate's display gate (0.95 here) hid the main, but the top main still confirms a low row and overrides
         # a medium one at the merge's own thresholds
         db = duckdb.connect()
         db.execute("create table e2 as select *, cls_main_estimate cls_main_top, cls_main_confidence cls_main_top_confidence "
                    f"from read_parquet('{self.tmp / 'est.parquet'}')")
-        db.execute("update e2 set cls_main_estimate = null where cls_main_confidence < 0.9")
+        db.execute("update e2 set cls_main_estimate = null, cls_sub_estimate = null where cls_main_confidence < 0.95")
         db.execute(f"copy e2 to '{self.tmp / 'est_top.parquet'}' (format parquet)")
         out = self.tmp / 'merged_top.parquet'
         r = subprocess.run([sys.executable, str(HERE / 'merge_classification.py'), '--targets', str(self.tmp / 'targets.parquet'),
@@ -193,6 +193,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         got = {k: v for k, *v in duckdb.sql(f"select poi_key, final_main, final_source from read_parquet('{out}')").fetchall()}
         self.assertEqual(got['l'], ['أغذية ومشروبات', 'directory_low_main_confirmed'], 'a top main at 0.7 confirms')
+        self.assertEqual(got['j'], ['أغذية ومشروبات', 'directory_medium'],
+                         'with no gated estimate to replace it, a contradicted medium label is kept, not dropped')
 
     def test_an_english_only_name_needs_the_stricter_gates(self):
         # the same agreement that confirms or overrides an Arabic-named place is not enough when the model read an

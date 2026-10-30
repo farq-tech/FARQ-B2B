@@ -92,8 +92,9 @@ def main(argv=None):
     override_min = f'case when english_only then {OVERRIDE_MIN_EN} else {OVERRIDE_MIN} end'
     confirm_min = f'case when english_only then {CONFIRM_MIN_EN} else {CONFIRM_MIN} end'
     db.execute(f"""create table k as select m.*,
+      -- an override needs a replacement: a gated estimate to show (a display gate above the override gate leaves none)
       coalesce(name_ok and dir_conf = 'medium' and top_main is not null and top_conf >= {override_min}
-               and top_main <> dir_main, false) overridden,
+               and top_main <> dir_main and est_main is not null, false) overridden,
       coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub = dir_valid
                and (not english_only or top_conf >= {CONFIRM_MIN_EN}), false) low_confirmed,
       coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and top_main = dir_main

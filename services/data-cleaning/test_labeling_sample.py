@@ -18,7 +18,7 @@ class LabelingSampleTests(unittest.TestCase):
             d = pathlib.Path(d)
             db = duckdb.connect()
             rows = [(f'k{i}', ['none', 'directory_high'][i % 2 == 0 and i < 40], i == 1,
-                     None if i % 3 else 'ورشة', f'name {i}', [None, 'Hotel', 'Unclassified', 'Restaurant'][i % 4])
+                     None if i % 3 else 'ورشة', f'=HYPERLINK("x{i}")', [None, 'Hotel', 'Unclassified', 'Restaurant'][i % 4])
                     for i in range(120)]
             db.execute('create table x(poi_key varchar, final_source varchar, invalid_name boolean, name_ar varchar, '
                        'name_en varchar, category varchar)')
@@ -42,6 +42,8 @@ class LabelingSampleTests(unittest.TestCase):
             self.assertNotIn('k1', keys, 'a non-descriptive name is not labelled')
             self.assertTrue(all(int(k[1:]) % 2 or int(k[1:]) >= 40 for k in keys), 'only rows still without a category')
             self.assertEqual(sum(r[7] is not None for r in got), 20)
+            self.assertFalse(any(c.data_type == 'f' for row in ws.iter_rows() for c in row),
+                             'a source name beginning with «=» stays text, never a formula')
             self.assertNotIn('Unclassified', {r[7] for r in got}, 'a placeholder category counts as none')
             self.assertEqual([c.value for c in load_workbook(out)['mains']['A']], ['سيارات', 'أغذية', 'لا يمكن التحديد'])
             r = subprocess.run(cmd, capture_output=True, text=True)

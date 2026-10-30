@@ -58,8 +58,12 @@ def write(rows, mains, path):
     ws.title = 'sample'
     ws.sheet_view.rightToLeft = True
     ws.append(COLUMNS)
-    for r in rows:
+    for i, r in enumerate(rows, start=2):
         ws.append(list(r) + [None, None, None])
+        # source text is literal: a name beginning with «=» must not become a formula in the team's workbook
+        for c in ws[i]:
+            if isinstance(c.value, str) and c.value.startswith('='):
+                c.data_type = 's'
     lists = wb.create_sheet('mains')
     for name in mains + [CANNOT_TELL]:
         lists.append([name])
