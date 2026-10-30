@@ -58,9 +58,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => { active = false }
   }, [ownHeader])
 
+  // the header says «signed out» only once the server has cleared the session; a failed request leaves it as it was
   const signOut = async () => {
-    await fetch('/api/session/logout', { method: 'POST' }).catch(() => undefined)
-    setUser(null)
+    const response = await fetch('/api/session/logout', { method: 'POST' }).catch(() => null)
+    if (response?.ok) setUser(null)
   }
 
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
