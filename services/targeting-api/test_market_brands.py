@@ -101,6 +101,24 @@ class MarketBrandsTests(unittest.TestCase):
         self.assertEqual([group["brand"] for group in market_analytics.group_chains(rows).values()], ["صيدلية سيف"])
         self.assertEqual(market_analytics.fold_key("الْمَلْقا - أ"), market_analytics.fold_key("الملقا ا"))
 
+    def test_a_name_with_and_without_its_activity_word_is_one_brand(self):
+        rows = [("n1", "العليا", "صيدلية النهدي", "صيدليه النهدي", "CR-N"), ("n2", "الملقا", "صيدلية النهدي", "صيدليه النهدي", "CR-N"),
+                ("n3", "النرجس", "النهدي", "النهدي", None),
+                ("n4", "العليا", "Nahdi", "nahdi", "CR-N"), ("n5", "الملقا", "Nahdi Pharmacy", "nahdi pharmacy", None),
+                ("n6", "النرجس", "Al -Nahdi Medical Company Pharmacy", "al nahdi medical company pharmacy", None),
+                ("w1", "العليا", "صيدلية الدواء, s", "صيدليه الدواء s", None), ("w2", "الملقا", "الدواء", "الدواء", None),
+                ("t1", "العليا", "The", "the", None), ("t2", "الملقا", "The", "the", None)]
+        groups = market_analytics.group_chains(rows)
+        nahdi = groups["النهدي"]
+        self.assertEqual((nahdi["brand"], len(nahdi["pois"])), ("صيدلية النهدي", 6), 'every spelling, in both scripts, is one chain')
+        self.assertEqual(len(groups["الدواء"]["pois"]), 2, 'a stray trailing letter is not part of the name')
+        self.assertEqual(sorted(groups), ["الدواء", "النهدي"], '«the» names no brand, and the Latin cores joined the Arabic one')
+        rows = [("c1", "العليا", "عنوان القهوة", "عنوان القهوه", None), ("c2", "الملقا", "شركة عنوان القهوة للتجارة", "شركه عنوان القهوه للتجاره", None),
+                ("k1", "العليا", "مغاسل", "مغاسل", None), ("k2", "الملقا", "بخاري", "بخاري", None), ("k3", "النرجس", "البخاري", "البخاري", None),
+                ("k4", "العليا", "اسواق مركزية", "اسواق مركزيه", None), ("k5", "الملقا", "غسيل السيارات", "غسيل السيارات", None)]
+        self.assertEqual({core: len(group["pois"]) for core, group in market_analytics.group_chains(rows).items()}, {"عنوان القهوه": 2},
+                         'the company form is the same brand, and a kind of shop is no brand')
+
     def test_history_gives_growth_once_two_snapshots_exist(self):
         path = str(pathlib.Path(self.temp.name) / "chain_history.json")
         self.assertTrue(market_analytics.record_chain_history(self.analytics, path, today="2026-09-01"))
