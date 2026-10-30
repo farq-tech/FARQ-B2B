@@ -47,7 +47,7 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         cols = {c[0] for c in duckdb.sql(f"describe select * from read_parquet('{out}')").fetchall()}
         self.assertEqual(cols, {'poi_key', 'cls_main_estimate', 'cls_main_confidence', 'cls_sub_estimate',
-                                'cls_sub_confidence', 'cls_estimate_source'})
+                                'cls_sub_confidence', 'cls_main_top', 'cls_main_top_confidence', 'cls_estimate_source'})
         got = {k: (m, s) for k, m, s in duckdb.sql(
             f"select poi_key, cls_main_estimate, cls_sub_estimate from read_parquet('{out}') order by poi_key").fetchall()}
         self.assertEqual(got['hh:1'], ('أغذية ومشروبات', 'food.bakery'), 'a bakery name lands in the food main and bakery sub')
@@ -95,6 +95,60 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(got, [(k, None, None, None) for k in ('hh:4', 'hh:5', 'hh:6', 'hh:7', 'hh:8', 'hh:9')])
         report = json.loads((self.tmp / 'est_blank.report.json').read_text(encoding='utf-8'))
         self.assertEqual((report['scored'], report['skipped_non_descriptive']), (4, 6))
+
+    def test_rule_rows_teach_a_class_the_surveyors_never_labelled(self):
+        # pharmacies exist only as rule-classified licence rows; with them in training an unclassified pharmacy is
+        # estimated, and with --train-methods empty (surveyor labels only) the model has never seen the class
+        db = duckdb.connect()
+        db.execute("create table t(poi_key varchar, name_ar varchar, name_en varchar, source_license_name varchar, "
+                   "sub_id varchar, classification_method varchar, cls_confidence varchar)")
+        rows = [(f'lic:{i}', None, 'NULL', 'صيدلية ' + n, 'health.pharmacy', 'exact_qgis_category_to_rubricator', 'high')
+                for i, n in enumerate(('الشفاء', 'النهدي', 'الدواء', 'الحياة', 'الأمل', 'السلامة', 'العافية', 'الرعاية',
+                                       'الصحة', 'البلسم', 'الطب', 'المجد', 'الهدى', 'الفيصل', 'الوفاء'))]
+        rows.append(('lic:new', None, 'NULL', 'صيدلية الروضة', None, None, 'unknown'))
+        db.executemany("insert into t values (?, ?, ?, ?, ?, ?, ?)", rows)
+        db.execute(f"copy t to '{self.tmp / 'rules.parquet'}' (format parquet)")
+        tax = json.loads((self.tmp / 'tax.json').read_text(encoding='utf-8'))
+        tax['subs'].append({'sub_id': 'health.pharmacy', 'main_ar': 'صحة وطب'})
+        (self.tmp / 'tax.json').write_text(json.dumps(tax, ensure_ascii=False), encoding='utf-8')
+        def run(out, extra=()):
+            r = subprocess.run([sys.executable, str(HERE / 'classify_poi.py'), '--labels', str(self.tmp / 'labels.parquet'),
+                                '--targets', str(self.tmp / 'rules.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                                '--out', str(out), '--main-min', '0.0', '--sub-min', '0.0', *extra],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return duckdb.sql(f"select cls_main_estimate from read_parquet('{out}') where poi_key = 'lic:new'").fetchone()[0]
+        self.assertEqual(run(self.tmp / 'with_rules.parquet'), 'صحة وطب')
+        self.assertNotEqual(run(self.tmp / 'surveyor_only.parquet', ('--train-methods', '')), 'صحة وطب')
+        report = json.loads((self.tmp / 'with_rules.report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['training_surveyor_rows'], 12)
+        self.assertGreater(report['training_rule_rows'], 0)
+        self.assertLess(report['training_rule_rows'], 15, 'a fifth of the rule rows is held out of training')
+
+    def test_english_copies_train_on_the_english_name_alone(self):
+        from classify_poi import english_copies
+        rows = [('مخبز الصباح | Morning Bakery', 'Morning Bakery', 'food.bakery'),
+                ('حلاق الرجال', '', 'beauty.barber'),            # no English name: no copy
+                ('Gulf Bakery', 'Gulf Bakery', 'food.bakery'),   # the English name is already the whole text
+                ('مخبز | X', 'X', 'food.bakery')]                # one letter says nothing
+        self.assertEqual(english_copies(rows), [('Morning Bakery', 'food.bakery')])
+
+    def test_an_english_only_place_is_estimated_from_english_names_seen_with_arabic(self):
+        # the surveyor rows carry Arabic and English names together; the unclassified place has only the English one
+        db = duckdb.connect()
+        db.execute(f"""copy (select name_ar, case when name_ar like 'مخبز%' then 'Bakery ' else 'Barber ' end || n
+            as name_en, tradename, description_ar, deleted, sub_id, sub_confidence from (select *, row_number() over () n
+            from read_parquet('{self.tmp / 'labels.parquet'}'))) to '{self.tmp / 'labels_en.parquet'}' (format parquet)""")
+        db.execute(f"""copy (select 'new:1' poi_key, null::varchar name_ar, 'Bakery Oasis' name_en,
+            null::varchar source_license_name) to '{self.tmp / 'en.parquet'}' (format parquet)""")
+        out = self.tmp / 'est_en.parquet'
+        r = subprocess.run([sys.executable, str(HERE / 'classify_poi.py'), '--labels', str(self.tmp / 'labels_en.parquet'),
+                            '--targets', str(self.tmp / 'en.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                            '--out', str(out), '--main-min', '0.0', '--sub-min', '0.0'], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(duckdb.sql(f"select cls_main_estimate from read_parquet('{out}')").fetchone()[0], 'أغذية ومشروبات')
+        report = json.loads((self.tmp / 'est_en.report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['training_english_copies'], 12)
 
     def test_refuses_to_overwrite_an_input_or_an_existing_file(self):
         self.assertNotEqual(self.run_cli(self.tmp / 'labels.parquet').returncode, 0, 'never writes over an input')

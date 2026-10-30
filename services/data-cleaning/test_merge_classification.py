@@ -109,6 +109,12 @@ class CliTests(unittest.TestCase):
             ('f', 'محل مغلق', None, 'food.grocery', 'high'),             # vacant: stays «شاغر»
             ('g', 'مؤسسة التبريد للتكييف', None, 'contract.hvac', 'high'),
             ('h', 'مقاولات النابغة', None, 'contract.general', 'medium'),
+            ('j', 'صالون الأناقة', None, 'food.grocery', 'medium'),       # medium, the model names another main at 0.9
+            ('k', 'مخبز الشروق', None, 'food.bakery', 'low'),            # low, the model gives the same sub
+            ('l', 'مخبز الغروب', None, 'food.bakery', 'low'),            # low, the model gives the same main only
+            ('m', 'مؤسسة البيان', None, 'food.bakery', 'low'),           # low, the model does not agree: dropped
+            ('n', 'False', None, 'food.bakery', 'low'),                  # a broken name confirms nothing
+            ('p', 'null', None, 'food.grocery', 'medium'),               # nor overrides anything
         ])
         # no usable name, but a descriptive description the classifier also reads: its estimate is kept
         db.execute("insert into t values ('i', 'NULL', 'False', null, null, 'مخبز ومعجنات طازجة')")
@@ -119,7 +125,10 @@ class CliTests(unittest.TestCase):
             ('a', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.9), ('b', 'أغذية ومشروبات', 0.9, 'food.sweets', 0.85),
             ('c', 'تجميل وعناية شخصية', 0.95, 'beauty.barber', 0.9), ('d', 'خدمات أعمال ومهنية', 0.7, None, None),
             ('e', 'أغذية ومشروبات', 0.97, 'food.restaurant', 0.9), ('f', 'أغذية ومشروبات', 0.7, 'food.grocery', 0.8),
-            ('i', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85)])
+            ('i', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85),
+            ('j', 'تجميل وعناية شخصية', 0.9, 'beauty.barber', 0.85), ('k', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85),
+            ('l', 'أغذية ومشروبات', 0.7, None, 0.4), ('m', 'خدمات أعمال ومهنية', 0.65, None, 0.3),
+            ('n', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.9), ('p', 'تجميل وعناية شخصية', 0.95, 'beauty.barber', 0.9)])
         db.execute(f"copy e to '{self.tmp / 'est.parquet'}' (format parquet)")
         db.execute("create table v as select 'f' poi_key, 'vacant' AS source union all select 'a', 'activity'")
         db.execute(f"copy v to '{self.tmp / 'vac.parquet'}' (format parquet)")
@@ -150,12 +159,77 @@ class CliTests(unittest.TestCase):
         self.assertEqual(got['f'], [None, None, 'vacant', False, True], 'a vacant unit stays «شاغر», and its name says nothing')
         self.assertEqual(got['i'], ['food.bakery', 'أغذية ومشروبات', 'model_estimate', False, False],
                          'an estimate read from the description is kept even when both names are placeholders')
+        self.assertEqual(got['j'], ['beauty.barber', 'تجميل وعناية شخصية', 'model_estimate', True, False],
+                         'a medium sub the model contradicts at 0.80+ gives way to the model, and is flagged')
+        self.assertEqual(got['k'], ['food.bakery', 'أغذية ومشروبات', 'directory_low_confirmed', False, False],
+                         'a low sub the model repeats is kept')
+        self.assertEqual(got['l'], [None, 'أغذية ومشروبات', 'directory_low_main_confirmed', False, False],
+                         'a low sub whose main the model repeats keeps that main only')
+        self.assertEqual(got['m'], [None, 'خدمات أعمال ومهنية', 'model_estimate_main_only', False, False],
+                         'a low sub the model does not repeat is not shown')
+        self.assertEqual(got['n'], [None, None, 'none', False, True], 'an estimate for a broken name confirms nothing')
+        self.assertEqual(got['p'], ['food.grocery', 'أغذية ومشروبات', 'directory_medium', False, True],
+                         'an estimate for a broken name never overrides the directory')
         rep = json.loads((self.tmp / 'merged.report.json').read_text(encoding='utf-8'))
-        self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept']), (9, 2, 1, 1))
+        self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept'], rep['overridden']),
+                         (15, 3, 2, 1, 1))
         sample = duckdb.sql(f"select bucket, count(*) from read_csv('{self.tmp / 'merged_review_sample.csv'}') group by 1").fetchall()
-        self.assertEqual(dict(sample), {'model_added': 2, 'needs_review': 1, 'invalid_name': 2},
+        self.assertEqual(dict(sample), {'model_added': 3, 'needs_review': 2, 'invalid_name': 4},
                          'every bucket is sampled from its own rows')
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
+
+    def test_agreement_reads_the_ungated_top_main(self):
+        # the estimate's display gate (0.95 here) hid the main, but the top main still confirms a low row and overrides
+        # a medium one at the merge's own thresholds
+        db = duckdb.connect()
+        db.execute("create table e2 as select *, cls_main_estimate cls_main_top, cls_main_confidence cls_main_top_confidence "
+                   f"from read_parquet('{self.tmp / 'est.parquet'}')")
+        db.execute("update e2 set cls_main_estimate = null, cls_sub_estimate = null where cls_main_confidence < 0.95")
+        db.execute(f"copy e2 to '{self.tmp / 'est_top.parquet'}' (format parquet)")
+        out = self.tmp / 'merged_top.parquet'
+        r = subprocess.run([sys.executable, str(HERE / 'merge_classification.py'), '--targets', str(self.tmp / 'targets.parquet'),
+                            '--estimates', str(self.tmp / 'est_top.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                            '--vacancy', str(self.tmp / 'vac.parquet'), '--out', str(out)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        got = {k: v for k, *v in duckdb.sql(f"select poi_key, final_main, final_source from read_parquet('{out}')").fetchall()}
+        self.assertEqual(got['l'], ['أغذية ومشروبات', 'directory_low_main_confirmed'], 'a top main at 0.7 confirms')
+        self.assertEqual(got['j'], ['أغذية ومشروبات', 'directory_medium'],
+                         'with no gated estimate to replace it, a contradicted medium label is kept, not dropped')
+
+    def test_an_english_only_name_needs_the_stricter_gates(self):
+        # the same agreement that confirms or overrides an Arabic-named place is not enough when the model read an
+        # English name alone; a place with an Arabic name too keeps the ordinary gates
+        db = duckdb.connect()
+        db.execute('create table t(poi_key varchar, name_ar varchar, name_en varchar, sub_id varchar, cls_confidence varchar, '
+                   'description_ar varchar)')
+        db.executemany('insert into t values (?, ?, ?, ?, ?, null)', [
+            ('q', None, 'Elegance Salon', 'food.grocery', 'medium'),   # model contradicts at 0.85: below 0.90, kept
+            ('r', None, 'Sunrise Bakery', 'food.bakery', 'low'),       # model agrees at 0.7: below 0.80, not confirmed
+            ('s', None, 'Sunset Bakery', 'food.bakery', 'low'),        # model agrees at 0.85: confirmed
+            ('u', 'مخبز الفجر', 'Dawn Bakery', 'food.bakery', 'low'),  # Arabic too: 0.7 confirms
+            ('w', None, 'Oasis Salon', 'food.grocery', 'medium'),      # model contradicts at 0.95: overridden
+            ('x', 'بقالة النور', None, 'food.grocery', 'medium')])    # top main differs, the estimate is in the same main
+        db.execute(f"copy t to '{self.tmp / 'en_targets.parquet'}' (format parquet)")
+        db.execute('create table e(poi_key varchar, cls_main_estimate varchar, cls_main_confidence double, '
+                   'cls_sub_estimate varchar, cls_sub_confidence double, cls_estimate_source varchar)')
+        db.executemany("insert into e values (?, ?, ?, null, 0.3, 'model_name_tfidf')", [
+            ('q', 'تجميل وعناية شخصية', 0.85), ('r', 'أغذية ومشروبات', 0.7), ('s', 'أغذية ومشروبات', 0.85),
+            ('u', 'أغذية ومشروبات', 0.7), ('w', 'تجميل وعناية شخصية', 0.95)])
+        # the main model's top is another main, but the kept sub pins the estimate to the directory's own main
+        db.execute("insert into e values ('x', 'أغذية ومشروبات', 0.75, 'food.bakery', 0.9, 'model_name_tfidf')")
+        db.execute("create table e3 as select *, cls_main_estimate cls_main_top, cls_main_confidence cls_main_top_confidence from e")
+        db.execute("update e3 set cls_main_top = 'تجميل وعناية شخصية', cls_main_top_confidence = 0.85 where poi_key = 'x'")
+        db.execute(f"copy e3 to '{self.tmp / 'en_est.parquet'}' (format parquet)")
+        out = self.tmp / 'merged_en.parquet'
+        r = subprocess.run([sys.executable, str(HERE / 'merge_classification.py'), '--targets', str(self.tmp / 'en_targets.parquet'),
+                            '--estimates', str(self.tmp / 'en_est.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                            '--out', str(out)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        got = dict(duckdb.sql(f"select poi_key, final_source from read_parquet('{out}')").fetchall())
+        self.assertEqual(got, {'q': 'directory_medium', 'r': 'model_estimate_main_only', 's': 'directory_low_main_confirmed',
+                               'u': 'directory_low_main_confirmed', 'w': 'model_estimate_main_only',
+                               'x': 'directory_medium'})
+        self.assertEqual(json.loads((self.tmp / 'merged_en.report.json').read_text(encoding='utf-8'))['english_only'], 4)
 
     def test_family_only_for_contractors(self):
         merged = self.tmp / 'merged.parquet'
