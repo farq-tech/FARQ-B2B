@@ -113,6 +113,8 @@ class CliTests(unittest.TestCase):
             ('k', 'مخبز الشروق', None, 'food.bakery', 'low'),            # low, the model gives the same sub
             ('l', 'مخبز الغروب', None, 'food.bakery', 'low'),            # low, the model gives the same main only
             ('m', 'مؤسسة البيان', None, 'food.bakery', 'low'),           # low, the model does not agree: dropped
+            ('n', 'False', None, 'food.bakery', 'low'),                  # a broken name confirms nothing
+            ('p', 'null', None, 'food.grocery', 'medium'),               # nor overrides anything
         ])
         # no usable name, but a descriptive description the classifier also reads: its estimate is kept
         db.execute("insert into t values ('i', 'NULL', 'False', null, null, 'مخبز ومعجنات طازجة')")
@@ -125,7 +127,8 @@ class CliTests(unittest.TestCase):
             ('e', 'أغذية ومشروبات', 0.97, 'food.restaurant', 0.9), ('f', 'أغذية ومشروبات', 0.7, 'food.grocery', 0.8),
             ('i', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85),
             ('j', 'تجميل وعناية شخصية', 0.9, 'beauty.barber', 0.85), ('k', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.85),
-            ('l', 'أغذية ومشروبات', 0.7, None, 0.4), ('m', 'خدمات أعمال ومهنية', 0.65, None, 0.3)])
+            ('l', 'أغذية ومشروبات', 0.7, None, 0.4), ('m', 'خدمات أعمال ومهنية', 0.65, None, 0.3),
+            ('n', 'أغذية ومشروبات', 0.9, 'food.bakery', 0.9), ('p', 'تجميل وعناية شخصية', 0.95, 'beauty.barber', 0.9)])
         db.execute(f"copy e to '{self.tmp / 'est.parquet'}' (format parquet)")
         db.execute("create table v as select 'f' poi_key, 'vacant' AS source union all select 'a', 'activity'")
         db.execute(f"copy v to '{self.tmp / 'vac.parquet'}' (format parquet)")
@@ -164,11 +167,14 @@ class CliTests(unittest.TestCase):
                          'a low sub whose main the model repeats keeps that main only')
         self.assertEqual(got['m'], [None, 'خدمات أعمال ومهنية', 'model_estimate_main_only', False, False],
                          'a low sub the model does not repeat is not shown')
+        self.assertEqual(got['n'], [None, None, 'none', False, True], 'an estimate for a broken name confirms nothing')
+        self.assertEqual(got['p'], ['food.grocery', 'أغذية ومشروبات', 'directory_medium', False, True],
+                         'an estimate for a broken name never overrides the directory')
         rep = json.loads((self.tmp / 'merged.report.json').read_text(encoding='utf-8'))
         self.assertEqual((rep['rows'], rep['model_added_sub'], rep['needs_review'], rep['vacant_kept'], rep['overridden']),
-                         (13, 3, 2, 1, 1))
+                         (15, 3, 2, 1, 1))
         sample = duckdb.sql(f"select bucket, count(*) from read_csv('{self.tmp / 'merged_review_sample.csv'}') group by 1").fetchall()
-        self.assertEqual(dict(sample), {'model_added': 3, 'needs_review': 2, 'invalid_name': 2},
+        self.assertEqual(dict(sample), {'model_added': 3, 'needs_review': 2, 'invalid_name': 4},
                          'every bucket is sampled from its own rows')
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
 

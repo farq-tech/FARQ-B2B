@@ -77,10 +77,10 @@ def main(argv=None):
     select h.*, sm.main_ar dir_main, vac.poi_key is not null is_vacant, est_sub, est_sub_conf, est_main, est_main_conf
     from h left join submain sm on sm.sub_id = h.dir_valid left join vac using (poi_key) left join est using (poi_key)""")
     db.execute(f"""create table k as select m.*,
-      coalesce(dir_conf = 'medium' and est_main is not null and est_main_conf >= {OVERRIDE_MIN} and est_main <> dir_main,
+      coalesce(name_ok and dir_conf = 'medium' and est_main is not null and est_main_conf >= {OVERRIDE_MIN} and est_main <> dir_main,
                false) overridden,
-      coalesce(dir_conf not in ('high', 'medium') and est_sub = dir_valid, false) low_confirmed,
-      coalesce(dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and est_main = dir_main
+      coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub = dir_valid, false) low_confirmed,
+      coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and est_main = dir_main
                and est_main_conf >= {CONFIRM_MIN}, false) low_main_confirmed
     from m""")
     db.execute("""create table m2 as select k.*,
@@ -104,7 +104,7 @@ def main(argv=None):
            when name_ok and est_sub is not null then 'estimate:' || cast(round(est_sub_conf, 2) as varchar)
            when name_ok and est_main is not null then 'estimate_main:' || cast(round(est_main_conf, 2) as varchar)
       end final_confidence,
-      coalesce(rules_sub is not null and est_sub is not null and rules_sub <> est_sub, false) or overridden needs_review,
+      coalesce(name_ok and rules_sub is not null and est_sub is not null and rules_sub <> est_sub, false) or overridden needs_review,
       not name_ok invalid_name,
       not is_vacant and name_ok and rules_sub is null and not low_main_confirmed and est_sub is not null model_added
     from m2""")

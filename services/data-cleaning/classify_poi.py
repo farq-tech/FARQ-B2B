@@ -123,6 +123,11 @@ def rule_rows(db, targets, methods):
     return [(t, s) for t, s, h in rows if not h], [(t, s) for t, s, h in rows if h]
 
 
+def fields(text):
+    """The non-empty fields of a feature text, normalized (text_expr joins them with ' | ')."""
+    return {' '.join(f.lower().split()) for f in text.split(' | ') if f.strip()}
+
+
 def gated(clf, vecs, rows, sub_main, gates=(0.6, 0.7, 0.8, 0.9)):
     """Coverage and main accuracy at each gate on held-out rows whose text never appeared in training (a repeated
     chain name would otherwise be a free hit)."""
@@ -212,8 +217,10 @@ def main(argv=None):
     main_clf = model().fit(Xtr, mains)
     sub_clf = model().fit(features(False, [t for t, k in zip(texts, smask) if k], vecs), sub[smask])
 
-    seen = set(texts)
-    report['held_out_rules'] = gated(main_clf, vecs, [r for r in rules_test if r[0] not in seen], sub_main)
+    # a held-out name counts as unseen only if none of its fields appears in any training row's fields: the same name
+    # can sit in name_ar for a surveyor row and in source_license_name for a licence row, so whole strings differ
+    seen = {f for t in texts for f in fields(t)}
+    report['held_out_rules'] = gated(main_clf, vecs, [r for r in rules_test if not fields(r[0]) & seen], sub_main)
 
     main_col = {c: i for i, c in enumerate(main_clf.classes_)}
     # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.
