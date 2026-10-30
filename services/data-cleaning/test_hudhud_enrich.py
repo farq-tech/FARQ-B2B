@@ -21,8 +21,12 @@ class CleanerTests(unittest.TestCase):
                    'https://www.google.com/maps?cid=12345',           # a query form, no slash after «maps»
                    'https://maps.google.com/?cid=9', 'https://www.google.com.sa/maps/place/x', 'https://goo.gl/maps/x'):
             self.assertEqual(gmaps(ok), ok, ok)
+        self.assertEqual(gmaps('https://www.google.com/maps/place/x/@24.8,46.7,17z'),
+                         'https://www.google.com/maps/place/x/@24.8,46.7,17z', 'an @ in the path is a coordinate, not userinfo')
         for bad in ('http://www.google.com/maps/x', 'https://evil.sa/maps/', 'https://google.com.evil.sa/maps/x',
                     'https://www.google.com.evil.sa/maps/x',          # an extra label after the real host is not Google
+                    'https://evil.example@www.google.com/maps',       # userinfo: a browser goes to the host, we must not trust it
+                    'https://evil.example\\@www.google.com/maps',     # a backslash a browser reads as «/» → real host is evil.example
                     'https://www.google.com/search?q=x', 'not a url', ''):
             self.assertIsNone(gmaps(bad), bad)
 

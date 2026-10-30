@@ -43,13 +43,17 @@ SHORT_HOSTS = {'goo.gl', 'maps.app.goo.gl'}
 
 def gmaps(v):
     """A Google Maps URL, or None. The host is parsed (not matched as a substring) and must be Google's own; the link
-    must be a Maps one — a /maps path, a maps.* host, or a ?cid= place query. https only, bounded length."""
+    must be a Maps one — a /maps path, a maps.* host, or a ?cid= place query. https only, bounded length.
+    A backslash (a browser reads it as «/», so the real host would differ from the parsed one), whitespace, or any
+    userinfo (`user@host`, which sends a browser to a different host than urlparse reads) rejects the URL."""
     v = text(v)
-    if not v or len(v) > 600:
+    if not v or len(v) > 600 or '\\' in v or any(c.isspace() for c in v):
         return None
     try:
         u = urlparse(v)
     except ValueError:
+        return None
+    if '@' in (u.netloc or '') or not (u.netloc or '').isascii():   # userinfo or a non-ascii authority: host is ambiguous
         return None
     host = (u.hostname or '').lower()
     if u.scheme != 'https' or not host:
