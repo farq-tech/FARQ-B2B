@@ -207,14 +207,19 @@ class CliTests(unittest.TestCase):
             ('r', None, 'Sunrise Bakery', 'food.bakery', 'low'),       # model agrees at 0.7: below 0.80, not confirmed
             ('s', None, 'Sunset Bakery', 'food.bakery', 'low'),        # model agrees at 0.85: confirmed
             ('u', 'مخبز الفجر', 'Dawn Bakery', 'food.bakery', 'low'),  # Arabic too: 0.7 confirms
-            ('w', None, 'Oasis Salon', 'food.grocery', 'medium')])     # model contradicts at 0.95: overridden
+            ('w', None, 'Oasis Salon', 'food.grocery', 'medium'),      # model contradicts at 0.95: overridden
+            ('x', 'بقالة النور', None, 'food.grocery', 'medium')])    # top main differs, the estimate is in the same main
         db.execute(f"copy t to '{self.tmp / 'en_targets.parquet'}' (format parquet)")
         db.execute('create table e(poi_key varchar, cls_main_estimate varchar, cls_main_confidence double, '
                    'cls_sub_estimate varchar, cls_sub_confidence double, cls_estimate_source varchar)')
         db.executemany("insert into e values (?, ?, ?, null, 0.3, 'model_name_tfidf')", [
             ('q', 'تجميل وعناية شخصية', 0.85), ('r', 'أغذية ومشروبات', 0.7), ('s', 'أغذية ومشروبات', 0.85),
             ('u', 'أغذية ومشروبات', 0.7), ('w', 'تجميل وعناية شخصية', 0.95)])
-        db.execute(f"copy e to '{self.tmp / 'en_est.parquet'}' (format parquet)")
+        # the main model's top is another main, but the kept sub pins the estimate to the directory's own main
+        db.execute("insert into e values ('x', 'أغذية ومشروبات', 0.75, 'food.bakery', 0.9, 'model_name_tfidf')")
+        db.execute("create table e3 as select *, cls_main_estimate cls_main_top, cls_main_confidence cls_main_top_confidence from e")
+        db.execute("update e3 set cls_main_top = 'تجميل وعناية شخصية', cls_main_top_confidence = 0.85 where poi_key = 'x'")
+        db.execute(f"copy e3 to '{self.tmp / 'en_est.parquet'}' (format parquet)")
         out = self.tmp / 'merged_en.parquet'
         r = subprocess.run([sys.executable, str(HERE / 'merge_classification.py'), '--targets', str(self.tmp / 'en_targets.parquet'),
                             '--estimates', str(self.tmp / 'en_est.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
@@ -222,7 +227,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         got = dict(duckdb.sql(f"select poi_key, final_source from read_parquet('{out}')").fetchall())
         self.assertEqual(got, {'q': 'directory_medium', 'r': 'model_estimate_main_only', 's': 'directory_low_main_confirmed',
-                               'u': 'directory_low_main_confirmed', 'w': 'model_estimate_main_only'})
+                               'u': 'directory_low_main_confirmed', 'w': 'model_estimate_main_only',
+                               'x': 'directory_medium'})
         self.assertEqual(json.loads((self.tmp / 'merged_en.report.json').read_text(encoding='utf-8'))['english_only'], 4)
 
     def test_family_only_for_contractors(self):
