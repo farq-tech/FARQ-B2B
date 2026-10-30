@@ -66,6 +66,11 @@ def main(argv=None):
     vac = (f"select distinct poi_key from read_parquet('{a.vacancy}') where source = 'vacant'" if a.vacancy
            else 'select null::varchar poi_key where false')
 
+    # agreement reads the model's ungated top main, so it does not depend on the estimate's display gate; an older
+    # estimates file without it falls back to the gated main
+    est_cols = {r[0] for r in db.execute(f"describe select * from read_parquet('{a.estimates}')").fetchall()}
+    top = ('cls_main_top top_main, cls_main_top_confidence top_conf' if 'cls_main_top' in est_cols
+           else 'cls_main_estimate top_main, cls_main_confidence top_conf')
     db.execute(f"""create table m as
     with h as (
       select poi_key, name_ar, name_en, sub_id dir_sub, cls_confidence dir_conf, length({text_expr(db, a.targets)}) > 0 name_ok,
@@ -73,15 +78,16 @@ def main(argv=None):
       from read_parquet('{a.targets}')),
      vac as ({vac}),
      est as (select poi_key, cls_sub_estimate est_sub, cls_sub_confidence est_sub_conf,
-                    cls_main_estimate est_main, cls_main_confidence est_main_conf from read_parquet('{a.estimates}'))
-    select h.*, sm.main_ar dir_main, vac.poi_key is not null is_vacant, est_sub, est_sub_conf, est_main, est_main_conf
+                    cls_main_estimate est_main, cls_main_confidence est_main_conf, {top} from read_parquet('{a.estimates}'))
+    select h.*, sm.main_ar dir_main, vac.poi_key is not null is_vacant, est_sub, est_sub_conf, est_main, est_main_conf,
+           top_main, top_conf
     from h left join submain sm on sm.sub_id = h.dir_valid left join vac using (poi_key) left join est using (poi_key)""")
     db.execute(f"""create table k as select m.*,
-      coalesce(name_ok and dir_conf = 'medium' and est_main is not null and est_main_conf >= {OVERRIDE_MIN} and est_main <> dir_main,
+      coalesce(name_ok and dir_conf = 'medium' and top_main is not null and top_conf >= {OVERRIDE_MIN} and top_main <> dir_main,
                false) overridden,
       coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub = dir_valid, false) low_confirmed,
-      coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and est_main = dir_main
-               and est_main_conf >= {CONFIRM_MIN}, false) low_main_confirmed
+      coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and top_main = dir_main
+               and top_conf >= {CONFIRM_MIN}, false) low_main_confirmed
     from m""")
     db.execute("""create table m2 as select k.*,
       case when dir_valid is null then null

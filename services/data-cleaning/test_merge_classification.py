@@ -178,6 +178,22 @@ class CliTests(unittest.TestCase):
                          'every bucket is sampled from its own rows')
         self.assertNotEqual(self.merge(out).returncode, 0, 'an existing output is never overwritten')
 
+    def test_agreement_reads_the_ungated_top_main(self):
+        # the estimate's display gate (0.9 here) hid the main, but the top main still confirms a low row and overrides
+        # a medium one at the merge's own thresholds
+        db = duckdb.connect()
+        db.execute("create table e2 as select *, cls_main_estimate cls_main_top, cls_main_confidence cls_main_top_confidence "
+                   f"from read_parquet('{self.tmp / 'est.parquet'}')")
+        db.execute("update e2 set cls_main_estimate = null where cls_main_confidence < 0.9")
+        db.execute(f"copy e2 to '{self.tmp / 'est_top.parquet'}' (format parquet)")
+        out = self.tmp / 'merged_top.parquet'
+        r = subprocess.run([sys.executable, str(HERE / 'merge_classification.py'), '--targets', str(self.tmp / 'targets.parquet'),
+                            '--estimates', str(self.tmp / 'est_top.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                            '--vacancy', str(self.tmp / 'vac.parquet'), '--out', str(out)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        got = {k: v for k, *v in duckdb.sql(f"select poi_key, final_main, final_source from read_parquet('{out}')").fetchall()}
+        self.assertEqual(got['l'], ['أغذية ومشروبات', 'directory_low_main_confirmed'], 'a top main at 0.7 confirms')
+
     def test_family_only_for_contractors(self):
         merged = self.tmp / 'merged.parquet'
         self.assertEqual(self.merge(merged).returncode, 0)
