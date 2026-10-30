@@ -12,7 +12,8 @@ model only fills what the directory does not already know (docs/atlas-classifica
   6. else the model's main only («تقدير»), else nothing («غير متاح»).
 The thresholds are measured against surveyor labels the model never saw (docs/opportunity-map-improvement-log.md):
 the main of a medium directory sub is right 78% of the time, 96.8% when the model agrees, and where the model names
-another main at 0.80+ the model is right 96.4%; a low one is right 38%, 95.7% when the model agrees.
+another main at 0.80+ the model is right 96.4%; a low one is right 38%, 95.7% when the model agrees. A row the model read
+from its English name alone needs the stricter CONFIRM_MIN_EN / OVERRIDE_MIN_EN.
 Where the directory (high/medium) and the model give different subs, or the model overrode a medium one, the row is
 flagged `needs_review`. A row whose text says nothing (every field the classifier reads is empty, a placeholder such as «False» or «null», a
 state such as «محل مغلق», or has no letter) never takes an estimate. That test is `classify_poi.text_expr`, so a row
@@ -33,10 +34,14 @@ import sys
 import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from classify_poi import text_expr  # noqa: E402  the classifier's own text, so both steps agree on what is readable
+from classify_poi import english, text_expr  # noqa: E402  the classifier's own text, so both steps agree on what is readable
 
 
 CONFIRM_MIN, OVERRIDE_MIN = 0.60, 0.80
+# When the model read an English name alone (most places a licence lists only by a machine-translated name), its
+# agreement is weaker: measured on unseen surveyor places, an override at 0.80 is right 86.6% (94.8% at 0.90) and a low
+# confirmation at 0.60 is right 93.0% (95.7% at 0.80). Those rows need the stricter gates.
+CONFIRM_MIN_EN, OVERRIDE_MIN_EN = 0.80, 0.90
 
 
 def parse(argv):
@@ -74,6 +79,8 @@ def main(argv=None):
     db.execute(f"""create table m as
     with h as (
       select poi_key, name_ar, name_en, sub_id dir_sub, cls_confidence dir_conf, length({text_expr(db, a.targets)}) > 0 name_ok,
+             length({text_expr(db, a.targets)}) > 0 and {text_expr(db, a.targets)} = trim({english(db, a.targets)}, ' |')
+               english_only,
              case when sub_id is not null and sub_id not like 'unc.%' then sub_id end dir_valid
       from read_parquet('{a.targets}')),
      vac as ({vac}),
@@ -82,12 +89,15 @@ def main(argv=None):
     select h.*, sm.main_ar dir_main, vac.poi_key is not null is_vacant, est_sub, est_sub_conf, est_main, est_main_conf,
            top_main, top_conf
     from h left join submain sm on sm.sub_id = h.dir_valid left join vac using (poi_key) left join est using (poi_key)""")
+    override_min = f'case when english_only then {OVERRIDE_MIN_EN} else {OVERRIDE_MIN} end'
+    confirm_min = f'case when english_only then {CONFIRM_MIN_EN} else {CONFIRM_MIN} end'
     db.execute(f"""create table k as select m.*,
-      coalesce(name_ok and dir_conf = 'medium' and top_main is not null and top_conf >= {OVERRIDE_MIN} and top_main <> dir_main,
-               false) overridden,
-      coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub = dir_valid, false) low_confirmed,
+      coalesce(name_ok and dir_conf = 'medium' and top_main is not null and top_conf >= {override_min}
+               and top_main <> dir_main, false) overridden,
+      coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub = dir_valid
+               and (not english_only or top_conf >= {CONFIRM_MIN_EN}), false) low_confirmed,
       coalesce(name_ok and dir_conf not in ('high', 'medium') and est_sub is distinct from dir_valid and top_main = dir_main
-               and top_conf >= {CONFIRM_MIN}, false) low_main_confirmed
+               and top_conf >= {confirm_min}, false) low_main_confirmed
     from m""")
     db.execute("""create table m2 as select k.*,
       case when dir_valid is null then null
@@ -134,7 +144,9 @@ def main(argv=None):
         'needs_review': one('select count(*) from o where needs_review'),
         'overridden': one('select count(*) from o where overridden'),
         'with_final_main': one('select count(final_main) from o'),
-        'thresholds': {'confirm_min': CONFIRM_MIN, 'override_min': OVERRIDE_MIN},
+        'thresholds': {'confirm_min': CONFIRM_MIN, 'override_min': OVERRIDE_MIN,
+                       'confirm_min_english_only': CONFIRM_MIN_EN, 'override_min_english_only': OVERRIDE_MIN_EN},
+        'english_only': one('select count(*) from o where english_only'),
         'invalid_name': one('select count(*) from o where invalid_name'),
         'vacant_kept': one("select count(*) from o where final_source = 'vacant'"),
         'coverage_before_pct': round(one("select count(dir_valid) from o where dir_conf in ('high', 'medium')") / n, 4) if n else 0,

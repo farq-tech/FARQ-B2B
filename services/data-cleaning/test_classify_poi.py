@@ -125,6 +125,31 @@ class ClassifyTests(unittest.TestCase):
         self.assertGreater(report['training_rule_rows'], 0)
         self.assertLess(report['training_rule_rows'], 15, 'a fifth of the rule rows is held out of training')
 
+    def test_english_copies_train_on_the_english_name_alone(self):
+        from classify_poi import english_copies
+        rows = [('مخبز الصباح | Morning Bakery', 'Morning Bakery', 'food.bakery'),
+                ('حلاق الرجال', '', 'beauty.barber'),            # no English name: no copy
+                ('Gulf Bakery', 'Gulf Bakery', 'food.bakery'),   # the English name is already the whole text
+                ('مخبز | X', 'X', 'food.bakery')]                # one letter says nothing
+        self.assertEqual(english_copies(rows), [('Morning Bakery', 'food.bakery')])
+
+    def test_an_english_only_place_is_estimated_from_english_names_seen_with_arabic(self):
+        # the surveyor rows carry Arabic and English names together; the unclassified place has only the English one
+        db = duckdb.connect()
+        db.execute(f"""copy (select name_ar, case when name_ar like 'مخبز%' then 'Bakery ' else 'Barber ' end || n
+            as name_en, tradename, description_ar, deleted, sub_id, sub_confidence from (select *, row_number() over () n
+            from read_parquet('{self.tmp / 'labels.parquet'}'))) to '{self.tmp / 'labels_en.parquet'}' (format parquet)""")
+        db.execute(f"""copy (select 'new:1' poi_key, null::varchar name_ar, 'Bakery Oasis' name_en,
+            null::varchar source_license_name) to '{self.tmp / 'en.parquet'}' (format parquet)""")
+        out = self.tmp / 'est_en.parquet'
+        r = subprocess.run([sys.executable, str(HERE / 'classify_poi.py'), '--labels', str(self.tmp / 'labels_en.parquet'),
+                            '--targets', str(self.tmp / 'en.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                            '--out', str(out), '--main-min', '0.0', '--sub-min', '0.0'], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(duckdb.sql(f"select cls_main_estimate from read_parquet('{out}')").fetchone()[0], 'أغذية ومشروبات')
+        report = json.loads((self.tmp / 'est_en.report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['training_english_copies'], 12)
+
     def test_refuses_to_overwrite_an_input_or_an_existing_file(self):
         self.assertNotEqual(self.run_cli(self.tmp / 'labels.parquet').returncode, 0, 'never writes over an input')
         out = self.tmp / 'est.parquet'

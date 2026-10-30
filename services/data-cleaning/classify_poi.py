@@ -30,7 +30,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score, top_k_accuracy_score
 from sklearn.model_selection import train_test_split
 
-MAIN_MIN, SUB_MIN = 0.60, 0.80   # a label is kept only at or above its gate; everything below stays unclassified
+MAIN_MIN, SUB_MIN = 0.70, 0.80   # a label is kept only at or above its gate; everything below stays unclassified
 # Rule classifications in the snapshot that also train the model. The exact QGIS-category mapping labels a licence
 # place from its licence category, not its name, so its names are an independent label of the same kind of place as
 # the unclassified rows (licence-only, no surveyor). A fifth of them (by poi_key) is held out to measure the model.
@@ -69,6 +69,19 @@ def text_expr(db, path):
     if 'description_ar' in have:
         parts.append(field('description_ar', 200))
     return "trim(" + " || ' | ' || ".join(parts) + ", ' |')"
+
+
+def english(db, path):
+    """The English name alone as SQL ('' when the parquet has none or it says nothing), for english_copies()."""
+    have = {r[0] for r in db.execute(f"describe select * from read_parquet('{path}')").fetchall()}
+    return field('name_en') if 'name_en' in have else "''"
+
+
+def english_copies(rows):
+    """A second training row of the English name alone for every (text, English name, sub_id) row that has one.
+    Most places still unclassified carry only an English name (a machine translation of the licence's Arabic name);
+    trained on full Arabic+English texts the model never saw one alone and kept almost none of them at the gate."""
+    return [(e, s) for t, e, s in rows if len(e) >= 2 and e != t]
 
 
 def features(fit, texts, vecs=None):
@@ -110,17 +123,17 @@ def held_out(texts, y, labels):
 
 
 def rule_rows(db, targets, methods):
-    """(train, held-out) rows of (text, sub_id) from the snapshot's high-confidence rule classifications by `methods`;
+    """(train, held-out) rows of (text, English name, sub_id) from the snapshot's high-confidence rule classifications by `methods`;
     empty when the snapshot does not carry its classification or no method is given."""
     have = {r[0] for r in db.execute(f"describe select * from read_parquet('{targets}')").fetchall()}
     if not methods or not {'sub_id', 'classification_method', 'cls_confidence'} <= have:
         return [], []
     ms = ', '.join("'" + m.replace("'", "''") + "'" for m in methods)
-    rows = db.execute(f"""select feat, sub_id, hash(poi_key) % 5 = 0 from (select {text_expr(db, targets)} feat, sub_id,
-        poi_key, classification_method, cls_confidence from read_parquet('{targets}'))
+    rows = db.execute(f"""select feat, en, sub_id, hash(poi_key) % 5 = 0 from (select {text_expr(db, targets)} feat,
+        {english(db, targets)} en, sub_id, poi_key, classification_method, cls_confidence from read_parquet('{targets}'))
         where classification_method in ({ms}) and cls_confidence = 'high' and sub_id is not null and length(feat) >= 2
         order by poi_key""").fetchall()
-    return [(t, s) for t, s, h in rows if not h], [(t, s) for t, s, h in rows if h]
+    return [(t, e, s) for t, e, s, h in rows if not h], [(t, e, s) for t, e, s, h in rows if h]
 
 
 def fields(text):
@@ -192,13 +205,14 @@ def main(argv=None):
     db = duckdb.connect()
     db.execute('SET threads=8')
     LTEXT = text_expr(db, a.labels)
-    train = db.execute(f"""select feat, sub_id from (select {LTEXT} feat, sub_id, deleted, sub_confidence
-        from read_parquet('{a.labels}')) where not deleted and sub_id is not null and sub_confidence in ('high','medium')
-        and length(feat) >= 2""").fetchall()
+    surveyed = db.execute(f"""select feat, en, sub_id from (select {LTEXT} feat, {english(db, a.labels)} en, sub_id,
+        deleted, sub_confidence from read_parquet('{a.labels}')) where not deleted and sub_id is not null
+        and sub_confidence in ('high','medium') and length(feat) >= 2""").fetchall()
     methods = tuple(m for m in a.train_methods.split(',') if m)
     rules_train, rules_test = rule_rows(db, a.targets, methods)
-    surveyor_rows = len(train)
-    train = train + rules_train
+    copies = english_copies(surveyed + rules_train)
+    train = [(t, s) for t, _, s in surveyed + rules_train] + copies
+    n0 = len(train) - len(copies)
     texts = [r[0] for r in train]
     sub = np.array([r[1] for r in train])
     mains = np.array([sub_main.get(s, 'غير مصنّف') for s in sub])
@@ -208,9 +222,12 @@ def main(argv=None):
     smask = np.array([s in keep for s in sub])
 
     report = {'labels': os.path.abspath(a.labels), 'targets': os.path.abspath(a.targets),
-              'training_rows': len(texts), 'training_surveyor_rows': surveyor_rows,
-              'training_rule_rows': len(rules_train), 'train_methods': list(methods), 'held_out_main': held_out(texts, mains, None),
-              'held_out_sub': held_out([t for t, k in zip(texts, smask) if k], sub[smask], None),
+              'training_rows': len(texts), 'training_surveyor_rows': len(surveyed),
+              'training_rule_rows': len(rules_train), 'training_english_copies': len(copies),
+              'train_methods': list(methods),
+              # measured on the original rows only: an English copy of a test row would sit in its training split
+              'held_out_main': held_out(texts[:n0], mains[:n0], None),
+              'held_out_sub': held_out([t for t, k in zip(texts[:n0], smask[:n0]) if k], sub[:n0][smask[:n0]], None),
               'gates': {'main_min': a.main_min, 'sub_min': a.sub_min}}
 
     Xtr, vecs = features(True, texts)
@@ -220,7 +237,10 @@ def main(argv=None):
     # a held-out name counts as unseen only if none of its fields appears in any training row's fields: the same name
     # can sit in name_ar for a surveyor row and in source_license_name for a licence row, so whole strings differ
     seen = {f for t in texts for f in fields(t)}
-    report['held_out_rules'] = gated(main_clf, vecs, [r for r in rules_test if not fields(r[0]) & seen], sub_main)
+    report['held_out_rules'] = gated(main_clf, vecs, [(t, s) for t, _, s in rules_test if not fields(t) & seen], sub_main)
+    # the same held-out places read from their English name alone, as most unclassified places are
+    report['held_out_rules_english'] = gated(main_clf, vecs, [(e, s) for t, e, s in rules_test
+                                                              if len(e) >= 2 and not fields(t) & seen], sub_main)
 
     main_col = {c: i for i, c in enumerate(main_clf.classes_)}
     # gate: a label below its confidence is dropped, so an unsure row stays unclassified rather than guessed.

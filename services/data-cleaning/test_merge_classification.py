@@ -194,6 +194,35 @@ class CliTests(unittest.TestCase):
         got = {k: v for k, *v in duckdb.sql(f"select poi_key, final_main, final_source from read_parquet('{out}')").fetchall()}
         self.assertEqual(got['l'], ['أغذية ومشروبات', 'directory_low_main_confirmed'], 'a top main at 0.7 confirms')
 
+    def test_an_english_only_name_needs_the_stricter_gates(self):
+        # the same agreement that confirms or overrides an Arabic-named place is not enough when the model read an
+        # English name alone; a place with an Arabic name too keeps the ordinary gates
+        db = duckdb.connect()
+        db.execute('create table t(poi_key varchar, name_ar varchar, name_en varchar, sub_id varchar, cls_confidence varchar, '
+                   'description_ar varchar)')
+        db.executemany('insert into t values (?, ?, ?, ?, ?, null)', [
+            ('q', None, 'Elegance Salon', 'food.grocery', 'medium'),   # model contradicts at 0.85: below 0.90, kept
+            ('r', None, 'Sunrise Bakery', 'food.bakery', 'low'),       # model agrees at 0.7: below 0.80, not confirmed
+            ('s', None, 'Sunset Bakery', 'food.bakery', 'low'),        # model agrees at 0.85: confirmed
+            ('u', 'مخبز الفجر', 'Dawn Bakery', 'food.bakery', 'low'),  # Arabic too: 0.7 confirms
+            ('w', None, 'Oasis Salon', 'food.grocery', 'medium')])     # model contradicts at 0.95: overridden
+        db.execute(f"copy t to '{self.tmp / 'en_targets.parquet'}' (format parquet)")
+        db.execute('create table e(poi_key varchar, cls_main_estimate varchar, cls_main_confidence double, '
+                   'cls_sub_estimate varchar, cls_sub_confidence double, cls_estimate_source varchar)')
+        db.executemany("insert into e values (?, ?, ?, null, 0.3, 'model_name_tfidf')", [
+            ('q', 'تجميل وعناية شخصية', 0.85), ('r', 'أغذية ومشروبات', 0.7), ('s', 'أغذية ومشروبات', 0.85),
+            ('u', 'أغذية ومشروبات', 0.7), ('w', 'تجميل وعناية شخصية', 0.95)])
+        db.execute(f"copy e to '{self.tmp / 'en_est.parquet'}' (format parquet)")
+        out = self.tmp / 'merged_en.parquet'
+        r = subprocess.run([sys.executable, str(HERE / 'merge_classification.py'), '--targets', str(self.tmp / 'en_targets.parquet'),
+                            '--estimates', str(self.tmp / 'en_est.parquet'), '--taxonomy', str(self.tmp / 'tax.json'),
+                            '--out', str(out)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        got = dict(duckdb.sql(f"select poi_key, final_source from read_parquet('{out}')").fetchall())
+        self.assertEqual(got, {'q': 'directory_medium', 'r': 'model_estimate_main_only', 's': 'directory_low_main_confirmed',
+                               'u': 'directory_low_main_confirmed', 'w': 'model_estimate_main_only'})
+        self.assertEqual(json.loads((self.tmp / 'merged_en.report.json').read_text(encoding='utf-8'))['english_only'], 4)
+
     def test_family_only_for_contractors(self):
         merged = self.tmp / 'merged.parquet'
         self.assertEqual(self.merge(merged).returncode, 0)
