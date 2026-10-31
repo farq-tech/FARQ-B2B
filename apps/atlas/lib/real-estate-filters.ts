@@ -1,5 +1,5 @@
 import { numberFormat } from './insights-api'
-import { PERIOD_WORD, isPublishable, typeLabel, type Deal, type Listing, type ListingKind } from './real-estate'
+import { FEATURES, PERIOD_WORD, TENANTS_LABEL, isPublishable, typeLabel, type Deal, type Feature, type Listing, type ListingKind } from './real-estate'
 
 /** Every filter «العقار» offers. The deal, types and districts go to the service; the rest narrow what it sent. */
 export type HomeFilters = {
@@ -19,6 +19,10 @@ export type HomeFilters = {
   /** The oldest building wanted, in years (0 = new only); null for any age. */
   maxAge: number | null
   belowMedian: boolean
+  /** A rental for families or for singles; one open to both passes either. null for any. */
+  tenants: 'families' | 'singles' | null
+  /** Features the property must have, as the ad's form records them. */
+  features: Feature[]
   sort: SortId
 }
 
@@ -27,7 +31,7 @@ export type SortId = 'best' | 'price_asc' | 'price_desc' | 'area_desc' | 'sqm_as
 export const DEFAULT_FILTERS: HomeFilters = {
   kind: 'rent', rentDeal: 'rent_year', types: ['apartment'], districts: [],
   minPrice: null, maxPrice: null, minArea: null, maxArea: null, beds: 0, livings: 0, wc: 0, street: 0, maxAge: null,
-  belowMedian: false, sort: 'best',
+  belowMedian: false, tenants: null, features: [], sort: 'best',
 }
 
 export const SORTS: { id: SortId; label: string }[] = [
@@ -63,7 +67,10 @@ export function applyFilters(listings: Listing[], filters: HomeFilters): Listing
   const kept = listings.filter((l) => isPublishable(l) && within(l.price_sar, filters.minPrice, filters.maxPrice) && within(l.area_sqm, filters.minArea, filters.maxArea)
     && atLeast(l.beds, filters.beds) && atLeast(l.livings, filters.livings) && atLeast(l.wc, filters.wc) && atLeast(l.street_width, filters.street)
     && within(l.age, null, filters.maxAge)
-    && (!filters.belowMedian || (l.vs_district_pct ?? 0) < 0))
+    && (!filters.belowMedian || (l.vs_district_pct ?? 0) < 0)
+    // an ad that does not say who may live there, or whether it has a feature, does not pass a filter on it
+    && (!filters.tenants || filters.kind !== 'rent' || l.tenants === filters.tenants || l.tenants === 'both')
+    && filters.features.every((key) => l.features?.[key] === 1))
   if (filters.sort === 'best') return kept
   // an ad without the figure a sort reads goes last, in the service's order
   const by = (pick: (l: Listing) => number | null, direction: 1 | -1) => [...kept].sort((a, b) => {
@@ -94,6 +101,8 @@ export function activeFilters(filters: HomeFilters, districtName: (id: string) =
   if (filters.street) out.push({ id: 'street', label: `شارع ${numberFormat.format(filters.street)} م فأكثر`, clear: { street: 0 } })
   if (filters.maxAge != null) out.push({ id: 'age', label: `عمر العقار: ${ageStepLabel(filters.maxAge)}`, clear: { maxAge: null } })
   if (filters.belowMedian) out.push({ id: 'below', label: 'أقل من وسيط الحي', clear: { belowMedian: false } })
+  if (filters.tenants && filters.kind === 'rent') out.push({ id: 'tenants', label: TENANTS_LABEL[filters.tenants], clear: { tenants: null } })
+  for (const key of filters.features) out.push({ id: `f:${key}`, label: FEATURES.find(([id]) => id === key)?.[1] ?? key, clear: { features: filters.features.filter((item) => item !== key) } })
   if (filters.sort !== 'best') out.push({ id: 'sort', label: SORTS.find((item) => item.id === filters.sort)?.label ?? '', clear: { sort: 'best' } })
   return out
 }

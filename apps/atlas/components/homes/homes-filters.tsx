@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
-import { LISTING_TYPES, PERIOD_WORD, RENT_DEALS } from '@/lib/real-estate'
+import { FEATURES, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, TENANTS_LABEL } from '@/lib/real-estate'
 import { AGE_STEPS, COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, ageStepLabel, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { cn } from '@/lib/utils'
 
@@ -153,6 +153,25 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
           <Section title="عمر العقار" hint="كما ذكره الإعلان. إذا اخترت عمراً لا تظهر الإعلانات التي لا تذكر عمر العقار.">
             <div className="flex flex-wrap gap-2">
               {AGE_STEPS.map((step) => <Chip key={String(step)} active={filters.maxAge === step} onClick={() => onChange({ maxAge: step })}>{ageStepLabel(step)}</Chip>)}
+            </div>
+          </Section>
+
+          {filters.kind === 'rent' && (
+            <Section title="السكن" hint="كما ذكره الإعلان. العرض المفتوح للعوائل والعزاب يظهر في الاختيارين، والإعلان الذي لا يذكر ذلك لا يظهر.">
+              <div className="flex flex-wrap gap-2">
+                <Chip active={filters.tenants == null} onClick={() => onChange({ tenants: null })}>الكل</Chip>
+                <Chip active={filters.tenants === 'families'} onClick={() => onChange({ tenants: 'families' })}>{TENANTS_LABEL.families}</Chip>
+                <Chip active={filters.tenants === 'singles'} onClick={() => onChange({ tenants: 'singles' })}>{TENANTS_LABEL.singles}</Chip>
+              </div>
+            </Section>
+          )}
+
+          <Section title="يجب أن يتوفر" hint="كما سجّله المعلن في إعلانه. الإعلان الذي لا يذكر الميزة لا يظهر.">
+            <div className="flex flex-wrap gap-2">
+              {FEATURES.map(([key, label]) => {
+                const on = filters.features.includes(key)
+                return <Chip key={key} active={on} onClick={() => onChange({ features: on ? filters.features.filter((item) => item !== key) : [...filters.features, key] })}>{label}</Chip>
+              })}
             </div>
           </Section>
 

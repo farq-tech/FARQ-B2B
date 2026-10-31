@@ -85,6 +85,16 @@ class RealEstateReferenceTests(unittest.TestCase):
         self.assertEqual(first['vs_district_pct'], -3)   # 500 per m² against the district's 516.67
         self.assertFalse({'sellerPhone', 'sellerName'} & set(first))
 
+    def test_cards_carry_what_the_property_has_its_dates_and_licence_when_stated(self):
+        row = dict(listing('rent', 'apartment', 60000, 120), aqar_id='7', images=['7.jpg'], lift=1, furnished=0,
+                   ac=None, pool=3, tenants='families', create_time=1793000000, last_update=0, rega_licensed=True)
+        cards = []
+        ref.build([row], {'Riyadh': ATLAS}, '2026-10-28', cards=cards)
+        card = cards[0]
+        self.assertEqual(card['features'], {'lift': 1, 'furnished': 0}, 'unstated and unreadable values stay out')
+        self.assertEqual((card['tenants'], card['listed_on'], card['licensed']), ('families', '2026-10-26', True))
+        self.assertNotIn('updated_on', card)
+
     def test_every_located_listing_is_a_card_and_doubtful_ones_are_marked(self):
         rows = [dict(listing('rent', 'apartment', 60000, 120), aqar_id=str(i)) for i in range(5)]
         rows.append(dict(listing('rent', 'apartment', 10000, 120), aqar_id='odd'))           # 83% under: a wrong figure
