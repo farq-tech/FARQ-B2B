@@ -166,8 +166,10 @@ async function fastRun() {
       }
       // a run that has gone through 20 requests since its last 429 waits less long next time
       const strikes = fast.strikes && stats.requests % 20 === 0 ? fast.strikes - 1 : fast.strikes || 0
-      await set({ fast: { ...fast, queue, current, stats, strikes, status: 'running', error: null, beat: Date.now() } })
-      await sleep((PAUSE_MS[0] + Math.random() * (PAUSE_MS[1] - PAUSE_MS[0])) * (fast.slow || 1))
+      // the beat is set at the end of the pause, however long slowing has made it, so no tab takes the run up meanwhile
+      const pause = (PAUSE_MS[0] + Math.random() * (PAUSE_MS[1] - PAUSE_MS[0])) * (fast.slow || 1)
+      await set({ fast: { ...fast, queue, current, stats, strikes, status: 'running', error: null, beat: Date.now() + pause } })
+      await sleep(pause)
     }
   } catch (error) {
     log('[farq] fastRun crashed', String(error))
