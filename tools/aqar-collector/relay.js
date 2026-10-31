@@ -114,6 +114,9 @@ async function ask(template, bbox, from) {
 let running = false
 // each Aqar tab's own name: the run's state names the one tab that works it, so two tabs never send the same request
 const TAB = Math.random().toString(36).slice(2)
+// whether this tab still works the run: checked again after every request, since a tab suspended mid-request may
+// have been replaced meanwhile, and its old snapshot must not overwrite the new owner's progress
+const mine = async () => { const { fast } = await get({ fast: null }); return !!fast?.active && (!fast.owner || fast.owner === TAB) }
 async function fastRun() {
   log('[farq] fastRun start', location.href)
   if (running) return
@@ -138,6 +141,7 @@ async function fastRun() {
         find = await ask(findTemplate, current.bbox, current.from)
       } catch (error) {
         log('[farq] ask failed', error.status, error.message)
+        if (!(await mine())) { log('[farq] run taken by another tab'); break }
         if (error.status === 429 || error.network) {
           // too fast: wait as asked (or longer each time), slow down for good, and try the same request again
           const strikes = (fast.strikes || 0) + 1
@@ -153,6 +157,8 @@ async function fastRun() {
         break
       }
       const listings = find.listings ?? []
+      // the listings are kept either way (each once, by id); the run's state only by the tab that still owns it
+      if (!(await mine())) { await keep(listings); log('[farq] run taken by another tab'); break }
       log('[farq] got total', find.total, 'listings', listings.length, 'first', listings[0]?.id, 'age' in (listings[0] || {}), 'cat', listings[0]?.category)
       const fresh = await keep(listings)
       stats = { ...stats, requests: stats.requests + 1, listings: stats.listings + fresh }
