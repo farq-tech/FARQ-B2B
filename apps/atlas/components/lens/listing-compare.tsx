@@ -4,11 +4,14 @@ import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ExternalLink, MessageCircle, X } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
-import { ageLabel, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { Gallery } from './listing-card'
 
 const count = (value: number | null | undefined, unit = '') => (value ? `${numberFormat.format(value)}${unit}` : 'غير متاح')
+
+const has = (value: 0 | 1 | undefined) => (value === 1 ? 'يوجد' : value === 0 ? 'لا يوجد' : 'غير متاح')
+const licence = (value: boolean | undefined) => (value === true ? 'مرخّص' : value === false ? 'غير مرخّص' : 'غير متاح')
 
 type Row = { label: string; cells: [ReactNode, ReactNode]; better?: 0 | 1 | null }
 
@@ -52,6 +55,15 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
     { label: 'عمر العقار', cells: [ageLabel(a.age), ageLabel(b.age)], better: better(a.age, b.age, 'less') },
     { label: 'عرض الشارع', cells: [count(a.street_width, ' م'), count(b.street_width, ' م')], better: better(a.street_width, b.street_width, 'more') },
     { label: 'مؤشر الحي', cells: [a.signal?.label ?? 'غير متاح', b.signal?.label ?? 'غير متاح'] },
+    ...(a.kind === 'rent' || b.kind === 'rent'
+      ? [{ label: 'السكن', cells: [a.tenants ? TENANTS_LABEL[a.tenants] : 'غير متاح', b.tenants ? TENANTS_LABEL[b.tenants] : 'غير متاح'] as [ReactNode, ReactNode] }]
+      : []),
+    // a feature gets a row when either ad states it; which one is better depends on who will live there, so none is marked
+    ...FEATURES.filter(([key]) => a.features?.[key] != null || b.features?.[key] != null).map(([key, label]) => ({
+      label, cells: [has(a.features?.[key]), has(b.features?.[key])] as [ReactNode, ReactNode],
+    })),
+    { label: 'نُشر', cells: [daysAgo(a.listed_on) ?? 'غير متاح', daysAgo(b.listed_on) ?? 'غير متاح'] },
+    { label: 'ترخيص الإعلان', cells: [licence(a.licensed), licence(b.licensed)] },
   ]
 
   return createPortal(

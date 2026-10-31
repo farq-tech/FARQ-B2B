@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, ChevronDown, ExternalLink, Scale } from 'lucide-react'
+import { BadgeCheck, Check, ChevronDown, ExternalLink, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
-import { ageLabel, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -69,6 +69,9 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
     listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
   ].filter(Boolean)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  // what the property has, as the ad's form records it; what it lacks shows in the comparison
+  const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
+  const listed = daysAgo(listing.listed_on)
 
   const tab = (
     <>
@@ -101,6 +104,18 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
             عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span>
           </Explained>
         </p>
+        {(listing.tenants || has.length > 0) && (
+          <ul className="flex flex-wrap gap-1.5" aria-label="مزايا العقار">
+            {listing.tenants && <li className="rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">{TENANTS_LABEL[listing.tenants]}</li>}
+            {has.map((label) => <li key={label} className="rounded-full border px-2.5 py-0.5 text-sm">{label}</li>)}
+          </ul>
+        )}
+        {(listed || listing.licensed) && (
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+            {listed && <span>نُشر {listed}</span>}
+            {listing.licensed && <span className="inline-flex items-center gap-1"><BadgeCheck className="size-4 text-primary" aria-hidden /> إعلان مرخّص</span>}
+          </p>
+        )}
         {perSqm && (
           <p className="text-sm">
             <Explained title="سعر المتر" lines={EXPLAIN.listingPerSqm(listing.deal)} className="font-semibold">{perSqm}</Explained>

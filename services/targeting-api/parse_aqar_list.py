@@ -135,6 +135,32 @@ def listing_street_width(record, text):
     return (found, 'text') if found else (None, None)
 
 
+# who may live there. Aqar's «family» field: 0 = singles (its text agrees 547 to 38), 1 = families, but one in
+# fourteen of those ads says singles in its text, so the text decides when it names a side: «قسم عوائل وقسم عزاب» is
+# both, a lone «عزاب» is singles. Measured on 34,803 stated ads, 2026-10-30.
+_SINGLES = re.compile(r'عزاب|عزوبي')
+_FAMILIES = re.compile(r'عوائل|عوايل|عائلات|للعائلة|للعائله')
+# a refusal names the side it shuts out: «لا نقبل العزاب», «لا يُسمح بالعزاب», «ممنوع العزاب» say families
+_NO_SINGLES = re.compile(r'(?:لا\s*(?:نقبل|يقبل|تقبل|يسمح|يُسمح|نسمح)|ممنوع|يمنع|يُمنع|غير\s*مسموح|بدون|ماعدا|عدا)\s*(?:ب|ل)?(?:ال)?(?:عزاب|عزوبي)')
+
+
+def listing_tenants(record, text):
+    """'families' | 'singles' | 'both' as the ad states it, else None."""
+    refused = bool(_NO_SINGLES.search(text))
+    singles = not refused and bool(_SINGLES.search(text))
+    families = refused or bool(_FAMILIES.search(text))
+    if singles and families:
+        return 'both'
+    if singles:
+        return 'singles'
+    field = record.get('family')
+    if field == 0 and not families:
+        return 'singles'
+    if field == 1 or families:
+        return 'families'
+    return None
+
+
 _TITLE = re.compile(r'^(?P<type>.+?)\s+لل(?P<kind>إيجار|ايجار|بيع)\b')
 _DISTRICT = re.compile(r'حي\s+([^,،]+)')
 _NUMBER = re.compile(r'[\d٠-٩][\d٠-٩,٬]*(?:\.\d+)?')
@@ -253,6 +279,8 @@ def parse_map_listing(record, city_en=None):
         'facade': facade, 'facade_source': facade_source,
         'floors': floors, 'floors_source': 'text' if floors is not None else None,
         'age': age, 'age_source': age_source,
+        # who may live there is a rental's term; a sale has none
+        'tenants': listing_tenants(record, text) if kind == 'rent' else None,
         'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
         'aqar_id': str(record.get('id')),
         # what the collector's widened map query carries, passed through as Aqar names it (only when stated)

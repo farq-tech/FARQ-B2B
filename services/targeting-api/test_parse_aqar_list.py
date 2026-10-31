@@ -73,6 +73,15 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertIsNone(parse.text_street_width('شارع 200'), 'no street is 200 m wide')
         self.assertIsNone(parse.text_street_width('شارع الملك فهد'), 'a street name is no width')
 
+    def test_who_may_live_there_from_the_text_then_from_aqar(self):
+        self.assertEqual(parse.listing_tenants({'family': 0}, 'شقة للإيجار'), 'singles')
+        self.assertEqual(parse.listing_tenants({'family': 1}, 'شقة للإيجار'), 'families')
+        self.assertEqual(parse.listing_tenants({'family': 1}, 'شقة عزاب للإيجار'), 'singles', 'the text names the side')
+        self.assertEqual(parse.listing_tenants({'family': 0}, 'يوجد قسم عوائل وقسم عزاب'), 'both')
+        self.assertEqual(parse.listing_tenants({'family': 1}, 'لا نقبل العزاب'), 'families', 'a refusal is no offer')
+        self.assertEqual(parse.listing_tenants({'family': None}, 'لا يُسمح بالعزاب'), 'families')
+        self.assertIsNone(parse.listing_tenants({'family': None}, 'شقة للإيجار'), 'unstated stays unknown')
+
     def test_map_listing(self):
         record = {'id': 6896439, 'title': 'فيلا للإيجار في شارع رقم 1095, حي سدرة, مدينة الرياض, منطقة الرياض',
                   'price': 145000, 'area': 300, 'rent_period': 3, 'content': 'فيلا جديدة الإيجار سنوي',
