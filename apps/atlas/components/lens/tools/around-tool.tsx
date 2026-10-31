@@ -4,13 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { residentsPer } from '@/lib/audience'
+import { areaKm2, districtAt } from '@/lib/geo-measure'
 import { useStickyState } from '@/lib/sticky-state'
+import type { DistrictRow } from '../city-data'
 
 type Within = { population: number | null; dwellings: number | null; businesses: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
@@ -50,7 +52,7 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * each, by distance or by drive time on the real road network. Every figure is the same golden count as the rest of
  * Atlas, only the boundary differs.
  */
-export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => void }) {
+export function AroundTool({ onOverlay, districts, features }: { onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[] }) {
   const [sites, setSites] = useState<(Point & { id: number })[]>([])
   const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
   const [results, setResults] = useState<Record<string, Result>>({})
@@ -107,6 +109,47 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
     return values.length ? Math.max(...values) : null
   }
 
+  // «جاذبية الموقع»: a 0–100 score comparing the chosen sites on three equal factors — audience (population in reach),
+  // purchasing power (income where published, else villa share, of the حي the pin sits in), and lightness of
+  // competition (fewest establishments per km²). Each factor is scaled to the best site, and the score is their mean.
+  // A site missing any factor is «غير متاح», and the score needs two complete sites, since it is a comparison.
+  const { scoreById, topScore, byIncome } = useMemo(() => {
+    const byIncome = districts.some((row) => row.income != null)
+    const districtById = new Map(districts.map((row) => [row.id, row]))
+    const spendingOf = (point: Point): number | null => {
+      const row = districtById.get(districtAt(point, features) ?? '')
+      if (!row) return null
+      return byIncome ? row.income : row.villaShare
+    }
+    const factored = labelled
+      .filter((site) => site.result?.status === 'ready' && site.result.figures)
+      .map((site) => {
+        const figures = site.result!.figures!
+        const area = site.result!.geometry ? areaKm2(site.result!.geometry) : 0
+        return {
+          id: site.id,
+          audience: figures.population,
+          spending: spendingOf(site),
+          density: figures.businesses != null && area > 0 ? figures.businesses / area : null,
+        }
+      })
+    const complete = factored.filter((item) => item.audience != null && item.spending != null && item.density != null)
+    const scoreById = new Map<number, number>()
+    if (complete.length >= 2) {
+      const maxAudience = Math.max(...complete.map((item) => item.audience!))
+      const maxSpending = Math.max(...complete.map((item) => item.spending!))
+      const minDensity = Math.min(...complete.map((item) => item.density!))
+      for (const item of complete) {
+        const audience = maxAudience > 0 ? (100 * item.audience!) / maxAudience : 0
+        const spending = maxSpending > 0 ? (100 * item.spending!) / maxSpending : 0
+        const uncrowded = item.density! > 0 ? (100 * minDensity) / item.density! : 100
+        scoreById.set(item.id, Math.round((audience + spending + uncrowded) / 3))
+      }
+    }
+    const scores = [...scoreById.values()]
+    return { scoreById, topScore: scores.length ? Math.max(...scores) : null, byIncome }
+  }, [labelled, districts, features])
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">قارن المواقع</h2>
@@ -143,6 +186,22 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
               </tr>
             </thead>
             <tbody className="divide-y">
+              <tr className="bg-muted/40">
+                <th className="py-2.5 text-start text-sm font-semibold">جاذبية الموقع</th>
+                {labelled.map((site) => {
+                  const result = site.result
+                  if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center"><Loader2 className="mx-auto size-4 animate-spin text-primary" aria-label="جارٍ الحساب" /></td>
+                  if (result.status === 'error') return <td key={site.id} className="py-2.5 text-center text-sm text-muted-foreground">—</td>
+                  const value = scoreById.get(site.id)
+                  return (
+                    <td key={site.id} className="py-2.5 text-center">
+                      <Explained title="جاذبية الموقع" lines={EXPLAIN.siteAttraction(byIncome)} className={cn('text-lg font-bold', topScore != null && value === topScore && 'text-primary')}>
+                        {value == null ? 'غير متاح' : `${numberFormat.format(value)}/100`}
+                      </Explained>
+                    </td>
+                  )
+                })}
+              </tr>
               {rows.map((row) => {
                 const top = best(row)
                 return (
