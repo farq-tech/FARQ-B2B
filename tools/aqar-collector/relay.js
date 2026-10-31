@@ -7,7 +7,6 @@ const MAX_DEPTH = 12
 const PAUSE_MS = [2500, 4000]   // Aqar answers 429 at about one request a second
 const WAIT_429_MS = [60000, 600000]   // first wait after a 429, and the longest
 const SLOWER = 1.5                     // each 429 stretches the pause by this much, for the rest of the run
-const HEARTBEAT_MS = 15000
 const get = (keys) => new Promise((done) => chrome.storage.local.get(keys, done))
 const set = (items) => new Promise((done) => chrome.storage.local.set(items, done))
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
@@ -58,6 +57,9 @@ const quarters = ([s, w, n, e]) => {
 }
 
 const ANSWER_MS = 60000
+// a run counts as stalled only once its last beat is older than its longest request plus a slowed pause: before that
+// another open Aqar tab could still be mid-request, and taking the run up would send every request twice
+const STALE_MS = ANSWER_MS + 30000
 let asked = 0
 
 /** One request sent by the page itself (inject.js), so it carries the page's session exactly as Aqar's own do. */
@@ -170,9 +172,9 @@ async function fastRun() {
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => { log('[farq] message', message); if (message?.cmd === 'fast-run') { fastRun(); reply({ ok: true }) } if (message?.cmd === 'ping') reply({ ok: true, running, href: location.href, log: LOG.slice(-8) }) })
 // a run whose tab was reloaded or closed is picked up again by the next Aqar page that opens
-get({ fast: null }).then(({ fast }) => { if (fast?.active && Date.now() - (fast.beat || 0) > HEARTBEAT_MS) fastRun() })
+get({ fast: null }).then(({ fast }) => { if (fast?.active && Date.now() - (fast.beat || 0) > STALE_MS) fastRun() })
 // and a run that stalled (its tab reloaded mid-request, or the page slept) is taken up again by any open Aqar page
-setInterval(() => { if (running) return; get({ fast: null }).then(({ fast }) => { if (fast?.active && fast.status !== 'waiting' && Date.now() - (fast.beat || 0) > 45000) fastRun() }) }, 20000)
+setInterval(() => { if (running) return; get({ fast: null }).then(({ fast }) => { if (fast?.active && fast.status !== 'waiting' && Date.now() - (fast.beat || 0) > STALE_MS) fastRun() }) }, 20000)
 
 // a chat page the user opens from a listing: its address shows how a conversation is reached
 if (/chat|محادث|message/i.test(decodeURIComponent(location.pathname))) {

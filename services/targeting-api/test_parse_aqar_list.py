@@ -85,6 +85,8 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual((listing['facade'], listing['floors'], listing['street_width']), (None, None, None))
         rich = parse.parse_map_listing({**record, 'street_direction': 2, 'street_width': 20, 'content': 'فيلا دورين'})
         self.assertEqual((rich['facade'], rich['facade_source'], rich['floors'], rich['street_width']), ('شرقية', 'aqar', 2, 20))
+        plot = parse.parse_map_listing({**record, 'width': 15, 'length': 20, 'family': 1})
+        self.assertEqual((plot['width'], plot['length'], plot['family']), (15, 20, 1), 'the plot and the widened fields pass through')
         monthly = parse.parse_map_listing({**record, 'price': 2500, 'content': 'إيجار شهري'})
         self.assertEqual(monthly['rentPeriod'], 'monthly', 'the text wins over Aqar\'s yearly field')
         self.assertIsNone(parse.parse_map_listing({**record, 'rent_period': None, 'content': ''})['rentPeriod'])

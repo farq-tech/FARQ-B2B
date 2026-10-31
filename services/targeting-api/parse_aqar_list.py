@@ -43,8 +43,9 @@ def text_age(text):
     return 0 if _NEW.search(text) else None
 
 
-# fields the collector asks the map query for beyond the map's own (tools/aqar-collector/relay.js EXTRA_FIELDS)
-AQAR_EXTRA_FIELDS = ('rooms', 'stairs', 'furnished', 'maid', 'driver', 'lift', 'ketchen', 'ac', 'duplex', 'pool',
+# fields the collector asks the map query for beyond the map's own (tools/aqar-collector/relay.js EXTRA_FIELDS);
+# width and length are the plot's, in metres
+AQAR_EXTRA_FIELDS = ('rooms', 'width', 'length', 'stairs', 'furnished', 'maid', 'driver', 'lift', 'ketchen', 'ac', 'duplex', 'pool',
                      'basement', 'backyard', 'car_entrance', 'extra_unit', 'tent', 'playground', 'two_entrances',
                      'apartment_in_villa', 'private_roof', 'stores', 'family', 'men_place', 'create_time', 'refresh',
                      'last_update', 'rega_licensed', 'ad_license_number', 'deed_area', 'rega_rooms', 'rega_category',
