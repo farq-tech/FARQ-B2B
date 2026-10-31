@@ -79,7 +79,7 @@ class Taxonomy:
         self.poi_taxonomy = poi_taxonomy_path
         # optional: one extra number per business found from free sources (duplicate rows, the business's own website)
         self.overlay = contacts_overlay if contacts_overlay and os.path.isfile(contacts_overlay) else None
-        # HudHud surveyors deleted these POIs (latest approved log = delete). They stay visible, ranked last, flagged, and never selected for a send.
+        # SPD surveyors deleted these POIs (latest approved log = delete). They stay visible, ranked last, flagged, and never selected for a send.
         hd = os.environ.get('HUDHUD_STATUS', os.path.join(os.path.dirname(poi_taxonomy_path), 'enrich', 'hudhud_logs_status.parquet'))
         self.hudhud = hd if os.path.isfile(hd) else None
         tax = json.load(open(os.path.join(tax_dir, 'farq_taxonomy.json'), encoding='utf-8'))
@@ -133,7 +133,7 @@ class Taxonomy:
                     for v in plural_variants(t):
                         self.sub_terms.setdefault(v, set()).add(sid)
         # market vocabulary: hand-written Saudi terms (saudi_market_terms.csv) and the mined lexicon (search_lexicon.csv: activity labels,
-        # HudHud keywords, Google/Urbi categories, words frequent in the names of one subcategory). Mined name-only words must be
+        # SPD keywords, Google/Urbi categories, words frequent in the names of one subcategory). Mined name-only words must be
         # specific (share >= 0.6, support >= 5) and never a family-name style word («الحربي»).
         # specialty layer (specialties.csv): what a buyer may name exactly («شريط بيوتيل») under a subcategory («مواد عزل»)
         self.specs, self.spec_rx = {}, []
@@ -701,7 +701,7 @@ class Taxonomy:
                     reason = f'مورد عام في «{sub_ar}»؛ ما تأكدنا أنه يوفّر «{self.specs[asked_specs[0]]["specialty_ar"]}» بالذات'
             if hh_deleted:
                 extra = {**extra, 'hudhud_deleted': True, 'sendable': False,
-                         'warning': 'حذفها مسّاحو هدهد بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
+                         'warning': 'حذفها مسّاحو SPD بعد زيارة ميدانية (قد تكون مغلقة أو مكررة)؛ لا تُضاف لقائمة الإرسال'}
             out.append((weight + (0.3 if wa else 0) + float(complete or 0) / 1000 - (100 if hh_deleted else 0), {
                 'poi_key': key, 'name_ar': display_name(name), 'category_ar': cat_ar, 'district_ar': district if district_ok else '',
                 'latitude': lat if loc_precision == 'point' else None, 'longitude': lon if loc_precision == 'point' else None,

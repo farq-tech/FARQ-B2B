@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
+import Link from 'next/link'
+import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -10,7 +11,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
@@ -19,8 +20,8 @@ import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
 import { LensMapCanvas, type ListingDot } from '../lens/lens-map-canvas'
 import { Gallery, ListingCard } from '../lens/listing-card'
+import { ListingCompare } from '../lens/listing-compare'
 
-const CITIES = [['Riyadh', 'الرياض'], ['Jeddah', 'جدة'], ['Dammam', 'الدمام'], ['Al Khobar', 'الخبر'], ['Makkah Al Mukarramah', 'مكة المكرمة']] as const
 const LIMIT = 1500
 const PAGE = 24
 const NO_STEPS = new Map<string, number>()
@@ -39,6 +40,8 @@ function shortPrice(price: number | null): string | undefined {
  * assistant. Modelled on the search-results-with-map pattern (Screenrove: airbnb-product-results).
  */
 export function HomesPage() {
+  const cities = useCities()
+  const cityOptions = useMemo(() => cities.map((item) => [item.en, item.ar || item.en] as const), [cities])
   const [city, setCity] = useState<string>('Riyadh')
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_FILTERS)
   const [sheet, setSheet] = useState(false)
@@ -46,13 +49,14 @@ export function HomesPage() {
   const deal = dealOf(filters)
   const typesKey = types.join(','), districtsKey = filters.districts.join(',')
   const change = useCallback((next: Partial<HomeFilters>) => setFilters((current) => ({ ...current, ...next })), [])
-  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Listing[] }>({ status: 'loading', available: true, total: 0, listings: [] })
+  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }>({ status: 'loading', available: true, total: null, listings: [] })
   const [inView, setInView] = useState(true)
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
+  const [sideBySide, setSideBySide] = useState(false)
   const [advise, setAdvise] = useState(false)
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
@@ -77,8 +81,8 @@ export function HomesPage() {
       city, kind, types, deal, limit: LIMIT, ...(filters.maxPrice ? { max_price: filters.maxPrice } : {}),
       ...(filters.districts.length ? { district_ids: filters.districts } : {}),
     })
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? 0, listings: payload.listings ?? [] }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: 0, listings: [] }) })
+      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: payload.listings ?? [] }) })
+      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
   }, [city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
 
@@ -105,7 +109,7 @@ export function HomesPage() {
   const districtName = useCallback((id: string) => districtList.find((item) => item.id === id)?.name ?? 'حي', [districtList])
   const applied = activeFilters(filters, districtName)
   const dealLabel = kind === 'sale' ? 'شراء' : `إيجار ${RENT_DEALS.find((item) => item.id === filters.rentDeal)?.label ?? ''}`
-  const cityAr = CITIES.find(([id]) => id === city)?.[1] ?? city
+  const cityAr = cities.find((item) => item.en === city)?.ar || city
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
@@ -126,6 +130,11 @@ export function HomesPage() {
             <SlidersHorizontal className="size-5" aria-hidden />
             {applied.length > 0 && <span className="absolute -top-1 -end-1 grid size-5 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{numberFormat.format(applied.length)}</span>}
           </button>
+          {/* the way from browsing listings to pricing one's own property */}
+          <Link href="/price" aria-label="سعّر عقارك"
+            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full border bg-card px-3.5 text-sm font-semibold outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60">
+            <Calculator className="size-5 text-primary" aria-hidden /><span className="hidden sm:inline">سعّر عقارك</span>
+          </Link>
         </div>
         <nav aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
           {kindTypes.map((item) => {
@@ -152,7 +161,7 @@ export function HomesPage() {
         )}
       </header>
       <HomesFilters open={sheet} onClose={() => setSheet(false)} filters={filters} onChange={change} districts={districtList}
-        cities={CITIES} city={city} onCity={setCity}
+        cities={cityOptions} city={city} onCity={setCity}
         count={visible.length} loading={result.status === 'loading'} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -162,7 +171,7 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? `${result.total != null && result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
             <label className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
@@ -215,6 +224,7 @@ export function HomesPage() {
                     </span>
                     <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
                     {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
+                    {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
                   </button>
                 </li>
               )
@@ -225,7 +235,7 @@ export function HomesPage() {
               عرض المزيد ({numberFormat.format(visible.length - shown)})
             </button>
           )}
-          {result.status === 'ready' && result.total > result.listings.length && (
+          {result.status === 'ready' && result.total != null && result.total > result.listings.length && (
             <p className="mt-4 text-center text-xs text-muted-foreground">
               <Explained title="أنسب العروض" lines={EXPLAIN.bestListings} className="text-xs">في المدينة {numberFormat.format(result.total)} عرضاً، والمعروض أنسب {numberFormat.format(result.listings.length)} منها</Explained>
             </p>
@@ -238,6 +248,7 @@ export function HomesPage() {
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
               onListing={(id) => { const listing = byId.get(id); if (listing) setActive(listing) }} onBounds={setBounds} />
             {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
+              compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
               className="bottom-20 max-h-[calc(100%-6rem)] lg:bottom-3 lg:max-h-[85%]" />}
           </div>
         </section>
@@ -245,8 +256,14 @@ export function HomesPage() {
 
       {/* the comparison tray and the one switch between list and map on a phone */}
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-20 flex flex-col items-center gap-2 lg:bottom-6">
+        {compare.length === 1 && (
+          <p role="status" className="pointer-events-auto inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-semibold shadow-lg">
+            <Scale className="size-4 text-primary" aria-hidden /> عقار واحد في المقارنة · أضف الثاني
+            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
+          </p>
+        )}
         {compare.length === 2 && (
-          <button onClick={() => setAdvise(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg">
+          <button onClick={() => setSideBySide(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg">
             <Scale className="size-4" aria-hidden /> قارن العرضين
           </button>
         )}
@@ -254,6 +271,10 @@ export function HomesPage() {
           {mobileMap ? <><List className="size-4" aria-hidden /> القائمة</> : <><MapIcon className="size-4" aria-hidden /> الخريطة</>}
         </button>
       </div>
+      {sideBySide && compare.length === 2 && (
+        <ListingCompare listings={[compare[0], compare[1]]} onClose={() => setSideBySide(false)} onRemove={toggleCompare}
+          onAdvisor={() => { setSideBySide(false); setAdvise(true) }} />
+      )}
       {advise && compare.length === 2 && (
         <div className="fixed inset-0 z-30 grid place-items-center bg-background/70 p-4 backdrop-blur" role="dialog" aria-label="مقارنة العرضين">
           <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-4">

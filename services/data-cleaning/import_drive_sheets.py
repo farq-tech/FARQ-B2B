@@ -1,7 +1,7 @@
-"""Two HudHud sheets from My Drive, read in place with openpyxl (read-only):
+"""Two SPD sheets from My Drive, read in place with openpyxl (read-only):
 - trx_poi_202412311250.xlsx: 132,730 TRX rows (Dec 2024) with phone, website, Instagram, X, opening hours, rating, reviews, status.
 - SURVEYOR_DATA_COLLECTION.xlsx (HIGH_PRIORITY): 130,161 rows with phone and address.
-Keyed by the HudHud id ('hh:<id>'); values are validated (Saudi phone pattern, URL). Contacts fill only missing values in the golden set.
+Keyed by the SPD id ('hh:<id>'); values are validated (Saudi phone pattern, URL). Contacts fill only missing values in the golden set.
 Output: /Users/m4pro/farq-taxonomy-data/enrich/drive_sheets.parquet"""
 import re, openpyxl, duckdb
 G = '/Users/m4pro/Library/CloudStorage/GoogleDrive-abdulrhman@farq.sa/'

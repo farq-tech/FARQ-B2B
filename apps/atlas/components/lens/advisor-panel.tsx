@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Loader2, Scale, Send, X } from 'lucide-react'
-import { numberFormat } from '@/lib/insights-api'
+import { ltr, numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from './city-data'
+import { residentsPer } from '@/lib/audience'
 
 export type AdvisorSubject = { kind: 'listings'; listings: Listing[] } | { kind: 'districts'; rows: DistrictRow[] }
 type Turn = { role: 'user' | 'assistant'; content: string }
@@ -25,7 +26,7 @@ function districtFacts(row: DistrictRow | undefined, name: string): string {
     `حي ${row.name}`,
     `السكان ${figure(row.population)}`,
     `المنشآت ${figure(row.businesses)}`,
-    `ساكن لكل منشأة ${row.population != null && row.businesses ? figure(row.population / row.businesses) : 'غير متاح'}`,
+    `ساكن لكل منشأة ${figure(residentsPer(row.population, row.businesses))}`,
     `متوسط الدخل الشهري ${figure(row.income, ' ريال')}`,
     `حصة الفلل من المساكن ${figure(row.villaShare, '%')}`,
     `مبانٍ تحت الإنشاء ${figure(row.underConstruction)}`,
@@ -45,7 +46,7 @@ function listingFacts(listing: Listing, letter: string): string {
     listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : 'المساحة غير مذكورة',
     perSqmLine(listing) ?? 'سعر المتر غير متاح',
     ...(listing.check ? ['أرقام الإعلان تحتاج تحققاً'] : []),
-    `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : `${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`}`,
+    `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : ltr(`${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`)}`,
     `غرف النوم ${figure(listing.beds)}`,
     `دورات المياه ${figure(listing.wc)}`,
     `عرض الشارع ${figure(listing.street_width, ' م')}`,

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ExternalLink, Scale } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
-import { ageLabel, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { ageLabel, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -44,10 +44,14 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
  * price per m² stands against the same deal in its district. Two actions only: open the ad itself, or put the
  * listing in the comparison.
  */
-export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = null, density = null, className }: {
+export function ListingCard({ listing, comparing, onCompare, compareCount = 0, onCompareNow, onClose, myPoint = null, density = null, className }: {
   listing: Listing
   comparing: boolean
   onCompare: () => void
+  /** How many listings are in the comparison, this one included or not. */
+  compareCount?: number
+  /** Opens the comparison of the two listings in it. */
+  onCompareNow?: () => void
   onClose: () => void
   /** The viewer's own point (work, school…), measured from the home. */
   myPoint?: MyPoint | null
@@ -85,6 +89,12 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
           {typeLabel(listing.type)} {listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''}{listing.district_ar ? ` · ${listing.district_ar}` : ''}
         </p>
         <p className="text-xl font-bold">{priceLine(listing)}</p>
+        {listing.signal && (
+          <p className="text-sm">
+            <Explained title={listing.signal.label} lines={signalLines(listing.signal, listing.type)}
+              className="rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">{listing.signal.label}</Explained>
+          </p>
+        )}
         {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
         <p className="text-sm">
           <Explained title="عمر العقار" lines={EXPLAIN.listingAge(listing.age_source)} className="text-sm">
@@ -116,10 +126,19 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
             </a>
           ) : <span />}
           <button onClick={onCompare} aria-pressed={comparing}
-            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold', comparing ? 'border-primary text-primary' : 'hover:border-primary')}>
-            <Scale className="size-4" aria-hidden /> {comparing ? 'في المقارنة' : 'أضف للمقارنة'}
+            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
+            {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
           </button>
         </div>
+        {/* what adding did, said where it was tapped: one more to pick, or the comparison ready to open */}
+        {comparing && compareCount < 2 && (
+          <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">أُضيف للمقارنة. افتح عقاراً ثانياً من الخريطة أو القائمة وأضفه.</p>
+        )}
+        {compareCount === 2 && onCompareNow && (
+          <button onClick={onCompareNow} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
+            <Scale className="size-4" aria-hidden /> قارن العقارين جنباً إلى جنب
+          </button>
+        )}
       </div>
     </MapWindow>
   )

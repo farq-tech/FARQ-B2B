@@ -5,6 +5,7 @@ import type { GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { LoadError } from '@/components/shared/load-error'
+import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
@@ -64,7 +65,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, focus, onBounds }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, focus, zoomTo, onBounds }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -80,6 +81,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   listings?: ListingDot[] | null
   onListing?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
+  /** A district picked from a list: the map flies to it. `cover` is the share of the screen a phone's sheet covers below
+   * the map's own peek, so the district lands in the part still visible; `nonce` repeats a pick of the same district. */
+  zoomTo?: { id: string; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
 }) {
@@ -259,6 +263,22 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     const bounds = boundsOf(features)
     if (ready && instance && bounds) instance.fitBounds(bounds, { padding: 24, duration: 0 })
   }, [ready, features])
+
+  useEffect(() => {
+    const instance = map.current
+    const feature = zoomTo && features.find((item) => String(item.properties.id) === zoomTo.id)
+    const bounds = feature ? boundsOf([feature]) : null
+    if (!ready || !instance || !bounds || !zoomTo) return
+    const height = instance.getContainer().clientHeight
+    const phone = zoomTo.cover > 0
+    // the sheet covers `cover` of the whole screen, of which the map already ends above the peek
+    const bottom = phone ? Math.max(24, zoomTo.cover * (height + PEEK_PX) - PEEK_PX + 24) : 48
+    const top = phone ? 120 : 48
+    if (top + bottom >= height - 40) return
+    instance.fitBounds(bounds, { padding: { top, bottom, left: 32, right: 32 }, maxZoom: 15, duration: 900 })
+    // runs after the city framing above, so a pick made while the map loads still lands once it is ready;
+    // features stay out of the dependencies: a repaint of the same city never moves the camera again
+  }, [ready, zoomTo])
 
   return (
     <div className="relative h-full w-full">

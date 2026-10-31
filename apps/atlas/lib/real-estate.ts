@@ -1,8 +1,20 @@
-import { numberFormat } from './insights-api'
+import { numberFormat, percent } from './insights-api'
 import { PALETTE } from '@/lib/palette'
 
 /** A deal as the ad states it: a sale, or a rent with its own period. Nothing is converted between periods. */
 export type Deal = 'sale' | 'rent_year' | 'rent_month' | 'rent_unstated'
+
+export type MarketSignal = {
+  kind: 'cheaper_area' | 'rent_under_value' | 'rent_over_value'
+  label: string
+  /** The district's median rent per m² against its nearest districts'. */
+  rent_pct: number
+  /** Its registered deals' median price per m² against its nearest districts'. */
+  deal_pct: number
+  neighbours: string[]
+  /** The nearest districts with registered deals, which the deal figure is measured against. */
+  deal_neighbours?: string[]
+}
 
 /** One current listing as the targeting service serves it (build_real_estate_reference.py --listings-out). */
 export type Listing = {
@@ -38,6 +50,9 @@ export type Listing = {
   age?: number
   /** Where the age came from: Aqar's own field, or read from the ad's description. */
   age_source?: 'aqar' | 'text'
+  /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
+   * with the prices paid there. Only yearly rent carries one. */
+  signal?: MarketSignal | null
 }
 
 export type ListingKind = 'rent' | 'sale'
@@ -108,10 +123,30 @@ export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'distr
   if (pct == null) return null
   if (Math.abs(pct) < 5) return { text: `قريب من وسيط ${listing.district_ar}`, tone: 'even' }
   return pct < 0
-    ? { text: `أقل من وسيط ${listing.district_ar} بـ ${numberFormat.format(-pct)}%`, tone: 'good' }
-    : { text: `أعلى من وسيط ${listing.district_ar} بـ ${numberFormat.format(pct)}%`, tone: 'high' }
+    ? { text: `أقل من وسيط ${listing.district_ar} بـ ${percent(-pct)}`, tone: 'good' }
+    : { text: `أعلى من وسيط ${listing.district_ar} بـ ${percent(pct)}`, tone: 'high' }
 }
 
 /** Map dot colour by price against the district: green under, grey near, amber over, blue without a median, dark
  * grey when the ad's figures need checking. */
 export const toneColor = { good: PALETTE.leaf, even: PALETTE.stone, high: PALETTE.ochre, none: PALETTE.slate, check: PALETTE.bark } as const
+
+// in words, not a sign: «+22%» flips to «22%+» inside an Arabic line
+const versusWords = (pct: number) => pct === 0 ? 'مثل' : `${pct < 0 ? 'أقل' : 'أعلى'} بـ ${percent(Math.abs(pct))} من`
+/** What the signal rests on, for its explanation: the two figures and the districts they are measured against. */
+export function signalLines(signal: MarketSignal, type: string): string[] {
+  // a service from before deal_neighbours compared the deals with the rent neighbours' list
+  const dealNeighbours = signal.deal_neighbours ?? signal.neighbours
+  return [
+    `إيجار ${typeLabel(type)} المعروض في الحي ${versusWords(signal.rent_pct)} أقرب ${numberFormat.format(signal.neighbours.length)} أحياء: ${signal.neighbours.join('، ')}.`,
+    dealNeighbours.join() === signal.neighbours.join()
+      ? `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} نفس الجيران.`
+      : `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(dealNeighbours.length)} أحياء لها صفقات: ${dealNeighbours.join('، ')}.`,
+    {
+      cheaper_area: 'الإيجار والبيع كلاهما أقل: الحي نفسه أرخص، لا الإعلانات وحدها.',
+      rent_under_value: 'الإيجار أقل مما يباع به الحي: مكسب للمستأجر، وعائد أقل لمن يشتري ليؤجر. قد يعني أيضاً مباني أقدم.',
+      rent_over_value: 'الإيجار أعلى مما يباع به الحي: عائد أعلى لمن يشتري ليؤجر.',
+    }[signal.kind],
+    'وصف للحي كله لا لهذا العرض وحده، ولا يظهر إلا إذا ثبت عند إعادة الحساب على عينات مختلفة من الإعلانات.',
+  ]
+}

@@ -5,12 +5,14 @@ import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { planRoute, type Point, type RoutePart, type Stop } from '@/lib/route-plan'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import type { Overlay } from './overlay'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
+import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
+import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Activity = { main_id: string; main_ar: string }
@@ -42,9 +44,9 @@ const duration = (seconds: number) => {
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
   const [activities, setActivities] = useState<Activity[]>([])
-  const [mainId, setMainId] = useState('')
-  const [count, setCount] = useState(5)
-  const [weight, setWeight] = useState<'population' | 'businesses'>('businesses')
+  const [mainId, setMainId] = useStudiedMainId(activities)
+  const [count, setCount] = useStickyState('territories.count', 5)
+  const [weight, setWeight] = useStickyState<'population' | 'businesses'>('territories.weight', 'businesses')
   const [groups, setGroups] = useState<Territory[] | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [rep, setRep] = useState<number | null>(null)
@@ -138,10 +140,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       <h2 className="text-xl font-bold">تقسيم المندوبين</h2>
 
       <Step n={1} title="نشاط عملائك" done={Boolean(mainId)}>
-        <select value={mainId} onChange={(e) => setMainId(e.target.value)} className="h-11 w-full rounded-lg border bg-background px-3 text-base">
-          <option value="">كل المنشآت</option>
-          {activities.map((item) => <option key={item.main_id} value={item.main_id}>{item.main_ar}</option>)}
-        </select>
+        <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
       </Step>
 
       <Step n={2} title="المندوبون" done={Boolean(groups)}>
@@ -165,9 +164,9 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 <button onClick={() => setRep(index)} className={cn('flex w-full items-center gap-2 rounded-lg border p-2 text-start text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
                   <span className="size-3.5 shrink-0 rounded-sm" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                   <span className="font-bold">المندوب {numberFormat.format(index + 1)}</span>
-                  <span className="truncate text-sm text-muted-foreground">{numberFormat.format(group.districts.length)} أحياء</span>
+                  <span className="truncate text-sm text-muted-foreground">{counted(group.districts.length, 'district')}</span>
                   <Explained title={`حصة المندوب ${numberFormat.format(index + 1)}`} lines={EXPLAIN.territory(weight)} className="ms-auto shrink-0 font-semibold">
-                    {numberFormat.format(Math.round(group.weight))}
+                    {weight === 'population' ? `${numberFormat.format(Math.round(group.weight))} ساكن` : counted(Math.round(group.weight), 'business')}
                   </Explained>
                 </button>
               </li>

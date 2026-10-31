@@ -1,6 +1,6 @@
-"""Learn from HudHud surveyors' decisions (2024-10 → 2025-08): which directory rows they deleted after visiting.
+"""Learn from SPD surveyors' decisions (2024-10 → 2025-08): which directory rows they deleted after visiting.
 Label: latest approved log is a delete (1) vs kept (0), for the 230,581 surveyed directory rows.
-Features avoid leakage: nothing that changes BECAUSE of the delete (lifecycle «archived», hh_transactions/crs/hh_* tags, HudHud editor).
+Features avoid leakage: nothing that changes BECAUSE of the delete (lifecycle «archived», hh_transactions/crs/hh_* tags, SPD editor).
 Output: /Users/m4pro/farq-taxonomy-data/enrich/validity_risk.parquet  (poi_key, risk 0..1, surveyed, surveyor_verdict)
         and a short report of what predicts deletion. Read-only on the directory."""
 import re, json
@@ -13,7 +13,7 @@ P = '/Users/m4pro/farq-targeting/data/targets.parquet'
 D = '/Users/m4pro/farq-taxonomy-data/'
 db = duckdb.connect(); db.execute("SET threads=8")
 LEAKY = {'hh_transactions', 'crs', 'hh_complete', 'hh_master', 'hh_pois', 'master_cr'}
-# v2: tags written by the HudHud/TRX pipeline itself (after review) are leakage too; keep only external sources
+# v2: tags written by the SPD/TRX pipeline itself (after review) are leakage too; keep only external sources
 def pipeline_tag(t): return t in LEAKY or t.startswith(('trx', 'hh_', 'golden', 'output_', 'master'))
 tags = [r[0] for r in db.execute(f"select s from (select unnest(sources) s from read_parquet('{P}')) group by 1 having count(*)>=2000").fetchall() if not pipeline_tag(r[0])]
 TR = str.maketrans('أإآةىؤئ', 'اااهيوي')

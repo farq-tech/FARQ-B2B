@@ -8,6 +8,7 @@ import os
 
 import canonical_data
 import district_reference
+import market_signals
 
 EARTH_M = 6_371_000.0
 
@@ -278,7 +279,7 @@ def _listing_cards(path):
     return table
 
 
-def real_estate_listings(city, filters, path=None):
+def real_estate_listings(city, filters, path=None, deals_path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
     optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), a price range as
@@ -286,7 +287,8 @@ def real_estate_listings(city, filters, path=None):
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
     and figures that do not need checking. Sorted with the listings
     furthest under their district's median price per m² first, then those without a comparison, then those marked
-    for checking; capped at `limit`, while `total` counts every match. None when there is no file yet."""
+    for checking; capped at `limit`, while `total` counts every match. Each served card carries `signal`, its district's
+    market signal for its type (market_signals.tag), or None. None when there is no file yet."""
     try:
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
@@ -309,7 +311,22 @@ def real_estate_listings(city, filters, path=None):
     floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
     found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
                                  card.get('vs_district_pct') or 0))
-    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': found[:filters.get('limit') or LISTINGS_MAX]}
+    shown = found[:filters.get('limit') or LISTINGS_MAX]
+    signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
+    shown = [{**card, 'signal': market_signals.tag(card, signals)} for card in shown]
+    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown}
+
+
+def _market_signals(city, table, cards_path, deals_path=None):
+    """market_signals for the city's listings and registered deals; empty without the deals file, so no tag."""
+    deals_path = deals_path or REGISTERED_DEALS_PATH
+    try:
+        stamp = (os.path.getmtime(cards_path), os.path.getmtime(deals_path))
+        with open(deals_path, encoding='utf-8') as handle:
+            deals = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return market_signals.for_city(city, table, deals, stamp)
 
 
 AUDIENCE_FIELDS = ('male_pct', 'saudi_pct')

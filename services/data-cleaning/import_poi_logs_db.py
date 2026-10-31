@@ -1,4 +1,4 @@
-"""HudHud poi_logs from the «Data Collection» shared drive (logs/hudhud.db, SQLite, 371,426 logs, 2024-10-09 → 2025-09-04),
+"""SPD poi_logs from the «Data Collection» shared drive (logs/hudhud.db, SQLite, 371,426 logs, 2024-10-09 → 2025-09-04),
 read with sqlite3 in immutable (read-only) mode. The POI id is `cr_id` (= transaction_id). For every POI keep the LATEST approved log:
 operation, date, editor, duplicate_of_id. A latest approved delete marks the POI deleted in the golden set; it is never removed.
 Usage: python3 import_poi_logs_db.py /path/to/hudhud_logs.db

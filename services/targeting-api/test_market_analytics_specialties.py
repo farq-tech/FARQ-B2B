@@ -172,6 +172,13 @@ class MarketAnalyticsSpecialtyTests(unittest.TestCase):
         self.assertEqual(summary["total"], 1)
         self.assertEqual(summary["n_whatsapp"], 0)
 
+    def test_typed_activity_reports_what_it_was_read_as(self):
+        typed = self.analytics.district_counts({"city": "Riyadh", "q": "استهدف شركات مقاولات", "objective": "marketing"})
+        self.assertEqual(typed["understood"], {"labels": ["أدوات سباكة"], "more": 0})
+        # a main activity picked from the list names itself
+        picked = self.analytics.district_counts({"city": "Riyadh", "main_id": "plumbing"})
+        self.assertIsNone(picked["understood"])
+
     def test_missing_specialty_column_fails_closed(self):
         missing_column = self.root / "targets-without-specialties.parquet"
         self._write_targets(missing_column, include_specialty=False)

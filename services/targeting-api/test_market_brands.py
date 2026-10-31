@@ -101,6 +101,64 @@ class MarketBrandsTests(unittest.TestCase):
         self.assertEqual([group["brand"] for group in market_analytics.group_chains(rows).values()], ["صيدلية سيف"])
         self.assertEqual(market_analytics.fold_key("الْمَلْقا - أ"), market_analytics.fold_key("الملقا ا"))
 
+    def test_a_name_with_and_without_its_activity_word_is_one_brand(self):
+        rows = [("n1", "العليا", "صيدلية النهدي", "صيدليه النهدي", "CR-N"), ("n2", "الملقا", "صيدلية النهدي", "صيدليه النهدي", "CR-N"),
+                ("n3", "النرجس", "النهدي", "النهدي", None),
+                ("n4", "العليا", "Nahdi", "nahdi", "CR-N"), ("n5", "الملقا", "Nahdi Pharmacy", "nahdi pharmacy", None),
+                ("n6", "النرجس", "Al -Nahdi Medical Company Pharmacy", "al nahdi medical company pharmacy", None),
+                ("w1", "العليا", "صيدلية الدواء, s", "صيدليه الدواء s", None), ("w2", "الملقا", "الدواء", "الدواء", None),
+                ("t1", "العليا", "The", "the", None), ("t2", "الملقا", "The", "the", None)]
+        groups = market_analytics.group_chains(rows)
+        nahdi = groups["النهدي"]
+        self.assertEqual((nahdi["brand"], len(nahdi["pois"])), ("صيدلية النهدي", 6), 'every spelling, in both scripts, is one chain')
+        self.assertEqual(len(groups["الدواء"]["pois"]), 2, 'a stray trailing letter is not part of the name')
+        self.assertEqual(sorted(groups), ["الدواء", "النهدي"], '«the» names no brand, and the Latin cores joined the Arabic one')
+        rows = [("c1", "العليا", "عنوان القهوة", "عنوان القهوه", None), ("c2", "الملقا", "شركة عنوان القهوة للتجارة", "شركه عنوان القهوه للتجاره", None),
+                ("k1", "العليا", "مغاسل", "مغاسل", None), ("k2", "الملقا", "بخاري", "بخاري", None), ("k3", "النرجس", "البخاري", "البخاري", None),
+                ("k4", "العليا", "اسواق مركزية", "اسواق مركزيه", None), ("k5", "الملقا", "غسيل السيارات", "غسيل السيارات", None)]
+        self.assertEqual({core: len(group["pois"]) for core, group in market_analytics.group_chains(rows).items()}, {"عنوان القهوه": 2},
+                         'the company form is the same brand, and a kind of shop is no brand')
+
+    def test_a_brand_in_two_scripts_without_a_shared_registration_joins_by_sound(self):
+        rows = [("j1", "العليا", "مغسلة الجبر", "مغسله الجبر", None), ("j2", "الملقا", "Aljabr Laundry", "aljabr laundry", None),
+                ("d1", "العليا", "دانكن", "دانكن", None), ("d2", "الملقا", "دانكن دونتس", "دانكن دونتس", None),
+                ("d3", "النرجس", "Dunkin' Donuts", "dunkin donuts", None)]
+        groups = market_analytics.group_chains(rows)
+        self.assertEqual({core: len(group["pois"]) for core, group in groups.items()}, {"الجبر": 2, "دانكن": 3})
+        self.assertEqual(groups["الجبر"]["brand"], "مغسلة الجبر", 'the Arabic spelling names the brand')
+
+    def test_a_company_name_ending_in_a_brand_is_that_brand(self):
+        rows = [(f"d{i}", "العليا", "دانكن", "دانكن", None) for i in range(4)]
+        rows += [(f"s{i}", "الملقا", "شركة شهية المحدودة للاطعمة دانكن", "شركه شهيه المحدوده للاطعمه دانكن", None) for i in range(3)]
+        rows += [("m1", "النرجس", "مؤسسة محمد علي", "مؤسسه محمد علي", None), ("m2", "العليا", "علي", "علي", None)]
+        groups = market_analytics.group_chains(rows)
+        self.assertEqual(len(groups["دانكن"]["pois"]), 7, 'the operating company is the brand it runs')
+        self.assertIn("محمد علي", groups, 'a name ending in a small shop\'s name keeps its own')
+        rows = [("b1", "العليا", "بوفية", "بوفيه", None), ("b2", "الملقا", "مطعم باكستاني", "مطعم باكستاني", None),
+                ("b3", "النرجس", "مطعم اكلات شعبية حجازية ويمنية", "مطعم اكلات شعبيه حجازيه ويمنيه", None),
+                ("b4", "العليا", "Dunkin Dontes", "dunkin dontes", None), ("b5", "الملقا", "دانكن", "دانكن", None)]
+        self.assertEqual({core: len(group["pois"]) for core, group in market_analytics.group_chains(rows).items()}, {"دانكن": 2},
+                         'a cuisine or what is served names no brand')
+
+    def test_a_category_after_a_comma_is_not_the_brand(self):
+        db = duckdb.connect()
+        db.execute("create table p(poi_key varchar, district_ar varchar, name_ar varchar, name_en varchar)")
+        db.executemany("insert into p values (?, 'العليا', ?, null)", [("1", "ماك, محل مستحضرات"), ("2", "ماك"), ("3", "نكس، متجر")])
+        labels = db.execute(f"select {market_analytics.brand_sql({'name_ar'})} from p order by poi_key").fetchall()
+        db.close()
+        self.assertEqual([row[2] for row in labels], ["ماك", "ماك", "نكس"])
+
+    def test_a_sound_shared_by_two_names_joins_neither(self):
+        rows = [("s1", "العليا", "سمر", "سمر", None), ("s2", "الملقا", "سامر", "سامر", None), ("s3", "النرجس", "Samar", "samar", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["samar", "سامر", "سمر"], 'two Arabic names sound like the Latin one')
+        # a Latin name already paired by registration is not taken again by sound
+        rows = [("r1", "العليا", "ليمون", "ليمون", "CR-1"), ("r2", "الملقا", "Lemon", "lemon", "CR-1"),
+                ("r3", "النرجس", "لامون", "لامون", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["لامون", "ليمون"])
+        # nor does a pair by registration leave a look-alike unique: «limon» sounds like the paired «ليمون» too
+        rows += [("r4", "العليا", "Limon", "limon", None)]
+        self.assertEqual(sorted(market_analytics.group_chains(rows)), ["limon", "لامون", "ليمون"])
+
     def test_history_gives_growth_once_two_snapshots_exist(self):
         path = str(pathlib.Path(self.temp.name) / "chain_history.json")
         self.assertTrue(market_analytics.record_chain_history(self.analytics, path, today="2026-09-01"))
@@ -109,6 +167,13 @@ class MarketBrandsTests(unittest.TestCase):
         history["snapshots"].append({"date": "2026-10-28", "cities": {"Riyadh": {"صيدليه النهدي": 9}}})
         growth = market_analytics.chain_growth(history, "Riyadh", ["صيدليه النهدي"])
         self.assertEqual(growth, {"since": "2026-09-01", "before": 4, "now": 9})
+
+    def test_growth_waits_for_a_history_longer_than_a_rebuild(self):
+        two_days = {"snapshots": [{"date": "2026-10-28", "cities": {"Riyadh": {"صيدليه النهدي": 400}}},
+                                  {"date": "2026-10-30", "cities": {"Riyadh": {"صيدليه النهدي": 430}}}]}
+        self.assertIsNone(market_analytics.chain_growth(two_days, "Riyadh", ["صيدليه النهدي"]), 'two days of rebuilds are not growth')
+        undated = {"snapshots": [{"cities": {}}, {"date": "2026-12-01", "cities": {}}]}
+        self.assertIsNone(market_analytics.chain_growth(undated, "Riyadh", ["صيدليه النهدي"]))
 
 
 if __name__ == "__main__":

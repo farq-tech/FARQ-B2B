@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { GripHorizontal, Minus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -9,11 +10,28 @@ const MIN_W = 160, MIN_H = 120, FOLD_W = 240, FOLD_H = 200
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value))
 
+/** Below the desktop layout (64rem), where the map's own floating controls leave no room for a window over it. */
+export function usePhone() {
+  const [phone, setPhone] = useState(false)
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 63.99rem)')
+    const update = () => setPhone(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return phone
+}
+
 /**
  * A card over the map that behaves like a Mac window: dragged by its top bar anywhere within the map, resized from its
  * bottom-left corner (its end in Arabic), red closes it, yellow (or pulling it smaller than a readable card) folds it
  * into a tab at the foot of the map, and the tab opens it again at the size it had. Position and size stay as they
  * were put while the window stays mounted, so the next item opens where the last one was.
+ *
+ * On a phone the search and filters float over the top of the map and would cover the window's bar, so there it opens
+ * above the whole page instead: a sheet from the bottom with its own bar (title, «صغّر», «إغلاق»), a tap outside or
+ * Escape closes it, and folded it waits as a tab above the bottom navigation.
  */
 export function MapWindow({ label, onClose, tab, children, className }: {
   label: string
@@ -24,6 +42,7 @@ export function MapWindow({ label, onClose, tab, children, className }: {
   className?: string
 }) {
   const card = useRef<HTMLElement>(null)
+  const phone = usePhone()
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   const [folded, setFolded] = useState(false)
@@ -91,6 +110,44 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     if (size.w < FOLD_W || size.h < FOLD_H) { setSize({ w: g.w, h: g.h }); setOffset({ x: g.ox, y: g.oy }); setFolded(true); return }
     // resize notices were ignored while the corner was held: fit once it is let go, after the new size is drawn
     requestAnimationFrame(fit)
+  }
+
+  useEffect(() => {
+    if (!phone || folded) return
+    const key = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', key)
+    return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', key) }
+  }, [phone, folded, onClose])
+
+  if (phone) {
+    return createPortal(folded ? (
+      <div className="fixed start-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex max-w-[80%] items-center gap-2 rounded-full border bg-card py-1 ps-1 pe-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+          {tab}
+        </button>
+        <button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" aria-hidden /></button>
+      </div>
+    ) : (
+      <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 animate-in fade-in duration-200" onClick={onClose}>
+        <article role="dialog" aria-modal="true" aria-label={label} onClick={(event) => event.stopPropagation()}
+          className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-2xl bg-card shadow-xl animate-in slide-in-from-bottom-6 duration-200">
+          <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-2">
+            <span className="truncate ps-2 text-sm font-semibold">{label}</span>
+            <div className="flex shrink-0 items-center gap-1">
+              <button onClick={() => setFolded(true)} aria-label={`صغّر إلى تبويب: ${label}`} className="inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm text-muted-foreground hover:bg-muted">
+                <Minus className="size-4" aria-hidden /> صغّر
+              </button>
+              <button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-9 place-items-center rounded-full bg-muted text-foreground hover:bg-muted/70">
+                <X className="size-5" aria-hidden />
+              </button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">{children}</div>
+        </article>
+      </div>
+    ), document.body)
   }
 
   if (folded) {
