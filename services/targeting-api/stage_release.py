@@ -17,6 +17,27 @@ from pathlib import Path
 from data_release import REQUIRED_ASSETS, validate_release
 
 
+# the search vocabulary that sits beside farq_taxonomy.json: without it the service still starts, but reads a typed
+# activity by category names alone («كوفي» finds nothing, «مغسلة» misses laundries). Releases from 2026-10-25 to
+# 2026-10-31 shipped without these, so staging now copies them from the taxonomy's own folder and refuses without them.
+TAXONOMY_COMPANIONS = (
+    "product_families.csv",
+    "sub_family_relations.csv",
+    "specialties.csv",
+    "specialty_concepts.csv",
+    "saudi_market_terms.csv",
+    "search_lexicon.csv",
+)
+
+
+def _companions(taxonomy_json: Path) -> dict[str, Path]:
+    folder = taxonomy_json.parent
+    missing = [name for name in TAXONOMY_COMPANIONS if not (folder / name).is_file() or (folder / name).stat().st_size == 0]
+    if missing:
+        raise ValueError(f"taxonomy vocabulary missing beside farq_taxonomy.json: {', '.join(missing)}")
+    return {f"taxonomy/{name}": folder / name for name in TAXONOMY_COMPANIONS}
+
+
 def _sources(values: list[str]) -> dict[str, Path]:
     sources: dict[str, Path] = {}
     for value in values:
@@ -67,10 +88,12 @@ def stage_release(output_dir: Path, sources: dict[str, Path], provenance: dict) 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".atlas-release-", dir=output_dir.parent) as raw_temp:
         staged = Path(raw_temp) / output_dir.name
-        for name in REQUIRED_ASSETS:
+        copies = {name: sources[name] for name in REQUIRED_ASSETS}
+        copies.update(_companions(sources["taxonomy/farq_taxonomy.json"]))
+        for name, source in copies.items():
             destination = staged / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(sources[name], destination)
+            shutil.copy2(source, destination)
         report = validate_release(staged)
         report["provenance"] = provenance
         (staged / "release.manifest.json").write_text(
