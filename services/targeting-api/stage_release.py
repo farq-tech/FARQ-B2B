@@ -14,7 +14,21 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from data_release import REQUIRED_ASSETS, validate_release
+from data_release import REQUIRED_ASSETS, TAXONOMY_COMPANIONS, validate_release
+
+
+# releases from 2026-10-25 to 2026-10-31 shipped without the search vocabulary (TAXONOMY_COMPANIONS), and the service
+# then read a typed activity by category names alone («كوفي» found nothing, «مغسلة» missed laundries): staging copies
+# it from the taxonomy's own folder and refuses without it
+
+
+def _companions(taxonomy_json: Path) -> dict[str, Path]:
+    folder = taxonomy_json.parent
+    files = {name: folder / Path(name).name for name in TAXONOMY_COMPANIONS}
+    missing = [Path(name).name for name, path in files.items() if not path.is_file() or path.stat().st_size == 0]
+    if missing:
+        raise ValueError(f"taxonomy vocabulary missing beside farq_taxonomy.json: {', '.join(missing)}")
+    return files
 
 
 def _sources(values: list[str]) -> dict[str, Path]:
@@ -67,10 +81,12 @@ def stage_release(output_dir: Path, sources: dict[str, Path], provenance: dict) 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".atlas-release-", dir=output_dir.parent) as raw_temp:
         staged = Path(raw_temp) / output_dir.name
-        for name in REQUIRED_ASSETS:
+        copies = {name: sources[name] for name in REQUIRED_ASSETS}
+        copies.update(_companions(sources["taxonomy/farq_taxonomy.json"]))
+        for name, source in copies.items():
             destination = staged / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(sources[name], destination)
+            shutil.copy2(source, destination)
         report = validate_release(staged)
         report["provenance"] = provenance
         (staged / "release.manifest.json").write_text(
