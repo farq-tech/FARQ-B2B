@@ -14,28 +14,21 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from data_release import REQUIRED_ASSETS, validate_release
+from data_release import REQUIRED_ASSETS, TAXONOMY_COMPANIONS, validate_release
 
 
-# the search vocabulary that sits beside farq_taxonomy.json: without it the service still starts, but reads a typed
-# activity by category names alone («كوفي» finds nothing, «مغسلة» misses laundries). Releases from 2026-10-25 to
-# 2026-10-31 shipped without these, so staging now copies them from the taxonomy's own folder and refuses without them.
-TAXONOMY_COMPANIONS = (
-    "product_families.csv",
-    "sub_family_relations.csv",
-    "specialties.csv",
-    "specialty_concepts.csv",
-    "saudi_market_terms.csv",
-    "search_lexicon.csv",
-)
+# releases from 2026-10-25 to 2026-10-31 shipped without the search vocabulary (TAXONOMY_COMPANIONS), and the service
+# then read a typed activity by category names alone («كوفي» found nothing, «مغسلة» missed laundries): staging copies
+# it from the taxonomy's own folder and refuses without it
 
 
 def _companions(taxonomy_json: Path) -> dict[str, Path]:
     folder = taxonomy_json.parent
-    missing = [name for name in TAXONOMY_COMPANIONS if not (folder / name).is_file() or (folder / name).stat().st_size == 0]
+    files = {name: folder / Path(name).name for name in TAXONOMY_COMPANIONS}
+    missing = [Path(name).name for name, path in files.items() if not path.is_file() or path.stat().st_size == 0]
     if missing:
         raise ValueError(f"taxonomy vocabulary missing beside farq_taxonomy.json: {', '.join(missing)}")
-    return {f"taxonomy/{name}": folder / name for name in TAXONOMY_COMPANIONS}
+    return files
 
 
 def _sources(values: list[str]) -> dict[str, Path]:
