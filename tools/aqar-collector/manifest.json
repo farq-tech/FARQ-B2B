@@ -1,14 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Farq Aqar collector",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Walks Aqar's listing pages on its own, city to region to district, keeps each listing once, and keeps the map's listing answers with their locations.",
   "permissions": [
     "storage",
     "unlimitedStorage"
   ],
   "host_permissions": [
-    "https://sa.aqar.fm/*"
+    "https://sa.aqar.fm/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
   "action": {
     "default_popup": "popup.html",

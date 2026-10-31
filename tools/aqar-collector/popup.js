@@ -172,11 +172,14 @@ setInterval(refresh, 1000)
   }
   else if (hash.startsWith('#push=')) {
     // sends the store to a local receiver in parts of 2,000 listings, for an export too large for a browser download
+    // only to this computer: the manifest grants the extension loopback hosts and nothing else outside Aqar
     const base = hash.slice(6)
+    const loopback = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(base)
     const BATCH = 2000
     const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith('m:'))
     const send = (path, body) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status) })
     try {
+      if (!loopback) throw new Error('the receiver must be http://127.0.0.1:<port>/ or http://localhost:<port>/')
       let sent = 0
       for (let i = 0; i < keys.length; i += BATCH) {
         const chunk = await get(keys.slice(i, i + BATCH))
