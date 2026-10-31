@@ -112,14 +112,20 @@ async function ask(template, bbox, from) {
 }
 
 let running = false
+// each Aqar tab's own name: the run's state names the one tab that works it, so two tabs never send the same request
+const TAB = Math.random().toString(36).slice(2)
 async function fastRun() {
   log('[farq] fastRun start', location.href)
   if (running) return
   running = true
   try {
+    const { fast: claimed } = await get({ fast: null })
+    if (claimed?.active) await set({ fast: { ...claimed, owner: TAB, beat: Date.now() } })
     for (;;) {
       const { fast, findTemplate } = await get({ fast: null, findTemplate: null })
       if (!fast?.active || !findTemplate) break
+      // another tab took the run over (the user started it there, or it found this one stalled): this tab stops
+      if (fast.owner && fast.owner !== TAB) { log('[farq] run taken by another tab'); break }
       let { queue, current, stats } = fast
       if (!current) {
         const tile = queue.shift()
@@ -171,10 +177,21 @@ async function fastRun() {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => { log('[farq] message', message); if (message?.cmd === 'fast-run') { fastRun(); reply({ ok: true }) } if (message?.cmd === 'ping') reply({ ok: true, running, href: location.href, log: LOG.slice(-8) }) })
-// a run whose tab was reloaded or closed is picked up again by the next Aqar page that opens
-get({ fast: null }).then(({ fast }) => { if (fast?.active && Date.now() - (fast.beat || 0) > STALE_MS) fastRun() })
-// and a run that stalled (its tab reloaded mid-request, or the page slept) is taken up again by any open Aqar page
-setInterval(() => { if (running) return; get({ fast: null }).then(({ fast }) => { if (fast?.active && fast.status !== 'waiting' && Date.now() - (fast.beat || 0) > STALE_MS) fastRun() }) }, 20000)
+// a run whose tab was reloaded, closed or stalled (mid-request, or the page slept) is taken up again by an open Aqar
+// page. A wait after a 429 keeps its beat at the end of the wait, so a run is stale only once that wait is over too.
+// Every tab that finds it stale writes its own name, waits a moment, and only the tab whose name is still there runs it.
+const stale = (fast) => fast?.active && Date.now() - (fast.beat || 0) > STALE_MS
+async function recover() {
+  if (running) return
+  const { fast } = await get({ fast: null })
+  if (!stale(fast)) return
+  await set({ fast: { ...fast, owner: TAB, beat: Date.now() } })
+  await sleep(1500 + Math.random() * 1500)
+  const { fast: after } = await get({ fast: null })
+  if (after?.active && after.owner === TAB) fastRun()
+}
+recover()
+setInterval(recover, 20000)
 
 // a chat page the user opens from a listing: its address shows how a conversation is reached
 if (/chat|محادث|message/i.test(decodeURIComponent(location.pathname))) {
