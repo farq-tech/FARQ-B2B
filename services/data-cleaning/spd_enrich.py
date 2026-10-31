@@ -1,19 +1,19 @@
-"""Add rich columns to a directory snapshot from each place's current state in the full HudHud change-request database.
+"""Add rich columns to a directory snapshot from each place's current state in the full SPD change-request database.
 
-A step after the golden export and before publishing, a sibling of hudhud_fill.py. Where hudhud_fill fills EXISTING empty
+A step after the golden export and before publishing, a sibling of spd_fill.py. Where spd_fill fills EXISTING empty
 fields, this ADDS new columns that the directory does not carry yet, from the same per-place current state (trx_*). Rules,
-kept identical to hudhud_fill so the two steps compose:
-- a new column is added only where HudHud holds a valid value; every other row stays null;
-- only places live in HudHud (`ready to publish`, not deleted) and not permanently closed are read;
+kept identical to spd_fill so the two steps compose:
+- a new column is added only where SPD holds a valid value; every other row stays null;
+- only places live in SPD (`ready to publish`, not deleted) and not permanently closed are read;
 - every value is checked by its pattern (a Google Maps URL, an http(s) logo URL, a 0-100 confidence) and a value that
   fails is left out, never guessed;
 - an existing value is never changed: if a snapshot already carries one of these columns with a value, it is kept;
-- `hudhud_enriched` lists the new columns each row took from HudHud (separate from hudhud_fill's `hudhud_filled`).
+- `hudhud_enriched` lists the new columns each row took from SPD (separate from spd_fill's `hudhud_filled`).
 
 Columns added (none are in the served directory today):
 - google_maps_url   — the place's Google Maps link, for verification and display;
-- logo_url          — the brand/place logo URL (HudHud's store; mirror to our own storage is a separate step);
-- hudhud_confidence — HudHud's own data-quality confidence for the record, 0-100 (a signal, not a classification).
+- logo_url          — the brand/place logo URL (SPD's store; mirror to our own storage is a separate step);
+- hudhud_confidence — SPD's own data-quality confidence for the record, 0-100 (a signal, not a classification).
 
 verified_by_google is deliberately NOT added here: in the source it is a free-text Google listing status
 (e.g. «Claim this business»), not a trust boolean, and needs its own analysis first.
@@ -21,7 +21,7 @@ verified_by_google is deliberately NOT added here: in the source it is a free-te
 Reads the snapshot and the database (read-only); writes a new snapshot and a report next to it. Never writes over its
 input or the served files.
 
-    python3 hudhud_enrich.py --targets T.parquet --crs crs_fixed.duckdb --out T_enriched.parquet
+    python3 spd_enrich.py --targets T.parquet --crs crs_fixed.duckdb --out T_enriched.parquet
 """
 import argparse
 import collections
@@ -33,7 +33,7 @@ import sys
 import duckdb
 from urllib.parse import urlparse
 
-from hudhud_fill import text  # same emptiness rule as the fill step
+from spd_fill import text  # same emptiness rule as the fill step
 
 # a Google host that owns Maps: google.<tld> or google.<cc>.<tld>, optionally www./maps. — anchored at both ends
 # so an extra label (the attacker's www.google.com.evil.sa) never matches; the short links are listed outright
@@ -72,7 +72,7 @@ def logo(v):
 
 
 def confidence(v):
-    """HudHud's record confidence as a 0-100 number (string form), or None outside the range."""
+    """SPD's record confidence as a 0-100 number (string form), or None outside the range."""
     v = text(v)
     if not re.match(r'^\d{1,3}(\.\d+)?$', v):
         return None
@@ -138,7 +138,7 @@ def main():
 
     trx = ['trx_state', 'trx_is_deleted', 'trx_status'] + sorted({s for s, _ in NEW_FIELDS.values()})
     hudhud = {hid: dict(zip(trx, rest)) for hid, *rest in db.execute(
-        # one row per place: trx_* is the place's current state; the most recently updated row is taken (as hudhud_fill)
+        # one row per place: trx_* is the place's current state; the most recently updated row is taken (as spd_fill)
         f"""select split_part(cr_entity_id::varchar, '.', 1), {', '.join(f'{c}::varchar' for c in trx)} from c.crs
             qualify row_number() over (partition by split_part(cr_entity_id::varchar, '.', 1)
                                        order by trx_updated_at desc nulls last, cr_created_at desc, cr_id desc) = 1""").fetchall()}
@@ -162,7 +162,7 @@ def main():
 
     # no existing value may change. The new columns are excluded here — filling their empty rows is the whole point,
     # and a column that already existed is guarded instead by `overwrote` below (empty → value only), exactly as
-    # hudhud_fill leaves the fields it fills out of its own no-change check.
+    # spd_fill leaves the fields it fills out of its own no-change check.
     check = [c for c in have if c != 'hudhud_enriched' and c not in NEW_FIELDS]
     changed = db.execute(f"""select count(*) from read_parquet('{args.targets}') o join t using (poi_key)
         where {' or '.join(f'o.{c}::varchar is distinct from t.{c}::varchar' for c in check)}""").fetchone()[0]

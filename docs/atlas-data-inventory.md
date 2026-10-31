@@ -12,13 +12,13 @@
 
 | المصدر | سكربت الإدخال | المدخل | الحبيبة | مفتاح الربط | الترخيص | التاريخ | الحقول الحساسة | الجدول المقترح |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| الدليل الحي (هدهد، ووسوم مصادر مختلطة) | لا باني في المستودع | `targets.parquet` (مطلق، و`/app/data` على الخادم) | منشأة | `poi_key` (`hh:`) | غير مذكور | غير مذكور | هاتف، واتساب، بريد | `source_records` ← `establishments` |
-| سجلات وطلبات تعديل هدهد (CSV/xlsx) | DC/import_hudhud_logs.py، وDC/lifecycle_profile.py (أعداد مجمّعة لتصميم دورة الحياة) | مجلد CSV | سجل تعديل لكل منشأة | `hh:` + المعرّف | غير مذكور | 2025-08-28 | المحرّر، هاتف، عنوان وطني | `attribute_assertions`، `events` |
-| تصدير CRS الكامل لهدهد (110,831 طلباً) | DC/import_crs_full.py | `/Volumes/Archive/Cr/crs_export.csv` (مطلق) | آخر طلب معتمد لكل منشأة | `hh:` + eid | غير مذكور | غير مذكور | هاتف، حسابات، عنوان وطني، رخصة | `attribute_assertions` (أعلى أولوية) |
-| قاعدة poi_logs لهدهد (SQLite) | DC/import_poi_logs_db.py | ملف `.db` | آخر سجل معتمد | `transaction_id` | غير مذكور | 2024-10 حتى 2025-09 | المحرّر | `events` |
+| الدليل الحي (SPD، ووسوم مصادر مختلطة) | لا باني في المستودع | `targets.parquet` (مطلق، و`/app/data` على الخادم) | منشأة | `poi_key` (`hh:`) | غير مذكور | غير مذكور | هاتف، واتساب، بريد | `source_records` ← `establishments` |
+| سجلات وطلبات تعديل SPD (CSV/xlsx) | DC/import_spd_logs.py، وDC/lifecycle_profile.py (أعداد مجمّعة لتصميم دورة الحياة) | مجلد CSV | سجل تعديل لكل منشأة | `hh:` + المعرّف | غير مذكور | 2025-08-28 | المحرّر، هاتف، عنوان وطني | `attribute_assertions`، `events` |
+| تصدير CRS الكامل لSPD (110,831 طلباً) | DC/import_crs_full.py | `/Volumes/Archive/Cr/crs_export.csv` (مطلق) | آخر طلب معتمد لكل منشأة | `hh:` + eid | غير مذكور | غير مذكور | هاتف، حسابات، عنوان وطني، رخصة | `attribute_assertions` (أعلى أولوية) |
+| قاعدة poi_logs لSPD (SQLite) | DC/import_poi_logs_db.py | ملف `.db` | آخر سجل معتمد | `transaction_id` | غير مذكور | 2024-10 حتى 2025-09 | المحرّر | `events` |
 | أرشيف 13: حالة TRX ودفعات Google | DC/import_archive13.py | مجلد CSV | معاملة / مكان | `hh:` أو الهاتف | غير مذكور | 2026-10-15 | هاتف | `events`، `attribute_assertions` |
-| أوراق Drive لهدهد | DC/import_drive_sheets.py | xlsx في Google Drive (مطلق) | منشأة | معرّف TRX | غير مذكور | 2024-12 | هاتف، موقع، حسابات | `attribute_assertions` |
-| قاموس أسماء هدهد | DC/name_dictionary.py | ملف (نسخة على `/Volumes/Archive`) | زوج أسماء | الاسم المطبّع | غير مذكور | 2025-08-16 | — | مرجع تحويل، لا جدول حقائق |
+| أوراق Drive لSPD | DC/import_drive_sheets.py | xlsx في Google Drive (مطلق) | منشأة | معرّف TRX | غير مذكور | 2024-12 | هاتف، موقع، حسابات | `attribute_assertions` |
+| قاموس أسماء SPD | DC/name_dictionary.py | ملف (نسخة على `/Volumes/Archive`) | زوج أسماء | الاسم المطبّع | غير مذكور | 2025-08-16 | — | مرجع تحويل، لا جدول حقائق |
 | بحيرة الكيانات (4.41 مليون، 12 مصدراً) | DC/lake_gap.py، build_new_entities.py، fill_names.py | `entities_master.parquet` (مطلق) | كيان | `entity_id`، SynCode، الهاتف ضمن 2 كم | غير مذكور | غير مذكور | جوال، بريد | `source_records` لكل مصدر داخلها |
 | master_poi_candidates (1.9 مليون) | DC/candidates_gap.py | غير مذكور | مرشّح | `dedupe_key`، google_id | غير مذكور | غير مذكور | هاتف | `source_records`، ومعظمه `unresolved` |
 | Urbi/2GIS cleaned_data وwestern_cleaning (عمود `makani` فيه العنوان الوطني المختصر، و`building_id` معرّف مبنى 2GIS) | DC/import_cleaned_data.py | CSV | منشأة | الهاتف ضمن 2 كم، أو الاسم ضمن 150 م | غير مذكور | 2025-03 | هاتف، اسم قانوني | `attribute_assertions`، `legal_entities` |
@@ -26,7 +26,7 @@
 | 2GIS منشآت برخصة تجارية (232,458) | DC/import_firms_license.py، build_farq_golden.py | dbf/xlsx/shp | بطاقة | SynCode ← `urbi_coords:` | حقوق تجارية أكّدها المالك (DC/FARQ_GOLDEN_V1.md:3) | 2024-02 | اسم الشريك (شخص) | `legal_entities`، `attribute_assertions` |
 | 2GIS Rubricator 2025 | DC/apply_rubricator.py | xlsx | تصنيف | التسمية ← `sub_id` | غير مذكور | 2025 | — | `taxonomy_crosswalk` |
 | Urbi brand 2025، bluepages | DC/build_cleaned_brand_enrichment.py | xlsx/CSV | منشأة / علامة | غير مذكور | غير مذكور | 2025 | غير مذكور | `brands`، `attribute_assertions` |
-| أرشيف 11: العلامات، GMB، موردو المقاولات | DC/import_archive11.py | CSV | منشأة / علامة | معرّف هدهد، Google place id | غير مذكور | GMB 2024-05-21 | هاتف | `brands`، `attribute_assertions` |
+| أرشيف 11: العلامات، GMB، موردو المقاولات | DC/import_archive11.py | CSV | منشأة / علامة | معرّف SPD، Google place id | غير مذكور | GMB 2024-05-21 | هاتف | `brands`، `attribute_assertions` |
 | Overture Maps places | DC/overture_match.py، overture_new.py | parquet | مكان | الاسم ضمن ~100 م؛ `ov:` | CDLA-Permissive-2.0، وODbL لما أصله OSM (overture_match.py:1) | 2026-09-23.1 | هاتف، بريد | `source_records` |
 | Foursquare OS Places | DC/fsq_places.py | `/Volumes/Archive/FSQ` (مطلق) | مكان | الاسم ضمن ~100 م؛ `fsq:` | Apache-2.0 (fsq_places.py:1) | 2026-10-15 | هاتف، معرّف فيسبوك | `source_records` |
 | OpenStreetMap (أماكن، شوارع، حدود إدارية، محلات) | DC/osm_*.py | `.osm.pbf` | عقدة / طريق / علاقة | النقطة داخل المضلع، أو الأقرب | ODbL، مع إسناد وبقاء مشتق (README.md:63) | غير مذكور | هاتف | `attribute_assertions` بترخيص منفصل |
@@ -67,7 +67,7 @@
 | --- | --- | --- | --- |
 | `farq_taxonomy.json` | 25 نشاطاً رئيسياً، و431 فرعياً | `main_id`، `sub_id` | `taxonomy` |
 | `specialties.csv` (4,073)، `specialty_concepts.csv` | تخصص | `specialty_id`، `concept_id` | `taxonomy` (مستوى ثالث) |
-| `activity_map.csv`، `hudhud_sub_map.csv`، Rubricator | تسمية مصدر ← فرعي | التسمية | `taxonomy_crosswalk` |
+| `activity_map.csv`، `spd_sub_map.csv`، Rubricator | تسمية مصدر ← فرعي | التسمية | `taxonomy_crosswalk` |
 | `product_families.csv`، `sub_family_relations.csv`، `search_lexicon.csv` | عائلة / علاقة / مصطلح | `family_id`، المصطلح | `taxonomy` (علاقات) |
 | `poi_taxonomy.parquet`، `poi_sector.parquet` | منشأة | `poi_key` | `establishment_classifications` |
 
@@ -108,7 +108,7 @@
 - الترخيص مكتوب للمصادر المفتوحة فقط (Overture، Foursquare، OSM، WorldPop، وزارة العدل) ولـ2GIS برخصة المالك. أغلب البقية غير مذكور.
 
 ### مصادر مذكورة بلا سكربت إدخال
-المسح الميداني `finalgeo` (1,324 نقطة، فبراير ومارس 2026، مذكور في `docs/establishment-lifecycle.md` 4.5)، وقاعدة معاملات هدهد (592,710 معاملة)، و1,215 مضلع مسح، وأداتا جمع 910ths وعقار، وأرقام التعداد الرسمي، وجدول «Google to Hudhud Categories» الأصلي.
+المسح الميداني `finalgeo` (1,324 نقطة، فبراير ومارس 2026، مذكور في `docs/establishment-lifecycle.md` 4.5)، وقاعدة معاملات SPD (592,710 معاملة)، و1,215 مضلع مسح، وأداتا جمع 910ths وعقار، وأرقام التعداد الرسمي، وجدول «Google to Hudhud Categories» الأصلي.
 
 ## 7. المطلوب لإكمال الكتالوج
 

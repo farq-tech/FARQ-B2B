@@ -1,11 +1,11 @@
-"""Fill empty fields of a directory snapshot from each place's current state in the full HudHud change-request database.
+"""Fill empty fields of a directory snapshot from each place's current state in the full SPD change-request database.
 
 A step after the golden export and before publishing, like chain_consensus.py. Rules:
 - only a field the snapshot leaves empty is filled; a value already there is never changed;
-- only places live in HudHud (`ready to publish`, not deleted) and not permanently closed;
+- only places live in SPD (`ready to publish`, not deleted) and not permanently closed;
 - every value is checked by its pattern and written in the snapshot's own format (phone +966…, account URLs, hours
   «Sun: 08:30 - 23:30 | …»); a value that fails is left out, never guessed;
-- `hudhud_filled` lists the fields each row took from HudHud; a filled phone is the first mobile HudHud holds (its phone
+- `hudhud_filled` lists the fields each row took from SPD; a filled phone is the first mobile SPD holds (its phone
   field, then the extra numbers in additional_feature), else the first landline, with `phone_source = hudhud_cr`;
 - completeness_pct moves only when a filled phone, e-mail or website gives a row its first contact (build_golden.py).
 Phones, e-mails and accounts enter the directory only; nothing is sent to them.
@@ -13,7 +13,7 @@ Phones, e-mails and accounts enter the directory only; nothing is sent to them.
 Reads the snapshot and the database (read-only); writes a new snapshot and a report next to it. Never writes over its input
 or the served files.
 
-    python3 hudhud_fill.py --targets T.parquet --crs crs_fixed.duckdb --out T_hudhud.parquet
+    python3 spd_fill.py --targets T.parquet --crs crs_fixed.duckdb --out T_hudhud.parquet
 """
 import argparse
 import collections
@@ -87,7 +87,7 @@ def account(field, v):
 
 
 def hours(v):
-    """HudHud regular hours (JSON list of days) in the snapshot's format, or None."""
+    """SPD regular hours (JSON list of days) in the snapshot's format, or None."""
     try:
         days = json.loads(text(v) or 'null')
     except ValueError:
@@ -100,7 +100,7 @@ def hours(v):
         if not isinstance(day, dict) or not isinstance(day.get('hours') or [], list):
             continue
         name = DAYS.get(day.get('day'))
-        # HudHud writes a day open all day as «00:00 - 00:00» (owner, 2026-10-29); the snapshot writes it «00:00 - 24:00».
+        # SPD writes a day open all day as «00:00 - 00:00» (owner, 2026-10-29); the snapshot writes it «00:00 - 24:00».
         # Any other equal pair («08:00 - 08:00») has no stated meaning and is left out
         spans = [f"{h.get('open')} - {'24:00' if h.get('open') == h.get('close') == '00:00' else h.get('close')}"
                  for h in (day.get('hours') or []) if isinstance(h, dict)
@@ -124,7 +124,7 @@ def website(v):
     return re.sub(r'^(https?://)?(www\.)?', '', v).rstrip('/')
 
 
-# snapshot column -> (HudHud column, cleaner returning the value in the snapshot's format or None)
+# snapshot column -> (SPD column, cleaner returning the value in the snapshot's format or None)
 FIELDS = {
     'national_address': ('trx_national_address', lambda v: text(v).upper() if re.match(r'^[A-Z]{4}\d{4}$', text(v).upper()) else None),
     'postal_code': ('trx_postal_code', lambda v: text(v)[:5] if re.match(r'^\d{5}(\.0)?$', text(v)) else None),
