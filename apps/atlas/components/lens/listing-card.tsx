@@ -167,7 +167,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
-        {listing.has_phone && <ListingPhone id={listing.id} />}
+        {listing.has_phone && <ListingPhone key={listing.id} id={listing.id} />}
         <div className="mt-1 grid grid-cols-2 gap-1.5">
           {listing.has_phone ? null : listing.url ? (
             <a href={listing.url} target="_blank" rel="noopener noreferrer"

@@ -35,7 +35,8 @@ async function phoneQueue() {
   for (let i = 0; i < keys.length; i += BATCH) {
     const chunk = await get(keys.slice(i, i + BATCH))
     for (const row of Object.values(chunk)) {
-      if ('phone' in row) continue
+      // phone_at marks a listing asked; a phone field alone may be Aqar's own placeholder (0)
+      if (row.phone_at) continue
       const riyadh = row.city === 'الرياض'
       const rent = /للإيجار|للايجار/.test(row.title || '')
       ranked.push([riyadh ? (rent ? 0 : 1) : 2, row.id])

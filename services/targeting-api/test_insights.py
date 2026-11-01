@@ -136,12 +136,14 @@ class InsightTests(unittest.TestCase):
         card = {"city": "Riyadh", "kind": "rent", "type": "apartment", "district_id": "1", "lon": 46.7, "lat": 24.7,
                 "price_sar": 60000, "area_sqm": 120, "photo": "p.jpg"}
         path = self.root / "phones.json"
-        path.write_text(json.dumps({"listings": [dict(card, id="7", phone="0501234567"), dict(card, id="8")]}), encoding="utf-8")
+        path.write_text(json.dumps({"listings": [dict(card, id="7", phone="0501234567"), dict(card, id="8"),
+                                                 dict(card, id="9", phone="0507654321", check=True)]}), encoding="utf-8")
         found = insights.real_estate_listings("Riyadh", {}, str(path))
         self.assertFalse(any("phone" in c for c in found["listings"]))
         self.assertEqual({c["id"]: c["has_phone"] for c in found["listings"]}, {"7": True, "8": False})
         self.assertEqual(insights.listing_phone("7", str(path)), "0501234567")
         self.assertIsNone(insights.listing_phone("8", str(path)))
+        self.assertIsNone(insights.listing_phone("9", str(path)), "a listing Atlas does not show gives no number")
         self.assertIsNone(insights.listing_phone("7", str(self.root / "missing.json")))
 
     def test_real_estate_listings_ranges_leave_out_ads_without_the_figure(self):

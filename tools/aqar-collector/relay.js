@@ -187,7 +187,7 @@ async function fastRun() {
 // the advertiser's number, as the listing's own «اتصال» asks for it (found 2026-11-01 on a listing page): one request
 // per listing, from the signed-in page, slower than the map run. Aqar's support agreed on 2026-11-01 that Farq Atlas
 // may use the numbers and public data in its app. The number is kept on the listing (m:<id>.phone); an empty answer
-// is kept too (phone ''), so a listing is asked once.
+// is kept too (phone ''); phone_at marks a listing asked, so each is asked once.
 const PHONE_QUERY = 'query getPhoneAsString($id:Int!,$whatsapp:Boolean){Listing{getPhoneAsString(id:$id,whatsapp:$whatsapp)}}'
 const PHONE_PAUSE_MS = [3000, 5000]
 let phoning = false
@@ -231,11 +231,13 @@ async function phoneRun() {
         await set({ phones: { ...phones, active: false, status: 'signin', error: 'سجّل الدخول في عقار' } })
         break
       }
+      // any other error leaves the listing unasked (no phone_at), so a later run asks it again
+      const failed = !!body?.errors?.length && body?.data?.Listing?.getPhoneAsString == null
       const phone = String(body?.data?.Listing?.getPhoneAsString ?? '').replace(/\D/g, '')
       writes = writes.then(async () => {
         const key = `m:${id}`
         const known = (await get(key))[key]
-        if (known) await set({ [key]: { ...known, phone, phone_at: new Date().toISOString() } })
+        if (known && !failed) await set({ [key]: { ...known, phone, phone_at: new Date().toISOString() } })
       })
       await writes
       if (!(await minePhones())) break

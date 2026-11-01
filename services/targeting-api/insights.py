@@ -279,6 +279,12 @@ def _listing_cards(path):
     return table
 
 
+def _publishable(card):
+    """A listing Atlas shows: a price, a stated period, at least one photo, and figures that need no checking."""
+    return (not card.get('check') and card.get('price_sar') is not None and card.get('deal') != 'rent_unstated'
+            and bool(card.get('photos') or card.get('photo')))
+
+
 def real_estate_listings(city, filters, path=None, deals_path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
@@ -296,9 +302,7 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
     types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
-    publishable = lambda card: (not card.get('check') and card.get('price_sar') is not None and card.get('deal') != 'rent_unstated'
-                                and bool(card.get('photos') or card.get('photo')))
-    found = [card for card in table.get('listings', []) if card['city'] == city and publishable(card)
+    found = [card for card in table.get('listings', []) if card['city'] == city and _publishable(card)
              and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
              and (not districts or card['district_id'] in districts)
              and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
@@ -336,7 +340,8 @@ def _phone_index(table):
     key = id(table)
     if key not in _phone_indexes:
         _phone_indexes.clear()
-        _phone_indexes[key] = {str(card['id']): card['phone'] for card in table.get('listings', []) if card.get('phone')}
+        # only a listing Atlas shows gives its number: a hidden one cannot be reached by guessing its id
+        _phone_indexes[key] = {str(card['id']): card['phone'] for card in table.get('listings', []) if card.get('phone') and _publishable(card)}
     return _phone_indexes[key]
 
 
