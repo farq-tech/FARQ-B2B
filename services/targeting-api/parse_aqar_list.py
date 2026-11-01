@@ -144,6 +144,16 @@ _FAMILIES = re.compile(r'عوائل|عوايل|عائلات|للعائلة|لل�
 _NO_SINGLES = re.compile(r'(?:لا\s*(?:نقبل|يقبل|تقبل|يسمح|يُسمح|نسمح)|ممنوع|يمنع|يُمنع|غير\s*مسموح|بدون|ماعدا|عدا)\s*(?:ب|ل)?(?:ال)?(?:عزاب|عزوبي)')
 
 
+def _phone(value):
+    """A Saudi mobile as 05XXXXXXXX, else None."""
+    digits = re.sub(r'\D', '', str(value or ''))
+    if digits.startswith('966'):
+        digits = '0' + digits[3:]
+    elif digits.startswith('5') and len(digits) == 9:
+        digits = '0' + digits
+    return digits if re.fullmatch(r'05\d{8}', digits) else None
+
+
 def listing_tenants(record, text):
     """'families' | 'singles' | 'both' as the ad states it, else None."""
     refused = bool(_NO_SINGLES.search(text))
@@ -283,6 +293,8 @@ def parse_map_listing(record, city_en=None):
         'tenants': listing_tenants(record, text) if kind == 'rent' else None,
         'images': record.get('imgs') or [], 'url': f'https://sa.aqar.fm{path}' if path else None,
         'aqar_id': str(record.get('id')),
+        # the advertiser's number as the listing's «اتصال» gives it (collector's phone run); '' = asked, none given
+        'phone': _phone(record.get('phone')),
         # what the collector's widened map query carries, passed through as Aqar names it (only when stated)
         **{key: record[key] for key in AQAR_EXTRA_FIELDS if record.get(key) not in (None, '', [])},
     }

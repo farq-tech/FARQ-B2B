@@ -184,19 +184,88 @@ async function fastRun() {
   } finally { running = false }
 }
 
-chrome.runtime.onMessage.addListener((message, sender, reply) => { log('[farq] message', message); if (message?.cmd === 'fast-run') { fastRun(); reply({ ok: true }) } if (message?.cmd === 'ping') reply({ ok: true, running, href: location.href, log: LOG.slice(-8) }) })
+// the advertiser's number, as the listing's own «اتصال» asks for it (found 2026-11-01 on a listing page): one request
+// per listing, from the signed-in page, slower than the map run. Aqar's support agreed on 2026-11-01 that Farq Atlas
+// may use the numbers and public data in its app. The number is kept on the listing (m:<id>.phone); an empty answer
+// is kept too (phone ''), so a listing is asked once.
+const PHONE_QUERY = 'query getPhoneAsString($id:Int!,$whatsapp:Boolean){Listing{getPhoneAsString(id:$id,whatsapp:$whatsapp)}}'
+const PHONE_PAUSE_MS = [3000, 5000]
+let phoning = false
+const minePhones = async () => { const { phones } = await get({ phones: null }); return !!phones?.active && (!phones.owner || phones.owner === TAB) }
+async function phoneRun() {
+  if (phoning) return
+  phoning = true
+  try {
+    const { phones: claimed } = await get({ phones: null })
+    if (claimed?.active) await set({ phones: { ...claimed, owner: TAB, beat: Date.now() } })
+    for (;;) {
+      const { phones } = await get({ phones: null })
+      if (!phones?.active) break
+      if (phones.owner && phones.owner !== TAB) break
+      const id = phones.queue[0]
+      if (id == null) { await set({ phones: { ...phones, active: false, status: 'done' } }); break }
+      await set({ phones: { ...phones, beat: Date.now() } })
+      let answer
+      try {
+        answer = await pageFetch('/auth-graphql', { accept: 'application/json', 'content-type': 'application/json' },
+          JSON.stringify({ query: PHONE_QUERY, variables: { id: Number(id) } }))
+        if (answer.status === 0) throw Object.assign(new Error(answer.error || 'Failed to fetch'), { network: true })
+        if (answer.status < 200 || answer.status >= 300) throw Object.assign(new Error(`HTTP ${answer.status}`), { status: answer.status, retryAfter: Number(answer.retryAfter) * 1000 || 0 })
+      } catch (error) {
+        if (!(await minePhones())) break
+        if (error.status === 429 || error.network) {
+          const strikes = (phones.strikes || 0) + 1
+          const wait = Math.max(error.retryAfter, Math.min(WAIT_429_MS[1], WAIT_429_MS[0] * 2 ** (strikes - 1)))
+          const slow = error.status === 429 ? (phones.slow || 1) * SLOWER : phones.slow || 1
+          await set({ phones: { ...phones, strikes, slow, status: 'waiting', until: Date.now() + wait, error: error.network ? 'انقطع الاتصال' : 'HTTP 429', beat: Date.now() + wait } })
+          await sleep(wait)
+          continue
+        }
+        await set({ phones: { ...phones, active: false, status: error.status === 401 || error.status === 403 ? 'signin' : 'error', error: String(error.message) } })
+        break
+      }
+      let body = null
+      try { body = JSON.parse(answer.text) } catch { body = null }
+      // a signed-out page answers with an error instead of a number: the run waits for the person to sign in
+      if (body?.errors?.length && body?.data?.Listing?.getPhoneAsString == null && /auth|login|token|unauthor/i.test(JSON.stringify(body.errors))) {
+        await set({ phones: { ...phones, active: false, status: 'signin', error: 'سجّل الدخول في عقار' } })
+        break
+      }
+      const phone = String(body?.data?.Listing?.getPhoneAsString ?? '').replace(/\D/g, '')
+      writes = writes.then(async () => {
+        const key = `m:${id}`
+        const known = (await get(key))[key]
+        if (known) await set({ [key]: { ...known, phone, phone_at: new Date().toISOString() } })
+      })
+      await writes
+      if (!(await minePhones())) break
+      const stats = { asked: phones.stats.asked + 1, found: phones.stats.found + (phone ? 1 : 0) }
+      const strikes = phones.strikes && stats.asked % 20 === 0 ? phones.strikes - 1 : phones.strikes || 0
+      const pause = (PHONE_PAUSE_MS[0] + Math.random() * (PHONE_PAUSE_MS[1] - PHONE_PAUSE_MS[0])) * (phones.slow || 1)
+      await set({ phones: { ...phones, queue: phones.queue.slice(1), stats, strikes, status: 'running', error: null, beat: Date.now() + pause } })
+      await sleep(pause)
+    }
+  } catch (error) {
+    const { phones } = await get({ phones: null })
+    await set({ phones: { ...phones, active: false, status: 'error', error: String(error?.message || error) } })
+  } finally { phoning = false }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => { log('[farq] message', message); if (message?.cmd === 'fast-run') { fastRun(); reply({ ok: true }) } if (message?.cmd === 'phone-run') { phoneRun(); reply({ ok: true }) } if (message?.cmd === 'ping') reply({ ok: true, running, href: location.href, log: LOG.slice(-8) }) })
 // a run whose tab was reloaded, closed or stalled (mid-request, or the page slept) is taken up again by an open Aqar
 // page. A wait after a 429 keeps its beat at the end of the wait, so a run is stale only once that wait is over too.
 // Every tab that finds it stale writes its own name, waits a moment, and only the tab whose name is still there runs it.
 const stale = (fast) => fast?.active && Date.now() - (fast.beat || 0) > STALE_MS
 async function recover() {
-  if (running) return
-  const { fast } = await get({ fast: null })
-  if (!stale(fast)) return
-  await set({ fast: { ...fast, owner: TAB, beat: Date.now() } })
-  await sleep(1500 + Math.random() * 1500)
-  const { fast: after } = await get({ fast: null })
-  if (after?.active && after.owner === TAB) fastRun()
+  for (const [name, busy, run] of [['fast', () => running, fastRun], ['phones', () => phoning, phoneRun]]) {
+    if (busy()) continue
+    const state = (await get({ [name]: null }))[name]
+    if (!stale(state)) continue
+    await set({ [name]: { ...state, owner: TAB, beat: Date.now() } })
+    await sleep(1500 + Math.random() * 1500)
+    const after = (await get({ [name]: null }))[name]
+    if (after?.active && after.owner === TAB) run()
+  }
 }
 recover()
 setInterval(recover, 20000)

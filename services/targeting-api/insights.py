@@ -313,8 +313,31 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
                                  card.get('vs_district_pct') or 0))
     shown = found[:filters.get('limit') or LISTINGS_MAX]
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
-    shown = [{**card, 'signal': market_signals.tag(card, signals)} for card in shown]
+    # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone)
+    shown = [{**{key: value for key, value in card.items() if key != 'phone'}, 'has_phone': bool(card.get('phone')),
+              'signal': market_signals.tag(card, signals)} for card in shown]
     return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown}
+
+
+def listing_phone(listing_id, path=None):
+    """One listing's advertiser number (05XXXXXXXX), or None when it has none or there is no file."""
+    try:
+        table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
+    except (OSError, ValueError):
+        return None
+    index = _phone_index(table)
+    return index.get(str(listing_id))
+
+
+_phone_indexes = {}
+
+
+def _phone_index(table):
+    key = id(table)
+    if key not in _phone_indexes:
+        _phone_indexes.clear()
+        _phone_indexes[key] = {str(card['id']): card['phone'] for card in table.get('listings', []) if card.get('phone')}
+    return _phone_indexes[key]
 
 
 def _market_signals(city, table, cards_path, deals_path=None):

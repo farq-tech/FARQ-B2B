@@ -18,8 +18,46 @@ async function refreshFast() {
     : fast ? `${FAST[fast.status] || ''} ${fmt.format(fast.stats.requests)} طلب · ${fmt.format(fast.stats.tiles)} مربع انتهى · ${fmt.format(fast.queue.length)} متبقٍ${fast.error ? ` (${fast.error})` : ''}` : ''
 }
 
+const PHONES = { running: 'جلب الأرقام يعمل…', waiting: 'ينتظر ثم يكمل وحده.', done: 'جلب الأرقام انتهى ✓', signin: 'سجّل الدخول في عقار ثم اضغط للاستئناف.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
+async function refreshPhones() {
+  const { phones } = await get({ phones: null })
+  $('phones').textContent = phones?.active ? 'إيقاف جلب الأرقام' : phones?.queue?.length ? 'استئناف جلب الأرقام' : 'جلب أرقام المعلنين'
+  $('phonesStatus').textContent = !phones ? 'سجّل الدخول في عقار وافتح أي صفحة منه، ثم اضغط. الرياض أولاً.'
+    : phones.active && phones.status === 'waiting' && phones.until > Date.now() ? `عقار طلب التمهّل. يكمل بعد ${fmt.format(Math.ceil((phones.until - Date.now()) / 1000))} ثانية`
+    : `${PHONES[phones.status] || ''} ${fmt.format(phones.stats.found)} رقم من ${fmt.format(phones.stats.asked)} · ${fmt.format(phones.queue.length)} متبقٍ${phones.error ? ` (${phones.error})` : ''}`
+}
+
+/** Every kept listing not asked yet, Riyadh's rentals first, then the rest of Riyadh, then the other cities. */
+async function phoneQueue() {
+  const BATCH = 2000
+  const keys = (await chrome.storage.local.getKeys()).filter((key) => key.startsWith('m:'))
+  const ranked = []
+  for (let i = 0; i < keys.length; i += BATCH) {
+    const chunk = await get(keys.slice(i, i + BATCH))
+    for (const row of Object.values(chunk)) {
+      if ('phone' in row) continue
+      const riyadh = row.city === 'الرياض'
+      const rent = /للإيجار|للايجار/.test(row.title || '')
+      ranked.push([riyadh ? (rent ? 0 : 1) : 2, row.id])
+    }
+  }
+  return ranked.sort((a, b) => a[0] - b[0]).map(([, id]) => id)
+}
+
+async function startPhones(tab) {
+  const { phones } = await get({ phones: null })
+  if (phones?.active) { await set({ phones: { ...phones, active: false, status: 'paused' } }); refreshPhones(); return }
+  const next = phones?.queue?.length ? phones : { queue: await phoneQueue(), stats: { asked: 0, found: 0 } }
+  await set({ phones: { ...next, active: true, status: 'running', error: null, beat: 0 } })
+  chrome.tabs.sendMessage(tab.id, { cmd: 'phone-run' }, () => {
+    if (chrome.runtime.lastError && /establish connection|Receiving end/.test(chrome.runtime.lastError.message)) chrome.tabs.reload(tab.id)
+  })
+  refreshPhones()
+}
+
 async function refresh() {
   refreshFast()
+  refreshPhones()
   const { run } = await get({ run: null })
   const { mapStats } = await get({ mapStats: null })
   $('listings').textContent = `${fmt.format(run?.stats?.listings ?? 0)} إعلان`
@@ -75,6 +113,11 @@ $('fast').addEventListener('click', async () => {
     next = { queue: [{ bbox, depth: 0 }], current: null, stats: { requests: 0, listings: 0, tiles: 0 } }
   }
   await launch(tab, next)
+})
+$('phones').addEventListener('click', async () => {
+  const tab = await activeTab()
+  if (!tab?.url?.startsWith('https://sa.aqar.fm/')) { $('phonesStatus').textContent = 'افتح صفحة من sa.aqar.fm أولاً.'; return }
+  await startPhones(tab)
 })
 // a new city: the area on screen now replaces what is left of the last run; collected listings stay
 $('fastArea').addEventListener('click', async () => {
@@ -143,6 +186,11 @@ setInterval(refresh, 1000)
     exportStatus = 'STOPPED'
   }
   else if (hash === '#reload') chrome.runtime.reload()
+  else if (hash === '#phones') {
+    const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
+    const tab = tabs.sort((a, b) => b.id - a.id)[0]
+    if (tab) { await startPhones(tab); exportStatus = 'PHONES STARTED' } else exportStatus = 'NO AQAR TAB'
+  }
   else if (hash === '#ping') {
     const tabs = await chrome.tabs.query({ url: 'https://sa.aqar.fm/*' })
     const answers = await Promise.all(tabs.map((t) => new Promise((done) => chrome.tabs.sendMessage(t.id, { cmd: 'ping' }, (r) => done({ id: t.id, active: t.active, discarded: t.discarded, status: t.status, r: r || chrome.runtime.lastError?.message })))))

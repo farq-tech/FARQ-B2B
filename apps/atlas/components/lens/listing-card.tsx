@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BadgeCheck, Check, ChevronDown, ExternalLink, Scale } from 'lucide-react'
+import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
@@ -35,6 +35,40 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
       {shown.length > 1 && (
         <span className="absolute bottom-2 start-2 rounded-full bg-background/80 px-2 py-0.5 text-sm backdrop-blur">{numberFormat.format(shown.length)} صور</span>
       )}
+    </div>
+  )
+}
+
+/** The advertiser's number, asked for one listing at a time by a signed-in person; a call and a WhatsApp link. */
+function ListingPhone({ id }: { id: string }) {
+  const [state, setState] = useState<{ phone?: string | null; error?: string; loading?: boolean }>({})
+  const reveal = async () => {
+    setState({ loading: true })
+    const response = await fetch('/api/market/listing-phone', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => null)
+    const payload = await response?.json().catch(() => null) as { phone?: string | null; error?: string } | null
+    if (!response?.ok) setState({ error: payload?.error || 'تعذر جلب الرقم الآن.' })
+    else setState({ phone: payload?.phone ?? null })
+  }
+  if (state.phone) {
+    const international = `966${state.phone.slice(1)}`
+    return (
+      <div className="grid grid-cols-2 gap-1.5">
+        <a href={`tel:+${international}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" dir="ltr">
+          <Phone className="size-4" aria-hidden /> {state.phone}
+        </a>
+        <a href={`https://wa.me/${international}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold hover:border-primary">
+          <MessageCircle className="size-4" aria-hidden /> واتساب
+        </a>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <button onClick={reveal} disabled={state.loading} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+        <Phone className="size-4" aria-hidden /> {state.loading ? 'يجلب الرقم…' : 'اعرض رقم المعلن'}
+      </button>
+      {state.phone === null && <p className="text-sm text-muted-foreground">رقم المعلن غير متاح لهذا العرض.</p>}
+      {state.error && <p role="alert" className="text-sm text-warning">{state.error}{/سجّل/.test(state.error) && <> <a href="/login" className="underline">دخول</a></>}</p>}
     </div>
   )
 }
@@ -133,15 +167,16 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
+        {listing.has_phone && <ListingPhone id={listing.id} />}
         <div className="mt-1 grid grid-cols-2 gap-1.5">
-          {listing.url ? (
+          {listing.has_phone ? null : listing.url ? (
             <a href={listing.url} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
               <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
             </a>
           ) : <span />}
           <button onClick={onCompare} aria-pressed={comparing}
-            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
+            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
             {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
           </button>
         </div>

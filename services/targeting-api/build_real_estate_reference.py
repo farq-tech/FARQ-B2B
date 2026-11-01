@@ -195,6 +195,8 @@ def _card(listing, city, district_id, district_ar, found):
         # when the ad went up and when it was last touched, and whether it carries the real-estate authority's licence
         **{key: day for key, day in (('listed_on', _day(listing.get('create_time'))), ('updated_on', _day(listing.get('last_update')))) if day},
         **({'licensed': listing['rega_licensed']} if isinstance(listing.get('rega_licensed'), bool) else {}),
+        # the advertiser's number: kept in the file, never in a listings answer (insights.listing_phone serves it one at a time)
+        **({'phone': listing['phone']} if listing.get('phone') else {}),
     }
 
 
