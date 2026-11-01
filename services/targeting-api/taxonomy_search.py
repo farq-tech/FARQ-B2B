@@ -380,6 +380,11 @@ class Taxonomy:
             f"{source_expr('urbi_makani','makani')} makani",
             f"{source_expr('farq_atlas_id')} farq_atlas_id",
         ])
+        # v7 directory content shown as Farq (no source): official description + non-contact delivery signals; each
+        # column only when the release carries it, else NULL so older releases keep working
+        v7_attrs = ', '.join([f"{source_expr('description_ar')} description"]
+            + [f"t.{c} {c}" if c in self._dir_cols else f"null {c}"
+               for c in ('delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta')])
         legal_expr = source_expr('legal_name','urbi_legal_name')
         brand_expr = source_expr('brand_name','urbi_brand_name')
         rows = db.execute(f"""
@@ -387,7 +392,7 @@ class Taxonomy:
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
                    t.latitude, t.longitude, t.city_en, t.region_ar, t.region_en, t.name_en, t.phone_norm, t.phone_kind, t.has_whatsapp,
                    t.email, t.source_count, t.category, {legal_expr} legal_name, {brand_expr} brand_name, t.secondary_category, t.category_l3,
-                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}
+                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}, {v7_attrs}
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
@@ -407,7 +412,8 @@ class Taxonomy:
             (key, name, cat_ar, district, complete, lat, lon, city_en, region_ar, region_en, name_en, phone, phone_kind, wa, email,
              source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
              street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources,
-             branch_count, employee_count, payment_methods, service_languages, operating_hours, floor, building_use, makani, farq_atlas_id) = r
+             branch_count, employee_count, payment_methods, service_languages, operating_hours, floor, building_use, makani, farq_atlas_id,
+             description, delivery_rating, delivery_rate_count, delivery_fee, delivery_min_order, delivery_eta) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -461,6 +467,8 @@ class Taxonomy:
                 'branch_count': branch_count, 'employee_count': employee_count, 'payment_methods': payment_methods,
                 'service_languages': service_languages, 'operating_hours': operating_hours, 'floor': floor,
                 'building_use': building_use, 'makani': makani, 'farq_atlas_id': farq_atlas_id,
+                'description': description, 'delivery_rating': delivery_rating, 'delivery_rate_count': delivery_rate_count,
+                'delivery_fee': delivery_fee, 'delivery_min_order': delivery_min_order, 'delivery_eta': delivery_eta,
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
                 'evidence': {'source': 'farq_taxonomy', 'text': sub_ar, 'confidence': 'activity_inference' if objective == 'marketing' else 'business_evidence'},
