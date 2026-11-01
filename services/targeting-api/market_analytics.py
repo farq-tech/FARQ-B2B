@@ -76,6 +76,11 @@ CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
     "سياحه", "سفر", "السياحه", "السفر", "للسياحه", "للسفر", "والسفر", "والسياحه", "وسفر", "وسياحه", "سياحيه", "السياحيه",
     "اسفار", "للاسفار", "رحلات", "للرحلات", "وكاله", "وكالات", "للوكاله", "لرحلات",
     "travel", "travels", "tourism", "tour", "tours", "tourist", "touristic", "agency", "agencies", "holiday", "holidays", "trips",
+    # generic qualifiers and description words that attach to many names and are no brand on their own: they merged
+    # «زوفر/سكاي/إيدر international» and description-as-name phrases («شركة متخصصة في مجال … تقدم خدمات …») into one
+    "international", "intl", "عالميه", "العالميه", "الدوليه", "دوليه", "global", "worldwide", "national", "الوطنيه", "وطنيه",
+    "company", "companies", "corporation", "enterprise", "services", "service", "خدمات", "الخدمات", "للخدمات", "خدماتها",
+    "متخصصه", "متخصص", "المتخصصه", "مجال", "المجال", "تقدم", "متنوعه", "متنوعة", "largest", "leading", "best", "premium",
 })
 
 # Words that mark a registered company's own name: one that ends in a brand it runs is that brand
