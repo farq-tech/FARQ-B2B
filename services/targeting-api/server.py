@@ -41,7 +41,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics
+import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics, parse_aqar_list
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -202,8 +202,61 @@ def _city_features(city):
         return [f for f in json.load(handle).get('features', []) if (f.get('properties') or {}).get('city_en') == city]
 
 
+LISTING_PHONE_CACHE = os.path.join(AUX_DATA_DIR, 'real_estate_phone_cache.json')
+_phone_cache = None
+_phone_lock = threading.Lock()
+
+
+def _phone_cache_load():
+    global _phone_cache
+    if _phone_cache is None:
+        try:
+            with open(LISTING_PHONE_CACHE, encoding='utf-8') as handle:
+                _phone_cache = json.load(handle)
+        except (OSError, ValueError):
+            _phone_cache = {}
+    return _phone_cache
+
+
+def listing_phone(body):
+    """On-demand single reveal: given ONE listing id, return the advertiser's number for in-Atlas contact. Served from a
+    local cache first; otherwise fetched once from the OFFICIAL aqar endpoint configured in the environment
+    (AQAR_REVEAL_URL containing {id}; request headers from AQAR_REVEAL_HEADER_* vars) and cached. Never a bulk harvest:
+    one id per call, triggered by a user who asked to see that number. Returns {available, phone}; available is False —
+    never a guess — when no official endpoint is configured or the listing states no number."""
+    lid = str(body.get('id') or '').strip()
+    if not lid.isdigit() or len(lid) > 12:
+        raise ValueError('id')
+    cache = _phone_cache_load()
+    if lid in cache:
+        return {'ok': True, 'available': bool(cache[lid]), 'phone': cache[lid] or None, 'cached': True}
+    url = os.environ.get('AQAR_REVEAL_URL')
+    if not url:
+        return {'ok': True, 'available': False, 'reason': 'not_configured'}
+    headers = {key[len('AQAR_REVEAL_HEADER_'):].replace('_', '-'): value
+               for key, value in os.environ.items() if key.startswith('AQAR_REVEAL_HEADER_')}
+    try:
+        req = urllib.request.Request(url.replace('{id}', urllib.parse.quote(lid)), headers=headers)
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.load(resp)
+        phone = parse_aqar_list.advertiser_phone(data if isinstance(data, dict) else {})
+    except Exception as error:
+        log_map_api_failure('listing-phone', error)
+        return {'ok': True, 'available': False, 'reason': 'fetch_failed'}
+    with _phone_lock:
+        cache[lid] = phone or ''
+        try:
+            with open(LISTING_PHONE_CACHE, 'w', encoding='utf-8') as handle:
+                json.dump(cache, handle, ensure_ascii=False)
+        except OSError:
+            pass
+    return {'ok': True, 'available': bool(phone), 'phone': phone}
+
+
 def insight_response(path, body):
     import insights
+    if path == '/listing-phone':
+        return listing_phone(body)
     if path == '/growth':
         city = _city(body)
         with LOCK:
@@ -1155,7 +1208,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/price-estimate', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/price-estimate', '/district-profile', '/listing-phone'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))

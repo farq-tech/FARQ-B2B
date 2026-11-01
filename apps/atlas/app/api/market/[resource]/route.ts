@@ -30,6 +30,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'real-estate-listings': ['POST'],
   'price-estimate': ['POST'],
   'district-profile': ['POST'],
+  'listing-phone': ['POST'],
 }
 
 function targetingHeaders() {

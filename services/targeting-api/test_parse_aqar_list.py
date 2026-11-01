@@ -88,6 +88,16 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual((on_request['listingType'], on_request['propertyType'], on_request['priceSar']), ('rent', 'other', None),
                          'a listing with no price, area or readable title is kept')
 
+    def test_advertiser_phone_is_normalised_and_carried_into_the_map_listing(self):
+        self.assertEqual(parse.advertiser_phone({'user': {'phone': 966501234567}}), '0501234567')
+        self.assertEqual(parse.advertiser_phone({'sellerPhone': '+966 50 123 4567'}), '0501234567')
+        self.assertEqual(parse.advertiser_phone({'extended_details': {'responsible_employee_phone_number': '0501234567'}}), '0501234567')
+        self.assertIsNone(parse.advertiser_phone({}), 'no number stated, none invented')
+        self.assertIsNone(parse.advertiser_phone({'user': {'phone': '0112345678'}}), 'a landline is not a mobile seller contact')
+        listing = parse.parse_map_listing({'title': 'شقة للإيجار', 'location': {'lat': 24.7, 'lng': 46.7},
+                                           'rent_period': 3, 'id': '7', 'user': {'phone': '0501234567'}}, 'Riyadh')
+        self.assertEqual(listing['phone'], '0501234567')
+
 
 if __name__ == '__main__':
     unittest.main()

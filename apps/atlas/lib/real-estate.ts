@@ -50,6 +50,8 @@ export type Listing = {
   age?: number
   /** Where the age came from: Aqar's own field, or read from the ad's description. */
   age_source?: 'aqar' | 'text'
+  /** The advertiser's Saudi mobile (05XXXXXXXX), so the viewer calls or messages from inside Atlas; null when none. */
+  phone?: string | null
   /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
    * with the prices paid there. Only yearly rent carries one. */
   signal?: MarketSignal | null

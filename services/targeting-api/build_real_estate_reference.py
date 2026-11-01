@@ -8,8 +8,10 @@ rentPeriod, areaSqm, latitude, longitude and publishedAt, and the golden distric
 A listing joins the district its coordinates fall in, never the district name it was filed under. Only the figures
 leave this script: per district, deal and property group, the number of listings and the median price per square
 metre. Each deal is its own median and nothing is converted: sale, rent per year, rent per month, and rent whose
-ad names no period. No listing id, advertiser, phone or coordinate is written. A median rests on at least
-MIN_LISTINGS listings, else the group is left out and Atlas shows «غير متاح».
+ad names no period. No listing id, advertiser, phone or coordinate is written into the per-district medians. (The
+optional map cards from --listings-out do carry each listing's id, coordinates and the advertiser's number, so the
+viewer can call or message from inside Atlas.) A median rests on at least MIN_LISTINGS listings, else the group is
+left out and Atlas shows «غير متاح».
 
 These are asking prices from current offers, not deal prices, and Atlas says so.
 """
@@ -137,7 +139,7 @@ PHOTO_URL = 'https://images.aqar.fm/webp/350x0/props/{}'
 GALLERY_URL = 'https://images.aqar.fm/webp/750x0/props/{}'
 AD_URL = 'https://sa.aqar.fm/ad/{}/ar'
 # the fields a listing card shows; nothing about who placed the ad
-CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width', 'age', 'age_source')
+CARD_FIELDS = ('beds', 'livings', 'wc', 'street_width', 'age', 'age_source', 'phone')
 # a building this many years old or less counts as new when a district's prices are split by age
 NEW_MAX_AGE = 2
 

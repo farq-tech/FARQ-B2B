@@ -41,6 +41,13 @@ export function sanitizeLiveDirectoryEntity(row: Record<string, unknown>): Publi
     buildingUse: asText(row.building_use ?? row.linked_building_use_ar ?? row.building_use_ar, 100) || undefined,
     makani: asText(row.makani ?? row.urbi_makani, 32) || undefined,
     atlasId: asText(row.farq_atlas_id, 32) || undefined,
+    // v7 non-contact directory details: the official description and delivery-app signals (shown as Farq, no source)
+    description: asText(row.rcrc_description_ar ?? row.description_ar, 1200) || undefined,
+    deliveryRating: number(row.delivery_rating) ?? undefined,
+    deliveryRateCount: number(row.delivery_rate_count) ?? undefined,
+    deliveryFee: number(row.delivery_fee) ?? undefined,
+    deliveryMinOrder: number(row.delivery_min_order) ?? undefined,
+    deliveryEta: asText(row.delivery_eta, 48) || undefined,
     status: ['open', 'closed_temporary', 'inactive', 'hidden', 'unknown_empty', 'unknown_invalid', 'closed_permanent'].includes(String(row.status_class)) ? row.status_class as PublicDirectoryEntity['status'] : null,
   }
   // an optional detail the row does not carry is left out, so the browser gets only the fields that exist

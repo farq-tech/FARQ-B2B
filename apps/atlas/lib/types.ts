@@ -92,6 +92,15 @@ export interface LiveBusinessSnapshot {
   buildingUse?: string
   makani?: string
   atlasId?: string
+  /** The official description of the place (v7 directory); shown as Farq, never a provider name. */
+  description?: string
+  /** Delivery-app signals (v7), non-contact: rating out of 5, its ratings count, delivery fee and minimum order in SAR,
+   * and the typical delivery time. Each present only when the directory carries it. */
+  deliveryRating?: number
+  deliveryRateCount?: number
+  deliveryFee?: number
+  deliveryMinOrder?: number
+  deliveryEta?: string
 }
 
 export type RequestType = 'list' | 'rfq' | 'campaign'
