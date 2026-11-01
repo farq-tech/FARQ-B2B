@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
-import { nationalityAudience, sexAudience, type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
+import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
@@ -15,7 +15,8 @@ import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Mode = 'people' | 'businesses'
-type Share = DistrictShare & { district_ar: string }
+// the measured shares plus the segment sizes the service derives from them (population × share): read, never recomputed
+type Share = DistrictShare & { district_ar: string; men: number | null; women: number | null; saudi: number | null; non_saudi: number | null }
 /** Which measured segment a figure rests on; two segments are shown side by side, never multiplied. */
 type Segment = 'none' | 'sex' | 'nationality'
 type Activity = { main_id: string; main_ar: string }
@@ -103,7 +104,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
     if (minIncome > 0 && row.income! < minIncome) return 0
     if (segment === 'none') return row.population
     const share = shares?.get(row.name)
-    return segment === 'sex' ? sexAudience(row.population, share, sex) : nationalityAudience(row.population, share, nationality)
+    if (segment === 'sex') return sex === 'all' ? row.population : share ? (sex === 'men' ? share.men : share.women) : null
+    return nationality === 'all' ? row.population : share ? (nationality === 'saudi' ? share.saudi : share.non_saudi) : null
   }, [shares, sex, nationality, minIncome])
 
   const { scored, unknown } = useMemo(() => {

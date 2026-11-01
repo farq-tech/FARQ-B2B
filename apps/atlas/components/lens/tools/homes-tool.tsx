@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
-import { areaKm2, distanceKm } from '@/lib/geo-measure'
+import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
@@ -44,11 +44,9 @@ function Thumb({ src }: { src: string | null }) {
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, features = [], selected, onOverlay, preset }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   city: string
   rows: DistrictRow[]
-  /** District outlines, for each listing's district density. */
-  features?: DistrictFeature[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
@@ -72,13 +70,8 @@ export function HomesTool({ city, rows, features = [], selected, onOverlay, pres
   const [picking, setPicking] = useState(false)
   const [nearest, setNearest] = useState(false)
   useEffect(() => { setMyPoint(readPoint()) }, [])
-  const density = useMemo(() => {
-    const areas = new Map(features.map((feature) => [String(feature.properties.id), areaKm2(feature.geometry)]))
-    return new Map(rows.map((row) => {
-      const area = areas.get(row.id) ?? 0
-      return [row.id, row.population != null && area > 0 ? row.population / area : null]
-    }))
-  }, [rows, features])
+  // residents per km², computed once in the service (server.py enrich_district_counts); read here per district
+  const density = useMemo(() => new Map(rows.map((row) => [row.id, row.density])), [rows])
   const districtIds = selected.map((row) => row.id)
   const districtKey = districtIds.join('|')
 
