@@ -178,3 +178,27 @@ class MarketBrandsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_travel_agencies_do_not_merge_on_the_activity_words(self):
+        rows = [
+            # distinct agencies that share only «سياحة/سفر» must NOT become one brand
+            ("t1", "العليا", "الصرح للسياحة والسفر", "الصرح للسياحه والسفر", None),
+            ("t2", "الملقا", "بريق السفير للسفر والسياحة", "بريق السفير للسفر والسياحه", None),
+            ("t3", "النرجس", "زوفر العالمية للسفر والسياحة", "زوفر العالميه للسفر والسياحه", None),
+            # a pure activity phrase, or its English translation, names no brand
+            ("g1", "العليا", "Travel and Tourism Agency", "travel and tourism agency", None),
+            ("g2", "الملقا", "Travel and Tourism Agency", "travel and tourism agency", None),
+            ("g3", "النرجس", "Tour", "tour", None),
+            ("g4", "اليرموك", "وكالة سفر وسياحة", "وكاله سفر وسياحه", None),
+            # a real travel brand still groups by its distinctive word across its branches
+            ("m1", "العليا", "المسافر للسفر والسياحة", "المسافر للسفر والسياحه", None),
+            ("m2", "الملقا", "المسافر للسياحة والسفر", "المسافر للسياحه والسفر", None),
+            ("m3", "النرجس", "المسافر", "المسافر", None),
+        ]
+        sizes = {core: len(g["pois"]) for core, g in market_analytics.group_chains(rows).items()}
+        self.assertEqual(sizes.get("المسافر"), 3, "a real travel brand groups by its distinctive word")
+        self.assertEqual((sizes.get("الصرح"), sizes.get("بريق السفير"), sizes.get("زوفر العالميه")), (1, 1, 1),
+                         "distinct agencies that share only the activity words stay apart")
+        self.assertNotIn("travel tourism agency", sizes, "an activity phrase names no brand")
+        self.assertNotIn("tour", sizes)
+        self.assertEqual([core for core, n in sizes.items() if n >= 2], ["المسافر"], "no fake travel mega-brand")

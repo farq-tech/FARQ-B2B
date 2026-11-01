@@ -71,6 +71,11 @@ CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
     "بوفيه", "بوفيات", "اكلات", "شعبيه", "شعبي", "باكستاني", "هندي", "يمني", "يمنيه", "ويمنيه", "حجازي", "حجازيه",
     "لتقديم", "الوجبات", "للوجبات", "وجبات", "السريعه", "سريعه", "المشروبات", "تلميع",
     "مستحضرات", "لمستحضرات", "التجميل", "cosmetic", "cosmetics",
+    # travel/tourism is an activity, not a brand: «وكالة … للسياحة والسفر», «Travel and Tourism Agency», «Tour» are many
+    # unrelated agencies. A real brand keeps its distinctive word («المسافر للسفر والسياحة» -> «المسافر»).
+    "سياحه", "سفر", "السياحه", "السفر", "للسياحه", "للسفر", "والسفر", "والسياحه", "وسفر", "وسياحه", "سياحيه", "السياحيه",
+    "اسفار", "للاسفار", "رحلات", "للرحلات", "وكاله", "وكالات", "للوكاله", "لرحلات",
+    "travel", "travels", "tourism", "tour", "tours", "tourist", "touristic", "agency", "agencies", "holiday", "holidays", "trips",
 })
 
 # Words that mark a registered company's own name: one that ends in a brand it runs is that brand
