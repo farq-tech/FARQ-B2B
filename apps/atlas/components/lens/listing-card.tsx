@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, Loader2, MessageCircle, Phone, Scale } from 'lucide-react'
+import { ChevronDown, ExternalLink, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat } from '@/lib/insights-api'
 import { ageLabel, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
@@ -57,17 +57,6 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
   className?: string
 }) {
   const [around, setAround] = useState(false)
-  // on-demand contact: undefined = not asked yet, null = asked but none available, string = the advertiser's number.
-  // Fetched one listing at a time when the viewer asks, from the service's configured official source; never bulk.
-  const [phone, setPhone] = useState<string | null | undefined>(listing.phone ?? undefined)
-  const [revealing, setRevealing] = useState(false)
-  const reveal = async () => {
-    setRevealing(true)
-    try {
-      const data = await postMarket<{ available?: boolean; phone?: string | null }>('listing-phone', { id: listing.id })
-      setPhone(data.available && data.phone ? data.phone : null)
-    } catch { setPhone(null) } finally { setRevealing(false) }
-  }
   const versus = listing.check ? null : versusDistrict(listing)
   const perSqm = perSqmLine(listing)
   const rooms = [
@@ -125,30 +114,18 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
-        {/* contact happens inside Atlas: the number is fetched on demand for this one listing when the viewer asks */}
-        {phone ? (
-          <div className="mt-1 grid grid-cols-2 gap-1.5">
-            <a href={`tel:${phone}`}
+        <div className="mt-1 grid grid-cols-2 gap-1.5">
+          {listing.url ? (
+            <a href={listing.url} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
-              <Phone className="size-4" aria-hidden /> اتصال
+              <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
             </a>
-            <a href={`https://wa.me/966${phone.replace(/^0/, '')}`} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-sm font-semibold text-primary">
-              <MessageCircle className="size-4" aria-hidden /> واتساب
-            </a>
-          </div>
-        ) : phone === null ? (
-          <p className="mt-1 rounded-lg border px-3 py-2 text-center text-sm text-muted-foreground">تواصل المعلن غير متاح</p>
-        ) : (
-          <button onClick={reveal} disabled={revealing}
-            className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
-            {revealing ? <Loader2 className="size-4 animate-spin" aria-label="جارٍ الجلب" /> : <><Phone className="size-4" aria-hidden /> أظهر الرقم</>}
+          ) : <span />}
+          <button onClick={onCompare} aria-pressed={comparing}
+            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold', comparing ? 'border-primary text-primary' : 'hover:border-primary')}>
+            <Scale className="size-4" aria-hidden /> {comparing ? 'في المقارنة' : 'أضف للمقارنة'}
           </button>
-        )}
-        <button onClick={onCompare} aria-pressed={comparing}
-          className={cn('mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold', comparing ? 'border-primary text-primary' : 'hover:border-primary')}>
-          <Scale className="size-4" aria-hidden /> {comparing ? 'في المقارنة' : 'أضف للمقارنة'}
-        </button>
+        </div>
       </div>
     </MapWindow>
   )
