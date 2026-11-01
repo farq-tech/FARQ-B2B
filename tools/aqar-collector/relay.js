@@ -231,8 +231,10 @@ async function phoneRun() {
         await set({ phones: { ...phones, active: false, status: 'signin', error: 'سجّل الدخول في عقار' } })
         break
       }
-      // any other error leaves the listing unasked (no phone_at), so a later run asks it again
-      const failed = !!body?.errors?.length && body?.data?.Listing?.getPhoneAsString == null
+      // an unreadable answer, one without the field, or any other error leaves the listing unasked (no phone_at), so
+      // a later run asks it again; only an answer that carries the field (a number, or none) marks it asked
+      const listing = body?.data?.Listing
+      const failed = !listing || !('getPhoneAsString' in listing) || (!!body.errors?.length && listing.getPhoneAsString == null)
       const phone = String(body?.data?.Listing?.getPhoneAsString ?? '').replace(/\D/g, '')
       writes = writes.then(async () => {
         const key = `m:${id}`
