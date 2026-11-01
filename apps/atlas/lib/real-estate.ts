@@ -59,6 +59,8 @@ export type Listing = {
   updated_on?: string
   /** The ad carries the real-estate authority's advertising licence. */
   licensed?: boolean
+  /** The advertiser's number is on file; a signed-in person asks for it per listing (/api/market/listing-phone). */
+  has_phone?: boolean
   /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
    * with the prices paid there. Only yearly rent carries one. */
   signal?: MarketSignal | null

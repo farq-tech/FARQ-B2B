@@ -300,6 +300,12 @@ def insight_response(path, body):
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/real-estate-phone':
+        listing_id = body.get('id')
+        if not isinstance(listing_id, str) or not re.fullmatch(r'\d{1,12}', listing_id): raise ValueError('id')
+        phone = insights.listing_phone(listing_id)
+        LOGGER.info('listing_phone found=%s', bool(phone))
+        return {'ok': True, 'available': bool(phone), 'phone': phone}
     if path == '/housing-level':
         city = _city(body)
         with LOCK:
@@ -1155,7 +1161,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/price-estimate', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/real-estate-phone', '/price-estimate', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))
