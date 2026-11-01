@@ -189,7 +189,7 @@ async function fastRun() {
 // may use the numbers and public data in its app. The number is kept on the listing (m:<id>.phone); an empty answer
 // is kept too (phone ''); phone_at marks a listing asked, so each is asked once.
 const PHONE_QUERY = 'query getPhoneAsString($id:Int!,$whatsapp:Boolean){Listing{getPhoneAsString(id:$id,whatsapp:$whatsapp)}}'
-const PHONE_PAUSE_MS = [3000, 5000]
+const PHONE_PAUSE_MS = [2000, 3500]   // a 429 still slows the run for good, as in the fast run
 let phoning = false
 const minePhones = async () => { const { phones } = await get({ phones: null }); return !!phones?.active && (!phones.owner || phones.owner === TAB) }
 async function phoneRun() {

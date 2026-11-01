@@ -18,7 +18,7 @@ link to each listing reach Atlas.
   lives in storage, so a reloaded tab resumes; a 403 pauses it.
 
 - **Advertiser numbers (`relay.js`).** «جلب أرقام المعلنين» asks, for every kept listing not asked yet, the same
-  `getPhoneAsString` the listing's «اتصال» asks (`/auth-graphql`, signed-in page), one listing every 3–5 s, Riyadh's
+  `getPhoneAsString` the listing's «اتصال» asks (`/auth-graphql`, signed-in page), one listing every 2–3.5 s, Riyadh's
   rentals first. The number is kept on the listing as `phone` ('' when none is given), so each is asked once. A 429
   waits and slows the run like the fast run; a signed-out page pauses it until the person signs in. Aqar's support
   agreed on 2026-11-01 that Farq Atlas may use the numbers and public data in its app.
