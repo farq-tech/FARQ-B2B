@@ -9,13 +9,14 @@ import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
-import { useStickyState } from '@/lib/sticky-state'
+import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
+import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
 
 type Within = { population: number | null; dwellings: number | null; businesses: number | null; residents_per: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
 type Geometry = GeoJSON.Polygon | GeoJSON.MultiPolygon
 type Reach = { kind: 'radius'; metres: number } | { kind: 'drive'; minutes: number }
-type Result = { status: 'loading' | 'ready' | 'error'; message?: string; geometry?: Geometry; figures?: Within }
+type Result = { status: 'loading' | 'ready' | 'error'; message?: string; geometry?: Geometry; figures?: Within; card?: SiteCardState }
 
 const REACHES: Reach[] = [
   { kind: 'radius', metres: 500 }, { kind: 'radius', metres: 1000 }, { kind: 'radius', metres: 2000 },
@@ -28,6 +29,18 @@ const reachLabel = (reach: Reach) => (reach.kind === 'radius'
   : `${reach.minutes} د بالسيارة`)
 const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
+
+/** The site card for one range (/api/market/site-card, signed-in only because it names competitors). */
+async function cardFor(city: string, point: Point, geometry: Geometry, activity: { q?: string; main_id?: string }): Promise<SiteCardState> {
+  const response = await fetch('/api/market/site-card', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ city, geometry, centre: [point.lon, point.lat], ...(activity.q ? { q: activity.q } : activity.main_id ? { main_id: activity.main_id } : {}) }),
+  })
+  const body = await response.json().catch(() => null)
+  if (!response.ok || !body) return { status: 'error', message: body?.error || 'تعذر حساب بطاقة الموقع.' }
+  return { status: 'ready', data: body as SiteCardData }
+}
 
 /** The area a site reaches: a circle on the ground, or the roads a car covers in the time (Valhalla isochrone). */
 async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
@@ -49,7 +62,8 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * each, by distance or by drive time on the real road network. Every figure is the same golden count as the rest of
  * Atlas, only the boundary differs.
  */
-export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => void }) {
+export function AroundTool({ city, onOverlay }: { city: string; onOverlay: (overlay: Overlay) => void }) {
+  const [activity] = useStudiedActivity()
   const [sites, setSites] = useState<(Point & { id: number })[]>([])
   const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
   const [results, setResults] = useState<Record<string, Result>>({})
@@ -64,7 +78,7 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
     setSites((current) => [...current.slice(-(MAX_SITES - 1)), { ...point, id }])
   }, [])
 
-  const keyOf = useCallback((site: { id: number }) => `${site.id}|${reach.kind}|${reach.kind === 'radius' ? reach.metres : reach.minutes}`, [reach])
+  const keyOf = useCallback((site: { id: number }) => `${site.id}|${reach.kind}|${reach.kind === 'radius' ? reach.metres : reach.minutes}|${city}|${activity.q ?? activity.main_id ?? ''}`, [reach, city, activity])
 
   // each site × reach is worked out once; results are keyed by both, so a late answer never lands on the wrong site
   useEffect(() => {
@@ -75,10 +89,16 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
       setResults((current) => ({ ...current, [key]: { status: 'loading' } }))
       const settle = (result: Result) => { if (mounted.current) setResults((current) => ({ ...current, [key]: result })) }
       areaFor(site, reach)
-        .then(async (geometry) => settle({ status: 'ready', geometry, figures: await postMarket<Within>('population-within', { geometry }) }))
+        .then(async (geometry) => {
+          // the comparison figures and the card arrive separately, so a card that needs sign-in never blocks the table
+          const card = cardFor(city, site, geometry, activity).catch((): SiteCardState => ({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
+          settle({ status: 'ready', geometry, figures: await postMarket<Within>('population-within', { geometry }), card: { status: 'loading' } })
+          const ready = await card
+          if (mounted.current) setResults((current) => (current[key] ? { ...current, [key]: { ...current[key], card: ready } } : current))
+        })
         .catch((error: Error) => settle({ status: 'error', message: error.message || 'تعذر الحساب.' }))
     }
-  }, [sites, reach, keyOf])
+  }, [sites, reach, keyOf, city, activity])
 
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
 
@@ -166,16 +186,9 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
         </div>
       )}
       {ready.length > 0 && (
-        <div className="space-y-2">
-          {ready.map((site) => site.result!.figures!.top_activities.length > 0 && (
-            <div key={site.id}>
-              <p className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة حول الموقع {site.label}</p>
-              <ul className="space-y-1 text-base">
-                {site.result!.figures!.top_activities.slice(0, 4).map((row) => (
-                  <li key={row.activity} className="flex justify-between"><span>{row.activity}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
-                ))}
-              </ul>
-            </div>
+        <div className="space-y-3">
+          {ready.map((site) => (
+            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} />
           ))}
         </div>
       )}

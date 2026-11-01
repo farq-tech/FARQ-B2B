@@ -197,6 +197,29 @@ def _number(body, key, low, high, default=None):
     return value
 
 
+def site_card_response(body):
+    """The store owners' site card (site_card.py): people and their measured segments inside a range, and the chosen
+    activity's competitors in it. The range is validated like /population-within."""
+    import insights, site_card
+    city = _city(body)
+    geometry = body.get('geometry')
+    if not isinstance(geometry, dict) or geometry.get('type') not in ('Polygon', 'MultiPolygon'): raise ValueError('geometry')
+    points = [p for rings in canonical_data._polygons(geometry) for ring in rings for p in ring]
+    if not 3 <= len(points) <= 20000 or not all(isinstance(p, list) and len(p) >= 2 and 34 <= p[0] <= 56 and 16 <= p[1] <= 33 for p in points):
+        raise ValueError('geometry')
+    centre = body.get('centre')
+    if centre is not None and not (isinstance(centre, list) and len(centre) == 2 and 34 <= centre[0] <= 56 and 16 <= centre[1] <= 33):
+        raise ValueError('centre')
+    with LOCK:
+        by_district = site_card.people_by_district(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')), geometry, HOUSEHOLD_SIZE)
+    audience = (insights.district_audience(city) or {}).get('districts')
+    children = site_card.child_shares(golden_demographics(city))
+    people = site_card.segments(by_district, CANONICAL['district_id_map'], CANONICAL['district_names'], audience, children)
+    competitors = MARKET_ANALYTICS.competitors_within(body, geometry, centre)
+    return {'ok': True, 'city': city, 'people': people, 'competitors': competitors,
+            'residents_per_competitor': district_metrics.residents_per(people.get('population'), (competitors or {}).get('n'))}
+
+
 def _city_features(city):
     with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
         return [f for f in json.load(handle).get('features', []) if (f.get('properties') or {}).get('city_en') == city]
@@ -1168,6 +1191,13 @@ class H(BaseHTTPRequestHandler):
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('insights', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/site-card':
+            # The store owners' site card: people, measured segments and competitors inside one range.
+            try: self._json(site_card_response(body))
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('site-card', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/market-gaps':
             # Districts where an activity has fewer directory businesses than its residents would carry at the city rate.
