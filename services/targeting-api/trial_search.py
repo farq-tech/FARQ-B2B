@@ -198,6 +198,11 @@ class Directory:
                 f"{self.source_expr('urbi_makani','makani')} makani",
                 f"{self.source_expr('farq_atlas_id')} farq_atlas_id",
             ])
+            # v7 directory content shown as Farq (no source): the official description and non-contact delivery signals.
+            # Each column is included only when the release carries it, else NULL, so older releases keep working.
+            v7_attrs=', '.join([f"{self.source_expr('description_ar')} description"]
+                + [f"{c} {c}" if c in self._dir_cols else f"null {c}"
+                   for c in ('delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta')])
             legal_expr=self.source_expr('legal_name','urbi_legal_name')
             brand_expr=self.source_expr('brand_name','urbi_brand_name')
             candidates=self.db.execute(f"""select coalesce(nullif(name_ar,''),name_en) as display_name,
@@ -205,13 +210,13 @@ class Directory:
                 concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category) evidence_category,
                 coalesce(district_ar,district_en,'') district,
                 coalesce(completeness_pct,0) completeness,
-                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, {legal_expr} legal_name, {brand_expr} brand_name, secondary_category, category_l3, company_status, lifecycle_state, {source_attrs}
+                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, {legal_expr} legal_name, {brand_expr} brand_name, secondary_category, category_l3, company_status, lifecycle_state, {source_attrs}, {v7_attrs}
                 from read_parquet(?) where city_en=? and coalesce(name_ar,name_en) is not null
                 and """ + self.search_sql + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
             ranked=[]; seen=set()
             for candidate in candidates:
                 name,category,details,district,complete,contactable=candidate[:6]
-                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state','branch_count','employee_count','payment_methods','service_languages','operating_hours','floor','building_use','makani','farq_atlas_id'],candidate[6:]))
+                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state','branch_count','employee_count','payment_methods','service_languages','operating_hours','floor','building_use','makani','farq_atlas_id','description','delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta'],candidate[6:]))
                 geo['status_class']=status_policy.normalize(geo.pop('company_status'),geo.pop('lifecycle_state'))['status_normalized']   # class only, never the raw value
                 if geo['location_precision'] != 'point': geo['latitude']=geo['longitude']=None
                 row={'name':name,'category':category,'evidence_category':details,'district':district}
