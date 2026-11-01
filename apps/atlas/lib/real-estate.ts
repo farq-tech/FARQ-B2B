@@ -50,12 +50,53 @@ export type Listing = {
   age?: number
   /** Where the age came from: Aqar's own field, or read from the ad's description. */
   age_source?: 'aqar' | 'text'
+  /** Who may live there, for a rental that states it (Aqar's field, the ad's text where it names a side). */
+  tenants?: Tenants
+  /** What the property has as the ad's form records it: 1 has, 0 lacks; an unstated feature is absent. */
+  features?: Partial<Record<Feature, 0 | 1>>
+  /** When the ad went up and when it was last updated (YYYY-MM-DD). */
+  listed_on?: string
+  updated_on?: string
+  /** The ad carries the real-estate authority's advertising licence. */
+  licensed?: boolean
+  /** The advertiser's number is on file; a signed-in person asks for it per listing (/api/market/listing-phone). */
+  has_phone?: boolean
   /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
    * with the prices paid there. Only yearly rent carries one. */
   signal?: MarketSignal | null
 }
 
 export type ListingKind = 'rent' | 'sale'
+
+export type Tenants = 'families' | 'singles' | 'both'
+export const TENANTS_LABEL: Record<Tenants, string> = { families: 'للعوائل', singles: 'للعزاب', both: 'عوائل وعزاب' }
+
+/** The features a card lists, in the order a person reads them. */
+export const FEATURES = [
+  ['furnished', 'مفروش'], ['ketchen', 'مطبخ'], ['ac', 'مكيفات'], ['lift', 'مصعد'], ['car_entrance', 'مدخل سيارة'],
+  ['extra_unit', 'ملحق'], ['two_entrances', 'مدخلان'], ['private_roof', 'سطح خاص'], ['stairs', 'درج داخلي'],
+  ['maid', 'غرفة خادمة'], ['driver', 'غرفة سائق'], ['backyard', 'حوش'], ['pool', 'مسبح'], ['basement', 'قبو'], ['tent', 'خيمة'],
+] as const
+export type Feature = (typeof FEATURES)[number][0]
+
+/** «منذ 3 أيام» for a YYYY-MM-DD date, counted in whole days; null without one. */
+export function daysAgo(day: string | undefined, now = new Date()) {
+  if (!day) return null
+  const days = Math.floor((now.getTime() - Date.parse(`${day}T00:00:00Z`)) / 86400000)
+  if (!Number.isFinite(days) || days < 0) return null
+  if (days === 0) return 'اليوم'
+  if (days === 1) return 'أمس'
+  if (days < 30) return `منذ ${counted(days, 'يوم', 'يومين', 'أيام', 'يوماً')}`
+  if (days < 365) return `منذ ${counted(Math.max(1, Math.round(days / 30)), 'شهر', 'شهرين', 'أشهر', 'شهراً')}`
+  return `منذ ${counted(Math.round(days / 365), 'سنة', 'سنتين', 'سنوات', 'سنة')}`
+}
+
+/** «شهر»، «شهرين»، «3 أشهر»، «11 شهراً»: a count the way it is said. */
+function counted(n: number, one: string, two: string, few: string, many: string) {
+  if (n === 1) return one
+  if (n === 2) return two
+  return `${numberFormat.format(n)} ${n % 100 >= 3 && n % 100 <= 10 ? few : many}`
+}
 
 /** What Atlas shows of a listing: a price, a stated period, at least one photo, and figures that need no checking.
  * The service serves only these; the same test here keeps an older service answer to the same standard. */
@@ -140,8 +181,8 @@ export function signalLines(signal: MarketSignal, type: string): string[] {
   return [
     `إيجار ${typeLabel(type)} المعروض في الحي ${versusWords(signal.rent_pct)} أقرب ${numberFormat.format(signal.neighbours.length)} أحياء: ${signal.neighbours.join('، ')}.`,
     dealNeighbours.join() === signal.neighbours.join()
-      ? `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} نفس الجيران.`
-      : `سعر المتر في صفقات البيع السكنية المسجلة (وزارة العدل) ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(dealNeighbours.length)} أحياء لها صفقات: ${dealNeighbours.join('، ')}.`,
+      ? `سعر المتر في صفقات البيع السكنية المسجلة رسمياً ${versusWords(signal.deal_pct)} نفس الجيران.`
+      : `سعر المتر في صفقات البيع السكنية المسجلة رسمياً ${versusWords(signal.deal_pct)} أقرب ${numberFormat.format(dealNeighbours.length)} أحياء لها صفقات: ${dealNeighbours.join('، ')}.`,
     {
       cheaper_area: 'الإيجار والبيع كلاهما أقل: الحي نفسه أرخص، لا الإعلانات وحدها.',
       rent_under_value: 'الإيجار أقل مما يباع به الحي: مكسب للمستأجر، وعائد أقل لمن يشتري ليؤجر. قد يعني أيضاً مباني أقدم.',

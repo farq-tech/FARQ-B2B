@@ -10,11 +10,21 @@ link to each listing reach Atlas.
   as its card shows it: text lines, link, photo. A block or check page pauses the run.
 - **Map answers (`inject.js`, `relay.js`).** Aqar's map receives listings from its GraphQL `Web.find` with location,
   district id, link, price, rent period and photos; each is kept once, with the latest request as a template.
+- **More fields (`relay.js`).** The replayed query asks for listing fields the map's own query leaves out and the
+  server gives when asked (`EXTRA_FIELDS`: the building's age, rooms, plot width and length, features, licence, deed,
+  dates). A listing already kept gains the fields it lacks from a later answer.
 - **Fast run (`relay.js`).** «سحب سريع من الخريطة» replays that template: the area the map last showed is cut into
   quarters until a tile holds at most 1,000 listings, and each tile is read 50 at a time with a 2.5–4 s pause. A 429 waits (Retry-After, else 1 min doubling to 10 min), slows the rest of the run by half, and retries by itself. Its state
   lives in storage, so a reloaded tab resumes; a 403 pauses it.
 
-Records are kept as received, contact details included; they are hidden when Farq processes the export.
+- **Advertiser numbers (`relay.js`).** «جلب أرقام المعلنين» asks, for every kept listing not asked yet, the same
+  `getPhoneAsString` the listing's «اتصال» asks (`/auth-graphql`, signed-in page), one listing every 2–3.5 s, Riyadh's
+  rentals first. The number is kept on the listing as `phone` ('' when none is given), so each is asked once. A 429
+  waits and slows the run like the fast run; a signed-out page pauses it until the person signs in. Aqar's support
+  agreed on 2026-11-01 that Farq Atlas may use the numbers and public data in its app.
+
+Records are kept as received, contact details included. Atlas never sends a number in a list of listings: a
+signed-in person asks for one listing's number (`/api/market/listing-phone`).
 
 Install: `chrome://extensions` → Developer mode → Load unpacked → this folder. Exports are raw data: keep them out
 of Git.

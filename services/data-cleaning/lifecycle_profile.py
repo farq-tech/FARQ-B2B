@@ -1,4 +1,4 @@
-"""Recompute the figures in docs/establishment-lifecycle.md (section 1) from the HudHud CRS/POI-log export.
+"""Recompute the figures in docs/establishment-lifecycle.md (section 1) from the SPD CRS/POI-log export.
 
 Read-only: it reads one .xlsx and prints JSON (aggregate counts only, no business rows). No third-party packages.
 
@@ -7,7 +7,7 @@ Read-only: it reads one .xlsx and prints JSON (aggregate counts only, no busines
 Every figure carries its unit, its denominator and what it leaves out. Definitions (the document uses these names):
 - log row: one row of the sheet `All_POI_Logs`.
 - CR request: one row of the sheet `All_CRs_Data`.
-- transaction: one distinct, non-empty `transaction_id` in `All_POI_Logs`; it equals the HudHud POI id. Rows with an
+- transaction: one distinct, non-empty `transaction_id` in `All_POI_Logs`; it equals the SPD POI id. Rows with an
   empty `transaction_id` belong to no transaction and are counted apart.
 - update pair: two consecutive approved log rows of one transaction, ordered by `created_at`, the later one an
   `update`.

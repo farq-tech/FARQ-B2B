@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ExternalLink, Scale } from 'lucide-react'
+import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat } from '@/lib/insights-api'
-import { ageLabel, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -39,15 +39,53 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
   )
 }
 
+/** The advertiser's number, asked for one listing at a time by a signed-in person; a call and a WhatsApp link. */
+function ListingPhone({ id }: { id: string }) {
+  const [state, setState] = useState<{ phone?: string | null; error?: string; loading?: boolean }>({})
+  const reveal = async () => {
+    setState({ loading: true })
+    const response = await fetch('/api/market/listing-phone', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => null)
+    const payload = await response?.json().catch(() => null) as { phone?: string | null; error?: string } | null
+    if (!response?.ok) setState({ error: payload?.error || 'تعذر جلب الرقم الآن.' })
+    else setState({ phone: payload?.phone ?? null })
+  }
+  if (state.phone) {
+    const international = `966${state.phone.slice(1)}`
+    return (
+      <div className="grid grid-cols-2 gap-1.5">
+        <a href={`tel:+${international}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" dir="ltr">
+          <Phone className="size-4" aria-hidden /> {state.phone}
+        </a>
+        <a href={`https://wa.me/${international}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold hover:border-primary">
+          <MessageCircle className="size-4" aria-hidden /> واتساب
+        </a>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <button onClick={reveal} disabled={state.loading} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+        <Phone className="size-4" aria-hidden /> {state.loading ? 'يجلب الرقم…' : 'اعرض رقم المعلن'}
+      </button>
+      {state.phone === null && <p className="text-sm text-muted-foreground">رقم المعلن غير متاح لهذا العرض.</p>}
+      {state.error && <p role="alert" className="text-sm text-warning">{state.error}{/سجّل/.test(state.error) && <> <a href="/login" className="underline">دخول</a></>}</p>}
+    </div>
+  )
+}
+
 /**
  * The card a listing opens on the map: its photos, the price with the period the ad states, the size and how the
  * price per m² stands against the same deal in its district. Two actions only: open the ad itself, or put the
  * listing in the comparison.
  */
-export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = null, density = null, className }: {
+export function ListingCard({ listing, comparing, onCompare, compareCount = 0, onCompareNow, onClose, myPoint = null, density = null, className }: {
   listing: Listing
   comparing: boolean
   onCompare: () => void
+  /** How many listings are in the comparison, this one included or not. */
+  compareCount?: number
+  /** Opens the comparison of the two listings in it. */
+  onCompareNow?: () => void
   onClose: () => void
   /** The viewer's own point (work, school…), measured from the home. */
   myPoint?: MyPoint | null
@@ -65,6 +103,9 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
     listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
   ].filter(Boolean)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  // what the property has, as the ad's form records it; what it lacks shows in the comparison
+  const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
+  const listed = daysAgo(listing.listed_on)
 
   const tab = (
     <>
@@ -97,6 +138,18 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
             عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span>
           </Explained>
         </p>
+        {(listing.tenants || has.length > 0) && (
+          <ul className="flex flex-wrap gap-1.5" aria-label="مزايا العقار">
+            {listing.tenants && <li className="rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">{TENANTS_LABEL[listing.tenants]}</li>}
+            {has.map((label) => <li key={label} className="rounded-full border px-2.5 py-0.5 text-sm">{label}</li>)}
+          </ul>
+        )}
+        {(listed || listing.licensed) && (
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+            {listed && <span>نُشر {listed}</span>}
+            {listing.licensed && <span className="inline-flex items-center gap-1"><BadgeCheck className="size-4 text-primary" aria-hidden /> إعلان مرخّص</span>}
+          </p>
+        )}
         {perSqm && (
           <p className="text-sm">
             <Explained title="سعر المتر" lines={EXPLAIN.listingPerSqm(listing.deal)} className="font-semibold">{perSqm}</Explained>
@@ -114,18 +167,28 @@ export function ListingCard({ listing, comparing, onCompare, onClose, myPoint = 
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
+        {listing.has_phone && <ListingPhone key={listing.id} id={listing.id} />}
         <div className="mt-1 grid grid-cols-2 gap-1.5">
-          {listing.url ? (
+          {listing.has_phone ? null : listing.url ? (
             <a href={listing.url} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
               <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
             </a>
           ) : <span />}
           <button onClick={onCompare} aria-pressed={comparing}
-            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold', comparing ? 'border-primary text-primary' : 'hover:border-primary')}>
-            <Scale className="size-4" aria-hidden /> {comparing ? 'في المقارنة' : 'أضف للمقارنة'}
+            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
+            {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
           </button>
         </div>
+        {/* what adding did, said where it was tapped: one more to pick, or the comparison ready to open */}
+        {comparing && compareCount < 2 && (
+          <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">أُضيف للمقارنة. افتح عقاراً ثانياً من الخريطة أو القائمة وأضفه.</p>
+        )}
+        {compareCount === 2 && onCompareNow && (
+          <button onClick={onCompareNow} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
+            <Scale className="size-4" aria-hidden /> قارن العقارين جنباً إلى جنب
+          </button>
+        )}
       </div>
     </MapWindow>
   )

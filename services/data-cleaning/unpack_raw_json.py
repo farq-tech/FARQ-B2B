@@ -1,4 +1,4 @@
-"""Unpack every field of HudHud's `raw_json` into columns, one row per place, from either source:
+"""Unpack every field of SPD's `raw_json` into columns, one row per place, from either source:
 - the CR database (crs_fixed.duckdb, table `crs`, 256,963 change requests): `raw_json.data.last_log` is what the surveyor's
   CR set — names, phone and extra phones, website, e-mail, socials, licence, national address, street, hours, …;
 - the logs database (hudhud.db, table `poi_logs`, 371,426 logs): `raw_json` there holds only names, trade name,

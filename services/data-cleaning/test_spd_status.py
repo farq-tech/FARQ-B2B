@@ -1,4 +1,4 @@
-"""HudHud closures on synthetic rows: python3 -m unittest test_hudhud_status (from services/data-cleaning)."""
+"""SPD closures on synthetic rows: python3 -m unittest test_spd_status (from services/data-cleaning)."""
 import json
 import pathlib
 import subprocess
@@ -11,7 +11,7 @@ import duckdb
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'targeting-api'))
-from hudhud_status import decide  # noqa: E402
+from spd_status import decide  # noqa: E402
 import status_policy  # noqa: E402
 
 
@@ -23,7 +23,7 @@ class DecideTests(unittest.TestCase):
         self.assertIsNone(decide('permanently_closed', 'temporary closed'), 'never lightened')
         self.assertIsNone(decide('temporarily_closed', 'open'), 'never reopened')
         self.assertIsNone(decide('hidden', 'permanently closed'), 'another value is left as it is')
-        self.assertEqual(decide(None, 'closed'), 'permanently_closed', "HudHud's bare «closed» is permanent")
+        self.assertEqual(decide(None, 'closed'), 'permanently_closed', "SPD's bare «closed» is permanent")
         for spelling in ('temporary closed', 'Temporarily Closed', 'مغلق مؤقتاً'):
             self.assertEqual(decide(spelling, 'permanently closed'), 'permanently_closed', spelling)
             self.assertIsNone(decide(spelling, 'temporary closed'), spelling)
@@ -49,7 +49,7 @@ class CliTests(unittest.TestCase):
                        ('3.0', 'c', '2025-08-01', '2025-08-04', 'draft', 'false', 'permanently closed'),
                        ('4.0', 'd', '2025-08-01', '2025-08-05', 'ready to publish', 'false', 'open')""")
         crs.close()
-        run = lambda out: subprocess.run([sys.executable, str(HERE / 'hudhud_status.py'), '--targets', str(temp / 't.parquet'),
+        run = lambda out: subprocess.run([sys.executable, str(HERE / 'spd_status.py'), '--targets', str(temp / 't.parquet'),
                                           '--crs', str(temp / 'crs.duckdb'), '--out', str(out)], capture_output=True, text=True)
         self.assertNotEqual(run(temp / 't.parquet').returncode, 0, 'never writes over its input')
         result = run(temp / 't_closed.parquet')
@@ -62,7 +62,7 @@ class CliTests(unittest.TestCase):
         report = json.loads((temp / 't_closed.report.json').read_text())
         self.assertEqual(report['written'], {'(empty) -> temporarily_closed': 1, 'temporarily_closed -> permanently_closed': 1})
         self.assertEqual(report['other_columns_changed'], 0)
-        again = subprocess.run([sys.executable, str(HERE / 'hudhud_status.py'), '--targets', str(temp / 't_closed.parquet'),
+        again = subprocess.run([sys.executable, str(HERE / 'spd_status.py'), '--targets', str(temp / 't_closed.parquet'),
                                 '--crs', str(temp / 'crs.duckdb'), '--out', str(temp / 't_again.parquet')], capture_output=True, text=True)
         self.assertEqual(again.returncode, 0, 'a second run with nothing to change still writes: ' + again.stderr)
         self.assertEqual(json.loads((temp / 't_again.report.json').read_text())['written'], {})

@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, ltr, nounAfter, numberFormat, percent, postMarket, type DistrictFeature } from '@/lib/insights-api'
-import { areaKm2 } from '@/lib/geo-measure'
+import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { MapLegend } from './map-legend'
@@ -13,12 +12,13 @@ import type { Overlay } from './overlay'
 import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
-import { residentsPer } from '@/lib/audience'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 
 type Activity = { main_id: string; main_ar: string }
-type Count = { district_ar: string; n: number }
+// per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
+// counts; a brand's by_district carries only n
+type Count = { district_ar: string; n: number; per_km2?: number | null; residents_per?: number | null }
 type Growth = { since: string | null; before: number; now: number } | null
 type Brand = { brand: string; keys: string[]; branches: number; districts: number; share_pct: number | null; by_district: Count[]; growth: Growth }
 type Uncovered = { district_ar: string; population: number; businesses: number }
@@ -31,7 +31,7 @@ function growthLine(growth: Growth): string | null {
   const change = growth.now - growth.before
   return change === 0 ? 'بلا تغيير' : `${ltr(`${change > 0 ? '+' : '−'}${numberFormat.format(Math.abs(change))}`)} ${nounAfter(change, 'branch')}`
 }
-type Row = { row: DistrictRow; competitors: number; areaKm2: number; perKm2: number; residentsPer: number | null }
+type Row = { row: DistrictRow; competitors: number; perKm2: number | null; residentsPer: number | null }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مقهى']
 // competition reads as heat: pale for few competitors per km², deep amber for many
@@ -42,10 +42,9 @@ const NONE = PALETTE.sage   // no competitor of this activity in the district
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map
  * shows where competition is dense; a district picked from the list opens its competitors by name.
  */
-export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onActivity, onAllBranches }: {
+export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches }: {
   city: string
   rows: DistrictRow[]
-  features: DistrictFeature[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
   /** The activity being studied, so the competitors of a picked district can be listed by name. */
@@ -60,6 +59,8 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
   const [counts, setCounts] = useState<Count[] | null>(null)
   // the city's count from the service, which includes businesses with no reliable district
   const [cityTotal, setCityTotal] = useState<number | null>(null)
+  // businesses that fell in a known district (Σ n), summed once in the service
+  const [located, setLocated] = useState<number | null>(null)
   const [understood, setUnderstood] = useState<Understanding>(null)
   const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'dense')
   const [view, setView] = useStickyState<'districts' | 'brands'>('competitors.view', 'districts')
@@ -93,27 +94,23 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
     onActivity(studied.q ?? studied.label)
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     Promise.all([
-      postMarket<{ districts?: Count[]; total?: number; understood?: Understanding }>('district-counts', activity),
+      postMarket<{ districts?: Count[]; total?: number; located?: number; understood?: Understanding }>('district-counts', activity),
       // chains are a second reading of the same businesses; the districts still show when they are unavailable
       postMarket<Brands>('brands', { ...activity, limit: 50 }).catch(() => null),
     ])
-      .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
+      .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setLocated(typeof data.located === 'number' ? data.located : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
   }, [city, studied, onActivity])
 
-  const areas = useMemo(() => new Map(features.map((feature) => [String(feature.properties.id), areaKm2(feature.geometry)])), [features])
-
   const table = useMemo<Row[]>(() => {
     if (!counts) return []
-    const byName = new Map(counts.map((count) => [count.district_ar, count.n]))
-    return rows.flatMap((row) => {
-      const area = areas.get(row.id) ?? 0
-      if (area <= 0) return []
-      const competitors = byName.get(row.name) ?? 0
-      return [{ row, competitors, areaKm2: area, perKm2: competitors / area, residentsPer: residentsPer(row.population, competitors) }]
+    const byName = new Map(counts.map((count) => [count.district_ar, count]))
+    return rows.map((row) => {
+      const count = byName.get(row.name)
+      return { row, competitors: count?.n ?? 0, perKm2: count?.per_km2 ?? null, residentsPer: count?.residents_per ?? null }
     })
-  }, [counts, rows, areas])
+  }, [counts, rows])
 
   useEffect(() => {
     if (brand) {
@@ -132,20 +129,21 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
       return
     }
     if (!table.length) { onOverlay({}); return }
-    const dense = table.filter((item) => item.competitors > 0).map((item) => item.perKm2).sort((a, b) => a - b)
+    const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
-      if (!item.competitors) { colors.set(item.row.id, NONE); continue }
+      if (!item.competitors || item.perKm2 == null) { colors.set(item.row.id, NONE); continue }
       let below = 0
       while (below < dense.length && dense[below] < item.perKm2) below++
-      colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / dense.length))])
+      colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
     }
     onOverlay({ colors })
   }, [table, brand, rows, onOverlay])
 
-  const located = counts ? counts.reduce((sum, count) => sum + count.n, 0) : null
   const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
-    .sort((a, b) => (order === 'dense' ? b.perKm2 - a.perKm2 : a.perKm2 - b.perKm2 || (b.row.population ?? 0) - (a.row.population ?? 0)))
+    .sort((a, b) => (order === 'dense'
+      ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
+      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0)))
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -206,7 +204,7 @@ export function CompetitorsTool({ city, rows, features, onOverlay, onSelect, onA
                     </span>
                     <span className="shrink-0 text-end">
                       <span className="block font-bold">{numberFormat.format(item.competitors)}</span>
-                      <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²</span>
+                      <span className="block text-sm text-muted-foreground">{item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'}</span>
                     </span>
                   </button>
                 </li>

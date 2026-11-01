@@ -41,7 +41,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile
+import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -116,6 +116,71 @@ def district_population_by_name(city):
     return out
 
 
+_DISTRICT_FEATURES = None   # loaded once; each feature carries an authoritative area_km2 in its properties
+_DISTRICT_AREAS = {}        # city_en -> {district_ar (as districtName folds it): area_km2}
+
+
+def _districts_geojson():
+    global _DISTRICT_FEATURES
+    if _DISTRICT_FEATURES is None:
+        p = CANONICAL['districts.geojson']
+        data = json.load(open(p, encoding='utf-8')) if os.path.isfile(p) else {'features': []}
+        for feature in data['features']:
+            feature['properties']['area_km2'] = district_metrics.area_km2(feature.get('geometry'))
+        _DISTRICT_FEATURES = data
+    return _DISTRICT_FEATURES
+
+
+def district_areas(city):
+    """city_en -> {district name -> area_km2}, summed over polygons merged under one name, cached per city."""
+    if city not in _DISTRICT_AREAS:
+        areas = {}
+        for feature in _districts_geojson()['features']:
+            if feature['properties'].get('city_en') != city:
+                continue
+            name = feature['properties'].get('ar') or feature['properties'].get('district_ar') or str(feature['properties'].get('id'))
+            areas[name] = areas.get(name, 0.0) + (feature['properties'].get('area_km2') or 0.0)
+        _DISTRICT_AREAS[city] = areas
+    return _DISTRICT_AREAS[city]
+
+
+_POP_BY_NAME = {}
+
+
+def population_by_name_cached(city):
+    """district_population_by_name(city), memoised per city (immutable within a release) so the map's repeated
+    district-counts calls do not re-read the population parquet each time."""
+    if city not in _POP_BY_NAME:
+        _POP_BY_NAME[city] = district_population_by_name(city)
+    return _POP_BY_NAME[city]
+
+
+def enrich_district_counts(result, city):
+    """Add the derived per-district figures the map used to compute in the browser, each from one backend formula:
+    area_km2 (authoritative), population, residents_per (population ÷ businesses), per_km2 (businesses ÷ area),
+    density (population ÷ area). A missing input yields null, never zero. `located` is the businesses that fell in a
+    known district (Σ n), for «منها بحي معروف»."""
+    if not city:
+        return result
+    areas = district_areas(city)
+    pop = population_by_name_cached(city)
+    located = 0
+    for row in result.get('districts', []):
+        name = row.get('district_ar')
+        n = row.get('n')
+        area = areas.get(name)
+        people = (pop.get(name) or {}).get('population')
+        row['area_km2'] = area
+        row['population'] = people
+        row['residents_per'] = district_metrics.residents_per(people, n)
+        row['per_km2'] = district_metrics.per_km2(n, area)
+        row['density'] = district_metrics.density(people, area)
+        if isinstance(n, (int, float)):
+            located += n
+    result['located'] = located
+    return result
+
+
 POPULATION_DIR = os.path.join(AUX_DATA_DIR, 'buildings_ingest', 'population')
 HOUSEHOLD_SIZE = 5.0   # people per dwelling for building-based counts; the same assumption as build_building_population
 
@@ -166,6 +231,8 @@ def insight_response(path, body):
             result = insights.population_within(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, geometry, HOUSEHOLD_SIZE)
         result.update(ok=True, household_size=HOUSEHOLD_SIZE)
+        # residents ÷ businesses for the drawn area, computed here so the map never divides it itself
+        result['residents_per'] = district_metrics.residents_per(result.get('population'), result.get('businesses'))
         return result
     if path == '/territories':
         city = _city(body)
@@ -233,6 +300,12 @@ def insight_response(path, body):
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
+    if path == '/real-estate-phone':
+        listing_id = body.get('id')
+        if not isinstance(listing_id, str) or not re.fullmatch(r'\d{1,12}', listing_id): raise ValueError('id')
+        phone = insights.listing_phone(listing_id)
+        LOGGER.info('listing_phone found=%s', bool(phone))
+        return {'ok': True, 'available': bool(phone), 'phone': phone}
     if path == '/housing-level':
         city = _city(body)
         with LOCK:
@@ -243,6 +316,11 @@ def insight_response(path, body):
         city = _city(body)
         table = insights.district_audience(city)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'districts': []}
+        # the measured share × the district population, so the map reads the segment size and never multiplies it itself
+        pop = population_by_name_cached(city)
+        for row in table.get('districts', []):
+            people = (pop.get(row.get('district_ar')) or {}).get('population')
+            row.update(district_metrics.audience_sizes(people, row.get('male_pct'), row.get('saudi_pct')))
         return {'ok': True, 'city': city, 'available': True, **table}
     if path == '/district-profile':
         city = _city(body)
@@ -269,7 +347,7 @@ def insight_response(path, body):
             'growth': next((row for row in growth_rows if row['district_ar'] == district), None),
             'income': next((row for row in income.get('districts', []) if row.get('district_ar') == district), None),
             'income_source': income.get('source'),
-            'sources': {'population': people.get('source') or golden.WORLDPOP, 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
+            'sources': {'population': 'طبقة سكان فرق', 'businesses': 'دليل فرق المفتوح', 'growth': 'طبقة مباني فرق'},
         }
     raise ValueError(path)
 
@@ -925,11 +1003,7 @@ class H(BaseHTTPRequestHandler):
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             city=urllib.parse.parse_qs(route.query).get("city",[""])[0]
             if not city or len(city)>80: self._json({"error":"INPUT"},400); return
-            global _DISTRICTS
-            try: _DISTRICTS
-            except NameError:
-                p=CANONICAL['districts.geojson']; _DISTRICTS=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else {'features':[]}
-            self._json({'type':'FeatureCollection','features':[f for f in _DISTRICTS['features'] if f['properties'].get('city_en')==city]}); return
+            self._json({'type':'FeatureCollection','features':[f for f in _districts_geojson()['features'] if f['properties'].get('city_en')==city]}); return
         if route.path=="/population-districts":
             # Population estimates are served from the existing data volume and
             # joined to the same official district IDs used by /districts.
@@ -1087,7 +1161,7 @@ class H(BaseHTTPRequestHandler):
             status, answer = advisor_proxy.reply(system, messages)
             LOGGER.info('advisor status=%s', status)
             self._json(answer, status)
-        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/price-estimate', '/district-profile'):
+        elif self.path in ('/growth', '/population-around', '/population-within', '/territories', '/district-income', '/district-audience', '/housing-level', '/real-estate', '/registered-deals', '/real-estate-listings', '/real-estate-phone', '/price-estimate', '/district-profile'):
             # Commercial insights over the district layers (insights.py); aggregates only, no business records.
             try:
                 self._json(insight_response(self.path, body))
@@ -1139,7 +1213,7 @@ class H(BaseHTTPRequestHandler):
             # Read-only market aggregates for the map; analytics return aggregate counts only.
             try:
                 if self.path == '/market-summary': self._json(MARKET_ANALYTICS.market_summary(body))
-                elif self.path == '/district-counts': self._json(MARKET_ANALYTICS.district_counts(body))
+                elif self.path == '/district-counts': self._json(enrich_district_counts(MARKET_ANALYTICS.district_counts(body), body.get('city')))
                 elif self.path == '/district-insights': self._json(MARKET_ANALYTICS.district_insights(body))
                 else: self._json(MARKET_ANALYTICS.who_buys(body))
             except ValueError: self._json({'error': 'INPUT'}, 400)

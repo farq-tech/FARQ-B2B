@@ -1,4 +1,4 @@
-"""Archive 13 (2026-10-15): HudHud TRX final state («draft_full_datav», 751,752 transactions after cleaning) and the Google-scrape
+"""Archive 13 (2026-10-15): SPD TRX final state («draft_full_datav», 751,752 transactions after cleaning) and the Google-scrape
 batches (original rows vs manual review of the LLM-normalised names). Read-only on the directory.
 Writes /Users/m4pro/farq-taxonomy-data/enrich/hudhud_trx_state.parquet  (poi_key, state, is_deleted, category_id, category_en, confidence, media_count)
        /Users/m4pro/farq-taxonomy-data/enrich/google_batches.parquet     (poi_key match, google_id, phone, google categories, manual verdict, names)
@@ -13,7 +13,7 @@ db.execute(f"""copy (select 'hh:' || id poi_key, state, is_deleted='True' is_del
    from read_csv('{A}/draft_full_datav.csv', all_varchar=true, header=true, ignore_errors=true)
    where 'hh:' || id in (select poi_key from read_parquet('{P}'))) to '{O}hudhud_trx_state.parquet' (format parquet)""")
 print('TRX states matched:', db.execute(f"select count(*), count(*) filter (where is_deleted), count(*) filter (where state='ready to publish') from read_parquet('{O}hudhud_trx_state.parquet')").fetchone())
-# Google batches: original rows carry the phone, Google categories and HudHud category ids; the manual files carry the reviewer verdict (same row order)
+# Google batches: original rows carry the phone, Google categories and SPD category ids; the manual files carry the reviewer verdict (same row order)
 rows = []
 for b in ('2', '3', '4'):
     orig = glob.glob(f'{A}/batches/[Bb]atch{b}_original.csv')[0]

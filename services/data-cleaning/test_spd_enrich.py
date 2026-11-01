@@ -1,4 +1,4 @@
-"""HudHud enrich on synthetic rows: python3 -m unittest test_hudhud_enrich (from services/data-cleaning)."""
+"""SPD enrich on synthetic rows: python3 -m unittest test_spd_enrich (from services/data-cleaning)."""
 import json
 import pathlib
 import subprocess
@@ -10,7 +10,7 @@ import duckdb
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from hudhud_enrich import confidence, enrich, gmaps, logo  # noqa: E402
+from spd_enrich import confidence, enrich, gmaps, logo  # noqa: E402
 
 LIVE = {'trx_state': 'ready to publish', 'trx_is_deleted': 'false', 'trx_status': 'open'}
 
@@ -59,7 +59,7 @@ class EnrichTests(unittest.TestCase):
         temp = pathlib.Path(tempfile.mkdtemp())
         db = duckdb.connect()
         db.execute("create table t(poi_key varchar, hudhud_id bigint, city_en varchar, name_ar varchar)")
-        db.execute("insert into t values ('hh:1', 1, 'Riyadh', 'مقهى'), ('hh:2', 2, 'Riyadh', 'مكتب'), ('new:9', NULL, 'Jeddah', 'بلا هدهد')")
+        db.execute("insert into t values ('hh:1', 1, 'Riyadh', 'مقهى'), ('hh:2', 2, 'Riyadh', 'مكتب'), ('new:9', NULL, 'Jeddah', 'بلا SPD')")
         db.execute(f"copy t to '{temp / 't.parquet'}' (format parquet)")
         crs = duckdb.connect(str(temp / 'crs.duckdb'))
         trx = ['trx_state', 'trx_is_deleted', 'trx_status', 'trx_google_url', 'trx_logo', 'trx_confidence']
@@ -69,7 +69,7 @@ class EnrichTests(unittest.TestCase):
                     "('1.0', 'b', '2025-05-01', '2025-05-02', 'ready to publish', 'false', 'open', 'https://www.google.com/maps/place/old', 'https://cdn.x/old.png', '40'), "
                     "('2.0', 'c', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'not a url', 'https://cdn.x/b.png', '55')")
         crs.close()
-        run = lambda out: subprocess.run([sys.executable, str(HERE / 'hudhud_enrich.py'), '--targets', str(temp / 't.parquet'),
+        run = lambda out: subprocess.run([sys.executable, str(HERE / 'spd_enrich.py'), '--targets', str(temp / 't.parquet'),
                                           '--crs', str(temp / 'crs.duckdb'), '--out', str(out)], capture_output=True, text=True)
         self.assertNotEqual(run(temp / 't.parquet').returncode, 0, 'never writes over its input')
         result = run(temp / 't_enriched.parquet')
@@ -103,7 +103,7 @@ class EnrichTests(unittest.TestCase):
                     "('1.0', 'a', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'https://www.google.com/maps/place/x', NULL, '88'), "
                     "('5.0', 'e', '2025-08-01', '2025-08-02', 'ready to publish', 'false', 'open', 'https://www.google.com/maps/place/other', NULL, '70')")
         crs.close()
-        result = subprocess.run([sys.executable, str(HERE / 'hudhud_enrich.py'), '--targets', str(temp / 't.parquet'),
+        result = subprocess.run([sys.executable, str(HERE / 'spd_enrich.py'), '--targets', str(temp / 't.parquet'),
                                  '--crs', str(temp / 'crs.duckdb'), '--out', str(temp / 't2.parquet')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, 'filling an empty cell of an existing column is not a refused change: ' + result.stderr)
         rows = db.execute(f"select poi_key, google_maps_url, hudhud_confidence from read_parquet('{temp / 't2.parquet'}') order by poi_key").fetchall()

@@ -1,4 +1,4 @@
-"""One spelling per city. Raw city names come from the atlas, OSM, Urbi, HudHud and other sources in many spellings
+"""One spelling per city. Raw city names come from the atlas, OSM, Urbi, SPD and other sources in many spellings
 («Mecca» / «Makkah Al Mukarramah» / «Makkah», «Yanbu`», «At Ta'if»). A name key drops Arabic-transliteration articles, quotes and
 punctuation; an alias table joins true synonyms; each key gets one English and one Arabic name (the alias's — English spellings follow the targeting service's CITIES table in server.py — else the most frequent
 spelling, with the most frequent Arabic-script name). Used inside build_golden.py on the raw values, so it is stable across rebuilds."""
