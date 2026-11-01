@@ -152,6 +152,34 @@ def _real_estate_inputs():
         _fetch('real_estate_inputs', name, prefix, target)
 
 
+def _ai_classification_profile(data_dir, aux_dir=None):
+    """Count the businesses no activity figure counts, and the evidence each carries (ai_classification.profile).
+    Reads the release's directory and classification; writes its report beside the population folder, which outlives
+    releases. Skipped when the release files and the job version are unchanged since the last report."""
+    import ai_classification as job
+    data_dir, aux_dir = Path(data_dir), Path(aux_dir or data_dir)
+    inputs = {'targets': data_dir / 'targets.parquet', 'taxonomy': data_dir / 'poi_taxonomy.parquet'}
+    missing = [name for name, path in inputs.items() if not path.is_file()]
+    if missing:
+        LOGGER.error('startup_job_skipped job=ai_classification_profile missing_input=%s', ','.join(missing))
+        return
+    out_dir = aux_dir / 'ai_classification'
+    report_path, marker = out_dir / 'profile.json', out_dir / 'profile_signature.json'
+    signature = _signature(job.SOURCE, inputs)
+    try:
+        if json.loads(marker.read_text(encoding='utf-8')) == signature and report_path.is_file():
+            LOGGER.info('startup_job_skipped job=ai_classification_profile reason=inputs_unchanged source=%s', job.SOURCE)
+            return
+    except (OSError, ValueError):
+        pass
+    report = job.profile(inputs['targets'], inputs['taxonomy'])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
+    marker.write_text(json.dumps(signature), encoding='utf-8')
+    # counts and shares only (see ai_classification), so it is safe in the log
+    LOGGER.info('ai_classification_profile_done %s', json.dumps(report, ensure_ascii=False))
+
+
 def _run(name, target, *args):
     try:
         LOGGER.info('startup_job_started job=%s', name)
@@ -169,4 +197,7 @@ def start(data_dir, aux_dir=None):
     if os.environ.get('FARQ_REAL_ESTATE_LISTINGS_OBJECT', '').strip():
         threading.Thread(target=_run, args=('real_estate_inputs', _real_estate_inputs), daemon=True, name='job-real-estate-inputs').start()
         started.append('real_estate_inputs')
+    if _enabled('FARQ_AI_CLASSIFY_PROFILE'):
+        threading.Thread(target=_run, args=('ai_classification_profile', _ai_classification_profile, data_dir, aux_dir), daemon=True, name='job-ai-classification-profile').start()
+        started.append('ai_classification_profile')
     return started
