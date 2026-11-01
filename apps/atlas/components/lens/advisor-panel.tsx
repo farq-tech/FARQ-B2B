@@ -7,7 +7,6 @@ import { ltr, numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from './city-data'
-import { residentsPer } from '@/lib/audience'
 
 export type AdvisorSubject = { kind: 'listings'; listings: Listing[] } | { kind: 'districts'; rows: DistrictRow[] }
 type Turn = { role: 'user' | 'assistant'; content: string }
@@ -26,7 +25,7 @@ function districtFacts(row: DistrictRow | undefined, name: string): string {
     `حي ${row.name}`,
     `السكان ${figure(row.population)}`,
     `المنشآت ${figure(row.businesses)}`,
-    `ساكن لكل منشأة ${figure(residentsPer(row.population, row.businesses))}`,
+    `ساكن لكل منشأة ${figure(row.residentsPerBusiness)}`,
     `متوسط الدخل الشهري ${figure(row.income, ' ريال')}`,
     `حصة الفلل من المساكن ${figure(row.villaShare, '%')}`,
     `مبانٍ تحت الإنشاء ${figure(row.underConstruction)}`,

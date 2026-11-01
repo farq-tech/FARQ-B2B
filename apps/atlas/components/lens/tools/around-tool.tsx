@@ -9,10 +9,9 @@ import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
-import { residentsPer } from '@/lib/audience'
 import { useStickyState } from '@/lib/sticky-state'
 
-type Within = { population: number | null; dwellings: number | null; businesses: number | null; top_activities: { activity: string; n: number }[] }
+type Within = { population: number | null; dwellings: number | null; businesses: number | null; residents_per: number | null; top_activities: { activity: string; n: number }[] }
 type Point = { lon: number; lat: number }
 type Geometry = GeoJSON.Polygon | GeoJSON.MultiPolygon
 type Reach = { kind: 'radius'; metres: number } | { kind: 'drive'; minutes: number }
@@ -95,7 +94,7 @@ export function AroundTool({ onOverlay }: { onOverlay: (overlay: Overlay) => voi
     { label: 'المنشآت', value: (f) => f.businesses, explain: EXPLAIN.aroundBusinesses },
     {
       label: 'ساكن لكل منشأة',
-      value: (f) => residentsPer(f.population, f.businesses),
+      value: (f) => f.residents_per,
       explain: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
       higherIsBetter: true,
     },
