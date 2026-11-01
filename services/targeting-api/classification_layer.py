@@ -50,8 +50,10 @@ def main_only():
     return path if enabled() and os.path.isfile(path) and os.path.isfile(os.path.join(layer_dir(), LAYER)) else None
 
 
-def build(taxonomy, merged, taxonomy_json, out_dir):
-    """Write the two layer files from the release classification and the merged classification; returns counts only.
+def build(taxonomy, merged, taxonomy_json, out_dir, evidence=None):
+    """Write the two layer files from the release classification, the merged classification and the evidence labels
+    (evidence_classification.build); either source may be None. The merge is applied first; evidence labels only fill
+    businesses still without an activity after it. Returns counts only.
 
     Files are written beside their final names and moved into place last, so a reader never sees a partial layer."""
     with open(taxonomy_json, encoding='utf-8') as handle:
@@ -68,13 +70,24 @@ def build(taxonomy, merged, taxonomy_json, out_dir):
     db.execute('create table orig as select * from read_parquet(?)', [str(taxonomy)])
     db.execute("""create table cur as select poi_key, any_value(sub_id) sub_id, any_value(confidence) confidence from orig
                   where confidence in ('high', 'medium') and sub_id not like 'unc.%' group by poi_key""")
-    db.execute("""create table m as select poi_key, final_sub, final_main, final_source, final_confidence
-                  from read_parquet(?) qualify row_number() over (partition by poi_key) = 1""", [str(merged)])
+    if merged:
+        db.execute("""create table m as select poi_key, final_sub, final_main, final_source, final_confidence
+                      from read_parquet(?) qualify row_number() over (partition by poi_key) = 1""", [str(merged)])
+    else:
+        db.execute('create table m(poi_key varchar, final_sub varchar, final_main varchar, final_source varchar, final_confidence varchar)')
     # an edit: the merge serves a sub the release does not already serve for that business
     db.execute(f"""create table edits as
         select m.poi_key, m.final_sub sub_id, x.method ai_method, m.final_source || ':' || coalesce(m.final_confidence, '') ai_evidence
         from m join methods x using (final_source) left join cur c using (poi_key)
         where m.final_sub is not null and c.sub_id is distinct from m.final_sub""")
+    if evidence:
+        db.execute("create table ev as select * from read_parquet(?)", [str(evidence)])
+    else:
+        db.execute('create table ev(poi_key varchar, sub_id varchar, main_id varchar, ai_method varchar, ai_confidence double, ai_evidence varchar, ai_version varchar)')
+    # evidence fills only what the release and the merge leave without an activity
+    db.execute("""insert into edits
+        select poi_key, sub_id, ai_method, ai_evidence || ' (measured ' || cast(ai_confidence as varchar) || ')'
+        from ev where sub_id is not null and poi_key not in (select poi_key from cur) and poi_key not in (select poi_key from edits)""")
     original_columns = [r[0] for r in db.execute('describe orig').fetchall()]
     keep = ', '.join(f'o.{c}' for c in original_columns)
     db.execute(f"""create table out as
@@ -91,6 +104,10 @@ def build(taxonomy, merged, taxonomy_json, out_dir):
                '{VERSION}' ai_version
         from m join main_methods x using (final_source) join mains n on n.main_ar = m.final_main
         where m.final_sub is null and m.poi_key not in (select poi_key from cur)""")
+    db.execute(f"""insert into mo
+        select poi_key, main_id, ai_method, ai_evidence || ' (measured ' || cast(ai_confidence as varchar) || ')', ai_version
+        from ev where sub_id is null and poi_key not in (select poi_key from cur)
+          and poi_key not in (select poi_key from edits) and poi_key not in (select poi_key from mo)""")
     for table, path in (('out', layer), ('mo', main_only_path)):
         partial = path + '.partial'
         db.execute(f"copy {table} to '{partial}' (format parquet, compression zstd)")

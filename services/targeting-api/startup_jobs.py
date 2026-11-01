@@ -180,23 +180,60 @@ def _ai_classification_profile(data_dir, aux_dir=None):
     LOGGER.info('ai_classification_profile_done %s', json.dumps(job.log_summary(report), ensure_ascii=False))
 
 
+def _evidence_labels(data_dir, out_dir):
+    """Build the evidence labels (evidence_classification.build) when FARQ_AI_CLASSIFY_EVIDENCE is on; returns the
+    file when it is in place. Skipped when its inputs and version are unchanged."""
+    import evidence_classification as ev
+    path = out_dir / ev.OUT
+    if not _enabled('FARQ_AI_CLASSIFY_EVIDENCE'):
+        return None
+    crosswalk = data_dir / 'taxonomy' / 'activity_map.csv'
+    if not crosswalk.is_file():
+        crosswalk = Path(__file__).resolve().parent / 'reference' / 'activity_map.csv'
+    inputs = {'targets': data_dir / 'targets.parquet', 'taxonomy': data_dir / 'poi_taxonomy.parquet',
+              'taxonomy_json': data_dir / 'taxonomy' / 'farq_taxonomy.json', 'crosswalk': crosswalk}
+    missing = [name for name, p in inputs.items() if not p.is_file()]
+    if missing:
+        LOGGER.error('startup_job_skipped job=evidence_labels missing_input=%s', ','.join(missing))
+        return None
+    marker, signature = out_dir / 'evidence_signature.json', _signature(ev.VERSION, inputs)
+    try:
+        if json.loads(marker.read_text(encoding='utf-8')) == signature and path.is_file():
+            LOGGER.info('startup_job_skipped job=evidence_labels reason=inputs_unchanged source=%s', ev.VERSION)
+            return path
+    except (OSError, ValueError):
+        pass
+    report = ev.build(inputs['targets'], inputs['taxonomy'], inputs['taxonomy_json'], crosswalk, out_dir)
+    marker.write_text(json.dumps(signature), encoding='utf-8')
+    (out_dir / 'evidence_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
+    LOGGER.info('evidence_labels_done %s', json.dumps(report, ensure_ascii=False))   # counts and accuracies only
+    return path
+
+
 def _classification_layer(data_dir, aux_dir=None):
-    """Build the served AI classification layer (classification_layer.build) from the release classification and the
-    merged classification. The merged file is fetched from the bucket (FARQ_CLASSIFICATION_MERGED_OBJECT / _SHA256)
-    when its digest changes. Skipped when the inputs and the layer version are unchanged."""
+    """Build the served AI classification layer (classification_layer.build) from the release classification, the
+    merged classification (fetched from the bucket by FARQ_CLASSIFICATION_MERGED_OBJECT / _SHA256 when its digest
+    changes) and the evidence labels (FARQ_AI_CLASSIFY_EVIDENCE). Either source may be absent. Skipped when the inputs
+    and the layer version are unchanged."""
     import classification_layer as layer
     data_dir, aux_dir = Path(data_dir), Path(aux_dir or data_dir)
     out_dir = aux_dir / 'ai_classification'
+    out_dir.mkdir(parents=True, exist_ok=True)
     merged = out_dir / 'classification_merged.parquet'
     digest = os.environ.get('FARQ_CLASSIFICATION_MERGED_SHA256', '').strip().lower()
-    if not (merged.is_file() and digest and _sha256(merged) == digest):
+    if digest and not (merged.is_file() and _sha256(merged) == digest):
         _fetch('classification_layer', 'merged', 'FARQ_CLASSIFICATION_MERGED', merged)
-    inputs = {'taxonomy': data_dir / 'poi_taxonomy.parquet', 'merged': merged,
-              'taxonomy_json': data_dir / 'taxonomy' / 'farq_taxonomy.json'}
+    merged_ok = merged.is_file() and bool(digest) and _sha256(merged) == digest
+    evidence = _evidence_labels(data_dir, out_dir)
+    inputs = {'taxonomy': data_dir / 'poi_taxonomy.parquet', 'taxonomy_json': data_dir / 'taxonomy' / 'farq_taxonomy.json'}
     missing = [name for name, path in inputs.items() if not path.is_file()]
-    if missing:
-        LOGGER.error('startup_job_skipped job=classification_layer missing_input=%s', ','.join(missing))
+    if missing or not (merged_ok or evidence):
+        LOGGER.error('startup_job_skipped job=classification_layer missing_input=%s', ','.join(missing) or 'merged_and_evidence')
         return
+    if merged_ok:
+        inputs['merged'] = merged
+    if evidence:
+        inputs['evidence'] = evidence
     marker = out_dir / 'layer_signature.json'
     signature = _signature(layer.VERSION, inputs)
     try:
@@ -205,7 +242,7 @@ def _classification_layer(data_dir, aux_dir=None):
             return
     except (OSError, ValueError):
         pass
-    report = layer.build(inputs['taxonomy'], merged, inputs['taxonomy_json'], out_dir)
+    report = layer.build(inputs['taxonomy'], inputs.get('merged'), inputs['taxonomy_json'], out_dir, evidence=inputs.get('evidence'))
     marker.write_text(json.dumps(signature), encoding='utf-8')
     (out_dir / 'layer_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
     LOGGER.info('classification_layer_done %s', json.dumps(report, ensure_ascii=False))   # counts only
@@ -228,7 +265,7 @@ def start(data_dir, aux_dir=None):
     if os.environ.get('FARQ_REAL_ESTATE_LISTINGS_OBJECT', '').strip():
         threading.Thread(target=_run, args=('real_estate_inputs', _real_estate_inputs), daemon=True, name='job-real-estate-inputs').start()
         started.append('real_estate_inputs')
-    if os.environ.get('FARQ_CLASSIFICATION_MERGED_OBJECT', '').strip():
+    if os.environ.get('FARQ_CLASSIFICATION_MERGED_OBJECT', '').strip() or _enabled('FARQ_AI_CLASSIFY_EVIDENCE'):
         threading.Thread(target=_run, args=('classification_layer', _classification_layer, data_dir, aux_dir), daemon=True, name='job-classification-layer').start()
         started.append('classification_layer')
     if _enabled('FARQ_AI_CLASSIFY_PROFILE'):
