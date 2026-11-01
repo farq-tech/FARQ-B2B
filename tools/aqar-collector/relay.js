@@ -234,8 +234,16 @@ async function phoneRun() {
       // an unreadable answer, one without the field, or any other error leaves the listing unasked (no phone_at), so
       // a later run asks it again; only an answer that carries the field (a number, or none) marks it asked
       const listing = body?.data?.Listing
-      const failed = !listing || !('getPhoneAsString' in listing) || (!!body.errors?.length && listing.getPhoneAsString == null)
-      const phone = String(body?.data?.Listing?.getPhoneAsString ?? '').replace(/\D/g, '')
+      const raw = listing?.getPhoneAsString
+      // an account past its free reveals is told to subscribe, as an error or as a message in the number's place: the
+      // run stops there and the listing stays unasked, so no listing is written off as having no number
+      const said = `${JSON.stringify(body?.errors || '')} ${typeof raw === 'string' ? raw : ''}`
+      if (/subscri|limit|quota|plan|package|اشتر|باق|الحد|رصيد/i.test(said) || (typeof raw === 'string' && raw.trim() && raw.replace(/\D/g, '').length < 9)) {
+        await set({ phones: { ...phones, active: false, status: 'limit', error: said.trim().slice(0, 120) } })
+        break
+      }
+      const failed = !listing || !('getPhoneAsString' in listing) || (!!body.errors?.length && raw == null)
+      const phone = String(raw ?? '').replace(/\D/g, '')
       writes = writes.then(async () => {
         const key = `m:${id}`
         const known = (await get(key))[key]

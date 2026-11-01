@@ -17,7 +17,8 @@ TYPES = {
     'مصنع': 'factory', 'ورشة': 'workshop', 'مجمع': 'compound',
 }
 # the rent period an advertiser wrote in the text, when the text names one and only one
-_MONTHLY, _YEARLY = re.compile('شهري|شهريا|بالشهر|الشهر'), re.compile('سنوي|سنويا|بالسنة|السنة|في السنه')
+# («شهرى» and «سنوى» with a final alif maqsura are as common as the dotted spelling)
+_MONTHLY, _YEARLY = re.compile('شهري|شهرى|شهريا|بالشهر|الشهر'), re.compile('سنوي|سنوى|سنويا|بالسنة|بالسنه|السنة|السنه|في السنه')
 
 
 def text_period(text):

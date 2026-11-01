@@ -18,7 +18,7 @@ async function refreshFast() {
     : fast ? `${FAST[fast.status] || ''} ${fmt.format(fast.stats.requests)} طلب · ${fmt.format(fast.stats.tiles)} مربع انتهى · ${fmt.format(fast.queue.length)} متبقٍ${fast.error ? ` (${fast.error})` : ''}` : ''
 }
 
-const PHONES = { running: 'جلب الأرقام يعمل…', waiting: 'ينتظر ثم يكمل وحده.', done: 'جلب الأرقام انتهى ✓', signin: 'سجّل الدخول في عقار ثم اضغط للاستئناف.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
+const PHONES = { running: 'جلب الأرقام يعمل…', waiting: 'ينتظر ثم يكمل وحده.', done: 'جلب الأرقام انتهى ✓', signin: 'سجّل الدخول في عقار ثم اضغط للاستئناف.', limit: 'عقار أوقف كشف الأرقام لهذا الحساب (يطلب اشتراكاً). ما جُمع محفوظ.', error: 'توقف بخطأ، اضغط للاستئناف.', paused: 'متوقف' }
 async function refreshPhones() {
   const { phones } = await get({ phones: null })
   $('phones').textContent = phones?.active ? 'إيقاف جلب الأرقام' : phones?.queue?.length ? 'استئناف جلب الأرقام' : 'جلب أرقام المعلنين'
@@ -35,8 +35,9 @@ async function phoneQueue() {
   for (let i = 0; i < keys.length; i += BATCH) {
     const chunk = await get(keys.slice(i, i + BATCH))
     for (const row of Object.values(chunk)) {
-      // phone_at marks a listing asked; a phone field alone may be Aqar's own placeholder (0)
-      if (row.phone_at) continue
+      // a listing with a number is done; one asked with no number given is asked again in a later run (an answer
+      // given past the account's free reveals may have come back empty); a phone field alone may be Aqar's own 0
+      if (row.phone_at && row.phone) continue
       const riyadh = row.city === 'الرياض'
       const rent = /للإيجار|للايجار/.test(row.title || '')
       ranked.push([riyadh ? (rent ? 0 : 1) : 2, row.id])

@@ -82,6 +82,10 @@ class ParseAqarListTest(unittest.TestCase):
         self.assertEqual(parse.listing_tenants({'family': None}, 'لا يُسمح بالعزاب'), 'families')
         self.assertIsNone(parse.listing_tenants({'family': None}, 'شقة للإيجار'), 'unstated stays unknown')
 
+    def test_the_period_reads_the_alif_maqsura_spelling(self):
+        self.assertEqual(parse.text_period('ايجار شهرى 3300 ريال'), 'monthly')
+        self.assertEqual(parse.text_period('الايجار سنوى'), 'annually')
+
     def test_the_advertiser_number_is_kept_as_a_saudi_mobile(self):
         self.assertEqual(parse._phone('0501234567'), '0501234567')
         self.assertEqual(parse._phone('966501234567'), '0501234567')
