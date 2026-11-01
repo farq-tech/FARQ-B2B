@@ -15,7 +15,10 @@ name, key, phone or coordinate, so it is safe in the service log. Columns a rele
 """
 import duckdb
 
-SOURCE = 'ai_classification_profile_v1'
+import canonical_data
+
+SOURCE = 'ai_classification_profile_v2'
+LOG_CITIES = 15   # cities kept in the log line; a line with every city was cut by the log collector
 SERVED = ('high', 'medium')   # the confidences market_analytics counts
 # a value that says nothing about the activity is read as absent (the same words classify_poi.py ignores)
 EMPTY = ('', 'null', 'none', 'nan', 'false', 'true', 'n/a', 'na', '-', '.', '0', 'unknown', 'غير معروف', 'بدون', 'لا يوجد')
@@ -85,9 +88,20 @@ def profile(targets, taxonomy):
 
     total, served = db.execute('select count(*), count(*) filter (where served) from biz').fetchone()
     overall = db.execute(f'select count(*), {sums}, count(*) filter (where {any_evidence}) from gaps').fetchone()
-    cities = db.execute(f'select city, count(*), {sums}, count(*) filter (where {any_evidence}) from gaps '
-                        'group by city order by count(*) desc, city').fetchall()
+    raw = db.execute(f'select city, count(*), {sums}, count(*) filter (where {any_evidence}) from gaps group by city').fetchall()
     db.close()
+    # one spelling per city (canonical_data.CITY_ALIAS), so «Mecca» and «Makkah Al Mukarramah» are one row
+    folded = {}
+    for city, *counts in raw:
+        name = (canonical_data.canonical_city(city) or (city,))[0]
+        folded[name] = [a + b for a, b in zip(folded.get(name, [0] * len(counts)), counts)]
+    cities = sorted(folded.items(), key=lambda item: (-item[1][0], item[0]))
     return {'source': SOURCE, 'businesses': total, 'served_activity': served,
             'missing_columns': sorted({c for cols in EVIDENCE.values() for c in cols} - have),
-            **block(overall), 'cities': {row[0]: block(row[1:]) for row in cities}}
+            **block(overall), 'cities': {name: block(counts) for name, counts in cities}}
+
+
+def log_summary(report, cities=LOG_CITIES):
+    """The report for one log line: the largest cities only (the full report is in the file), so the line is never cut."""
+    names = list(report['cities'])
+    return {**report, 'cities': {name: report['cities'][name] for name in names[:cities]}, 'other_cities': len(names[cities:])}

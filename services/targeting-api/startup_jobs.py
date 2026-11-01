@@ -177,7 +177,38 @@ def _ai_classification_profile(data_dir, aux_dir=None):
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
     marker.write_text(json.dumps(signature), encoding='utf-8')
     # counts and shares only (see ai_classification), so it is safe in the log
-    LOGGER.info('ai_classification_profile_done %s', json.dumps(report, ensure_ascii=False))
+    LOGGER.info('ai_classification_profile_done %s', json.dumps(job.log_summary(report), ensure_ascii=False))
+
+
+def _classification_layer(data_dir, aux_dir=None):
+    """Build the served AI classification layer (classification_layer.build) from the release classification and the
+    merged classification. The merged file is fetched from the bucket (FARQ_CLASSIFICATION_MERGED_OBJECT / _SHA256)
+    when its digest changes. Skipped when the inputs and the layer version are unchanged."""
+    import classification_layer as layer
+    data_dir, aux_dir = Path(data_dir), Path(aux_dir or data_dir)
+    out_dir = aux_dir / 'ai_classification'
+    merged = out_dir / 'classification_merged.parquet'
+    digest = os.environ.get('FARQ_CLASSIFICATION_MERGED_SHA256', '').strip().lower()
+    if not (merged.is_file() and digest and _sha256(merged) == digest):
+        _fetch('classification_layer', 'merged', 'FARQ_CLASSIFICATION_MERGED', merged)
+    inputs = {'taxonomy': data_dir / 'poi_taxonomy.parquet', 'merged': merged,
+              'taxonomy_json': data_dir / 'taxonomy' / 'farq_taxonomy.json'}
+    missing = [name for name, path in inputs.items() if not path.is_file()]
+    if missing:
+        LOGGER.error('startup_job_skipped job=classification_layer missing_input=%s', ','.join(missing))
+        return
+    marker = out_dir / 'layer_signature.json'
+    signature = _signature(layer.VERSION, inputs)
+    try:
+        if json.loads(marker.read_text(encoding='utf-8')) == signature and (out_dir / layer.LAYER).is_file():
+            LOGGER.info('startup_job_skipped job=classification_layer reason=inputs_unchanged source=%s', layer.VERSION)
+            return
+    except (OSError, ValueError):
+        pass
+    report = layer.build(inputs['taxonomy'], merged, inputs['taxonomy_json'], out_dir)
+    marker.write_text(json.dumps(signature), encoding='utf-8')
+    (out_dir / 'layer_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
+    LOGGER.info('classification_layer_done %s', json.dumps(report, ensure_ascii=False))   # counts only
 
 
 def _run(name, target, *args):
@@ -197,6 +228,9 @@ def start(data_dir, aux_dir=None):
     if os.environ.get('FARQ_REAL_ESTATE_LISTINGS_OBJECT', '').strip():
         threading.Thread(target=_run, args=('real_estate_inputs', _real_estate_inputs), daemon=True, name='job-real-estate-inputs').start()
         started.append('real_estate_inputs')
+    if os.environ.get('FARQ_CLASSIFICATION_MERGED_OBJECT', '').strip():
+        threading.Thread(target=_run, args=('classification_layer', _classification_layer, data_dir, aux_dir), daemon=True, name='job-classification-layer').start()
+        started.append('classification_layer')
     if _enabled('FARQ_AI_CLASSIFY_PROFILE'):
         threading.Thread(target=_run, args=('ai_classification_profile', _ai_classification_profile, data_dir, aux_dir), daemon=True, name='job-ai-classification-profile').start()
         started.append('ai_classification_profile')

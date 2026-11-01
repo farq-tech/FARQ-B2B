@@ -10,6 +10,7 @@ relations, and the row-level classification `poi_taxonomy.parquet` (poi_key -> s
 Nothing here contacts anyone or reads contact details beyond what the existing search already returns.
 """
 import csv, json, os, re, threading, urllib.request
+import classification_layer
 
 TR = str.maketrans('أإآةىؤئ', 'اااهيوي')
 PFX = ('وال', 'بال', 'لل', 'ال')          # multi-letter only: «بورد» must not become «ورد»
@@ -396,7 +397,7 @@ class Taxonomy:
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
-            [directory_path, self.poi_taxonomy] + ([self.overlay] if self.overlay else []) + ([self.hudhud] if self.hudhud else []) + [city, subs]).fetchall()
+            [directory_path, classification_layer.served_taxonomy(self.poi_taxonomy)] + ([self.overlay] if self.overlay else []) + ([self.hudhud] if self.hudhud else []) + [city, subs]).fetchall()
         qn = norm(q).split()
         qwords = [w for w in (strip_pfx(t) for t in qn) if len(w) >= 3 and w not in GENERIC and w not in BUY_CUES and w not in SELL_CUES and w not in TARGET_CUES]
         wholesale = bool(set(qn) & {'جمله', 'بالجمله', 'wholesale', 'موزع', 'موزعين', 'مصنع', 'مصانع'})
