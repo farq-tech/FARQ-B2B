@@ -78,6 +78,23 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(cities['Riyadh']['unclassified'], 3)
         self.assertEqual(cities['Jeddah']['unclassified'], 2)
 
+    def test_city_spellings_fold_into_one_city(self):
+        root = pathlib.Path(tempfile.mkdtemp())
+        write(root, [('a', 'Mecca', 'محل'), ('b', 'Makkah Al Mukarramah', 'محل'), ('c', 'Riyadh', 'محل')],
+              [('a', 'unc.x', 'm', 'low')], 'poi_key varchar, city_en varchar, name_ar varchar')
+        cities = ai_classification.profile(root / 'targets.parquet', root / 'poi_taxonomy.parquet')['cities']
+        makkah = ai_classification.canonical_data.canonical_city('Mecca')[0]
+        self.assertEqual(cities[makkah]['unclassified'], 2)
+        self.assertNotIn('Mecca', set(cities) - {makkah})
+        self.assertEqual(len(cities), 2)
+
+    def test_log_line_keeps_the_largest_cities_only(self):
+        report = {'cities': {f'c{i}': {'unclassified': 100 - i} for i in range(40)}, 'unclassified': 1}
+        line = ai_classification.log_summary(report, cities=15)
+        self.assertEqual(list(line['cities']), [f'c{i}' for i in range(15)])
+        self.assertEqual(line['other_cities'], 25)
+        self.assertEqual(line['unclassified'], 1)
+
     def test_report_holds_no_name_key_or_phone(self):
         text = json.dumps(self.report(), ensure_ascii=False)
         for secret in ('مؤسسة محمد', 'Al Noor', '0500000001', '"u1"', 'محمد عبدالله'):
