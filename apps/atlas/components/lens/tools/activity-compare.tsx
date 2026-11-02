@@ -21,6 +21,7 @@ import { comparePairs } from './tool-answers'
 type Count = { district_ar: string; n: number }
 type Rival = { status: 'loading' } | { status: 'error' } | { status: 'ready'; counts: Count[]; total: number | null; understood: Understanding }
 type Order = 'first' | 'gap'
+const SHORT_NAME = 12
 
 /**
  * «قارن بنشاط آخر» inside «المنافسون»: a second activity's count in every district beside the studied one's, both
@@ -86,6 +87,10 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
     )
   }
 
+  // short names («صيدلية»، «عيادة») label each row's figures themselves; long ones are read once as «الأول» and «الثاني»
+  const named = first.label.length <= SHORT_NAME && rival.label.length <= SHORT_NAME && first.label !== rival.label
+  const firstWord = named ? first.label : 'الأول'
+  const rivalWord = named ? rival.label : 'الثاني'
   const total = (value: number | null) => (value == null ? <Unavailable className="font-bold" /> : numberFormat.format(value))
   return (
     <section aria-label={`مقارنة «${first.label}» و«${rival.label}»`} className="flex flex-col gap-2 rounded-xl border p-3">
@@ -118,6 +123,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
                 className={cn('flex-1 rounded-lg border px-2 py-2 text-sm', order === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
             ))}
           </div>
+          {/* the order buttons speak of «الأول» and «الثاني», so the key stays even when the rows carry the names */}
           <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span><span className="font-semibold text-foreground">الأول</span>: {first.label}</span>
             <span><span className="font-semibold text-foreground">الثاني</span>: {rival.label}</span>
@@ -132,9 +138,9 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
                     title={item.row.name}
                     // in «حيث يزيد الأول على الثاني» the list is ordered by this difference, so each row says it
                     sub={order === 'gap' ? `الفرق ${ltr(`${item.a - item.b > 0 ? '+' : item.a - item.b < 0 ? '−' : ''}${numberFormat.format(Math.abs(item.a - item.b))}`)}` : undefined}
-                    // the names are read once above; each row carries only its two figures, so a long name never hides the district
-                    value={`الأول ${numberFormat.format(item.a)}`}
-                    valueSub={`الثاني ${numberFormat.format(item.b)}`} />
+                    // each row carries only its two figures, under the activities' own names when they are short
+                    value={`${firstWord} ${numberFormat.format(item.a)}`}
+                    valueSub={`${rivalWord} ${numberFormat.format(item.b)}`} />
                 ))}
               </ol>
               <MoreRows shown={Math.min(limit, pairs.length)} total={pairs.length} noun="district" onMore={showMore} />
