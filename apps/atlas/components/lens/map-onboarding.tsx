@@ -32,7 +32,7 @@ function write(state: CoachState) {
   try { localStorage.setItem(KEY, state) } catch { /* private window: the tour simply shows again next time */ }
 }
 
-export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, onAsk }: {
+export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, onAsk, onShowMe }: {
   lens: LensId
   onLens: (lens: LensId) => void
   picked: boolean
@@ -40,6 +40,8 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   goalSlot?: HTMLElement | null
   /** Told when the goal question opens, so a phone's sheet can rise to show it. */
   onAsk?: () => void
+  /** Picks the district the open step ranks first, so a first visit reaches an answer in one tap; absent when none. */
+  onShowMe?: (() => void) | null
   /** The map failed to open: the tour keeps its place but shows nothing over the failure notice. */
   paused?: boolean
 }) {
@@ -157,7 +159,10 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
     return <>{help}{goalSlot ? createPortal(ask, goalSlot) : null}</>
   }
 
-  if (state === 'waiting_pick') return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, 'اختر حياً: اضغطه على الخريطة')
+  if (state === 'waiting_pick') {
+    return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, onShowMe ? 'اضغط حياً على الخريطة' : 'اختر حياً: اضغطه على الخريطة',
+      onShowMe && <button onClick={() => { trackOnboardingStep('show_me'); onShowMe() }} className="shrink-0 text-sm font-semibold text-primary underline-offset-4 hover:underline">أو أرني الأعلى</button>)
+  }
 
   // waiting_explain: the pick is done, so the line now points at the «i» beside a figure in the panel
   return hint(<Info className="size-4 shrink-0 text-primary" aria-hidden />, 'اضغط «i» لترى كيف حُسب الرقم',

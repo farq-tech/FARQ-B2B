@@ -9,15 +9,19 @@ export type MapQuery = {
   tool: string | null
   districts: string[]
   q: string | null
+  /** The studied activity typed as words (`activity`), or a main activity by id (`main`); one or the other. */
+  activity: string | null
+  main: string | null
 }
 
-export type MapView = { city: string; lens: string; tool: string; districts: string[]; q: string | null }
+export type MapView = { city: string; lens: string; tool: string; districts: string[]; q: string | null; activity?: string | null; main?: string | null }
 
 /** Values the map starts on, which the address leaves out to stay short. */
-export const MAP_DEFAULTS = { city: 'Riyadh', lens: 'shops' } as const
+export const MAP_DEFAULTS = { city: 'Riyadh', lens: 'shops', activity: 'صيدلية' } as const
 
 const CITY = /^[A-Za-z][A-Za-z .'-]{0,39}$/
 const DISTRICT = /^[A-Za-z0-9_-]{1,40}$/
+const MAIN = /^[A-Za-z0-9_-]{1,40}$/
 const MAX_DISTRICTS = 12
 const MAX_QUERY = 80
 
@@ -42,7 +46,10 @@ export function readMapQuery(search: string, lenses: Record<string, string[]>, g
   const rawTool = query.get('tool')
   const tool = rawTool != null && (lenses[lens ?? MAP_DEFAULTS.lens] ?? []).includes(rawTool) ? rawTool : null
   const districts = [...new Set((query.get('district') ?? '').split(',').map((id) => id.trim()).filter((id) => DISTRICT.test(id)))].slice(0, MAX_DISTRICTS)
-  return { city: city != null && CITY.test(city) ? city : null, lens, tool, districts, q: cleanQuery(query.get('q')) }
+  const main = query.get('main')
+  const validMain = main != null && MAIN.test(main) ? main : null
+  // a main activity named by id wins over typed words; its name is checked against the city's list once it loads
+  return { city: city != null && CITY.test(city) ? city : null, lens, tool, districts, q: cleanQuery(query.get('q')), main: validMain, activity: validMain ? null : cleanQuery(query.get('activity')) }
 }
 
 /**
@@ -60,6 +67,9 @@ export function writeMapQuery(search: string, view: MapView, firstStep: string):
   set('tool', view.tool === firstStep ? null : view.tool)
   set('district', view.districts.slice(0, MAX_DISTRICTS).join(',') || null)
   set('q', cleanQuery(view.q))
+  const activity = cleanQuery(view.activity)
+  set('main', view.main && MAIN.test(view.main) ? view.main : null)
+  set('activity', view.main || activity === MAP_DEFAULTS.activity ? null : activity)
   const text = query.toString()
   return text ? `?${text}` : ''
 }

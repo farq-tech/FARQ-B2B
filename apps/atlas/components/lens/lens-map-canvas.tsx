@@ -68,7 +68,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -97,6 +97,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   errorClassName?: string
   /** A district a list is pointing at (a row under the pointer or focus), outlined on the map without picking it. */
   hover?: string | null
+  /** The district under a mouse pointer and where it is on the map (pixels from the map's corner), or null when it
+   * leaves the districts. Mouse only: a tap picks the district instead. */
+  onPoint?: ((point: { id: string; x: number; y: number; width: number; height: number } | null) => void) | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -105,6 +108,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   const openListing = useRef(onListing)
   const openStreet = useRef(onStreet)
   openStreet.current = onStreet
+  const point = useRef(onPoint)
+  point.current = onPoint
   const reportBounds = useRef(onBounds)
   reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
@@ -240,7 +245,11 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
         }
         instance.on('mouseenter', 'district-fill', () => { instance.getCanvas().style.cursor = 'pointer' })
-        instance.on('mouseleave', 'district-fill', () => { instance.getCanvas().style.cursor = '' })
+        instance.on('mouseleave', 'district-fill', () => { instance.getCanvas().style.cursor = ''; point.current?.(null) })
+        instance.on('mousemove', 'district-fill', (event) => {
+          const id = event.features?.[0]?.properties?.id
+          point.current?.(id == null ? null : { id: String(id), x: event.point.x, y: event.point.y, width: instance.getContainer().clientWidth, height: instance.getContainer().clientHeight })
+        })
         setReady(true)
       })
     })()
