@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Baby, MapPin, Store, Users } from 'lucide-react'
 import { Skeleton, SkeletonRows, SkeletonStats, SkeletonStatus } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
@@ -26,7 +27,8 @@ export type SiteCardData = {
   residents_per_competitor: number | null
   reasons?: Partial<Record<'per_km2' | 'residents_per_competitor', string>>
 }
-export type SiteCardState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: SiteCardData }
+/** «denied» is a card the account may not open: signed out (sign in) or not allowed (no retry helps either). */
+export type SiteCardState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'denied'; message: string; signIn: boolean } | { status: 'ready'; data: SiteCardData }
 
 /** A whole figure, or null when the data does not have it (Stat then reads «غير متاح»). */
 const figure = (value: number | null | undefined) => (value == null ? null : numberFormat.format(Math.round(value)))
@@ -61,6 +63,11 @@ export function SiteCard({ label, color, reach, activity, state, onRetry }: { la
             <Skeleton className="h-11 w-full rounded-xl" />
           </SkeletonStatus>
         </div>
+      )}
+      {state?.status === 'denied' && (
+        <p className="m-4 rounded-xl bg-muted/60 px-3 py-2.5 text-sm">
+          {state.message}{state.signIn && <> <Link href="/login?next=%2Fmap%3Ftool%3Daround" className="font-semibold text-primary underline">تسجيل الدخول</Link></>}
+        </p>
       )}
       {state?.status === 'error' && <LoadError what="بطاقة الموقع" detail={state.message} onRetry={onRetry} className="m-4" />}
       {state?.status === 'ready' && <Body data={state.data} activity={activity} />}
