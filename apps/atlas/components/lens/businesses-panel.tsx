@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ClipboardList, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ClipboardList, ListPlus, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
@@ -178,7 +178,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
             ))}
           </ul>
           <div className="grid grid-cols-3 gap-1.5">
-            {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ClipboardList]] as const).map(([type, label, Icon]) => (
+            {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ListPlus]] as const).map(([type, label, Icon]) => (
               <button key={type} disabled={!picked.size} onClick={() => act(type)}
                 className={cn('inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-semibold', picked.size ? 'border-primary text-primary hover:bg-primary hover:text-primary-foreground' : 'cursor-not-allowed opacity-50')}>
                 <Icon className="size-4" aria-hidden /> {label}{picked.size ? ` (${numberFormat.format(picked.size)})` : ''}
