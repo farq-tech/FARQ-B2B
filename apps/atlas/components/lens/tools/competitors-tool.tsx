@@ -17,7 +17,7 @@ import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
-import { competitorsSummary, densestDistrict } from './tool-answers'
+import { competitorsSummary, densestDistrict, rankCompetition } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
 
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
@@ -152,10 +152,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
   // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
-  const ranked = useMemo(() => [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
-    .sort((a, b) => (order === 'dense'
-      ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
-      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0))), [table, order])
+  const ranked = useMemo(() => rankCompetition(table, order), [table, order])
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
   // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
   const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
@@ -224,7 +221,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
                   sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
                   value={counted(item.competitors, 'business')}
-                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
+                  // a district with none has no density to show, and its area is not what is missing
+                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : item.competitors ? 'المساحة غير متاحة' : undefined} />
               ))}
             </ol>
             <MoreRows shown={Math.min(limit, ranked.length)} total={ranked.length} noun="district" onMore={showMore} />
