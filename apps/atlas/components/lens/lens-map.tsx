@@ -9,7 +9,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
-import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
@@ -357,6 +357,13 @@ export function LensMap() {
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
   const leadId = overlay.lead ?? (toolColors ? null : [...data.rows].filter((row) => METRICS[metric].value(row) != null)
     .sort((a, b) => (METRICS[metric].value(b) as number) - (METRICS[metric].value(a) as number))[0]?.id ?? null)
+  // a step that hands over no line of its own still gets one at peek: the district the shading figure ranks first,
+  // with its figure from its row (a percentage kept whole inside the Arabic line)
+  const leadRow = leadId ? data.rows.find((row) => row.id === leadId) ?? null : null
+  const leadValue = leadRow ? METRICS[metric].value(leadRow) : null
+  const peekLine = overlay.summary ?? (!toolColors && leadRow && leadValue != null
+    ? `الأعلى في ${METRICS[metric].label}: ${leadRow.name} ${METRICS[metric].unit === '%' ? ltr(format(leadValue, '%')) : format(leadValue, METRICS[metric].unit)}`
+    : null)
   const pointedRow = pointed ? data.rows.find((row) => row.id === pointed.id) ?? null : null
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${step?.label} · ${chosen.map((row) => row.name).join('، ')}` : `${active.label} · ${step?.label ?? ''}`
@@ -464,7 +471,7 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? overlay.summary : null}>
+        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null}>
           {data.status === 'error' ? (
             <LoadError what="بيانات المدينة" onRetry={data.reload} />
           ) : (
