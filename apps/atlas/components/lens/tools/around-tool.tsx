@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
 import { PALETTE, readableOn } from '@/lib/palette'
-import { areaKm2, districtAt } from '@/lib/geo-measure'
+import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
 import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
 import type { DistrictRow } from '../city-data'
@@ -32,6 +32,17 @@ const reachLabel = (reach: Reach) => (reach.kind === 'radius'
   : `${reach.minutes} د بالسيارة`)
 const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
+
+/** A point inside a district to stand a sample site on: its bounding box's centre, else its outline's mean, else a corner. */
+function insidePoint(geometry: DistrictFeature['geometry']): Point {
+  const ring = geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0]
+  const lons = ring.map((p) => p[0])
+  const lats = ring.map((p) => p[1])
+  const centre = { lon: (Math.min(...lons) + Math.max(...lons)) / 2, lat: (Math.min(...lats) + Math.max(...lats)) / 2 }
+  if (containsPoint(geometry, centre)) return centre
+  const mean = { lon: lons.reduce((a, b) => a + b, 0) / lons.length, lat: lats.reduce((a, b) => a + b, 0) / lats.length }
+  return containsPoint(geometry, mean) ? mean : { lon: ring[0][0], lat: ring[0][1] }
+}
 
 /** The site card for one range (/api/market/site-card, signed-in only because it names competitors). */
 async function cardFor(city: string, point: Point, geometry: Geometry, activity: { q?: string; main_id?: string }): Promise<SiteCardState> {
@@ -117,6 +128,16 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     cardFor(city, site, geometry, activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
   }, [keyOf, results, city, activity])
 
+  // «ابدأ من هنا»: a first visit compares the city's two most populous districts in one tap, a site in each
+  const sample = useMemo(() => {
+    const outline = new Map(features.map((feature) => [String(feature.properties.id), feature.geometry]))
+    return districts
+      .filter((row) => row.population != null && outline.has(row.id))
+      .sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+      .slice(0, 2)
+      .map((row) => ({ name: row.name, point: insidePoint(outline.get(row.id)!) }))
+  }, [districts, features])
+
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
 
   useEffect(() => {
@@ -196,6 +217,12 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
           </button>
         ))}
       </div>
+      {sites.length === 0 && sample.length === 2 && (
+        <button type="button" onClick={() => sample.forEach((item) => pick(item.point))}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary hover:bg-primary/10">
+          ابدأ من هنا: قارن {sample[0].name} و{sample[1].name}
+        </button>
+      )}
       {reach.kind === 'drive' && (
         <Explained title="منطقة الوصول بالسيارة" lines={EXPLAIN.driveArea(reach.minutes)} className="text-sm text-muted-foreground">
           المنطقة: كل ما تصله السيارة في {numberFormat.format(reach.minutes)} دقائق على الطرق.
