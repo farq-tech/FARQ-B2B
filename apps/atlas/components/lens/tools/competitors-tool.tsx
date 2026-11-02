@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -13,8 +16,10 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { ActivityCompare } from './activity-compare'
+import { competitorsSummary, densestDistrict } from './tool-answers'
+import { useMainActivities } from '@/lib/main-activities'
 
-type Activity = { main_id: string; main_ar: string }
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
 // counts; a brand's by_district carries only n
 type Count = { district_ar: string; n: number; per_km2?: number | null; residents_per?: number | null }
@@ -41,7 +46,7 @@ const NONE = PALETTE.sage   // no competitor of this activity in the district
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map
  * shows where competition is dense; a district picked from the list opens its competitors by name.
  */
-export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches }: {
+export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches, onHover }: {
   city: string
   rows: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
@@ -50,8 +55,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   onActivity: (activity: string | null) => void
   /** Opens every branch of a chain across the city, for a quote request or campaign to all of them. */
   onAllBranches: (brand: string) => void
+  /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
@@ -78,18 +85,16 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   }, [city, brand])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
-  useEffect(() => {
-    setCounts(null)
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
+  useEffect(() => { setCounts(null) }, [city])
 
   useEffect(() => {
     if (!studied) return
     let live = true
     setStatus('loading')
     setBrand(null)
+    // drop the last activity's counts now, so the map clears instead of shading districts for a different query
+    setCounts(null)
+    setUnderstood(null)
     onActivity(studied.q ?? studied.label)
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     Promise.all([
@@ -124,10 +129,14 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         while (below < counts.length && counts[below] < item.n) below++
         colors.set(id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
       }
-      onOverlay({ colors, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT } })
+      const most = brand.by_district.reduce<Count | null>((top, item) => (!top || item.n > top.n ? item : top), null)
+      onOverlay({ colors, lead: most ? ids.get(most.district_ar) ?? null : null, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
       return
     }
     if (!table.length) { onOverlay({}); return }
+    // the city's count as the service gives it, and the district where the activity is densest per km²
+    const densest = densestDistrict(table)
+    const summary = competitorsSummary(cityTotal, studied.label, densest)
     const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
@@ -136,13 +145,21 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       while (below < dense.length && dense[below] < item.perKm2) below++
       colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
     }
-    onOverlay({ colors, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
-  }, [table, brand, rows, onOverlay])
+    // «أرني الأعلى» opens the district the summary names
+    onOverlay({ colors, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label])
 
-  const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
+  const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
+  const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
+  // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
+  const ranked = useMemo(() => [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
-      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0)))
+      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0))), [table, order])
+  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
+  // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
+  const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
+  const [branchLimit, showMoreBranches] = useShowMore(20, `${city}|${brand?.brand ?? ''}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -153,22 +170,30 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">المنافسون</h2>
-      <div className="flex gap-2">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && query.trim()) study({ q: query.trim(), label: query.trim() }) }}
+      <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (query.trim()) study({ q: query.trim(), label: query.trim() }) }}>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="نشاطك" enterKeyHint="search"
           placeholder="اكتب نشاطك: صيدلية، مقهى…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-        <button onClick={() => query.trim() && study({ q: query.trim(), label: query.trim() })} disabled={status === 'loading'}
+        <button type="submit" disabled={status === 'loading'}
           className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'ادرس'}
         </button>
-      </div>
+      </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <div className="flex flex-wrap gap-2">
+      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
-            <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
+            <button key={example} onClick={() => { setQuery(example); study({ q: example, label: example }) }} aria-pressed={studied.q === example}
+              className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status === 'loading' && (
+        <>
+          <Skeleton className="h-5 w-3/4" aria-hidden />
+          <div className="flex gap-1.5" aria-hidden><Skeleton className="h-10 flex-1 rounded-lg" /><Skeleton className="h-10 flex-1 rounded-lg" /></div>
+          <ResultRowsSkeleton label="جارٍ الحساب" rows={6} sub valueSub />
+        </>
+      )}
       {status !== 'loading' && studied.q && <Understood value={understood} />}
       {studied && counts && status !== 'loading' && (
         <>
@@ -176,9 +201,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
             {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
           </Explained>
-          <div className="flex gap-1.5" role="tablist" aria-label="طريقة العرض">
+          {/* two views of one result, switched in place: pressed buttons, not tabs (there is no tab panel to move to) */}
+          <div className="flex gap-1.5" role="group" aria-label="طريقة العرض">
             {([['districts', 'الأحياء'], ['brands', 'السلاسل']] as const).map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
+              <button key={id} aria-pressed={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
                 className={cn('flex-1 rounded-lg border py-2 text-base font-semibold', view === id ? 'border-primary text-primary' : 'hover:border-primary')}>{label}</button>
             ))}
           </div>
@@ -191,68 +217,49 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               ))}
             </div>
             <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
-              {ranked.slice(0, 30).map((item) => (
-                <li key={item.row.id}>
-                  <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{item.row.name}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        {item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-end">
-                      <span className="block font-bold">{numberFormat.format(item.competitors)}</span>
-                      <span className="block text-sm text-muted-foreground">{item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'}</span>
-                    </span>
-                  </button>
-                </li>
+              {ranked.slice(0, limit).map((item) => (
+                <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
+                  sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
+                  value={numberFormat.format(item.competitors)}
+                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
               ))}
             </ol>
+            <MoreRows shown={Math.min(limit, ranked.length)} total={ranked.length} noun="district" onMore={showMore} />
+            <ActivityCompare city={city} rows={rows} activities={activities} first={studied} firstCounts={counts} firstTotal={cityTotal} onSelect={onSelect} onHover={onHover} />
             </>
           )}
           {view === 'brands' && !brands && <p className="text-base text-muted-foreground">السلاسل غير متاحة لهذا النشاط الآن.</p>}
           {view === 'brands' && brands && !brand && (
             <>
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
-                <strong>{numberFormat.format(brands.chains)}</strong> سلسلة تملك {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
+                <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
                 {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
               </Explained>
-              {brands.brands.length === 0 && <p className="text-base text-muted-foreground">لا توجد سلسلة بثلاثة فروع أو أكثر لهذا النشاط؛ السوق كله محلات مستقلة.</p>}
+              {brands.brands.length === 0 && <EmptyState compact icon={SearchX} title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة." />}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
                 {brands.brands.map((item, index) => (
-                  <li key={item.brand}>
-                    <button onClick={() => pickBrand(item)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
-                      <span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{item.brand}</span>
-                        <span className="block text-sm text-muted-foreground">في {counted(item.districts, 'district')}{growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}</span>
-                      </span>
-                      <span className="shrink-0 text-end">
-                        <span className="block font-bold">{counted(item.branches, 'branch')}</span>
-                        <span className="block text-sm text-muted-foreground">{item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`}</span>
-                      </span>
-                    </button>
-                  </li>
+                  <ResultRow key={item.brand} onClick={() => pickBrand(item)} title={item.brand}
+                    leading={<span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>}
+                    sub={`في ${counted(item.districts, 'district')}${growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}`}
+                    value={counted(item.branches, 'branch')}
+                    valueSub={item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`} />
                 ))}
               </ol>
               {brands.uncovered && brands.uncovered.length > 0 && (
                 <div className="flex flex-col gap-1.5 rounded-xl border p-3">
                   <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
-                    أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
+                    أحياء مأهولة لم تصلها {(brands.uncovered_by?.length ?? 0) === 1 ? 'أكبر سلسلة' : (brands.uncovered_by?.length ?? 0) === 2 ? 'أكبر سلسلتين' : `أكبر ${counted(brands.uncovered_by?.length ?? 0, 'chain')}`}
                   </Explained>
                   <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
-                    {brands.uncovered.map((item) => {
-                      const id = rows.find((row) => row.name === item.district_ar)?.id
+                    {brands.uncovered.slice(0, uncoveredLimit).map((item) => {
+                      const id = idByName.get(item.district_ar)
                       return (
-                        <li key={item.district_ar}>
-                          <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                            <span className="min-w-0 flex-1 truncate">{item.district_ar}</span>
-                            <span className="shrink-0 text-end text-sm text-muted-foreground">{numberFormat.format(item.population)} ساكن · {numberFormat.format(item.businesses)} منشأة من النشاط</span>
-                          </button>
-                        </li>
+                        <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar}
+                          valueSub={`${numberFormat.format(item.population)} ساكن · ${numberFormat.format(item.businesses)} منشأة من النشاط`} />
                       )
                     })}
                   </ol>
+                  <MoreRows shown={Math.min(uncoveredLimit, brands.uncovered.length)} total={brands.uncovered.length} noun="district" onMore={showMoreUncovered} />
                 </div>
               )}
             </>
@@ -264,7 +271,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               <Explained title="توسّع السلسلة" lines={EXPLAIN.chainGrowth} className="self-start text-sm">
                 التوسّع: {growthLine(brand.growth) ?? 'غير متاح'}
               </Explained>
-              {profile === null && <Loader2 className="size-5 animate-spin" aria-label="جارٍ التحميل" />}
+              {profile === null && (
+                <SkeletonStatus className="flex flex-col gap-2 rounded-xl border p-3">
+                  <Skeleton className="h-5 w-3/4" /><Skeleton className="h-5 w-1/2" />
+                </SkeletonStatus>
+              )}
               {profile === 'error' && <p className="text-sm text-muted-foreground">بقية فروع السلسلة غير متاحة الآن.</p>}
               {profile && profile !== 'error' && (
                 <div className="flex flex-col gap-1 rounded-xl border p-3 text-base">
@@ -282,17 +293,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                 طلب تسعير أو حملة لكل الفروع
               </button>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
-                {brand.by_district.map((item) => {
-                  const id = rows.find((row) => row.name === item.district_ar)?.id
-                  return (
-                    <li key={item.district_ar}>
-                      <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full justify-between py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                        <span>{item.district_ar}</span><span className="font-semibold">{numberFormat.format(item.n)}</span>
-                      </button>
-                    </li>
-                  )
+                {brand.by_district.slice(0, branchLimit).map((item) => {
+                  const id = idByName.get(item.district_ar)
+                  return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
                 })}
               </ol>
+              <MoreRows shown={Math.min(branchLimit, brand.by_district.length)} total={brand.by_district.length} noun="district" onMore={showMoreBranches} />
             </>
           )}
           <p className="text-sm text-muted-foreground">{brand ? `اضغط على حي لترى فروع ${brand.brand} فيه.` : 'اضغط على حي لترى منافسيه بالاسم.'}</p>

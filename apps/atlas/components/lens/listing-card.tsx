@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
@@ -27,13 +27,13 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
           <button key={photo} type="button" onClick={(event) => { event.stopPropagation(); setOpen(index) }} aria-label={`افتح الصورة ${numberFormat.format(index + 1)}`}
             className="h-full w-full shrink-0 snap-center cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="" loading="lazy" onError={() => setBroken((current) => new Set(current).add(photo))} className="h-full w-full object-cover" />
+            <img src={photo} alt="" loading="lazy" decoding="async" onError={() => setBroken((current) => new Set(current).add(photo))} className="h-full w-full object-cover" />
           </button>
         ))}
       </div>
       {open != null && <Lightbox photos={shown} start={open} onClose={() => setOpen(null)} />}
       {shown.length > 1 && (
-        <span className="absolute bottom-2 start-2 rounded-full bg-background/80 px-2 py-0.5 text-sm backdrop-blur">{numberFormat.format(shown.length)} صور</span>
+        <span className="absolute bottom-2 start-2 rounded-full bg-background/80 px-2 py-0.5 text-sm backdrop-blur">{counted(shown.length, 'photo')}</span>
       )}
     </div>
   )
@@ -53,10 +53,10 @@ function ListingPhone({ id }: { id: string }) {
     const international = `966${state.phone.slice(1)}`
     return (
       <div className="grid grid-cols-2 gap-1.5">
-        <a href={`tel:+${international}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" dir="ltr">
+        <a href={`tel:+${international}`} className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" dir="ltr">
           <Phone className="size-4" aria-hidden /> {state.phone}
         </a>
-        <a href={`https://wa.me/${international}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold hover:border-primary">
+        <a href={`https://wa.me/${international}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold hover:border-primary">
           <MessageCircle className="size-4" aria-hidden /> واتساب
         </a>
       </div>
@@ -64,7 +64,7 @@ function ListingPhone({ id }: { id: string }) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <button onClick={reveal} disabled={state.loading} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+      <button onClick={reveal} disabled={state.loading} className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
         <Phone className="size-4" aria-hidden /> {state.loading ? 'يجلب الرقم…' : 'اعرض رقم المعلن'}
       </button>
       {state.phone === null && <p className="text-sm text-muted-foreground">رقم المعلن غير متاح لهذا العرض.</p>}
@@ -100,8 +100,8 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const perSqm = perSqmLine(listing)
   const rooms = [
     listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null,
-    listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null,
-    listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
+    listing.beds ? counted(listing.beds, 'room') : null,
+    listing.wc ? counted(listing.wc, 'bathroom') : null,
   ].filter(Boolean)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
@@ -163,7 +163,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           </p>
         )}
         <button onClick={() => setAround((open) => !open)} aria-expanded={around}
-          className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-semibold hover:border-primary">
+          className="flex items-center justify-between pointer-coarse:min-h-11 rounded-lg border px-3 py-1.5 text-sm font-semibold hover:border-primary">
           حول العقار: مدارس، مستشفى، المطار، وسط المدينة{myPoint ? '، نقطتك' : ''}
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
@@ -173,13 +173,13 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             {listing.has_phone ? null : listing.url ? (
               <a href={listing.url} target="_blank" rel="noopener noreferrer"
-                className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground', !onCompare && 'col-span-2')}>
+                className={cn('inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground', !onCompare && 'col-span-2')}>
                 <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
               </a>
             ) : onCompare ? <span /> : null}
             {onCompare && (
               <button onClick={onCompare} aria-pressed={comparing}
-                className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
+                className={cn('inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
                 {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
               </button>
             )}
@@ -190,7 +190,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">أُضيف للمقارنة. افتح عقاراً ثانياً من الخريطة أو القائمة وأضفه.</p>
         )}
         {compareCount === 2 && onCompareNow && (
-          <button onClick={onCompareNow} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
+          <button onClick={onCompareNow} className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
             <Scale className="size-4" aria-hidden /> قارن العقارين جنباً إلى جنب
           </button>
         )}

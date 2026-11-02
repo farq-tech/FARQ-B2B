@@ -1,4 +1,4 @@
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 
 /**
  * How each figure in Atlas is worked out, in plain Arabic, shown when the figure is tapped. One place for every
@@ -190,8 +190,20 @@ export const EXPLAIN = {
     ]
   },
   shading(label: string): string[] {
-    return [`الأحياء مرتبة حسب «${label}» ومقسومة إلى خمس مجموعات متساوية العدد.`, 'الأفتح هي الأعلى. الحي بلا رقم يبقى بلا لون.']
+    return [`الأحياء مرتبة حسب «${label}» ومقسومة إلى خمس مجموعات متساوية العدد.`, 'الأغمق هي الأعلى. الحي بلا رقم يبقى بلا لون.']
   },
+  /** The colours a step paints over the districts or streets, keyed by the step (lenses.ts ToolId). */
+  toolColors: {
+    gaps: [
+      'لون الحي من نقصه مقارنةً بأكبر نقص في القائمة، في خمس درجات متساوية: الأغمق نقصه أكبر.',
+      'الحي الذي فيه منشآت بقدر ما يتحمله سكانه أو أكثر بلون «مكتفٍ». الحي الأصغر من 5,000 ساكن يبقى بلا لون.',
+    ],
+    competitors: [
+      'الأحياء التي فيها منافسون مرتبة حسب عددهم لكل كيلومتر مربع، وعند اختيار علامة حسب عدد فروعها، ومقسومة إلى خمس مجموعات متساوية العدد.',
+      'الأغمق منافسته أكثف. الحي بلا منافس بلون «لا منافس».',
+    ],
+    corridors: ['الشوارع مرتبة حسب عدد محلات النشاط عليها، ومقسومة إلى خمس مجموعات متساوية العدد.', 'الأغمق فيه محلات أكثر.'],
+  } as Partial<Record<string, string[]>>,
   realEstateByAge(fresh: number | undefined, older: number | undefined): string[] {
     return [
       `الوسيط نفسه مقسوماً بعمر العقار كما يذكره الإعلان: الجديد عمره سنتان أو أقل (${fresh != null ? `${numberFormat.format(fresh)} إعلاناً` : 'إعلانات أقل من الحد'})، والأقدم ما فوق ذلك (${older != null ? `${numberFormat.format(older)} إعلاناً` : 'إعلانات أقل من الحد'}).`,
@@ -254,4 +266,23 @@ export const EXPLAIN = {
     'العروض المطابقة لاختيارك مرتبة من الأقل سعراً للمتر مقارنة بوسيط حيّها إلى الأعلى.',
     'العرض في حي بلا وسيط كافٍ يأتي في الآخر.',
   ],
+  /** Two activities' counts per district side by side («قارن بنشاط آخر» in «المنافسون»). */
+  activityCompare(first: string, second: string): string[] {
+    return [
+      `عدد منشآت «${first}» و«${second}» في كل حي من دليل فرق، بالطريقة نفسها للنشاطين.`,
+      `الترتيب الأول يقدّم الأحياء التي يزيد فيها «${first}» على «${second}» بأكبر فرق، والثاني يرتّب بعدد «${first}».`,
+      'الحي الذي لا يظهر فيه نشاط في الدليل عدده 0. الخريطة تبقى ملوّنة بالنشاط الأول.',
+    ]
+  },
+  aroundResidentsPer: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
+  /** One trade corridor's figures («شوارع النشاط»), from the service's values for that street. */
+  corridor(corridor: { sub_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number | null }): string[] {
+    const lines = [
+      `${counted(corridor.n, 'business')} من «${corridor.sub_ar}» على ${numberFormat.format(corridor.length_m)} م من الشارع: ${numberFormat.format(corridor.per_100m)} لكل 100 م.`,
+      'كل منشأة على أقرب شارع مسمّى لها حتى 60 م، والممر مقاطع الشارع نفسه التي فيها النشاط، متصلة ولو عبرت أكثر من حي.',
+    ]
+    if (corridor.lift != null) lines.push(`حصة النشاط بين منشآت هذا الممر ${numberFormat.format(corridor.lift)} ضعف حصته في المدينة.`)
+    if (corridor.n_wholesale) lines.push(`منها ${counted(corridor.n_wholesale, 'business')} جملة.`)
+    return lines
+  },
 }

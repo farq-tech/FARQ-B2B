@@ -13,6 +13,10 @@ export const PEEK_PX = 136
 export const HALF = 0.55
 const HEIGHT: Record<SheetSnap, string> = { peek: PEEK, half: `${HALF * 100}%`, full: 'calc(100% - 4rem)' }
 const NEXT: Record<SheetSnap, SheetSnap> = { peek: 'half', half: 'full', full: 'peek' }
+const UP: Record<SheetSnap, SheetSnap> = { peek: 'half', half: 'full', full: 'full' }
+const DOWN: Record<SheetSnap, SheetSnap> = { peek: 'peek', half: 'peek', full: 'half' }
+/** A release faster than this (px per ms) is a flick: the sheet goes one stop on in its direction. */
+const FLICK = 0.5
 const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف الشاشة', full: 'كاملة' }
 
 /**
@@ -20,20 +24,31 @@ const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف ا
  * its handle, or tap it, between a peek that shows the title and the steps, half the screen, and nearly all of it.
  * From lg up it is the same panel as a fixed column beside the map, and the snap does nothing.
  */
-export function MapSheet({ snap, onSnap, title, children }: { snap: SheetSnap; onSnap: (next: SheetSnap) => void; title: ReactNode; children: ReactNode }) {
+export function MapSheet({ snap, onSnap, title, summary, children }: {
+  snap: SheetSnap
+  onSnap: (next: SheetSnap) => void
+  title: ReactNode
+  /** The step's answer in one line under the title, so a peeking sheet already says what the map shows. */
+  summary?: ReactNode
+  children: ReactNode
+}) {
   const sheet = useRef<HTMLElement>(null)
-  const drag = useRef<{ y: number; height: number; moved: boolean } | null>(null)
+  // `last`/`at` are the latest pointer sample, `prevY`/`prevAt` the one before: the release speed comes from them
+  const drag = useRef<{ y: number; height: number; moved: boolean; prevY: number; prevAt: number; last: number; at: number } | null>(null)
   const [dragged, setDragged] = useState<number | null>(null)
 
   const start = (event: PointerEvent<HTMLDivElement>) => {
     if (!sheet.current) return
     event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { y: event.clientY, height: sheet.current.getBoundingClientRect().height, moved: false }
+    const now = performance.now()
+    drag.current = { y: event.clientY, height: sheet.current.getBoundingClientRect().height, moved: false, prevY: event.clientY, prevAt: now, last: event.clientY, at: now }
   }
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current
     if (!current) return
     const rise = current.y - event.clientY
+    current.prevY = current.last; current.prevAt = current.at
+    current.last = event.clientY; current.at = performance.now()
     if (Math.abs(rise) > 6) current.moved = true
     if (current.moved) setDragged(Math.max(96, current.height + rise))
   }
@@ -42,18 +57,21 @@ export function MapSheet({ snap, onSnap, title, children }: { snap: SheetSnap; o
     drag.current = null
     if (!current) return
     if (!current.moved) { onSnap(NEXT[snap]); return }
-    // let go: the nearest stop wins, and a quick flick goes one stop further in its direction
+    // let go: a quick flick goes one stop on from where the sheet was, in its direction; otherwise the nearest stop wins
     const box = sheet.current?.parentElement?.getBoundingClientRect().height ?? window.innerHeight
     const height = current.height + (current.y - event.clientY)
+    const elapsed = performance.now() - current.prevAt
+    const speed = elapsed > 0 && elapsed < 120 ? (current.prevY - event.clientY) / elapsed : 0
     const stops: [SheetSnap, number][] = [['peek', PEEK_PX], ['half', box * HALF], ['full', box - 64]]
     const nearest = stops.reduce((best, stop) => (Math.abs(stop[1] - height) < Math.abs(best[1] - height) ? stop : best))[0]
     setDragged(null)
-    onSnap(nearest)
+    onSnap(speed > FLICK ? UP[snap] : speed < -FLICK ? DOWN[snap] : nearest)
   }
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSnap(NEXT[snap]) }
-    if (event.key === 'ArrowUp') { event.preventDefault(); onSnap(snap === 'peek' ? 'half' : 'full') }
-    if (event.key === 'ArrowDown') { event.preventDefault(); onSnap(snap === 'full' ? 'half' : 'peek') }
+    if (event.key === 'ArrowUp') { event.preventDefault(); onSnap(UP[snap]) }
+    if (event.key === 'ArrowDown') { event.preventDefault(); onSnap(DOWN[snap]) }
+    if (event.key === 'Escape' && snap !== 'peek') { event.preventDefault(); onSnap('peek') }
   }
 
   return (
@@ -81,6 +99,7 @@ export function MapSheet({ snap, onSnap, title, children }: { snap: SheetSnap; o
       >
         <span className="h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
         <span className="w-full truncate text-center text-sm font-semibold">{title}</span>
+        {summary && <span className="w-full truncate text-center text-sm text-muted-foreground tabular-nums">{summary}</span>}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3 pt-1 lg:pt-3">{children}</div>
     </aside>

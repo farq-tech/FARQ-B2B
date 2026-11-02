@@ -43,6 +43,15 @@ export const STATUS_SINGULAR: Record<RequestStatus, string> = {
   completed: 'مكتمل',
 }
 
+/** What the person does next with a request in each status, said on its row so the list reads as a to-do. */
+export const NEXT_STEP: Record<RequestStatus, string | null> = {
+  draft: 'أكمل المسودة وراجعها',
+  needs_decision: 'قارن العروض واختر المورد',
+  ready_manual: 'راجعه مرة أخيرة وأرسله بتأكيدك',
+  awaiting: 'تابع الردود في الوارد',
+  completed: null,
+}
+
 export const TYPE_LABEL: Record<RequestType, string> = {
   rfq: 'طلب تسعير',
   list: 'قائمة محفوظة',

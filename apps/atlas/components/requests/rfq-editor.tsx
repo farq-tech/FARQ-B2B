@@ -3,6 +3,7 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { makeId } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import type { LineItem, RfqDetails } from '@/lib/types'
 
 interface RfqEditorProps {
@@ -12,7 +13,7 @@ interface RfqEditorProps {
 }
 
 const fieldClass =
-  'h-9 w-full rounded-lg border bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40 disabled:text-foreground'
+  'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40 disabled:text-foreground'
 
 export function RfqEditor({ value, editable, onChange }: RfqEditorProps) {
   const updateLine = (id: string, patch: Partial<LineItem>) =>
@@ -40,7 +41,7 @@ export function RfqEditor({ value, editable, onChange }: RfqEditorProps) {
         {value.lineItems.map((l, i) => (
           <li key={l.id} className="grid grid-cols-6 gap-2 rounded-xl border bg-background/50 p-3">
             <label className="col-span-6 flex flex-col gap-1 sm:col-span-3">
-              <span className="text-xs text-muted-foreground">البند {i + 1}</span>
+              <span className="text-xs text-muted-foreground">البند {numberFormat.format(i + 1)}</span>
               <input disabled={!editable} value={l.name} onChange={(e) => updateLine(l.id, { name: e.target.value })} placeholder="اسم المنتج" className={fieldClass} />
             </label>
             <label className="col-span-3 flex flex-col gap-1 sm:col-span-1">
@@ -64,7 +65,7 @@ export function RfqEditor({ value, editable, onChange }: RfqEditorProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label={`حذف البند ${i + 1}`}
+                  aria-label={`حذف البند ${numberFormat.format(i + 1)}${l.name ? `: ${l.name}` : ''}`}
                   onClick={() => onChange({ ...value, lineItems: value.lineItems.filter((x) => x.id !== l.id) })}
                 >
                   <Trash2 />
@@ -96,7 +97,7 @@ export function RfqEditor({ value, editable, onChange }: RfqEditorProps) {
           rows={3}
           value={value.notes}
           onChange={(e) => onChange({ ...value, notes: e.target.value })}
-          className="rounded-lg border bg-background p-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40"
+          className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40"
         />
       </label>
     </section>

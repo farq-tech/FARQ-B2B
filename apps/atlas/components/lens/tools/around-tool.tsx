@@ -1,15 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
-import { PALETTE } from '@/lib/palette'
-import { areaKm2, districtAt } from '@/lib/geo-measure'
+import { PALETTE, readableOn } from '@/lib/palette'
+import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
 import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
 import type { DistrictRow } from '../city-data'
@@ -27,10 +28,21 @@ const REACHES: Reach[] = [
 const COLORS = [PALETTE.olive, PALETTE.ochre, PALETTE.slate]
 const MAX_SITES = 3
 const reachLabel = (reach: Reach) => (reach.kind === 'radius'
-  ? (reach.metres < 1000 ? `${reach.metres} م` : `${reach.metres / 1000} كم`)
+  ? formatDistance(reach.metres)
   : `${reach.minutes} د بالسيارة`)
 const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
+
+/** A point inside a district to stand a sample site on: its bounding box's centre, else its outline's mean, else a corner. */
+function insidePoint(geometry: DistrictFeature['geometry']): Point {
+  const ring = geometry.type === 'Polygon' ? geometry.coordinates[0] : geometry.coordinates[0][0]
+  const lons = ring.map((p) => p[0])
+  const lats = ring.map((p) => p[1])
+  const centre = { lon: (Math.min(...lons) + Math.max(...lons)) / 2, lat: (Math.min(...lats) + Math.max(...lats)) / 2 }
+  if (containsPoint(geometry, centre)) return centre
+  const mean = { lon: lons.reduce((a, b) => a + b, 0) / lons.length, lat: lats.reduce((a, b) => a + b, 0) / lats.length }
+  return containsPoint(geometry, mean) ? mean : { lon: ring[0][0], lat: ring[0][1] }
+}
 
 /** The site card for one range (/api/market/site-card, signed-in only because it names competitors). */
 async function cardFor(city: string, point: Point, geometry: Geometry, activity: { q?: string; main_id?: string }): Promise<SiteCardState> {
@@ -40,6 +52,10 @@ async function cardFor(city: string, point: Point, geometry: Geometry, activity:
     body: JSON.stringify({ city, geometry, centre: [point.lon, point.lat], ...(activity.q ? { q: activity.q } : activity.main_id ? { main_id: activity.main_id } : {}) }),
   })
   const body = await response.json().catch(() => null)
+  // the card names competitors, so it needs a signed-in, allowed account; retrying would not change that
+  if (response.status === 401 || response.status === 403) {
+    return { status: 'denied', signIn: response.status === 401, message: body?.error || (response.status === 401 ? 'سجّل الدخول لعرض بطاقة الموقع.' : 'حسابك غير مخول لعرض بطاقة الموقع.') }
+  }
   if (!response.ok || !body) return { status: 'error', message: body?.error || 'تعذر حساب بطاقة الموقع.' }
   return { status: 'ready', data: body as SiteCardData }
 }
@@ -102,6 +118,26 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     }
   }, [sites, reach, keyOf, city, activity])
 
+  // a failed card is asked again on the same area; the comparison figures already on screen stay as they are
+  const retryCard = useCallback((site: Point & { id: number }) => {
+    const key = keyOf(site)
+    const geometry = results[key]?.geometry
+    if (!geometry) return
+    const put = (card: SiteCardState) => { if (mounted.current) setResults((current) => (current[key] ? { ...current, [key]: { ...current[key], card } } : current)) }
+    put({ status: 'loading' })
+    cardFor(city, site, geometry, activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
+  }, [keyOf, results, city, activity])
+
+  // «ابدأ من هنا»: a first visit compares the city's two most populous districts in one tap, a site in each
+  const sample = useMemo(() => {
+    const outline = new Map(features.map((feature) => [String(feature.properties.id), feature.geometry]))
+    return districts
+      .filter((row) => row.population != null && outline.has(row.id))
+      .sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+      .slice(0, 2)
+      .map((row) => ({ name: row.name, point: insidePoint(outline.get(row.id)!) }))
+  }, [districts, features])
+
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
 
   useEffect(() => {
@@ -117,7 +153,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     {
       label: 'ساكن لكل منشأة',
       value: (f) => f.residents_per,
-      explain: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
+      explain: EXPLAIN.aroundResidentsPer,
       higherIsBetter: true,
     },
   ]
@@ -173,7 +209,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">قارن المواقع</h2>
       <p className="text-base text-muted-foreground">اضغط على الخريطة لإضافة موقع، حتى {numberFormat.format(MAX_SITES)} مواقع.</p>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div role="group" aria-label="نطاق كل موقع" className="grid grid-cols-3 gap-1.5">
         {REACHES.map((value) => (
           <button key={reachLabel(value)} onClick={() => setReach(value)} aria-pressed={sameReach(reach, value)}
             className={cn('rounded-lg border py-2 text-base', sameReach(reach, value) ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
@@ -181,6 +217,12 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
           </button>
         ))}
       </div>
+      {sites.length === 0 && sample.length === 2 && (
+        <button type="button" onClick={() => sample.forEach((item) => pick(item.point))}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary hover:bg-primary/10">
+          ابدأ من هنا: قارن {sample[0].name} و{sample[1].name}
+        </button>
+      )}
       {reach.kind === 'drive' && (
         <Explained title="منطقة الوصول بالسيارة" lines={EXPLAIN.driveArea(reach.minutes)} className="text-sm text-muted-foreground">
           المنطقة: كل ما تصله السيارة في {numberFormat.format(reach.minutes)} دقائق على الطرق.
@@ -188,14 +230,14 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
       )}
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-base">
+          <table className="w-full text-base tabular-nums">
             <thead>
               <tr className="text-sm text-muted-foreground">
                 <th className="py-1.5 text-start font-medium" />
                 {labelled.map((site) => (
                   <th key={site.id} className="py-1.5 text-center font-medium">
                     <span className="inline-flex items-center gap-1">
-                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: site.color }}>{site.label}</span>
+                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold" style={{ background: site.color, color: readableOn(site.color) }}>{site.label}</span>
                       <button onClick={() => setSites((current) => current.filter((item) => item.id !== site.id))} aria-label={`إزالة الموقع ${site.label}`} className="text-muted-foreground hover:text-foreground">
                         <X className="size-4" aria-hidden />
                       </button>
@@ -209,7 +251,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                 <th className="py-2.5 text-start text-sm font-semibold">جاذبية الموقع</th>
                 {labelled.map((site) => {
                   const result = site.result
-                  if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center"><Loader2 className="mx-auto size-4 animate-spin text-primary" aria-label="جارٍ الحساب" /></td>
+                  if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center" aria-busy="true"><Skeleton className="mx-auto h-5 w-12" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
                   if (result.status === 'error') return <td key={site.id} className="py-2.5 text-center text-sm text-muted-foreground">—</td>
                   const value = scoreById.get(site.id)
                   return (
@@ -228,7 +270,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                     <th className="py-2 text-start text-sm font-medium text-muted-foreground">{row.label}</th>
                     {labelled.map((site) => {
                       const result = site.result
-                      if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center"><Loader2 className="mx-auto size-4 animate-spin text-primary" aria-label="جارٍ الحساب" /></td>
+                      if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center" aria-busy="true"><Skeleton className="mx-auto h-4 w-10" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
                       if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-destructive">{result.message}</td>
                       const value = row.value(result.figures!)
                       return (
@@ -247,7 +289,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
       {ready.length > 0 && (
         <div className="space-y-3">
           {ready.map((site) => (
-            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} />
+            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} />
           ))}
         </div>
       )}
