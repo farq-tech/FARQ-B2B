@@ -239,6 +239,9 @@ export function LensMap() {
   useEffect(() => { setHovered(null) }, [tool, city])
   // a map that failed to open: its notice takes the map, and the tour waits (there is nothing to tap)
   const [mapFailed, setMapFailed] = useState(false)
+  // the top of the panel, where the tour asks its goal question
+  const [goalSlot, setGoalSlot] = useState<HTMLDivElement | null>(null)
+  const raiseSheet = useCallback(() => setSheet((current) => (current === 'peek' ? 'half' : current)), [])
   const data = useCityData(city)
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
   const active = lensById(lens)
@@ -368,7 +371,7 @@ export function LensMap() {
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" />
           {overlay.popup}
-          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed} />
+          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed} goalSlot={goalSlot} onAsk={raiseSheet} />
           {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3 lg:hidden">
             <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); submit() }}
@@ -426,6 +429,7 @@ export function LensMap() {
               )}
               {!search && (
                 <>
+                  <div ref={setGoalSlot} className="empty:hidden" />
                   <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys}
                     style={{ '--steps': active.steps.length } as CSSProperties}
                     className="-mx-3 shrink-0 gap-1.5 px-3 pb-1 lg:mx-0 lg:grid lg:grid-cols-[repeat(var(--steps),minmax(0,1fr))] lg:gap-1 lg:overflow-visible lg:rounded-2xl lg:border lg:bg-card lg:p-1">
