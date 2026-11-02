@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
-import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import type { StudiedActivity } from '@/lib/sticky-state'
 import type { Overlay } from './overlay'
@@ -74,7 +76,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
     // the step's answer in one line for the phone's peeking sheet, from the service's own figures
     const top = streets[0]?.properties
     const summary = status !== 'idle' || !result || result.understood === false || result.available === false ? null
-      : top ? `${numberFormat.format(streets.length)} شارعاً ينقصه «${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.score)}/100`
+      : top ? `${counted(streets.length, 'street')} ${streets.length === 1 ? 'ينقصه' : 'ينقصها'} «${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.score)}/100`
         : `لا شارع تجاري نشط ينقصه «${studied.label}»`
     onOverlay({
       summary,
@@ -83,6 +85,10 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       legend: drawn.length ? { from: 'فرصة أقل', to: 'فرصة أكبر', shades: SHADES, ...(reference.length ? { extra: { color: CLUSTER, label: 'يتجمع فيه النشاط الآن' } } : {}) } : null,
     })
   }, [streets, clusters, active, onOverlay, status, result, studied.label])
+
+  // 30 streets at a time; one picked on the map further down is drawn so it can come into view
+  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
+  const visible = Math.max(limit, active != null ? active + 1 : 0)
 
   useEffect(() => {
     if (active != null) document.getElementById(`opportunity-${active}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
@@ -99,13 +105,13 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
   if (status === 'error') return <p role="alert" className="text-base text-destructive">تعذر جلب فرص الشوارع.</p>
   if (result?.understood === false) return <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>
   if (result?.available === false) return <p className="text-base text-muted-foreground">غير متاح</p>
-  if (!streets.length) return <p className="text-base text-muted-foreground">لا يوجد شارع تجاري نشط في المدينة ينقصه «{studied.label}».</p>
+  if (!streets.length) return <EmptyState compact icon={SearchX} title={`لا شارع تجاري نشط ينقصه «${studied.label}»`} body="النشاط موجود في الشوارع التجارية النشطة. جرّب «أين يتجمع»." />
 
   return (
     <>
-      <p className="text-base">{numberFormat.format(streets.length)} شارعاً تجارياً نشطاً ينقصه «{studied.label}»، مرتبة بالدرجة. اضغط الدرجة لترى كيف حُسبت.</p>
+      <p className="text-base">{counted(streets.length, 'street')} {streets.length === 1 ? 'تجاري نشط ينقصه' : 'تجارية نشطة ينقصها'} «{studied.label}»، مرتبة بالدرجة. اضغط الدرجة لترى كيف حُسبت.</p>
       <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
-        {streets.map(({ properties: item }, index) => (
+        {streets.slice(0, visible).map(({ properties: item }, index) => (
           <ResultRow key={index} id={`opportunity-${index}`} active={index === active} onClick={() => setActive(index)}
             leading={<span className="h-3 w-5 shrink-0 rounded-sm" style={{ background: shade(item.score) }} aria-hidden />}
             title={item.street_ar}
@@ -128,6 +134,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
             )} />
         ))}
       </ol>
+      <MoreRows shown={Math.min(visible, streets.length)} total={streets.length} noun="street" onMore={showMore} />
     </>
   )
 }

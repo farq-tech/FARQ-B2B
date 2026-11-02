@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -149,10 +150,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
 
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
-  const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
+  // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
+  const ranked = useMemo(() => [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
-      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0)))
+      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0))), [table, order])
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
@@ -229,7 +231,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                 <strong>{numberFormat.format(brands.chains)}</strong> سلسلة تملك {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
                 {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
               </Explained>
-              {brands.brands.length === 0 && <p className="text-base text-muted-foreground">لا توجد سلسلة بثلاثة فروع أو أكثر لهذا النشاط؛ السوق كله محلات مستقلة.</p>}
+              {brands.brands.length === 0 && <EmptyState compact icon={SearchX} title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة." />}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
                 {brands.brands.map((item, index) => (
                   <ResultRow key={item.brand} onClick={() => pickBrand(item)} title={item.brand}

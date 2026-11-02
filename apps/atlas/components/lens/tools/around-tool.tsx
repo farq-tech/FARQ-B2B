@@ -41,6 +41,10 @@ async function cardFor(city: string, point: Point, geometry: Geometry, activity:
     body: JSON.stringify({ city, geometry, centre: [point.lon, point.lat], ...(activity.q ? { q: activity.q } : activity.main_id ? { main_id: activity.main_id } : {}) }),
   })
   const body = await response.json().catch(() => null)
+  // the card names competitors, so it needs a signed-in, allowed account; retrying would not change that
+  if (response.status === 401 || response.status === 403) {
+    return { status: 'denied', signIn: response.status === 401, message: body?.error || (response.status === 401 ? 'سجّل الدخول لعرض بطاقة الموقع.' : 'حسابك غير مخول لعرض بطاقة الموقع.') }
+  }
   if (!response.ok || !body) return { status: 'error', message: body?.error || 'تعذر حساب بطاقة الموقع.' }
   return { status: 'ready', data: body as SiteCardData }
 }
