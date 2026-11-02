@@ -358,6 +358,15 @@ export function LensMap() {
   // a city whose districts came back empty, and a shading figure no district of the city has: said, not drawn blank
   const noDistricts = data.status === 'ready' && data.features.length === 0
   const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0
+  // which of the lens's figures any district of this city has: in a small city most are missing, so their chips are
+  // marked «غير متاح» and the key offers the first figure that does colour the map, instead of «choose another» blind
+  const missingMetrics = useMemo(() => new Set(data.status === 'ready' && data.rows.length
+    ? active.metrics.filter((id) => !data.rows.some((row) => METRICS[id].value(row) != null)) : []), [data.status, data.rows, active.metrics])
+  const fallbackMetric = metricMissing ? active.metrics.find((id) => !missingMetrics.has(id)) ?? null : null
+  const metricChip = (id: MetricId, className?: string) => (
+    <Chip key={id} active={metric === id} onClick={() => setMetric(id)} aria-label={missingMetrics.has(id) ? `${METRICS[id].label}: غير متاح في ${cityName}` : undefined}
+      className={cn(className, missingMetrics.has(id) && metric !== id && 'border-dashed opacity-60')}>{METRICS[id].label}</Chip>
+  )
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
   const leadId = overlay.lead ?? (toolColors ? null : [...data.rows].filter((row) => METRICS[metric].value(row) != null)
     .sort((a, b) => (METRICS[metric].value(b) as number) - (METRICS[metric].value(a) as number))[0]?.id ?? null)
@@ -403,7 +412,7 @@ export function LensMap() {
           // the analysts' lens carries every metric: the row scrolls with a fade at the hidden edge, and the active
           // metric is kept in view, instead of a chip cut at the panel's edge with no cue
           <ScrollRow label="المقياس على الخريطة" active={metric} className="mx-auto w-full max-w-5xl gap-2 px-1 pb-1">
-            {active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shrink-0">{METRICS[id].label}</Chip>)}
+            {active.metrics.map((id) => metricChip(id, 'shrink-0'))}
           </ScrollRow>
         )}
       </header>
@@ -444,7 +453,7 @@ export function LensMap() {
               <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
               <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
-              {!toolColors && active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
+              {!toolColors && active.metrics.map((id) => metricChip(id, 'shadow-sm'))}
             </ScrollRow>
           </div>
           {/* the colour key, titled with what it colours: clear of the map's attribution (bottom corner) and of the
@@ -465,7 +474,12 @@ export function LensMap() {
                   {!toolColors && overlay.legend && <span className="my-0.5 border-t" aria-hidden />}
                   {!toolColors && <>
                   <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                  {metricMissing ? <p className="text-sm text-muted-foreground">غير متاح في {cityName}، اختر مقياساً آخر</p> : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
+                  {metricMissing ? (
+                    <div className="flex flex-col items-start gap-1.5">
+                      <p className="text-sm text-muted-foreground">غير متاح في {cityName}{fallbackMetric ? '' : '، ولا مقياس آخر لهذه الفئة بعد'}</p>
+                      {fallbackMetric && <Chip onClick={() => setMetric(fallbackMetric)}>لوّن الخريطة بـ«{METRICS[fallbackMetric].label}»</Chip>}
+                    </div>
+                  ) : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
                     <span className="text-muted-foreground">أقل</span>
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
