@@ -1,5 +1,6 @@
-import { numberFormat, percent } from './insights-api'
-import { PALETTE } from '@/lib/palette'
+// with extensions, so node --test can load this file for lib/real-estate.test.ts
+import { numberFormat, percent } from './insights-api.ts'
+import { PALETTE } from './palette.ts'
 
 /** A deal as the ad states it: a sale, or a rent with its own period. Nothing is converted between periods. */
 export type Deal = 'sale' | 'rent_year' | 'rent_month' | 'rent_unstated'
@@ -87,7 +88,8 @@ export function daysAgo(day: string | undefined, now = new Date()) {
   if (days === 0) return 'اليوم'
   if (days === 1) return 'أمس'
   if (days < 30) return `منذ ${counted(days, 'يوم', 'يومين', 'أيام', 'يوماً')}`
-  if (days < 365) return `منذ ${counted(Math.max(1, Math.round(days / 30)), 'شهر', 'شهرين', 'أشهر', 'شهراً')}`
+  // 345 days and up round to twelve months, which is said as a year
+  if (days < 345) return `منذ ${counted(Math.max(1, Math.round(days / 30)), 'شهر', 'شهرين', 'أشهر', 'شهراً')}`
   return `منذ ${counted(Math.round(days / 365), 'سنة', 'سنتين', 'سنوات', 'سنة')}`
 }
 
