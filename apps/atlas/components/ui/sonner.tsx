@@ -1,15 +1,17 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
+/**
+ * Toasts in Atlas colours. Atlas is a light UI with no theme switch, so the toasts are light too (they followed the
+ * device dark mode and came up black on the light page). On a phone they sit above the bottom navigation.
+ */
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
+      mobileOffset={{ bottom: "calc(4rem + env(safe-area-inset-bottom) + 0.75rem)", left: "1rem", right: "1rem" }}
       className="toaster group"
       icons={{
         success: (
@@ -33,7 +35,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          "--border-radius": "calc(var(--radius) * 1.8)", // the card step of the radius scale
         } as React.CSSProperties
       }
       toastOptions={{
