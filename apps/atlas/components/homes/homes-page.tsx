@@ -124,7 +124,7 @@ export function HomesPage() {
   const cityAr = cities.find((item) => item.en === city)?.ar || city
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
+    <main className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
       {/* the Airbnb header: one search capsule (the city, then the deal and the districts) beside a round filters
           button, and under it the property types as an icon row. Set filters follow as chips, each removed with a tap */}
       <header className="flex flex-col gap-2 border-b bg-background/80 pt-3 backdrop-blur">
@@ -310,6 +310,6 @@ export function HomesPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   )
 }
