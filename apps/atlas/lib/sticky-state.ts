@@ -41,6 +41,8 @@ export function useStudiedActivity() {
 export function useStudiedMainId(activities: { main_id: string; main_ar: string }[]) {
   const [studied, setStudied] = useStudiedActivity()
   const [mainId, setMainId] = useState(studied.main_id ?? '')
+  // an activity set elsewhere (another step, or a shared link read after this step mounted) reaches the picker too
+  useEffect(() => { if (studied.main_id) setMainId(studied.main_id) }, [studied.main_id])
   const pick = useCallback((id: string) => {
     setMainId(id)
     const item = activities.find((activity) => activity.main_id === id)

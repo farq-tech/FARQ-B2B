@@ -126,17 +126,20 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const other = useMemo(() => (mode === 'people' && both ? score(rows, people(ranked === 'sex' ? 'nationality' : 'sex')) : null),
     [mode, both, rows, people, ranked])
 
+  // the map hands a new array of the same districts on every render, so the overlay follows their ids, not the array
+  const selectedKey = selected.map((row) => row.id).join('|')
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
     // the card's first figure in one line for the peeking sheet: the same sum of the service's figures, and the top district
-    const list = selected.length ? scored.filter((item) => selected.some((row) => row.id === item.row.id)) : scored
-    const where = selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'
+    const ids = new Set(selectedKey ? selectedKey.split('|') : [])
+    const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
+    const where = ids.size ? `في ${counted(ids.size, 'district')} محددة` : 'في المدينة'
     const segment = both ? `${ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]}: ` : ''
     const size = list.length ? `${show(list.reduce((sum, item) => sum + item.size, 0))} ${mode === 'people' ? 'شخص' : 'منشأة'}` : 'غير متاح'
     const summary = status === 'loading' ? null : `حجم الجمهور ${where}: ${segment}${size}${scored[0] ? ` · الأعلى: ${scored[0].row.name}` : ''}`
     onOverlay({ colors, summary })
-  }, [scored, onOverlay, selected, both, ranked, sex, nationality, mode, status])
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
