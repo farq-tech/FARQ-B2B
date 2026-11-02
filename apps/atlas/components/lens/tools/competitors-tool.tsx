@@ -232,7 +232,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {view === 'brands' && brands && !brand && (
             <>
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
-                <strong>{numberFormat.format(brands.chains)}</strong> سلسلة تملك {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
+                <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
                 {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
               </Explained>
               {brands.brands.length === 0 && <EmptyState compact icon={SearchX} title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة." />}
@@ -248,7 +248,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               {brands.uncovered && brands.uncovered.length > 0 && (
                 <div className="flex flex-col gap-1.5 rounded-xl border p-3">
                   <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
-                    أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
+                    أحياء مأهولة لم تصلها {(brands.uncovered_by?.length ?? 0) === 1 ? 'أكبر سلسلة' : (brands.uncovered_by?.length ?? 0) === 2 ? 'أكبر سلسلتين' : `أكبر ${counted(brands.uncovered_by?.length ?? 0, 'chain')}`}
                   </Explained>
                   <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
                     {brands.uncovered.slice(0, uncoveredLimit).map((item) => {

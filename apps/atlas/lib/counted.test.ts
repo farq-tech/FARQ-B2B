@@ -24,4 +24,7 @@ test('a count takes the noun form Arabic agreement asks for', () => {
   assert.equal(counted(6, 'street'), '6 شوارع')
   assert.equal(counted(140, 'street'), '140 شارعاً')
   assert.equal(counted(200, 'street'), '200 شارع')
+  assert.equal(counted(1, 'chain'), 'سلسلة واحدة')
+  assert.equal(counted(5, 'chain'), '5 سلاسل')
+  assert.equal(counted(37, 'chain'), '37 سلسلة')
 })
