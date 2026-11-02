@@ -13,6 +13,8 @@ const count = (value: number | null | undefined, unit = '') => (value ? `${numbe
 const has = (value: 0 | 1 | undefined) => (value === 1 ? 'يوجد' : value === 0 ? 'لا يوجد' : 'غير متاح')
 const licence = (value: boolean | undefined) => (value === true ? 'مرخّص' : value === false ? 'غير مرخّص' : 'غير متاح')
 
+const name = (listing: Listing) => `${typeLabel(listing.type)}${listing.district_ar ? ` · ${listing.district_ar}` : ''}`
+
 const day = (value: string | undefined) => (value ? Date.parse(`${value}T00:00:00Z`) || null : null)
 
 type Row = { label: string; cells: [ReactNode, ReactNode]; better?: 0 | 1 | null }
@@ -22,6 +24,11 @@ function better(a: number | null | undefined, b: number | null | undefined, wins
   if (a == null || b == null || a === b) return null
   return (wins === 'less' ? a < b : a > b) ? 0 : 1
 }
+
+/** What the green in the rows means, said once beside the photos. */
+const Legend = ({ className }: { className?: string }) => (
+  <p className={cn('text-xs text-muted-foreground', className)}>الرقم الأفضل في كل بند <span className="font-bold text-primary">بالأخضر</span>.</p>
+)
 
 /**
  * Two listings side by side, row by row, the better figure of each row in green: price, size, rooms, age, price per
@@ -97,22 +104,29 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
           <button ref={close} onClick={onClose} aria-label="أغلق المقارنة" className="grid size-9 place-items-center rounded-full bg-muted hover:bg-muted/70"><X className="size-5" aria-hidden /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
-          <div className="grid grid-cols-2 gap-2 p-3">
+          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-[8rem_1fr_1fr]">
+            <Legend className="hidden self-end sm:block" />
             {listings.map((listing) => (
               <div key={listing.id} className="flex min-w-0 flex-col gap-1">
                 <div className="overflow-hidden rounded-xl">
                   <Gallery photos={shownPhotos(listing)} type={listing.type} className="h-28 sm:h-40" />
                 </div>
-                <p className="truncate text-sm font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` · ${listing.district_ar}` : ''}</p>
-                <button onClick={() => onRemove(listing)} className="self-start text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">أزل من المقارنة</button>
+                <button onClick={() => onRemove(listing)} aria-label={`أزل ${name(listing)} من المقارنة`} className="self-start text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">أزل من المقارنة</button>
               </div>
             ))}
           </div>
-          <dl className="divide-y border-y">
+          <Legend className="px-3 pb-2 sm:hidden" />
+          {/* which column is which stays in sight while the rows scroll under the photos */}
+          <div className="sticky top-0 z-10 grid grid-cols-2 gap-2 border-y bg-card/95 px-3 py-1.5 text-sm font-semibold backdrop-blur sm:grid-cols-[8rem_1fr_1fr]">
+            <span className="hidden sm:block" />
+            {listings.map((listing) => <span key={listing.id} className="truncate">{name(listing)}</span>)}
+          </div>
+          <dl className="divide-y border-b">
             {rows.map((row) => (
-              <div key={row.label} className="px-3 py-2">
-                <dt className="mb-1 text-xs text-muted-foreground">{row.label}</dt>
-                <dd className="grid grid-cols-2 gap-2 text-sm">
+              // a wide window reads each row on one line, its name beside the two figures
+              <div key={row.label} className="px-3 py-2 sm:grid sm:grid-cols-[8rem_1fr_1fr] sm:items-baseline sm:gap-2">
+                <dt className="mb-1 text-xs text-muted-foreground sm:mb-0 sm:text-sm">{row.label}</dt>
+                <dd className="grid grid-cols-2 gap-2 text-sm sm:col-span-2">
                   {row.cells.map((cell, index) => (
                     <span key={index} className={cn('min-w-0 break-words', row.better === index && 'font-bold text-primary')}>{cell}</span>
                   ))}
@@ -121,7 +135,8 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
             ))}
           </dl>
           {!samePeriod && <p className="px-3 pt-2 text-xs text-muted-foreground">السعران بمدتين مختلفتين، فلم نحدد الأقل.</p>}
-          <div className="grid grid-cols-2 gap-2 p-3">
+          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-[8rem_1fr_1fr]">
+            <span className="hidden sm:block" />
             {listings.map((listing) => listing.url ? (
               <a key={listing.id} href={listing.url} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-sm font-semibold hover:border-primary">
