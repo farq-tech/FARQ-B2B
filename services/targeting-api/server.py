@@ -1256,14 +1256,19 @@ class H(BaseHTTPRequestHandler):
                         m = mains.setdefault(mid, {'main_id': mid, 'main_ar': mar, 'streets': 0, 'shops': 0, 'subs': []})
                         m['streets'] += k; m['shops'] += int(n); m['subs'].append({'sub_id': sid, 'sub_ar': sar, 'streets': k, 'shops': int(n)})
                     self._json({'mains': sorted(mains.values(), key=lambda m: -m['shops'])}); return
-                rows = db.execute(f"""select sub_id, sub_ar, main_id, main_ar, street_ar, district_ar, n, n_wholesale, length_m, per_100m, lift, geojson
+                # corridors built on the road network (build_trade_corridors.py) also carry the road class and every district crossed
+                columns = {row[0] for row in db.execute('describe select * from read_parquet(?)', [path]).fetchall()}
+                extra = ', '.join(c if c in columns else f'null as {c}' for c in ('road_class', 'districts_ar'))
+                rows = db.execute(f"""select sub_id, sub_ar, main_id, main_ar, street_ar, district_ar, n, n_wholesale, length_m, per_100m, lift, geojson, {extra}
                     from read_parquet(?) where {' and '.join(where)} order by n desc limit 80""", [path] + params).fetchall()
+                db.close()
                 self._json({'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'geometry': json.loads(g), 'properties': {
                     'sub_id': sid, 'sub_ar': sar or '', 'main_id': mid, 'main_ar': mar or '', 'street_ar': st, 'district_ar': dist or '', 'n': n,
-                    'n_wholesale': nw, 'length_m': L, 'per_100m': d, 'lift': lf,
-                    'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g in rows],
-                    'specialty_available': True,
-                    'basis': 'كل منشأة على أقرب شارع لها (حتى ٤٠ م)؛ الكثافة = عدد المحلات لكل ١٠٠ م مقارنة بنسبة النشاط في المدينة'})
+                    'n_wholesale': nw, 'length_m': L, 'per_100m': d, 'lift': lf, 'road_class': rc,
+                    'districts_ar': [x for x in (ds or dist or '').split('|') if x],
+                    'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g, rc, ds in rows],
+                    'specialty_available': True, 'sub_ids': subs[:20],
+                    'basis': 'كل منشأة على أقرب شارع لها (حتى 40 م)؛ الممر مقاطع الشارع نفسه التي فيها النشاط، والكثافة عدد المحلات لكل 100 م'})
             except Exception as error:
                 log_map_api_failure('street-density', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)

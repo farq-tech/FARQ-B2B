@@ -13,7 +13,7 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 // five steps from low to high; a district without the figure is left unshaded
 export const SHADES = OLIVE_STEPS   // Farq olive (--primary) for the highest districts
 
-function boundsOf(features: DistrictFeature[]): [[number, number], [number, number]] | null {
+function boundsOf(features: { geometry?: { coordinates?: unknown } | null }[]): [[number, number], [number, number]] | null {
   let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
   const visit = (coords: unknown): void => {
     if (Array.isArray(coords) && typeof coords[0] === 'number') {
@@ -61,11 +61,13 @@ export type MapPoint = { id: string; lon: number; lat: number }
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
 /** A current property listing on the map, coloured by its price against its district. */
+/** A trade corridor: a run of one street lined with one activity, drawn along the street itself. */
+export type StreetLine = { id: string; color: string; geometry: GeoJSON.LineString | GeoJSON.MultiLineString; /** The street's name, written along it when zoomed in. */ label: string; /** The corridor the viewer picked: drawn thicker, and the map frames it. */ active?: boolean }
 export type ListingDot = { id: string; lon: number; lat: number; color: string; /** A short price shown beside the dot when zoomed in. */ label?: string; /** The listing the viewer is pointing at in a list. */ active?: boolean }
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, focus, zoomTo, onBounds }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -80,6 +82,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   sites?: Site[] | null
   listings?: ListingDot[] | null
   onListing?: ((id: string) => void) | null
+  streets?: StreetLine[] | null
+  onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
   /** A district picked from a list: the map flies to it. `cover` is the share of the screen a phone's sheet covers below
    * the map's own peek, so the district lands in the part still visible; `nonce` repeats a pick of the same district. */
@@ -92,6 +96,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   const toggle = useRef(onToggle)
   const pick = useRef(onPick)
   const openListing = useRef(onListing)
+  const openStreet = useRef(onStreet)
+  openStreet.current = onStreet
   const reportBounds = useRef(onBounds)
   reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
@@ -163,6 +169,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.addSource('route', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': PALETTE.white, 'line-width': 7 } })
         instance.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': PALETTE.olive, 'line-width': 4 } })
+        instance.addSource('streets', { type: 'geojson', data: EMPTY })
+        instance.addLayer({ id: 'street-casing', type: 'line', source: 'streets', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: {
+          'line-color': PALETTE.white, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['boolean', ['get', 'active'], false], 8, 5], 15, ['case', ['boolean', ['get', 'active'], false], 15, 10]],
+        } })
+        instance.addLayer({ id: 'street-line', type: 'line', source: 'streets', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: {
+          'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['boolean', ['get', 'active'], false], 5, 3], 15, ['case', ['boolean', ['get', 'active'], false], 10, 6]],
+        } })
+        instance.addLayer({ id: 'street-name', type: 'symbol', source: 'streets', minzoom: 13, layout: {
+          'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 13,
+        }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 2 } })
         instance.addSource('stops', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': PALETTE.ochre, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 } })
         instance.addSource('start', { type: 'geojson', data: EMPTY })
@@ -197,12 +213,14 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })
           if (listing && openListing.current) { openListing.current(String(listing.properties?.id)); return }
           const [cluster] = instance.queryRenderedFeatures(event.point, { layers: ['listing-cluster'] })
+          const [street] = instance.queryRenderedFeatures(event.point, { layers: ['street-line'] })
+          if (street && openStreet.current) { openStreet.current(String(street.properties?.id)); return }
           if (cluster) { instance.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom: instance.getZoom() + 2 }); return }
           if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
           const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
           if (id != null) toggle.current(String(id))
         })
-        for (const layer of ['listing-dot', 'listing-cluster']) {
+        for (const layer of ['listing-dot', 'listing-cluster', 'street-line']) {
           instance.on('mouseenter', layer, () => { instance.getCanvas().style.cursor = 'pointer' })
           instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
         }
@@ -253,6 +271,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     if (!ready || !instance) return
     ;(instance.getSource('listings') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (listings ?? []).map((dot) => ({ type: 'Feature', properties: { id: dot.id, color: dot.color, ...(dot.label ? { label: dot.label } : {}), active: !!dot.active }, geometry: { type: 'Point', coordinates: [dot.lon, dot.lat] } })) })
   }, [ready, listings])
+
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance) return
+    ;(instance.getSource('streets') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (streets ?? []).map((street) => ({ type: 'Feature', properties: { id: street.id, color: street.color, label: street.label, active: !!street.active }, geometry: street.geometry })) })
+    // the picked corridor is framed whole, however long it runs
+    const active = streets?.find((street) => street.active)
+    const bounds = active ? boundsOf([{ geometry: active.geometry }]) : null
+    if (bounds) instance.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 800 })
+  }, [ready, streets])
 
   useEffect(() => {
     if (ready && focus) map.current?.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(map.current.getZoom(), 15) })
