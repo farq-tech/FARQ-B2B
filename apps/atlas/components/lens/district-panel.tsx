@@ -104,7 +104,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const perBusiness = single ? single.residentsPerBusiness : paired.length && pairedBusinesses ? pairedPeople / pairedBusinesses : null
   const pairedNote = !single && paired.length && paired.length < scope.length ? coverage({ known: paired.length, of: scope.length }) : null
   const figures: [FigureKey, ReactNode | false][] = [
-    ['population', <Figure label="السكان" value={show(people)} note={coverage(peopleSum)} explain={[...EXPLAIN.population(scope.map((row) => row.populationSource), people), ...coverageLine(peopleSum)]} />],
+    ['population', <Figure label="السكان" value={show(people)} note={coverage(peopleSum)} explain={[...EXPLAIN.population(scope.filter((row) => row.population != null).map((row) => row.populationSource), people), ...coverageLine(peopleSum)]} />],
     ['businesses', <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />],
     ['perBusiness', lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={show(perBusiness)} note={pairedNote}
       explain={single ? EXPLAIN.residentsPerBusiness(people, businesses) : EXPLAIN.residentsPerBusiness(paired.length ? pairedPeople : null, paired.length ? pairedBusinesses : null)} />],
@@ -166,7 +166,8 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           {selected.map((row) => (
             <li key={row.id} className="flex items-center justify-between py-2">
               <span className="font-medium">{row.name}</span>
-              <span className="text-sm text-muted-foreground">{show(row.population)} ساكن · {show(row.businesses)} منشأة</span>
+              {/* a missing figure says what is missing («السكان غير متاح»), not «غير متاح ساكن» */}
+              <span className="text-sm text-muted-foreground tabular-nums">{row.population == null ? 'السكان غير متاح' : `${show(row.population)} ساكن`} · {row.businesses == null ? 'المنشآت غير متاح' : counted(row.businesses, 'business')}</span>
             </li>
           ))}
         </ul>
