@@ -78,7 +78,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                 disabled={!editable || !approved}
                 onClick={() => onChange({ ...value, templateId: t.id })}
                 className={cn(
-                  'flex flex-col items-start gap-1 rounded-xl border p-3 text-right transition-colors disabled:cursor-not-allowed',
+                  'flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-colors disabled:cursor-not-allowed',
                   active ? 'border-primary bg-accent/40' : 'bg-background/50 enabled:hover:border-foreground/20',
                   !approved && 'opacity-60',
                 )}

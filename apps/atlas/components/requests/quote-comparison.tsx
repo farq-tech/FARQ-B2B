@@ -4,6 +4,7 @@ import { Check, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { businessById } from '@/lib/mock-data'
 import { formatSar } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +40,7 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
                 <div className="min-w-0">
                   <p className="truncate font-medium">{b?.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    التوريد خلال {m.quote?.deliveryDays} أيام · صلاحية {m.quote?.validity}
+                    التوريد {m.quote?.deliveryDays != null ? `خلال ${numberFormat.format(m.quote.deliveryDays)} أيام` : 'غير متاح'} · صلاحية {m.quote?.validity}
                   </p>
                 </div>
                 {m.id === best ? (
@@ -53,24 +54,24 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
                 <caption className="sr-only">بنود عرض {b?.name}</caption>
                 <thead className="text-xs text-muted-foreground">
                   <tr>
-                    <th scope="col" className="pb-1 text-right font-normal">البند</th>
-                    <th scope="col" className="pb-1 text-left font-normal">سعر الوحدة</th>
+                    <th scope="col" className="pb-1 text-start font-normal">البند</th>
+                    <th scope="col" className="pb-1 text-end font-normal">سعر الوحدة</th>
                   </tr>
                 </thead>
                 <tbody>
                   {m.quote?.lines.map((l) => (
                     <tr key={l.name} className="border-t">
                       <td className="py-1.5">
-                        {l.name} <span className="text-xs text-muted-foreground">× {l.qty}</span>
+                        {l.name} <span className="text-xs text-muted-foreground">× {numberFormat.format(l.qty)}</span>
                       </td>
-                      <td className="py-1.5 text-left tabular-nums">{formatSar(l.unitPrice)}</td>
+                      <td className="py-1.5 text-end tabular-nums">{formatSar(l.unitPrice)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t font-semibold">
                     <td className="pt-2">الإجمالي</td>
-                    <td className="pt-2 text-left tabular-nums">{formatSar(total(m))}</td>
+                    <td className="pt-2 text-end tabular-nums">{formatSar(total(m))}</td>
                   </tr>
                 </tfoot>
               </table>
