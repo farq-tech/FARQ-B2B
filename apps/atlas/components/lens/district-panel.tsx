@@ -148,10 +148,12 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
 
   return (
     <section aria-label="الملخص" className="rounded-2xl border bg-card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="truncate text-xl font-bold">{title}</h2>
+      {/* a long name («سوق الخضار والفواكه المركزي») wraps whole instead of losing its end, and the clear button keeps
+          its one line beside it instead of folding into two */}
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="min-w-0 text-xl font-bold text-balance break-words">{title}</h2>
         {selected.length > 0 && (
-          <button onClick={onClear} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground">
+          <button onClick={onClear} className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground">
             <X className="size-4" aria-hidden /> إلغاء التحديد
           </button>
         )}
