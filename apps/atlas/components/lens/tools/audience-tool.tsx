@@ -58,12 +58,14 @@ function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): 
  * nationality and income; a business marketer filters businesses by activity and WhatsApp reach. The map turns into
  * the best-matching districts and the card gives the audience size in the selected districts, or the whole city.
  */
-export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
+export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
+  /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
   const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
@@ -196,7 +198,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
             {scored.slice(0, limit).map((item) => (
-              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
+              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)} title={item.row.name}
                 active={selected.some((row) => row.id === item.row.id)}
                 value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
             ))}

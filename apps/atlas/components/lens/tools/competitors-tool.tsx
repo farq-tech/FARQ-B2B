@@ -43,7 +43,7 @@ const NONE = PALETTE.sage   // no competitor of this activity in the district
  * «المنافسون»: for one activity, how many businesses already serve each district, per km² and per resident. The map
  * shows where competition is dense; a district picked from the list opens its competitors by name.
  */
-export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches }: {
+export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, onAllBranches, onHover }: {
   city: string
   rows: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
@@ -52,6 +52,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   onActivity: (activity: string | null) => void
   /** Opens every branch of a chain across the city, for a quote request or campaign to all of them. */
   onAllBranches: (brand: string) => void
+  /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   const activities = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
@@ -140,6 +142,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   }, [table, brand, rows, onOverlay])
 
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
+  const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
   const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
@@ -202,7 +205,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             </div>
             <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
               {ranked.slice(0, limit).map((item) => (
-                <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
+                <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
                   sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
                   value={numberFormat.format(item.competitors)}
                   valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
@@ -237,7 +240,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                     {brands.uncovered.map((item) => {
                       const id = idByName.get(item.district_ar)
                       return (
-                        <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} title={item.district_ar}
+                        <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar}
                           valueSub={`${numberFormat.format(item.population)} ساكن · ${numberFormat.format(item.businesses)} منشأة من النشاط`} />
                       )
                     })}
@@ -277,7 +280,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
                 {brand.by_district.map((item) => {
                   const id = idByName.get(item.district_ar)
-                  return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
+                  return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
                 })}
               </ol>
             </>

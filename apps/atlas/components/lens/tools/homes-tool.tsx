@@ -47,13 +47,15 @@ function Thumb({ src }: { src: string | null }) {
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
+  /** The district of the listing a row points at, outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
   const sticky = `homes.${preset ? 'preset' : 'plain'}`
@@ -201,6 +203,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
                   const away = myPoint ? `${formatDistance(distanceKm(listing, myPoint) * 1000)} من نقطتك` : null
                   return (
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
+                      onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
                       leading={<Thumb src={listing.photo} />}
                       title={[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}
                       sub={versus || away ? <>{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</> : null}
