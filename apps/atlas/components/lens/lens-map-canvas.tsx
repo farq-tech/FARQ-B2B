@@ -57,7 +57,7 @@ function circlePolygon({ lon, lat, radius_m }: Circle): GeoJSON.Feature<GeoJSON.
  * district. A tool can paint districts in its own colours (`colors`, e.g. sales territories), draw a search
  * circle, and take clicks as points instead (`onPick`). The token comes from /api/mapbox-token like every Atlas map.
  */
-export type MapPoint = { id: string; lon: number; lat: number }
+export type MapPoint = { id: string; lon: number; lat: number; /** Its own colour, such as the day of a rep's week; ochre when absent. */ color?: string }
 /** A drawn area (a radius or a drive-time area) and the numbered site it belongs to. */
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
@@ -195,7 +195,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 13,
         }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 2 } })
         instance.addSource('stops', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': PALETTE.ochre, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 } })
+        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': ['coalesce', ['get', 'color'], PALETTE.ochre], 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 } })
         instance.addSource('start', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': PALETTE.white, 'circle-stroke-color': PALETTE.olive, 'circle-stroke-width': 4 } })
         instance.addSource('sites', { type: 'geojson', data: EMPTY })
@@ -276,7 +276,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     const instance = map.current
     if (!ready || !instance) return
     const collection = (items: GeoJSON.Feature[]): GeoJSON.FeatureCollection => ({ type: 'FeatureCollection', features: items })
-    ;(instance.getSource('stops') as GeoJSONSource | undefined)?.setData(collection((points ?? []).map((point) => ({ type: 'Feature', properties: { id: point.id }, geometry: { type: 'Point', coordinates: [point.lon, point.lat] } }))))
+    ;(instance.getSource('stops') as GeoJSONSource | undefined)?.setData(collection((points ?? []).map((point) => ({ type: 'Feature', properties: { id: point.id, ...(point.color ? { color: point.color } : {}) }, geometry: { type: 'Point', coordinates: [point.lon, point.lat] } }))))
     ;(instance.getSource('route') as GeoJSONSource | undefined)?.setData(collection((lines ?? []).map((line) => ({ type: 'Feature', properties: {}, geometry: line }))))
     ;(instance.getSource('start') as GeoJSONSource | undefined)?.setData(collection(start ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [start.lon, start.lat] } }] : []))
   }, [ready, points, lines, start])

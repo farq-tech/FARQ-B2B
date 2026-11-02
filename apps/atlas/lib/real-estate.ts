@@ -129,7 +129,9 @@ export const LISTING_TYPES: { id: string; label: string; kinds: ListingKind[] }[
   { id: 'land', label: 'أرض', kinds: ['sale'] },
 ]
 
-export const typeLabel = (type: string) => LISTING_TYPES.find((item) => item.id === type)?.label ?? 'عقار'
+// types served but not offered as a filter in the homes list, named where they appear (a street's commercial units)
+const OTHER_TYPE_LABELS: Record<string, string> = { showroom: 'معرض' }
+export const typeLabel = (type: string) => LISTING_TYPES.find((item) => item.id === type)?.label ?? OTHER_TYPE_LABELS[type] ?? 'عقار'
 
 /** Budget steps by deal, in the ad's own period. */
 export const BUDGETS: Record<Deal, number[]> = {

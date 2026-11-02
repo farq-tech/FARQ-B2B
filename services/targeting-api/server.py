@@ -322,6 +322,12 @@ def insight_response(path, body):
                    # 0 is a real answer here («new only»), so it is read when present, not when truthy
                    'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
                    'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
+        near = body.get('near')
+        if near is not None:
+            # units along an activity street: within `meters` of the corridor's own line
+            if not isinstance(near, dict): raise ValueError('near')
+            filters['near'] = {'runs': insights.near_lines(near.get('geometry')),
+                               'meters': _number(near, 'meters', 10, insights.NEAR_MAX_M, insights.NEAR_DEFAULT_M)}
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}
@@ -1194,6 +1200,17 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('insights', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/weekly-plan':
+            # A rep's working week over stops the browser already holds (weekly_plan.py): ids and points in, day order out.
+            import weekly_plan
+            try:
+                stops, days, per_day, start = weekly_plan.read(body)
+                self._json({'ok': True, **weekly_plan.plan_week(stops, days, per_day, start),
+                            'detour': weekly_plan.DETOUR, 'speed_kmh': weekly_plan.SPEED_KMH})
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('weekly-plan', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/site-card':
             # The store owners' site card: people, measured segments and competitors inside one range.
             try: self._json(site_card_response(body))
@@ -1307,6 +1324,30 @@ class H(BaseHTTPRequestHandler):
                     'basis': 'كل منشأة على أقرب شارع مسمّى لها (حتى 60 م)؛ الممر مقاطع الشارع نفسه التي فيها النشاط، والكثافة عدد المحلات لكل 100 م'})
             except Exception as error:
                 log_map_api_failure('street-density', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/street-opportunities':
+            # «فرص الشوارع»: busy named streets where the requested activity is absent or thin (street_opportunities.py)
+            try:
+                import taxonomy_search, duckdb, street_opportunities
+                city = body.get('city'); q = body.get('q'); main = body.get('main_id')
+                if (not isinstance(city, str) or not 1 <= len(city) <= 80 or (q is not None and (not isinstance(q, str) or len(q) > 120))
+                        or (main is not None and (not isinstance(main, str) or len(main) > 40)) or not (q or main)):
+                    self._json({'error': 'INPUT'}, 400); return
+                empty = {'type': 'FeatureCollection', 'features': []}
+                if not os.path.isfile(STREET_DENSITY): self._json({**empty, 'available': False}); return
+                subs = []
+                if q:
+                    tx = taxonomy_search.get()
+                    subs = market_analytics.corridor_subs(tx, q, body.get('objective')) if tx is not None else []
+                    if not subs: self._json({**empty, 'understood': False}); return
+                try: population = district_population_by_name(city)
+                except Exception: population = {}
+                db = duckdb.connect()
+                try: result = street_opportunities.opportunities(db, STREET_DENSITY, city, subs=subs[:20], main_id=None if subs else main, population=population)
+                finally: db.close()
+                self._json({**result, 'sub_ids': subs[:20]})
+            except Exception as error:
+                log_map_api_failure('street-opportunities', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/suggest-specialties':
             # supplier onboarding: the supplier names his sector and his main materials in his own words; we suggest specialties to confirm

@@ -264,7 +264,48 @@ BEST_DISCOUNT_FLOOR = -30
 LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', 'room', 'store', 'showroom', 'office', 'warehouse',
                  'land', 'rest_house', 'chalet', 'farm', 'factory', 'workshop', 'compound', 'other')
 LISTINGS_MAX = 1500
+# commercial units a shop can open in: what «محلات متاحة على هذا الشارع» lists along an activity street
+COMMERCIAL_TYPES = ('store', 'showroom', 'office')
+NEAR_DEFAULT_M, NEAR_MAX_M, NEAR_MAX_VERTICES = 60, 200, 5000
 _listings_cache = {}
+
+
+def near_lines(geometry):
+    """The coordinate runs of a LineString or MultiLineString inside the kingdom's box, for `near`; ValueError otherwise."""
+    if not isinstance(geometry, dict) or geometry.get('type') not in ('LineString', 'MultiLineString'):
+        raise ValueError('near')
+    runs = [geometry.get('coordinates')] if geometry['type'] == 'LineString' else geometry.get('coordinates')
+    if not isinstance(runs, list) or not runs:
+        raise ValueError('near')
+    total = 0
+    for run in runs:
+        if not isinstance(run, list) or not run:
+            raise ValueError('near')
+        total += len(run)
+        for point in run:
+            if not (isinstance(point, list) and len(point) >= 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in point[:2])
+                    and 34 <= point[0] <= 56 and 16 <= point[1] <= 33):
+                raise ValueError('near')
+    if total > NEAR_MAX_VERTICES:
+        raise ValueError('near')
+    return [[(float(p[0]), float(p[1])) for p in run] for run in runs]
+
+
+def distance_to_lines_m(lon, lat, runs):
+    """Metres from a point to the nearest segment of the runs, on a flat projection around the point (exact enough
+    within a few hundred metres)."""
+    kx, ky = 111320 * math.cos(math.radians(lat)), 110540
+    best = math.inf
+    for run in runs:
+        points = [((x - lon) * kx, (y - lat) * ky) for x, y in run]
+        if len(points) == 1:
+            best = min(best, math.hypot(*points[0]))
+        for (ax, ay), (bx, by) in zip(points, points[1:]):
+            dx, dy = bx - ax, by - ay
+            length = dx * dx + dy * dy
+            t = 0 if not length else max(0.0, min(1.0, -(ax * dx + ay * dy) / length))
+            best = min(best, math.hypot(ax + t * dx, ay + t * dy))
+    return best
 
 
 def _listing_cards(path):
@@ -288,7 +329,8 @@ def _publishable(card):
 def real_estate_listings(city, filters, path=None, deals_path=None):
     """Current listings of a city for the map and the side panel, from build_real_estate_reference.py
     --listings-out: within a box or in chosen districts, of one deal (rent | sale) and optional property types,
-    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), a price range as
+    optionally one deal with its rent period (rent_year | rent_month | rent_unstated | sale), optionally within `near`
+    {'runs': near_lines(geometry), 'meters': m} of a street (sorted nearest first, each card with `distance_m`), a price range as
     advertised, an area range and a building no older than `max_age` years. An ad that does not state the figure a range asks about is left out of that range,
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
     and figures that do not need checking. Sorted with the listings
@@ -301,6 +343,14 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
         return None
     box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
     types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
+    near = filters.get('near')
+    if near:
+        # a corridor's buffer: first the line's box widened by the buffer, then the exact distance to its segments
+        runs, metres = near['runs'], near.get('meters') or NEAR_DEFAULT_M
+        pad_lat = metres / 110540
+        pad_lon = metres / (111320 * math.cos(math.radians(sum(y for run in runs for _, y in run) / sum(len(run) for run in runs))))
+        xs, ys = [x for run in runs for x, _ in run], [y for run in runs for _, y in run]
+        near_box = (min(xs) - pad_lon, min(ys) - pad_lat, max(xs) + pad_lon, max(ys) + pad_lat)
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
     found = [card for card in table.get('listings', []) if card['city'] == city and _publishable(card)
              and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
@@ -315,6 +365,12 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
     found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
                                  card.get('vs_district_pct') or 0))
+    if near:
+        found = [card for card in found if near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]]
+        measured = [(distance_to_lines_m(card['lon'], card['lat'], runs), card) for card in found]
+        # along a street the nearest unit comes first; the stable sort keeps the best-value order among equals
+        measured = sorted([(d, card) for d, card in measured if d <= metres], key=lambda pair: round(pair[0]))
+        found = [dict(card, distance_m=round(d)) for d, card in measured]
     shown = found[:filters.get('limit') or LISTINGS_MAX]
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
     # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone)

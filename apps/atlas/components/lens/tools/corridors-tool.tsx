@@ -5,19 +5,32 @@ import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { ListingCard } from '../listing-card'
+import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import type { Overlay } from './overlay'
 import { useMainActivities } from '@/lib/main-activities'
+import { StreetOpportunities } from './street-opportunities'
 
 type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
   length_m: number; per_100m: number; lift: number | null; road_class?: 'main' | 'secondary' | null
 }
 type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; properties: Corridor }[]; basis?: string; /** false when the service could not read the activity typed. */ understood?: boolean }
+
+/** A commercial unit on the picked street, with its distance to the street's line. */
+type Unit = Listing & { distance_m?: number }
+type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Unit[] }
+// shops, showrooms and offices within this distance of the corridor's own line (insights.COMMERCIAL_TYPES)
+const UNIT_TYPES = ['store', 'showroom', 'office']
+const UNIT_METERS = 60
+const UNITS_SHOWN = 5
 
 const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار سيارات', 'صالون حلاقة', 'خياطة', 'مفروشات', 'أغراض مواليد']
 // more shops on the street reads as a deeper colour, in five even groups of the corridors shown
@@ -46,6 +59,11 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [active, setActive] = useState<number | null>(null)
+  const [units, setUnits] = useState<Units | null>(null)
+  const [unit, setUnit] = useState<Unit | null>(null)
+  const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
+  // «أين يتجمع» lists the streets the activity lines; «أين الفرصة» the busy streets that lack it (street-opportunities.tsx)
+  const [mode, setMode] = useState<'cluster' | 'gap'>('cluster')
 
   useEffect(() => {
     let live = true
@@ -69,13 +87,44 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     })
   }, [corridors])
 
+  // the units for rent or sale along the picked street, nearest to it first
+  const picked = active != null ? corridors[active] ?? null : null
   useEffect(() => {
+    setUnit(null)
+    setFocus(null)
+    if (!picked) { setUnits(null); return }
+    let live = true
+    setUnits({ status: 'loading', available: true, total: 0, listings: [] })
+    postMarket<{ available?: boolean; total?: number; listings?: Unit[] }>('real-estate-listings', {
+      city, types: UNIT_TYPES, near: { geometry: picked.geometry, meters: UNIT_METERS }, limit: 200,
+    })
+      .then((data) => {
+        if (!live) return
+        const listings = (data.listings ?? []).filter(isPublishable)
+        setUnits({ status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings })
+      })
+      .catch(() => { if (live) setUnits({ status: 'error', available: true, total: 0, listings: [] }) })
+    return () => { live = false }
+  }, [city, picked])
+
+  const clusters = useMemo(() => corridors.map((item) => ({ geometry: item.geometry, street_ar: item.properties.street_ar })), [corridors])
+
+  useEffect(() => {
+    if (mode === 'gap') return
     // the strongest corridors are drawn last, so they sit on top where streets cross
     const streets = corridors
       .map((item, index) => ({ id: String(index), color: colors[index], geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
       .reverse()
-    onOverlay({ streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null })
-  }, [corridors, colors, active, onOverlay])
+    const listings = (units?.listings ?? []).map((item) => ({
+      id: item.id, lon: item.lon, lat: item.lat, color: toneColor[versusDistrict(item)?.tone ?? 'none'], active: item.id === unit?.id,
+    }))
+    onOverlay({
+      streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
+      listings, onListing: (id) => { const item = units?.listings.find((listing) => listing.id === id); if (item) setUnit(item) },
+      focus,
+      popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
+    })
+  }, [mode, corridors, colors, active, onOverlay, units, unit, focus])
 
   // a corridor picked on the map comes into view in the list
   useEffect(() => {
@@ -101,16 +150,23 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
           <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
         ))}
       </div>
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
-      {status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
-      {status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
-      {status === 'loading' && (
+      <div className="grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="طريقة العرض">
+        {([['cluster', 'أين يتجمع'], ['gap', 'أين الفرصة']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setMode(key)} aria-pressed={mode === key}
+            className={cn('h-10 rounded-md text-base font-semibold', mode === key ? 'bg-primary text-primary-foreground' : 'hover:text-primary')}>{label}</button>
+        ))}
+      </div>
+      {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
+      {mode === 'cluster' && status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
+      {mode === 'cluster' && status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
+      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
+      {mode === 'cluster' && status === 'loading' && (
         <>
           <Skeleton className="h-4 w-3/4" aria-hidden />
           <ResultRowsSkeleton rows={6} sub valueSub leading="swatch" />
         </>
       )}
-      {status !== 'loading' && corridors.length > 0 && (
+      {mode === 'cluster' && status !== 'loading' && corridors.length > 0 && (
         <>
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
@@ -129,8 +185,43 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
                 )} />
             ))}
           </ol>
+          {picked && units && <StreetUnits street={picked.properties.street_ar} units={units} onOpen={(item) => { setUnit(item); setFocus({ lon: item.lon, lat: item.lat }) }} />}
         </>
       )}
     </section>
+  )
+}
+
+/** «محلات متاحة على هذا الشارع»: the shops, showrooms and offices offered now within 60 m of the picked street. */
+function StreetUnits({ street, units, onOpen }: { street: string; units: Units; onOpen: (unit: Unit) => void }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border bg-background p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <Explained title={`محلات متاحة على ${street}`} lines={EXPLAIN.streetListings} className="text-base font-semibold">محلات متاحة على هذا الشارع</Explained>
+        {units.status === 'ready' && units.available && units.total > 0 && <span className="shrink-0 font-bold text-primary">{numberFormat.format(units.total)}</span>}
+      </div>
+      {units.status === 'loading' && <Loader2 className="size-5 animate-spin text-muted-foreground" aria-label="جارٍ البحث" />}
+      {units.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر جلب الوحدات المعروضة.</p>}
+      {units.status === 'ready' && !units.available && <p className="text-sm text-muted-foreground">غير متاح</p>}
+      {units.status === 'ready' && units.available && !units.total && <p className="text-sm text-muted-foreground">لا توجد وحدات معروضة الآن على هذا الشارع</p>}
+      {units.status === 'ready' && units.total > 0 && (
+        <ul className="divide-y text-sm">
+          {units.listings.slice(0, UNITS_SHOWN).map((item) => (
+            <li key={item.id}>
+              <button onClick={() => onOpen(item)} className="flex w-full items-start justify-between gap-2 py-2 text-start hover:text-primary">
+                <span className="min-w-0">
+                  <span className="block font-medium">{typeLabel(item.type)}{item.kind === 'sale' ? ' للبيع' : item.kind === 'rent' ? ' للإيجار' : ''}</span>
+                  <span className="block truncate text-muted-foreground">
+                    {item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير مذكورة'}
+                    {item.distance_m != null ? ` · ${numberFormat.format(item.distance_m)} م من الشارع` : ''}
+                  </span>
+                </span>
+                <span className="shrink-0 text-end font-semibold">{priceLine(item)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

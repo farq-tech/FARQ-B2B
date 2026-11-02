@@ -1,18 +1,18 @@
 sub_id,main_id,category,secondary_category,category_level_3
 food.restaurant,food,Restaurants,,Restaurant
-food.fast_food,food,Restaurants,Fast Food,Fast Food
+food.fast_food,food,Restaurants,Fast Food,Fast Food Restaurant
 food.buffet_popular,food,Restaurants,,Buffet / Popular Eatery
-food.cafe,food,Restaurants,Cafes & Desserts,Cafe / Coffee Shop
+food.cafe,food,Restaurants,Cafes & Desserts,Cafe / Restaurant
 food.juice_icecream,food,Restaurants,Cafes & Desserts,Juice & Ice Cream
 food.hookah,food,Restaurants,,Hookah Lounge
-food.bakery,food,Restaurants,Cafes & Desserts,Bakery & Pastry
-food.sweets,food,Restaurants,Cafes & Desserts,Sweets & Chocolate Shop
+food.bakery,food,Restaurants,Cafes & Desserts,Bakery
+food.sweets,food,Restaurants,Cafes & Desserts,Confectionery / Sweets
 food.catering,food,Restaurants,,Catering
 food.cloud_kitchen,food,Restaurants,,Central / Cloud Kitchen
 food.food_truck,food,Restaurants,Fast Food,Food Truck
-food.supermarket,food,Shopping & Distribution,General Wholesale & Retail,Supermarket / Hypermarket
-food.grocery,food,Shopping & Distribution,General Wholesale & Retail,Grocery / Mini-Market
-food.butcher,food,Shopping & Distribution,General Wholesale & Retail,Butcher
+food.supermarket,food,Shopping & Distribution,General Wholesale & Retail,Grocery Store / Supermarket
+food.grocery,food,Shopping & Distribution,General Wholesale & Retail,Grocery Store / Supermarket
+food.butcher,food,Shopping & Distribution,General Wholesale & Retail,Meat / Semi-Finished Products
 food.fish_market,food,Shopping & Distribution,General Wholesale & Retail,Fish & Seafood Shop
 food.fruits_veg,food,Shopping & Distribution,General Wholesale & Retail,Fruits & Vegetables
 food.dates,food,Shopping & Distribution,General Wholesale & Retail,Dates Shop
@@ -66,10 +66,10 @@ build.timber,build,Shopping & Distribution,General Wholesale & Retail,Timber & W
 build.plumbing_supply,build,Shopping & Distribution,General Wholesale & Retail,Plumbing & Sanitaryware
 build.pipes_fittings,build,Shopping & Distribution,General Wholesale & Retail,Pipes & Fittings
 build.pumps_tanks,build,Shopping & Distribution,General Wholesale & Retail,Pumps & Tanks
-build.electrical_supply,build,Shopping & Distribution,General Wholesale & Retail,Electrical Supplies
+build.electrical_supply,build,Shopping & Distribution,General Wholesale & Retail,Electrical Products
 build.cables_wires,build,Shopping & Distribution,General Wholesale & Retail,Cables & Wires
 build.lighting_supply,build,Shopping & Distribution,General Wholesale & Retail,Lighting Supplies
-build.hvac_supply,build,Shopping & Distribution,General Wholesale & Retail,Hvac Equipment Supplier
+build.hvac_supply,build,Shopping & Distribution,General Wholesale & Retail,HVAC Equipment Supplier
 build.insulation,build,Shopping & Distribution,General Wholesale & Retail,Insulation & Waterproofing Materials
 build.paint,build,Shopping & Distribution,General Wholesale & Retail,Paints & Coatings
 build.tiles_ceramic,build,Shopping & Distribution,General Wholesale & Retail,Tiles & Porcelain
@@ -79,7 +79,7 @@ build.doors_windows,build,Shopping & Distribution,General Wholesale & Retail,Doo
 build.aluminum_glass,build,Shopping & Distribution,General Wholesale & Retail,Aluminum & Glass
 build.kitchens_cabinets,build,Shopping & Distribution,General Wholesale & Retail,Kitchens & Cabinets
 build.flooring_parquet,build,Shopping & Distribution,General Wholesale & Retail,Flooring & Parquet
-build.wallpaper_decor,build,Shopping & Distribution,General Wholesale & Retail,Wallpaper & Decor Materials
+build.wallpaper_decor,build,Shopping & Distribution,General Wholesale & Retail,Decorative Elements / Coatings
 build.hardware_tools,build,Shopping & Distribution,General Wholesale & Retail,Hardware & Tools
 build.fasteners,build,Shopping & Distribution,General Wholesale & Retail,Fasteners
 build.roofing_cladding,build,Shopping & Distribution,General Wholesale & Retail,"Roofing, Cladding & Panels"
@@ -102,7 +102,7 @@ contract.utilities_projects,contract,Services & Industry,Support & Outsourcing S
 contract.civil_infra,contract,Services & Industry,Support & Outsourcing Services,Civil & Infrastructure Contractor
 contract.plumbing,contract,Services & Industry,Support & Outsourcing Services,Plumbing Contractor
 contract.electrical,contract,Services & Industry,Support & Outsourcing Services,Electrical Contractor
-contract.hvac,contract,Services & Industry,Support & Outsourcing Services,Hvac Contractor
+contract.hvac,contract,Services & Industry,Support & Outsourcing Services,Climate Equipment Maintenance
 contract.fire_safety,contract,Services & Industry,Support & Outsourcing Services,Fire Protection Contractor
 contract.finishing,contract,Services & Industry,Support & Outsourcing Services,Finishing & Fit-Out Contractor
 contract.painting,contract,Services & Industry,Support & Outsourcing Services,Painting Contractor
@@ -120,7 +120,7 @@ contract.maintenance,contract,Services & Industry,Support & Outsourcing Services
 contract.facility_mgmt,contract,Services & Industry,Support & Outsourcing Services,Facility Management
 contract.handyman,contract,Services & Industry,Support & Outsourcing Services,Handyman / Technician
 contract.interior_design,contract,Services & Industry,Support & Outsourcing Services,Interior Design Studio
-contract.engineering_consult,contract,Services & Industry,Support & Outsourcing Services,Engineering & Architecture Consultancy
+contract.engineering_consult,contract,Services & Industry,Support & Outsourcing Services,Engineering Firm
 contract.surveying,contract,Services & Industry,Support & Outsourcing Services,Surveying & Geotechnical
 contract.project_mgmt,contract,Services & Industry,Support & Outsourcing Services,Construction Project Management
 ind.plastic,ind,Services & Industry,Support & Outsourcing Services,Plastics Manufacturing
@@ -180,15 +180,15 @@ equip.laundry_equipment,equip,Shopping & Distribution,General Wholesale & Retail
 equip.weighing_measuring,equip,Shopping & Distribution,General Wholesale & Retail,Weighing & Measuring Instruments
 equip.safety_ppe,equip,Shopping & Distribution,General Wholesale & Retail,Ppe & Workwear
 elec.mobile_shop,elec,Shopping & Distribution,General Wholesale & Retail,Mobile Phones
-elec.computers,elec,Shopping & Distribution,General Wholesale & Retail,Computers & Laptops
+elec.computers,elec,Shopping & Distribution,General Wholesale & Retail,PC Store
 elec.electronics_store,elec,Shopping & Distribution,General Wholesale & Retail,Electronics Store
 elec.appliances_store,elec,Shopping & Distribution,General Wholesale & Retail,Home Appliances Store
 elec.appliances_wholesale,elec,Shopping & Distribution,General Wholesale & Retail,Appliances Wholesale
-elec.cctv_security,elec,Shopping & Distribution,General Wholesale & Retail,Cctv & Security Systems
+elec.cctv_security,elec,Shopping & Distribution,General Wholesale & Retail,CCTV & Security Systems
 elec.it_networking_supply,elec,Shopping & Distribution,General Wholesale & Retail,It & Networking Supplier
-elec.software,elec,Shopping & Distribution,General Wholesale & Retail,Software & It Services
+elec.software,elec,Shopping & Distribution,General Wholesale & Retail,Software & IT Services
 elec.hosting_data,elec,Shopping & Distribution,General Wholesale & Retail,Hosting & Data Centers
-elec.telecom,elec,Shopping & Distribution,General Wholesale & Retail,Telecom Operators & Isps
+elec.telecom,elec,Shopping & Distribution,General Wholesale & Retail,Telecom Operators & ISPs
 elec.telecom_contractor,elec,Shopping & Distribution,General Wholesale & Retail,Telecom Infrastructure Contractor
 elec.printers_copiers,elec,Shopping & Distribution,General Wholesale & Retail,Printers & Copiers
 elec.repair,elec,Shopping & Distribution,General Wholesale & Retail,Electronics Repair
@@ -198,16 +198,16 @@ elec.gaming,elec,Shopping & Distribution,General Wholesale & Retail,Gaming
 elec.components,elec,Shopping & Distribution,General Wholesale & Retail,Electronic Components
 elec.pos_systems,elec,Shopping & Distribution,General Wholesale & Retail,Pos Systems
 elec.satellite_tv,elec,Shopping & Distribution,General Wholesale & Retail,Satellite & Tv Equipment
-auto.dealership,auto,Shopping & Distribution,General Wholesale & Retail,Car Dealership
+auto.dealership,auto,Shopping & Distribution,General Wholesale & Retail,Car Showroom and Sales
 auto.used_cars,auto,Shopping & Distribution,General Wholesale & Retail,Car Showroom (Used)
 auto.spare_parts,auto,Shopping & Distribution,General Wholesale & Retail,Auto Spare Parts
-auto.tires,auto,Shopping & Distribution,General Wholesale & Retail,Tires & Wheels
-auto.workshop,auto,Transportation,Auto Mechanic & Repair,Auto Repair Workshop
+auto.tires,auto,Shopping & Distribution,General Wholesale & Retail,Tire & Wheel
+auto.workshop,auto,Transportation,Auto Mechanic & Repair,Auto Repair Shop
 auto.body_paint,auto,Transportation,Auto Mechanic & Repair,Body & Paint Shop
 auto.oil_change,auto,Transportation,Auto Mechanic & Repair,Oil Change Center
 auto.car_wash,auto,Life & Convenience,Cleaning Service,Car Wash
 auto.rental,auto,Transportation,,Car Rental
-auto.accessories_tint,auto,Shopping & Distribution,General Wholesale & Retail,Accessories & Tinting
+auto.accessories_tint,auto,Shopping & Distribution,General Wholesale & Retail,Car Accessories
 auto.batteries,auto,Shopping & Distribution,General Wholesale & Retail,Car Batteries
 auto.trucks_buses,auto,Shopping & Distribution,General Wholesale & Retail,Trucks & Buses Sales
 auto.trucks_repair,auto,Transportation,Auto Mechanic & Repair,Truck Repair
@@ -234,19 +234,19 @@ home.cleaning_supplies,home,Shopping & Distribution,General Wholesale & Retail,C
 home.tents_majlis,home,Shopping & Distribution,General Wholesale & Retail,Tents & Arabic Majlis
 fashion.clothing,fashion,Shopping & Distribution,General Wholesale & Retail,Clothing Store
 fashion.abaya,fashion,Shopping & Distribution,General Wholesale & Retail,Abayas
-fashion.mens_thobe,fashion,Shopping & Distribution,General Wholesale & Retail,Men'S Thobes
+fashion.mens_thobe,fashion,Shopping & Distribution,General Wholesale & Retail,Men's Thobes
 fashion.kids,fashion,Shopping & Distribution,General Wholesale & Retail,Kids' Clothing
-fashion.shoes,fashion,Shopping & Distribution,General Wholesale & Retail,Shoes
+fashion.shoes,fashion,Shopping & Distribution,General Wholesale & Retail,Footwear
 fashion.bags_accessories,fashion,Shopping & Distribution,General Wholesale & Retail,Bags & Accessories
-fashion.perfume,fashion,Shopping & Distribution,General Wholesale & Retail,Perfumes & Oud
+fashion.perfume,fashion,Shopping & Distribution,General Wholesale & Retail,Perfumes
 fashion.jewelry_gold,fashion,Shopping & Distribution,General Wholesale & Retail,Gold & Jewelry
 fashion.watches,fashion,Shopping & Distribution,General Wholesale & Retail,Watches
 fashion.fabrics,fashion,Shopping & Distribution,General Wholesale & Retail,Fabrics
-fashion.tailoring,fashion,Shopping & Distribution,General Wholesale & Retail,Tailoring
+fashion.tailoring,fashion,Shopping & Distribution,General Wholesale & Retail,Dressmaking
 fashion.uniforms,fashion,Shopping & Distribution,General Wholesale & Retail,Uniforms & Workwear
 fashion.apparel_wholesale,fashion,Shopping & Distribution,General Wholesale & Retail,Apparel Wholesale
 fashion.sportswear,fashion,Shopping & Distribution,General Wholesale & Retail,Sportswear
-beauty.salon_women,beauty,Life & Convenience,Beauty,Women'S Salon
+beauty.salon_women,beauty,Life & Convenience,Beauty,Ladies Hair Salon
 beauty.barber,beauty,Life & Convenience,Beauty,Barbershop
 beauty.spa_massage,beauty,Health & Medical,Beauty,Spa & Massage
 beauty.cosmetics_store,beauty,Shopping & Distribution,General Wholesale & Retail,Cosmetics Store
@@ -254,7 +254,7 @@ beauty.cosmetics_distributor,beauty,Shopping & Distribution,General Wholesale & 
 beauty.aesthetic_clinic,beauty,Health & Medical,Beauty,Aesthetic Clinic
 beauty.salon_supplies,beauty,Shopping & Distribution,General Wholesale & Retail,Salon Supplies
 health.hospital,health,Health & Medical,Hospitals & Clinics,Hospital
-health.clinic,health,Health & Medical,Hospitals & Clinics,Clinic / Polyclinic
+health.clinic,health,Health & Medical,Hospitals & Clinics,Medical Clinic
 health.dental,health,Health & Medical,Hospitals & Clinics,Dental Clinic
 health.pharmacy,health,Health & Medical,Pharmacy,Pharmacy
 health.lab,health,Health & Medical,Hospitals & Clinics,Medical Laboratory
@@ -272,7 +272,7 @@ health.ambulance,health,Health & Medical,,Ambulance
 health.medical_devices_maintenance,health,Services & Industry,Support & Outsourcing Services,Medical Equipment Maintenance
 edu.school,edu,Education,Educational Institution,School
 edu.nursery,edu,Education,Educational Institution,Day-Care Nursery
-edu.kindergarten,edu,Education,Educational Institution,Kindergarten
+edu.kindergarten,edu,Education,Educational Institution,Kindergarten / Nursery
 edu.university,edu,Education,Educational Institution,University & College
 edu.vocational,edu,Education,Educational Institution,Technical & Vocational Institute
 edu.training_center,edu,Education,Educational Institution,Training Center
@@ -285,7 +285,7 @@ edu.educational_supplies,edu,Education,,Educational & Lab Supplies
 edu.quran_center,edu,Education,Educational Institution,Quran Memorization Center
 edu.education_services,edu,Education,,Education Support Services
 hosp.hotel,hosp,Accommodation,Accommodation,Hotel
-hosp.furnished_apartments,hosp,Accommodation,Furnished Apartment,Furnished Apartments
+hosp.furnished_apartments,hosp,Accommodation,Furnished Apartment,Furnished Apartment
 hosp.istiraha,hosp,Accommodation,Accommodation,Istiraha & Chalet
 hosp.camps,hosp,Accommodation,Accommodation,Camps & Camping Sites
 hosp.wedding_hall,hosp,Culture & Art,,Wedding & Event Hall
@@ -308,11 +308,11 @@ log.sea_transport,log,Transportation,,Sea Transport & Ports
 log.air_cargo,log,Transportation,,Air Cargo
 log.cargo_handling,log,Transportation,,Cargo Handling
 log.packaging_services,log,Transportation,,Packaging Services
-biz.law,biz,Services & Industry,Support & Outsourcing Services,Law Firm
+biz.law,biz,Services & Industry,Support & Outsourcing Services,Legal Services
 biz.accounting,biz,Services & Industry,Support & Outsourcing Services,Accounting & Audit
 biz.consulting,biz,Services & Industry,Support & Outsourcing Services,Management Consulting
 biz.head_office,biz,Services & Industry,Support & Outsourcing Services,Head Office / Holding
-biz.marketing_agency,biz,Services & Industry,Support & Outsourcing Services,Marketing & Advertising Agency
+biz.marketing_agency,biz,Services & Industry,Support & Outsourcing Services,Marketing Agency
 biz.market_research,biz,Services & Industry,Support & Outsourcing Services,Market Research
 biz.advertising_signage,biz,Services & Industry,Support & Outsourcing Services,Signage & Outdoor Advertising
 biz.printing,biz,Services & Industry,Support & Outsourcing Services,Printing Press
@@ -335,7 +335,7 @@ biz.testing_labs,biz,Services & Industry,Support & Outsourcing Services,Testing 
 biz.research,biz,Services & Industry,Support & Outsourcing Services,R&D
 biz.chamber_association,biz,Services & Industry,Support & Outsourcing Services,Chambers & Professional Associations
 biz.debt_collection,biz,Services & Industry,Support & Outsourcing Services,Debt Collection
-re.office,re,Services & Industry,Real Estate,Real Estate Office
+re.office,re,Services & Industry,Real Estate,Real Estate Agency / Brokerage
 re.developer,re,Services & Industry,Real Estate,Real Estate Developer
 re.property_mgmt,re,Services & Industry,Real Estate,Property Management
 re.valuation,re,Services & Industry,Real Estate,Real Estate Valuation
@@ -344,7 +344,7 @@ fin.bank,fin,Finance & Insurance,Financial Service,Bank
 fin.exchange,fin,Finance & Insurance,Financial Service,Currency Exchange & Remittance
 fin.insurance,fin,Finance & Insurance,Financial Service,Insurance
 fin.financing,fin,Finance & Insurance,Financial Service,Financing & Leasing
-fin.atm,fin,Finance & Insurance,Financial Service,Atm
+fin.atm,fin,Finance & Insurance,Financial Service,ATM
 fin.investment,fin,Finance & Insurance,Financial Service,Investment & Asset Management
 fin.fintech_payments,fin,Finance & Insurance,Financial Service,Payments & Fintech
 retail.mall,retail,Shopping & Distribution,General Wholesale & Retail,Shopping Mall
@@ -353,11 +353,11 @@ retail.general_store,retail,Shopping & Distribution,General Wholesale & Retail,G
 retail.discount_store,retail,Shopping & Distribution,General Wholesale & Retail,Discount Store
 retail.toys,retail,Shopping & Distribution,General Wholesale & Retail,Toys
 retail.gifts,retail,Shopping & Distribution,General Wholesale & Retail,Gifts
-retail.flowers,retail,Shopping & Distribution,General Wholesale & Retail,Florist
+retail.flowers,retail,Shopping & Distribution,General Wholesale & Retail,Flower Shop
 retail.pet_shop,retail,Shopping & Distribution,General Wholesale & Retail,Pet Shop
 retail.bookstore,retail,Shopping & Distribution,General Wholesale & Retail,Bookstore
 retail.baby,retail,Shopping & Distribution,General Wholesale & Retail,Baby Products
-retail.tobacco_vape,retail,Shopping & Distribution,General Wholesale & Retail,Tobacco & Vape
+retail.tobacco_vape,retail,Shopping & Distribution,General Wholesale & Retail,Smoking Accessories / Tobacco
 retail.party_supplies,retail,Shopping & Distribution,General Wholesale & Retail,Party Supplies
 retail.general_wholesale,retail,Shopping & Distribution,General Wholesale & Retail,General Wholesale
 retail.kiosk,retail,Shopping & Distribution,General Wholesale & Retail,Kiosk & Stall
@@ -367,7 +367,7 @@ retail.musical_instruments,retail,Shopping & Distribution,General Wholesale & Re
 retail.souvenirs_crafts,retail,Shopping & Distribution,General Wholesale & Retail,Souvenirs & Handicrafts
 energy.fuel_station,energy,Services & Industry,Support & Outsourcing Services,Fuel Station
 energy.fuel_wholesale,energy,Services & Industry,Support & Outsourcing Services,Fuel Wholesale
-energy.lpg,energy,Services & Industry,Support & Outsourcing Services,Lpg Distribution
+energy.lpg,energy,Services & Industry,Support & Outsourcing Services,LPG Distribution
 energy.solar,energy,Services & Industry,Support & Outsourcing Services,Solar Energy
 energy.electricity,energy,Services & Industry,Support & Outsourcing Services,Electricity Generation & Distribution
 energy.water_treatment,energy,Services & Industry,Support & Outsourcing Services,Water Treatment & Desalination
@@ -382,7 +382,7 @@ energy.mining,energy,Services & Industry,Support & Outsourcing Services,Mining
 energy.mining_services,energy,Services & Industry,Support & Outsourcing Services,Mining Support Services
 energy.ev_charging,energy,Services & Industry,Support & Outsourcing Services,Ev Charging
 energy.environmental_services,energy,Services & Industry,Support & Outsourcing Services,Environmental Services
-sports.gym,sports,Sports & Recreation,Gym,Gym & Fitness Center
+sports.gym,sports,Sports & Recreation,Gym,Gym
 sports.club,sports,Sports & Recreation,,Sports Club
 sports.fields,sports,Sports & Recreation,,Sports Fields
 sports.sporting_goods,sports,Shopping & Distribution,General Wholesale & Retail,Sporting Goods
@@ -401,7 +401,7 @@ media.arts_crafts,media,Culture & Art,,Arts & Crafts
 media.art_gallery,media,Culture & Art,,Art Gallery
 media.events_entertainment,media,Culture & Art,,Live Entertainment
 media.news_agency,media,Culture & Art,,News & Content Agency
-personal.laundry,personal,Life & Convenience,Cleaning Service,Laundry & Dry Cleaning
+personal.laundry,personal,Life & Convenience,Cleaning Service,Laundry / Dry Cleaning
 personal.shoe_repair,personal,Life & Convenience,,Shoe & Leather Repair
 personal.watch_jewelry_repair,personal,Life & Convenience,,Watch & Jewelry Repair
 personal.funeral,personal,Life & Convenience,,Funeral Services

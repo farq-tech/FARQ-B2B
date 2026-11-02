@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from data_release import REQUIRED_ASSETS, _release_id, validate_release, verify_manifest
-from stage_release import TAXONOMY_COMPANIONS, stage_release
+from stage_release import TAXONOMY_COMPANIONS, _quality, stage_release
 from test_data_release import DataReleaseTests
 
 
@@ -91,6 +91,30 @@ class StageReleaseTests(unittest.TestCase):
             root = Path(raw)
             with self.assertRaisesRegex(ValueError, "extracted_at"):
                 stage_release(root / "release", self._source_assets(root / "source"), {"sources": [{"id": "fixture", "license": "internal"}]})
+
+
+
+    def test_a_passing_quality_gate_is_recorded_in_the_manifest(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            gate = {"version": "quality_gate_v1", "gate": "PASS", "reasons": [], "absolute": {"7_Placeholder": 0, "10_Bbox": 0},
+                    "ratchet": {}, "baseline_used": False, "max_rise_pct": 1.0, "validator": {"rows_with_high": 0}}
+            (root / "gate.json").write_text(json.dumps(gate), encoding="utf-8")
+            report = stage_release(root / "release", self._source_assets(root / "source"), self.PROVENANCE, _quality(root / "gate.json"))
+            self.assertEqual(report["quality"]["gate"], "PASS")
+            manifest = json.loads((root / "release/release.manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["quality"]["absolute"], {"7_Placeholder": 0, "10_Bbox": 0})
+
+    def test_a_failed_quality_gate_refuses_the_release(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "gate.json").write_text(json.dumps({"gate": "FAIL", "reasons": ["7_Placeholder: 3 rows (must be 0)"]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "7_Placeholder"):
+                _quality(root / "gate.json")
+            with self.assertRaisesRegex(ValueError, "quality gate failed"):
+                stage_release(root / "release", self._source_assets(root / "source"), self.PROVENANCE, {"gate": "FAIL"})
+            self.assertFalse((root / "release").exists())
+            self.assertIsNone(_quality(None), "the gate stays optional for releases staged without one")
 
 
 if __name__ == "__main__":

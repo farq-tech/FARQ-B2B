@@ -113,20 +113,20 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(values['std_has_family_seating'], 'Yes')
         self.assertEqual(values['std_cuisine'], 'Syrian / Levantine')
         self.assertEqual(values['std_google_map_url'], 'https://www.google.com/maps?q=24.778913,46.687968')
-        self.assertEqual(values['std_payment_methods'], ps.DEFAULT_PAYMENT)
-        self.assertIn('payment:rule', inferred)
+        self.assertEqual(values['std_payment_methods'], '')   # owner decision 2026-11-02: no assumed payment set
+        self.assertNotIn('payment:rule', inferred)   # payment is never assumed (owner decision 2026-11-02)
         self.assertIn('dine_in:rule', inferred)
 
     def test_bank_gets_unapplicable_for_food_fields(self):
         values, _, _ = self.record(name_en='Riyad Bank', name_ar='بنك الرياض', sub_id='fin.bank', main_id='fin')
         self.assertEqual(values['std_category'], 'Finance & Insurance')
         for field in ('std_dine_in', 'std_drive_thru', 'std_shisha', 'std_cuisine', 'std_has_family_seating', 'std_menu'):
-            self.assertEqual(values[field], 'UNAPPLICABLE', field)
+            self.assertEqual(values[field], '', field)   # owner decision 2026-11-02: no UNAPPLICABLE token
         self.assertEqual(values['std_holidays'], 'National Day (Sep 23), Founding Day (Feb 22), Eid Al-Fitr, Eid Al-Adha')
 
     def test_mosque(self):
         values, _, _ = self.record(name_ar='جامع الراجحي', name_en='', sub_id='noncom.mosque', main_id='noncom')
-        self.assertEqual(values['std_payment_methods'], 'UNAPPLICABLE')
+        self.assertEqual(values['std_payment_methods'], '')   # no token, no default
         self.assertEqual(values['std_language'], 'Arabic')
         self.assertEqual(values['std_provides_iftar_tent'], 'Yes')
         self.assertEqual(values['std_name_en'], 'Al Rajhi Mosque', 'a business word is translated, a name spelled')
