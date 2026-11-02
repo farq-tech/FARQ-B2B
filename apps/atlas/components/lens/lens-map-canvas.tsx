@@ -114,6 +114,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
+  // why the map did not open, in words that point the visitor the right way: a dropped connection is theirs to fix;
+  // a map the server cannot serve right now is not, and the panel's figures still work either way
+  const [errorDetail, setErrorDetail] = useState<string | undefined>(undefined)
   // a retry opens the map again in place, so the lens, the step and the picked districts stay as they were
   const [attempt, setAttempt] = useState(0)
   const failed = useRef(onFailed)
@@ -129,10 +132,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
       const token = response?.ok ? await response.json().then((body) => body.token as string | undefined).catch(() => null) : null
       if (disposed) return
-      if (!token) { setError('الخريطة'); return }
+      if (!token) {
+        setErrorDetail(response ? 'الخريطة غير متاحة الآن من جهتنا، والأرقام والقوائم في اللوحة تعمل. أعد المحاولة بعد قليل.' : 'تحقق من الاتصال ثم أعد المحاولة. الأرقام في اللوحة تبقى كما هي.')
+        setError('الخريطة'); return
+      }
       const mapboxgl = await import('mapbox-gl').then((module) => module.default).catch(() => null)
       if (disposed || !container.current) return
-      if (!mapboxgl) { setError('الخريطة'); return }
+      if (!mapboxgl) { setErrorDetail(undefined); setError('الخريطة'); return }
       mapboxgl.accessToken = token
       const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance
@@ -342,7 +348,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   return (
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
-      {error && <LoadError what={error} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
+      {error && <LoadError what={error} detail={errorDetail} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
     </div>
   )
 }
