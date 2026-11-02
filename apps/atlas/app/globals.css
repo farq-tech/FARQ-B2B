@@ -203,6 +203,20 @@ body::before {
   }
 }
 
+/* Motion: two durations, both under the 200ms people read as instant feedback.
+     100ms  things that appear in place: popovers, menus, select lists, dialogs, tooltips
+     200ms  things that travel: sheets and their backdrop, map windows, the photo strip
+   With «reduce motion» on, every animation and transition collapses to a single frame and smooth scrolling stops,
+   so nothing slides, zooms or pulses; the state still changes, only the movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* the onboarding hint's target: a soft olive ring that breathes, still when motion is reduced */
 .coach-target { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: 0.5rem; }
 @media (prefers-reduced-motion: no-preference) {
