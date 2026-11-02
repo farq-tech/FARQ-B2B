@@ -184,7 +184,9 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const finished = progress != null && progress.done === progress.total && solved.length > 0
 
   // the step's answer in one line for the peeking sheet: the route once solved, else the rep's customers, else the split
-  const summary = finished ? `المسار: ${numberFormat.format(order.length)} محطة · ${numberFormat.format(Math.round(meters / 1000))} كم · ${duration(seconds)}`
+  const visits = plan ? plan.days.reduce((sum, planned) => sum + planned.count, 0) : 0
+  const summary = finished ? `${day != null ? `مسار ${names[day] ?? 'اليوم'}` : 'المسار'}: ${numberFormat.format(order.length)} محطة · ${km(meters)} · ${duration(seconds)}`
+    : plan && planStatus === 'idle' ? `خطة الأسبوع: ${numberFormat.format(visits)} زيارة على ${plan.days.length === 1 ? 'يوم واحد' : plan.days.length === 2 ? 'يومين' : `${numberFormat.format(plan.days.length)} أيام`}`
     : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
       : groups && status !== 'loading' ? `${numberFormat.format(groups.length)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
         : null
@@ -336,7 +338,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             <>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المحطات</p><p className="text-lg font-bold">{numberFormat.format(order.length)}</p></div>
-                <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{numberFormat.format(Math.round(meters / 1000))} كم</p></div>
+                <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{km(meters)}</p></div>
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">زمن القيادة</p><p className="text-base font-bold">{duration(seconds)}</p></div>
               </div>
               <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-base">
