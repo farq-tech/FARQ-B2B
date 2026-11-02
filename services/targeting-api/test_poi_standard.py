@@ -216,3 +216,13 @@ class ProductionJobTests(unittest.TestCase):
             os.environ.pop('FARQ_POI_STANDARD', None)
             self.assertNotIn('poi_standard', startup_jobs.start(tempfile.mkdtemp()))
         job.assert_not_called()
+
+
+class UrbiSevenPartHoursTests(unittest.TestCase):
+    def test_unlabelled_seven_part_hours_are_labelled_sunday_first(self):
+        # production 2026-11-02: this branch raised NameError (normalize_hours) and the std layer job died
+        row = {'working_hours': '09:00-23:00; 09:00-23:00; 09:00-23:00; 09:00-23:00; 09:00-23:00; -; 16:00-23:00'}
+        out = ps.hours_source(row)
+        self.assertTrue(out.startswith('Sun: 09:00-23:00'), out)
+        self.assertIn('Sat: 16:00-23:00', out)
+        self.assertNotIn('Fri', out)

@@ -307,7 +307,7 @@ def hours_source(row):
     t = text(raw)
     parts = [x.strip() for x in t.split(';')] if t else []
     if len(parts) == 7 and all(re.match(r'^(\d{1,2}:\d{2} ?- ?\d{1,2}:\d{2}|-)$', x) for x in parts):
-        return _labelled_from_days(list(zip(normalize_hours.SHORT, parts)))
+        return _labelled_from_days(list(zip(DAYS, parts)))
     return raw
 
 
