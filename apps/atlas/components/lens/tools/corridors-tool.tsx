@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -153,7 +154,9 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
       {mode === 'cluster' && status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
       {mode === 'cluster' && status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
-      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
+      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && (
+        <EmptyState compact icon={SearchX} title={`لا شارع يتجمع فيه «${studied.label}»`} body="يُحسب الشارع حين يكون عليه 5 محلات أو أكثر من النشاط. جرّب نشاطاً آخر أو «أين الفرصة»." />
+      )}
       {mode === 'cluster' && status === 'loading' && (
         <>
           <Skeleton className="h-4 w-3/4" aria-hidden />
@@ -198,7 +201,7 @@ function StreetUnits({ street, units, onOpen }: { street: string; units: Units; 
       {units.status === 'loading' && <ResultRowsSkeleton label="جارٍ البحث عن الوحدات" rows={3} sub />}
       {units.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر جلب الوحدات المعروضة.</p>}
       {units.status === 'ready' && !units.available && <p className="text-sm text-muted-foreground">غير متاح</p>}
-      {units.status === 'ready' && units.available && !units.total && <p className="text-sm text-muted-foreground">لا توجد وحدات معروضة الآن على هذا الشارع</p>}
+      {units.status === 'ready' && units.available && !units.total && <EmptyState compact icon={SearchX} title="لا وحدات معروضة على هذا الشارع الآن" body="جرّب شارعاً آخر من القائمة." />}
       {units.status === 'ready' && units.total > 0 && (
         <>
           <ol className="divide-y text-base">

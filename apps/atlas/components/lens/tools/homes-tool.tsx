@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MapPin, Scale, X } from 'lucide-react'
+import { MapPin, Scale, SearchX, X } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -206,6 +207,9 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
             {result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}
             {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
+          {result.listings.length === 0 && (
+            <EmptyState compact icon={SearchX} title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
+          )}
           {result.listings.length > 0 && (
             <div>
               <Explained title={nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'} lines={EXPLAIN.bestListings} className="mb-1 text-sm font-semibold text-muted-foreground">{nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'}</Explained>

@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
+import { ChevronDown, ClipboardList, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
@@ -143,7 +144,10 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       )}
       {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
       {status === 'error' && <p role="alert" className="text-base text-destructive">{message}</p>}
-      {status === 'ready' && (
+      {status === 'ready' && rows.length === 0 && (
+        <EmptyState compact icon={SearchX} title={`لا منشآت ${activity.trim() ? `«${activity.trim()}» ` : ''}في ${where}`} body={activity.trim() ? 'جرّب اسماً آخر للنشاط، أو كل الأنشطة.' : 'جرّب حياً آخر.'} />
+      )}
+      {status === 'ready' && rows.length > 0 && (
         <>
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}{searched != null && searched < districts.length ? ` · في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة` : ''}</span>

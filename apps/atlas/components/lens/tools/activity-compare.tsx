@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Scale, X } from 'lucide-react'
+import { Scale, SearchX, X } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { StatTile } from '@/components/shared/stat'
@@ -130,7 +131,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             <span><span className="font-semibold text-foreground">الثاني</span>: {rival.label}</span>
           </p>
           {pairs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">لا يوجد أي من النشاطين في أحياء المدينة.</p>
+            <EmptyState compact icon={SearchX} title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
           ) : (
             <>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
