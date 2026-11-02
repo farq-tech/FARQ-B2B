@@ -1,6 +1,8 @@
 'use client'
 
-import { ArrowRight, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ChipRow } from '@/components/shared/search-pill'
 import { Chip, ChipCount } from '@/components/ui/chip'
@@ -40,6 +42,7 @@ export function InboxView() {
 
   const sorted = [...inbox].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   const visible = sorted.filter((m) => matches(m, filter))
+  const unreadVisible = visible.filter((m) => m.unread)
 
   const setParams = (next: { m?: string | null; f?: InboxFilter }) => {
     const sp = new URLSearchParams(params.toString())
@@ -95,9 +98,20 @@ export function InboxView() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6 pb-24 lg:py-8 lg:pb-8">
       {/* with a message open on a phone the header is hidden from sight but not from screen readers: the page keeps its h1 */}
-      <header className={cn('flex flex-col gap-1', selected && 'max-lg:sr-only')}>
-        <h1 className="text-2xl font-bold text-balance">الوارد</h1>
-        <p className="text-sm text-muted-foreground">ردود طلبات التسعير وتفاعلات الحملات التسويقية في مكان واحد.</p>
+      <header className={cn('flex flex-wrap items-end justify-between gap-3', selected && 'max-lg:sr-only')}>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-balance">الوارد</h1>
+          <p className="text-sm text-muted-foreground">
+            ردود طلبات التسعير وتفاعلات الحملات التسويقية في مكان واحد.
+            {unreadVisible.length > 0 && <span className="font-semibold text-foreground"> {numberFormat.format(unreadVisible.length)} غير مقروءة.</span>}
+          </p>
+        </div>
+        {/* clearing a backlog took one open per message; this marks what the current filter shows, nothing hidden */}
+        {unreadVisible.length > 1 && (
+          <Button variant="outline" size="sm" onClick={() => unreadVisible.forEach((m) => markRead(m.id))}>
+            <CheckCheck data-icon="inline-start" />علّم المعروض كمقروء
+          </Button>
+        )}
       </header>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(20rem,24rem)_1fr]">
