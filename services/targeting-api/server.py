@@ -1312,6 +1312,30 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('street-density', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/street-opportunities':
+            # «فرص الشوارع»: busy named streets where the requested activity is absent or thin (street_opportunities.py)
+            try:
+                import taxonomy_search, duckdb, street_opportunities
+                city = body.get('city'); q = body.get('q'); main = body.get('main_id')
+                if (not isinstance(city, str) or not 1 <= len(city) <= 80 or (q is not None and (not isinstance(q, str) or len(q) > 120))
+                        or (main is not None and (not isinstance(main, str) or len(main) > 40)) or not (q or main)):
+                    self._json({'error': 'INPUT'}, 400); return
+                empty = {'type': 'FeatureCollection', 'features': []}
+                if not os.path.isfile(STREET_DENSITY): self._json({**empty, 'available': False}); return
+                subs = []
+                if q:
+                    tx = taxonomy_search.get()
+                    subs = market_analytics.corridor_subs(tx, q, body.get('objective')) if tx is not None else []
+                    if not subs: self._json({**empty, 'understood': False}); return
+                try: population = district_population_by_name(city)
+                except Exception: population = {}
+                db = duckdb.connect()
+                try: result = street_opportunities.opportunities(db, STREET_DENSITY, city, subs=subs[:20], main_id=None if subs else main, population=population)
+                finally: db.close()
+                self._json({**result, 'sub_ids': subs[:20]})
+            except Exception as error:
+                log_map_api_failure('street-opportunities', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/suggest-specialties':
             # supplier onboarding: the supplier names his sector and his main materials in his own words; we suggest specialties to confirm
             try:

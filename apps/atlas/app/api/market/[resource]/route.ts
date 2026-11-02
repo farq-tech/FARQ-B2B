@@ -17,6 +17,7 @@ const READ_ONLY: Record<string, readonly string[]> = {
   'market-summary': ['POST'],
   'street-density': ['POST'],
   'street-density/catalog': ['POST'],
+  'street-opportunities': ['POST'],
   clusters: ['POST'],
   'market-gaps': ['POST'],
   growth: ['POST'],
