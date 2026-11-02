@@ -29,11 +29,18 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
         <p className="text-xs text-muted-foreground">
           {/* only the parts the directory has, so a missing district never leaves «·  ·» */}
           {[b?.category, b ? districtById.get(b.districtId)?.name : null].filter(Boolean).map((part) => `${part} · `).join('')}
-          <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span> · {formatDateTime(message.receivedAt)}
+          <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span>
         </p>
       </header>
 
-      <div className="max-w-lg self-start rounded-2xl rounded-ss-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed">{message.body}</div>
+      {/* the thread reads like a chat: who wrote and when above the bubble, the message at reading size with its own
+          line breaks, so a long supplier reply is not a grey block of small text */}
+      <figure className="flex max-w-xl flex-col gap-1 self-start">
+        <figcaption className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{b?.name ?? 'غير متاح'}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+        </figcaption>
+        <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote>
+      </figure>
 
       {message.quote ? (
         <section aria-labelledby="quote-title" className="flex flex-col gap-2 rounded-xl border p-3">
