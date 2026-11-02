@@ -101,6 +101,14 @@ export interface LiveBusinessSnapshot {
   deliveryFee?: number
   deliveryMinOrder?: number
   deliveryEta?: string
+  /** v13 enrichment: the operating-status vote (status_policy vocabulary) and its confidence/freshness; the canonical
+   * weekly hours (JSON in the sun..sat schema); and the WhatsApp state. Each present only when the release carries it. */
+  statusVoted?: string
+  statusConfidence?: 'low' | 'medium' | 'high'
+  lastSeenAt?: string
+  isStale?: boolean
+  hoursWeek?: string
+  whatsappState?: 'verified' | 'source_flag_unverified' | 'not_available'
 }
 
 export type RequestType = 'list' | 'rfq' | 'campaign'
