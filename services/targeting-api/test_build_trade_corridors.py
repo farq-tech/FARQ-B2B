@@ -73,6 +73,20 @@ class TradeCorridorTest(unittest.TestCase):
         found, _ = self.corridors(rows)
         self.assertEqual(found, [])
 
+    def test_unclassified_shops_make_no_corridor(self):
+        subs = {**SUBS, 'unc.unknown': {'sub_ar': 'غير مصنف', 'main_id': 'unc', 'main_ar': 'غير مصنف'}}
+        rows = [shop('الخليج', 'unc.unknown', 100 + 50 * i, 5) for i in range(8)]
+        found, _ = btc.city_corridors('Riyadh', rows, self.segments, subs)
+        self.assertEqual(found, [])
+
+    def test_a_crossing_without_the_trade_does_not_split_the_street(self):
+        segments = [('شارع الخياطين', 'main', False, [(LON, LAT), (LON + 400 * M, LAT)]),
+                    ('شارع الخياطين', 'main', False, [(LON + 575 * M, LAT), (LON + 1000 * M, LAT)])]  # 175 m crossing
+        rows = [shop('الخليج', 'tailor', 50 + 70 * i, 5) for i in range(5)]
+        rows += [shop('الملك فيصل', 'tailor', 650 + 70 * i, 5) for i in range(5)]
+        found, _ = btc.city_corridors('Riyadh', rows, segments, SUBS)
+        self.assertEqual([r['n'] for r in found], [10])
+
     def test_written_file_keeps_the_columns_the_service_reads(self):
         rows = [shop('الخليج', 'tailor', 100 + 50 * i, 5, wholesale=i == 0) for i in range(6)]
         found, _ = self.corridors(rows)

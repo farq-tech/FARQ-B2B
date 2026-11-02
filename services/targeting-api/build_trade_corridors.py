@@ -36,8 +36,10 @@ import shapely
 import status_policy
 from activity_groups import groups_of, with_groups
 
-SNAP_M = 40          # a business further than this from any named road is not on a street
-JOIN_M = 100         # segments of one street with the activity, closer than this, are one corridor
+SNAP_M = 60          # a business further than this from any named road is not on a street (wide roads: the
+                     # shop front stands 40-60 m from the centre line the road file draws)
+JOIN_M = 200         # segments of one street with the activity, closer than this, are one corridor (a crossing
+                     # or a block without the trade does not split the street)
 MIN_SHOPS = 5        # a corridor needs at least this many businesses of the activity
 MAX_PER_SUB = 400    # strongest corridors kept per city and activity
 ROAD_FILES = {'Основные': 'main', 'Прочие': 'secondary'}
@@ -184,7 +186,7 @@ def city_corridors(city, rows, segments, subs):
 
     out = []
     for (name, sub), seg_rows in by_street_sub.items():
-        if sum(len(v) for v in seg_rows.values()) < MIN_SHOPS or sub not in subs:
+        if sum(len(v) for v in seg_rows.values()) < MIN_SHOPS or sub not in subs or sub.startswith('unc.'):
             continue
         segs = list(seg_rows)
         labels = _groups(lines[segs], JOIN_M)
