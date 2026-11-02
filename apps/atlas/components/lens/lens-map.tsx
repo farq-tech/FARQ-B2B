@@ -458,6 +458,8 @@ export function LensMap() {
               <p className="truncate font-bold">{pointedRow.name}</p>
               {/* the shading figure as the district row holds it; a step's own colours are explained in its key */}
               {!toolColors && <p className="text-muted-foreground">{METRICS[metric].label}: <span className="font-semibold text-foreground tabular-nums">{format(METRICS[metric].value(pointedRow), METRICS[metric].unit)}</span></p>}
+              {/* a step that colours the map says what its colour means for this district, from its own answer */}
+              {toolColors && overlay.hover?.get(pointedRow.id) && <p className="font-semibold text-foreground tabular-nums">{overlay.hover.get(pointedRow.id)}</p>}
               <p className="text-xs text-muted-foreground">{selected.includes(pointedRow.id) ? 'اضغط لإلغاء اختياره' : 'اضغط لترى أرقامه'}</p>
             </div>
           )}

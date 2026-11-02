@@ -17,3 +17,21 @@ export function gapsSummary(
   // the top district leads: on a phone the line is cut at its end, and the count of districts matters least
   return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')} · ${counted(short.length, 'district')} فيها نقص`
 }
+
+/**
+ * The line the card beside the pointer gives a district while «أين ينقص نشاطي؟» colours the map, from the same answer
+ * as the list: its shortfall in words, or «مكتفٍ» with the businesses it has. A district the answer leaves out says
+ * why (no population, or under the API's floor of residents), so its blank on the map is read, not guessed.
+ */
+export function gapsHoverLine(
+  row: (GapRow & { businesses?: number }) | undefined,
+  population: number | null,
+  minPopulation: number,
+  counted: (value: number, noun: 'district' | 'business') => string,
+  numberFormat: { format: (value: number) => string },
+): string {
+  if (!row) return population == null ? 'لا يُحسب: السكان غير متاح' : `لا يُحسب: أقل من ${numberFormat.format(minPopulation)} ساكن`
+  const short = Math.round(row.shortfall)
+  if (short >= 1) return `بنقص ${counted(short, 'business')}`
+  return row.businesses == null ? 'مكتفٍ' : `مكتفٍ: فيه ${counted(row.businesses, 'business')}`
+}
