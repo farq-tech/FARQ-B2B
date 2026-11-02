@@ -120,7 +120,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
                 <span className="block truncate">{item.districts_ar.join('، ')}{item.road_class ? ` · ${ROAD[item.road_class]}` : ''}</span>
                 <span className="block truncate text-foreground">{numberFormat.format(item.total)} محل على الشارع · {requestedLine(item, kinds)}</span>
                 <span className="block truncate">
-                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) على ${formatDistance(item.nearest.distance_m)}` : 'لا يوجد تجمع للنشاط في المدينة'}
+                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) ${item.nearest.distance_m < 30 ? 'يتقاطع معه أو يلاصقه' : `على ${formatDistance(item.nearest.distance_m)}`}` : 'لا يوجد تجمع للنشاط في المدينة'}
                 </span>
               </>
             )}

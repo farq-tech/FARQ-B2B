@@ -5,6 +5,7 @@ import glob
 import json
 import math
 import os
+import statistics
 
 import canonical_data
 import district_reference
@@ -320,10 +321,70 @@ def _listing_cards(path):
     return table
 
 
+# a yearly rent below this is a month's rent marked wrongly (build_real_estate_reference.MIN_YEARLY_RENT)
+MIN_YEARLY_RENT = 6_000
+
+
+def _suspect(card):
+    """Whether a card's figures need checking. A card built before 2026-11-02 is marked for checking whenever it has
+    no price per m², so an ad that states no area was hidden although it has no figure to doubt; such a card is
+    suspect only when its yearly rent is too low to be one."""
+    if not card.get('check'):
+        return False
+    if card.get('area_sqm') is None and card.get('sar_per_sqm') is None and card.get('price_sar') is not None:
+        return card.get('deal') == 'rent_year' and card['price_sar'] < MIN_YEARLY_RENT
+    return True
+
+
+def _hidden_reason(card):
+    """Why a card is not served ('check' | 'no_price' | 'rent_unstated' | 'no_photo'), or None when it is."""
+    if _suspect(card):
+        return 'check'
+    if card.get('price_sar') is None:
+        return 'no_price'
+    if card.get('deal') == 'rent_unstated':
+        return 'rent_unstated'
+    if not (card.get('photos') or card.get('photo')):
+        return 'no_photo'
+    return None
+
+
 def _publishable(card):
     """A listing Atlas shows: a price, a stated period, at least one photo, and figures that need no checking."""
-    return (not card.get('check') and card.get('price_sar') is not None and card.get('deal') != 'rent_unstated'
-            and bool(card.get('photos') or card.get('photo')))
+    return _hidden_reason(card) is None
+
+
+# the surroundings a street's rent is set against: units this far from its line, beyond the street's own buffer
+RENT_AROUND_M = 500
+# a median rests on at least this many units, else «غير متاح»
+RENT_MIN_UNITS = 3
+
+
+def annual_rent(card):
+    """A rent card's price for a year: a yearly rent as it is, a monthly one twelve times; None for a sale or a rent
+    whose period the ad does not state."""
+    price = card.get('price_sar')
+    if price is None:
+        return None
+    return {'rent_year': price, 'rent_month': 12 * price}.get(card.get('deal'))
+
+
+def rent_level(cards):
+    """{units, median_annual_sar, per_sqm_units, median_annual_sar_per_sqm} of the rents among cards; a median is None
+    below RENT_MIN_UNITS. The rent per m² counts only the ads that state an area."""
+    rents = [(rent, card.get('area_sqm')) for card in cards if (rent := annual_rent(card)) is not None]
+    per_sqm = [rent / area for rent, area in rents if area]
+    median = lambda values: round(statistics.median(values)) if len(values) >= RENT_MIN_UNITS else None
+    return {'units': len(rents), 'median_annual_sar': median([rent for rent, _ in rents]),
+            'per_sqm_units': len(per_sqm), 'median_annual_sar_per_sqm': median(per_sqm)}
+
+
+def rent_summary(street, around):
+    """The street's rent level against its surroundings', and the gap in % where both medians exist."""
+    here, there = rent_level(street), rent_level(around)
+    gap = lambda key: round(100 * (here[key] / there[key] - 1)) if here[key] and there[key] else None
+    return {'street': here, 'around': there, 'around_m': RENT_AROUND_M, 'min_units': RENT_MIN_UNITS,
+            'vs_around_pct': {'annual': gap('median_annual_sar'), 'per_sqm': gap('median_annual_sar_per_sqm')}}
 
 
 def real_estate_listings(city, filters, path=None, deals_path=None):
@@ -336,7 +397,9 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     and figures that do not need checking. Sorted with the listings
     furthest under their district's median price per m² first, then those without a comparison, then those marked
     for checking; capped at `limit`, while `total` counts every match. Each served card carries `signal`, its district's
-    market signal for its type (market_signals.tag), or None. None when there is no file yet."""
+    market signal for its type (market_signals.tag), or None. With `near` the answer also carries `rent_summary`, the
+    street's rent level against the units within RENT_AROUND_M of its line (rent_summary), and `hidden`, the matching
+    ads on the street left out, by reason. None when there is no file yet."""
     try:
         table = _listing_cards(path or REAL_ESTATE_LISTINGS_PATH)
     except (OSError, ValueError):
@@ -345,38 +408,52 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
     near = filters.get('near')
     if near:
-        # a corridor's buffer: first the line's box widened by the buffer, then the exact distance to its segments
+        # a corridor's buffer: first the line's box widened by the surroundings' reach, then the exact distance to its segments
         runs, metres = near['runs'], near.get('meters') or NEAR_DEFAULT_M
-        pad_lat = metres / 110540
-        pad_lon = metres / (111320 * math.cos(math.radians(sum(y for run in runs for _, y in run) / sum(len(run) for run in runs))))
+        reach = max(metres, RENT_AROUND_M)
+        pad_lat = reach / 110540
+        pad_lon = reach / (111320 * math.cos(math.radians(sum(y for run in runs for _, y in run) / sum(len(run) for run in runs))))
         xs, ys = [x for run in runs for x, _ in run], [y for run in runs for _, y in run]
         near_box = (min(xs) - pad_lon, min(ys) - pad_lat, max(xs) + pad_lon, max(ys) + pad_lat)
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
-    found = [card for card in table.get('listings', []) if card['city'] == city and _publishable(card)
-             and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
-             and (not districts or card['district_id'] in districts)
-             and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
-             and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
-             and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
-             and within(card.get('age'), None, filters.get('max_age'))]
+    matches = [card for card in table.get('listings', []) if card['city'] == city
+               and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
+               and (not districts or card['district_id'] in districts)
+               and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
+               and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
+               and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
+               and within(card.get('age'), None, filters.get('max_age'))]
+    found = [card for card in matches if _publishable(card)]
     # a card to check (its figures look wrong) goes after every other, then those without a district comparison
     # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
     # so those follow the rest; an ad with photos goes before one without at the same price standing
     floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
     found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
                                  card.get('vs_district_pct') or 0))
+    extra = {}
     if near:
-        found = [card for card in found if near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]]
-        measured = [(distance_to_lines_m(card['lon'], card['lat'], runs), card) for card in found]
+        inside = lambda card: near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]
+        measured = [(distance_to_lines_m(card['lon'], card['lat'], runs), card) for card in found if inside(card)]
+        # the street's rent against the units around it (beyond its own buffer, within RENT_AROUND_M of its line)
+        extra['rent_summary'] = rent_summary([card for d, card in measured if d <= metres],
+                                             [card for d, card in measured if metres < d <= RENT_AROUND_M])
+        # the matching ads on the street that are not served, by reason: a street with none served shows why
+        hidden = {}
+        for card in matches:
+            reason = _hidden_reason(card)
+            if reason and inside(card) and distance_to_lines_m(card['lon'], card['lat'], runs) <= metres:
+                hidden[reason] = hidden.get(reason, 0) + 1
+        extra['hidden'] = hidden
         # along a street the nearest unit comes first; the stable sort keeps the best-value order among equals
         measured = sorted([(d, card) for d, card in measured if d <= metres], key=lambda pair: round(pair[0]))
         found = [dict(card, distance_m=round(d)) for d, card in measured]
     shown = found[:filters.get('limit') or LISTINGS_MAX]
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
-    # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone)
-    shown = [{**{key: value for key, value in card.items() if key != 'phone'}, 'has_phone': bool(card.get('phone')),
+    # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone);
+    # a served card needs no checking, whatever an older file marked on it (_suspect)
+    shown = [{**{key: value for key, value in card.items() if key != 'phone'}, 'check': False, 'has_phone': bool(card.get('phone')),
               'signal': market_signals.tag(card, signals)} for card in shown]
-    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown}
+    return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
 
 
 def listing_phone(listing_id, path=None):
