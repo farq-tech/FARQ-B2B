@@ -99,10 +99,15 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                 <span className="text-xs text-muted-foreground">{v.replace(/_/g, ' ')}</span>
                 <input
                   disabled={!editable}
+                  required
+                  aria-invalid={!value.variables[v]?.trim() || undefined}
+                  aria-describedby={!value.variables[v]?.trim() ? `var-missing-${v}` : undefined}
                   value={value.variables[v] ?? ''}
                   onChange={(e) => onChange({ ...value, variables: { ...value.variables, [v]: e.target.value } })}
                   className={cn(fieldClass, !value.variables[v]?.trim() && 'border-destructive/60')}
                 />
+                {/* said in words, not by the red edge alone (WCAG 1.4.1) */}
+                {!value.variables[v]?.trim() && <span id={`var-missing-${v}`} className="text-xs text-destructive">مطلوب قبل المراجعة</span>}
               </label>
             ))}
           </div>
