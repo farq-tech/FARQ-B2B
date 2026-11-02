@@ -30,9 +30,13 @@ export function RequestsListView() {
 
   const none = requests.length === 0
   const nq = normalizeArabic(q)
-  const visible = requests
-    .filter((r) => r.status === tab && (!nq || normalizeArabic(r.title).includes(nq)))
+  // a search counts across every status: the tabs then show where the matches are, so a draft searched for from
+  // «تحتاج قرارك» is one tap away instead of «لا طلب بهذا العنوان»
+  const matches = nq ? requests.filter((r) => normalizeArabic(r.title).includes(nq)) : requests
+  const visible = matches
+    .filter((r) => r.status === tab)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const elsewhere = nq && !visible.length ? TABS.find((s) => matches.some((r) => r.status === s)) : undefined
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-4 py-6 pb-24 lg:py-10">
@@ -70,13 +74,17 @@ export function RequestsListView() {
           <Chip key={s} active={tab === s} onClick={() => setTab(s)}>
             <Icon className="size-4" aria-hidden />
             {STATUS_LABEL[s]}
-            <ChipCount value={requests.filter((r) => r.status === s).length} active={tab === s} />
+            <ChipCount value={matches.filter((r) => r.status === s).length} active={tab === s} />
           </Chip>
           )
         })}
       </ChipRow>
 
-      {visible.length === 0 ? (
+      {visible.length === 0 && elsewhere ? (
+        <EmptyState icon={ClipboardList} title={`لا نتيجة في «${STATUS_LABEL[tab]}»`}
+          body={`بهذا العنوان في حالات أخرى: ${counted(matches.length, 'request')}.`}
+          action={<Chip onClick={() => setTab(elsewhere)}>اعرض «{STATUS_LABEL[elsewhere]}» ({numberFormat.format(matches.filter((r) => r.status === elsewhere).length)})</Chip>} />
+      ) : visible.length === 0 ? (
         <EmptyState icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
           body={q ? 'لا طلب بهذا العنوان هنا. جرّب حالة أخرى أو كلمة أقصر.' : 'اختر منشآت من الخريطة ثم «جهّز قائمة» أو «طلب تسعير»، فتظهر طلباتك هنا للمراجعة قبل أي إرسال.'}
           action={<Button size="sm" nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
