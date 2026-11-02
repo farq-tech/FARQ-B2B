@@ -17,10 +17,15 @@ import { cn } from '@/lib/utils'
 import { StatusBadge, TypeLabel } from './request-badges'
 
 const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'awaiting', 'completed']
+// where a person's next step is: a decision first, then what is ready to send, then drafts to finish
+const ATTENTION: RequestStatus[] = ['needs_decision', 'ready_manual', 'draft', 'awaiting', 'completed']
 
 export function RequestsListView() {
   const { requests, inbox } = useAppStore()
-  const [tab, setTab] = useState<RequestStatus>('draft')
+  // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
+  // from this device after the first paint, so this is derived, not set once)
+  const [chosen, setTab] = useState<RequestStatus | null>(null)
+  const tab = chosen ?? ATTENTION.find((s) => requests.some((r) => r.status === s)) ?? 'draft'
   const [q, setQ] = useState('')
 
   const nq = normalizeArabic(q)
