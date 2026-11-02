@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
-import { isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { counted, numberFormat, percent, postMarket } from '@/lib/insights-api'
+import { isPublishable, priceLine, sar, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { ListingCard } from '../listing-card'
 import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
@@ -13,6 +13,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import type { Overlay } from './overlay'
+import { StreetOpportunities } from './street-opportunities'
 
 type Activity = { main_id: string; main_ar: string }
 type Corridor = {
@@ -23,7 +24,10 @@ type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineStr
 
 /** A commercial unit on the picked street, with its distance to the street's line. */
 type Unit = Listing & { distance_m?: number }
-type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Unit[] }
+type RentLevel = { units: number; median_annual_sar: number | null; per_sqm_units: number; median_annual_sar_per_sqm: number | null }
+/** The street's asking rent against the units around it (insights.rent_summary); absent from an older service. */
+type RentSummary = { street: RentLevel; around: RentLevel; around_m: number; min_units: number; vs_around_pct: { annual: number | null; per_sqm: number | null } }
+type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Unit[]; rent?: RentSummary }
 // shops, showrooms and offices within this distance of the corridor's own line (insights.COMMERCIAL_TYPES)
 const UNIT_TYPES = ['store', 'showroom', 'office']
 const UNIT_METERS = 60
@@ -59,6 +63,8 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   const [units, setUnits] = useState<Units | null>(null)
   const [unit, setUnit] = useState<Unit | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
+  // «أين يتجمع» lists the streets the activity lines; «أين الفرصة» the busy streets that lack it (street-opportunities.tsx)
+  const [mode, setMode] = useState<'cluster' | 'gap'>('cluster')
 
   useEffect(() => {
     postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
@@ -94,19 +100,22 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     if (!picked) { setUnits(null); return }
     let live = true
     setUnits({ status: 'loading', available: true, total: 0, listings: [] })
-    postMarket<{ available?: boolean; total?: number; listings?: Unit[] }>('real-estate-listings', {
+    postMarket<{ available?: boolean; total?: number; listings?: Unit[]; rent_summary?: RentSummary }>('real-estate-listings', {
       city, types: UNIT_TYPES, near: { geometry: picked.geometry, meters: UNIT_METERS }, limit: 200,
     })
       .then((data) => {
         if (!live) return
         const listings = (data.listings ?? []).filter(isPublishable)
-        setUnits({ status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings })
+        setUnits({ status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings, rent: data.rent_summary })
       })
       .catch(() => { if (live) setUnits({ status: 'error', available: true, total: 0, listings: [] }) })
     return () => { live = false }
   }, [city, picked])
 
+  const clusters = useMemo(() => corridors.map((item) => ({ geometry: item.geometry, street_ar: item.properties.street_ar })), [corridors])
+
   useEffect(() => {
+    if (mode === 'gap') return
     // the strongest corridors are drawn last, so they sit on top where streets cross
     const streets = corridors
       .map((item, index) => ({ id: String(index), color: colors[index], geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
@@ -120,7 +129,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       focus,
       popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
     })
-  }, [corridors, colors, active, onOverlay, units, unit, focus])
+  }, [mode, corridors, colors, active, onOverlay, units, unit, focus])
 
   // a corridor picked on the map comes into view in the list
   useEffect(() => {
@@ -146,10 +155,17 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
           <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
         ))}
       </div>
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
-      {status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
-      {status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
-      {corridors.length > 0 && (
+      <div className="grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="طريقة العرض">
+        {([['cluster', 'أين يتجمع'], ['gap', 'أين الفرصة']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setMode(key)} aria-pressed={mode === key}
+            className={cn('h-10 rounded-md text-base font-semibold', mode === key ? 'bg-primary text-primary-foreground' : 'hover:text-primary')}>{label}</button>
+        ))}
+      </div>
+      {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
+      {mode === 'cluster' && status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
+      {mode === 'cluster' && status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
+      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
+      {mode === 'cluster' && corridors.length > 0 && (
         <>
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
@@ -192,6 +208,7 @@ function StreetUnits({ street, units, onOpen }: { street: string; units: Units; 
       {units.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر جلب الوحدات المعروضة.</p>}
       {units.status === 'ready' && !units.available && <p className="text-sm text-muted-foreground">غير متاح</p>}
       {units.status === 'ready' && units.available && !units.total && <p className="text-sm text-muted-foreground">لا توجد وحدات معروضة الآن على هذا الشارع</p>}
+      {units.status === 'ready' && units.available && units.rent && <StreetRent street={street} rent={units.rent} />}
       {units.status === 'ready' && units.total > 0 && (
         <ul className="divide-y text-sm">
           {units.listings.slice(0, UNITS_SHOWN).map((item) => (
@@ -210,6 +227,55 @@ function StreetUnits({ street, units, onOpen }: { street: string; units: Units; 
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/** «أعلى من محيطه بـ 12%» / «أقل …» / «قريب من محيطه», or null without both medians. */
+function versusAround(pct: number | null): string | null {
+  if (pct == null) return null
+  if (Math.abs(pct) < 5) return 'قريب من محيطه'
+  return `${pct > 0 ? 'أعلى' : 'أقل'} من محيطه بـ ${percent(Math.abs(pct))}`
+}
+
+/** «مستوى الإيجار على هذا الشارع»: the median asking rent a year, and per m², on the street and around it. */
+function StreetRent({ street, rent }: { street: string; rent: RentSummary }) {
+  const rows = [
+    { label: 'الإيجار السنوي', here: rent.street.median_annual_sar, there: rent.around.median_annual_sar, pct: rent.vs_around_pct.annual,
+      n: rent.street.units, m: rent.around.units },
+    { label: 'سعر المتر سنوياً', here: rent.street.median_annual_sar_per_sqm, there: rent.around.median_annual_sar_per_sqm, pct: rent.vs_around_pct.per_sqm,
+      n: rent.street.per_sqm_units, m: rent.around.per_sqm_units },
+  ]
+  const value = (figure: number | null, count: number) => (
+    <span className="block">
+      <span className="block font-semibold">{figure == null ? 'غير متاح' : sar(figure)}</span>
+      <span className="block text-xs text-muted-foreground">{count ? counted(count, 'listing') : 'لا عروض'}</span>
+    </span>
+  )
+  return (
+    <div className="flex flex-col gap-1.5 border-b pb-2">
+      <Explained title={`مستوى الإيجار على ${street}`} lines={EXPLAIN.streetRent} className="text-base font-semibold">مستوى الإيجار على هذا الشارع</Explained>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-start font-normal" />
+            <th className="py-1 text-start font-normal">هذا الشارع</th>
+            <th className="py-1 text-start font-normal">المحيط ({numberFormat.format(rent.around_m)} م)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label} className="align-top">
+              <td className="py-1 pe-2">{row.label}</td>
+              <td className="py-1 pe-2">{value(row.here, row.n)}</td>
+              <td className="py-1">{value(row.there, row.m)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.map((row) => versusAround(row.pct) && (
+        <p key={row.label} className="text-sm font-medium text-primary">{row.label}: {versusAround(row.pct)}</p>
+      ))}
     </div>
   )
 }
