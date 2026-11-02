@@ -67,7 +67,10 @@ export function useCities(): City[] {
       .then((rows: City[]) => {
         if (!Array.isArray(rows)) return
         const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
-        if (mapped.length) setCities(mapped)
+        // one entry per city, in the service's order: a list that came back doubled must not offer a city twice
+        const seen = new Set<string>()
+        const unique = mapped.filter((row) => typeof row.en === 'string' && !seen.has(row.en) && seen.add(row.en))
+        if (unique.length) setCities(unique)
       })
       .catch(() => undefined)
   }, [])

@@ -532,6 +532,9 @@ def cities():
         with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
             districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
         with LOCK:
+            # checked again under the lock: two first requests at once used to both fill the list, so every city
+            # came back twice (seen live on 2026-11-02: 148 rows for 74 cities)
+            if _CITIES: return _CITIES
             _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall())
     return _CITIES
 
