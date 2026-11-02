@@ -75,10 +75,12 @@ export function HomesPage() {
   const data = useCityData(city)
 
   // a type the deal does not offer (land for rent) falls back to a flat; a new city or deal starts its own ranges
+  // keyed by the types' ids (typesKey), not the array, so a new array with the same types does not re-run it
   useEffect(() => {
     const kept = types.filter((id) => LISTING_TYPES.find((item) => item.id === id)?.kinds.includes(kind))
     if (kept.length !== types.length) change({ types: kept.length ? kept : ['apartment'] })
-  }, [kind, types, change])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, typesKey, change])
   useEffect(() => { setFilters((current) => (current.minPrice == null && current.maxPrice == null ? current : { ...current, minPrice: null, maxPrice: null })) }, [deal])
   useEffect(() => { setFilters((current) => (current.districts.length ? { ...current, districts: [] } : current)) }, [city])
 

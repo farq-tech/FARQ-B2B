@@ -112,14 +112,17 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     requestAnimationFrame(fit)
   }
 
+  // the latest onClose through a ref: callers pass a fresh arrow each render, which re-bound this on every render
+  const close = useRef(onClose)
+  close.current = onClose
   useEffect(() => {
     if (!phone || folded) return
-    const key = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const key = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') close.current() }
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', key)
     return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', key) }
-  }, [phone, folded, onClose])
+  }, [phone, folded])
 
   if (phone) {
     return createPortal(folded ? (

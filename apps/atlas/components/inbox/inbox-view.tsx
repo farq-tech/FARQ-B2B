@@ -72,11 +72,14 @@ export function InboxView() {
 
   // Mark read only when a message is first opened, so a manual "mark unread" isn't immediately undone.
   const lastOpened = useRef<string | null>(null)
+  // keyed by the message's id and read flag, not the message object (a new object on every store change)
+  const selectedUnread = selected?.unread ?? false
   useEffect(() => {
-    if (!selected || lastOpened.current === selected.id) return
-    lastOpened.current = selected.id
-    if (selected.unread) markRead(selected.id)
-  }, [selected, markRead])
+    if (!selectedId || !selected || lastOpened.current === selectedId) return
+    lastOpened.current = selectedId
+    if (selectedUnread) markRead(selectedId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `selected` is read for presence only; its id is the key
+  }, [selectedId, Boolean(selected), selectedUnread, markRead])
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6 pb-24 lg:py-8 lg:pb-8">
