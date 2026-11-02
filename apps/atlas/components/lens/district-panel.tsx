@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
@@ -22,6 +22,16 @@ type Profile = {
 // sale first, then each rent period on its own line
 const DEAL_ORDER = ['sale_', 'rent_year_', 'rent_month_']
 const dealRank = (key: string) => DEAL_ORDER.findIndex((prefix) => key.startsWith(prefix))
+
+type FigureKey = 'population' | 'businesses' | 'perBusiness' | 'unmet' | 'restaurants' | 'sex' | 'saudi' | 'menuPrice' | 'villaShare' | 'income' | 'growth' | 'topAge'
+/** The figures each group decides on, first in its summary (its map metrics, then its secondary cards). */
+const LEAD: Record<LensId, FigureKey[]> = {
+  shops: ['perBusiness', 'unmet', 'population', 'businesses', 'saudi'],
+  marketers: ['population', 'income', 'villaShare', 'sex', 'topAge'],
+  distributors: ['businesses', 'growth', 'population'],
+  analysts: ['population', 'businesses', 'perBusiness'],
+  property: ['income', 'villaShare', 'growth', 'population'],
+}
 
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
@@ -70,6 +80,49 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const title = single ? single.name : selected.length ? counted(selected.length, 'district') : cityName
   const scopeKind = single ? 'district' : selected.length ? 'districts' : 'city'
 
+  // one district's rate is its golden row's (the service works it out); several districts or the city add up first
+  const perBusiness = single ? single.residentsPerBusiness : people != null && businesses ? people / businesses : null
+  const figures: [FigureKey, ReactNode | false][] = [
+    ['population', <Figure label="السكان" value={show(people)} explain={EXPLAIN.population(scope.map((row) => row.populationSource), people)} />],
+    ['businesses', <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />],
+    ['perBusiness', lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={show(perBusiness)} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />],
+    ['unmet', single && <Figure label="بحث بلا نتيجة" value={single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : 'غير متاح'} explain={EXPLAIN.unmet(single.searches, single.unmetSearches)} />],
+    ['restaurants', <Figure label="مطاعم على تطبيقات التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />],
+    ['sex', single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />],
+    ['saudi', single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />],
+    ['menuPrice', single && <Figure label="سعر الصنف المعتاد" value={show(single.menuPrice, ' ر.س')} explain={EXPLAIN.menuPrice(single.menuPricePlaces)} />],
+    ['villaShare', single && lens !== 'distributors' && <Figure label="حصة الفلل من المساكن" value={single.villaShare == null ? 'غير متاح' : `${Math.round(single.villaShare)}%`} explain={EXPLAIN.villaShare} />],
+    ['income', single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(single.income, ' ر.س')} explain={EXPLAIN.income} />],
+    ['growth', single && lens !== 'marketers' && (
+      <Figure label="مبانٍ جديدة وتحت الإنشاء"
+        value={single.underConstruction != null && single.newBuildings != null ? show(single.underConstruction + single.newBuildings) : 'غير متاح'}
+        explain={EXPLAIN.growth(single.underConstruction, single.newBuildings)} />
+    )],
+    ['topAge', single && lens === 'marketers' && <Figure label="أكبر شريحة عمرية" value={topAge ? topAge.age_group : 'غير متاح'} explain={EXPLAIN.topAge} />],
+  ]
+  // the group's own decision figures lead (docs/atlas-product-foundation.md §3); the rest keep their order after them
+  const lead = LEAD[lens]
+  const rank = (key: FigureKey) => { const at = lead.indexOf(key); return at < 0 ? lead.length : at }
+  const ordered = figures.filter((entry): entry is [FigureKey, ReactNode] => Boolean(entry[1]))
+    .map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry[0]) - rank(b.entry[0]) || a.index - b.index).map(({ entry }) => entry)
+  // a property seeker reads prices before searches; everyone else the other way round
+  const pricesFirst = lens === 'property'
+
+  const unmetBlock = (
+    <>
+      {single && single.unmetTerms.length > 0 && (
+        <div className="mt-4">
+          <Explained title="يبحثون عنه ولا يجدونه" lines={EXPLAIN.unmet(single.searches, single.unmetSearches)} className="mb-1 text-sm font-semibold text-muted-foreground">يبحثون عنه ولا يجدونه</Explained>
+          <ul className="space-y-1.5 text-base">
+            {single.unmetTerms.map((row) => (
+              <li key={row.term} className="flex justify-between"><span>{row.term}</span><span className="font-semibold">{numberFormat.format(row.unmet)} من {numberFormat.format(row.searches)}</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <section aria-label="الملخص" className="rounded-2xl border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
@@ -81,22 +134,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         )}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Figure label="السكان" value={show(people)} explain={EXPLAIN.population(scope.map((row) => row.populationSource), people)} />
-        <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />
-        {lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={people != null && businesses ? show(people / businesses) : 'غير متاح'} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />}
-        {single && <Figure label="بحث بلا نتيجة" value={single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : 'غير متاح'} explain={EXPLAIN.unmet(single.searches, single.unmetSearches)} />}
-        <Figure label="مطاعم على تطبيقات التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />
-        {single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />}
-        {single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />}
-        {single && <Figure label="سعر الصنف المعتاد" value={show(single.menuPrice, ' ر.س')} explain={EXPLAIN.menuPrice(single.menuPricePlaces)} />}
-        {single && lens !== 'distributors' && <Figure label="حصة الفلل من المساكن" value={single.villaShare == null ? 'غير متاح' : `${Math.round(single.villaShare)}%`} explain={EXPLAIN.villaShare} />}
-        {single && lens !== 'distributors' && <Figure label="متوسط الدخل" value={show(single.income, ' ر.س')} explain={EXPLAIN.income} />}
-        {single && lens !== 'marketers' && (
-          <Figure label="مبانٍ جديدة وتحت الإنشاء"
-            value={single.underConstruction != null && single.newBuildings != null ? show(single.underConstruction + single.newBuildings) : 'غير متاح'}
-            explain={EXPLAIN.growth(single.underConstruction, single.newBuildings)} />
-        )}
-        {single && lens === 'marketers' && <Figure label="أكبر شريحة عمرية" value={topAge ? topAge.age_group : 'غير متاح'} explain={EXPLAIN.topAge} />}
+        {ordered.map(([key, figure]) => <div key={key} className="contents">{figure}</div>)}
       </div>
       {selected.length > 1 && (
         <ul className="mt-3 divide-y text-base">
@@ -108,16 +146,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           ))}
         </ul>
       )}
-      {single && single.unmetTerms.length > 0 && (
-        <div className="mt-4">
-          <Explained title="يبحثون عنه ولا يجدونه" lines={EXPLAIN.unmet(single.searches, single.unmetSearches)} className="mb-1 text-sm font-semibold text-muted-foreground">يبحثون عنه ولا يجدونه</Explained>
-          <ul className="space-y-1.5 text-base">
-            {single.unmetTerms.map((row) => (
-              <li key={row.term} className="flex justify-between"><span>{row.term}</span><span className="font-semibold">{numberFormat.format(row.unmet)} من {numberFormat.format(row.searches)}</span></li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {!pricesFirst && unmetBlock}
       {single && (
         <div className="mt-4">
           <Figure label="سعر متر البيع في الصفقات المسجلة" value={show(single.deals.residential?.median ?? null, ' ر.س')} explain={EXPLAIN.registeredDeals(single.deals.residential?.deals)} />
@@ -147,6 +176,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
           </ul>
         </div>
       )}
+      {pricesFirst && unmetBlock}
       {single && profile && profile.main_activities.length > 0 && (
         <div className="mt-4">
           <Explained title="أكثر الأنشطة" lines={EXPLAIN.activities} className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة</Explained>
