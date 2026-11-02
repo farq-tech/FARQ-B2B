@@ -87,6 +87,29 @@ function Ranking({ rows, metric, selected, onToggle, onHover, full }: {
   )
 }
 
+/** The city summary's shape while its tables load: four figure tiles, then the ranking's first rows. */
+function SummarySkeleton({ cityName }: { cityName: string }) {
+  return (
+    <div role="status" aria-label={`جارٍ تحميل أرقام ${cityName}`} className="flex flex-col gap-3">
+      <section className="rounded-2xl border bg-card p-4">
+        <p className="text-xl font-bold">{cityName}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2" aria-hidden>
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="flex flex-col gap-2 rounded-xl bg-muted/40 px-3 py-2.5">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-6 w-24" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="rounded-2xl border bg-card p-4" aria-hidden>
+        <Skeleton className="h-5 w-32" />
+        <div className="mt-3 flex flex-col gap-3">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-5 w-full" />)}</div>
+      </section>
+    </div>
+  )
+}
+
 /** A native select dressed as a chip, for the phone's floating row. */
 function ChipSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: [string, string][] }) {
   return (
@@ -528,13 +551,16 @@ export function LensMap() {
                   {tool === 'businesses' && !selected.length && (
                     <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو من ترتيب «أين جمهوري؟»، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}
-                  {(tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
+                  {/* while the city's tables load, the summary keeps its shape: its tiles said «غير متاح» and the ranking
+                      stood empty, as if the city had no figures at all */}
+                  {data.status === 'loading' && (tool === 'district' || tool === 'growth') && <SummarySkeleton cityName={cityName} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <div id="picked-summary" className="scroll-mt-2">
                       <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
                     </div>
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
-                  {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} />}
                 </>
               )}
             </>
