@@ -87,13 +87,29 @@ class TradeCorridorTest(unittest.TestCase):
             self.assertEqual((n, nw), (6, 1))
 
 
+class KidsGroupCorridorTest(unittest.TestCase):
+    def test_kids_trades_on_one_street_also_make_one_group_corridor(self):
+        subs = btc.with_groups({**SUBS,
+                                'retail.baby': {'sub_ar': 'مستلزمات أطفال', 'main_id': 'retail', 'main_ar': 'تجزئة'},
+                                'fashion.kids': {'sub_ar': 'ملابس أطفال', 'main_id': 'fashion', 'main_ar': 'أزياء'},
+                                'retail.toys': {'sub_ar': 'ألعاب أطفال', 'main_id': 'retail', 'main_ar': 'تجزئة'}})
+        segments = [('شارع الأطفال', 'main', False, [(LON, LAT), (LON + 600 * M, LAT)])]
+        rows = [shop('الملز', sub, 50 + 100 * i, 5) for i, sub in enumerate(['retail.baby', 'retail.baby', 'fashion.kids', 'fashion.kids', 'retail.toys', 'retail.toys'])]
+        found, _ = btc.city_corridors('Riyadh', rows, segments, subs)
+        by_sub = {r['sub_id']: r for r in found}
+        self.assertEqual(set(by_sub), {'group.kids'})   # each trade alone has 2 shops, under the 5 a corridor needs
+        self.assertEqual(by_sub['group.kids']['n'], 6)
+        self.assertEqual(by_sub['group.kids']['sub_ar'], 'أغراض الأطفال والمواليد')
+
+
 class CorridorActivityTest(unittest.TestCase):
     class Taxonomy:
         subs = {'auto.workshop': {}, 'beauty.barber': {}, 'equip.workshop_equipment': {}}
-        named = {'ورش سيارات': ['auto.workshop'], 'حلاق': ['beauty.barber']}
+        named = {'ورش سيارات': (['auto.workshop'], 20.0), 'حلاق': (['beauty.barber'], 10.0),
+                 'ملابس اطفال': (['fashion.kids'], 20.1), 'اطفال': (['beauty.barber'], 10.0)}
 
         def subs_in(self, q):
-            return self.named.get(q, []), 10.0
+            return self.named.get(q, ([], 0))
 
         def understand(self, q, objective):
             # the commercial resolver reads «ورش» as equipment to buy
@@ -103,6 +119,13 @@ class CorridorActivityTest(unittest.TestCase):
         tx = self.Taxonomy()
         self.assertEqual(market_analytics.corridor_subs(tx, 'ورش سيارات'), ['auto.workshop'])
         self.assertEqual(market_analytics.corridor_subs(tx, 'حلاق'), ['beauty.barber'])
+
+    def test_kids_words_ask_for_the_kids_group_unless_a_kids_trade_is_named(self):
+        tx = self.Taxonomy()
+        tx.subs = {**tx.subs, 'fashion.kids': {}}
+        self.assertEqual(market_analytics.corridor_subs(tx, 'أغراض مواليد'), ['group.kids'])
+        self.assertEqual(market_analytics.corridor_subs(tx, 'اطفال'), ['group.kids'])        # not barbers
+        self.assertEqual(market_analytics.corridor_subs(tx, 'ملابس اطفال'), ['fashion.kids'])
 
     def test_no_named_trade_or_a_seller_falls_back_to_the_resolver(self):
         tx = self.Taxonomy()

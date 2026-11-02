@@ -18,7 +18,7 @@ type Corridor = {
 }
 type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; properties: Corridor }[]; basis?: string; /** false when the service could not read the activity typed. */ understood?: boolean }
 
-const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار سيارات', 'صالون حلاقة', 'خياطة', 'مفروشات']
+const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار سيارات', 'صالون حلاقة', 'خياطة', 'مفروشات', 'أغراض مواليد']
 // more shops on the street reads as a deeper colour, in five even groups of the corridors shown
 const HEAT = OCHRE_STEPS
 const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي', secondary: 'شارع فرعي' }

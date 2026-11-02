@@ -34,6 +34,7 @@ import numpy as np
 import shapely
 
 import status_policy
+from activity_groups import groups_of, with_groups
 
 SNAP_M = 40          # a business further than this from any road is not on a street
 JOIN_M = 60          # segments of one street with the activity, closer than this, are one corridor
@@ -164,10 +165,16 @@ def city_corridors(city, rows, segments, subs):
     on_street = [(i, int(s)) for i, s in enumerate(seg_of.tolist()) if s >= 0 and names[s]]
     city_all = collections.Counter(rows[i][1] for i, _ in on_street)
     total_all = sum(city_all.values())
+    for sub, count in list(city_all.items()):
+        for gid in groups_of(sub):
+            city_all[gid] += count
     seg_all = collections.Counter(s for _, s in on_street)
     by_street_sub = collections.defaultdict(lambda: collections.defaultdict(list))
     for i, s in on_street:
         by_street_sub[(names[s], rows[i][1])][s].append(i)
+        # a group («أغراض الأطفال والمواليد») is one more activity: its trades' shops line one corridor together
+        for gid in groups_of(rows[i][1]):
+            by_street_sub[(names[s], gid)][s].append(i)
 
     out = []
     for (name, sub), seg_rows in by_street_sub.items():
@@ -245,7 +252,7 @@ def main(argv=None):
     by_city = businesses(con, a.data / 'targets.parquet')
     if a.cities:
         by_city = {c: r for c, r in by_city.items() if c in a.cities}
-    subs = taxonomy(a.data / 'taxonomy' / 'farq_taxonomy.json')
+    subs = with_groups(taxonomy(a.data / 'taxonomy' / 'farq_taxonomy.json'))
     roads = read_roads(a.roads, city_boxes(by_city), a.cache)
     rows, report = [], {}
     for city, segments in sorted(roads.items(), key=lambda kv: -len(kv[1])):
