@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
-import { NEXT_STEP, formatDate, formatDateTime } from '@/lib/format'
+import { formatDate, formatDateTime, nextStep, statusLabel } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
@@ -120,8 +120,8 @@ export function RequestDetailView({ id }: { id: string }) {
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال عبر واتساب' : undefined} />
-          {NEXT_STEP[request.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[request.status]}</p>}
+          <StatusBadge status={request.status} label={statusLabel(request.status, request.type)} />
+          {nextStep(request.status, request.type) && <p className="text-sm font-medium text-primary">الخطوة التالية: {nextStep(request.status, request.type)}</p>}
         </div>
       </header>
 
