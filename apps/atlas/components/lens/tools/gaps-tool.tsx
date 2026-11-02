@@ -66,6 +66,9 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   useEffect(() => {
     if (!result) { onOverlay({}); return }
     if (noPeople && result.residents_per_business == null) { onOverlay({ summary: 'سكان الأحياء غير متاحين هنا، فالنقص لا يُحسب' }); return }
+    // no city rate, no shortfall anywhere: the map keeps its own shading instead of a blank city under «نقص …» while
+    // the panel says there is not enough data
+    if (result.residents_per_business == null) { onOverlay({ summary: `لا توجد بيانات كافية لـ«${label}»` }); return }
     const ids = new Map(rows.map((row) => [row.name, row.id]))
     const short = result.districts.filter((row) => row.shortfall > 0)
     const largest = Math.max(1, ...short.map((row) => row.shortfall))
