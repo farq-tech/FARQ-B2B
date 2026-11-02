@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
-import { isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { counted, numberFormat, percent, postMarket } from '@/lib/insights-api'
+import { isPublishable, priceLine, sar, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { ListingCard } from '../listing-card'
 import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
@@ -24,7 +24,10 @@ type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineStr
 
 /** A commercial unit on the picked street, with its distance to the street's line. */
 type Unit = Listing & { distance_m?: number }
-type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Unit[] }
+type RentLevel = { units: number; median_annual_sar: number | null; per_sqm_units: number; median_annual_sar_per_sqm: number | null }
+/** The street's asking rent against the units around it (insights.rent_summary); absent from an older service. */
+type RentSummary = { street: RentLevel; around: RentLevel; around_m: number; min_units: number; vs_around_pct: { annual: number | null; per_sqm: number | null } }
+type Units = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number; listings: Unit[]; rent?: RentSummary }
 // shops, showrooms and offices within this distance of the corridor's own line (insights.COMMERCIAL_TYPES)
 const UNIT_TYPES = ['store', 'showroom', 'office']
 const UNIT_METERS = 60
@@ -97,13 +100,13 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     if (!picked) { setUnits(null); return }
     let live = true
     setUnits({ status: 'loading', available: true, total: 0, listings: [] })
-    postMarket<{ available?: boolean; total?: number; listings?: Unit[] }>('real-estate-listings', {
+    postMarket<{ available?: boolean; total?: number; listings?: Unit[]; rent_summary?: RentSummary }>('real-estate-listings', {
       city, types: UNIT_TYPES, near: { geometry: picked.geometry, meters: UNIT_METERS }, limit: 200,
     })
       .then((data) => {
         if (!live) return
         const listings = (data.listings ?? []).filter(isPublishable)
-        setUnits({ status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings })
+        setUnits({ status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings, rent: data.rent_summary })
       })
       .catch(() => { if (live) setUnits({ status: 'error', available: true, total: 0, listings: [] }) })
     return () => { live = false }
@@ -205,6 +208,7 @@ function StreetUnits({ street, units, onOpen }: { street: string; units: Units; 
       {units.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر جلب الوحدات المعروضة.</p>}
       {units.status === 'ready' && !units.available && <p className="text-sm text-muted-foreground">غير متاح</p>}
       {units.status === 'ready' && units.available && !units.total && <p className="text-sm text-muted-foreground">لا توجد وحدات معروضة الآن على هذا الشارع</p>}
+      {units.status === 'ready' && units.available && units.rent && <StreetRent street={street} rent={units.rent} />}
       {units.status === 'ready' && units.total > 0 && (
         <ul className="divide-y text-sm">
           {units.listings.slice(0, UNITS_SHOWN).map((item) => (
@@ -223,6 +227,55 @@ function StreetUnits({ street, units, onOpen }: { street: string; units: Units; 
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/** «أعلى من محيطه بـ 12%» / «أقل …» / «قريب من محيطه», or null without both medians. */
+function versusAround(pct: number | null): string | null {
+  if (pct == null) return null
+  if (Math.abs(pct) < 5) return 'قريب من محيطه'
+  return `${pct > 0 ? 'أعلى' : 'أقل'} من محيطه بـ ${percent(Math.abs(pct))}`
+}
+
+/** «مستوى الإيجار على هذا الشارع»: the median asking rent a year, and per m², on the street and around it. */
+function StreetRent({ street, rent }: { street: string; rent: RentSummary }) {
+  const rows = [
+    { label: 'الإيجار السنوي', here: rent.street.median_annual_sar, there: rent.around.median_annual_sar, pct: rent.vs_around_pct.annual,
+      n: rent.street.units, m: rent.around.units },
+    { label: 'سعر المتر سنوياً', here: rent.street.median_annual_sar_per_sqm, there: rent.around.median_annual_sar_per_sqm, pct: rent.vs_around_pct.per_sqm,
+      n: rent.street.per_sqm_units, m: rent.around.per_sqm_units },
+  ]
+  const value = (figure: number | null, count: number) => (
+    <span className="block">
+      <span className="block font-semibold">{figure == null ? 'غير متاح' : sar(figure)}</span>
+      <span className="block text-xs text-muted-foreground">{count ? counted(count, 'listing') : 'لا عروض'}</span>
+    </span>
+  )
+  return (
+    <div className="flex flex-col gap-1.5 border-b pb-2">
+      <Explained title={`مستوى الإيجار على ${street}`} lines={EXPLAIN.streetRent} className="text-base font-semibold">مستوى الإيجار على هذا الشارع</Explained>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-start font-normal" />
+            <th className="py-1 text-start font-normal">هذا الشارع</th>
+            <th className="py-1 text-start font-normal">المحيط ({numberFormat.format(rent.around_m)} م)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label} className="align-top">
+              <td className="py-1 pe-2">{row.label}</td>
+              <td className="py-1 pe-2">{value(row.here, row.n)}</td>
+              <td className="py-1">{value(row.there, row.m)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.map((row) => versusAround(row.pct) && (
+        <p key={row.label} className="text-sm font-medium text-primary">{row.label}: {versusAround(row.pct)}</p>
+      ))}
     </div>
   )
 }
