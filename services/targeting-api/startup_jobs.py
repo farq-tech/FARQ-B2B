@@ -344,6 +344,29 @@ def _poi_standard(data_dir, aux_dir=None):
     _review('poi_standard', standard_review, out_dir / 'review_sample.csv', f'reviews/poi_standard_{job.VERSION}.csv')
 
 
+def _duplicate_review(data_dir, aux_dir=None):
+    """Class C duplicate review on the published release (duplicate_review.build): grades only, never a merge. Logs
+    the counts and puts the samples and the audit in the bucket under reviews/. Skipped when the release is unchanged."""
+    import duplicate_review as job
+    data_dir, aux_dir = Path(data_dir), Path(aux_dir or data_dir)
+    targets, out_dir = data_dir / 'targets.parquet', aux_dir / 'duplicate_review'
+    if not targets.is_file():
+        LOGGER.error('startup_job_skipped job=duplicate_review missing_input=targets')
+        return
+    marker, signature = out_dir / 'signature.json', _signature(job.VERSION, {'targets': targets})
+    try:
+        if json.loads(marker.read_text(encoding='utf-8')) == signature:
+            LOGGER.info('startup_job_skipped job=duplicate_review reason=inputs_unchanged source=%s', job.VERSION)
+            return
+    except (OSError, ValueError):
+        pass
+    report = job.build(targets, out_dir)
+    marker.write_text(json.dumps(signature), encoding='utf-8')
+    LOGGER.info('duplicate_review_done %s', json.dumps(report, ensure_ascii=False))   # counts only
+    for name in ('sample_remaining.csv', 'sample_excluded.csv', 'duplicate_review_c_audit.parquet', 'duplicate_review_c.report.json'):
+        _review('duplicate_review', lambda path: None, out_dir / name, f'reviews/{job.VERSION}/{name}')
+
+
 def _run(name, target, *args):
     try:
         LOGGER.info('startup_job_started job=%s', name)
@@ -364,6 +387,9 @@ def start(data_dir, aux_dir=None):
     if os.environ.get('FARQ_CLASSIFICATION_MERGED_OBJECT', '').strip() or _enabled('FARQ_AI_CLASSIFY_EVIDENCE'):
         threading.Thread(target=_run, args=('classification_layer', _classification_layer, data_dir, aux_dir), daemon=True, name='job-classification-layer').start()
         started.append('classification_layer')
+    if _enabled('FARQ_DUPLICATE_REVIEW'):
+        threading.Thread(target=_run, args=('duplicate_review', _duplicate_review, data_dir, aux_dir), daemon=True, name='job-duplicate-review').start()
+        started.append('duplicate_review')
     if _enabled('FARQ_POI_STANDARD'):
         threading.Thread(target=_run, args=('poi_standard', _poi_standard, data_dir, aux_dir), daemon=True, name='job-poi-standard').start()
         started.append('poi_standard')
