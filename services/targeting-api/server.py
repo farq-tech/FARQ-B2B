@@ -1302,7 +1302,7 @@ class H(BaseHTTPRequestHandler):
                     'districts_ar': [x for x in (ds or dist or '').split('|') if x],
                     'label_ar': f'{st} — {n} محل {sar or ""} على {L} م'}} for sid, sar, mid, mar, st, dist, n, nw, L, d, lf, g, rc, ds in rows],
                     'specialty_available': True, 'sub_ids': subs[:20],
-                    'basis': 'كل منشأة على أقرب شارع لها (حتى 40 م)؛ الممر مقاطع الشارع نفسه التي فيها النشاط، والكثافة عدد المحلات لكل 100 م'})
+                    'basis': 'كل منشأة على أقرب شارع مسمّى لها (حتى 60 م)؛ الممر مقاطع الشارع نفسه التي فيها النشاط، والكثافة عدد المحلات لكل 100 م'})
             except Exception as error:
                 log_map_api_failure('street-density', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)

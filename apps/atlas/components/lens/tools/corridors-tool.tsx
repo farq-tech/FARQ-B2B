@@ -27,7 +27,7 @@ const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي'
 function explain(corridor: Corridor): string[] {
   const lines = [
     `${counted(corridor.n, 'business')} من «${corridor.sub_ar}» على ${numberFormat.format(corridor.length_m)} م من الشارع: ${numberFormat.format(corridor.per_100m)} لكل 100 م.`,
-    'كل منشأة على أقرب شارع لها حتى 40 م، والممر مقاطع الشارع نفسه التي فيها النشاط، متصلة ولو عبرت أكثر من حي.',
+    'كل منشأة على أقرب شارع مسمّى لها حتى 60 م، والممر مقاطع الشارع نفسه التي فيها النشاط، متصلة ولو عبرت أكثر من حي.',
   ]
   if (corridor.lift != null) lines.push(`حصة النشاط بين منشآت هذا الممر ${numberFormat.format(corridor.lift)} ضعف حصته في المدينة.`)
   if (corridor.n_wholesale) lines.push(`منها ${counted(corridor.n_wholesale, 'business')} جملة.`)
