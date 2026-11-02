@@ -8,6 +8,7 @@ import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estat
 import { cn } from '@/lib/utils'
 import { SkeletonStatus, Skeleton } from '@/components/ui/skeleton'
 import type { DistrictRow } from './city-data'
+import { districtPairs, factsLine, figure, type Fact } from './advisor-facts'
 
 export type AdvisorSubject = { kind: 'listings'; listings: Listing[] } | { kind: 'districts'; rows: DistrictRow[] }
 type Turn = { role: 'user' | 'assistant'; content: string }
@@ -16,40 +17,30 @@ const WHO = ['عائلة بأطفال', 'زوجان', 'أعزب', 'شخص يعي
 const PRIORITIES = ['السعر الأقل', 'مساحة أكبر', 'حي هادئ قليل المحلات', 'خدمات ومحلات قريبة', 'حي عائلي (فلل أكثر)']
 const LETTERS = ['أ', 'ب']
 
-const figure = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
-
 /** A district's Atlas figures as one line for the advisor; a missing one stays «غير متاح». */
 function districtFacts(row: DistrictRow | undefined, name: string): string {
   if (!row) return `حي ${name}: لا أرقام له في أطلس.`
-  const median = (key: string) => figure(row.realEstate[key]?.median, ' ريال')
+  return `حي ${row.name} | ${factsLine(districtPairs(row))}`
+}
+
+/** A listing's figures as the ad states them, in the order the person sees them in the table. */
+function listingPairs(listing: Listing): Fact[] {
   return [
-    `حي ${row.name}`,
-    `السكان ${figure(row.population)}`,
-    `المنشآت ${figure(row.businesses)}`,
-    `ساكن لكل منشأة ${figure(row.residentsPerBusiness)}`,
-    `متوسط الدخل الشهري ${figure(row.income, ' ريال')}`,
-    `حصة الفلل من المساكن ${figure(row.villaShare, '%')}`,
-    `مبانٍ تحت الإنشاء ${figure(row.underConstruction)}`,
-    `وسيط إيجار السكن السنوي للمتر ${median('rent_year_residential')}`,
-    `وسيط إيجار السكن الشهري للمتر ${median('rent_month_residential')}`,
-    `وسيط سعر بيع السكن للمتر ${median('sale_residential')}`,
-    `وسيط إيجار المحل السنوي للمتر ${median('rent_year_commercial')}`,
-    `وسيط إيجار المحل للمتر (المدة غير مذكورة) ${median('rent_unstated_commercial')}`,
-    `وسيط سعر الأرض للمتر ${median('sale_land')}`,
-  ].join(' | ')
+    { label: 'السعر', value: priceLine(listing) },
+    { label: 'المساحة', value: listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : 'غير متاح' },
+    { label: 'سعر المتر', value: perSqmLine(listing) ?? 'غير متاح' },
+    { label: 'مقارنة بوسيط الحي', value: listing.vs_district_pct == null ? 'غير متاح' : ltr(`${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`) },
+    { label: 'غرف النوم', value: figure(listing.beds) },
+    { label: 'دورات المياه', value: figure(listing.wc) },
+    { label: 'عرض الشارع', value: figure(listing.street_width, ' م') },
+  ]
 }
 
 function listingFacts(listing: Listing, letter: string): string {
   return [
     `الخيار ${letter}: ${typeLabel(listing.type)} ${listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''} في ${listing.district_ar ? `حي ${listing.district_ar}` : 'حي غير محدد'}`,
-    priceLine(listing),
-    listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : 'المساحة غير مذكورة',
-    perSqmLine(listing) ?? 'سعر المتر غير متاح',
     ...(listing.check ? ['أرقام الإعلان تحتاج تحققاً'] : []),
-    `مقارنة بوسيط الحي ${listing.vs_district_pct == null ? 'غير متاح' : ltr(`${listing.vs_district_pct > 0 ? '+' : ''}${numberFormat.format(listing.vs_district_pct)}%`)}`,
-    `غرف النوم ${figure(listing.beds)}`,
-    `دورات المياه ${figure(listing.wc)}`,
-    `عرض الشارع ${figure(listing.street_width, ' م')}`,
+    factsLine(listingPairs(listing)),
   ].join(' | ')
 }
 
@@ -59,6 +50,45 @@ export function subjectFacts(subject: AdvisorSubject, rows: DistrictRow[]): stri
     listingFacts(listing, LETTERS[index]),
     districtFacts(rows.find((row) => row.id === listing.district_id), listing.district_ar ?? 'غير محدد'),
   ].join('\n')).join('\n\n')
+}
+
+/** The two options' figures side by side: the same facts the assistant is given, row by row. */
+function subjectTable(subject: AdvisorSubject, rows: DistrictRow[]): { heads: string[]; rows: { label: string; cells: string[] }[] } {
+  const columns: Fact[][] = subject.kind === 'districts'
+    ? subject.rows.map((row) => districtPairs(row))
+    : subject.listings.map((listing) => {
+      const district = rows.find((row) => row.id === listing.district_id)
+      return [...listingPairs(listing), ...(district ? districtPairs(district).map((fact) => ({ ...fact, label: `الحي: ${fact.label}` })) : [])]
+    })
+  const labels = [...new Set(columns.flat().map((fact) => fact.label))]
+  return {
+    // districts are named; listings keep the letters the title and the assistant use («أ: شقة في …»)
+    heads: subject.kind === 'districts' ? subject.rows.map((row) => row.name) : LETTERS.slice(0, columns.length),
+    rows: labels.map((label) => ({ label, cells: columns.map((column) => column.find((fact) => fact.label === label)?.value ?? 'غير متاح') })),
+  }
+}
+
+/** «الأرقام التي يقارن بها»: what the assistant was handed, folded, so any figure in its answer can be checked here. */
+function FactsTable({ subject, rows }: { subject: AdvisorSubject; rows: DistrictRow[] }) {
+  const table = subjectTable(subject, rows)
+  return (
+    <details className="rounded-xl border px-3 py-2 text-sm">
+      <summary className="cursor-pointer font-semibold">الأرقام التي يقارن بها</summary>
+      <table className="mt-2 w-full">
+        <thead>
+          <tr className="text-muted-foreground"><th className="py-1 text-start font-medium" />{table.heads.map((head) => <th key={head} className="py-1 text-center font-semibold">{head}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y">
+          {table.rows.map((row) => (
+            <tr key={row.label}>
+              <th scope="row" className="py-1.5 text-start font-normal text-muted-foreground">{row.label}</th>
+              {row.cells.map((cell, index) => <td key={index} className="py-1.5 text-center tabular-nums">{cell}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  )
 }
 
 const subjectTitle = (subject: AdvisorSubject) => (subject.kind === 'districts'
@@ -190,6 +220,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
           </form>
         </>
       )}
+      <FactsTable subject={subject} rows={rows} />
       {status === 'login' && <p className="text-base">لاستخدام المقارنة <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
       {status === 'error' && <p role="alert" className="text-base text-destructive">{message}</p>}
       <p className="text-sm text-muted-foreground">يقارن من أرقام أطلس فقط، ولا يقرر عنك.</p>
