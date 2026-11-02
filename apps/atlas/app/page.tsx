@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft, BadgeCheck, ChartNoAxesCombined, CheckCircle2, FileSearch, MapPinned, MessageSquareText, SearchCheck, ShieldCheck } from 'lucide-react'
+import { BrandMark } from '@/components/app-shell'
 import { AtlasGoalLinks } from '@/components/landing/atlas-goal-links'
 
 const steps = [
@@ -20,13 +21,11 @@ export default function AtlasLandingPage() {
     <main className="min-h-dvh text-foreground">
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="فرق أطلس، الرئيسية">
-            <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b-light.svg" alt="" className="h-6 w-auto" /><strong className="text-[15px] text-foreground">أطلس</strong></span>
-            <span><strong className="sr-only">فرق أطلس</strong><small className="text-xs text-muted-foreground">منصة الفرص التجارية</small></span>
-          </Link>
+          <BrandMark />
           <div className="flex items-center gap-2">
-            <Link href="/login?next=%2Fmap" className="hidden rounded-lg px-3 py-2 text-sm font-medium sm:block">دخول</Link>
-            <Link href="/map" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">ابدأ الآن</Link>
+            {/* sign-in stays on phones too: returning customers land here first */}
+            <Link href="/login?next=%2Fmap" className="inline-flex h-10 items-center rounded-lg border px-3 text-sm font-medium hover:bg-muted">دخول</Link>
+            <Link href="/map" className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">ابدأ الآن</Link>
           </div>
         </div>
       </header>
