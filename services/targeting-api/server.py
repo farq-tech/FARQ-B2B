@@ -320,6 +320,12 @@ def insight_response(path, body):
                    # 0 is a real answer here («new only»), so it is read when present, not when truthy
                    'max_age': _number(body, 'max_age', 0, 99) if body.get('max_age') is not None else None,
                    'limit': int(_number(body, 'limit', 1, insights.LISTINGS_MAX, insights.LISTINGS_MAX))}
+        near = body.get('near')
+        if near is not None:
+            # units along an activity street: within `meters` of the corridor's own line
+            if not isinstance(near, dict): raise ValueError('near')
+            filters['near'] = {'runs': insights.near_lines(near.get('geometry')),
+                               'meters': _number(near, 'meters', 10, insights.NEAR_MAX_M, insights.NEAR_DEFAULT_M)}
         table = insights.real_estate_listings(city, filters)
         if table is None: return {'ok': True, 'city': city, 'available': False, 'total': 0, 'listings': []}
         return {'ok': True, 'city': city, 'available': True, **table}

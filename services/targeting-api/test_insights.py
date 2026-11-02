@@ -180,6 +180,36 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(sorted(c["id"] for c in found["listings"]), ["ok", "one_photo"])
         self.assertEqual(found["total"], 2)
 
+    def test_real_estate_listings_near_a_street_keep_units_within_the_buffer_nearest_first(self):
+        # an east-west street along latitude 24.7 from 46.70 to 46.71; 0.0001° of latitude is about 11 m
+        street = {"type": "MultiLineString", "coordinates": [[[46.70, 24.7], [46.705, 24.7]], [[46.705, 24.7], [46.71, 24.7]]]}
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "store", "district_id": "1", "lon": 46.705,
+                "price_sar": 80000, "area_sqm": 60, "photos": ["p.jpg"], "vs_district_pct": None}
+        cards = [dict(card, id="at40", lat=24.7 + 40 / 110540), dict(card, id="at10", lat=24.7 - 10 / 110540),
+                 dict(card, id="at90", lat=24.7 + 90 / 110540), dict(card, id="past_end", lon=46.7115, lat=24.7),
+                 dict(card, id="flat", type="apartment", lat=24.7), dict(card, id="office", type="office", kind="sale", deal="sale", lat=24.7 + 55 / 110540)]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        near = {"runs": insights.near_lines(street), "meters": 60}
+        found = insights.real_estate_listings("Riyadh", {"types": list(insights.COMMERCIAL_TYPES), "near": near}, str(path))
+        self.assertEqual([c["id"] for c in found["listings"]], ["at10", "at40", "office"], "within 60 m, commercial only, nearest first")
+        self.assertEqual([c["distance_m"] for c in found["listings"]], [10, 40, 55])
+        self.assertEqual(found["total"], 3)
+        wide = insights.real_estate_listings("Riyadh", {"types": ["store"], "near": dict(near, meters=200)}, str(path))
+        self.assertEqual([c["id"] for c in wide["listings"]], ["at10", "at40", "at90", "past_end"], "the end of the line is measured too (about 150 m past it)")
+        plain = insights.real_estate_listings("Riyadh", {"types": ["store"]}, str(path))
+        self.assertFalse(any("distance_m" in c for c in plain["listings"]), "a list without a street carries no distance")
+
+    def test_near_lines_takes_only_a_line_inside_the_kingdom(self):
+        self.assertEqual(insights.near_lines({"type": "LineString", "coordinates": [[46.7, 24.7], [46.71, 24.7]]}), [[(46.7, 24.7), (46.71, 24.7)]])
+        for bad in (None, {"type": "Point", "coordinates": [46.7, 24.7]}, {"type": "LineString", "coordinates": []},
+                    {"type": "LineString", "coordinates": [[0, 0], [1, 1]]}, {"type": "LineString", "coordinates": [["46.7", 24.7]]},
+                    {"type": "MultiLineString", "coordinates": [[]]},
+                    {"type": "LineString", "coordinates": [[46.7, 24.7]] * (insights.NEAR_MAX_VERTICES + 1)}):
+            with self.assertRaises(ValueError):
+                insights.near_lines(bad)
+        self.assertAlmostEqual(insights.distance_to_lines_m(46.7, 24.7 + 30 / 110540, [[(46.69, 24.7), (46.71, 24.7)]]), 30, delta=0.5)
+
 
 class RegisteredDealsTest(unittest.TestCase):
     def test_the_city_table_or_none(self):
