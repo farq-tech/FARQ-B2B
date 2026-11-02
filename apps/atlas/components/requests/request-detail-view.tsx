@@ -432,6 +432,16 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
     { count: unlinkedCount, label: 'ليست من نتائج الدليل الحية' },
   ].filter((row) => row.count > 0)
 
+  const tally = [
+    sentCount ? `${numberFormat.format(sentCount)} أُرسلت` : null,
+    unsentIds.length ? `${numberFormat.format(unsentIds.length)} بانتظار الإرسال` : null,
+    failedCount ? `${numberFormat.format(failedCount)} فشل` : null,
+    unknownCount ? `${numberFormat.format(unknownCount)} نتيجتها غير مؤكدة` : null,
+    unlinkedCount ? `${numberFormat.format(unlinkedCount)} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : null,
+  ].filter(Boolean)
+  // nobody left to send to, and not because the campaign finished: say so instead of a disabled «إرسال 0»
+  const nothingToSend = currentBatch.length === 0 && !(sentCount === eligibleIds.length && eligibleIds.length)
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-accent/30 p-4" aria-labelledby="whatsapp-send-title">
       <div className="flex items-start gap-3">
@@ -445,10 +455,8 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
           </p>
         </div>
       </div>
-      <p className="text-sm">
-        {numberFormat.format(sentCount)} أُرسلت · {numberFormat.format(unsentIds.length)} بانتظار الإرسال{failedCount ? ` · ${numberFormat.format(failedCount)} فشل` : ''}{unknownCount ? ` · ${numberFormat.format(unknownCount)} نتيجتها غير مؤكدة` : ''}
-        {unlinkedCount ? ` · ${numberFormat.format(unlinkedCount)} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : ''}
-      </p>
+      {/* only the counts that hold something: «0 أُرسلت · 0 بانتظار الإرسال» told the person nothing */}
+      {tally.length ? <p className="text-sm">{tally.join(' · ')}</p> : null}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{readyStatus}</span>
         <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => void refreshStatus()} disabled={ready === null}>إعادة التحقق</button>
@@ -457,12 +465,21 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => setConfirmOpen(true)} disabled={!canSend}>
           {sendingId ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}
-          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : ready === null ? 'جارٍ التحقق...' : ready ? `إرسال ${numberFormat.format(currentBatch.length)} عبر واتساب${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال عبر واتساب غير جاهز'}
+          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : nothingToSend ? 'لا جهات جاهزة للإرسال' : ready === null ? 'جارٍ التحقق...' : ready ? `إرسال ${numberFormat.format(currentBatch.length)} عبر واتساب${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال عبر واتساب غير جاهز'}
         </Button>
         <Button variant="ghost" onClick={onBackToDraft} disabled={Boolean(sendingId) || hasDeliveryHistory}>
           إعادة إلى مسودة للتعديل
         </Button>
       </div>
+      {nothingToSend && !sendingId ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {unlinkedCount
+            ? 'جهات هذه الحملة ليست من نتائج الدليل الحية، فلا يصلها شيء. أعدها إلى مسودة وأضف الجهات من الخريطة.'
+            : unknownCount
+              ? 'بقيت جهات نتيجتها غير مؤكدة فقط، ولا تُعاد تلقائياً.'
+              : 'لا توجد في القائمة جهة لها رقم واتساب. أعدها إلى مسودة وأضف جهات من الخريطة.'}
+        </p>
+      ) : null}
       {unknownCount ? <p className="text-xs text-muted-foreground">لا تعِد إرسال الجهات ذات النتيجة غير المؤكدة قبل مراجعة سجل واتساب؛ قد تكون الرسالة وصلت بالفعل.</p> : null}
 
       <Modal
