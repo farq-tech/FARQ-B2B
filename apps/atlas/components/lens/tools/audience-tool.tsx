@@ -14,6 +14,7 @@ import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { audienceSummary } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
 
 type Mode = 'people' | 'businesses'
@@ -134,10 +135,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     // the card's first figure in one line for the peeking sheet: the same sum of the service's figures, and the top district
     const ids = new Set(selectedKey ? selectedKey.split('|') : [])
     const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
-    const where = ids.size ? `في ${counted(ids.size, 'district')} محددة` : 'في المدينة'
-    const segment = both ? `${ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]}: ` : ''
-    const size = list.length ? `${show(list.reduce((sum, item) => sum + item.size, 0))} ${mode === 'people' ? 'شخص' : 'منشأة'}` : 'غير متاح'
-    const summary = status === 'loading' ? null : `حجم الجمهور ${where}: ${segment}${size}${scored[0] ? ` · الأعلى: ${scored[0].row.name}` : ''}`
+    const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
+    const summary = status === 'loading' ? null
+      : audienceSummary({ selected: ids.size, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null })
     // «أرني الأعلى» opens the best-matching district, the first of the ranking
     onOverlay({ colors, summary, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
   }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status])
@@ -196,7 +196,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
           <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'}</p>
           {figures.map((figure) => (
-            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold">
+            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
               {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
               {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
             </Explained>

@@ -17,6 +17,7 @@ import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
+import { competitorsSummary, densestDistrict } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
 
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
@@ -134,8 +135,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     }
     if (!table.length) { onOverlay({}); return }
     // the city's count as the service gives it, and the district where the activity is densest per km²
-    const densest = table.reduce<Row | null>((top, item) => (item.perKm2 != null && item.competitors > 0 && (top?.perKm2 == null || item.perKm2 > top.perKm2) ? item : top), null)
-    const summary = `${cityTotal == null ? `عدد منشآت «${studied.label}» غير متاح` : `${numberFormat.format(cityTotal)} منشأة «${studied.label}» في المدينة`}${densest ? ` · الأكثر تنافساً: ${densest.row.name}` : ''}`
+    const densest = densestDistrict(table)
+    const summary = competitorsSummary(cityTotal, studied.label, densest)
     const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
@@ -156,6 +157,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
       : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0))), [table, order])
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
+  // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
+  const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
+  const [branchLimit, showMoreBranches] = useShowMore(20, `${city}|${brand?.brand ?? ''}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -228,7 +232,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {view === 'brands' && brands && !brand && (
             <>
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
-                <strong>{numberFormat.format(brands.chains)}</strong> سلسلة تملك {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
+                <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
                 {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
               </Explained>
               {brands.brands.length === 0 && <EmptyState compact icon={SearchX} title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة." />}
@@ -244,10 +248,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               {brands.uncovered && brands.uncovered.length > 0 && (
                 <div className="flex flex-col gap-1.5 rounded-xl border p-3">
                   <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
-                    أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
+                    أحياء مأهولة لم تصلها {(brands.uncovered_by?.length ?? 0) === 1 ? 'أكبر سلسلة' : (brands.uncovered_by?.length ?? 0) === 2 ? 'أكبر سلسلتين' : `أكبر ${counted(brands.uncovered_by?.length ?? 0, 'chain')}`}
                   </Explained>
                   <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
-                    {brands.uncovered.map((item) => {
+                    {brands.uncovered.slice(0, uncoveredLimit).map((item) => {
                       const id = idByName.get(item.district_ar)
                       return (
                         <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar}
@@ -255,6 +259,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                       )
                     })}
                   </ol>
+                  <MoreRows shown={Math.min(uncoveredLimit, brands.uncovered.length)} total={brands.uncovered.length} noun="district" onMore={showMoreUncovered} />
                 </div>
               )}
             </>
@@ -288,11 +293,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                 طلب تسعير أو حملة لكل الفروع
               </button>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
-                {brand.by_district.map((item) => {
+                {brand.by_district.slice(0, branchLimit).map((item) => {
                   const id = idByName.get(item.district_ar)
                   return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
                 })}
               </ol>
+              <MoreRows shown={Math.min(branchLimit, brand.by_district.length)} total={brand.by_district.length} noun="district" onMore={showMoreBranches} />
             </>
           )}
           <p className="text-sm text-muted-foreground">{brand ? `اضغط على حي لترى فروع ${brand.brand} فيه.` : 'اضغط على حي لترى منافسيه بالاسم.'}</p>
