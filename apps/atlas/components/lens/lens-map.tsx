@@ -89,7 +89,9 @@ function ChipSelect({ label, value, onChange, options }: { label: string; value:
   return (
     <span className="relative shrink-0">
       <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}
-        className="h-9 appearance-none rounded-full border border-primary/40 bg-card/95 ps-3.5 pe-8 text-sm font-semibold text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        // a select is as wide as its longest option: with real district names «كل الأحياء» took most of the row, so the
+        // chip fits its picked name where the browser can (field-sizing) and is capped everywhere else
+        className="h-9 w-auto max-w-[10.5rem] [field-sizing:content] appearance-none truncate rounded-full border border-primary/40 bg-card/95 ps-3.5 pe-8 text-sm font-semibold text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
         {options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
       </select>
       <ChevronDown className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
