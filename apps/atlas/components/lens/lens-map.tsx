@@ -413,7 +413,7 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle}>
+        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? overlay.summary : null}>
           {data.status === 'error' ? (
             <LoadError what="بيانات المدينة" onRetry={data.reload} />
           ) : (
