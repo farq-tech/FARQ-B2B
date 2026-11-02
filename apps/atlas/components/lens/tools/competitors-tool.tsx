@@ -197,9 +197,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       {status !== 'loading' && studied.q && <Understood value={understood} />}
       {studied && counts && status !== 'loading' && (
         <>
+          {/* one span: the trigger is a flex box, and loose parts became three side-by-side columns that wrapped apart */}
           <Explained title="المنافسون في المدينة" lines={EXPLAIN.competitors} className="text-base">
-            {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
-            {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
+            <span>
+              {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
+              {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
+            </span>
           </Explained>
           {/* two views of one result, switched in place: pressed buttons, not tabs (there is no tab panel to move to) */}
           <div className="flex gap-1.5" role="group" aria-label="طريقة العرض">
@@ -232,8 +235,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {view === 'brands' && brands && !brand && (
             <>
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
-                <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
-                {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
+                <span>
+                  <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
+                  {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
+                </span>
               </Explained>
               {brands.brands.length === 0 && <EmptyState compact icon={SearchX} title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة." />}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">

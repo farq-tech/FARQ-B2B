@@ -136,7 +136,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
         <p className="text-sm">
           <Explained title="عمر العقار" lines={EXPLAIN.listingAge(listing.age_source)} className="text-sm">
-            عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span>
+            <span>عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span></span>
           </Explained>
         </p>
         {(listing.tenants || has.length > 0) && (

@@ -198,8 +198,10 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           {figures.map((figure) => (
             <div key={figure.key}>
             <Explained title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
-              {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
-              {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
+              <span>
+                {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
+                {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
+              </span>
             </Explained>
             {/* the same scope words as the peek summary: a sum over part of the districts says so */}
             {figure.list.length > 0 && <p className="text-sm text-muted-foreground">{audienceWhere({ selected: selected.length, measured: figure.list.length, scope: selected.length || rows.length })}</p>}
