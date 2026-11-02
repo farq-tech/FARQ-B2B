@@ -159,7 +159,7 @@ export function RequestDetailView({ id }: { id: string }) {
             rows={3}
             value={request.notes ?? ''}
             onChange={(e) => patch({ notes: e.target.value })}
-            className="rounded-lg border bg-background p-2.5 text-sm outline-none focus-visible:border-primary disabled:bg-muted/40"
+            className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary disabled:bg-muted/40"
           />
         </label>
       ) : null}
