@@ -80,7 +80,8 @@ export function InboxView() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6 pb-24 lg:py-8 lg:pb-8">
-      <header className={cn('flex flex-col gap-1', selected && 'hidden lg:flex')}>
+      {/* with a message open on a phone the header is hidden from sight but not from screen readers: the page keeps its h1 */}
+      <header className={cn('flex flex-col gap-1', selected && 'max-lg:sr-only')}>
         <h1 className="text-2xl font-bold text-balance">الوارد</h1>
         <p className="text-sm text-muted-foreground">ردود طلبات التسعير وتفاعلات الحملات التسويقية في مكان واحد.</p>
       </header>
