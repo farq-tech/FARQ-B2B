@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { NEXT_STEP, STATUS_LABEL } from './format.ts'
+import { NEXT_STEP, STATUS_LABEL, TYPE_LABEL, nextStep, statusLabel } from './format.ts'
 import { formatDistance, uniqueCities } from './insights-api.ts'
 import { PALETTE, readableOn } from './palette.ts'
 import { mergeCloudRequests } from './workspace-merge.ts'
@@ -13,6 +13,16 @@ test('every request status has its next step, and only completed has none', () =
   }
   // sending stays manual: the ready step asks for the person's own confirmation
   assert.match(NEXT_STEP.ready_manual ?? '', /بتأكيدك/)
+})
+
+test('a ready quote request is shared by the person; a ready campaign is sent by confirmed batch', () => {
+  assert.match(nextStep('ready_manual', 'rfq') ?? '', /شاركه بنفسك/)
+  assert.doesNotMatch(statusLabel('ready_manual', 'rfq'), /إرسال/, 'Atlas sends nothing for a quote request')
+  assert.match(nextStep('ready_manual', 'campaign') ?? '', /بتأكيدك/)
+  for (const status of Object.keys(NEXT_STEP) as (keyof typeof NEXT_STEP)[]) {
+    if (status !== 'ready_manual') assert.equal(nextStep(status, 'rfq'), NEXT_STEP[status])
+  }
+  assert.doesNotMatch(TYPE_LABEL.campaign, /مسودة/, 'the status, not the type, says a request is a draft')
 })
 
 test('a distance is metres to the nearest 10 under a kilometre, then kilometres to one decimal', () => {

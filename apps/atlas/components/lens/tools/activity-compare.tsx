@@ -10,7 +10,7 @@ import { Unavailable } from '@/components/shared/unavailable'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { ltr, numberFormat, postMarket } from '@/lib/insights-api'
 import type { MainActivity } from '@/lib/main-activities'
 import { useStickyState, type StudiedActivity } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
@@ -130,6 +130,8 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
                 {pairs.slice(0, limit).map((item) => (
                   <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)}
                     title={item.row.name}
+                    // in «حيث يزيد الأول على الثاني» the list is ordered by this difference, so each row says it
+                    sub={order === 'gap' ? `الفرق ${ltr(`${item.a - item.b > 0 ? '+' : item.a - item.b < 0 ? '−' : ''}${numberFormat.format(Math.abs(item.a - item.b))}`)}` : undefined}
                     // the names are read once above; each row carries only its two figures, so a long name never hides the district
                     value={`الأول ${numberFormat.format(item.a)}`}
                     valueSub={`الثاني ${numberFormat.format(item.b)}`} />

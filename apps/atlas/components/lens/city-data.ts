@@ -172,6 +172,17 @@ export function useCityData(city: string): CityData {
 }
 
 /** Sum of a field over rows; null when any row lacks it, so a partial total is never shown as the whole. */
+/**
+ * The sum over the districts that have the figure, with how many do: a city where a few districts lack a figure still
+ * has a total for the rest, said as such («في 186 من 192 حياً»), instead of «غير متاح» for the whole city. Null when
+ * no district has it.
+ */
+export function sumKnown(rows: DistrictRow[], key: Parameters<typeof sumOf>[1]): { total: number; known: number; of: number } | null {
+  const known = rows.filter((row) => row[key] != null)
+  if (!known.length) return null
+  return { total: known.reduce((sum, row) => sum + (row[key] as number), 0), known: known.length, of: rows.length }
+}
+
 export function sumOf(rows: DistrictRow[], key: keyof Omit<DistrictRow, 'id' | 'name' | 'populationSource' | 'unmetTerms' | 'realEstate' | 'deals'>): number | null {
   if (!rows.length || rows.some((row) => row[key] == null)) return null
   return rows.reduce((total, row) => total + (row[key] as number), 0)

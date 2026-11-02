@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
-import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
+import { PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
-import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,7 @@ import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
+import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapQuery, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
@@ -55,32 +56,59 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
   }
 }
 
-function Ranking({ rows, metric, selected, onToggle, full }: {
+function Ranking({ rows, metric, selected, onToggle, onHover, full }: {
   rows: DistrictRow[]
   metric: MetricId
   selected: string[]
   onToggle: (id: string) => void
+  onHover?: (id: string | null) => void
   full: boolean
 }) {
   const { label, value, unit } = METRICS[metric]
   const ranked = rows.filter((row) => value(row) != null).sort((a, b) => (value(b) as number) - (value(a) as number))
-  const shown = full ? ranked : ranked.slice(0, 5)
+  // the full ranking opens on 20 and grows on «اعرض المزيد», saying how much of the city it shows
+  const [limit, showMore] = useShowMore(full ? 20 : 5, metric)
+  const shown = ranked.slice(0, limit)
   return (
     <section aria-label={`ترتيب الأحياء حسب ${label}`} className="rounded-2xl border bg-card p-4">
       <h3 className="text-base font-bold">الأعلى في {label}</h3>
-      <ol className={cn('mt-2 divide-y text-base', full && 'max-h-[50vh] overflow-y-auto')}>
+      <ol className="mt-2 divide-y text-base">
         {shown.map((row, index) => (
-          <li key={row.id}>
-            <div className={cn('flex w-full items-center gap-2 py-2', selected.includes(row.id) && 'text-primary')}>
-              <span className="w-6 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
-              <button onClick={() => onToggle(row.id)} className="flex-1 truncate text-start font-medium hover:text-primary">{row.name}</button>
-              <Explained title={`${label} · ${row.name}`} lines={metricExplanation(metric, row)} className="font-semibold tabular-nums">{format(value(row), unit)}</Explained>
-            </div>
-          </li>
+          <ResultRow key={row.id} active={selected.includes(row.id)} onClick={() => onToggle(row.id)} onHover={(on) => onHover?.(on ? row.id : null)}
+            // ranks up to 192 (Riyadh) keep one column width
+            leading={<span className="w-8 shrink-0 text-sm text-muted-foreground tabular-nums">{numberFormat.format(index + 1)}</span>}
+            title={row.name}
+            aside={<Explained title={`${label} · ${row.name}`} lines={metricExplanation(metric, row)} className="font-semibold tabular-nums">{format(value(row), unit)}</Explained>} />
         ))}
       </ol>
-      {full && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{numberFormat.format(rows.length - ranked.length)} حياً: غير متاح</p>}
+      {full && <MoreRows shown={shown.length} total={ranked.length} noun="district" onMore={showMore} />}
+      {/* a figure no district of the city has: said in the card, which otherwise stood empty under its title */}
+      {ranked.length === 0 && rows.length > 0 && <p className="mt-2 text-sm text-muted-foreground">غير متاح في أي حي من أحياء هذه المدينة بعد</p>}
+      {full && ranked.length > 0 && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{counted(rows.length - ranked.length, 'district')}: غير متاح</p>}
     </section>
+  )
+}
+
+/** The city summary's shape while its tables load: four figure tiles, then the ranking's first rows. */
+function SummarySkeleton({ cityName }: { cityName: string }) {
+  return (
+    <div role="status" aria-label={`جارٍ تحميل أرقام ${cityName}`} className="flex flex-col gap-3">
+      <section className="rounded-2xl border bg-card p-4">
+        <p className="text-xl font-bold">{cityName}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2" aria-hidden>
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="flex flex-col gap-2 rounded-xl bg-muted/40 px-3 py-2.5">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-6 w-24" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="rounded-2xl border bg-card p-4" aria-hidden>
+        <Skeleton className="h-5 w-32" />
+        <div className="mt-3 flex flex-col gap-3">{Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-5 w-full" />)}</div>
+      </section>
+    </div>
   )
 }
 
@@ -197,8 +225,9 @@ function PickedStrip({ chosen, onDetails, onClear }: { chosen: DistrictRow[]; on
   const single = chosen.length === 1 ? chosen[0] : null
   return (
     <section aria-label="الحي المختار" className="flex flex-col gap-2 rounded-2xl border border-primary/40 bg-primary/5 p-3">
-      <div className="flex items-center gap-2">
-        <h2 className="min-w-0 flex-1 truncate text-base font-bold">{single ? single.name : `${counted(chosen.length, 'district')}: ${chosen.map((row) => row.name).join('، ')}`}</h2>
+      <div className="flex items-start gap-2">
+        {/* two lines before it is cut: one long name, or several picked names, reads whole or nearly so */}
+        <h2 className="line-clamp-2 min-w-0 flex-1 text-base font-bold break-words">{single ? single.name : `${counted(chosen.length, 'district')}: ${chosen.map((row) => row.name).join('، ')}`}</h2>
         <button onClick={onClear} aria-label="إلغاء التحديد" className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
       </div>
       {single && (
@@ -354,12 +383,29 @@ export function LensMap() {
   // a city whose districts came back empty, and a shading figure no district of the city has: said, not drawn blank
   const noDistricts = data.status === 'ready' && data.features.length === 0
   const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0
+  // which of the lens's figures any district of this city has: in a small city most are missing, so their chips are
+  // marked «غير متاح» and the key offers the first figure that does colour the map, instead of «choose another» blind
+  const missingMetrics = useMemo(() => new Set(data.status === 'ready' && data.rows.length
+    ? active.metrics.filter((id) => !data.rows.some((row) => METRICS[id].value(row) != null)) : []), [data.status, data.rows, active.metrics])
+  const fallbackMetric = metricMissing ? active.metrics.find((id) => !missingMetrics.has(id)) ?? null : null
+  const metricChip = (id: MetricId, className?: string) => (
+    <Chip key={id} active={metric === id} onClick={() => setMetric(id)} aria-label={missingMetrics.has(id) ? `${METRICS[id].label}: غير متاح في ${cityName}` : undefined}
+      className={cn(className, missingMetrics.has(id) && metric !== id && 'border-dashed opacity-60')}>{METRICS[id].label}</Chip>
+  )
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
   const leadId = overlay.lead ?? (toolColors ? null : [...data.rows].filter((row) => METRICS[metric].value(row) != null)
     .sort((a, b) => (METRICS[metric].value(b) as number) - (METRICS[metric].value(a) as number))[0]?.id ?? null)
+  // a step that hands over no line of its own still gets one at peek: the district the shading figure ranks first,
+  // with its figure from its row (a percentage kept whole inside the Arabic line)
+  const leadRow = leadId ? data.rows.find((row) => row.id === leadId) ?? null : null
+  const leadValue = leadRow ? METRICS[metric].value(leadRow) : null
+  const peekLine = overlay.summary ?? (!toolColors && leadRow && leadValue != null
+    ? `الأعلى في ${METRICS[metric].label}: ${leadRow.name} ${METRICS[metric].unit === '%' ? ltr(format(leadValue, '%')) : format(leadValue, METRICS[metric].unit)}`
+    : null)
   const pointedRow = pointed ? data.rows.find((row) => row.id === pointed.id) ?? null : null
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
-  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${step?.label} · ${chosen.map((row) => row.name).join('، ')}` : `${active.label} · ${step?.label ?? ''}`
+  // the peeking sheet's one line is cut at its end: the picked district leads, the step (also on its tab) follows
+  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${active.label} · ${step?.label ?? ''}`
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
 
   return (
@@ -388,9 +434,11 @@ export function LensMap() {
           </PillField>
         </SearchPill>
         {!toolColors && (
-          <ChipRow label="المقياس على الخريطة">
-            {active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>)}
-          </ChipRow>
+          // the analysts' lens carries every metric: the row scrolls with a fade at the hidden edge, and the active
+          // metric is kept in view, instead of a chip cut at the panel's edge with no cue
+          <ScrollRow label="المقياس على الخريطة" active={metric} className="mx-auto w-full max-w-5xl gap-2 px-1 pb-1">
+            {active.metrics.map((id) => metricChip(id, 'shrink-0'))}
+          </ScrollRow>
         )}
       </header>
 
@@ -430,7 +478,7 @@ export function LensMap() {
               <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
               <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
-              {!toolColors && active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
+              {!toolColors && active.metrics.map((id) => metricChip(id, 'shadow-sm'))}
             </ScrollRow>
           </div>
           {/* the colour key, titled with what it colours: clear of the map's attribution (bottom corner) and of the
@@ -451,7 +499,12 @@ export function LensMap() {
                   {!toolColors && overlay.legend && <span className="my-0.5 border-t" aria-hidden />}
                   {!toolColors && <>
                   <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                  {metricMissing ? <p className="text-sm text-muted-foreground">غير متاح في {cityName}، اختر مقياساً آخر</p> : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
+                  {metricMissing ? (
+                    <div className="flex flex-col items-start gap-1.5">
+                      <p className="text-sm text-muted-foreground">غير متاح في {cityName}{fallbackMetric ? '' : '، ولا مقياس آخر لهذه الفئة بعد'}</p>
+                      {fallbackMetric && <Chip onClick={() => setMetric(fallbackMetric)}>لوّن الخريطة بـ«{METRICS[fallbackMetric].label}»</Chip>}
+                    </div>
+                  ) : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
                     <span className="text-muted-foreground">أقل</span>
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
@@ -462,7 +515,7 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? overlay.summary : null}>
+        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null}>
           {data.status === 'error' ? (
             <LoadError what="بيانات المدينة" onRetry={data.reload} />
           ) : (
@@ -488,7 +541,7 @@ export function LensMap() {
                     <PickedStrip chosen={chosen} onClear={() => setSelected([])}
                       onDetails={() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
                   )}
-                  {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
+                  {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
                   {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                     onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
@@ -500,13 +553,16 @@ export function LensMap() {
                   {tool === 'businesses' && !selected.length && (
                     <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو من ترتيب «أين جمهوري؟»، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}
-                  {(tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
+                  {/* while the city's tables load, the summary keeps its shape: its tiles said «غير متاح» and the ranking
+                      stood empty, as if the city had no figures at all */}
+                  {data.status === 'loading' && (tool === 'district' || tool === 'growth') && <SummarySkeleton cityName={cityName} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <div id="picked-summary" className="scroll-mt-2">
                       <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} onClear={() => setSelected([])} />
                     </div>
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
-                  {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} full={lens === 'analysts' || tool === 'growth'} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} />}
                 </>
               )}
             </>

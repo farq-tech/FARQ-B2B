@@ -64,10 +64,14 @@ def population(rows, city, buildings=None, path=district_reference.PATH):
             # whole people: a split share or a building model gives fractions, and «58,770.9 ساكن» is not a count
             row.update(population=round(figure), source=district_reference.SOURCE, license=None,
                        year=year if year is not None else row.get('year'), coverage_pct=100.0)
-        elif built is not None:
+        elif built is not None and round(built) > 0:
             row.update(population=round(built), source=BUILDINGS, license=None, coverage_pct=100.0)
         else:
             row['source'] = WORLDPOP
+        # no model's 0 is a count of people (owner, 2026-11-02): a district that every source puts at 0 has no
+        # figure, so it reads «غير متاح» on every screen instead of «السكان 0» and «ساكن لكل منشأة 0»
+        if not row.get('population'):
+            row['population'] = None
     return rows
 
 

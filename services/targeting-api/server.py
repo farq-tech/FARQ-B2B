@@ -242,7 +242,7 @@ def insight_response(path, body):
         with LOCK:
             result = insights.population_around(con, insights.latest(os.path.join(POPULATION_DIR, 'building_points_*.parquet')),
                                                 DATA if os.path.isfile(DATA) else None, TILES.search_sql, lon, lat, radius, HOUSEHOLD_SIZE)
-        basis = ('السكان = سكان كل حي (من 910ths حيث يتوفر، وإلا من كثافة الوحدات السكنية) موزعين على مبانيه السكنية، ثم جُمعت المباني داخل الدائرة.'
+        basis = ('السكان = سكان كل حي (رقم مقاس حيث يتوفر، وإلا تقدير من كثافة الوحدات السكنية) موزعين على مبانيه السكنية، ثم جُمعت المباني داخل الدائرة.'
                  if result.get('people_per_district') else 'السكان = الوحدات السكنية في المباني ضمن الدائرة × 5 أفراد للوحدة.')
         result.update(ok=True, household_size=HOUSEHOLD_SIZE, basis=basis + ' المنشآت من الدليل المفتوح. تقدير للمقارنة بين المواقع لا تعداد.')
         return result

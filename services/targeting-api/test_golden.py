@@ -42,6 +42,13 @@ class GoldenPopulationTests(unittest.TestCase):
         self.assertEqual((out["النرجس"]["population"], out["الملقا"]["population"]), (58771, 8))
         self.assertTrue(all(isinstance(out[name]["population"], int) for name in ("الربيع", "النرجس", "الملقا") if out[name]["source"] != golden.WORLDPOP))
 
+    def test_a_zero_from_every_source_is_no_figure(self):
+        rows = self.rows()
+        rows[2]["population"] = 0.0
+        out = {r["district_ar"]: r for r in golden.population(rows, "Riyadh", {"2": 0.4, "3": 0.0}, self.path)}
+        self.assertEqual(out["النرجس"]["population"], 50000.0, "a building model that rounds to 0 does not replace WorldPop")
+        self.assertIsNone(out["الملقا"]["population"], "0 everywhere reads «غير متاح», not «0»")
+
     def test_building_total_counts_only_when_every_polygon_is_calibrated(self):
         built = golden.building_totals([("10", 100.0, "910ths.sa"), ("11", 50.0, "worldpop_city_total"), ("12", 70.0, "910ths.sa")], {"11": "10"})
         self.assertEqual(built, {"12": 70.0})

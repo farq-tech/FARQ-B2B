@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cityById } from '@/lib/mock-data'
-import { NEXT_STEP, STATUS_LABEL, formatDate } from '@/lib/format'
+import { STATUS_LABEL, formatDate, nextStep, statusLabel } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
@@ -94,10 +94,10 @@ export function RequestsListView() {
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <TypeLabel type={r.type} />
-                      <StatusBadge status={r.status} />
+                      <StatusBadge status={r.status} label={statusLabel(r.status, r.type)} />
                     </div>
                     <h2 className="truncate font-semibold">{r.title}</h2>
-                    {NEXT_STEP[r.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[r.status]}</p>}
+                    {nextStep(r.status, r.type) && <p className="text-sm font-medium text-primary">الخطوة التالية: {nextStep(r.status, r.type)}</p>}
                     <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <span>{cityById.get(r.cityId)?.name}</span>
                       <span>{counted(r.businessIds.length, 'business')}</span>
