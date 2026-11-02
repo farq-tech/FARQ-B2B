@@ -68,7 +68,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -95,6 +95,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   onFailed?: (failed: boolean) => void
   /** Where the failure notice sits, when the page keeps other things at the map's top. */
   errorClassName?: string
+  /** A district a list is pointing at (a row under the pointer or focus), outlined on the map without picking it. */
+  hover?: string | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -166,6 +168,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         } }, firstRoad)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': PALETTE.olive, 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
         instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
+        instance.addLayer({ id: 'district-hover', type: 'line', source: 'districts', filter: ['==', ['get', 'id'], ''], paint: { 'line-color': PALETTE.ink, 'line-width': 2, 'line-dasharray': [2, 1] } })
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
           'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
           'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
@@ -255,6 +258,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     })
     ;(instance.getSource('districts') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: painted })
   }, [ready, features, steps, selected, colors])
+
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance?.getLayer('district-hover')) return
+    instance.setFilter('district-hover', ['==', ['get', 'id'], hover ?? ''])
+  }, [ready, hover])
 
   useEffect(() => {
     const instance = map.current

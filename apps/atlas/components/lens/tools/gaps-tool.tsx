@@ -13,6 +13,7 @@ import { useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 type Activity = { main_id: string; main_ar: string }
 type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
@@ -22,11 +23,15 @@ const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطع
 const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
-export function GapsTool({ city, rows, onOverlay, onSelect }: {
+export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHover }: {
   city: string
   rows: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
+  /** The districts picked on the map or anywhere else: their rows are marked. */
+  selected?: string[]
+  /** The row under the pointer or keyboard focus, so the map can outline its district. */
+  onHover?: (id: string | null) => void
 }) {
   const [activities, setActivities] = useState<Activity[]>([])
   // the activity is shared with the other steps, so «المنافسون» opens on the one picked here
@@ -112,11 +117,17 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
             معدل المدينة: منشأة لكل <strong>{numberFormat.format(result.residents_per_business)}</strong> ساكن · {numberFormat.format(gaps.length)} حياً فيها نقص
           </p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
-            {gaps.map((row) => (
-              <li key={row.district_ar} className="flex items-center gap-3 py-2.5">
+            {gaps.map((row) => {
+              const id = ids.get(row.district_ar)
+              const picked = id != null && selected.includes(id)
+              const point = (on: boolean) => onHover?.(on && id ? id : null)
+              return (
+              <li key={row.district_ar} aria-current={picked ? 'true' : undefined}
+                onPointerEnter={() => point(true)} onPointerLeave={() => point(false)} onFocus={() => point(true)} onBlur={() => point(false)}
+                className={cn('-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors', picked ? 'bg-primary/10' : 'hover:bg-muted/50')}>
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                   <span className="flex items-baseline gap-2">
-                    <button onClick={() => { const id = ids.get(row.district_ar); if (id) onSelect(id) }} className="min-w-0 flex-1 truncate text-start font-medium hover:text-primary">{row.district_ar}</button>
+                    <button onClick={() => { if (id) onSelect(id) }} className={cn('min-w-0 flex-1 truncate text-start font-medium hover:text-primary', picked && 'text-primary')}>{row.district_ar}</button>
                     <span className="shrink-0 text-sm text-muted-foreground tabular-nums">{numberFormat.format(row.businesses)} موجودة</span>
                   </span>
                   <span className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
@@ -127,7 +138,8 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
                   <bdi dir="ltr">+{numberFormat.format(Math.round(row.shortfall))}</bdi>
                 </Explained>
               </li>
-            ))}
+              )
+            })}
           </ol>
         </>
       )}
