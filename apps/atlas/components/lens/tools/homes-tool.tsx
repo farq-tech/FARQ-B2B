@@ -13,7 +13,7 @@ import { BUDGETS, shownPhotos, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublish
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
-import { ListingCard } from '../listing-card'
+import { ListingCard, NoPhoto } from '../listing-card'
 import { ListingCompare } from '../listing-compare'
 import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
@@ -35,10 +35,10 @@ function savePoint(point: MyPoint | null) {
   try { if (point) localStorage.setItem(MY_POINT_KEY, JSON.stringify(point)); else localStorage.removeItem(MY_POINT_KEY) } catch { /* the point stays for this visit */ }
 }
 
-/** The ad's first photo, small, beside its line in the list; nothing when it fails to load. */
-function Thumb({ src }: { src: string | null }) {
+/** The ad's first photo, small, beside its line in the list; the property type's tile when it has none or it fails to load. */
+function Thumb({ src, type }: { src: string | null; type: string }) {
   const [broken, setBroken] = useState(false)
-  if (!src || broken) return <span className="size-14 shrink-0 rounded-lg bg-muted" aria-hidden />
+  if (!src || broken) return <NoPhoto type={type} className="size-14 shrink-0 rounded-lg" />
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-14 shrink-0 rounded-lg object-cover" />
 }
@@ -220,7 +220,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                   return (
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
                       onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
-                      leading={<Thumb src={shownPhotos(listing)[0] ?? null} />}
+                      leading={<Thumb src={shownPhotos(listing)[0] ?? null} type={listing.type} />}
                       // the price leads and takes the row's width: at the row's end it squeezed type and district to a few letters on a phone
                       title={priceLine(listing)}
                       sub={(

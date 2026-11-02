@@ -1,24 +1,50 @@
 'use client'
 
 import { useState } from 'react'
-import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
+import { BadgeCheck, Building2, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat } from '@/lib/insights-api'
-import { FEATURES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, LISTING_TYPES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
 import { MapWindow } from '@/components/shared/map-window'
+import { Icon3D } from '@/components/shared/icon-3d'
 
 const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-warning' } as const
 
-/** Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out. */
-export function Gallery({ photos, className = 'h-40' }: { photos: string[]; className?: string }) {
+/**
+ * What stands where an ad's photo would: the property type's own icon on a quiet tile, so a listing without photos
+ * reads as one by design, not as a picture that failed. `caption` adds the words for a tile large enough to hold them.
+ */
+export function NoPhoto({ type, caption = false, className }: { type: string; caption?: boolean; className?: string }) {
+  return (
+    <span className={cn('flex flex-col items-center justify-center gap-1 bg-gradient-to-b from-muted/60 to-muted text-muted-foreground', className)}>
+      {/* a type outside the search's list (an «other» ad) has no 3D icon of its own */}
+      {LISTING_TYPES.some((item) => item.id === type)
+        ? <Icon3D type={type} className={caption ? 'size-12' : 'size-8'} />
+        : <Building2 className={cn('opacity-50', caption ? 'size-10' : 'size-6')} aria-hidden />}
+      {caption ? <span className="text-xs">لا صورة متاحة</span> : <span className="sr-only">لا صورة متاحة</span>}
+    </span>
+  )
+}
+
+/**
+ * Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out.
+ * With `type`, an ad with no photo left shows the type's tile at the same height, so cards side by side stay level.
+ */
+export function Gallery({ photos, className = 'h-40', type, fallbackClassName }: {
+  photos: string[]
+  className?: string
+  type?: string
+  /** The tile's height when it differs from the photos' (a card gives a missing photo less room). */
+  fallbackClassName?: string
+}) {
   const [broken, setBroken] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<number | null>(null)
   const shown = [...new Set(photos)].filter((photo) => !broken.has(photo))
-  if (!shown.length) return null
+  if (!shown.length) return type ? <NoPhoto type={type} caption className={cn('w-full', fallbackClassName ?? className)} /> : null
   return (
     <div className="relative">
       <div className={cn('flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)} dir="ltr">
@@ -111,7 +137,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const tab = (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {photos[0] && <img src={photos[0]} alt="" className="size-9 shrink-0 rounded-full object-cover" />}
+      {photos[0] ? <img src={photos[0]} alt="" className="size-9 shrink-0 rounded-full object-cover" /> : <NoPhoto type={listing.type} className="size-9 shrink-0 rounded-full [&_img]:size-6" />}
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="truncate text-sm font-bold">{priceLine(listing)}</span>
         <span className="truncate text-xs text-muted-foreground">{typeLabel(listing.type)}{listing.district_ar ? ` · ${listing.district_ar}` : ''}</span>
@@ -121,7 +147,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
 
   return (
     <MapWindow label="العرض المختار" onClose={onClose} tab={tab} className={className}>
-      <Gallery photos={photos} />
+      <Gallery photos={photos} type={listing.type} fallbackClassName="h-24" />
       <div className="flex flex-col gap-1.5 p-3">
         <p className="text-sm text-muted-foreground">
           {typeLabel(listing.type)} {listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''}{listing.district_ar ? ` · ${listing.district_ar}` : ''}
