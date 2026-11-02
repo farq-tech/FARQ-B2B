@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { EXPLAIN } from '@/lib/explanations'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ResultRow, ResultRowsSkeleton } from '../result-row'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { numberFormat, postMarket } from '@/lib/insights-api'
 import { OCHRE_STEPS } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
@@ -23,17 +24,6 @@ const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار
 // more shops on the street reads as a deeper colour, in five even groups of the corridors shown
 const HEAT = OCHRE_STEPS
 const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي', secondary: 'شارع فرعي' }
-
-/** The explanation behind one corridor's figures. */
-function explain(corridor: Corridor): string[] {
-  const lines = [
-    `${counted(corridor.n, 'business')} من «${corridor.sub_ar}» على ${numberFormat.format(corridor.length_m)} م من الشارع: ${numberFormat.format(corridor.per_100m)} لكل 100 م.`,
-    'كل منشأة على أقرب شارع مسمّى لها حتى 60 م، والممر مقاطع الشارع نفسه التي فيها النشاط، متصلة ولو عبرت أكثر من حي.',
-  ]
-  if (corridor.lift != null) lines.push(`حصة النشاط بين منشآت هذا الممر ${numberFormat.format(corridor.lift)} ضعف حصته في المدينة.`)
-  if (corridor.n_wholesale) lines.push(`منها ${counted(corridor.n_wholesale, 'business')} جملة.`)
-  return lines
-}
 
 /**
  * «شوارع النشاط»: the streets an activity lines, drawn along the streets themselves. Typing «أدوات صحية» or
@@ -124,7 +114,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
                 title={corridor.street_ar}
                 sub={`${(corridor.districts_ar?.length ? corridor.districts_ar : [corridor.district_ar]).filter(Boolean).join('، ')}${corridor.road_class ? ` · ${ROAD[corridor.road_class]}` : ''}${corridor.n_wholesale ? ` · ${numberFormat.format(corridor.n_wholesale)} جملة` : ''}`}
                 aside={(
-                  <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={explain(corridor)} className="text-end">
+                  <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={EXPLAIN.corridor(corridor)} className="text-end">
                     <span>
                       <span className="block font-bold text-primary">{numberFormat.format(corridor.n)} محل</span>
                       <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>

@@ -1,4 +1,4 @@
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 
 /**
  * How each figure in Atlas is worked out, in plain Arabic, shown when the figure is tapped. One place for every
@@ -224,4 +224,15 @@ export const EXPLAIN = {
     'العروض المطابقة لاختيارك مرتبة من الأقل سعراً للمتر مقارنة بوسيط حيّها إلى الأعلى.',
     'العرض في حي بلا وسيط كافٍ يأتي في الآخر.',
   ],
+  aroundResidentsPer: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
+  /** One trade corridor's figures («شوارع النشاط»), from the service's values for that street. */
+  corridor(corridor: { sub_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number | null }): string[] {
+    const lines = [
+      `${counted(corridor.n, 'business')} من «${corridor.sub_ar}» على ${numberFormat.format(corridor.length_m)} م من الشارع: ${numberFormat.format(corridor.per_100m)} لكل 100 م.`,
+      'كل منشأة على أقرب شارع مسمّى لها حتى 60 م، والممر مقاطع الشارع نفسه التي فيها النشاط، متصلة ولو عبرت أكثر من حي.',
+    ]
+    if (corridor.lift != null) lines.push(`حصة النشاط بين منشآت هذا الممر ${numberFormat.format(corridor.lift)} ضعف حصته في المدينة.`)
+    if (corridor.n_wholesale) lines.push(`منها ${counted(corridor.n_wholesale, 'business')} جملة.`)
+    return lines
+  },
 }
