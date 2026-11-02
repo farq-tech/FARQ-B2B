@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
@@ -13,13 +14,14 @@ import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { audienceSummary, audienceWhere } from './tool-answers'
+import { useMainActivities } from '@/lib/main-activities'
 
 type Mode = 'people' | 'businesses'
 // the measured shares plus the segment sizes the service derives from them (population × share): read, never recomputed
 type Share = DistrictShare & { district_ar: string; men: number | null; women: number | null; saudi: number | null; non_saudi: number | null }
 /** Which measured segment a figure rests on; two segments are shown side by side, never multiplied. */
 type Segment = 'none' | 'sex' | 'nationality'
-type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
 type Scored = { row: DistrictRow; size: number; score: number }
 
@@ -28,9 +30,10 @@ const SEX_WORD: Record<Exclude<Sex, 'all'>, string> = { men: 'رجال', women: 
 const NATIONALITY_WORD: Record<Exclude<Nationality, 'all'>, string> = { saudi: 'سعوديون', non_saudi: 'غير سعوديين' }
 const show = (value: number) => numberFormat.format(Math.round(value))
 
-function Choice<T extends string | number>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange: (id: T) => void }) {
+/** One question's answers as pressed buttons; `label` names the question for screen readers («الجنس», «الجنسية»…). */
+function Choice<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: { id: T; label: string }[]; onChange: (id: T) => void }) {
   return (
-    <div className="flex gap-1.5">
+    <div role="group" aria-label={label} className="flex gap-1.5">
       {options.map((option) => (
         <button key={String(option.id)} onClick={() => onChange(option.id)} aria-pressed={value === option.id}
           className={cn('flex-1 rounded-lg border py-2 text-sm', value === option.id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
@@ -56,12 +59,14 @@ function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): 
  * nationality and income; a business marketer filters businesses by activity and WhatsApp reach. The map turns into
  * the best-matching districts and the card gives the audience size in the selected districts, or the whole city.
  */
-export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
+export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
+  /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
   const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
@@ -69,7 +74,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
   const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const [shares, setShares] = useState<Map<string, Share> | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -79,15 +84,14 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
     postMarket<{ districts?: Share[] }>('district-audience', { city })
       .then((data) => setShares(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))))
       .catch(() => setShares(new Map()))
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((data) => setActivities(data.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
   }, [city])
 
   useEffect(() => {
     if (mode !== 'businesses') return
     let active = true
     setStatus('loading')
+    // drop the last activity's counts now, so the map clears instead of shading districts for a different activity
+    setCounts(null)
     postMarket<{ districts?: Count[] }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
       .then((data) => { if (active) { setCounts(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))); setStatus('idle') } })
       .catch(() => { if (active) setStatus('error') })
@@ -123,12 +127,22 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   const other = useMemo(() => (mode === 'people' && both ? score(rows, people(ranked === 'sex' ? 'nationality' : 'sex')) : null),
     [mode, both, rows, people, ranked])
 
+  // the map hands a new array of the same districts on every render, so the overlay follows their ids, not the array
+  const selectedKey = selected.map((row) => row.id).join('|')
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
-    onOverlay({ colors })
-  }, [scored, onOverlay])
+    // the card's first figure in one line for the peeking sheet: the same sum of the service's figures, and the top district
+    const ids = new Set(selectedKey ? selectedKey.split('|') : [])
+    const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
+    const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
+    const summary = status === 'loading' ? null
+      : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null })
+    // «أرني الأعلى» opens the best-matching district, the first of the ranking
+    onOverlay({ colors, summary, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status, rows.length])
 
+  const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
   const scope = inScope(scored)
   const unit = mode === 'people' ? 'شخص' : 'منشأة'
@@ -147,20 +161,20 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">أين جمهوري؟</h2>
-      <Choice value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
+      <Choice label="من تستهدف" value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
       {mode === 'people' ? (
         <>
-          <Choice value={sex} onChange={setSex} options={[{ id: 'all', label: 'الكل' }, { id: 'men', label: 'رجال' }, { id: 'women', label: 'نساء' }]} />
-          <Choice value={nationality} onChange={setNationality} options={[{ id: 'all', label: 'كل الجنسيات' }, { id: 'saudi', label: 'سعوديون' }, { id: 'non_saudi', label: 'غير سعوديين' }]} />
+          <Choice label="الجنس" value={sex} onChange={setSex} options={[{ id: 'all', label: 'الكل' }, { id: 'men', label: 'رجال' }, { id: 'women', label: 'نساء' }]} />
+          <Choice label="الجنسية" value={nationality} onChange={setNationality} options={[{ id: 'all', label: 'كل الجنسيات' }, { id: 'saudi', label: 'سعوديون' }, { id: 'non_saudi', label: 'غير سعوديين' }]} />
           {both && (
             <div>
               <p className="mb-1 text-sm text-muted-foreground">رتّب الأحياء ولوّن الخريطة حسب</p>
-              <Choice value={rankBy} onChange={setRankBy} options={[{ id: 'sex', label: segmentWord('sex') }, { id: 'nationality', label: segmentWord('nationality') }]} />
+              <Choice label="رتّب حسب" value={rankBy} onChange={setRankBy} options={[{ id: 'sex', label: segmentWord('sex') }, { id: 'nationality', label: segmentWord('nationality') }]} />
             </div>
           )}
           <div>
             <p className="mb-1 text-sm text-muted-foreground">متوسط دخل الحي الشهري</p>
-            <Choice value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? `${numberFormat.format(value)}+` : 'أي دخل' }))} />
+            <Choice label="متوسط دخل الحي الشهري" value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? `${numberFormat.format(value)}+` : 'أي دخل' }))} />
           </div>
         </>
       ) : (
@@ -168,16 +182,28 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
           <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
-      {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ الحساب" />}
+      {status === 'loading' && (
+        <>
+          <SkeletonStatus label="جارٍ الحساب" className="flex flex-col gap-2 rounded-xl bg-muted/40 px-3 py-2.5">
+            <Skeleton className="h-4 w-40" />
+            {figures.map((figure) => <Skeleton key={figure.key} className="h-7 w-36" />)}
+          </SkeletonStatus>
+          <ResultRowsSkeleton label="جارٍ الحساب" rows={5} valueSub />
+        </>
+      )}
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
       {status !== 'loading' && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'}</p>
+          <p className="text-sm text-muted-foreground">حجم الجمهور</p>
           {figures.map((figure) => (
-            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold">
+            <div key={figure.key}>
+            <Explained title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
               {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
               {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
             </Explained>
+            {/* the same scope words as the peek summary: a sum over part of the districts says so */}
+            {figure.list.length > 0 && <p className="text-sm text-muted-foreground">{audienceWhere({ selected: selected.length, measured: figure.list.length, scope: selected.length || rows.length })}</p>}
+            </div>
           ))}
         </div>
       )}
@@ -185,15 +211,13 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
         <div>
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
-            {scored.slice(0, 10).map((item) => (
-              <li key={item.row.id}>
-                <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center justify-between py-2 text-start hover:text-primary">
-                  <span className="font-medium">{item.row.name}</span>
-                  <span className="text-sm text-muted-foreground">{show(item.size)} {unit} · <span className="font-bold text-foreground">{numberFormat.format(item.score)}</span>/100</span>
-                </button>
-              </li>
+            {scored.slice(0, limit).map((item) => (
+              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)} title={item.row.name}
+                active={selected.some((row) => row.id === item.row.id)}
+                value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
             ))}
           </ol>
+          <MoreRows shown={Math.min(limit, scored.length)} total={scored.length} noun="district" onMore={showMore} />
         </div>
       )}
     </section>

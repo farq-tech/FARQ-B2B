@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ClipboardList, House, Inbox, LogIn, LogOut, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { WhatsNew } from '@/components/shared/whats-new'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface NavItem {
   href: string
@@ -16,6 +18,9 @@ interface NavItem {
 }
 
 type SessionUser = { email: string | null; displayName: string | null }
+
+/** A nav badge: the count in English digits, «99+» past 99 so it never outgrows its dot. */
+const badge = (count: number) => (count > 99 ? '99+' : numberFormat.format(count))
 
 function userInitial(user: SessionUser) {
   return (user.displayName || user.email || 'ح').trim().charAt(0).toUpperCase()
@@ -97,29 +102,31 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
                 {item.label}
-                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{badge(item.count)}</span> : null}
               </Link>
             )
           })}
         </nav>
 
-        <div className="mr-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="ms-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {user ? (
-            <details className="relative">
-              <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-full [&::-webkit-details-marker]:hidden" aria-label="الحساب المسجل">
+            // a real menu, not <details>: Escape and a tap outside close it, arrow keys move inside it, focus returns
+            <DropdownMenu>
+              <DropdownMenuTrigger aria-label={`الحساب: ${user.displayName || user.email || 'الحساب المسجل'}`}
+                className="flex items-center gap-2.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                 <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground" aria-hidden>{userInitial(user)}</span>
-                <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline">{user.displayName || user.email || 'الحساب المسجل'}</span>
-              </summary>
-              <div className="absolute left-0 top-11 z-50 w-56 rounded-xl border bg-card p-2 shadow-lg">
+                <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline" aria-hidden>{user.displayName || user.email || 'الحساب المسجل'}</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
                 <p className="truncate px-2 py-1.5 text-xs text-muted-foreground">{user.email || user.displayName || 'الحساب المسجل'}</p>
-                <button type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium hover:bg-muted">
-                  <LogOut className="size-4" aria-hidden />
+                <DropdownMenuItem onClick={signOut} className="px-2 py-2 font-medium">
+                  <LogOut aria-hidden />
                   خروج
-                </button>
-              </div>
-            </details>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
+            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 pointer-coarse:min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
               <LogIn className="size-3.5" aria-hidden />
               دخول
             </Link>
@@ -141,11 +148,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn('relative flex flex-col items-center justify-center gap-1 text-xs font-medium', active ? 'text-primary' : 'text-muted-foreground')}
+              className={cn('relative flex flex-col items-center justify-center gap-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', active ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}
             >
-              <span className="relative">
-                <item.icon className="size-5" aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{item.count}</span> : null}
+              {/* the open page is marked by shape as well as colour: a filled pill behind its icon, its label bold */}
+              <span className={cn('relative grid h-7 w-14 place-items-center rounded-full transition-colors', active ? 'bg-secondary text-primary' : 'text-current')}>
+                <item.icon className="size-5" strokeWidth={active ? 2.4 : 2} aria-hidden />
+                {item.count ? <span className="absolute -top-1.5 end-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}</span> : null}
               </span>
               {item.label}
             </Link>

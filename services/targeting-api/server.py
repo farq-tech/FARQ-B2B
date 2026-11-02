@@ -216,8 +216,10 @@ def site_card_response(body):
     children = site_card.child_shares(golden_demographics(city))
     people = site_card.segments(by_district, CANONICAL['district_id_map'], CANONICAL['district_names'], audience, children)
     competitors = MARKET_ANALYTICS.competitors_within(body, geometry, centre)
+    residents = district_metrics.residents_per(people.get('population'), (competitors or {}).get('n'))
     return {'ok': True, 'city': city, 'people': people, 'competitors': competitors,
-            'residents_per_competitor': district_metrics.residents_per(people.get('population'), (competitors or {}).get('n'))}
+            'residents_per_competitor': residents,
+            'reasons': site_card.reasons(competitors, residents, people.get('population'))}
 
 
 def _city_features(city):
@@ -522,15 +524,22 @@ Return ONLY JSON: {{"L": [ids], "M": [ids]}} — ids not listed are N.
 {rows}"""
 RANK_MAX = 300
 _CITIES = []
+_CITIES_LOCK = threading.Lock()
 def cities():
     """Cities with at least 1,500 places, largest first (computed once), each with the number of districts it has in
     the golden atlas: tools that work per district (population, gaps, growth, territories, reports) offer only
-    cities with districts, instead of letting a user pick one and find nothing."""
-    if not _CITIES:
-        with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
-            districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
-        with LOCK:
-            _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall())
+    cities with districts, instead of letting a user pick one and find nothing.
+    Built once under its own lock: two first requests at the same moment used to both see the list empty and both
+    extend it, so every city came back twice (148 rows for 74 cities) and anything summing them counted double."""
+    if _CITIES:
+        return _CITIES
+    with _CITIES_LOCK:
+        if not _CITIES:
+            with open(CANONICAL['districts.geojson'], encoding='utf-8') as handle:
+                districts = collections.Counter((f.get('properties') or {}).get('city_en') for f in json.load(handle).get('features', []))
+            with LOCK:
+                rows = con.execute("select city_en, mode(city_ar), count(*) n from t where city_en is not null group by 1 having n >= 1500 order by n desc").fetchall()
+            _CITIES.extend({'en': a, 'ar': b, 'n': c, 'districts': districts.get(a, 0)} for a, b, c in rows)
     return _CITIES
 
 def ai_rank(q, rows):

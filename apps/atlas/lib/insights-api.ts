@@ -15,6 +15,10 @@ export const numberFormat = new Intl.NumberFormat('en-US')
 export const ltr = (text: string) => `\u2066${text}\u2069`
 /** «48%», kept whole inside an Arabic line. */
 export const percent = (value: number) => ltr(`${numberFormat.format(value)}%`)
+/** One way to write a distance everywhere: «850 م» to the nearest 10 m under a kilometre, «1.4 كم» from there. */
+export const formatDistance = (metres: number) => (Math.round(metres / 10) * 10 < 1000
+  ? `${numberFormat.format(Math.round(metres / 10) * 10)} م`
+  : `${numberFormat.format(Math.round(metres / 100) / 10)} كم`)
 
 // one, two, 3–10, a figure ending 11–99, and the singular after any other figure from 100 up (100, 105, 1,000 …)
 const NOUNS = {
@@ -22,6 +26,12 @@ const NOUNS = {
   branch: ['فرع واحد', 'فرعان', 'فروع', 'فرعاً', 'فرع'],
   business: ['منشأة واحدة', 'منشأتان', 'منشآت', 'منشأة', 'منشأة'],
   listing: ['عرض واحد', 'عرضان', 'عروض', 'عرضاً', 'عرض'],
+  street: ['شارع واحد', 'شارعان', 'شوارع', 'شارعاً', 'شارع'],
+  chain: ['سلسلة واحدة', 'سلسلتان', 'سلاسل', 'سلسلة', 'سلسلة'],
+  reply: ['ردّ واحد', 'ردّان', 'ردود', 'رداً', 'ردّ'],
+  photo: ['صورة واحدة', 'صورتان', 'صور', 'صورة', 'صورة'],
+  room: ['غرفة واحدة', 'غرفتان', 'غرف', 'غرفة', 'غرفة'],
+  bathroom: ['دورة مياه واحدة', 'دورتا مياه', 'دورات مياه', 'دورة مياه', 'دورة مياه'],
 } as const
 
 /** A count with its noun in Arabic agreement: «حي واحد», «حيّان», «5 أحياء», «23 حياً», «100 حي». */
@@ -53,6 +63,13 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
   return payload as T
 }
 
+/** One row per city (by its English name, first one kept): the service once sent every city twice, which doubled
+ * pickers and any sum over the list. */
+export function uniqueCities<T extends { en: string }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => !seen.has(row.en) && Boolean(seen.add(row.en)))
+}
+
 /** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
  * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
 export function useCities(): City[] {
@@ -62,7 +79,8 @@ export function useCities(): City[] {
       .then((response) => response.json())
       .then((rows: City[]) => {
         if (!Array.isArray(rows)) return
-        const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
+        const unique = uniqueCities(rows)
+        const mapped = unique.some((row) => typeof row.districts === 'number') ? unique.filter((row) => (row.districts ?? 0) > 0) : unique
         if (mapped.length) setCities(mapped)
       })
       .catch(() => undefined)

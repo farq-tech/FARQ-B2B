@@ -19,7 +19,7 @@ export function Lightbox({ photos, start, onClose }: { photos: string[]; start: 
     const node = strip.current
     if (!node) return
     const next = Math.max(0, Math.min(photos.length - 1, to))
-    node.scrollTo({ left: next * node.clientWidth, behavior: 'smooth' })
+    node.scrollTo({ left: next * node.clientWidth, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
 
   useEffect(() => {

@@ -45,6 +45,36 @@ class SegmentTests(unittest.TestCase):
         self.assertIsNone(people['population'])
         self.assertIsNone(people['women'])
 
+    def test_a_figure_that_is_given_has_no_reason(self):
+        people = site_card.segments({'p1': 1000.0, 'p2': 600.0}, ID_MAP, NAMES, AUDIENCE, {'النخيل': 0.3, 'الياسمين': 0.2})
+        self.assertEqual(people['reasons'], {})
+
+    def test_a_missing_share_names_the_district_without_it(self):
+        people = site_card.segments({'p1': 1000.0, 'p4': 10.0}, {**ID_MAP, 'p4': 'd3'}, NAMES, AUDIENCE, {'النخيل': 0.3, 'الربيع': 0.25})
+        self.assertEqual(set(people['reasons']), {'men', 'women', 'saudi', 'non_saudi'}, 'children are given, so they have no reason')
+        self.assertIn('الربيع', people['reasons']['women'])
+        self.assertNotIn('النخيل', people['reasons']['women'], 'only the district without a share is named')
+
+    def test_reasons_for_no_building_layer_and_unnamed_districts(self):
+        none = site_card.segments(None, ID_MAP, NAMES, AUDIENCE, {})
+        self.assertEqual(none['reasons']['population'], site_card.NO_BUILDINGS)
+        self.assertEqual(none['reasons']['children'], site_card.NO_BUILDINGS)
+        unnamed = site_card.segments({'p1': 100.0, 'x': 50.0}, ID_MAP, NAMES, AUDIENCE, {'النخيل': 0.3})
+        self.assertNotIn('population', unnamed['reasons'])
+        self.assertEqual(unnamed['reasons']['women'], site_card.UNNAMED)
+
+    def test_more_than_three_missing_districts_are_counted_not_listed(self):
+        names = {f'd{i}': (f'حي{i}', f'D{i}') for i in range(5)}
+        people = site_card.segments({f'd{i}': 10.0 for i in range(5)}, {}, names, [], {})
+        self.assertTrue(people['reasons']['women'].endswith(' و2 غيرها.'))
+
+    def test_competitor_reasons(self):
+        self.assertEqual(site_card.reasons(None, None, 100), {}, 'no activity: the card says so already')
+        self.assertEqual(site_card.reasons({'n': 0, 'per_km2': 0.0}, None, 100), {'residents_per_competitor': 'لا منافس داخل النطاق.'})
+        self.assertEqual(site_card.reasons({'n': 2, 'per_km2': None}, None, None),
+                         {'per_km2': 'تعذر حساب مساحة النطاق.', 'residents_per_competitor': 'عدد السكان غير متاح.'})
+        self.assertEqual(site_card.reasons({'n': 2, 'per_km2': 1.5}, 50.0, 100), {})
+
     def test_child_share_comes_from_the_age_rows_under_15(self):
         rows = [{'district_ar': 'النخيل', 'age_code': 'ALL', 'total': 100.0}]
         rows += [{'district_ar': 'النخيل', 'age_code': code, 'total': 10.0} for code in ('00', '01', '05', '10', '15', '20', '25', '30', '35', '40')]
