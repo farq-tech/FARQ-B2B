@@ -221,9 +221,14 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
                       onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
                       leading={<Thumb src={listing.photo} />}
-                      title={[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}
-                      sub={versus || away ? <>{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</> : null}
-                      value={<span className="text-sm">{priceLine(listing)}</span>} />
+                      // the price leads and takes the row's width: at the row's end it squeezed type and district to a few letters on a phone
+                      title={priceLine(listing)}
+                      sub={(
+                        <>
+                          <span className="block truncate">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
+                          {(versus || away) && <span className="block truncate">{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</span>}
+                        </>
+                      )} />
                   )
                 })}
               </ol>
