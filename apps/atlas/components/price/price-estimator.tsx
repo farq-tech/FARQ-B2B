@@ -94,18 +94,21 @@ export function PriceEstimator() {
 
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
-  const key = JSON.stringify([city, district, deal, kind, areaNumber, age, streets, width, furnished])
+  const keyFor = (type: string) => JSON.stringify([city, district, deal, type, areaNumber, age, streets, width, furnished])
+  const key = keyFor(kind)
   // each «احسب» numbers its request; an answer that comes back after a newer one was asked is dropped, so a slow
   // first estimate can never replace the price of the answers on screen
   const sequence = useRef(0)
-  const run = () => {
+  // `type` runs the same answers for another property type (the «جرّب» chips under an unavailable price)
+  const run = (type = kind) => {
     if (!ready) return
     const ask = ++sequence.current
-    setAsked({ key, kind, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
+    if (type !== kind) setKind(type)
+    setAsked({ key: keyFor(type), kind: type, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
     setResult('loading')
     setAllExamples(false)
     postMarket<Estimate>('price-estimate', {
-      city, district_id: district, deal, type: kind, area_sqm: areaNumber,
+      city, district_id: district, deal, type, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
     }).then((estimate) => { if (ask === sequence.current) setResult(estimate) })
       .catch(() => { if (ask === sequence.current) setResult('error') })
@@ -139,6 +142,7 @@ export function PriceEstimator() {
         <label className="flex flex-col gap-1 text-base font-bold">المساحة
           <span className="flex items-center gap-2 rounded-xl border border-input bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
             <input inputMode="numeric" dir="ltr" placeholder="مثل 180" value={area} onChange={(e) => setArea(e.target.value.replace(/[^0-9]/g, ''))}
+              onKeyDown={(e) => { if (e.key === 'Enter' && ready && result !== 'loading') run() }} enterKeyHint="go"
               className="h-11 w-full bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal" />
             <span className="text-sm font-normal text-muted-foreground">م²</span>
           </span>
@@ -147,7 +151,7 @@ export function PriceEstimator() {
         <Question title="الشوارع" hint="عدد الشوارع أهم من جهة الواجهة">{STREETS.map(([id, label]) => <Chip key={id} active={streets === id} onClick={() => setStreets(streets === id ? null : id)}>{label}</Chip>)}</Question>
         <Question title="عرض الشارع">{WIDTHS.map(([id, label]) => <Chip key={id} active={width === id} onClick={() => setWidth(width === id ? null : id)}>{label}</Chip>)}</Question>
         <Question title="التأثيث">{[['no', 'غير مفروش'], ['yes', 'مفروش']].map(([id, label]) => <Chip key={id} active={furnished === id} onClick={() => setFurnished(id)}>{label}</Chip>)}</Question>
-        <Button size="lg" onClick={run} disabled={!ready || result === 'loading'} className="w-full">
+        <Button size="lg" onClick={() => run()} disabled={!ready || result === 'loading'} className="w-full">
           {result === 'loading' ? <Loader2 className="animate-spin" aria-hidden /> : <Calculator aria-hidden />} احسب السعر
         </Button>
         {!ready && <p className="text-center text-xs text-muted-foreground">اختر الحي واكتب المساحة لتحسب السعر.</p>}
@@ -172,14 +176,22 @@ export function PriceEstimator() {
             </div>
           </SkeletonStatus>
         )}
-        {result === 'error' && <LoadError what="السعر" onRetry={run} />}
+        {result === 'error' && <LoadError what="السعر" onRetry={() => run()} />}
         {result && result !== 'loading' && result !== 'error' && !result.available && (
-          <EmptyState icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'} />
+          <EmptyState icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'}
+            // the same answers for the other types, one tap each, instead of scrolling back up to change one chip
+            action={asked && result.reason !== 'no_listings' ? (
+              <div className="flex flex-wrap justify-center gap-2">
+                {KINDS.filter((id) => id !== asked.kind).map((id) => (
+                  <Chip key={id} onClick={() => run(id)} disabled={!ready}><Icon3D type={id} className="size-5" />جرّب {typeLabel(id)}</Chip>
+                ))}
+              </div>
+            ) : undefined} />
         )}
         {stale && result && result !== 'error' && (
           <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-warning/30 bg-warning/5 p-3 text-sm">
             <span>غيّرت الإجابات. السعر أدناه لعقارك كما كان، احسبه من جديد ليطابق إجاباتك.</span>
-            <Button size="sm" variant="outline" onClick={run} disabled={!ready}><Calculator aria-hidden />احسب من جديد</Button>
+            <Button size="sm" variant="outline" onClick={() => run()} disabled={!ready}><Calculator aria-hidden />احسب من جديد</Button>
           </div>
         )}
         {result && result !== 'loading' && result !== 'error' && result.available && result.price && asked && (
