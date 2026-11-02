@@ -34,4 +34,7 @@ test('rooms, bathrooms and listing totals agree with their count', () => {
   assert.equal(counted(1, 'bathroom'), 'دورة مياه واحدة')
   assert.equal(counted(2, 'bathroom'), 'دورتا مياه')
   assert.equal(counted(3, 'bathroom'), '3 دورات مياه')
+  assert.equal(counted(1, 'reply'), 'ردّ واحد')
+  assert.equal(counted(2, 'reply'), 'ردّان')
+  assert.equal(counted(5, 'reply'), '5 ردود')
 })

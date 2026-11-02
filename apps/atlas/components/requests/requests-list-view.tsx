@@ -92,7 +92,7 @@ export function RequestsListView() {
                       <span>{counted(r.businessIds.length, 'business')}</span>
                       {replies.length ? (
                         <span className={cn(unread && 'font-semibold text-primary')}>
-                          {numberFormat.format(replies.length)} رد{unread ? ` (${numberFormat.format(unread)} جديد)` : ''}
+                          {counted(replies.length, 'reply')}{unread ? ` (${numberFormat.format(unread)} ${unread === 1 ? 'جديد' : 'جديدة'})` : ''}
                         </span>
                       ) : null}
                       <span>آخر تحديث {formatDate(r.updatedAt)}</span>
