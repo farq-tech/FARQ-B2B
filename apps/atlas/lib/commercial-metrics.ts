@@ -72,7 +72,7 @@ export function trackManualHandoffCopied({ city, type, count }: { city: string; 
   track('atlas_manual_handoff_copied', { city, type, selection_size: countBucket(count) })
 }
 
-type OnboardingStep = 'shown' | 'goal_picked' | 'district_picked' | 'completed' | 'skipped' | 'restarted'
+type OnboardingStep = 'shown' | 'goal_picked' | 'district_picked' | 'completed' | 'skipped' | 'restarted' | 'show_me'
 
 /**
  * The map's first-visit tour, one event name for every step: the step, the goal's lens id when one is picked, the

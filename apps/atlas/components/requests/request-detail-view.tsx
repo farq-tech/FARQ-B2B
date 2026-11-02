@@ -1,14 +1,15 @@
 'use client'
 
-import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Send } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
-import { formatDate, formatDateTime } from '@/lib/format'
+import { NEXT_STEP, formatDate, formatDateTime } from '@/lib/format'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
@@ -84,32 +85,41 @@ export function RequestDetailView({ id }: { id: string }) {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 py-6 pb-28 lg:py-8">
-      <Link href="/requests" className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
         <ArrowRight className="size-4" aria-hidden />
         كل الطلبات
       </Link>
 
       <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <TypeLabel type={request.type} />
-          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
-        </div>
+        {/* read in the order a person asks: what it is, to whom, where it stands, what to do next */}
+        <TypeLabel type={request.type} />
         {editable ? (
-          <label>
-            <span className="sr-only">عنوان الطلب</span>
-            <input
-              value={request.title}
-              onChange={(e) => patch({ title: e.target.value })}
-              className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-2xl font-bold outline-none hover:border-border focus-visible:border-primary"
-            />
-          </label>
+          // the page's one h1 even while the title is editable, with a pencil so it reads as something to change
+          <h1 className="text-2xl font-bold">
+            {/* the field is as wide as its title, so the pencil sits right after the words instead of across the page */}
+            <label className="flex max-w-full items-center gap-2">
+              <span className="sr-only">عنوان الطلب</span>
+              <input
+                value={request.title}
+                size={Math.max(8, request.title.length + 1)}
+                onChange={(e) => patch({ title: e.target.value })}
+                className="min-w-0 max-w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 outline-none [field-sizing:content] hover:border-input focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <Pencil className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            </label>
+          </h1>
         ) : (
           <h1 className="text-2xl font-bold text-balance">{request.title}</h1>
         )}
-        <p className="text-xs text-muted-foreground">
-          {cityById.get(request.cityId)?.name} · أنشئ {formatDate(request.createdAt)}
+        <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">إلى {counted(request.businessIds.length, 'business')}</span>
+          {cityById.get(request.cityId)?.name ? ` في ${cityById.get(request.cityId)?.name}` : ''} · أنشئ {formatDate(request.createdAt)}
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
+          {NEXT_STEP[request.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[request.status]}</p>}
+        </div>
       </header>
 
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
@@ -158,7 +168,7 @@ export function RequestDetailView({ id }: { id: string }) {
             rows={3}
             value={request.notes ?? ''}
             onChange={(e) => patch({ notes: e.target.value })}
-            className="rounded-lg border bg-background p-2.5 text-sm outline-none focus-visible:border-primary disabled:bg-muted/40"
+            className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary disabled:bg-muted/40"
           />
         </label>
       ) : null}
@@ -166,17 +176,18 @@ export function RequestDetailView({ id }: { id: string }) {
       {replies.length ? (
         <section className="flex flex-col gap-2 rounded-2xl border bg-card p-4" aria-labelledby="replies-title">
           <h2 id="replies-title" className="font-semibold">
-            الردود ({replies.length})
+            الردود ({numberFormat.format(replies.length)})
           </h2>
           <ul className="flex flex-col divide-y">
             {replies.map((m) => (
               <li key={m.id}>
-                <Link href={`/inbox?m=${m.id}`} className="flex items-start gap-3 py-2.5 hover:bg-muted/40">
+                <Link href={`/inbox?m=${m.id}`} className="flex items-start gap-3 rounded-lg py-2.5 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring">
                   <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      {businessById.get(m.businessId)?.name}
-                      {m.unread ? <span className="size-2 rounded-full bg-primary" aria-label="غير مقروء" /> : null}
+                      {businessById.get(m.businessId)?.name ?? 'غير متاح'}
+                      {/* a span's aria-label is not read: the word goes in as hidden text */}
+                      {m.unread ? <span className="size-2 rounded-full bg-primary"><span className="sr-only">غير مقروء</span></span> : null}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{m.body}</p>
                   </div>
@@ -191,7 +202,8 @@ export function RequestDetailView({ id }: { id: string }) {
       ) : null}
 
       {editable ? (
-        <div className="fixed inset-x-3 bottom-[4.5rem] z-30 lg:right-[calc(15rem+1rem)] lg:bottom-4 lg:left-4">
+        // centred under the page: Atlas has a top bar, not a side bar, so there is no 15rem rail to leave room for
+        <div className="fixed inset-x-3 bottom-[4.5rem] z-30 lg:inset-x-4 lg:bottom-4">
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-lg">
             {issues.length ? (
               <p className="flex flex-1 items-center gap-1.5 text-xs text-muted-foreground">
@@ -341,15 +353,20 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   const unlinkedCount = campaign.included.length - eligibleIds.length
   const hasDeliveryHistory = Object.keys(delivery).length > 0
   const currentBatch = unsentIds.slice(0, sendBatchSize)
+  // «إعادة التحقق» can be pressed again before the first check answers: only the latest check may set the status
+  const statusCheck = useRef(0)
   const refreshCloudStatus = useCallback(async () => {
+    const check = ++statusCheck.current
     setCloudReady(null)
     setCloudStatus('جارٍ التحقق من القالب...')
     try {
       const response = await fetch('/api/campaign/send', { cache: 'no-store' })
       const result = await response.json().catch(() => null) as { ready?: boolean; status?: string; error?: string } | null
+      if (check !== statusCheck.current) return
       setCloudReady(response.ok && result?.ready === true)
       setCloudStatus(response.ok ? `قالب WhatsApp Cloud: ${result?.status ?? 'غير متاح'}` : result?.error ?? 'تعذر التحقق من الإعداد')
     } catch {
+      if (check !== statusCheck.current) return
       setCloudReady(false)
       setCloudStatus('تعذر الاتصال بخدمة الإرسال السحابي')
     }
@@ -357,7 +374,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   useEffect(() => { void refreshCloudStatus() }, [refreshCloudStatus])
   const send = async () => {
     if (!currentBatch.length || !text || sendingId || cloudReady !== true) return
-    if (!window.confirm(`سيُرسل أطلس رسالة واتساب سحابية إلى ${currentBatch.length} جهة الآن باستخدام القالب المعتمد farq_outreach_ar. هل تريد المتابعة؟`)) return
+    if (!window.confirm(`سيُرسل أطلس رسالة واتساب سحابية إلى ${numberFormat.format(currentBatch.length)} جهة الآن باستخدام القالب المعتمد farq_outreach_ar. هل تريد المتابعة؟`)) return
     setError('')
     const nextDelivery = { ...delivery }
     for (const id of currentBatch) {
@@ -400,8 +417,8 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
         </div>
       </div>
       <p className="text-sm">
-        {sentCount} قبلها واتساب للإرسال · {unsentIds.length} بانتظار الإرسال{failedCount ? ` · ${failedCount} فشل` : ''}{unknownCount ? ` · ${unknownCount} نتيجتها غير مؤكدة` : ''}
-        {unlinkedCount ? ` · ${unlinkedCount} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : ''}
+        {numberFormat.format(sentCount)} قبلها واتساب للإرسال · {numberFormat.format(unsentIds.length)} بانتظار الإرسال{failedCount ? ` · ${numberFormat.format(failedCount)} فشل` : ''}{unknownCount ? ` · ${numberFormat.format(unknownCount)} نتيجتها غير مؤكدة` : ''}
+        {unlinkedCount ? ` · ${numberFormat.format(unlinkedCount)} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : ''}
       </p>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{cloudStatus}</span>
@@ -411,7 +428,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
       <div className="flex flex-wrap gap-2">
         <Button onClick={send} disabled={Boolean(sendingId) || cloudReady !== true || !unsentIds.length || !text}>
           {sendingId ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}
-          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'التحقق من القالب...' : cloudReady ? `إرسال ${currentBatch.length} سحابيًا${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال السحابي غير جاهز'}
+          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'التحقق من القالب...' : cloudReady ? `إرسال ${numberFormat.format(currentBatch.length)} سحابيًا${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال السحابي غير جاهز'}
         </Button>
         <Button variant="ghost" onClick={onBackToDraft} disabled={Boolean(sendingId) || hasDeliveryHistory}>
           إعادة إلى مسودة للتعديل
@@ -427,19 +444,19 @@ function ReviewSummary({ request }: { request: RequestItem }) {
     return (
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
         <dt className="text-muted-foreground">الموردون</dt>
-        <dd>{request.businessIds.length} مورد</dd>
+        <dd>{numberFormat.format(request.businessIds.length)} مورد</dd>
         <dt className="text-muted-foreground">البنود</dt>
         <dd>
           <ul className="flex flex-col gap-0.5">
             {request.rfq.lineItems.map((l) => (
               <li key={l.id}>
-                {l.name} — {l.qty} {l.unit}
+                {l.name} — {numberFormat.format(l.qty)} {l.unit}
               </li>
             ))}
           </ul>
         </dd>
         <dt className="text-muted-foreground">آخر موعد</dt>
-        <dd>{request.rfq.deadline ? formatDate(request.rfq.deadline) : '—'}</dd>
+        <dd>{request.rfq.deadline ? formatDate(request.rfq.deadline) : <span className="text-muted-foreground">غير متاح</span>}</dd>
         <dt className="text-muted-foreground">التسليم</dt>
         <dd>{request.rfq.deliveryCity}</dd>
       </dl>
@@ -451,8 +468,8 @@ function ReviewSummary({ request }: { request: RequestItem }) {
     return (
       <div className="flex flex-col gap-3 text-sm">
         <p>
-          <span className="font-semibold">{request.campaign.included.length}</span> مستلم مؤهل عبر واتساب بقالب «{t?.name}».
-          {skipped > 0 ? ` سيتم استبعاد ${skipped} منشأة لا تستوفي الأهلية.` : ''}
+          <span className="font-semibold">{numberFormat.format(request.campaign.included.length)}</span> مستلم مؤهل عبر واتساب بقالب «{t?.name}».
+          {skipped > 0 ? ` سيتم استبعاد ${numberFormat.format(skipped)} منشأة لا تستوفي الأهلية.` : ''}
         </p>
         {t ? (
           <div className="rounded-2xl rounded-tr-sm bg-accent px-3.5 py-2.5 leading-relaxed text-accent-foreground">

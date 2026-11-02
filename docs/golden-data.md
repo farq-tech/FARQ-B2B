@@ -17,6 +17,20 @@
 | أسعار العقار المعروضة | `reference/real_estate_districts.json` وبطاقات `real_estate_listings.json` على وحدة التخزين، تقرؤهما `insights.real_estate` و`insights.real_estate_listings` | ملف إعلانات عقار المرفوع (`input_upload`)، يحوّله `parse_aqar_list.py` ثم `build_real_estate_reference.py` | لكل حي وصفقة ومجموعة: وسيط سعر المتر من 5 إعلانات على الأقل، بالفترة التي يذكرها الإعلان ولا يُحوَّل. عمر العقار من حقل عقار، وإلا من وصف الإعلان، وإلا «غير متاح». يُقسم الوسيط إلى جديد (سنتان أو أقل) وأقدم حين يكفي عدد كل قسم، والإعلان بلا عمر في الوسيط العام فقط. |
 | إشارات السوق لكل حي | تُحسب عند الطلب من بطاقات `real_estate_listings.json` و`reference/registered_deals.json` في `market_signals.py`، وتصل وسماً `signal` على كل إعلان من `insights.real_estate_listings` | لا تعديل يدوي: تتغير حين يتغير أحد الملفين. العتبات في رأس `market_signals.py` | لكل حي ونوع (شقة، دور، فيلا) بإيجار سنوي: وسيط سعر المتر المعروض مقابل أقرب 5 أحياء (15 إعلاناً لكل منها، وأبعدها خلال 8 كم)، مع وسيط صفقات البيع السكنية المسجلة مقابل أقرب 5 أحياء (30 صفقة على الأقل). ثلاث إشارات: «حي أرخص من جيرانه»، «إيجار أقل من قيمة الحي»، «إيجار مرتفع مقابل سعر الحي». لا تُعرض إلا إذا ثبتت في إعادة الحساب على 200 عينة، ولا يُعرض فرق أكبر من 50%. |
 
+## نشر إصدار بيانات (`services/targeting-api/publish_release.py`)
+
+الخدمة تقرأ إصداراً واحداً من `/app/data/releases/<id>/` بثلاثة متغيرات. كل إصدار جديد يُبنى على الإصدار **الحي الآن**، ولا يُكتب فوق إصدار قائم:
+
+1. **البناء:** `python3 publish_release.py derive --releases-root /app/data/releases --base <الحي> --new <الجديد> --replace street_density.parquet=/path/new.parquet`
+   - نسخة روابط صلبة من الأساس. الملف المستبدل والبيانان (`release.manifest.json` و`manifest.json`) يُفك ربطها قبل الكتابة، فلا يتغير الأساس.
+   - يكتب `release.lineage.json` (الأساس، والملفات المستبدلة بـsha256، ووقت البناء) ويتحقق من البيان. يُبنى في مجلد مؤقت ولا يظهر الإصدار إلا كاملاً.
+2. **الفحص:** `python3 publish_release.py check --releases-root /app/data/releases --live /app/data/releases/<الحي> --new <الجديد>`
+   - يرفض إن كان الأساس غير الإصدار الحي.
+   - يرفض إن ظهر بعد الأساس إصدار آخر لم يُوجَّه إليه (`--force-reason "<سبب>"` يتجاوز هذا الشرط فقط).
+   - عند النجاح يطبع قيم `FARQ_TARGETING_DATA_DIR` و`TARGETING_DATA_DIR` و`FARQ_TARGETING_RELEASE_MANIFEST`.
+3. **التوجيه:** تُضبط المتغيرات الثلاثة يدوياً في Railway بعد المراجعة.
+4. **السجل:** `python3 publish_release.py record --releases-root /app/data/releases --from <الحي> --to <الجديد> --reason "<لماذا>"` يضيف سطراً إلى `PUBLISH_LOG.jsonl`. الرجوع لإصدار سابق يُسجَّل بالأمر نفسه.
+
 ## قواعد
 
 - **طبقة SPD في البناء الذهبي** (`enrich/crs_latest.parquet`، يبنيها `services/data-cleaning/import_crs_full.py`):

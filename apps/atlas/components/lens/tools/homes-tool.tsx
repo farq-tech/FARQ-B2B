@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, MapPin, Scale, X } from 'lucide-react'
+import { MapPin, Scale, SearchX, X } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton } from '@/components/ui/skeleton'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
@@ -45,13 +48,15 @@ function Thumb({ src }: { src: string | null }) {
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
+  /** The district of the listing a row points at, outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
   const sticky = `homes.${preset ? 'preset' : 'plain'}`
@@ -101,6 +106,22 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   )), [])
   const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }) }, [])
 
+
+  // the list in the server's best-value order, or nearest to the viewer's point first, BEST at a time
+  const [limit, showMore] = useShowMore(BEST, `${city}|${kind}|${type}|${deal}|${budget}|${districtKey}|${nearest}`)
+  const ordered = useMemo(() => (nearest && myPoint
+    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
+    : result.listings), [result.listings, nearest, myPoint])
+  const shown = useMemo(() => ordered.slice(0, limit), [ordered, limit])
+
+  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
+  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+
+  // the step's answer in one line for the peeking sheet: the service's count, and the first listing of the list
+  const summary = result.status !== 'ready' ? null
+    : !result.available ? 'عروض العقار غير متاحة لهذه المدينة بعد'
+      : `${result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
+
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
@@ -114,35 +135,31 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
         compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
+      summary,
+      // «أرني الأعلى» opens the district of the first listing in the list
+      lead: result.status === 'ready' ? shown[0]?.district_id ?? null : null,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density])
-
-  // the list in the server's best-value order, or nearest to the viewer's point first
-  const shown = useMemo(() => (nearest && myPoint
-    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
-    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
-
-  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
-  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">اختر عقاراً</h2>
-      <div className="flex gap-1.5">
+      {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
+      <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
+      <div role="group" aria-label="إيجار أو شراء" className="flex gap-1.5">
         {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
           <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}
             className={cn('flex-1 rounded-lg border py-2 text-sm', kind === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label="نوع العقار" className="flex flex-wrap gap-1.5">
         {types.map((item) => (
           <button key={item.id} onClick={() => setType(item.id)} aria-pressed={type === item.id}
             className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}><Icon3D type={item.id} />{item.label}</button>
         ))}
       </div>
       {kind === 'rent' && (
-        <div className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
+        <div role="group" className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
           {[...RENT_DEALS, { id: 'all' as const, label: 'الكل' }].map((item) => (
             <button key={item.id} onClick={() => setRentDeal(item.id)} aria-pressed={rentDeal === item.id}
               className={cn('rounded-full border px-3 py-1.5 text-sm', rentDeal === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
@@ -176,36 +193,46 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
         )}
       </div>
 
-      {result.status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
+      {result.status === 'loading' && (
+        <>
+          <Skeleton className="h-4 w-48 max-w-full" aria-hidden />
+          <ResultRowsSkeleton rows={5} sub leading="thumb" />
+        </>
+      )}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
       {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
-            {result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}
+            {result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}
             {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
+          {result.listings.length === 0 && (
+            <EmptyState compact icon={SearchX} title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
+          )}
           {result.listings.length > 0 && (
             <div>
               <Explained title={nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'} lines={EXPLAIN.bestListings} className="mb-1 text-sm font-semibold text-muted-foreground">{nearest && myPoint ? 'الأقرب لنقطتك' : 'أنسب العروض'}</Explained>
               <ol className="divide-y">
                 {shown.map((listing) => {
                   const versus = versusDistrict(listing)
+                  const away = myPoint ? `${formatDistance(distanceKm(listing, myPoint) * 1000)} من نقطتك` : null
                   return (
-                    <li key={listing.id}>
-                      <button onClick={() => open(listing)} className={cn('flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary', active?.id === listing.id && 'text-primary')}>
-                        <Thumb src={listing.photo} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
-                          {versus && <span className={cn('block text-sm', versus.tone === 'good' ? 'text-primary' : 'text-muted-foreground')}>{versus.text}</span>}
-                          {myPoint && <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(distanceKm(listing, myPoint) * 10) / 10)} كم من نقطتك</span>}
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold">{priceLine(listing)}</span>
-                      </button>
-                    </li>
+                    <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
+                      onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
+                      leading={<Thumb src={listing.photo} />}
+                      // the price leads and takes the row's width: at the row's end it squeezed type and district to a few letters on a phone
+                      title={priceLine(listing)}
+                      sub={(
+                        <>
+                          <span className="block truncate">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
+                          {(versus || away) && <span className="block truncate">{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</span>}
+                        </>
+                      )} />
                   )
                 })}
               </ol>
+              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing" onMore={showMore} />
             </div>
           )}
         </>

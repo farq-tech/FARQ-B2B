@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -11,7 +11,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
@@ -61,13 +61,26 @@ export function HomesPage() {
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // the list follows the map only once the person can see the map: always on a wide screen, and on a phone after they
+  // open it. Before that a phone's hidden map still reports bounds, and the list was cut to a view nobody saw.
+  const [mapSeen, setMapSeen] = useState(false)
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 64rem)')
+    const sync = () => { if (wide.matches) setMapSeen(true) }
+    sync()
+    wide.addEventListener('change', sync)
+    return () => wide.removeEventListener('change', sync)
+  }, [])
+  useEffect(() => { if (mobileMap) setMapSeen(true) }, [mobileMap])
   const data = useCityData(city)
 
   // a type the deal does not offer (land for rent) falls back to a flat; a new city or deal starts its own ranges
+  // keyed by the types' ids (typesKey), not the array, so a new array with the same types does not re-run it
   useEffect(() => {
     const kept = types.filter((id) => LISTING_TYPES.find((item) => item.id === id)?.kinds.includes(kind))
     if (kept.length !== types.length) change({ types: kept.length ? kept : ['apartment'] })
-  }, [kind, types, change])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, typesKey, change])
   useEffect(() => { setFilters((current) => (current.minPrice == null && current.maxPrice == null ? current : { ...current, minPrice: null, maxPrice: null })) }, [deal])
   useEffect(() => { setFilters((current) => (current.districts.length ? { ...current, districts: [] } : current)) }, [city])
 
@@ -88,11 +101,12 @@ export function HomesPage() {
 
   // narrowing: the filters first, then (when asked) what the map shows
   const filtered = useMemo(() => applyFilters(result.listings, filters), [result.listings, filters])
+  const byMap = inView && mapSeen && bounds != null
   const visible = useMemo(() => {
-    if (!inView || !bounds) return filtered
+    if (!byMap || !bounds) return filtered
     const [w, s, e, n] = bounds
     return filtered.filter((l) => l.lon >= w && l.lon <= e && l.lat >= s && l.lat <= n)
-  }, [filtered, inView, bounds])
+  }, [filtered, byMap, bounds])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const dots = useMemo<ListingDot[]>(() => filtered.map((listing) => ({
@@ -103,7 +117,8 @@ export function HomesPage() {
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
     current.some((item) => item.id === listing.id) ? current.filter((item) => item.id !== listing.id) : [...current.slice(-1), listing]
   )), [])
-  const open = (listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }); setMobileMap(true) }
+  const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }); setMobileMap(true) }, [])
+  const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
   const kindTypes = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
   const districtList = useMemo(() => data.rows.map((row) => ({ id: row.id, name: row.name })), [data.rows])
   const districtName = useCallback((id: string) => districtList.find((item) => item.id === id)?.name ?? 'حي', [districtList])
@@ -112,13 +127,13 @@ export function HomesPage() {
   const cityAr = cities.find((item) => item.en === city)?.ar || city
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
+    <main className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
       {/* the Airbnb header: one search capsule (the city, then the deal and the districts) beside a round filters
           button, and under it the property types as an icon row. Set filters follow as chips, each removed with a tap */}
       <header className="flex flex-col gap-2 border-b bg-background/80 pt-3 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4">
           <button onClick={() => setSheet(true)} aria-label="ابحث وغيّر الفلاتر"
-            className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-full border bg-card px-4 text-start shadow-[0_3px_12px_-4px_rgb(23_42_30/0.25)] outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/60">
+            className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-full border bg-card px-4 text-start shadow-[0_3px_12px_-4px_rgb(23_42_30/0.25)] outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring">
             <Search className="size-5 shrink-0 text-foreground" aria-hidden />
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-bold">{cityAr}</span>
@@ -126,17 +141,18 @@ export function HomesPage() {
             </span>
           </button>
           <button onClick={() => setSheet(true)} aria-label={applied.length ? `الفلاتر، ${numberFormat.format(applied.length)} مطبقة` : 'الفلاتر'}
-            className="relative grid size-12 shrink-0 place-items-center rounded-full border bg-card outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60">
+            className="relative grid size-12 shrink-0 place-items-center rounded-full border bg-card outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring">
             <SlidersHorizontal className="size-5" aria-hidden />
             {applied.length > 0 && <span className="absolute -top-1 -end-1 grid size-5 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{numberFormat.format(applied.length)}</span>}
           </button>
           {/* the way from browsing listings to pricing one's own property */}
           <Link href="/price" aria-label="سعّر عقارك"
-            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full border bg-card px-3.5 text-sm font-semibold outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60">
+            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full border bg-card px-3.5 text-sm font-semibold outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring">
             <Calculator className="size-5 text-primary" aria-hidden /><span className="hidden sm:inline">سعّر عقارك</span>
           </Link>
         </div>
-        <nav aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
+        {/* a row of toggles, not links: a group, not a navigation landmark */}
+        <div role="group" aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
           {kindTypes.map((item) => {
             const on = types.length === 1 && types[0] === item.id
             return (
@@ -148,7 +164,7 @@ export function HomesPage() {
               </button>
             )
           })}
-        </nav>
+        </div>
         {applied.length > 0 && (
           <ChipRow label="الفلاتر المطبقة" className="px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {applied.map((item) => (
@@ -164,6 +180,8 @@ export function HomesPage() {
         cities={cityOptions} city={city} onCity={setCity}
         count={visible.length} loading={result.status === 'loading'} />
 
+      {/* the map view on a phone hides the list and its h1: the page keeps a heading for screen readers */}
+      {mobileMap && <h1 className="sr-only lg:hidden">خريطة عروض {cityAr}</h1>}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* results: two columns of photo cards */}
         <section className={cn('min-h-0 overflow-y-auto px-4 py-4 lg:px-6', mobileMap && 'hidden lg:block')} aria-label="العروض">
@@ -171,10 +189,10 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total != null && result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? `${result.total != null && result.total > result.listings.length && !byMap ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${byMap ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
-            <label className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
+            <label className={cn('min-h-11 items-center gap-2 text-sm text-muted-foreground', mapSeen ? 'flex' : 'hidden')}>
               <input type="checkbox" checked={inView} onChange={(event) => setInView(event.target.checked)} className="size-4 accent-[var(--primary)]" />
               حدّث القائمة عند تحريك الخريطة
             </label>
@@ -190,48 +208,38 @@ export function HomesPage() {
             </ul>
           )}
           {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
-          {result.status === 'ready' && !result.available && <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد. جرّب الرياض أو جدة.`} />}
+          {result.status === 'ready' && !result.available && (
+            <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد.`}
+              action={city !== 'Riyadh' ? <Chip onClick={() => setCity('Riyadh')}>اعرض عروض الرياض</Chip> : undefined} />
+          )}
+          {/* an empty list says which of the three narrowings emptied it, and offers the one step that undoes it */}
           {result.status === 'ready' && result.available && visible.length === 0 && (
-            <EmptyState icon={SearchX} title="لا عروض بهذه الشروط" body="جرّب مدة أخرى، أو أزل بعض الفلاتر، أو حرّك الخريطة."
-              action={(
-                <div className="flex flex-wrap justify-center gap-2">
-                  {kind === 'rent' && RENT_DEALS.filter((item) => item.id !== filters.rentDeal).map((item) => (
-                    <Chip key={item.id} onClick={() => change({ rentDeal: item.id })}>إيجار {item.label}</Chip>
-                  ))}
-                  {applied.length > 0 && <Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>}
-                </div>
-              )} />
+            filtered.length > 0 ? (
+              <EmptyState icon={MapIcon} title="لا عروض في ما تُظهره الخريطة" body={`حرّك الخريطة أو صغّرها، أو اعرض كل عروض ${cityAr}.`}
+                action={<Chip onClick={() => setInView(false)}>اعرض كل عروض {cityAr}</Chip>} />
+            ) : result.listings.length > 0 ? (
+              <EmptyState icon={SearchX} title="لا عروض بهذه الفلاتر" body={`في ${cityAr} ${offersLabel(result.listings.length)} بهذه الصفقة والنوع، والفلاتر المطبقة تستبعدها كلها.`}
+                action={<Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>} />
+            ) : (
+              <EmptyState icon={SearchX} title="لا عروض حالية من هذا النوع"
+                body={kind === 'rent' ? 'جرّب مدة إيجار أخرى أو نوعاً آخر من الأعلى.' : 'جرّب نوعاً آخر من الأعلى.'}
+                action={(
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {kind === 'rent' && RENT_DEALS.filter((item) => item.id !== filters.rentDeal).map((item) => (
+                      <Chip key={item.id} onClick={() => change({ rentDeal: item.id })}>إيجار {item.label}</Chip>
+                    ))}
+                    {filters.districts.length > 0 && <Chip onClick={() => change({ districts: [] })}>كل الأحياء</Chip>}
+                  </div>
+                )} />
+            )
           )}
           <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
-            {visible.slice(0, shown).map((listing) => {
-              const versus = versusDistrict(listing)
-              const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
-              const comparing = compare.some((item) => item.id === listing.id)
-              return (
-                <li key={listing.id} onMouseEnter={() => setHover(listing.id)} onMouseLeave={() => setHover(null)} className="group">
-                  <div className="relative overflow-hidden rounded-2xl bg-muted">
-                    <Gallery photos={photos} className="aspect-[20/19]" />
-                    {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
-                    <button onClick={() => toggleCompare(listing)} aria-pressed={comparing} aria-label={comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}
-                      className={cn('absolute end-3 top-3 grid size-9 place-items-center rounded-full backdrop-blur', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
-                      <Scale className="size-4" aria-hidden />
-                    </button>
-                  </div>
-                  <button onClick={() => open(listing)} className="mt-2 flex w-full flex-col gap-0.5 text-start">
-                    <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
-                    </span>
-                    <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
-                    {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
-                    {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
-                  </button>
-                </li>
-              )
-            })}
+            {visible.slice(0, shown).map((listing) => (
+              <HomeCard key={listing.id} listing={listing} comparing={compareIds.has(listing.id)} onOpen={open} onCompare={toggleCompare} onHover={setHover} />
+            ))}
           </ul>
           {visible.length > shown && (
-            <button onClick={() => setShown((count) => count + PAGE)} className="mx-auto mt-6 block h-10 rounded-full border bg-card px-5 text-sm font-semibold transition-colors outline-none hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60">
+            <button onClick={() => setShown((count) => count + PAGE)} className="mx-auto mt-6 block h-10 rounded-full border bg-card px-5 text-sm font-semibold transition-colors outline-none hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring">
               عرض المزيد ({numberFormat.format(visible.length - shown)})
             </button>
           )}
@@ -259,7 +267,7 @@ export function HomesPage() {
         {compare.length === 1 && (
           <p role="status" className="pointer-events-auto inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-semibold shadow-lg">
             <Scale className="size-4 text-primary" aria-hidden /> عقار واحد في المقارنة · أضف الثاني
-            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
+            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 pointer-coarse:size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
           </p>
         )}
         {compare.length === 2 && (
@@ -282,6 +290,45 @@ export function HomesPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   )
 }
+
+/**
+ * One result card. Memoised: hovering a card (which lights its pin) re-renders the page, and without this every card in
+ * the grid, each with its photo strip, was drawn again on every mouse move between cards.
+ */
+const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare, onHover }: {
+  listing: Listing
+  comparing: boolean
+  onOpen: (listing: Listing) => void
+  onCompare: (listing: Listing) => void
+  onHover: (id: string | null) => void
+}) {
+  const versus = versusDistrict(listing)
+  const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  return (
+    <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
+      <div className="relative overflow-hidden rounded-2xl bg-muted">
+        {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
+        {photos.length ? <Gallery photos={photos} className="aspect-[20/19]" /> : (
+          <span className="grid aspect-[20/19] place-items-center text-sm text-muted-foreground"><Building2 className="size-8 opacity-40" aria-hidden /><span className="sr-only">بلا صور</span></span>
+        )}
+        {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
+        <button onClick={() => onCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
+          className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
+          <Scale className="size-4" aria-hidden />
+        </button>
+      </div>
+      <button onClick={() => onOpen(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+        <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
+        <span className="text-sm text-muted-foreground">
+          {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
+        </span>
+        <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
+        {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
+        {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
+      </button>
+    </li>
+  )
+})

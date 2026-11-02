@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { businessById, districtById } from '@/lib/mock-data'
 import { formatDateTime, formatPhone, formatSar } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
@@ -24,14 +25,15 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
     <article className="flex flex-col gap-4 rounded-2xl border bg-card p-4 lg:p-5">
       <header className="flex flex-col gap-2">
         <SourceLabel message={message} />
-        <h2 className="text-xl font-bold text-balance">{b?.name}</h2>
+        <h2 className="text-xl font-bold text-balance">{b?.name ?? 'غير متاح'}</h2>
         <p className="text-xs text-muted-foreground">
-          {b ? `${b.category} · ${districtById.get(b.districtId)?.name ?? ''} · ` : ''}
+          {/* only the parts the directory has, so a missing district never leaves «·  ·» */}
+          {[b?.category, b ? districtById.get(b.districtId)?.name : null].filter(Boolean).map((part) => `${part} · `).join('')}
           <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span> · {formatDateTime(message.receivedAt)}
         </p>
       </header>
 
-      <div className="max-w-lg self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed">{message.body}</div>
+      <div className="max-w-lg self-start rounded-2xl rounded-ss-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed">{message.body}</div>
 
       {message.quote ? (
         <section aria-labelledby="quote-title" className="flex flex-col gap-2 rounded-xl border p-3">
@@ -41,17 +43,17 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
           <table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr>
-                <th className="py-1 text-right font-medium">البند</th>
-                <th className="py-1 text-right font-medium">الكمية</th>
-                <th className="py-1 text-left font-medium">سعر الوحدة</th>
+                <th className="py-1 text-start font-medium">البند</th>
+                <th className="py-1 text-start font-medium">الكمية</th>
+                <th className="py-1 text-end font-medium">سعر الوحدة</th>
               </tr>
             </thead>
             <tbody>
               {message.quote.lines.map((l) => (
                 <tr key={l.name} className="border-t">
                   <td className="py-1.5">{l.name}</td>
-                  <td className="py-1.5 tabular-nums">{l.qty}</td>
-                  <td className="py-1.5 text-left tabular-nums">{formatSar(l.unitPrice)}</td>
+                  <td className="py-1.5 tabular-nums">{numberFormat.format(l.qty)}</td>
+                  <td className="py-1.5 text-end tabular-nums">{formatSar(l.unitPrice)}</td>
                 </tr>
               ))}
             </tbody>
@@ -61,7 +63,7 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
               الإجمالي: <span className="font-semibold text-foreground tabular-nums">{formatSar(total)}</span>
             </span>
             <span>
-              التسليم خلال {message.quote.deliveryDays} أيام · صلاحية {message.quote.validity}
+              التسليم خلال {numberFormat.format(message.quote.deliveryDays)} أيام · صلاحية {message.quote.validity}
             </span>
           </p>
         </section>

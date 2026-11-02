@@ -112,19 +112,22 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     requestAnimationFrame(fit)
   }
 
+  // the latest onClose through a ref: callers pass a fresh arrow each render, which re-bound this on every render
+  const close = useRef(onClose)
+  close.current = onClose
   useEffect(() => {
     if (!phone || folded) return
-    const key = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const key = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') close.current() }
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', key)
     return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', key) }
-  }, [phone, folded, onClose])
+  }, [phone, folded])
 
   if (phone) {
     return createPortal(folded ? (
       <div className="fixed start-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex max-w-[80%] items-center gap-2 rounded-full border bg-card py-1 ps-1 pe-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tab}
         </button>
         <button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" aria-hidden /></button>
@@ -154,7 +157,7 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     // above the foot of the map, clear of the phone's list/map switch and the colour key
     return (
       <div className="absolute start-3 bottom-16 z-10 flex max-w-[75%] items-center gap-2 rounded-full border bg-card py-1 ps-1 pe-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tab}
         </button>
         <button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" aria-hidden /></button>
@@ -168,22 +171,22 @@ export function MapWindow({ label, onClose, tab, children, className }: {
       className={cn('absolute inset-x-3 bottom-3 z-10 mx-auto max-h-[85%] max-w-sm overflow-y-auto rounded-2xl border bg-card shadow-xl', className)}>
       <div onPointerDown={start} onPointerMove={move} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}
         className="sticky top-0 z-[5] flex h-8 w-full cursor-grab touch-none items-center justify-center bg-card/90 backdrop-blur active:cursor-grabbing">
-        {/* the Mac's window buttons, where the Mac puts them */}
+        {/* the Mac's window buttons, where the Mac puts them, in Atlas colours (destructive red, chart ochre) */}
         {/* each dot is the Mac's 14px, inside a 32px button so a finger finds it on a phone */}
         <div dir="ltr" className="group absolute top-1/2 left-1 flex -translate-y-1/2">
           <button data-window-button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-8 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="grid size-3.5 place-items-center rounded-full bg-[#ff5f57] text-[#4d0000] ring-1 ring-black/10">
+            <span className="grid size-3.5 place-items-center rounded-full bg-destructive text-primary-foreground ring-1 ring-black/10">
               <X className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
             </span>
           </button>
           <button data-window-button onClick={() => setFolded(true)} aria-label={`صغّر إلى تبويب: ${label}`} className="-ms-2 grid size-8 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="grid size-3.5 place-items-center rounded-full bg-[#febc2e] text-[#5a3d00] ring-1 ring-black/10">
+            <span className="grid size-3.5 place-items-center rounded-full bg-chart-2 text-primary-foreground ring-1 ring-black/10">
               <Minus className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
             </span>
           </button>
         </div>
         <button type="button" onKeyDown={nudge} aria-label="اسحب لتحريك البطاقة فوق الخريطة" title="اسحب لتحريك البطاقة"
-          className="grid h-full place-items-center px-3 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60">
+          className="grid h-full place-items-center px-3 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
           <GripHorizontal className="size-5" aria-hidden />
         </button>
       </div>

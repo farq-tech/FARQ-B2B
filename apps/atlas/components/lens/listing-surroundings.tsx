@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { SkeletonRows } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import type { Listing } from '@/lib/real-estate'
+import { distanceKm } from '@/lib/geo-measure'
 
 type Place = { name: string; district_ar: string | null; lon: number; lat: number; km: number }
 type Anchor = { label: string; lon: number; lat: number; km: number }
@@ -14,7 +15,7 @@ export type MyPoint = { lon: number; lat: number }
 /** Drive time and road distance from the home to one target, when the routing service answered. */
 type Drive = { minutes: number; km: number } | null
 
-const KM = (km: number) => `${numberFormat.format(Math.round(km * 10) / 10)} كم`
+const KM = (km: number) => formatDistance(km * 1000)
 const PLACES: [keyof Near['places'], string][] = [['school_public', 'مدرسة حكومية'], ['school_private', 'مدرسة أهلية'], ['school', 'مدرسة (النوع غير مذكور)'], ['hospital', 'مستشفى']]
 
 /** Road time and distance from one point to several, through Valhalla's matrix (OSRM-shaped answers too); null per target it could not route. */
@@ -60,11 +61,8 @@ export function ListingSurroundings({ listing, myPoint, density }: { listing: Li
     return () => { live = false }
   }, [listing.id, listing.city, listing.lon, listing.lat, myPoint])
 
-  const straight = (point: MyPoint) => {
-    const rad = Math.PI / 180
-    const h = Math.sin(((point.lat - listing.lat) * rad) / 2) ** 2 + Math.cos(listing.lat * rad) * Math.cos(point.lat * rad) * Math.sin(((point.lon - listing.lon) * rad) / 2) ** 2
-    return 2 * 6371 * Math.asin(Math.sqrt(h))
-  }
+  // the same straight-line measure as the homes list's «من نقطتك», so both read the same figure
+  const straight = (point: MyPoint) => distanceKm(listing, point)
   const reach = (key: string, km: number) => {
     const drive = times[key]
     return drive ? `${numberFormat.format(drive.minutes)} دقيقة بالسيارة · ${KM(drive.km)}` : `${KM(km)} خط مستقيم`
@@ -78,7 +76,7 @@ export function ListingSurroundings({ listing, myPoint, density }: { listing: Li
           كثافة الحي: {density != null ? `${numberFormat.format(Math.round(density))} ساكن لكل كم²` : 'غير متاح'}
         </Explained>
       </p>
-      {near === null && <Loader2 className="size-4 animate-spin text-primary" aria-label="جارٍ التحميل" />}
+      {near === null && <SkeletonRows rows={5} dense trailing />}
       {near === 'error' && <p className="text-muted-foreground">ما حول العقار غير متاح الآن.</p>}
       {near && near !== 'error' && (
         <ul className="flex flex-col gap-1">

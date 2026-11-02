@@ -117,7 +117,14 @@ class RealEstateReferenceTests(unittest.TestCase):
         cards = []
         ref.build([bare, away], {'Riyadh': ATLAS}, 'd', cards=cards)
         by_id = {card['id']: card for card in cards}
-        self.assertEqual((by_id['bare']['price_sar'], by_id['bare']['sar_per_sqm'], by_id['bare']['check']), (None, None, True))
+        self.assertEqual((by_id['bare']['price_sar'], by_id['bare']['sar_per_sqm'], by_id['bare']['check']), (None, None, False),
+                         'no figure to doubt: hidden for lack of a price, not marked for checking')
+        no_area = [dict(listing('rent', 'store', 90000, None), aqar_id='no_area', images=['a.jpg']),
+                   dict(listing('rent', 'store', 4000, None, period='annually'), aqar_id='low_year', images=['a.jpg'])]
+        cards = []
+        ref.build(no_area, {'Riyadh': ATLAS}, 'd', cards=cards)
+        self.assertEqual({card['id']: card['check'] for card in cards}, {'no_area': False, 'low_year': True},
+                         'a shop without an area is shown; a yearly rent too low to be one is still doubted')
         self.assertEqual(by_id['bare']['photos'], ['https://images.aqar.fm/webp/750x0/props/a.jpg', 'https://images.aqar.fm/webp/750x0/props/b.jpg'])
         self.assertEqual((by_id['away']['city'], by_id['away']['district_id']), ('Dammam', None))
 

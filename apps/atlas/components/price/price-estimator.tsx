@@ -5,6 +5,7 @@ import { Calculator, ExternalLink, Loader2, SearchX } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
@@ -68,9 +69,11 @@ export function PriceEstimator() {
   const [width, setWidth] = useState<string | null>(null)
   const [furnished, setFurnished] = useState<string | null>('no')
   const [result, setResult] = useState<Estimate | 'loading' | 'error' | null>(null)
+  // the answers the shown price was worked out for: its heading names them, and a later change marks it out of date
+  const [asked, setAsked] = useState<{ key: string; kind: string; area: number; districtName?: string; deal: string } | null>(null)
   const answer = useRef<HTMLElement>(null)
   // on a phone the answer sits under the questions: bring it into view once it arrives
-  useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [result])
+  useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }) }, [result])
 
   useEffect(() => {
     let live = true
@@ -83,15 +86,22 @@ export function PriceEstimator() {
 
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
+  const key = JSON.stringify([city, district, deal, kind, areaNumber, age, streets, width, furnished])
+  // each «احسب» numbers its request; an answer that comes back after a newer one was asked is dropped, so a slow
+  // first estimate can never replace the price of the answers on screen
+  const sequence = useRef(0)
   const run = () => {
     if (!ready) return
+    const ask = ++sequence.current
+    setAsked({ key, kind, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
     setResult('loading')
     postMarket<Estimate>('price-estimate', {
       city, district_id: district, deal, type: kind, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
-    }).then(setResult).catch(() => setResult('error'))
+    }).then((estimate) => { if (ask === sequence.current) setResult(estimate) })
+      .catch(() => { if (ask === sequence.current) setResult('error') })
   }
-  const districtName = districts?.find((item) => item.id === district)?.name
+  const stale = asked != null && asked.key !== key && result !== 'loading'
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 pb-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:py-10">
@@ -102,12 +112,12 @@ export function PriceEstimator() {
         </header>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-semibold">المدينة
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl border bg-background px-3 text-base font-normal">
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl border border-input bg-background px-3 text-base font-normal">
               {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-xl border bg-background px-3 text-base font-normal disabled:opacity-60">
+            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-xl border border-input bg-background px-3 text-base font-normal disabled:opacity-60">
               <option value="">{districts === null ? 'جارٍ التحميل…' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
               {districts?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -118,7 +128,7 @@ export function PriceEstimator() {
           {KINDS.map((id) => <Chip key={id} active={kind === id} onClick={() => setKind(id)}><Icon3D type={id} className="size-6" />{typeLabel(id)}</Chip>)}
         </Question>
         <label className="flex flex-col gap-1 text-base font-bold">المساحة
-          <span className="flex items-center gap-2 rounded-xl border bg-background px-3 focus-within:ring-2 focus-within:ring-ring/60">
+          <span className="flex items-center gap-2 rounded-xl border border-input bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
             <input inputMode="numeric" dir="ltr" placeholder="مثل 180" value={area} onChange={(e) => setArea(e.target.value.replace(/[^0-9]/g, ''))}
               className="h-11 w-full bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal" />
             <span className="text-sm font-normal text-muted-foreground">م²</span>
@@ -136,15 +146,38 @@ export function PriceEstimator() {
 
       <section ref={answer} aria-live="polite" aria-label="السعر المتوقع" className="flex scroll-mt-20 flex-col gap-4">
         {result === null && <EmptyState icon={Calculator} title="السعر يظهر هنا" body="نقارن عقارك بأقرب العروض الحالية في حيه وما حوله، ونعدّل للفروق التي ثبت أثرها في البيانات." />}
+        {result === 'loading' && (
+          <SkeletonStatus label="جارٍ حساب السعر" className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 rounded-3xl border bg-card p-5 shadow-sm">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-10 w-2/3" />
+              <Skeleton className="h-5 w-3/5" />
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <div className="flex flex-col gap-2.5 rounded-3xl border bg-card p-5">
+              <Skeleton className="h-5 w-32" />
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="flex justify-between gap-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-16" /></div>
+              ))}
+            </div>
+          </SkeletonStatus>
+        )}
         {result === 'error' && <LoadError what="السعر" onRetry={run} />}
         {result && result !== 'loading' && result !== 'error' && !result.available && (
           <EmptyState icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'} />
         )}
-        {result && result !== 'loading' && result !== 'error' && result.available && result.price && (
-          <>
+        {stale && result && result !== 'error' && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-warning/30 bg-warning/5 p-3 text-sm">
+            <span>غيّرت الإجابات. السعر أدناه لعقارك كما كان، احسبه من جديد ليطابق إجاباتك.</span>
+            <Button size="sm" variant="outline" onClick={run} disabled={!ready}><Calculator aria-hidden />احسب من جديد</Button>
+          </div>
+        )}
+        {result && result !== 'loading' && result !== 'error' && result.available && result.price && asked && (
+          <div className={cn('flex flex-col gap-4 transition-opacity', stale && 'opacity-50')}>
             <div className="rounded-3xl border bg-card p-5 shadow-sm">
-              <p className="text-sm text-muted-foreground">{typeLabel(kind)} {numberFormat.format(areaNumber)} م² في {districtName}</p>
-              <p className="mt-1 text-4xl font-bold tabular-nums">{sar(result.price.mid)}<span className="text-lg font-semibold text-muted-foreground">{PERIOD[deal]}</span></p>
+              <p className="text-sm text-muted-foreground">{typeLabel(asked.kind)} {numberFormat.format(asked.area)} م² في {asked.districtName ?? 'حي غير متاح'}</p>
+              <p className="mt-1 text-4xl font-bold tabular-nums">{sar(result.price.mid)}<span className="text-lg font-semibold text-muted-foreground">{PERIOD[asked.deal]}</span></p>
               <p className="mt-1 text-base">
                 المدى المتوقع: <span className="font-semibold tabular-nums">{numberFormat.format(result.price.low)} – {numberFormat.format(result.price.high)}</span> ريال
               </p>
@@ -158,7 +191,7 @@ export function PriceEstimator() {
                   'ثم نعدّل للفروق التي ثبت أثرها في نموذج عروض شمال الرياض: العمر، وعدد الشوارع، وعرض الشارع، والتأثيث. حقول مثل المكيفات والحوش وغرفة العاملة لا تدخل لأن عقار لا يعبئها بانتظام.',
                   'أسعار معروضة لا عقود، والعقود عادة أقل بنحو 5–10%.',
                 ]} className="text-sm">
-                  {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'} في {result.scope?.map((s) => s.district_ar).filter(Boolean).join('، ')}
+                  {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'}{result.scope?.some((s) => s.district_ar) ? ` في ${result.scope.map((s) => s.district_ar).filter(Boolean).join('، ')}` : ''}
                 </Explained>
               </p>
             </div>
@@ -180,19 +213,20 @@ export function PriceEstimator() {
                 <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {result.examples.map((item) => (
                     <li key={item.id}>
-                      <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+                      <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
-                        <span className="text-sm font-bold tabular-nums">{numberFormat.format(item.price_sar)}</span>
-                        <span className="text-xs text-muted-foreground">{numberFormat.format(item.area_sqm)} م² · {item.district_ar}</span>
-                        <span className="inline-flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100"><ExternalLink className="size-3" aria-hidden />في عقار</span>
+                        <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
+                        <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.district_ar].filter(Boolean).join(' · ')}</span>
+                        {/* always shown on touch screens, where there is no hover to reveal it */}
+                        {item.url && <span className="inline-flex items-center gap-1 text-xs text-primary transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:opacity-100"><ExternalLink className="size-3" aria-hidden />في عقار<span className="sr-only">، يفتح في نافذة جديدة</span></span>}
                       </a>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-          </>
+          </div>
         )}
       </section>
     </main>

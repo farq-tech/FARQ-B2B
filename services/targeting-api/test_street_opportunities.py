@@ -1,0 +1,134 @@
+"""«فرص الشوارع» against a synthetic street_density.parquet."""
+import json
+import pathlib
+import sys
+import tempfile
+import unittest
+
+import duckdb
+
+SERVICE_DIR = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(SERVICE_DIR))
+import street_opportunities as so  # noqa: E402
+
+M = 1 / 111000
+LAT, LON = 24.70, 46.70
+
+
+def line(east_m, north_m, length_m=500):
+    return json.dumps({'type': 'MultiLineString', 'coordinates': [[[LON + east_m * M, LAT + north_m * M], [LON + (east_m + length_m) * M, LAT + north_m * M]]]})
+
+
+def row(sub, street, districts, n, north_m, east_m=0, road='main', main='retail', city='Riyadh'):
+    return (city, sub, sub, main, main, street, districts.split('|')[0], districts, n, 0, 500, n / 5, None, road, '', line(east_m, north_m))
+
+
+class StreetOpportunityTests(unittest.TestCase):
+    def build(self, rows):
+        path = pathlib.Path(tempfile.mkdtemp()) / 'street_density.parquet'
+        db = duckdb.connect()
+        db.execute("""create table t(city_en varchar, sub_id varchar, sub_ar varchar, main_id varchar, main_ar varchar, street_ar varchar,
+            district_ar varchar, districts_ar varchar, n integer, n_wholesale integer, length_m integer, per_100m double, lift double,
+            road_class varchar, specialty_ids varchar, geojson varchar)""")
+        db.executemany('insert into t values (' + ','.join('?' * 16) + ')', rows)
+        db.execute('copy t to ? (format parquet)', [str(path)])
+        return db, str(path)
+
+    def setUp(self):
+        self.rows = [
+            # busy street, no pharmacy: the opportunity
+            row('cafe', 'شارع التحلية', 'السليمانية|العليا', 30, 0, main='food'),
+            row('fashion', 'شارع التحلية', 'العليا', 25, 0),
+            # busy street already full of pharmacies
+            row('cafe', 'شارع العليا', 'العليا', 30, 2000, main='food'),
+            row('pharmacy', 'شارع العليا', 'العليا', 20, 2000, main='health'),
+            # the same name far away, in another district, is another street
+            row('cafe', 'شارع التحلية', 'النرجس', 6, 9000, main='food'),
+            # a quiet street: too few shops to count as busy
+            row('cafe', 'شارع صغير', 'الملز', 8, 4000, main='food'),
+            # the kids group duplicates its trades and never adds to a street's total
+            row('group.kids', 'شارع التحلية', 'العليا', 7, 0),
+            row('retail.toys', 'شارع التحلية', 'العليا', 7, 0),
+            # another city
+            row('cafe', 'شارع الأمير', 'الروضة', 90, 0, main='food', city='Jeddah'),
+        ]
+        self.db, self.path = self.build(self.rows)
+
+    def test_busy_street_without_the_activity_ranks_first_and_full_street_is_left_out(self):
+        out = so.opportunities(self.db, self.path, 'Riyadh', subs=['pharmacy'])
+        names = [f['properties']['street_ar'] for f in out['features']]
+        self.assertEqual(names, ['شارع التحلية'])
+        top = out['features'][0]['properties']
+        self.assertEqual(top['score'], 100)
+        self.assertEqual(top['total'], 62)          # 30 + 25 + 7 toys; the kids group is not added again
+        self.assertEqual(top['others'], 62)
+        self.assertIsNone(top['requested_n'])
+        self.assertEqual(top['requested_below'], 5)  # no run there: fewer than 5, not a measured zero
+        self.assertEqual(set(top['districts_ar']), {'السليمانية', 'العليا'})
+        self.assertEqual(top['nearest']['street_ar'], 'شارع العليا')
+        self.assertAlmostEqual(top['nearest']['distance_m'], 2000, delta=30)
+        self.assertEqual(out['features'][0]['geometry']['type'], 'MultiLineString')
+
+    def test_thin_activity_is_counted_and_scored_below_absent(self):
+        rows = self.rows + [row('pharmacy', 'شارع الثلاثين', 'الملقا', 5, 6000, main='health'),
+                            row('cafe', 'شارع الثلاثين', 'الملقا', 55, 6000, main='food')]
+        db, path = self.build(rows)
+        out = so.opportunities(db, path, 'Riyadh', subs=['pharmacy'])
+        by_name = {f['properties']['street_ar']: f['properties'] for f in out['features']}
+        self.assertEqual(by_name['شارع الثلاثين']['requested_n'], 5)
+        self.assertIsNone(by_name['شارع الثلاثين']['requested_below'])
+        self.assertGreater(by_name['شارع الثلاثين']['expected'], 5)
+        self.assertNotIn('شارع العليا', by_name)
+        scores = [f['properties']['score'] for f in out['features']]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+        self.assertTrue(all(0 < s <= 100 for s in scores))
+
+    def test_population_weights_the_score_within_the_city(self):
+        rows = self.rows + [row('cafe', 'شارع الثلاثين', 'الملقا', 62, 6000, main='food')]
+        db, path = self.build(rows)
+        plain = so.opportunities(db, path, 'Riyadh', subs=['pharmacy'])
+        self.assertFalse(plain['population_used'])
+        weighted = so.opportunities(db, path, 'Riyadh', subs=['pharmacy'],
+                                    population={'الملقا': {'population': 90000}, 'العليا': {'population': 10000}, 'السليمانية': {'population': 10000}})
+        self.assertTrue(weighted['population_used'])
+        self.assertEqual(weighted['features'][0]['properties']['street_ar'], 'شارع الثلاثين')
+        self.assertEqual(weighted['features'][0]['properties']['population'], 90000)
+
+    def test_capped_activity_reports_unknown_count(self):
+        rows = self.rows + [row('pharmacy', f'شارع {i}', f'حي {i}', 5, 20000 + 100 * i, main='health') for i in range(so.MAX_PER_SUB)]
+        db, path = self.build(rows)
+        out = so.opportunities(db, path, 'Riyadh', subs=['pharmacy'])
+        top = next(f['properties'] for f in out['features'] if f['properties']['street_ar'] == 'شارع التحلية')
+        self.assertIsNone(top['requested_n'])
+        self.assertIsNone(top['requested_below'])
+
+    def test_group_request_and_main_activity(self):
+        out = so.opportunities(self.db, self.path, 'Riyadh', subs=['group.kids'])
+        by_name = {f['properties']['street_ar']: f['properties'] for f in out['features']}
+        # التحلية carries its kids shops (7 of 62); العليا has 50 shops and none
+        self.assertIn('شارع العليا', by_name)
+        out = so.opportunities(self.db, self.path, 'Riyadh', main_id='health')
+        self.assertEqual([f['properties']['street_ar'] for f in out['features']], ['شارع التحلية'])
+        with self.assertRaises(ValueError):
+            so.opportunities(self.db, self.path, 'Riyadh')
+
+    def test_activity_absent_from_the_city_ranks_by_commerce(self):
+        out = so.opportunities(self.db, self.path, 'Jeddah', subs=['pharmacy'])
+        self.assertEqual(out['features'][0]['properties']['street_ar'], 'شارع الأمير')
+        self.assertIsNone(out['features'][0]['properties']['nearest'])
+
+    def test_line_distance(self):
+        a = [[(0.0, 0.0), (100.0, 0.0)]]
+        b = [[(50.0, 30.0), (50.0, 80.0)]]
+        self.assertAlmostEqual(so.line_distance(a, b), 30.0)
+
+    def test_constants_match_the_build(self):
+        try:
+            import build_trade_corridors as btc
+        except ImportError:
+            self.skipTest('build dependencies not installed')
+        self.assertEqual((so.MIN_SHOPS, so.MAX_PER_SUB), (btc.MIN_SHOPS, btc.MAX_PER_SUB))
+
+
+if __name__ == '__main__':
+    unittest.main()

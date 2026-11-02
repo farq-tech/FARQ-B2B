@@ -180,6 +180,112 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(sorted(c["id"] for c in found["listings"]), ["ok", "one_photo"])
         self.assertEqual(found["total"], 2)
 
+    def test_real_estate_listings_near_a_street_keep_units_within_the_buffer_nearest_first(self):
+        # an east-west street along latitude 24.7 from 46.70 to 46.71; 0.0001° of latitude is about 11 m
+        street = {"type": "MultiLineString", "coordinates": [[[46.70, 24.7], [46.705, 24.7]], [[46.705, 24.7], [46.71, 24.7]]]}
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "store", "district_id": "1", "lon": 46.705,
+                "price_sar": 80000, "area_sqm": 60, "photos": ["p.jpg"], "vs_district_pct": None}
+        cards = [dict(card, id="at40", lat=24.7 + 40 / 110540), dict(card, id="at10", lat=24.7 - 10 / 110540),
+                 dict(card, id="at90", lat=24.7 + 90 / 110540), dict(card, id="past_end", lon=46.7115, lat=24.7),
+                 dict(card, id="flat", type="apartment", lat=24.7), dict(card, id="office", type="office", kind="sale", deal="sale", lat=24.7 + 55 / 110540)]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        near = {"runs": insights.near_lines(street), "meters": 60}
+        found = insights.real_estate_listings("Riyadh", {"types": list(insights.COMMERCIAL_TYPES), "near": near}, str(path))
+        self.assertEqual([c["id"] for c in found["listings"]], ["at10", "at40", "office"], "within 60 m, commercial only, nearest first")
+        self.assertEqual([c["distance_m"] for c in found["listings"]], [10, 40, 55])
+        self.assertEqual(found["total"], 3)
+        wide = insights.real_estate_listings("Riyadh", {"types": ["store"], "near": dict(near, meters=200)}, str(path))
+        self.assertEqual([c["id"] for c in wide["listings"]], ["at10", "at40", "at90", "past_end"], "the end of the line is measured too (about 150 m past it)")
+        plain = insights.real_estate_listings("Riyadh", {"types": ["store"]}, str(path))
+        self.assertFalse(any("distance_m" in c for c in plain["listings"]), "a list without a street carries no distance")
+
+    def test_real_estate_listings_near_a_street_match_commercial_types_however_the_source_spelt_them(self):
+        # #699 returned 0 units because the source named the type in Arabic / a different case / a synonym, none of
+        # which equalled the canonical 'store'/'showroom'/'office' the request asks for. Every type is matched by its
+        # canonical token on both sides, so the commercial units on the street come back.
+        street = {"type": "LineString", "coordinates": [[46.70, 24.7], [46.71, 24.7]]}
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "district_id": "1", "lon": 46.705,
+                "price_sar": 80000, "area_sqm": 60, "photos": ["p.jpg"], "vs_district_pct": None}
+        cards = [dict(card, id="arabic_shop", type="محل", lat=24.7 + 10 / 110540),
+                 dict(card, id="capital_store", type="Store", lat=24.7 + 20 / 110540),
+                 dict(card, id="english_shop", type="shop", lat=24.7 + 30 / 110540),
+                 dict(card, id="arabic_showroom", type="معرض", lat=24.7 + 40 / 110540),
+                 dict(card, id="office_ws", type=" Office ", kind="sale", deal="sale", lat=24.7 + 50 / 110540),
+                 dict(card, id="home", type="شقة", lat=24.7 + 15 / 110540)]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        near = {"runs": insights.near_lines(street), "meters": 60}
+        found = insights.real_estate_listings("Riyadh", {"types": list(insights.COMMERCIAL_TYPES), "near": near}, str(path))
+        self.assertEqual([c["id"] for c in found["listings"]],
+                         ["arabic_shop", "capital_store", "english_shop", "arabic_showroom", "office_ws"],
+                         "every commercial unit on the street, whatever the source called its type, nearest first")
+        self.assertEqual(found["total"], 5, "the apartment (شقة) is the only unit left out")
+
+    def test_canonical_type_folds_case_space_arabic_and_synonyms(self):
+        self.assertEqual(insights.canonical_type("Store"), "store")
+        self.assertEqual(insights.canonical_type(" office "), "office")
+        self.assertEqual(insights.canonical_type("shop"), "store")
+        self.assertEqual(insights.canonical_type("محل"), "store")
+        self.assertEqual(insights.canonical_type("معرض"), "showroom")
+        self.assertEqual(insights.canonical_type("مكتب"), "office")
+        # an unknown type keeps its lowered text, so it still matches a request for that same text
+        self.assertEqual(insights.canonical_type("Kiosk"), "kiosk")
+        self.assertEqual(insights.canonical_type(None), "")
+
+    def test_rent_on_a_street_against_its_surroundings(self):
+        # the street along latitude 24.7; 0.0001° of latitude is about 11 m
+        street = {"type": "LineString", "coordinates": [[46.70, 24.7], [46.71, 24.7]]}
+        at = lambda metres: 24.7 + metres / 110540
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "type": "store", "district_id": "1", "lon": 46.705,
+                "photos": ["p.jpg"], "vs_district_pct": None}
+        cards = [
+            # on the street: yearly 120k/100 m², monthly 10k (= 120k a year)/60 m², yearly 150k with no area, a sale
+            dict(card, id="s1", lat=at(10), price_sar=120000, area_sqm=100),
+            dict(card, id="s2", lat=at(20), deal="rent_month", price_sar=10000, area_sqm=60),
+            dict(card, id="s3", lat=at(30), price_sar=150000, area_sqm=None, sar_per_sqm=None, check=True),
+            dict(card, id="s4", lat=at(40), kind="sale", deal="sale", price_sar=2000000, area_sqm=100),
+            dict(card, id="s5", lat=at(50), deal="rent_unstated", price_sar=1, area_sqm=100),
+            # around it (60–500 m): 100k/100, 80k/100, 60k/100; one past 500 m and an apartment do not count
+            dict(card, id="a1", lat=at(100), price_sar=100000, area_sqm=100),
+            dict(card, id="a2", lat=at(-200), price_sar=80000, area_sqm=100),
+            dict(card, id="a3", lat=at(450), price_sar=60000, area_sqm=100),
+            dict(card, id="far", lat=at(700), price_sar=1000, area_sqm=100),
+            dict(card, id="flat", type="apartment", lat=at(100), price_sar=1000, area_sqm=100),
+        ]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        near = {"runs": insights.near_lines(street), "meters": 60}
+        found = insights.real_estate_listings("Riyadh", {"types": list(insights.COMMERCIAL_TYPES), "near": near}, str(path))
+        self.assertEqual([c["id"] for c in found["listings"]], ["s1", "s2", "s3", "s4"], "an ad without an area is served")
+        self.assertFalse(any(c["check"] for c in found["listings"]))
+        self.assertEqual(found["hidden"], {"rent_unstated": 1})
+        summary = found["rent_summary"]
+        self.assertEqual(summary["street"], {"units": 3, "median_annual_sar": 120000, "per_sqm_units": 2, "median_annual_sar_per_sqm": None},
+                         "a month's rent counts twelve times; a sale and an unstated period stay out; per m² needs 3 ads with an area")
+        self.assertEqual(summary["around"], {"units": 3, "median_annual_sar": 80000, "per_sqm_units": 3, "median_annual_sar_per_sqm": 800})
+        self.assertEqual(summary["vs_around_pct"], {"annual": 50, "per_sqm": None})
+        self.assertEqual((summary["around_m"], summary["min_units"]), (500, 3))
+        self.assertNotIn("rent_summary", insights.real_estate_listings("Riyadh", {"types": ["store"]}, str(path)))
+
+    def test_a_card_marked_only_for_lacking_an_area_is_not_suspect(self):
+        base = {"check": True, "price_sar": 90000, "area_sqm": None, "sar_per_sqm": None, "deal": "rent_year"}
+        self.assertFalse(insights._suspect(base))
+        self.assertTrue(insights._suspect(dict(base, price_sar=4000)), "a yearly rent too low to be one")
+        self.assertTrue(insights._suspect(dict(base, area_sqm=100, sar_per_sqm=900)), "a figure out of line")
+        self.assertFalse(insights._suspect(dict(base, check=False, area_sqm=100)))
+        self.assertEqual(insights.rent_level([]), {"units": 0, "median_annual_sar": None, "per_sqm_units": 0, "median_annual_sar_per_sqm": None})
+
+    def test_near_lines_takes_only_a_line_inside_the_kingdom(self):
+        self.assertEqual(insights.near_lines({"type": "LineString", "coordinates": [[46.7, 24.7], [46.71, 24.7]]}), [[(46.7, 24.7), (46.71, 24.7)]])
+        for bad in (None, {"type": "Point", "coordinates": [46.7, 24.7]}, {"type": "LineString", "coordinates": []},
+                    {"type": "LineString", "coordinates": [[0, 0], [1, 1]]}, {"type": "LineString", "coordinates": [["46.7", 24.7]]},
+                    {"type": "MultiLineString", "coordinates": [[]]},
+                    {"type": "LineString", "coordinates": [[46.7, 24.7]] * (insights.NEAR_MAX_VERTICES + 1)}):
+            with self.assertRaises(ValueError):
+                insights.near_lines(bad)
+        self.assertAlmostEqual(insights.distance_to_lines_m(46.7, 24.7 + 30 / 110540, [[(46.69, 24.7), (46.71, 24.7)]]), 30, delta=0.5)
+
 
 class RegisteredDealsTest(unittest.TestCase):
     def test_the_city_table_or_none(self):

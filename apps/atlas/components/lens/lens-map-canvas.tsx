@@ -5,6 +5,7 @@ import type { GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { LoadError } from '@/components/shared/load-error'
+import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 
@@ -56,7 +57,7 @@ function circlePolygon({ lon, lat, radius_m }: Circle): GeoJSON.Feature<GeoJSON.
  * district. A tool can paint districts in its own colours (`colors`, e.g. sales territories), draw a search
  * circle, and take clicks as points instead (`onPick`). The token comes from /api/mapbox-token like every Atlas map.
  */
-export type MapPoint = { id: string; lon: number; lat: number }
+export type MapPoint = { id: string; lon: number; lat: number; /** Its own colour, such as the day of a rep's week; ochre when absent. */ color?: string }
 /** A drawn area (a radius or a drive-time area) and the numbered site it belongs to. */
 export type Area = { id: string; color: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 export type Site = { id: string; label: string; color: string; lon: number; lat: number }
@@ -67,7 +68,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -90,6 +91,15 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   zoomTo?: { id: string; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
+  /** Told when the map fails to open and when a retry brings it back, so the page can clear what would sit over the notice. */
+  onFailed?: (failed: boolean) => void
+  /** Where the failure notice sits, when the page keeps other things at the map's top. */
+  errorClassName?: string
+  /** A district a list is pointing at (a row under the pointer or focus), outlined on the map without picking it. */
+  hover?: string | null
+  /** The district under a mouse pointer and where it is on the map (pixels from the map's corner), or null when it
+   * leaves the districts. Mouse only: a tap picks the district instead. */
+  onPoint?: ((point: { id: string; x: number; y: number; width: number; height: number } | null) => void) | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -98,10 +108,17 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   const openListing = useRef(onListing)
   const openStreet = useRef(onStreet)
   openStreet.current = onStreet
+  const point = useRef(onPoint)
+  point.current = onPoint
   const reportBounds = useRef(onBounds)
   reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
+  // a retry opens the map again in place, so the lens, the step and the picked districts stay as they were
+  const [attempt, setAttempt] = useState(0)
+  const failed = useRef(onFailed)
+  failed.current = onFailed
+  useEffect(() => { failed.current?.(error !== '') }, [error])
   toggle.current = onToggle
   pick.current = onPick
   openListing.current = onListing
@@ -110,10 +127,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     let disposed = false
     ;(async () => {
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
-      const token = response?.ok ? (await response.json()).token : null
+      const token = response?.ok ? await response.json().then((body) => body.token as string | undefined).catch(() => null) : null
+      if (disposed) return
       if (!token) { setError('الخريطة'); return }
-      const mapboxgl = (await import('mapbox-gl')).default
+      const mapboxgl = await import('mapbox-gl').then((module) => module.default).catch(() => null)
       if (disposed || !container.current) return
+      if (!mapboxgl) { setError('الخريطة'); return }
       mapboxgl.accessToken = token
       const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance
@@ -154,6 +173,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         } }, firstRoad)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': PALETTE.olive, 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
         instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
+        instance.addLayer({ id: 'district-hover', type: 'line', source: 'districts', filter: ['==', ['get', 'id'], ''], paint: { 'line-color': PALETTE.ink, 'line-width': 2, 'line-dasharray': [2, 1] } })
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
           'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
           'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
@@ -180,7 +200,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 13,
         }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 2 } })
         instance.addSource('stops', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': PALETTE.ochre, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 } })
+        instance.addLayer({ id: 'stops', type: 'circle', source: 'stops', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 14, 6], 'circle-color': ['coalesce', ['get', 'color'], PALETTE.ochre], 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 } })
         instance.addSource('start', { type: 'geojson', data: EMPTY })
         instance.addLayer({ id: 'start', type: 'circle', source: 'start', paint: { 'circle-radius': 9, 'circle-color': PALETTE.white, 'circle-stroke-color': PALETTE.olive, 'circle-stroke-width': 4 } })
         instance.addSource('sites', { type: 'geojson', data: EMPTY })
@@ -225,12 +245,17 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
         }
         instance.on('mouseenter', 'district-fill', () => { instance.getCanvas().style.cursor = 'pointer' })
-        instance.on('mouseleave', 'district-fill', () => { instance.getCanvas().style.cursor = '' })
+        instance.on('mouseleave', 'district-fill', () => { instance.getCanvas().style.cursor = ''; point.current?.(null) })
+        instance.on('mousemove', 'district-fill', (event) => {
+          const id = event.features?.[0]?.properties?.id
+          point.current?.(id == null ? null : { id: String(id), x: event.point.x, y: event.point.y, width: instance.getContainer().clientWidth, height: instance.getContainer().clientHeight })
+        })
         setReady(true)
       })
     })()
     return () => { disposed = true; map.current?.remove(); map.current = null }
-  }, [])
+  }, [attempt])
+  const retry = () => { setError(''); setReady(false); setAttempt((count) => count + 1) }
 
   useEffect(() => {
     const instance = map.current
@@ -245,6 +270,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
 
   useEffect(() => {
     const instance = map.current
+    if (!ready || !instance?.getLayer('district-hover')) return
+    instance.setFilter('district-hover', ['==', ['get', 'id'], hover ?? ''])
+  }, [ready, hover])
+
+  useEffect(() => {
+    const instance = map.current
     if (!ready || !instance) return
     ;(instance.getSource('circle') as GeoJSONSource | undefined)?.setData(circle ? { type: 'FeatureCollection', features: [circlePolygon(circle)] } : EMPTY)
     instance.getCanvas().style.cursor = onPick ? 'crosshair' : ''
@@ -254,7 +285,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     const instance = map.current
     if (!ready || !instance) return
     const collection = (items: GeoJSON.Feature[]): GeoJSON.FeatureCollection => ({ type: 'FeatureCollection', features: items })
-    ;(instance.getSource('stops') as GeoJSONSource | undefined)?.setData(collection((points ?? []).map((point) => ({ type: 'Feature', properties: { id: point.id }, geometry: { type: 'Point', coordinates: [point.lon, point.lat] } }))))
+    ;(instance.getSource('stops') as GeoJSONSource | undefined)?.setData(collection((points ?? []).map((point) => ({ type: 'Feature', properties: { id: point.id, ...(point.color ? { color: point.color } : {}) }, geometry: { type: 'Point', coordinates: [point.lon, point.lat] } }))))
     ;(instance.getSource('route') as GeoJSONSource | undefined)?.setData(collection((lines ?? []).map((line) => ({ type: 'Feature', properties: {}, geometry: line }))))
     ;(instance.getSource('start') as GeoJSONSource | undefined)?.setData(collection(start ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [start.lon, start.lat] } }] : []))
   }, [ready, points, lines, start])
@@ -311,8 +342,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   return (
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
-      {/* a reload brings the map back, so the button offers just that */}
-      {error && <LoadError what={error} onRetry={() => window.location.reload()} className="absolute inset-x-4 top-4 mx-auto max-w-sm bg-card/95 backdrop-blur" />}
+      {error && <LoadError what={error} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
     </div>
   )
 }
