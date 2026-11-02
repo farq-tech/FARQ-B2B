@@ -88,6 +88,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
     if (mode !== 'businesses') return
     let active = true
     setStatus('loading')
+    // drop the last activity's counts now, so the map clears instead of shading districts for a different activity
+    setCounts(null)
     postMarket<{ districts?: Count[] }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
       .then((data) => { if (active) { setCounts(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))); setStatus('idle') } })
       .catch(() => { if (active) setStatus('error') })

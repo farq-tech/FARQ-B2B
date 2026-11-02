@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ChevronDown, ClipboardList, Megaphone, Search } from 'lucide-react'
+import { ChevronDown, ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
@@ -39,6 +39,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   useEffect(() => { if (query) void load() }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
+    if (status === 'loading') return
     setStatus('loading')
     try {
       const found: PublicDirectoryEntity[] = []
@@ -99,13 +100,13 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-lg font-bold">منشآت {where}</h2>
-      <div className="flex gap-2">
-        <input value={activity} onChange={(event) => setActivity(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void load() }}
+      <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void load() }}>
+        <input value={activity} onChange={(event) => setActivity(event.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="كل الأنشطة، أو اكتب نشاطاً" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />
-        <button onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground">
-          <Search className="size-4" aria-hidden /> اعرض
+        <button type="submit" disabled={status === 'loading'} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-base font-semibold text-primary-foreground disabled:opacity-60">
+          {status === 'loading' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />} اعرض
         </button>
-      </div>
+      </form>
       {status === 'loading' && (
         <>
           <Skeleton className="h-4 w-32" aria-hidden />
@@ -144,11 +145,11 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
             {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ClipboardList]] as const).map(([type, label, Icon]) => (
               <button key={type} disabled={!picked.size} onClick={() => act(type)}
                 className={cn('inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-semibold', picked.size ? 'border-primary text-primary hover:bg-primary hover:text-primary-foreground' : 'cursor-not-allowed opacity-50')}>
-                <Icon className="size-4" aria-hidden /> {label}
+                <Icon className="size-4" aria-hidden /> {label}{picked.size ? ` (${numberFormat.format(picked.size)})` : ''}
               </button>
             ))}
           </div>
-          <p className="text-sm text-muted-foreground">يُفتح الطلب في «الطلبات» لتراجعه. لا يُرسل شيء من هنا.</p>
+          <p className="text-sm text-muted-foreground">{picked.size ? 'يُفتح الطلب في «الطلبات» لتراجعه. لا يُرسل شيء من هنا.' : 'اختر منشأة أو أكثر لتنشئ منها طلباً. لا يُرسل شيء من هنا.'}</p>
         </>
       )}
     </section>

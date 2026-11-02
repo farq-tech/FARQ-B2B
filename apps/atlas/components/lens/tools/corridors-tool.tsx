@@ -57,6 +57,8 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     let live = true
     setStatus('loading')
     setActive(null)
+    // drop the last query's streets now, so the map never shows them beside the skeleton of a different query
+    setResult(null)
     postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) })
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
@@ -91,13 +93,13 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">شوارع النشاط</h2>
-      <div className="flex gap-2">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') study(query.trim()) }}
+      <form role="search" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); study(query.trim()) }}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="اكتب النشاط: أدوات صحية، ورش سيارات…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-        <button onClick={() => study(query.trim())} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
+        <button type="submit" disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ البحث" /> : 'اعرض'}
         </button>
-      </div>
+      </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
       <div className="flex flex-wrap gap-2">

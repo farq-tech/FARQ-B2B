@@ -91,6 +91,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     let live = true
     setStatus('loading')
     setBrand(null)
+    // drop the last activity's counts now, so the map clears instead of shading districts for a different query
+    setCounts(null)
+    setUnderstood(null)
     onActivity(studied.q ?? studied.label)
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     Promise.all([
@@ -154,14 +157,14 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">المنافسون</h2>
-      <div className="flex gap-2">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && query.trim()) study({ q: query.trim(), label: query.trim() }) }}
+      <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (query.trim()) study({ q: query.trim(), label: query.trim() }) }}>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="نشاطك" enterKeyHint="search"
           placeholder="اكتب نشاطك: صيدلية، مقهى…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-        <button onClick={() => query.trim() && study({ q: query.trim(), label: query.trim() })} disabled={status === 'loading'}
+        <button type="submit" disabled={status === 'loading'}
           className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'ادرس'}
         </button>
-      </div>
+      </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); study({ main_id: item.main_id, label: item.main_ar }) } }} />
       <div className="flex flex-wrap gap-2">

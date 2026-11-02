@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Scale, Send, X } from 'lucide-react'
 import { ltr, numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
@@ -90,6 +90,13 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'login' | 'error'>('idle')
   const [message, setMessage] = useState('')
+  const thread = useRef<HTMLOListElement>(null)
+
+  // a new turn (or the reply placeholder) can land below the fold of the scrolling thread: bring its start into view
+  useEffect(() => {
+    const last = thread.current?.lastElementChild
+    if (last instanceof HTMLElement) thread.current!.scrollTo({ top: last.offsetTop, behavior: 'smooth' })   // the list is `relative`, so offsetTop is measured from it
+  }, [turns, status])
 
   const profile = [
     who.length ? `لمن: ${who.join('، ')}` : '',
@@ -161,7 +168,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
         </>
       ) : (
         <>
-          <ol className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+          <ol ref={thread} aria-live="polite" aria-relevant="additions" aria-label="المحادثة" className="relative flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
             {turns.map((turn, index) => (
               <li key={index} className={cn('whitespace-pre-line rounded-xl px-3 py-2 text-base leading-7', turn.role === 'assistant' ? 'bg-muted/50' : 'ms-8 bg-primary/10')}>
                 {turn.content}
@@ -175,12 +182,12 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
               </li>
             )}
           </ol>
-          <div className="flex gap-2">
-            <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} maxLength={500}
+          <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); send() }}>
+            <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} aria-label="سؤالك عن المقارنة" enterKeyHint="send"
               placeholder="اكتب سؤالك عن المقارنة" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />
-            <button onClick={send} disabled={!draft.trim() || status === 'loading'} aria-label="أرسل"
+            <button type="submit" disabled={!draft.trim() || status === 'loading'} aria-label="أرسل"
               className="rounded-lg bg-primary px-3 text-primary-foreground disabled:opacity-50"><Send className="size-4" aria-hidden /></button>
-          </div>
+          </form>
         </>
       )}
       {status === 'login' && <p className="text-base">لاستخدام المقارنة <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
