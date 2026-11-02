@@ -49,7 +49,7 @@ const duration = (seconds: number) => {
 }
 
 /**
- * «تقسيم المندوبين» as a full journey: the customers' activity, the number of reps, one rep's area, its
+ * «المناطق والمسار» as a full journey: the customers' activity, the number of reps, one rep's area, its
  * customers on the map, a start point, and the visit route on the roads, drawn part by part as it is solved.
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
@@ -127,30 +127,6 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
   const pickStart = useCallback((point: Point) => { setStart(point); setPicking(false) }, [])
 
-  // everything on the map comes from this one place
-  useEffect(() => {
-    const ids = new Map(rows.map((row) => [row.name, row.id]))
-    const colors = new Map<string, string>()
-    groups?.forEach((group, index) => group.districts.forEach((district) => {
-      const id = ids.get(district.district_ar) ?? String(district.district_id)
-      colors.set(id, rep == null || rep === index ? PALETTE[index % PALETTE.length] : DIM)
-    }))
-    const dayOf = new Map<string, number>()
-    plan?.days.forEach((planned, index) => planned.stops.forEach((id) => dayOf.set(id, index)))
-    const painted = plan && customers
-      ? customers.map((customer) => {
-        const index = dayOf.get(customer.id)
-        return { ...customer, color: index == null || (day != null && day !== index) ? DIM : PALETTE[index % PALETTE.length] }
-      })
-      : customers
-    onOverlay({
-      colors: groups ? colors : null,
-      points: painted,
-      start,
-      lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
-      onPick: picking ? pickStart : null,
-    })
-  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay])
 
   async function route(only?: Stop[]) {
     const from = start ?? only?.[0]
@@ -185,9 +161,41 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const names = dayNames(days)
   const finished = progress != null && progress.done === progress.total && solved.length > 0
 
+  // the step's answer in one line for the peeking sheet: the route once solved, else the rep's customers, else the split
+  const summary = finished ? `المسار: ${numberFormat.format(order.length)} محطة · ${numberFormat.format(Math.round(meters / 1000))} كم · ${duration(seconds)}`
+    : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
+      : groups && status !== 'loading' ? `${numberFormat.format(groups.length)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
+        : null
+
+  // everything on the map comes from this one place
+  useEffect(() => {
+    const ids = new Map(rows.map((row) => [row.name, row.id]))
+    const colors = new Map<string, string>()
+    groups?.forEach((group, index) => group.districts.forEach((district) => {
+      const id = ids.get(district.district_ar) ?? String(district.district_id)
+      colors.set(id, rep == null || rep === index ? PALETTE[index % PALETTE.length] : DIM)
+    }))
+    const dayOf = new Map<string, number>()
+    plan?.days.forEach((planned, index) => planned.stops.forEach((id) => dayOf.set(id, index)))
+    const painted = plan && customers
+      ? customers.map((customer) => {
+        const index = dayOf.get(customer.id)
+        return { ...customer, color: index == null || (day != null && day !== index) ? DIM : PALETTE[index % PALETTE.length] }
+      })
+      : customers
+    onOverlay({
+      colors: groups ? colors : null,
+      points: painted,
+      start,
+      lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
+      onPick: picking ? pickStart : null,
+      summary,
+    })
+  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay, summary])
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">تقسيم المندوبين</h2>
+      <h2 className="text-xl font-bold">المناطق والمسار</h2>
 
       <Step n={1} title="نشاط عملائك" done={Boolean(mainId)}>
         <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط عملائك" allLabel="كل المنشآت" />

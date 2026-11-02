@@ -10,6 +10,8 @@ import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { BusinessDetail } from './business-detail'
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
 import { useAppStore } from '@/lib/store'
+import { useStudiedActivity } from '@/lib/sticky-state'
+import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,8 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   const router = useRouter()
   const { createDraft } = useAppStore()
   const [activity, setActivity] = useState(query ?? '')
+  // the activity studied in the other steps, offered as a one-tap start before anything is shown
+  const [studied] = useStudiedActivity()
   const [rows, setRows] = useState<PublicDirectoryEntity[]>([])
   const [total, setTotal] = useState<number | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -42,20 +46,21 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   // a search from the top of the map runs at once, over the selected districts or the whole city
   useEffect(() => { if (query) void load() }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function load() {
+  async function load(text: string = activity) {
+    const typed = text.trim()
     if (status === 'loading') return
     setStatus('loading')
     try {
       const found: PublicDirectoryEntity[] = []
       let count = 0
       // no district chosen: one search over the whole city, which needs an activity
-      const scopes: (string | null)[] = districts.length ? districts.slice(0, MAX_DISTRICTS) : activity.trim() ? [null] : []
+      const scopes: (string | null)[] = districts.length ? districts.slice(0, MAX_DISTRICTS) : typed ? [null] : []
       for (const district of scopes) {
         const response = await fetch('/api/market/entities', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(activity.trim() ? { q: activity.trim(), objective: 'purchase' } : {}) }),
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(typed ? { q: typed, objective: 'purchase' } : {}) }),
         })
         const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string } | null
         if (response.status === 401) { setStatus('login'); return }
@@ -104,7 +109,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
 
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-lg font-bold">منشآت {where}</h2>
+      <h2 className="text-xl font-bold">منشآت {where}</h2>
       <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void load() }}>
         <input value={activity} onChange={(event) => setActivity(event.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="كل الأنشطة، أو اكتب نشاطاً" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />
@@ -112,6 +117,18 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           {status === 'loading' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />} اعرض
         </button>
       </form>
+      {status === 'idle' && (
+        <div role="group" aria-label="ابدأ بـ" className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => { setActivity(studied.label); void load(studied.label) }}
+            className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary">
+            <Icon3D activity={studied.label} />{studied.label}
+          </button>
+          {districts.length > 0 && (
+            <button type="button" onClick={() => { setActivity(''); void load('') }}
+              className="rounded-full border px-3 py-1 text-sm hover:border-primary hover:text-primary">كل الأنشطة</button>
+          )}
+        </div>
+      )}
       {status === 'loading' && (
         <>
           <Skeleton className="h-4 w-32" aria-hidden />

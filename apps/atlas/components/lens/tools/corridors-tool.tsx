@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { cn } from '@/lib/utils'
+import { EXPLAIN } from '@/lib/explanations'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
@@ -36,17 +38,6 @@ const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار
 // more shops on the street reads as a deeper colour, in five even groups of the corridors shown
 const HEAT = OCHRE_STEPS
 const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي', secondary: 'شارع فرعي' }
-
-/** The explanation behind one corridor's figures. */
-function explain(corridor: Corridor): string[] {
-  const lines = [
-    `${counted(corridor.n, 'business')} من «${corridor.sub_ar}» على ${numberFormat.format(corridor.length_m)} م من الشارع: ${numberFormat.format(corridor.per_100m)} لكل 100 م.`,
-    'كل منشأة على أقرب شارع مسمّى لها حتى 60 م، والممر مقاطع الشارع نفسه التي فيها النشاط، متصلة ولو عبرت أكثر من حي.',
-  ]
-  if (corridor.lift != null) lines.push(`حصة النشاط بين منشآت هذا الممر ${numberFormat.format(corridor.lift)} ضعف حصته في المدينة.`)
-  if (corridor.n_wholesale) lines.push(`منها ${counted(corridor.n_wholesale, 'business')} جملة.`)
-  return lines
-}
 
 /**
  * «شوارع النشاط»: the streets an activity lines, drawn along the streets themselves. Typing «أدوات صحية» or
@@ -118,13 +109,17 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     const listings = (units?.listings ?? []).map((item) => ({
       id: item.id, lon: item.lon, lat: item.lat, color: toneColor[versusDistrict(item)?.tone ?? 'none'], active: item.id === unit?.id,
     }))
+    const top = corridors[0]?.properties
+    const summary = mode !== 'cluster' || status === 'loading' || !result ? null
+      : top ? `${numberFormat.format(corridors.length)} شارعاً لـ«${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.n)} محل`
+        : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
-      streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
+      summary, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
       listings, onListing: (id) => { const item = units?.listings.find((listing) => listing.id === id); if (item) setUnit(item) },
       focus,
       popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
     })
-  }, [mode, corridors, colors, active, onOverlay, units, unit, focus])
+  }, [mode, corridors, colors, active, onOverlay, units, unit, focus, status, result, studied.label])
 
   // a corridor picked on the map comes into view in the list
   useEffect(() => {
@@ -145,9 +140,10 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <div className="flex flex-wrap gap-2">
+      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
         {EXAMPLES.map((example) => (
-          <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
+          <button key={example} onClick={() => { setQuery(example); study(example) }} aria-pressed={studied.q === example}
+            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="طريقة العرض">
@@ -176,7 +172,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
                 title={corridor.street_ar}
                 sub={`${(corridor.districts_ar?.length ? corridor.districts_ar : [corridor.district_ar]).filter(Boolean).join('، ')}${corridor.road_class ? ` · ${ROAD[corridor.road_class]}` : ''}${corridor.n_wholesale ? ` · ${numberFormat.format(corridor.n_wholesale)} جملة` : ''}`}
                 aside={(
-                  <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={explain(corridor)} className="text-end">
+                  <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={EXPLAIN.corridor(corridor)} className="text-end">
                     <span>
                       <span className="block font-bold text-primary">{numberFormat.format(corridor.n)} محل</span>
                       <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>

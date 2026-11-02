@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
@@ -47,13 +47,15 @@ function Thumb({ src }: { src: string | null }) {
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   /** Where the search starts: a shop owner looks for a shop to rent, whatever period its ad states. */
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
+  /** The district of the listing a row points at, outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
   const sticky = `homes.${preset ? 'preset' : 'plain'}`
@@ -103,6 +105,22 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   )), [])
   const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }) }, [])
 
+
+  // the list in the server's best-value order, or nearest to the viewer's point first, BEST at a time
+  const [limit, showMore] = useShowMore(BEST, `${city}|${kind}|${type}|${deal}|${budget}|${districtKey}|${nearest}`)
+  const ordered = useMemo(() => (nearest && myPoint
+    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
+    : result.listings), [result.listings, nearest, myPoint])
+  const shown = useMemo(() => ordered.slice(0, limit), [ordered, limit])
+
+  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
+  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+
+  // the step's answer in one line for the peeking sheet: the service's count, and the first listing of the list
+  const summary = result.status !== 'ready' ? null
+    : !result.available ? 'عروض العقار غير متاحة لهذه المدينة بعد'
+      : `${result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
+
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
@@ -116,21 +134,15 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
         compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
+      summary,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density])
-
-  // the list in the server's best-value order, or nearest to the viewer's point first
-  const shown = useMemo(() => (nearest && myPoint
-    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
-    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
-
-  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
-  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">اختر عقاراً</h2>
+      {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
+      <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
       <div role="group" aria-label="إيجار أو شراء" className="flex gap-1.5">
         {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
           <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}
@@ -189,7 +201,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
-            {result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}
+            {result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}
             {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
           {result.listings.length > 0 && (
@@ -201,6 +213,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
                   const away = myPoint ? `${formatDistance(distanceKm(listing, myPoint) * 1000)} من نقطتك` : null
                   return (
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
+                      onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
                       leading={<Thumb src={listing.photo} />}
                       title={[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}
                       sub={versus || away ? <>{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</> : null}
@@ -208,6 +221,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
                   )
                 })}
               </ol>
+              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing" onMore={showMore} />
             </div>
           )}
         </>

@@ -58,12 +58,14 @@ function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): 
  * nationality and income; a business marketer filters businesses by activity and WhatsApp reach. The map turns into
  * the best-matching districts and the card gives the audience size in the selected districts, or the whole city.
  */
-export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
+export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
+  /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
+  onHover?: (id: string | null) => void
 }) {
   const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
   const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
@@ -127,8 +129,14 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
-    onOverlay({ colors })
-  }, [scored, onOverlay])
+    // the card's first figure in one line for the peeking sheet: the same sum of the service's figures, and the top district
+    const list = selected.length ? scored.filter((item) => selected.some((row) => row.id === item.row.id)) : scored
+    const where = selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'
+    const segment = both ? `${ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]}: ` : ''
+    const size = list.length ? `${show(list.reduce((sum, item) => sum + item.size, 0))} ${mode === 'people' ? 'شخص' : 'منشأة'}` : 'غير متاح'
+    const summary = status === 'loading' ? null : `حجم الجمهور ${where}: ${segment}${size}${scored[0] ? ` · الأعلى: ${scored[0].row.name}` : ''}`
+    onOverlay({ colors, summary })
+  }, [scored, onOverlay, selected, both, ranked, sex, nationality, mode, status])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
@@ -196,7 +204,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
             {scored.slice(0, limit).map((item) => (
-              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
+              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)} title={item.row.name}
                 active={selected.some((row) => row.id === item.row.id)}
                 value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
             ))}

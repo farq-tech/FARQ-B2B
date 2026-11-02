@@ -128,7 +128,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     {
       label: 'ساكن لكل منشأة',
       value: (f) => f.residents_per,
-      explain: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
+      explain: EXPLAIN.aroundResidentsPer,
       higherIsBetter: true,
     },
   ]

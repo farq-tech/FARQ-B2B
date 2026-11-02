@@ -16,4 +16,8 @@ test('a count takes the noun form Arabic agreement asks for', () => {
   assert.equal(counted(523, 'branch'), '523 فرعاً')
   assert.equal(counted(1_000, 'business'), '1,000 منشأة')
   assert.equal(counted(0, 'district'), '0 حي')
+  assert.equal(counted(1, 'listing'), 'عرض واحد')
+  assert.equal(counted(7, 'listing'), '7 عروض')
+  assert.equal(counted(48, 'listing'), '48 عرضاً')
+  assert.equal(counted(1_500, 'listing'), '1,500 عرض')
 })
