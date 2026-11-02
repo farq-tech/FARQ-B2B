@@ -87,6 +87,18 @@ class TradeCorridorTest(unittest.TestCase):
             self.assertEqual((n, nw), (6, 1))
 
 
+class NamedStreetTest(unittest.TestCase):
+    def test_a_shop_by_an_unnamed_lane_counts_for_the_named_street_beside_it(self):
+        segments = [('Abi Said Al Khadri St', 'main', False, [(LON, LAT), (LON + 600 * M, LAT)]),
+                    ('', 'secondary', False, [(LON, LAT + 25 * M), (LON + 600 * M, LAT + 25 * M)])]   # service lane
+        rows = [shop('الخليج', 'tailor', 50 + 100 * i, 30) + ('أبي سعيد الخدري',) for i in range(5)]
+        found, stats = btc.city_corridors('Riyadh', rows, segments, SUBS)
+        self.assertEqual(stats['on_named_street'], 5)
+        self.assertEqual(len(found), 1)
+        # the road file's Latin name gives way to the Arabic name the shops write
+        self.assertEqual(found[0]['street_ar'], 'أبي سعيد الخدري')
+
+
 class KidsGroupCorridorTest(unittest.TestCase):
     def test_kids_trades_on_one_street_also_make_one_group_corridor(self):
         subs = btc.with_groups({**SUBS,

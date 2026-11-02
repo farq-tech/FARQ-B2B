@@ -1,7 +1,7 @@
 """Trade corridors: where one activity lines a real street, built on the road network.
 
 Each business with a precise point is placed on its nearest road (up to 40 m). Segments of the
-same street that carry the same activity and lie within 60 m of each other join into one corridor,
+same street that carry the same activity and lie within 100 m of each other join into one corridor,
 so a street keeps one line across district borders and across both sides of a divided road.
 
 Output keeps the street_density.parquet columns the service already reads (city_en, sub_id,
@@ -36,12 +36,13 @@ import shapely
 import status_policy
 from activity_groups import groups_of, with_groups
 
-SNAP_M = 40          # a business further than this from any road is not on a street
-JOIN_M = 60          # segments of one street with the activity, closer than this, are one corridor
+SNAP_M = 40          # a business further than this from any named road is not on a street
+JOIN_M = 100         # segments of one street with the activity, closer than this, are one corridor
 MIN_SHOPS = 5        # a corridor needs at least this many businesses of the activity
 MAX_PER_SUB = 400    # strongest corridors kept per city and activity
 ROAD_FILES = {'Основные': 'main', 'Прочие': 'secondary'}
 _SPACES = re.compile(r'\s+')
+_ARABIC = re.compile('[\u0600-\u06ff]')
 
 
 def street_name(title: str) -> str:
@@ -52,7 +53,7 @@ def businesses(con, targets: Path):
     """Open, precisely located businesses with a classified activity."""
     rows = con.execute(f"""
         select city_en, coalesce(district_ar, ''), sub_id, latitude, longitude,
-               coalesce(is_wholesale, false), coalesce(specialty_ids, '')
+               coalesce(is_wholesale, false), coalesce(specialty_ids, ''), coalesce(street_ar, '')
         from read_parquet(?)
         where location_precision = 'point' and latitude between -85 and 85 and longitude between -180 and 180
           and sub_id is not null and sub_id <> '' and city_en is not null and city_en <> ''
@@ -158,9 +159,14 @@ def city_corridors(city, rows, segments, subs):
 
     bx, by = to_m([r[3] for r in rows], [r[2] for r in rows])
     points = shapely.points(np.column_stack([bx, by]))
-    tree = shapely.STRtree(lines)
-    pi, si = tree.query_nearest(points, max_distance=SNAP_M, all_matches=False)
-    seg_of = np.full(len(rows), -1); seg_of[pi] = si
+    # a shop faces the named street even when an unnamed service lane or parking runs between them, so only named
+    # segments are candidates (in Riyadh most shops sit nearer an unnamed lane than the street they are on)
+    named = np.array([k for k, name in enumerate(names) if name], dtype=int)
+    seg_of = np.full(len(rows), -1)
+    if len(named):
+        tree = shapely.STRtree(lines[named])
+        pi, si = tree.query_nearest(points, max_distance=SNAP_M, all_matches=False)
+        seg_of[pi] = named[si]
 
     on_street = [(i, int(s)) for i, s in enumerate(seg_of.tolist()) if s >= 0 and names[s]]
     city_all = collections.Counter(rows[i][1] for i, _ in on_street)
@@ -199,11 +205,14 @@ def city_corridors(city, rows, segments, subs):
             n_all = sum(seg_all[s] for s in run)
             districts = collections.Counter(rows[i][0] for i in members if rows[i][0])
             specialties = sorted({x for i in members for x in rows[i][5].split('|') if x})
+            # the road file names many Riyadh streets in Latin letters; the Arabic name the shops give wins then
+            written = collections.Counter(street_name(rows[i][6]) for i in members if len(rows[i]) > 6 and _ARABIC.search(rows[i][6] or ''))
+            label = name if _ARABIC.search(name) or not written else written.most_common(1)[0][0]
             geometry = shapely.simplify(shapely.multilinestrings([shapely.linestrings(segments[s][3]) for s in run]), 0.00002)
             share_city = city_all[sub] / total_all if total_all else 0
             out.append({
                 'city_en': city, 'sub_id': sub, 'sub_ar': subs[sub]['sub_ar'], 'main_id': subs[sub]['main_id'],
-                'main_ar': subs[sub]['main_ar'], 'street_ar': name,
+                'main_ar': subs[sub]['main_ar'], 'street_ar': label,
                 'district_ar': districts.most_common(1)[0][0] if districts else '',
                 'districts_ar': '|'.join(d for d, _ in districts.most_common()),
                 'n': n, 'n_wholesale': sum(1 for i in members if rows[i][4]),
