@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, rankCompetition, weekSummary } from './tool-answers.ts'
+import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, rankCompetition, territoriesSummary, weekSummary } from './tool-answers.ts'
 
 const district = (id: string, name: string) => ({ id, name })
 
@@ -67,4 +67,15 @@ test('businesses over the whole city read the service city count, not the sum of
   assert.equal(audienceSummary({ selected: 0, scope: 186, segment: '', sizes: [9000], unit: 'منشأة', top: null, cityTotal: null }), 'حجم الجمهور: غير متاح')
   // selected districts are summed as before: every business in them has a district
   assert.equal(audienceSummary({ selected: 2, scope: 2, segment: '', sizes: [40, 60], unit: 'منشأة', top: null, cityTotal: 10405 }), 'حجم الجمهور في حيّان محددة: 100 منشأة')
+})
+
+test('the territories peek line never reads 0: nothing while loading or empty, «تعذر التقسيم» on failure', () => {
+  assert.equal(territoriesSummary('loading', null, 'businesses'), null)
+  assert.equal(territoriesSummary('loading', 5, 'businesses'), null, 'the last split is not shown as the new one')
+  assert.equal(territoriesSummary('idle', 0, 'businesses'), null)
+  assert.equal(territoriesSummary('idle', null, 'businesses'), null)
+  assert.equal(territoriesSummary('error', null, 'businesses'), 'تعذر التقسيم')
+  assert.equal(territoriesSummary('error', 5, 'population'), 'تعذر التقسيم')
+  assert.equal(territoriesSummary('idle', 5, 'businesses'), '5 مناطق متوازنة بالمنشآت')
+  assert.equal(territoriesSummary('idle', 4, 'population'), '4 مناطق متوازنة بالسكان')
 })

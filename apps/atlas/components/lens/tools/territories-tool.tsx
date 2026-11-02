@@ -14,7 +14,7 @@ import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { useMainActivities } from '@/lib/main-activities'
-import { weekSummary } from './tool-answers'
+import { territoriesSummary, weekSummary } from './tool-answers'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Customer = Stop & { name: string; district_ar: string }
@@ -128,7 +128,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
     let active = true
     setStatus('loading'); setRep(null)
     postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) })
-      .then((data) => { if (active) { setGroups(data.territories); setStatus('idle') } })
+      .then((data) => { if (active) { setGroups(data.territories ?? []); setStatus('idle') } })
       .catch(() => { if (active) setStatus('error') })
     return () => { active = false }
   }, [city, count, weight, mainId])
@@ -207,8 +207,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const summary = finished ? `${day != null ? `مسار ${names[day] ?? 'اليوم'}` : 'المسار'}: ${numberFormat.format(order.length)} محطة · ${km(meters)} · ${duration(seconds)}`
     : plan && planStatus === 'idle' ? weekSummary(visits, plan.days.length)
     : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
-      : groups && status !== 'loading' ? `${numberFormat.format(groups.length)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
-        : null
+      : territoriesSummary(status, groups?.length ?? null, weight)
 
   // everything on the map comes from this one place
   useEffect(() => {

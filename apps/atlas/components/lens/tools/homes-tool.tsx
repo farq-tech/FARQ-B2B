@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MapPin, Scale, SearchX, X } from 'lucide-react'
+import { Check, MapPin, Scale, SearchX, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,7 +13,7 @@ import { BUDGETS, shownPhotos, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublish
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
-import { ListingCard } from '../listing-card'
+import { ListingCard, NoPhoto } from '../listing-card'
 import { ListingCompare } from '../listing-compare'
 import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
@@ -35,12 +35,25 @@ function savePoint(point: MyPoint | null) {
   try { if (point) localStorage.setItem(MY_POINT_KEY, JSON.stringify(point)); else localStorage.removeItem(MY_POINT_KEY) } catch { /* the point stays for this visit */ }
 }
 
-/** The ad's first photo, small, beside its line in the list; nothing when it fails to load. */
-function Thumb({ src }: { src: string | null }) {
+/**
+ * The ad's first photo, small, beside its line in the list; the property type's tile when it has none or it fails to
+ * load. A listing already in the comparison carries a check on its corner, so the second pick is never the first again.
+ */
+function Thumb({ src, type, comparing }: { src: string | null; type: string; comparing: boolean }) {
   const [broken, setBroken] = useState(false)
-  if (!src || broken) return <span className="size-14 shrink-0 rounded-lg bg-muted" aria-hidden />
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-14 shrink-0 rounded-lg object-cover" />
+  return (
+    <span className="relative shrink-0">
+      {!src || broken
+        ? <NoPhoto type={type} className="size-14 rounded-lg" />
+        // eslint-disable-next-line @next/next/no-img-element
+        : <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-14 rounded-lg object-cover" />}
+      {comparing && (
+        <span className="absolute -end-1 -top-1 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-card">
+          <Check className="size-3" strokeWidth={3} aria-hidden /><span className="sr-only">في المقارنة</span>
+        </span>
+      )}
+    </span>
+  )
 }
 
 /**
@@ -101,6 +114,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   }, [city, kind, type, deal, budget, districtKey])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
+  const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
     current.some((item) => item.id === listing.id) ? current.filter((item) => item.id !== listing.id) : [...current.slice(-1), listing]
   )), [])
@@ -220,7 +234,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                   return (
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
                       onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
-                      leading={<Thumb src={shownPhotos(listing)[0] ?? null} />}
+                      leading={<Thumb src={shownPhotos(listing)[0] ?? null} type={listing.type} comparing={compareIds.has(listing.id)} />}
                       // the price leads and takes the row's width: at the row's end it squeezed type and district to a few letters on a phone
                       title={priceLine(listing)}
                       sub={(
