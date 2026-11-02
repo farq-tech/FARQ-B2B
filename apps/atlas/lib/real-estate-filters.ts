@@ -1,4 +1,4 @@
-import { numberFormat } from './insights-api'
+import { counted, numberFormat } from './insights-api'
 import { FEATURES, PERIOD_WORD, TENANTS_LABEL, isPublishable, typeLabel, type Deal, type Feature, type Listing, type ListingKind } from './real-estate'
 
 /** Every filter «العقار» offers. The deal, types and districts go to the service; the rest narrow what it sent. */
@@ -43,10 +43,9 @@ export const SORTS: { id: SortId; label: string }[] = [
 ]
 
 /** «عرض واحد»، «عرضان»، «9 عروض»، «24 عرضاً»: the count the way it is said. */
+/** «عرض واحد», «عرضان», «7 عروض», «48 عرضاً», «1,500 عرض»: the same agreement as every other count (counted). */
 export function offersLabel(count: number): string {
-  if (count === 1) return 'عرض واحد'
-  if (count === 2) return 'عرضان'
-  return `${numberFormat.format(count)} ${count % 100 >= 3 && count % 100 <= 10 ? 'عروض' : 'عرضاً'}`
+  return counted(count, 'listing')
 }
 
 /** «3+» steps for rooms and the like; 0 means any. */

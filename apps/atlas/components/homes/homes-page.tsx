@@ -11,7 +11,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
@@ -323,7 +323,7 @@ const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare,
       <button onClick={() => onOpen(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
         <span className="text-sm text-muted-foreground">
-          {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
+          {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
         </span>
         <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
         {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}

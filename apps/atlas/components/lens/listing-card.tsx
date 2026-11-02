@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
@@ -100,8 +100,8 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const perSqm = perSqmLine(listing)
   const rooms = [
     listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null,
-    listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null,
-    listing.wc ? `${numberFormat.format(listing.wc)} دورات مياه` : null,
+    listing.beds ? counted(listing.beds, 'room') : null,
+    listing.wc ? counted(listing.wc, 'bathroom') : null,
   ].filter(Boolean)
   const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
   // what the property has, as the ad's form records it; what it lacks shows in the comparison

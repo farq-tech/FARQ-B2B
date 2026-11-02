@@ -25,3 +25,13 @@ test('a count takes the noun form Arabic agreement asks for', () => {
   assert.equal(counted(140, 'street'), '140 شارعاً')
   assert.equal(counted(200, 'street'), '200 شارع')
 })
+
+test('rooms, bathrooms and listing totals agree with their count', () => {
+  assert.equal(counted(1, 'room'), 'غرفة واحدة')
+  assert.equal(counted(2, 'room'), 'غرفتان')
+  assert.equal(counted(4, 'room'), '4 غرف')
+  assert.equal(counted(12, 'room'), '12 غرفة')
+  assert.equal(counted(1, 'bathroom'), 'دورة مياه واحدة')
+  assert.equal(counted(2, 'bathroom'), 'دورتا مياه')
+  assert.equal(counted(3, 'bathroom'), '3 دورات مياه')
+})
