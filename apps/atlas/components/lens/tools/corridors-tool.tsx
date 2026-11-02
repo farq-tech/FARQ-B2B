@@ -13,6 +13,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import type { Overlay } from './overlay'
+import { StreetOpportunities } from './street-opportunities'
 
 type Activity = { main_id: string; main_ar: string }
 type Corridor = {
@@ -62,6 +63,8 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   const [units, setUnits] = useState<Units | null>(null)
   const [unit, setUnit] = useState<Unit | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
+  // «أين يتجمع» lists the streets the activity lines; «أين الفرصة» the busy streets that lack it (street-opportunities.tsx)
+  const [mode, setMode] = useState<'cluster' | 'gap'>('cluster')
 
   useEffect(() => {
     postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
@@ -109,7 +112,10 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     return () => { live = false }
   }, [city, picked])
 
+  const clusters = useMemo(() => corridors.map((item) => ({ geometry: item.geometry, street_ar: item.properties.street_ar })), [corridors])
+
   useEffect(() => {
+    if (mode === 'gap') return
     // the strongest corridors are drawn last, so they sit on top where streets cross
     const streets = corridors
       .map((item, index) => ({ id: String(index), color: colors[index], geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
@@ -123,7 +129,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       focus,
       popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
     })
-  }, [corridors, colors, active, onOverlay, units, unit, focus])
+  }, [mode, corridors, colors, active, onOverlay, units, unit, focus])
 
   // a corridor picked on the map comes into view in the list
   useEffect(() => {
@@ -149,10 +155,17 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
           <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
         ))}
       </div>
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
-      {status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
-      {status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
-      {corridors.length > 0 && (
+      <div className="grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="طريقة العرض">
+        {([['cluster', 'أين يتجمع'], ['gap', 'أين الفرصة']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setMode(key)} aria-pressed={mode === key}
+            className={cn('h-10 rounded-md text-base font-semibold', mode === key ? 'bg-primary text-primary-foreground' : 'hover:text-primary')}>{label}</button>
+        ))}
+      </div>
+      {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
+      {mode === 'cluster' && status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
+      {mode === 'cluster' && status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
+      {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
+      {mode === 'cluster' && corridors.length > 0 && (
         <>
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
