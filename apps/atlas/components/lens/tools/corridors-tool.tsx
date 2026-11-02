@@ -113,7 +113,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     }))
     const top = corridors[0]?.properties
     const summary = mode !== 'cluster' || status === 'loading' || !result ? null
-      : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.n)} محل`
+      : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${counted(top.n, 'shop')}`
         : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
       summary, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
@@ -182,7 +182,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
                 aside={(
                   <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={EXPLAIN.corridor(corridor)} className="text-end">
                     <span>
-                      <span className="block font-bold text-primary">{numberFormat.format(corridor.n)} محل</span>
+                      <span className="block font-bold text-primary">{counted(corridor.n, 'shop')}</span>
                       <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>
                     </span>
                   </Explained>

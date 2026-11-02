@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { setMapSheetFull } from '@/components/shared/whats-new'
 import { cn } from '@/lib/utils'
 
 export type SheetSnap = 'peek' | 'half' | 'full'
@@ -36,6 +37,9 @@ export function MapSheet({ snap, onSnap, title, summary, children }: {
   // `last`/`at` are the latest pointer sample, `prevY`/`prevAt` the one before: the release speed comes from them
   const drag = useRef<{ y: number; height: number; moved: boolean; prevY: number; prevAt: number; last: number; at: number } | null>(null)
   const [dragged, setDragged] = useState<number | null>(null)
+  // a full sheet reaches up under the phone's filters, where «ما الجديد» sits: the bar steps aside meanwhile
+  useEffect(() => { setMapSheetFull(snap === 'full') }, [snap])
+  useEffect(() => () => setMapSheetFull(false), [])
 
   const start = (event: PointerEvent<HTMLDivElement>) => {
     if (!sheet.current) return

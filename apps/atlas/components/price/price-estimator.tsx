@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Calculator, ExternalLink, Loader2, SearchX } from 'lucide-react'
+import { Calculator, ExternalLink, Loader2, Pencil, SearchX } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
@@ -10,7 +10,7 @@ import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
-import { typeLabel } from '@/lib/real-estate'
+import { SHOW_LISTING_PHOTOS, typeLabel } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 
 const DEALS = [['rent_year', 'إيجار سنوي'], ['rent_month', 'إيجار شهري'], ['sale', 'بيع']] as const
@@ -48,6 +48,9 @@ function Question({ title, hint, children }: { title: string; hint?: string; chi
   )
 }
 
+/** Comparables shown on a phone before «اعرض الكل». */
+const PHONE_EXAMPLES = 4
+
 const sar = (value: number) => `${numberFormat.format(value)} ريال`
 
 /**
@@ -72,6 +75,8 @@ export function PriceEstimator() {
   // the answers the shown price was worked out for: its heading names them, and a later change marks it out of date
   const [asked, setAsked] = useState<{ key: string; kind: string; area: number; districtName?: string; deal: string } | null>(null)
   const answer = useRef<HTMLElement>(null)
+  const questions = useRef<HTMLElement>(null)
+  const [allExamples, setAllExamples] = useState(false)
   // on a phone the answer sits under the questions: bring it into view once it arrives
   useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }) }, [result])
 
@@ -95,6 +100,7 @@ export function PriceEstimator() {
     const ask = ++sequence.current
     setAsked({ key, kind, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
     setResult('loading')
+    setAllExamples(false)
     postMarket<Estimate>('price-estimate', {
       city, district_id: district, deal, type: kind, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
@@ -105,7 +111,7 @@ export function PriceEstimator() {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 pb-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:py-10">
-      <section className="flex flex-col gap-5 rounded-3xl border bg-card p-5 shadow-sm" aria-label="أسئلة التسعير">
+      <section ref={questions} className="flex scroll-mt-20 flex-col gap-5 rounded-3xl border bg-card p-5 shadow-sm" aria-label="أسئلة التسعير">
         <header>
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Calculator className="size-6 text-primary" aria-hidden />سعّر عقارك</h1>
           <p className="mt-1 text-sm leading-7 text-muted-foreground">أجب عن الأسئلة، ونعطيك السعر المتوقع من أقرب العروض الحالية المشابهة لعقارك، مع سبب كل فرق.</p>
@@ -210,12 +216,13 @@ export function PriceEstimator() {
             {result.examples && result.examples.length > 0 && (
               <div className="rounded-3xl border bg-card p-5">
                 <h2 className="text-base font-bold">أقرب العروض المشابهة</h2>
+                {/* on a phone the first four (two rows), the rest one tap away, instead of four rows of squares under the price */}
                 <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {result.examples.map((item) => (
-                    <li key={item.id}>
+                  {result.examples.map((item, index) => (
+                    <li key={item.id} className={cn(!allExamples && index >= PHONE_EXAMPLES && 'max-sm:hidden')}>
                       <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
+                        {SHOW_LISTING_PHOTOS && item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
                         <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
                         <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.district_ar].filter(Boolean).join(' · ')}</span>
                         {/* always shown on touch screens, where there is no hover to reveal it */}
@@ -224,8 +231,17 @@ export function PriceEstimator() {
                     </li>
                   ))}
                 </ul>
+                {!allExamples && result.examples.length > PHONE_EXAMPLES && (
+                  <Button variant="ghost" size="sm" className="mt-2 w-full sm:hidden" onClick={() => setAllExamples(true)}>
+                    اعرض الكل ({numberFormat.format(result.examples.length)})
+                  </Button>
+                )}
               </div>
             )}
+            {/* on a phone the questions are a long scroll above: one tap back to change an answer */}
+            <Button variant="outline" className="lg:hidden" onClick={() => questions.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>
+              <Pencil aria-hidden />عدّل الإجابات
+            </Button>
           </div>
         )}
       </section>

@@ -36,7 +36,7 @@ const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي'
 const shade = (score: number) => SHADES[Math.min(SHADES.length - 1, Math.floor((score / 100) * SHADES.length))]
 
 function requestedLine(item: Opportunity, kinds: number): string {
-  if (item.requested_n != null) return `${numberFormat.format(item.requested_n)} محل منه`
+  if (item.requested_n != null) return `${counted(item.requested_n, 'shop')} منه`
   if (item.requested_below != null) return `أقل من ${numberFormat.format(item.requested_below)} منه${kinds > 1 ? ' من كل نوع' : ''}`
   return 'عدده غير متاح'
 }
@@ -118,9 +118,9 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
             sub={(
               <>
                 <span className="block truncate">{item.districts_ar.join('، ')}{item.road_class ? ` · ${ROAD[item.road_class]}` : ''}</span>
-                <span className="block truncate text-foreground">{numberFormat.format(item.total)} محل على الشارع · {requestedLine(item, kinds)}</span>
+                <span className="block truncate text-foreground">{counted(item.total, 'shop')} على الشارع · {requestedLine(item, kinds)}</span>
                 <span className="block truncate">
-                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) ${item.nearest.distance_m < 30 ? 'يتقاطع معه أو يلاصقه' : `على ${formatDistance(item.nearest.distance_m)}`}` : 'لا يوجد تجمع للنشاط في المدينة'}
+                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${counted(item.nearest.n, 'shop')}) ${item.nearest.distance_m < 30 ? 'يتقاطع معه أو يلاصقه' : `على ${formatDistance(item.nearest.distance_m)}`}` : 'لا يوجد تجمع للنشاط في المدينة'}
                 </span>
               </>
             )}

@@ -22,8 +22,9 @@ export type InboxFilter = 'all' | 'unread' | 'rfq' | 'campaign'
 const FILTERS: { id: InboxFilter; label: string }[] = [
   { id: 'all', label: 'الكل' },
   { id: 'unread', label: 'غير مقروء' },
-  { id: 'rfq', label: 'ردود التسعير' },
-  { id: 'campaign', label: 'تفاعلات تسويقية' },
+  // short enough that the four sit on one row in the list column; each row's own label still says what it is
+  { id: 'rfq', label: 'التسعير' },
+  { id: 'campaign', label: 'الحملات' },
 ]
 
 const matches = (m: InboxMessage, f: InboxFilter) =>
@@ -117,9 +118,10 @@ export function InboxView() {
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(20rem,24rem)_1fr]">
         <section aria-label="قائمة الرسائل" className={cn('flex min-w-0 flex-col gap-3', selected && 'hidden lg:flex')}>
           <p id="inbox-keys" className="sr-only">تنقّل بين الرسائل بالسهمين لأعلى ولأسفل، واضغط Enter لفتح الرسالة.</p>
-          <ChipRow label="تصفية الوارد" className="max-w-none flex-wrap overflow-visible">
+          {/* one row that scrolls if it must, never a second row that pushes the list down; padding keeps focus rings whole */}
+          <ChipRow label="تصفية الوارد" className="max-w-none gap-1.5 px-0.5 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((f) => (
-              <Chip key={f.id} active={filter === f.id} onClick={() => setParams({ f: f.id })}>
+              <Chip key={f.id} active={filter === f.id} onClick={() => setParams({ f: f.id })} className="px-2.5">
                 {f.label}
                 <ChipCount value={inbox.filter((m) => matches(m, f.id)).length} active={filter === f.id} />
               </Chip>

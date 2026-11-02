@@ -9,7 +9,7 @@ import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
-import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
+import { BUDGETS, shownPhotos, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel, type AdvisorSubject } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
@@ -196,7 +196,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       {result.status === 'loading' && (
         <>
           <Skeleton className="h-4 w-48 max-w-full" aria-hidden />
-          <ResultRowsSkeleton rows={5} sub leading="thumb" />
+          <ResultRowsSkeleton rows={5} sub leading="thumb" value={false} />
         </>
       )}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
@@ -220,7 +220,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                   return (
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
                       onHover={(on) => onHover?.(on && listing.district_id ? String(listing.district_id) : null)}
-                      leading={<Thumb src={listing.photo} />}
+                      leading={<Thumb src={shownPhotos(listing)[0] ?? null} />}
                       // the price leads and takes the row's width: at the row's end it squeezed type and district to a few letters on a phone
                       title={priceLine(listing)}
                       sub={(
@@ -232,7 +232,9 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                   )
                 })}
               </ol>
-              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing" onMore={showMore} />
+              {/* the list ranks the listings on the map, which can be fewer than the service's total above it */}
+              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing"
+                suffix={result.total != null && result.total > ordered.length ? ' على الخريطة' : ''} onMore={showMore} />
             </div>
           )}
         </>

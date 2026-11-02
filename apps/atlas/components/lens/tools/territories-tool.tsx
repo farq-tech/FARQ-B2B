@@ -74,6 +74,22 @@ function Stepper({ id, label, value, min, max, onChange, less, more }: {
   )
 }
 
+const STOPS_LISTED = 200
+
+/** The stops in the order the route visits them, numbered, with each one's district; the rest stay on the map. */
+function StopOrder({ order, byId }: { order: string[]; byId: Map<string, Customer> }) {
+  return (
+    <>
+      <ol className="mt-2 max-h-64 space-y-1 overflow-y-auto text-base tabular-nums">
+        {order.slice(0, STOPS_LISTED).map((id, index) => (
+          <li key={id} className="flex gap-2"><span className="w-10 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span><span className="truncate">{byId.get(id)?.name || 'منشأة بلا اسم'}</span><span className="ms-auto shrink-0 text-sm text-muted-foreground">{byId.get(id)?.district_ar}</span></li>
+        ))}
+      </ol>
+      {order.length > STOPS_LISTED && <p className="mt-1 text-sm text-muted-foreground">و{numberFormat.format(order.length - STOPS_LISTED)} محطة أخرى على الخريطة</p>}
+    </>
+  )
+}
+
 const duration = (seconds: number) => {
   const minutes = Math.round(seconds / 60)
   return minutes < 60 ? `${numberFormat.format(minutes)} دقيقة` : `${numberFormat.format(Math.floor(minutes / 60))} ساعة ${numberFormat.format(minutes % 60)} دقيقة`
@@ -103,6 +119,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [plan, setPlan] = useState<WeekPlan | null>(null)
   const [planStatus, setPlanStatus] = useState<'idle' | 'loading' | 'error' | 'too-many'>('idle')
   const [day, setDay] = useState<number | null>(null)
+  // a day routed without a start point sets out from its first stop, which the solved parts then leave out of their order
+  const [origin, setOrigin] = useState<string | null>(null)
   const abort = useRef<AbortController | null>(null)
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
@@ -159,7 +177,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
     abort.current?.abort()
     const controller = new AbortController()
     abort.current = controller
-    setParts([]); setRouteError(''); setProgress({ done: 0, total: 1 })
+    setParts([]); setRouteError(''); setProgress({ done: 0, total: 1 }); setOrigin(start ? null : only?.[0]?.id ?? null)
     try {
       await planRoute(from, through, (part, done, total) => {
         setParts((current) => { const next = [...current]; next[part.index] = part; return next })
@@ -173,7 +191,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const solved = parts.filter(Boolean)
   const meters = solved.reduce((total, part) => total + part.meters, 0)
   const seconds = solved.reduce((total, part) => total + part.seconds, 0)
-  const order = useMemo(() => solved.flatMap((part) => part.order), [solved])
+  const order = useMemo(() => [...(origin ? [origin] : []), ...solved.flatMap((part) => part.order)], [solved, origin])
   const byId = useMemo(() => new Map((customers ?? []).map((customer) => [customer.id, customer])), [customers])
   const showDay = (index: number) => {
     if (!plan || !customers) return
@@ -318,6 +336,13 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 })}
               </ol>
               {day != null && routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
+              {/* the day's visits in the order the route takes them: with the full route hidden, this is the rep's list */}
+              {day != null && finished && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold">ترتيب زيارات {names[day] ?? 'اليوم'}</p>
+                  <StopOrder order={order} byId={byId} />
+                </div>
+              )}
               {plan.unplanned.length > 0 && (
                 <p className="mt-2 text-base"><strong>{numberFormat.format(plan.unplanned.length)}</strong> منشأة لا تتسع لها خطة هذا الأسبوع</p>
               )}
@@ -326,7 +351,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         </Step>
       )}
 
-      {customers && customers.length > 0 && start && (
+      {/* owner decision (2026-11-02): the week plan replaces the one long route, so step 6 shows only when no plan can be made */}
+      {customers && customers.length > 0 && start && !plan && planStatus !== 'loading' && (
         <Step n={6} title="مسار الزيارة" done={finished && day == null}>
           <button onClick={() => route()} disabled={day == null && progress != null && !finished && !routeError} className="h-11 w-full rounded-lg bg-primary text-base font-semibold text-primary-foreground disabled:opacity-60">
             {day == null && progress && !finished && !routeError ? `جارٍ الحساب: ${numberFormat.format(progress.done)} من ${numberFormat.format(progress.total)}` : finished && day == null ? 'أعد حساب المسار' : `احسب المسار لـ ${numberFormat.format(customers.length)} محطة`}
@@ -342,12 +368,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{km(meters)}</p></div>
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">زمن القيادة</p><p className="text-base font-bold">{duration(seconds)}</p></div>
               </div>
-              <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-base tabular-nums">
-                {order.slice(0, 200).map((id, index) => (
-                  <li key={id} className="flex gap-2"><span className="w-10 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span><span className="truncate">{byId.get(id)?.name}</span><span className="ms-auto shrink-0 text-sm text-muted-foreground">{byId.get(id)?.district_ar}</span></li>
-                ))}
-              </ol>
-              {order.length > 200 && <p className="mt-1 text-sm text-muted-foreground">و{numberFormat.format(order.length - 200)} محطة أخرى على الخريطة</p>}
+              <StopOrder order={order} byId={byId} />
             </>
           )}
         </Step>

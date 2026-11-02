@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ClipboardList, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ClipboardList, ListPlus, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
@@ -16,7 +16,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-type Status = 'idle' | 'loading' | 'ready' | 'login' | 'error'
+type Status = 'idle' | 'loading' | 'ready' | 'login' | 'error' | 'needs-scope'
 const PAGE = 200
 // one search per district, so a wide selection is read up to this many districts and the count says so
 const MAX_DISTRICTS = 5
@@ -52,6 +52,9 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   async function load(text: string = activity) {
     const typed = text.trim()
     const mine = ++latest.current
+    // the whole city is searched by activity only: with no district and nothing typed there is nothing to search,
+    // and an empty answer would read as «no businesses in the city»
+    if (!districts.length && !typed) { setStatus('needs-scope'); return }
     const stale = () => mine !== latest.current
     setStatus('loading')
     try {
@@ -124,7 +127,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           {status === 'loading' ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />} اعرض
         </button>
       </form>
-      {status === 'idle' && (
+      {(status === 'idle' || status === 'needs-scope') && (
         <div role="group" aria-label="ابدأ بـ" className="flex flex-wrap gap-2">
           <button type="button" onClick={() => { setActivity(studied.label); void load(studied.label) }}
             className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary">
@@ -142,6 +145,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           <SkeletonRows rows={6} sub leading="check" />
         </>
       )}
+      {status === 'needs-scope' && <p role="status" className="text-base text-muted-foreground">اكتب نشاطاً لتبحث في المدينة كلها، أو حدّد حياً على الخريطة لترى كل منشآته.</p>}
       {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
       {status === 'error' && <p role="alert" className="text-base text-destructive">{message}</p>}
       {status === 'ready' && rows.length === 0 && (
@@ -174,7 +178,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
             ))}
           </ul>
           <div className="grid grid-cols-3 gap-1.5">
-            {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ClipboardList]] as const).map(([type, label, Icon]) => (
+            {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ListPlus]] as const).map(([type, label, Icon]) => (
               <button key={type} disabled={!picked.size} onClick={() => act(type)}
                 className={cn('inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-semibold', picked.size ? 'border-primary text-primary hover:bg-primary hover:text-primary-foreground' : 'cursor-not-allowed opacity-50')}>
                 <Icon className="size-4" aria-hidden /> {label}{picked.size ? ` (${numberFormat.format(picked.size)})` : ''}

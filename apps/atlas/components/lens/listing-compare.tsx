@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ExternalLink, MessageCircle, X } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
-import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { Gallery } from './listing-card'
 
@@ -97,7 +97,7 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
             {listings.map((listing) => (
               <div key={listing.id} className="flex min-w-0 flex-col gap-1">
                 <div className="overflow-hidden rounded-xl">
-                  <Gallery photos={listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []} className="h-28 sm:h-40" />
+                  <Gallery photos={shownPhotos(listing)} className="h-28 sm:h-40" />
                 </div>
                 <p className="truncate text-sm font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` · ${listing.district_ar}` : ''}</p>
                 <button onClick={() => onRemove(listing)} className="self-start text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">أزل من المقارنة</button>
