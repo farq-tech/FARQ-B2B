@@ -33,7 +33,7 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
       </div>
       {open != null && <Lightbox photos={shown} start={open} onClose={() => setOpen(null)} />}
       {shown.length > 1 && (
-        <span className="absolute bottom-2 start-2 rounded-full bg-background/80 px-2 py-0.5 text-sm backdrop-blur">{numberFormat.format(shown.length)} صور</span>
+        <span className="absolute bottom-2 start-2 rounded-full bg-background/80 px-2 py-0.5 text-sm backdrop-blur">{counted(shown.length, 'photo')}</span>
       )}
     </div>
   )
