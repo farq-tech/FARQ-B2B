@@ -61,9 +61,10 @@ export function LoginForm() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-5">
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm">
-        <div className="mb-7 flex items-center gap-3">
-          <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b-light.svg" alt="" className="h-7 w-auto" /><span className="font-bold text-foreground">أطلس</span></span>
-          <div><h1 className="font-bold">تسجيل الدخول إلى فرق أطلس</h1><p className="mt-0.5 text-sm text-muted-foreground">لعرض الجهات وبياناتها التجارية.</p></div>
+        {/* the mark on its own line, then the heading: side by side they wrapped into «أطلس أطلس» on a narrow card */}
+        <div className="mb-7 flex flex-col items-center gap-3 text-center">
+          <span className="flex items-center gap-1.5" aria-hidden><img src="/brand/farq-b2b-light.svg" alt="" className="h-8 w-auto" /><span className="text-lg font-bold text-foreground">أطلس</span></span>
+          <div><h1 className="text-xl font-bold">تسجيل الدخول</h1><p className="mt-1 text-sm text-muted-foreground">إلى فرق أطلس، لعرض الجهات وبياناتها التجارية.</p></div>
         </div>
         {error ? <p id="atlas-login-error" role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
         <label className="mb-1.5 block text-sm font-medium" htmlFor="atlas-email">البريد الإلكتروني</label>
