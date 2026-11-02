@@ -19,6 +19,8 @@ type Territory = { territory: number; weight: number; districts: { district_ar: 
 type Customer = Stop & { name: string; district_ar: string }
 
 const PALETTE = CATEGORICAL
+const MIN_REPS = 2
+const MAX_REPS = 50
 const DIM = TONE.pebble
 
 function Step({ n, title, done, children }: { n: number; title: string; done?: boolean; children: React.ReactNode }) {
@@ -58,6 +60,14 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [routeError, setRouteError] = useState('')
   const abort = useRef<AbortController | null>(null)
+  // the count as typed: it is applied on Enter or leaving the field, so typing «12» never asks for 2 reps on the way
+  const [draft, setDraft] = useState(String(count))
+  useEffect(() => { setDraft(String(count)) }, [count])
+  const commit = (value: number) => {
+    const next = Number.isFinite(value) ? Math.min(MAX_REPS, Math.max(MIN_REPS, Math.round(value))) : count
+    setCount(next)
+    setDraft(String(next))
+  }
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
   useEffect(() => {
@@ -138,9 +148,19 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       </Step>
 
       <Step n={2} title="المندوبون" done={Boolean(groups)}>
-        <label className="flex items-center justify-between gap-3 text-base">العدد
-          <input type="number" min={2} max={50} value={count} onChange={(e) => setCount(Math.min(50, Math.max(2, Number(e.target.value) || 2)))} className="h-11 w-24 rounded-lg border bg-background px-3 text-base" />
-        </label>
+        <div className="flex items-center justify-between gap-3 text-base">
+          <label htmlFor="territories-count">العدد</label>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => commit(count - 1)} disabled={count <= MIN_REPS} aria-label="مندوب أقل"
+              className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">−</button>
+            <input id="territories-count" type="number" inputMode="numeric" min={MIN_REPS} max={MAX_REPS} value={draft}
+              onChange={(e) => setDraft(e.target.value)} onBlur={() => commit(draft.trim() ? Number(draft) : NaN)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commit(draft.trim() ? Number(draft) : NaN) }}
+              className="h-11 w-16 rounded-lg border bg-background px-2 text-center text-base tabular-nums" />
+            <button type="button" onClick={() => commit(count + 1)} disabled={count >= MAX_REPS} aria-label="مندوب أكثر"
+              className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">+</button>
+          </div>
+        </div>
         <div className="mt-2 flex gap-1.5">
           {(['businesses', 'population'] as const).map((value) => (
             <button key={value} onClick={() => setWeight(value)} aria-pressed={weight === value}
