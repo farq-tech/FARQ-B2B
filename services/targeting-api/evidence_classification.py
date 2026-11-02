@@ -23,9 +23,9 @@ import re
 
 import duckdb
 
-VERSION = 'evidence_v1'
+VERSION = 'evidence_v2'
 TRUTH_SOURCES = ('crs_surveyor',)
-MIN_ACCURACY, MIN_SUPPORT = 0.95, 200
+MIN_ACCURACY, MIN_SUPPORT = 0.90, 200   # owner decision 2026-11-02 (docs/atlas-classification-policy.md)
 # a phone on more businesses than this is a call centre or a placeholder, not one owner's branches
 MAX_PHONE_GROUP = 50
 KINDS = ('shared_phone', 'google_categories', 'license_activity', 'description', 'delivery_signal')
