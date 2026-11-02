@@ -42,6 +42,37 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
   )
 }
 
+/**
+ * A whole number typed or stepped: the field is applied on Enter or leaving it (an empty field keeps the last value),
+ * so typing «12» never asks for 1 on the way, and − / + step it on a phone without the number keyboard.
+ */
+function Stepper({ id, label, value, min, max, onChange, less, more }: {
+  id: string; label: string; value: number; min: number; max: number; onChange: (value: number) => void; less: string; more: string
+}) {
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => { setDraft(String(value)) }, [value])
+  const commit = (next: number) => {
+    const clamped = Number.isFinite(next) ? Math.min(max, Math.max(min, Math.round(next))) : value
+    onChange(clamped)
+    setDraft(String(clamped))
+  }
+  const typed = () => commit(draft.trim() ? Number(draft) : NaN)
+  return (
+    <div className="flex items-center justify-between gap-3 text-base">
+      <label htmlFor={id}>{label}</label>
+      <div className="flex items-center gap-1.5">
+        <button type="button" onClick={() => commit(value - 1)} disabled={value <= min} aria-label={less}
+          className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">−</button>
+        <input id={id} type="number" inputMode="numeric" min={min} max={max} value={draft}
+          onChange={(e) => setDraft(e.target.value)} onBlur={typed} onKeyDown={(e) => { if (e.key === 'Enter') typed() }}
+          className="h-11 w-16 rounded-lg border bg-background px-2 text-center text-base tabular-nums" />
+        <button type="button" onClick={() => commit(value + 1)} disabled={value >= max} aria-label={more}
+          className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">+</button>
+      </div>
+    </div>
+  )
+}
+
 const duration = (seconds: number) => {
   const minutes = Math.round(seconds / 60)
   return minutes < 60 ? `${numberFormat.format(minutes)} دقيقة` : `${numberFormat.format(Math.floor(minutes / 60))} ساعة ${numberFormat.format(minutes % 60)} دقيقة`
@@ -72,14 +103,6 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [planStatus, setPlanStatus] = useState<'idle' | 'loading' | 'error' | 'too-many'>('idle')
   const [day, setDay] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
-  // the count as typed: it is applied on Enter or leaving the field, so typing «12» never asks for 2 reps on the way
-  const [draft, setDraft] = useState(String(count))
-  useEffect(() => { setDraft(String(count)) }, [count])
-  const commit = (value: number) => {
-    const next = Number.isFinite(value) ? Math.min(MAX_REPS, Math.max(MIN_REPS, Math.round(value))) : count
-    setCount(next)
-    setDraft(String(next))
-  }
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
   useEffect(() => {
@@ -201,19 +224,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       </Step>
 
       <Step n={2} title="المندوبون" done={Boolean(groups)}>
-        <div className="flex items-center justify-between gap-3 text-base">
-          <label htmlFor="territories-count">العدد</label>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => commit(count - 1)} disabled={count <= MIN_REPS} aria-label="مندوب أقل"
-              className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">−</button>
-            <input id="territories-count" type="number" inputMode="numeric" min={MIN_REPS} max={MAX_REPS} value={draft}
-              onChange={(e) => setDraft(e.target.value)} onBlur={() => commit(draft.trim() ? Number(draft) : NaN)}
-              onKeyDown={(e) => { if (e.key === 'Enter') commit(draft.trim() ? Number(draft) : NaN) }}
-              className="h-11 w-16 rounded-lg border bg-background px-2 text-center text-base tabular-nums" />
-            <button type="button" onClick={() => commit(count + 1)} disabled={count >= MAX_REPS} aria-label="مندوب أكثر"
-              className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">+</button>
-          </div>
-        </div>
+        <Stepper id="territories-count" label="العدد" value={count} min={MIN_REPS} max={MAX_REPS} onChange={setCount} less="مندوب أقل" more="مندوب أكثر" />
         <div role="group" aria-label="معيار التوازن" className="mt-2 flex gap-1.5">
           {(['businesses', 'population'] as const).map((value) => (
             <button key={value} onClick={() => setWeight(value)} aria-pressed={weight === value}
@@ -270,13 +281,9 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
       {customers && customers.length > 0 && (
         <Step n={5} title="خطة الأسبوع" done={Boolean(plan)}>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 text-sm">أيام العمل
-              <input type="number" min={1} max={6} value={days} onChange={(e) => setDays(Math.min(6, Math.max(1, Math.round(Number(e.target.value)) || 1)))} className="h-11 rounded-lg border bg-background px-3 text-base" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">زيارات اليوم حتى
-              <input type="number" min={1} max={100} value={perDay} onChange={(e) => setPerDay(Math.min(100, Math.max(1, Math.round(Number(e.target.value)) || 1)))} className="h-11 rounded-lg border bg-background px-3 text-base" />
-            </label>
+          <div className="flex flex-col gap-2">
+            <Stepper id="territories-days" label="أيام العمل" value={days} min={1} max={6} onChange={setDays} less="يوم أقل" more="يوم أكثر" />
+            <Stepper id="territories-per-day" label="زيارات اليوم حتى" value={perDay} min={1} max={100} onChange={setPerDay} less="زيارة أقل" more="زيارة أكثر" />
           </div>
           {planStatus === 'loading' && <SkeletonRows label="جارٍ تقسيم الأسبوع" rows={days} boxed leading="swatch" sub trailing className="mt-2" />}
           {planStatus === 'error' && <p role="alert" className="mt-2 text-base text-destructive">تعذر تقسيم الأسبوع.</p>}
