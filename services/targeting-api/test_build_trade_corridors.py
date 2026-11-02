@@ -6,7 +6,9 @@ from pathlib import Path
 import duckdb
 
 import build_trade_corridors as btc
+import activity_groups
 import market_analytics
+import taxonomy_search
 
 SUBS = {
     'tailor': {'sub_ar': 'خياطة وتفصيل', 'main_id': 'services', 'main_ar': 'خدمات'},
@@ -136,6 +138,9 @@ class CorridorActivityTest(unittest.TestCase):
 
         def subs_in(self, q):
             return self.named.get(q, ([], 0))
+
+        def group_in(self, q, named, score):
+            return activity_groups.group_named(taxonomy_search.norm(q).split(), named, score)
 
         def understand(self, q, objective):
             # the commercial resolver reads «ورش» as equipment to buy

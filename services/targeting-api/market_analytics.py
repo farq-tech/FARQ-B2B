@@ -307,16 +307,19 @@ def corridor_subs(tx, q, objective=None):
     """The activity whose streets a request asks for. A street is lined by the trade itself, so the business type the
     words name («ورش سيارات» → car workshops, «حلاق» → barbers) comes first; the commercial resolver, which can read the
     same words as a product to buy («ورش» → workshop equipment, «حلاق» → salon supplies), answers only when no type is
-    named or when a seller asks for his buyers."""
+    named, when the words ask for supplies («مستلزمات حلاقين»), or when a seller asks for his buyers. The same reading
+    (taxonomy_search.Taxonomy.subs_in, activity_groups.group_named) drives understand() for every other tool; this one
+    only keeps a group as one activity, because corridors are built per group. Measured by test_query_eval.py."""
     if objective != 'marketing':
         named, score = tx.subs_in(q)
         named = [sub for sub in named if sub in tx.subs]
-        words = set(taxonomy_search.norm(q).split())
-        for gid, group in activity_groups.GROUPS.items():
-            # «أغراض مواليد», «أطفال»: the group, unless one of its trades is named by two words or more («ملابس أطفال»)
-            if words & set(group['words']) and not (named and set(named) <= set(group['subs']) and score >= 20):
-                return [gid]
-        if named:
+        words = taxonomy_search.norm(q).split()
+        # «أغراض مواليد», «أطفال»: the group, unless one trade is named precisely (activity_groups.group_named)
+        group = tx.group_in(q, named, score)
+        if group:
+            return [group]
+        # «مستلزمات حلاقين» asks for supplies: the trade word names who they are for, so the resolver decides
+        if named and not set(words) & taxonomy_search.SUPPLY_CUES:
             return named
     return list(tx.understand(q, 'marketing' if objective == 'marketing' else 'purchase')['targets'])
 

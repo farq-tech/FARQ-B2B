@@ -24,5 +24,19 @@ def with_groups(subs):
     return out
 
 
+def group_named(words, named=(), score=0):
+    """The group a request names by its words, or None. A precisely named trade wins: inside the group by two words or a
+    market word (score >= 20, «ملابس أطفال»), outside it also by one everyday trade word (score >= 15, «حضانة أطفال»,
+    «روضة أطفال»). A loose or mixed reading («أطفال» read as barbers, «أغراض مواليد» as gifts and events) gives way."""
+    words, named = set(words), set(named or ())
+    for gid, group in GROUPS.items():
+        if not words & set(group['words']):
+            continue
+        members = set(group['subs'])
+        if not (named and ((score >= 20 and named <= members) or (score >= 15 and not named & members))):
+            return gid
+    return None
+
+
 def groups_of(sub):
     return [gid for gid, group in GROUPS.items() if sub in group['subs']]
