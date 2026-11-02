@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { CircleHelp, Info, MousePointerClick, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { trackOnboardingStep } from '@/lib/commercial-metrics'
 import { LENSES, type LensId } from './lenses'
 
@@ -34,6 +33,9 @@ function write(state: CoachState) {
 export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: (lens: LensId) => void; picked: boolean }) {
   // null until mounted, so the server render and a returning visitor never flash the tour
   const [state, setState] = useState<CoachState | null>(null)
+  // the hint's «×» hides it for this visit only; «تخطَّ الجولة» ends the tour for good
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => { setHidden(false) }, [state])
   const go = (next: CoachState, via?: 'explain' | 'button') => {
     if (next === 'completed') trackOnboardingStep('completed', { via })
     if (next === 'skipped') trackOnboardingStep('skipped', { at: state ?? undefined })
@@ -85,7 +87,23 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
   if (state === null || state === 'completed' || state === 'skipped' || state === 'not_started') return help
 
   const card = 'absolute inset-x-3 z-30 mx-auto max-w-sm rounded-2xl border bg-card p-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300'
-  const skip = <button onClick={() => go('skipped')} className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">تخطَّ الجولة</button>
+  const skip = <button onClick={() => go('skipped')} className="shrink-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">تخطَّ الجولة</button>
+  // the two hints on the map are one small line pinned to its top, under the phone's floating filters: they never sit
+  // over the middle of the map, where the visitor taps a district, nor over the colour key in its bottom corner
+  const hint = (icon: ReactNode, text: string, action?: ReactNode) => hidden ? help : (
+    <>
+      {help}
+      <div role="status" className="pointer-events-none absolute inset-x-3 top-[7.5rem] z-[15] flex justify-center lg:top-3">
+        <p className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border bg-card/95 py-1.5 ps-3 pe-1.5 text-sm shadow-md backdrop-blur animate-in fade-in slide-in-from-top-1 duration-300">
+          {icon}
+          <span className="min-w-0 truncate font-semibold">{text}</span>
+          {action}
+          {skip}
+          <button onClick={() => setHidden(true)} aria-label="إخفاء التلميح" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
+        </p>
+      </div>
+    </>
+  )
 
   if (state === 'goal') {
     return (
@@ -119,25 +137,9 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
     )
   }
 
-  if (state === 'waiting_pick') {
-    return (
-      <div role="status" className={`${card} bottom-3 lg:top-3 lg:bottom-auto`}>
-        <p className="flex items-center gap-2 font-bold"><MousePointerClick className="size-5 text-primary" aria-hidden />اختر حياً</p>
-        <p className="mt-1 text-sm leading-7 text-muted-foreground">اضغط أي حي على الخريطة، وتطلع أرقامه في اللوحة.</p>
-        <div className="mt-2 flex justify-end">{skip}</div>
-      </div>
-    )
-  }
+  if (state === 'waiting_pick') return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, 'اختر حياً: اضغطه على الخريطة')
 
-  // on phones the hint sits under the bottom sheet: pulled up to full, the sheet's handle stays in reach
-  return (
-    <div role="status" className={`${card} top-3 max-lg:z-[15]`}>
-      <p className="flex items-center gap-2 font-bold"><Info className="size-5 text-primary" aria-hidden />كل رقم له مصدر</p>
-      <p className="mt-1 text-sm leading-7 text-muted-foreground">اضغط أي رقم عليه علامة «i» في اللوحة، وتشوف كيف حسبناه ومن وين.</p>
-      <div className="mt-2 flex items-center justify-between">
-        <Button size="sm" variant="ghost" onClick={() => go('completed', 'button')}>فهمت</Button>
-        {skip}
-      </div>
-    </div>
-  )
+  // waiting_explain: the pick is done, so the line now points at the «i» beside a figure in the panel
+  return hint(<Info className="size-4 shrink-0 text-primary" aria-hidden />, 'اضغط «i» لترى كيف حُسب الرقم',
+    <button onClick={() => go('completed', 'button')} className="shrink-0 text-sm font-semibold text-primary underline-offset-4 hover:underline">فهمت</button>)
 }
