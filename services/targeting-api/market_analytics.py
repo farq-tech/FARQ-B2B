@@ -452,6 +452,33 @@ class MarketAnalytics:
                 params.append(specialty_ids)
         return city, subs, " and ".join(clauses), params, specialty_available, bounds
 
+    def competitors_within(self, body, geometry, centre=None, limit=8):
+        """The chosen activity's businesses inside a range (site_card): their count, per km² of the range, and the
+        nearest by name. The activity is read exactly as the other figures read it (_where); None without one."""
+        import district_metrics
+        import site_card
+        if not (body.get("q") or body.get("main_id") or body.get("sub_ids")):
+            return None
+        polygons = site_card.insights.canonical_data._polygons(geometry)
+        coords = [p for rings in polygons for ring in rings for p in ring]
+        if not coords:
+            return None
+        west, east = min(p[0] for p in coords), max(p[0] for p in coords)
+        south, north = min(p[1] for p in coords), max(p[1] for p in coords)
+        _, subs, where, params, _, _ = self._where({**body, "bounds": [west, south, east, north]})
+        query = f"""
+            select coalesce(nullif(p.name_ar, ''), p.name_en), p.district_ar, p.longitude, p.latitude
+            from read_parquet(?) p
+            where {where} and coalesce(p.location_precision, 'unknown') = 'point'
+            qualify row_number() over (partition by p.poi_key) = 1
+        """
+        with self.lock:
+            rows = self.db.execute(query, params).fetchall()
+        n, near = site_card.nearest(rows, geometry, centre, limit)
+        area = district_metrics.area_km2(geometry)
+        return {"n": n, "area_km2": round(area, 2) if area else None, "per_km2": district_metrics.per_km2(n, area),
+                "nearest": near, "understood": self._understood(body, subs)}
+
     def district_points(self, body, limit=20000):
         """Located directory businesses in the given districts (and activity), for planning a visit route: id, name,
         district, coordinates and whether it is reachable on WhatsApp. Only point-precise locations are returned."""
