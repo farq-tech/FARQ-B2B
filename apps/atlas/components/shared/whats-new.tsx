@@ -19,6 +19,16 @@ export function setMapTourShowing(showing: boolean) {
   window.dispatchEvent(new Event(TOUR_EVENT))
 }
 
+// whether the map's phone sheet is pulled up to full height: the bar's spot under the filters is then the sheet's
+// title and steps, so the bar steps aside until the sheet comes down
+let sheetFull = false
+/** Called by the map's sheet (map-sheet.tsx) whenever it reaches or leaves its full stop. */
+export function setMapSheetFull(full: boolean) {
+  if (sheetFull === full) return
+  sheetFull = full
+  window.dispatchEvent(new Event(TOUR_EVENT))
+}
+
 /**
  * One line on what changed in this release, until the visitor closes it; it stays closed until the next release.
  * A first visit has nothing to compare with, and the map's goal question is already open, so the release counts as
@@ -34,8 +44,9 @@ export function WhatsNew({ onMap = false }: {
   const [expanded, setExpanded] = useState(false)
   // on the map the bar steps aside while the tour speaks, and comes back once it is done or dismissed
   const [tour, setTour] = useState(false)
+  const [covered, setCovered] = useState(false)
   useEffect(() => {
-    const sync = () => setTour(tourShowing)
+    const sync = () => { setTour(tourShowing); setCovered(sheetFull) }
     sync()
     window.addEventListener(TOUR_EVENT, sync)
     return () => window.removeEventListener(TOUR_EVENT, sync)
@@ -53,7 +64,7 @@ export function WhatsNew({ onMap = false }: {
     try { localStorage.setItem(KEY, RELEASE.id) } catch { /* private window: it shows again next visit */ }
   }
   return (
-    <aside aria-label="ما الجديد" className={cn('fixed inset-x-3 z-40 mx-auto flex max-w-lg items-center gap-3 rounded-2xl border bg-card/95 px-3 py-1 shadow-lg backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-300 lg:mx-0 lg:items-start lg:py-3',
+    <aside aria-label="ما الجديد" className={cn(onMap && covered && 'max-lg:hidden', 'fixed inset-x-3 z-40 mx-auto flex max-w-lg items-center gap-3 rounded-2xl border bg-card/95 px-3 py-1 shadow-lg backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-300 lg:mx-0 lg:items-start lg:py-3',
       // on the map's desktop the panel is the 400px column at the end side (left in Arabic) and the colour key holds the
       // map's bottom start corner: the bar sat at the page's bottom end, over the panel's results. It now sits on the map
       // itself, in its bottom end corner above the map's logo, never wider than the room the key leaves (the key is at
