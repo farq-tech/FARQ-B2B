@@ -69,7 +69,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
     const top = short[0]
     const summary = result.residents_per_business == null ? null
       : top ? `${counted(short.length, 'district')} فيها نقص · الأعلى: ${top.district_ar} \u2066+${numberFormat.format(Math.round(top.shortfall))}\u2069` : 'لا نقص في أي حي'
-    onOverlay({ summary, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
+    onOverlay({ summary, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
   }, [result, rows, onOverlay, label])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
