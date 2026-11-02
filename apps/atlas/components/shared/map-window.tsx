@@ -168,16 +168,16 @@ export function MapWindow({ label, onClose, tab, children, className }: {
       className={cn('absolute inset-x-3 bottom-3 z-10 mx-auto max-h-[85%] max-w-sm overflow-y-auto rounded-2xl border bg-card shadow-xl', className)}>
       <div onPointerDown={start} onPointerMove={move} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}
         className="sticky top-0 z-[5] flex h-8 w-full cursor-grab touch-none items-center justify-center bg-card/90 backdrop-blur active:cursor-grabbing">
-        {/* the Mac's window buttons, where the Mac puts them */}
+        {/* the Mac's window buttons, where the Mac puts them, in Atlas colours (destructive red, chart ochre) */}
         {/* each dot is the Mac's 14px, inside a 32px button so a finger finds it on a phone */}
         <div dir="ltr" className="group absolute top-1/2 left-1 flex -translate-y-1/2">
           <button data-window-button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-8 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="grid size-3.5 place-items-center rounded-full bg-[#ff5f57] text-[#4d0000] ring-1 ring-black/10">
+            <span className="grid size-3.5 place-items-center rounded-full bg-destructive text-primary-foreground ring-1 ring-black/10">
               <X className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
             </span>
           </button>
           <button data-window-button onClick={() => setFolded(true)} aria-label={`صغّر إلى تبويب: ${label}`} className="-ms-2 grid size-8 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="grid size-3.5 place-items-center rounded-full bg-[#febc2e] text-[#5a3d00] ring-1 ring-black/10">
+            <span className="grid size-3.5 place-items-center rounded-full bg-chart-2 text-primary-foreground ring-1 ring-black/10">
               <Minus className="size-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" strokeWidth={3} aria-hidden />
             </span>
           </button>

@@ -1,16 +1,24 @@
 import { AlertTriangle, RotateCw } from 'lucide-react'
+import { StateMessage } from '@/components/shared/empty-state'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
-/** A failed load, said plainly, with the way to try again when there is one. */
-export function LoadError({ what, onRetry, className }: { what: string; onRetry?: () => void; className?: string }) {
+/**
+ * A failed load, said plainly, with the way to try again when there is one. Same shape as EmptyState (icon, title,
+ * one line, one action), in the compact row by default since it usually sits over a map or inside a panel.
+ */
+export function LoadError({ what, detail, onRetry, compact = true, className }: {
+  what: string
+  detail?: string
+  onRetry?: () => void
+  compact?: boolean
+  className?: string
+}) {
   return (
-    <div role="alert" className={cn('flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-3 text-sm', className)}>
-      <span className="flex items-center gap-2">
-        <AlertTriangle className="size-4 shrink-0 text-destructive" aria-hidden />
-        تعذر تحميل {what}.
-      </span>
-      {onRetry && <Button variant="outline" size="sm" onClick={onRetry}><RotateCw aria-hidden />أعد المحاولة</Button>}
-    </div>
+    <StateMessage
+      role="alert" tone="error" compact={compact} icon={AlertTriangle} className={className}
+      title={`تعذر تحميل ${what}.`}
+      body={detail ?? (onRetry ? 'تحقق من الاتصال ثم أعد المحاولة.' : undefined)}
+      action={onRetry && <Button variant="outline" size="sm" onClick={onRetry}><RotateCw aria-hidden />أعد المحاولة</Button>}
+    />
   )
 }

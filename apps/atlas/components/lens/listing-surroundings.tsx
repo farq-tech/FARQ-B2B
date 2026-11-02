@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Explained } from '@/components/shared/explained'
 import { SkeletonRows } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
+import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import type { Listing } from '@/lib/real-estate'
 
 type Place = { name: string; district_ar: string | null; lon: number; lat: number; km: number }
@@ -14,7 +14,7 @@ export type MyPoint = { lon: number; lat: number }
 /** Drive time and road distance from the home to one target, when the routing service answered. */
 type Drive = { minutes: number; km: number } | null
 
-const KM = (km: number) => `${numberFormat.format(Math.round(km * 10) / 10)} كم`
+const KM = (km: number) => formatDistance(km * 1000)
 const PLACES: [keyof Near['places'], string][] = [['school_public', 'مدرسة حكومية'], ['school_private', 'مدرسة أهلية'], ['school', 'مدرسة (النوع غير مذكور)'], ['hospital', 'مستشفى']]
 
 /** Road time and distance from one point to several, through Valhalla's matrix (OSRM-shaped answers too); null per target it could not route. */
