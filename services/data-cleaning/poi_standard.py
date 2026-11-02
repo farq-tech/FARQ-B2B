@@ -2,7 +2,8 @@
 
 The standard is two documents the owner supplied: «POI Data Enrichment & Enhancement Rules» and «POI Dataset — Column
 Standards & Accepted Values». Every rule is applied, with one change decided by the owner: a value that cannot be
-found is left empty, never written as «UNAVAILABLE». The screen shows an empty value as «غير متاح».
+found is left empty, never written as «UNAVAILABLE» or «UNAPPLICABLE» (owner decision 2026-11-02: a field that does not
+apply, a default the standard would assume (ground floor, payment set, open during suhoor) is also left empty).
 
 What this step guarantees, so the directory is never weaker:
 - It reads the directory and writes a new file. No source column is changed or removed; the original value of every
@@ -29,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import name_translation  # noqa: E402  English names learned from the directory's own pairs
 import normalize_hours  # noqa: E402  the directory's own hours reader
 
-VERSION = 'poi_standard_v1'
+VERSION = 'poi_standard_v2'
 NAMESPACE = uuid.UUID('6f1c7a52-5d3e-4b8e-9f1a-2c4d5e6f7a8b')   # GlobalID = uuid5(NAMESPACE, poi_key): stable across runs
 
 ARABIC = re.compile(r'[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]')
@@ -274,6 +275,39 @@ def socials(values):
 
 # ---- 9-11. hours, days, break ---------------------------------------------------------------------------------------
 
+DAY_COLS = [('hours_sun', 'Sun'), ('hours_mon', 'Mon'), ('hours_tue', 'Tue'), ('hours_wed', 'Wed'), ('hours_thu', 'Thu'), ('hours_fri', 'Fri'), ('hours_sat', 'Sat')]
+URBI_COLS = [('urbi_sun_hours', 'Sun'), ('urbi_mon_hours', 'Mon'), ('urbi_tue_hours', 'Tue'), ('urbi_wed_hours', 'Wed'), ('urbi_thu_hours', 'Thu'), ('urbi_fri_hours', 'Fri'), ('urbi_sat_hours', 'Sat')]
+
+
+def _labelled_from_days(values):
+    """«Sun: 09:00-23:00; Mon: …» from seven day values (Sunday first); empty/«-» days are left out."""
+    parts = []
+    for (day, v) in values:
+        t = text(v).replace(' - ', '-')
+        if t and t not in ('-', '{}', '[]'):
+            parts.append(f'{day}: {t}')
+    return '; '.join(parts)
+
+
+def hours_source(row):
+    """The best hours value of a directory record: the cleaned field, then the per-day columns, then Urbi's per-day
+    columns, then the free-text field; Urbi's unlabelled «a; b; c; d; e; f; g» (Sunday first) is labelled first."""
+    clean = text(row.get('working_hours_clean'))
+    if clean:
+        return clean
+    for cols in (DAY_COLS, URBI_COLS):
+        if any(text(row.get(c)) for c, _ in cols):
+            labelled = _labelled_from_days([(d, row.get(c)) for c, d in cols])
+            if labelled:
+                return labelled
+    raw = row.get('working_hours') if text(row.get('working_hours')) else row.get('opening_hours')
+    t = text(raw)
+    parts = [x.strip() for x in t.split(';')] if t else []
+    if len(parts) == 7 and all(re.match(r'^(\d{1,2}:\d{2} ?- ?\d{1,2}:\d{2}|-)$', x) for x in parts):
+        return _labelled_from_days(list(zip(normalize_hours.SHORT, parts)))
+    return raw
+
+
 def hours(raw):
     """(working hours, working days, break): the standard's «Sun: 09:00-23:00; …», from any format the directory's hours
     reader reads. Friday is never filled as closed; a day the source does not give is left out."""
@@ -388,7 +422,7 @@ def standardize(row, category_map, translator=None):
     lounge = _has(name, LOUNGE) or sub == 'food.hookah'
     fine = serving and sub in {'food.restaurant'} and not chain and not _has(name, CASUAL)
     mall = _has(name, ('mall', 'plaza', 'avenue', 'مول', 'بلازا', 'افنيو'))
-    na = 'UNAPPLICABLE'
+    na = ''                                   # owner decision 2026-11-02: no UNAPPLICABLE/UNAVAILABLE tokens — empty
 
     def rule(field, value):
         inferred.append(f'{field}:rule')
@@ -405,13 +439,11 @@ def standardize(row, category_map, translator=None):
     inferred += mail_inferred
     social = socials([*moved_social, row.get('instagram'), row.get('twitter'), row.get('x_link'), row.get('snapchat'),
                       row.get('tiktok'), row.get('facebook'), row.get('overture_socials')])
-    wh, wd, brk = hours(row.get('working_hours') if text(row.get('working_hours')) else row.get('opening_hours'))
+    wh, wd, brk = hours(hours_source(row))
     fl, fl_inferred = floor(row.get('floor_no') if text(row.get('floor_no')) else row.get('floor'))
     if fl_inferred:
-        inferred.append('floor:default_ground')
-    pay = payment(row.get('payment_methods'))
-    if not pay:
-        pay = na if mosque else rule('payment', DEFAULT_PAYMENT)
+        fl = ''                                # no ground-floor default: unknown stays empty
+    pay = payment(row.get('payment_methods'))  # no default payment set: unknown stays empty
     menu = text(row.get('menu_link'))
     if not serving:
         menu_url, menu_flag = na, na
@@ -470,7 +502,7 @@ def standardize(row, category_map, translator=None):
         'std_has_women_only_prayer_room': rule('women_prayer_room', 'Yes' if mall or sub in HOSPITAL or sub in {'noncom.government', 'edu.university'} else 'No'),
         'std_provides_iftar_tent': rule('iftar_tent', 'Yes' if mosque else 'No'),
         'std_offers_iftar_menu': rule('iftar_menu', 'Yes' if serving else na),
-        'std_is_open_during_suhoor': rule('suhoor', na if mosque else ('Yes' if hours_late else 'No')),
+        'std_is_open_during_suhoor': ('' if mosque or not wh else rule('suhoor', 'Yes' if hours_late else 'No')),
         'std_is_free_entry': rule('free_entry', 'No' if sub in TICKETED else 'Yes'),
     }
     if lat is None or lon is None:
@@ -489,15 +521,28 @@ def run(targets, taxonomy, category_map_path, out):
     wanted = ['poi_key', 'name_ar', 'name_en', 'latitude', 'longitude', 'website', 'email', 'instagram', 'twitter', 'x_link',
               'snapchat', 'tiktok', 'facebook', 'overture_socials', 'working_hours', 'opening_hours', 'floor_no', 'floor',
               'phone_norm', 'phone', 'payment_methods', 'menu_link', 'company_status', 'building_no', 'commercial_license',
-              'license_no', 'legal_name', 'legal_form']
+              'license_no', 'legal_name', 'legal_form', 'category', 'working_hours_clean',
+              'hours_sun', 'hours_mon', 'hours_tue', 'hours_wed', 'hours_thu', 'hours_fri', 'hours_sat',
+              'urbi_sun_hours', 'urbi_mon_hours', 'urbi_tue_hours', 'urbi_wed_hours', 'urbi_thu_hours', 'urbi_fri_hours', 'urbi_sat_hours']
     cols = ', '.join(f'p.{c}' if c in have else f'null as {c}' for c in wanted)
     own = ', '.join(f'p.{c}' if c in have else f'null as {c}' for c in ('sub_id', 'main_id'))
-    cls = "c.sub_id, t.main_id" if taxonomy else own
+    cls = "coalesce(c.sub_id, te.sub_id) as sub_id, coalesce(t.main_id, te.main_id) as main_id" if taxonomy else own
     join = ("left join (select poi_key, any_value(sub_id) sub_id from read_parquet(?) where confidence in ('high','medium') "
-            "and sub_id not like 'unc.%' group by poi_key) c using (poi_key) left join tx t on t.sub_id = c.sub_id") if taxonomy else ''
+            "and sub_id not like 'unc.%' group by poi_key) c using (poi_key) left join tx t on t.sub_id = c.sub_id "
+            "left join te on te.sub_en = p.category") if taxonomy else ''
     if taxonomy:
         db.execute('create table tx(sub_id varchar, main_id varchar)')
         db.executemany('insert into tx values (?, ?)', [(k, v['main_id']) for k, v in category_map.items()])
+        # the directory's `category` label is the taxonomy's English sub-category name: a second, lower-priority source
+        db.execute('create table te(sub_en varchar, sub_id varchar, main_id varchar)')
+        tj = os.path.join(os.path.dirname(os.path.abspath(category_map_path)), 'farq_taxonomy.json')
+        if os.path.isfile(tj):
+            with open(tj, encoding='utf-8') as handle:
+                seen = {}
+                for sub in json.load(handle)['subs']:
+                    if sub.get('sub_en') and sub['sub_id'] in category_map and sub['sub_en'] not in seen:
+                        seen[sub['sub_en']] = (sub['sub_id'], sub['main_id'])
+                db.executemany('insert into te values (?, ?, ?)', [(k, v[0], v[1]) for k, v in seen.items()])
     # English names for Arabic-only businesses are learned from the businesses that carry both (name_translation)
     words = business_words(os.path.join(os.path.dirname(os.path.abspath(category_map_path)), 'farq_taxonomy.json'))
     pairs = [(name_ar(a), name_en(e)) for a, e in db.execute(
