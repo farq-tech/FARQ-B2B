@@ -190,7 +190,9 @@ def _card(listing, city, district_id, district_ar, found):
         'lon': round(float(listing['longitude']), 6), 'lat': round(float(listing['latitude']), 6),
         'city': city, 'district_id': district_id, 'district_ar': district_ar,
         'kind': {'sale': 'sale', None: None}.get(found['deal'], 'rent'), 'deal': found['deal'],
-        'group': found['group'], 'type': listing.get('propertyType') or 'other',
+        # the canonical type token (insights.LISTING_TYPES), so every reader matches it the same way the medians,
+        # market signals and the «محلات على هذا الشارع» filter do, whatever spelling the source used
+        'group': found['group'], 'type': insights.canonical_type(listing.get('propertyType')) if listing.get('propertyType') else 'other',
         # the price as advertised, in the period the ad states (deal rent_month | rent_year | rent_unstated); None
         # when the ad gives none
         'price_sar': _rounded(listing.get('priceSar')), 'area_sqm': _rounded(listing.get('areaSqm')),

@@ -16,6 +16,17 @@ TYPES = {
     'مستودع': 'warehouse', 'أرض': 'land', 'ارض': 'land', 'استراحة': 'rest_house', 'شاليه': 'chalet', 'مزرعة': 'farm',
     'مصنع': 'factory', 'ورشة': 'workshop', 'مجمع': 'compound',
 }
+# the canonical property-type tokens Atlas filters and medians use (insights.LISTING_TYPES), and the names the source
+# may reach us with mapped onto them: the Arabic names above, plus English synonyms. A new spelling is added here once.
+TYPE_ALIASES = {**TYPES, 'shop': 'store'}
+
+
+def canonical_type(value):
+    """The canonical property-type token for a listing, however the source spelt it — surrounding space, a different
+    case, an Arabic name, or a synonym like 'shop'. The lowered text itself when it names no known alias, so an
+    unknown type still matches a request for that same text and is never silently dropped."""
+    text = str(value or '').strip()
+    return TYPE_ALIASES.get(text) or TYPE_ALIASES.get(text.lower()) or text.lower()
 # the rent period an advertiser wrote in the text, when the text names one and only one
 # («شهرى» and «سنوى» with a final alif maqsura are as common as the dotted spelling)
 _MONTHLY, _YEARLY = re.compile('شهري|شهرى|شهريا|بالشهر|الشهر'), re.compile('سنوي|سنوى|سنويا|بالسنة|بالسنه|السنة|السنه|في السنه')

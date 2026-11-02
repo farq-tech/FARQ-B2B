@@ -200,6 +200,39 @@ class InsightTests(unittest.TestCase):
         plain = insights.real_estate_listings("Riyadh", {"types": ["store"]}, str(path))
         self.assertFalse(any("distance_m" in c for c in plain["listings"]), "a list without a street carries no distance")
 
+    def test_real_estate_listings_near_a_street_match_commercial_types_however_the_source_spelt_them(self):
+        # #699 returned 0 units because the source named the type in Arabic / a different case / a synonym, none of
+        # which equalled the canonical 'store'/'showroom'/'office' the request asks for. Every type is matched by its
+        # canonical token on both sides, so the commercial units on the street come back.
+        street = {"type": "LineString", "coordinates": [[46.70, 24.7], [46.71, 24.7]]}
+        card = {"city": "Riyadh", "kind": "rent", "deal": "rent_year", "district_id": "1", "lon": 46.705,
+                "price_sar": 80000, "area_sqm": 60, "photos": ["p.jpg"], "vs_district_pct": None}
+        cards = [dict(card, id="arabic_shop", type="محل", lat=24.7 + 10 / 110540),
+                 dict(card, id="capital_store", type="Store", lat=24.7 + 20 / 110540),
+                 dict(card, id="english_shop", type="shop", lat=24.7 + 30 / 110540),
+                 dict(card, id="arabic_showroom", type="معرض", lat=24.7 + 40 / 110540),
+                 dict(card, id="office_ws", type=" Office ", kind="sale", deal="sale", lat=24.7 + 50 / 110540),
+                 dict(card, id="home", type="شقة", lat=24.7 + 15 / 110540)]
+        path = self.root / "listings.json"
+        path.write_text(json.dumps({"listings": cards}), encoding="utf-8")
+        near = {"runs": insights.near_lines(street), "meters": 60}
+        found = insights.real_estate_listings("Riyadh", {"types": list(insights.COMMERCIAL_TYPES), "near": near}, str(path))
+        self.assertEqual([c["id"] for c in found["listings"]],
+                         ["arabic_shop", "capital_store", "english_shop", "arabic_showroom", "office_ws"],
+                         "every commercial unit on the street, whatever the source called its type, nearest first")
+        self.assertEqual(found["total"], 5, "the apartment (شقة) is the only unit left out")
+
+    def test_canonical_type_folds_case_space_arabic_and_synonyms(self):
+        self.assertEqual(insights.canonical_type("Store"), "store")
+        self.assertEqual(insights.canonical_type(" office "), "office")
+        self.assertEqual(insights.canonical_type("shop"), "store")
+        self.assertEqual(insights.canonical_type("محل"), "store")
+        self.assertEqual(insights.canonical_type("معرض"), "showroom")
+        self.assertEqual(insights.canonical_type("مكتب"), "office")
+        # an unknown type keeps its lowered text, so it still matches a request for that same text
+        self.assertEqual(insights.canonical_type("Kiosk"), "kiosk")
+        self.assertEqual(insights.canonical_type(None), "")
+
     def test_rent_on_a_street_against_its_surroundings(self):
         # the street along latitude 24.7; 0.0001° of latitude is about 11 m
         street = {"type": "LineString", "coordinates": [[46.70, 24.7], [46.71, 24.7]]}

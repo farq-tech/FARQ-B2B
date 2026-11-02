@@ -10,6 +10,7 @@ import statistics
 import canonical_data
 import district_reference
 import market_signals
+import parse_aqar_list
 
 EARTH_M = 6_371_000.0
 
@@ -267,6 +268,8 @@ LISTING_TYPES = ('apartment', 'studio', 'floor', 'villa', 'house', 'building', '
 LISTINGS_MAX = 1500
 # commercial units a shop can open in: what «محلات متاحة على هذا الشارع» lists along an activity street
 COMMERCIAL_TYPES = ('store', 'showroom', 'office')
+# a listing's type is matched by its canonical token, however the source spelt it (parse_aqar_list.canonical_type)
+canonical_type = parse_aqar_list.canonical_type
 NEAR_DEFAULT_M, NEAR_MAX_M, NEAR_MAX_VERTICES = 60, 200, 5000
 _listings_cache = {}
 
@@ -405,7 +408,9 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     except (OSError, ValueError):
         return None
     box, districts = filters.get('bbox'), set(filters.get('district_ids') or [])
-    types, kind, deal = set(filters.get('types') or []), filters.get('kind'), filters.get('deal')
+    # match a type by its canonical token on both sides, so a card whose source spelt the type differently (case,
+    # Arabic, 'shop') still matches a request for 'store'/'showroom'/'office'
+    types, kind, deal = {canonical_type(t) for t in (filters.get('types') or [])}, filters.get('kind'), filters.get('deal')
     near = filters.get('near')
     if near:
         # a corridor's buffer: first the line's box widened by the surroundings' reach, then the exact distance to its segments
@@ -417,7 +422,7 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
         near_box = (min(xs) - pad_lon, min(ys) - pad_lat, max(xs) + pad_lon, max(ys) + pad_lat)
     within = lambda value, low, high: (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
     matches = [card for card in table.get('listings', []) if card['city'] == city
-               and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or card['type'] in types)
+               and (not kind or card['kind'] == kind) and (not deal or card.get('deal') == deal) and (not types or canonical_type(card['type']) in types)
                and (not districts or card['district_id'] in districts)
                and (not box or (box[0] <= card['lon'] <= box[2] and box[1] <= card['lat'] <= box[3]))
                and within(card.get('price_sar'), filters.get('min_price'), filters.get('max_price'))
