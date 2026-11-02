@@ -156,6 +156,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
       : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0))), [table, order])
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
+  // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
+  const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
+  const [branchLimit, showMoreBranches] = useShowMore(20, `${city}|${brand?.brand ?? ''}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -247,7 +250,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                     أحياء مأهولة لم تصلها أكبر {numberFormat.format(brands.uncovered_by?.length ?? 0)} سلاسل
                   </Explained>
                   <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
-                    {brands.uncovered.map((item) => {
+                    {brands.uncovered.slice(0, uncoveredLimit).map((item) => {
                       const id = idByName.get(item.district_ar)
                       return (
                         <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar}
@@ -255,6 +258,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                       )
                     })}
                   </ol>
+                  <MoreRows shown={Math.min(uncoveredLimit, brands.uncovered.length)} total={brands.uncovered.length} noun="district" onMore={showMoreUncovered} />
                 </div>
               )}
             </>
@@ -288,11 +292,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                 طلب تسعير أو حملة لكل الفروع
               </button>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
-                {brand.by_district.map((item) => {
+                {brand.by_district.slice(0, branchLimit).map((item) => {
                   const id = idByName.get(item.district_ar)
                   return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
                 })}
               </ol>
+              <MoreRows shown={Math.min(branchLimit, brand.by_district.length)} total={brand.by_district.length} noun="district" onMore={showMoreBranches} />
             </>
           )}
           <p className="text-sm text-muted-foreground">{brand ? `اضغط على حي لترى فروع ${brand.brand} فيه.` : 'اضغط على حي لترى منافسيه بالاسم.'}</p>
