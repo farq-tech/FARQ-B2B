@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ClipboardList, House, Inbox, LogIn, LogOut, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { WhatsNew } from '@/components/shared/whats-new'
@@ -16,6 +17,9 @@ interface NavItem {
 }
 
 type SessionUser = { email: string | null; displayName: string | null }
+
+/** A nav badge: the count in English digits, «99+» past 99 so it never outgrows its dot. */
+const badge = (count: number) => (count > 99 ? '99+' : numberFormat.format(count))
 
 function userInitial(user: SessionUser) {
   return (user.displayName || user.email || 'ح').trim().charAt(0).toUpperCase()
@@ -97,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
                 {item.label}
-                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{badge(item.count)}</span> : null}
               </Link>
             )
           })}
@@ -145,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <span className="relative">
                 <item.icon className="size-5" aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{item.count}</span> : null}
+                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}</span> : null}
               </span>
               {item.label}
             </Link>

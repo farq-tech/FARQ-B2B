@@ -9,6 +9,7 @@ import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
 import { formatDate, formatDateTime } from '@/lib/format'
+import { numberFormat } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
@@ -166,7 +167,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {replies.length ? (
         <section className="flex flex-col gap-2 rounded-2xl border bg-card p-4" aria-labelledby="replies-title">
           <h2 id="replies-title" className="font-semibold">
-            الردود ({replies.length})
+            الردود ({numberFormat.format(replies.length)})
           </h2>
           <ul className="flex flex-col divide-y">
             {replies.map((m) => (
@@ -357,7 +358,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   useEffect(() => { void refreshCloudStatus() }, [refreshCloudStatus])
   const send = async () => {
     if (!currentBatch.length || !text || sendingId || cloudReady !== true) return
-    if (!window.confirm(`سيُرسل أطلس رسالة واتساب سحابية إلى ${currentBatch.length} جهة الآن باستخدام القالب المعتمد farq_outreach_ar. هل تريد المتابعة؟`)) return
+    if (!window.confirm(`سيُرسل أطلس رسالة واتساب سحابية إلى ${numberFormat.format(currentBatch.length)} جهة الآن باستخدام القالب المعتمد farq_outreach_ar. هل تريد المتابعة؟`)) return
     setError('')
     const nextDelivery = { ...delivery }
     for (const id of currentBatch) {
@@ -400,8 +401,8 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
         </div>
       </div>
       <p className="text-sm">
-        {sentCount} قبلها واتساب للإرسال · {unsentIds.length} بانتظار الإرسال{failedCount ? ` · ${failedCount} فشل` : ''}{unknownCount ? ` · ${unknownCount} نتيجتها غير مؤكدة` : ''}
-        {unlinkedCount ? ` · ${unlinkedCount} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : ''}
+        {numberFormat.format(sentCount)} قبلها واتساب للإرسال · {numberFormat.format(unsentIds.length)} بانتظار الإرسال{failedCount ? ` · ${numberFormat.format(failedCount)} فشل` : ''}{unknownCount ? ` · ${numberFormat.format(unknownCount)} نتيجتها غير مؤكدة` : ''}
+        {unlinkedCount ? ` · ${numberFormat.format(unlinkedCount)} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : ''}
       </p>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{cloudStatus}</span>
@@ -411,7 +412,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
       <div className="flex flex-wrap gap-2">
         <Button onClick={send} disabled={Boolean(sendingId) || cloudReady !== true || !unsentIds.length || !text}>
           {sendingId ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}
-          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'التحقق من القالب...' : cloudReady ? `إرسال ${currentBatch.length} سحابيًا${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال السحابي غير جاهز'}
+          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'التحقق من القالب...' : cloudReady ? `إرسال ${numberFormat.format(currentBatch.length)} سحابيًا${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال السحابي غير جاهز'}
         </Button>
         <Button variant="ghost" onClick={onBackToDraft} disabled={Boolean(sendingId) || hasDeliveryHistory}>
           إعادة إلى مسودة للتعديل
@@ -427,19 +428,19 @@ function ReviewSummary({ request }: { request: RequestItem }) {
     return (
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
         <dt className="text-muted-foreground">الموردون</dt>
-        <dd>{request.businessIds.length} مورد</dd>
+        <dd>{numberFormat.format(request.businessIds.length)} مورد</dd>
         <dt className="text-muted-foreground">البنود</dt>
         <dd>
           <ul className="flex flex-col gap-0.5">
             {request.rfq.lineItems.map((l) => (
               <li key={l.id}>
-                {l.name} — {l.qty} {l.unit}
+                {l.name} — {numberFormat.format(l.qty)} {l.unit}
               </li>
             ))}
           </ul>
         </dd>
         <dt className="text-muted-foreground">آخر موعد</dt>
-        <dd>{request.rfq.deadline ? formatDate(request.rfq.deadline) : '—'}</dd>
+        <dd>{request.rfq.deadline ? formatDate(request.rfq.deadline) : <span className="text-muted-foreground">غير متاح</span>}</dd>
         <dt className="text-muted-foreground">التسليم</dt>
         <dd>{request.rfq.deliveryCity}</dd>
       </dl>
@@ -451,8 +452,8 @@ function ReviewSummary({ request }: { request: RequestItem }) {
     return (
       <div className="flex flex-col gap-3 text-sm">
         <p>
-          <span className="font-semibold">{request.campaign.included.length}</span> مستلم مؤهل عبر واتساب بقالب «{t?.name}».
-          {skipped > 0 ? ` سيتم استبعاد ${skipped} منشأة لا تستوفي الأهلية.` : ''}
+          <span className="font-semibold">{numberFormat.format(request.campaign.included.length)}</span> مستلم مؤهل عبر واتساب بقالب «{t?.name}».
+          {skipped > 0 ? ` سيتم استبعاد ${numberFormat.format(skipped)} منشأة لا تستوفي الأهلية.` : ''}
         </p>
         {t ? (
           <div className="rounded-2xl rounded-tr-sm bg-accent px-3.5 py-2.5 leading-relaxed text-accent-foreground">

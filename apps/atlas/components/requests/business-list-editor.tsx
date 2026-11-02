@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { MessageCircle, X } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { numberFormat } from '@/lib/insights-api'
 import { businessById, districtById } from '@/lib/mock-data'
 import type { Business, LiveBusinessSnapshot } from '@/lib/types'
 
@@ -29,7 +30,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4" aria-labelledby="biz-list-title">
       <div className="flex items-center justify-between gap-2">
         <h2 id="biz-list-title" className="font-semibold">
-          {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({totalCount})</span>
+          {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({numberFormat.format(totalCount)})</span>
         </h2>
       </div>
 
