@@ -26,6 +26,7 @@ import sys
 import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import name_translation  # noqa: E402  English names learned from the directory's own pairs
 import normalize_hours  # noqa: E402  the directory's own hours reader
 
 VERSION = 'poi_standard_v1'
@@ -93,10 +94,7 @@ PAYMENT_WORDS = {'cash on delivery': 'Cash on Delivery', 'cod': 'Cash on Deliver
                  'مدى': 'Mada', 'visa': 'Visa', 'فيزا': 'Visa', 'master': 'Mastercard', 'ماستر': 'Mastercard', 'apple': 'Apple Pay',
                  'ابل': 'Apple Pay', 'أبل': 'Apple Pay', 'online': 'Online Payment', 'stc': 'Online Payment', 'transfer': 'Bank Transfer',
                  'تحويل': 'Bank Transfer'}
-AR2EN = {'ا': 'a', 'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd',
-         'ذ': 'th', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
-         'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ه': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ة': 'a',
-         'ء': '', 'ؤ': 'o', 'ئ': 'e', 'ـ': ''}
+
 
 
 def text(v):
@@ -130,18 +128,6 @@ def name_en(raw):
     s = re.sub(r'[^A-Za-z0-9\s\-&\'.()]', ' ', s)
     s = re.sub(r'\s+', ' ', s).strip(' -.&()')
     return s if LATIN.search(s) else ''
-
-
-def transliterate(arabic):
-    """A plain Latin reading of an Arabic name (letters only, «Al» for the article), title-cased."""
-    words = []
-    for word in arabic.split():
-        if word.startswith('ال') and len(word) > 3:
-            words.append('Al ' + ''.join(AR2EN.get(c, c) for c in word[2:]).capitalize())
-        else:
-            words.append(''.join(AR2EN.get(c, c) for c in word).capitalize())
-    out = re.sub(r'\s+', ' ', ' '.join(words)).strip()
-    return out if LATIN.search(out) else ''
 
 
 # ---- 3. floor ---------------------------------------------------------------------------------------------------
@@ -365,7 +351,20 @@ def legal_name(raw_legal, raw_form, en):
     return f'{prefix} {legal}'.strip() if prefix and not legal.upper().startswith(prefix) else legal
 
 
-def standardize(row, category_map):
+def business_words(taxonomy_json):
+    """Arabic → English business words from the Farq taxonomy (single-word sub-categories, «صيدلية» → «Pharmacy»)."""
+    if not taxonomy_json or not os.path.isfile(taxonomy_json):
+        return {}
+    with open(taxonomy_json, encoding='utf-8') as handle:
+        subs = json.load(handle)['subs']
+    return {s['sub_ar']: s['sub_en'].split('/')[0].strip() for s in subs
+            if len(s.get('sub_ar', '').split()) == 1 and s.get('sub_en') and len(s['sub_en'].split('/')[0].split()) <= 2}
+
+
+DEFAULT_TRANSLATOR = name_translation.Translator()
+
+
+def standardize(row, category_map, translator=None):
     """One directory record in the standard. Returns (values, inferred, flags); empty strings for what is not found."""
     inferred, flags = [], []
     sub, main = text(row.get('sub_id')), text(row.get('main_id'))
@@ -377,9 +376,9 @@ def standardize(row, category_map):
             en = moved
             inferred.append('name_en:from_name_ar_text')
         elif ar:
-            en = transliterate(ar)
+            en, method = (translator or DEFAULT_TRANSLATOR).translate(ar)
             if en:
-                inferred.append('name_en:transliterated')
+                inferred.append(f'name_en:{method}')
     if not ar and name_ar(row.get('name_en')):
         ar = name_ar(row.get('name_en'))
         inferred.append('name_ar:from_name_en_text')
@@ -499,16 +498,25 @@ def run(targets, taxonomy, category_map_path, out):
     if taxonomy:
         db.execute('create table tx(sub_id varchar, main_id varchar)')
         db.executemany('insert into tx values (?, ?)', [(k, v['main_id']) for k, v in category_map.items()])
+    # English names for Arabic-only businesses are learned from the businesses that carry both (name_translation)
+    words = business_words(os.path.join(os.path.dirname(os.path.abspath(category_map_path)), 'farq_taxonomy.json'))
+    pairs = [(name_ar(a), name_en(e)) for a, e in db.execute(
+        f"select {'name_ar' if 'name_ar' in have else 'null'}, {'name_en' if 'name_en' in have else 'null'} from read_parquet(?)",
+        [str(targets)]).fetchall()]
+    pairs = [(a, e) for a, e in pairs if a and e]
+    translator = name_translation.Translator(words).learn(pairs)
+    counts_names = {'pairs': len(pairs), 'known_names': len(translator.exact), 'proper_words': len(translator.proper),
+                    'held_out_quality': name_translation.evaluate(pairs, words)}
     cursor = db.execute(f"select {cols}, {cls} from read_parquet(?) p {join} qualify row_number() over (partition by p.poi_key) = 1",
                         [str(targets)] + ([str(taxonomy)] if taxonomy else []))
     names = [d[0] for d in cursor.description]
     partial = out + '.rows.parquet'
     writer = None
-    counts = {'rows': 0, 'inferred': {}, 'flags': {}}
+    counts = {'rows': 0, 'inferred': {}, 'flags': {}, 'english_names': counts_names}
     while batch := cursor.fetchmany(50000):
         records = []
         for raw in batch:
-            values, inferred, flags = standardize(dict(zip(names, raw)), category_map)
+            values, inferred, flags = standardize(dict(zip(names, raw)), category_map, translator)
             values['std_inferred'] = '|'.join(inferred)
             values['std_flags'] = '|'.join(flags)
             records.append(values)

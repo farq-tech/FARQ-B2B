@@ -20,8 +20,11 @@ class NameTests(unittest.TestCase):
         self.assertEqual(ps.name_en('Starbucks, coffee shop'), 'Starbucks')
         self.assertEqual(ps.name_en('Al Noor صيدلية'), 'Al Noor')
 
-    def test_transliteration(self):
-        self.assertEqual(ps.transliterate('النور'), 'Al Nwr')
+    def test_english_name_from_a_learned_translator(self):
+        tr = ps.name_translation.Translator().learn([('صيدلية النور', 'Al Noor Pharmacy')] * 3)
+        values, inferred, _ = ps.standardize({'poi_key': 'x', 'name_ar': 'مطعم النور', 'name_en': None, 'sub_id': 'food.restaurant'}, CATS, tr)
+        self.assertEqual(values['std_name_en'], 'Al Noor Restaurant')
+        self.assertIn('name_en:translated', inferred)
 
 
 class PhoneTests(unittest.TestCase):
@@ -125,7 +128,7 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(values['std_payment_methods'], 'UNAPPLICABLE')
         self.assertEqual(values['std_language'], 'Arabic')
         self.assertEqual(values['std_provides_iftar_tent'], 'Yes')
-        self.assertEqual(values['std_name_en'], 'Jama Al Rajhy')
+        self.assertEqual(values['std_name_en'], 'Al Rajhi Mosque', 'a business word is translated, a name spelled')
 
     def test_chain_with_drive_thru(self):
         values, _, _ = self.record(name_en="McDonald's", name_ar='ماكدونالدز', sub_id='food.fast_food')
