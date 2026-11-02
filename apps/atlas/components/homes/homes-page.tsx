@@ -235,19 +235,22 @@ export function HomesPage() {
               return (
                 <li key={listing.id} onMouseEnter={() => setHover(listing.id)} onMouseLeave={() => setHover(null)} className="group">
                   <div className="relative overflow-hidden rounded-2xl bg-muted">
-                    <Gallery photos={photos} className="aspect-[20/19]" />
+                    {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
+                    {photos.length ? <Gallery photos={photos} className="aspect-[20/19]" /> : (
+                      <span className="grid aspect-[20/19] place-items-center text-sm text-muted-foreground"><Building2 className="size-8 opacity-40" aria-hidden /><span className="sr-only">بلا صور</span></span>
+                    )}
                     {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
-                    <button onClick={() => toggleCompare(listing)} aria-pressed={comparing} aria-label={comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}
-                      className={cn('absolute end-3 top-3 grid size-9 place-items-center rounded-full backdrop-blur', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
+                    <button onClick={() => toggleCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
+                      className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
                       <Scale className="size-4" aria-hidden />
                     </button>
                   </div>
-                  <button onClick={() => open(listing)} className="mt-2 flex w-full flex-col gap-0.5 text-start">
+                  <button onClick={() => open(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
                     <span className="text-sm text-muted-foreground">
                       {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
                     </span>
-                    <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
+                    <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
                     {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
                     {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
                   </button>
@@ -284,7 +287,7 @@ export function HomesPage() {
         {compare.length === 1 && (
           <p role="status" className="pointer-events-auto inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-semibold shadow-lg">
             <Scale className="size-4 text-primary" aria-hidden /> عقار واحد في المقارنة · أضف الثاني
-            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
+            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 pointer-coarse:size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
           </p>
         )}
         {compare.length === 2 && (
