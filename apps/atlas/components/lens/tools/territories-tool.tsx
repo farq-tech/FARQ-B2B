@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
@@ -279,7 +278,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
               <input type="number" min={1} max={100} value={perDay} onChange={(e) => setPerDay(Math.min(100, Math.max(1, Math.round(Number(e.target.value)) || 1)))} className="h-11 rounded-lg border bg-background px-3 text-base" />
             </label>
           </div>
-          {planStatus === 'loading' && <Loader2 className="mt-2 size-5 animate-spin text-primary" aria-label="جارٍ تقسيم الأسبوع" />}
+          {planStatus === 'loading' && <SkeletonRows label="جارٍ تقسيم الأسبوع" rows={days} boxed leading="swatch" sub trailing className="mt-2" />}
           {planStatus === 'error' && <p role="alert" className="mt-2 text-base text-destructive">تعذر تقسيم الأسبوع.</p>}
           {planStatus === 'too-many' && <p role="alert" className="mt-2 text-base text-destructive">المنشآت أكثر من {numberFormat.format(WEEK_STOPS_MAX)}. اختر نشاطاً أدق أو مندوبين أكثر.</p>}
           {plan && planStatus === 'idle' && (
@@ -288,20 +287,22 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 {plan.days.map((planned, index) => {
                   const road = day === index && finished ? { meters, seconds } : null
                   return (
-                    <li key={planned.day}>
-                      <button onClick={() => showDay(index)} aria-pressed={day === index}
-                        className={cn('flex w-full items-center gap-2 rounded-lg border p-2 text-start text-base', day === index ? 'border-primary' : 'hover:border-primary')}>
+                    // the estimate opens its own explanation card, so it sits beside the day's button, never inside it
+                    <li key={planned.day} aria-current={day === index ? 'true' : undefined}
+                      className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base', day === index ? 'border-primary' : 'hover:border-primary')}>
+                      <button type="button" onClick={() => showDay(index)} aria-pressed={day === index}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                         <span className="size-3.5 shrink-0 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                         <span className="font-bold">{names[index] ?? `اليوم ${numberFormat.format(planned.day)}`}</span>
                         <span className="text-sm text-muted-foreground">{numberFormat.format(planned.count)} زيارة</span>
-                        <span className="ms-auto shrink-0 text-sm">
-                          {day === index && !finished && !routeError
-                            ? <Loader2 className="size-4 animate-spin text-primary" aria-label="جارٍ حساب مسار اليوم" />
-                            : road
-                            ? <>على الطرق: {km(road.meters)} · {duration(road.seconds)}</>
-                            : <Explained title={`خطة ${names[index] ?? 'اليوم'}`} lines={EXPLAIN.weeklyPlan(plan.detour, plan.speed_kmh)}>تقدير: {km(planned.meters_estimate)} · {duration(planned.seconds_estimate)}</Explained>}
-                        </span>
                       </button>
+                      <span className="shrink-0 text-sm">
+                        {day === index && !finished && !routeError
+                          ? <span role="status" aria-busy="true"><span className="sr-only">جارٍ حساب مسار اليوم</span><Skeleton className="h-4 w-28" aria-hidden /></span>
+                          : road
+                          ? <>على الطرق: {km(road.meters)} · {duration(road.seconds)}</>
+                          : <Explained title={`خطة ${names[index] ?? 'اليوم'}`} lines={EXPLAIN.weeklyPlan(plan.detour, plan.speed_kmh)}>تقدير: {km(planned.meters_estimate)} · {duration(planned.seconds_estimate)}</Explained>}
+                      </span>
                     </li>
                   )
                 })}
