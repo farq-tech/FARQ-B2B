@@ -14,7 +14,7 @@ const ROW = 'flex min-w-0 flex-1 items-center gap-2 py-2 text-start'
  * With `onClick` the line is one button. An interactive figure (an Explained card) cannot sit inside a button, so it
  * goes in `aside`, beside the button. `active` marks the line the map is showing, for sight and for screen readers.
  */
-export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick, active = false, disabled = false, id }: {
+export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick, onPoint, active = false, disabled = false, id }: {
   leading?: ReactNode
   title: ReactNode
   sub?: ReactNode
@@ -24,6 +24,8 @@ export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick
   valueSub?: ReactNode
   aside?: ReactNode
   onClick?: () => void
+  /** The pointer or keyboard focus entering (true) or leaving (false) the line, so the map can outline its place. */
+  onPoint?: (on: boolean) => void
   active?: boolean
   disabled?: boolean
   id?: string
@@ -44,7 +46,9 @@ export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick
     </>
   )
   return (
-    <li id={id} aria-current={active ? 'true' : undefined} className={cn('flex items-center gap-2', active && 'text-primary')}>
+    <li id={id} aria-current={active ? 'true' : undefined} className={cn('flex items-center gap-2', active && 'text-primary')}
+      onPointerEnter={onPoint && (() => onPoint(true))} onPointerLeave={onPoint && (() => onPoint(false))}
+      onFocus={onPoint && (() => onPoint(true))} onBlur={onPoint && (() => onPoint(false))}>
       {onClick ? (
         <button type="button" onClick={onClick} disabled={disabled}
           className={cn(ROW, 'rounded-md outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default disabled:hover:text-inherit')}>
