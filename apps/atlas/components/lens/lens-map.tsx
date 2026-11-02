@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronDown, MousePointerClick, Search, X } from 'lucide-react'
+import { ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
@@ -349,6 +349,9 @@ export function LensMap() {
   // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait, and the
   // key in the map's corner says whose colours they are
   const toolColors = overlay.colors != null
+  // a city whose districts came back empty, and a shading figure no district of the city has: said, not drawn blank
+  const noDistricts = data.status === 'ready' && data.features.length === 0
+  const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0
   const pointedRow = pointed ? data.rows.find((row) => row.id === pointed.id) ?? null : null
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${step?.label} · ${chosen.map((row) => row.name).join('، ')}` : `${active.label} · ${step?.label ?? ''}`
@@ -401,7 +404,14 @@ export function LensMap() {
               <p className="text-xs text-muted-foreground">{selected.includes(pointedRow.id) ? 'اضغط لإلغاء اختياره' : 'اضغط لترى أرقامه'}</p>
             </div>
           )}
-          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed} goalSlot={goalSlot} onAsk={raiseSheet} />
+          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet} />
+          {noDistricts && (
+            <div role="status" className="absolute inset-x-4 top-1/3 z-[15] mx-auto flex max-w-sm flex-col items-start gap-2 rounded-xl border bg-card/95 p-4 shadow-md backdrop-blur lg:top-1/4">
+              <p className="flex items-center gap-2 font-bold"><MapPinOff className="size-5 text-muted-foreground" aria-hidden />حدود أحياء {cityName}: غير متاحة بعد</p>
+              <p className="text-sm text-muted-foreground">البحث عن المنشآت والموردين يعمل فيها من الأعلى. أو افتح مدينة لها أحياء على الخريطة.</p>
+              {city !== 'Riyadh' && <Chip onClick={() => setCity('Riyadh')}>اعرض الرياض</Chip>}
+            </div>
+          )}
           {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3 lg:hidden">
             <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); submit() }}
@@ -435,11 +445,11 @@ export function LensMap() {
                   {!toolColors && overlay.legend && <span className="my-0.5 border-t" aria-hidden />}
                   {!toolColors && <>
                   <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                  <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
+                  {metricMissing ? <p className="text-sm text-muted-foreground">غير متاح في {cityName}، اختر مقياساً آخر</p> : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
                     <span className="text-muted-foreground">أقل</span>
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
-                  </Explained>
+                  </Explained>}
                   </>}
                 </>
               )}
