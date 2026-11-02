@@ -185,8 +185,20 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         <div className="mt-4">
           <Explained title="أكثر الأنشطة" lines={EXPLAIN.activities} className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة</Explained>
           <ul className="space-y-1.5 text-base">
-            {profile.main_activities.slice(0, 5).map((row) => (
-              <li key={row.main_ar} className="flex items-center justify-between gap-2"><span className="flex items-center gap-2">{row.main_id && <Icon3D type={`main-${row.main_id}`} className="size-7" />}{row.main_ar}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
+            {/* each count says what it counts, with a bar against the largest of the five so the mix reads at a glance */}
+            {profile.main_activities.slice(0, 5).map((row, _, top) => (
+              <li key={row.main_ar} className="flex items-center gap-2">
+                {row.main_id && <Icon3D type={`main-${row.main_id}`} className="size-7 shrink-0" />}
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="truncate">{row.main_ar}</span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">{counted(row.n, 'business')}</span>
+                  </span>
+                  <span className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <span className="block h-full rounded-full bg-primary/60" style={{ width: `${(100 * row.n) / Math.max(1, ...top.map((item) => item.n))}%` }} />
+                  </span>
+                </span>
+              </li>
             ))}
           </ul>
         </div>
