@@ -49,6 +49,14 @@ export function sanitizeLiveDirectoryEntity(row: Record<string, unknown>): Publi
     deliveryMinOrder: number(row.delivery_min_order) ?? undefined,
     deliveryEta: asText(row.delivery_eta, 48) || undefined,
     status: ['open', 'closed_temporary', 'inactive', 'hidden', 'unknown_empty', 'unknown_invalid', 'closed_permanent'].includes(String(row.status_class)) ? row.status_class as PublicDirectoryEntity['status'] : null,
+    // v13 enrichment: the operating-status vote shown as a line, the canonical weekly hours (for the open-now badge),
+    // and the WhatsApp state. Confidence is never shown as a number, only used to dim a low-confidence status.
+    statusVoted: ['open', 'closed_temporary', 'closed_permanent', 'inactive', 'unknown_empty', 'unknown_invalid'].includes(String(row.status_voted)) ? String(row.status_voted) : undefined,
+    statusConfidence: ['low', 'medium', 'high'].includes(String(row.status_voted_confidence)) ? row.status_voted_confidence as PublicDirectoryEntity['statusConfidence'] : undefined,
+    lastSeenAt: asText(row.last_seen_at, 10) || undefined,
+    isStale: row.is_stale === true ? true : undefined,
+    hoursWeek: asText(row.hours_week, 1200) || undefined,
+    whatsappState: ['verified', 'source_flag_unverified', 'not_available'].includes(String(row.whatsapp_state)) ? row.whatsapp_state as PublicDirectoryEntity['whatsappState'] : undefined,
   }
   // an optional detail the row does not carry is left out, so the browser gets only the fields that exist
   for (const key of Object.keys(entity) as (keyof PublicDirectoryEntity)[]) if (entity[key] === undefined) delete entity[key]

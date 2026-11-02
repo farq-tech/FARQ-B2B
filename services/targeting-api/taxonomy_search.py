@@ -386,6 +386,10 @@ class Taxonomy:
         v7_attrs = ', '.join([f"{source_expr('description_ar')} description"]
             + [f"t.{c} {c}" if c in self._dir_cols else f"null {c}"
                for c in ('delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta')])
+        # v13 enrichment baked into the live release: operating-status vote + freshness, canonical weekly hours, WhatsApp
+        # state. Each column only when the release carries it, else NULL so older releases keep working.
+        enrich_attrs = ', '.join([f"t.{c} {c}" if c in self._dir_cols else f"null {c}"
+            for c in ('status_voted','status_voted_confidence','last_seen_at','is_stale','hours_week','whatsapp_state')])
         legal_expr = source_expr('legal_name','urbi_legal_name')
         brand_expr = source_expr('brand_name','urbi_brand_name')
         rows = db.execute(f"""
@@ -393,7 +397,7 @@ class Taxonomy:
                    coalesce(t.district_ar,t.district_en,'') district, coalesce(t.completeness_pct,0) completeness,
                    t.latitude, t.longitude, t.city_en, t.region_ar, t.region_en, t.name_en, t.phone_norm, t.phone_kind, t.has_whatsapp,
                    t.email, t.source_count, t.category, {legal_expr} legal_name, {brand_expr} brand_name, t.secondary_category, t.category_l3,
-                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}, {v7_attrs}
+                   t.company_status, t.lifecycle_state, c.sub_id, c.confidence, {overlay_cols}, {spec_col}, {source_attrs}, {v7_attrs}, {enrich_attrs}
             from read_parquet(?) t join read_parquet(?) c using (poi_key) {overlay_join}
             where t.city_en=? and coalesce(t.name_ar,t.name_en) is not null and c.confidence in ('high','medium')
               and c.sub_id in (select unnest(?::varchar[])) and {search_sql}""",
@@ -414,7 +418,8 @@ class Taxonomy:
              source_count, category, legal, brand, secondary, l3, company_status, lifecycle, sub, conf, o_phone, o_kind, o_wa, o_src, o_src_name, hh_deleted, row_specs,
              street, is_ws, loc_precision, district_ok, role_badges, concepts, has_licence, rating, n_sources,
              branch_count, employee_count, payment_methods, service_languages, operating_hours, floor, building_use, makani, farq_atlas_id,
-             description, delivery_rating, delivery_rate_count, delivery_fee, delivery_min_order, delivery_eta) = r
+             description, delivery_rating, delivery_rate_count, delivery_fee, delivery_min_order, delivery_eta,
+             status_voted, status_voted_confidence, last_seen_at, is_stale, hours_week, whatsapp_state) = r
             extra = {}
             if not phone and o_phone:   # fill only a missing number, and say where it came from
                 phone, phone_kind, wa = o_phone, o_kind, bool(o_wa)
@@ -470,6 +475,8 @@ class Taxonomy:
                 'building_use': building_use, 'makani': makani, 'farq_atlas_id': farq_atlas_id,
                 'description': description, 'delivery_rating': delivery_rating, 'delivery_rate_count': delivery_rate_count,
                 'delivery_fee': delivery_fee, 'delivery_min_order': delivery_min_order, 'delivery_eta': delivery_eta,
+                'status_voted': status_voted, 'status_voted_confidence': status_voted_confidence, 'last_seen_at': last_seen_at,
+                'is_stale': is_stale, 'hours_week': hours_week, 'whatsapp_state': whatsapp_state,
                 'match': 'seller' if objective != 'marketing' else None, 'ai': None, 'reason': reason,
                 'target_role': 'buyer' if objective == 'marketing' else 'seller', 'taxonomy_sub': sub, 'taxonomy_confidence': conf,
                 'evidence': {'source': 'farq_taxonomy', 'text': sub_ar, 'confidence': 'activity_inference' if objective == 'marketing' else 'business_evidence'},
