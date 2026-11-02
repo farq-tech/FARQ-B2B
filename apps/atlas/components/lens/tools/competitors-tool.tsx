@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
-import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -14,8 +15,8 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useMainActivities } from '@/lib/main-activities'
 
-type Activity = { main_id: string; main_ar: string }
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
 // counts; a brand's by_district carries only n
 type Count = { district_ar: string; n: number; per_km2?: number | null; residents_per?: number | null }
@@ -52,7 +53,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   /** Opens every branch of a chain across the city, for a quote request or campaign to all of them. */
   onAllBranches: (brand: string) => void
 }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
@@ -79,12 +80,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   }, [city, brand])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
-  useEffect(() => {
-    setCounts(null)
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
+  useEffect(() => { setCounts(null) }, [city])
 
   useEffect(() => {
     if (!studied) return
@@ -143,10 +139,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     onOverlay({ colors, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
   }, [table, brand, rows, onOverlay])
 
+  const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
       : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0)))
+  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -177,7 +175,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         <>
           <Skeleton className="h-5 w-3/4" aria-hidden />
           <div className="flex gap-1.5" aria-hidden><Skeleton className="h-10 flex-1 rounded-lg" /><Skeleton className="h-10 flex-1 rounded-lg" /></div>
-          <SkeletonRows label="جارٍ الحساب" rows={6} sub trailing="double" />
+          <ResultRowsSkeleton label="جارٍ الحساب" rows={6} sub valueSub />
         </>
       )}
       {status !== 'loading' && studied.q && <Understood value={understood} />}
@@ -187,9 +185,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
             {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
           </Explained>
-          <div className="flex gap-1.5" role="tablist" aria-label="طريقة العرض">
+          {/* two views of one result, switched in place: pressed buttons, not tabs (there is no tab panel to move to) */}
+          <div className="flex gap-1.5" role="group" aria-label="طريقة العرض">
             {([['districts', 'الأحياء'], ['brands', 'السلاسل']] as const).map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
+              <button key={id} aria-pressed={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
                 className={cn('flex-1 rounded-lg border py-2 text-base font-semibold', view === id ? 'border-primary text-primary' : 'hover:border-primary')}>{label}</button>
             ))}
           </div>
@@ -202,23 +201,14 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               ))}
             </div>
             <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
-              {ranked.slice(0, 30).map((item) => (
-                <li key={item.row.id}>
-                  <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{item.row.name}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        {item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-end">
-                      <span className="block font-bold">{numberFormat.format(item.competitors)}</span>
-                      <span className="block text-sm text-muted-foreground">{item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'}</span>
-                    </span>
-                  </button>
-                </li>
+              {ranked.slice(0, limit).map((item) => (
+                <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
+                  sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
+                  value={numberFormat.format(item.competitors)}
+                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
               ))}
             </ol>
+            <MoreRows shown={Math.min(limit, ranked.length)} total={ranked.length} noun="district" onMore={showMore} />
             </>
           )}
           {view === 'brands' && !brands && <p className="text-base text-muted-foreground">السلاسل غير متاحة لهذا النشاط الآن.</p>}
@@ -231,19 +221,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               {brands.brands.length === 0 && <p className="text-base text-muted-foreground">لا توجد سلسلة بثلاثة فروع أو أكثر لهذا النشاط؛ السوق كله محلات مستقلة.</p>}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
                 {brands.brands.map((item, index) => (
-                  <li key={item.brand}>
-                    <button onClick={() => pickBrand(item)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
-                      <span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{item.brand}</span>
-                        <span className="block text-sm text-muted-foreground">في {counted(item.districts, 'district')}{growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}</span>
-                      </span>
-                      <span className="shrink-0 text-end">
-                        <span className="block font-bold">{counted(item.branches, 'branch')}</span>
-                        <span className="block text-sm text-muted-foreground">{item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`}</span>
-                      </span>
-                    </button>
-                  </li>
+                  <ResultRow key={item.brand} onClick={() => pickBrand(item)} title={item.brand}
+                    leading={<span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>}
+                    sub={`في ${counted(item.districts, 'district')}${growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}`}
+                    value={counted(item.branches, 'branch')}
+                    valueSub={item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`} />
                 ))}
               </ol>
               {brands.uncovered && brands.uncovered.length > 0 && (
@@ -253,14 +235,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                   </Explained>
                   <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
                     {brands.uncovered.map((item) => {
-                      const id = rows.find((row) => row.name === item.district_ar)?.id
+                      const id = idByName.get(item.district_ar)
                       return (
-                        <li key={item.district_ar}>
-                          <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                            <span className="min-w-0 flex-1 truncate">{item.district_ar}</span>
-                            <span className="shrink-0 text-end text-sm text-muted-foreground">{numberFormat.format(item.population)} ساكن · {numberFormat.format(item.businesses)} منشأة من النشاط</span>
-                          </button>
-                        </li>
+                        <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} title={item.district_ar}
+                          valueSub={`${numberFormat.format(item.population)} ساكن · ${numberFormat.format(item.businesses)} منشأة من النشاط`} />
                       )
                     })}
                   </ol>
@@ -298,14 +276,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               </button>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
                 {brand.by_district.map((item) => {
-                  const id = rows.find((row) => row.name === item.district_ar)?.id
-                  return (
-                    <li key={item.district_ar}>
-                      <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full justify-between py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                        <span>{item.district_ar}</span><span className="font-semibold">{numberFormat.format(item.n)}</span>
-                      </button>
-                    </li>
-                  )
+                  const id = idByName.get(item.district_ar)
+                  return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
                 })}
               </ol>
             </>

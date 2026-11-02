@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ExternalLink, MessageCircle, X } from 'lucide-react'
 import { numberFormat } from '@/lib/insights-api'
@@ -36,13 +36,31 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
   const [a, b] = listings
   const samePeriod = a.deal === b.deal
 
+  const dialog = useRef<HTMLElement>(null)
+  const close = useRef<HTMLButtonElement>(null)
+  // the latest onClose, so a parent re-render never re-runs the focus effect and pulls focus back to the close button
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
   useEffect(() => {
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    // focus moves into the dialog, Tab stays inside it, and focus returns to what opened it on close
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    close.current?.focus()
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { onCloseRef.current(); return }
+      if (event.key !== 'Tab' || !dialog.current) return
+      const focusable = [...dialog.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', key)
-    return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', key) }
-  }, [onClose])
+    return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', key); opener?.focus() }
+  }, [])
 
   const rows: Row[] = [
     { label: 'السعر', cells: [priceLine(a), priceLine(b)], better: samePeriod ? better(a.price_sar, b.price_sar, 'less') : null },
@@ -68,11 +86,11 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40 animate-in fade-in duration-200 sm:items-center sm:justify-center sm:p-4" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label="مقارنة العقارين" onClick={(event) => event.stopPropagation()}
+      <section ref={dialog} role="dialog" aria-modal="true" aria-label="مقارنة العقارين" onClick={(event) => event.stopPropagation()}
         className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-card shadow-xl sm:max-w-2xl sm:rounded-2xl">
         <div className="flex h-12 shrink-0 items-center justify-between border-b px-2">
           <h2 className="ps-2 text-base font-bold">مقارنة العقارين</h2>
-          <button onClick={onClose} aria-label="أغلق المقارنة" className="grid size-9 place-items-center rounded-full bg-muted hover:bg-muted/70"><X className="size-5" aria-hidden /></button>
+          <button ref={close} onClick={onClose} aria-label="أغلق المقارنة" className="grid size-9 place-items-center rounded-full bg-muted hover:bg-muted/70"><X className="size-5" aria-hidden /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
           <div className="grid grid-cols-2 gap-2 p-3">

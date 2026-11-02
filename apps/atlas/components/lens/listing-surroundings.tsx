@@ -6,6 +6,7 @@ import { SkeletonRows } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import type { Listing } from '@/lib/real-estate'
+import { distanceKm } from '@/lib/geo-measure'
 
 type Place = { name: string; district_ar: string | null; lon: number; lat: number; km: number }
 type Anchor = { label: string; lon: number; lat: number; km: number }
@@ -60,11 +61,8 @@ export function ListingSurroundings({ listing, myPoint, density }: { listing: Li
     return () => { live = false }
   }, [listing.id, listing.city, listing.lon, listing.lat, myPoint])
 
-  const straight = (point: MyPoint) => {
-    const rad = Math.PI / 180
-    const h = Math.sin(((point.lat - listing.lat) * rad) / 2) ** 2 + Math.cos(listing.lat * rad) * Math.cos(point.lat * rad) * Math.sin(((point.lon - listing.lon) * rad) / 2) ** 2
-    return 2 * 6371 * Math.asin(Math.sqrt(h))
-  }
+  // the same straight-line measure as the homes list's «من نقطتك», so both read the same figure
+  const straight = (point: MyPoint) => distanceKm(listing, point)
   const reach = (key: string, km: number) => {
     const drive = times[key]
     return drive ? `${numberFormat.format(drive.minutes)} دقيقة بالسيارة · ${KM(drive.km)}` : `${KM(km)} خط مستقيم`

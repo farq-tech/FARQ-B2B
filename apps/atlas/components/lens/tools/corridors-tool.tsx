@@ -3,16 +3,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
-import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
-import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import type { Overlay } from './overlay'
+import { useMainActivities } from '@/lib/main-activities'
 
-type Activity = { main_id: string; main_ar: string }
 type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
   length_m: number; per_100m: number; lift: number | null; road_class?: 'main' | 'secondary' | null
@@ -40,18 +40,12 @@ function explain(corridor: Corridor): string[] {
  * «ورش سيارات» shows where that trade gathers, how many shops on how many metres, and whether it is a main road.
  */
 export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (overlay: Overlay) => void }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [active, setActive] = useState<number | null>(null)
-
-  useEffect(() => {
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
 
   useEffect(() => {
     let live = true
@@ -113,7 +107,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       {status === 'loading' && (
         <>
           <Skeleton className="h-4 w-3/4" aria-hidden />
-          <SkeletonRows rows={6} sub trailing="double" leading="swatch" />
+          <ResultRowsSkeleton rows={6} sub valueSub leading="swatch" />
         </>
       )}
       {status !== 'loading' && corridors.length > 0 && (
@@ -121,23 +115,18 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
             {corridors.map(({ properties: corridor }, index) => (
-              <li key={index} id={`corridor-${index}`}>
-                <div className={cn('flex items-start gap-2 py-2', index === active && 'text-primary')}>
-                  <span className="mt-1.5 h-3 w-5 shrink-0 rounded-sm" style={{ background: colors[index] }} aria-hidden />
-                  <button onClick={() => setActive(index)} className="min-w-0 flex-1 text-start">
-                    <span className="block truncate font-medium">{corridor.street_ar}</span>
-                    <span className="block truncate text-sm text-muted-foreground">
-                      {(corridor.districts_ar?.length ? corridor.districts_ar : [corridor.district_ar]).filter(Boolean).join('، ')}
-                      {corridor.road_class ? ` · ${ROAD[corridor.road_class]}` : ''}
-                      {corridor.n_wholesale ? ` · ${numberFormat.format(corridor.n_wholesale)} جملة` : ''}
+              <ResultRow key={index} id={`corridor-${index}`} active={index === active} onClick={() => setActive(index)}
+                leading={<span className="h-3 w-5 shrink-0 rounded-sm" style={{ background: colors[index] }} aria-hidden />}
+                title={corridor.street_ar}
+                sub={`${(corridor.districts_ar?.length ? corridor.districts_ar : [corridor.district_ar]).filter(Boolean).join('، ')}${corridor.road_class ? ` · ${ROAD[corridor.road_class]}` : ''}${corridor.n_wholesale ? ` · ${numberFormat.format(corridor.n_wholesale)} جملة` : ''}`}
+                aside={(
+                  <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={explain(corridor)} className="text-end">
+                    <span>
+                      <span className="block font-bold text-primary">{numberFormat.format(corridor.n)} محل</span>
+                      <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>
                     </span>
-                  </button>
-                  <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={explain(corridor)} className="shrink-0 text-end">
-                    <span className="block font-bold text-primary">{numberFormat.format(corridor.n)} محل</span>
-                    <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>
                   </Explained>
-                </div>
-              </li>
+                )} />
             ))}
           </ol>
         </>

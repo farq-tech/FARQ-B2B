@@ -13,12 +13,14 @@ import type { Overlay } from './overlay'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useMainActivities } from '@/lib/main-activities'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
-type Activity = { main_id: string; main_ar: string }
 type Customer = Stop & { name: string; district_ar: string }
 
 const PALETTE = CATEGORICAL
+const MIN_REPS = 2
+const MAX_REPS = 50
 const DIM = TONE.pebble
 
 function Step({ n, title, done, children }: { n: number; title: string; done?: boolean; children: React.ReactNode }) {
@@ -43,7 +45,7 @@ const duration = (seconds: number) => {
  * customers on the map, a start point, and the visit route on the roads, drawn part by part as it is solved.
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [count, setCount] = useStickyState('territories.count', 5)
   const [weight, setWeight] = useStickyState<'population' | 'businesses'>('territories.weight', 'businesses')
@@ -58,12 +60,14 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [routeError, setRouteError] = useState('')
   const abort = useRef<AbortController | null>(null)
-
-  useEffect(() => {
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
+  // the count as typed: it is applied on Enter or leaving the field, so typing «12» never asks for 2 reps on the way
+  const [draft, setDraft] = useState(String(count))
+  useEffect(() => { setDraft(String(count)) }, [count])
+  const commit = (value: number) => {
+    const next = Number.isFinite(value) ? Math.min(MAX_REPS, Math.max(MIN_REPS, Math.round(value))) : count
+    setCount(next)
+    setDraft(String(next))
+  }
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
   useEffect(() => {
@@ -144,10 +148,20 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       </Step>
 
       <Step n={2} title="المندوبون" done={Boolean(groups)}>
-        <label className="flex items-center justify-between gap-3 text-base">العدد
-          <input type="number" min={2} max={50} value={count} onChange={(e) => setCount(Math.min(50, Math.max(2, Number(e.target.value) || 2)))} className="h-11 w-24 rounded-lg border bg-background px-3 text-base" />
-        </label>
-        <div className="mt-2 flex gap-1.5">
+        <div className="flex items-center justify-between gap-3 text-base">
+          <label htmlFor="territories-count">العدد</label>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => commit(count - 1)} disabled={count <= MIN_REPS} aria-label="مندوب أقل"
+              className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">−</button>
+            <input id="territories-count" type="number" inputMode="numeric" min={MIN_REPS} max={MAX_REPS} value={draft}
+              onChange={(e) => setDraft(e.target.value)} onBlur={() => commit(draft.trim() ? Number(draft) : NaN)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commit(draft.trim() ? Number(draft) : NaN) }}
+              className="h-11 w-16 rounded-lg border bg-background px-2 text-center text-base tabular-nums" />
+            <button type="button" onClick={() => commit(count + 1)} disabled={count >= MAX_REPS} aria-label="مندوب أكثر"
+              className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">+</button>
+          </div>
+        </div>
+        <div role="group" aria-label="معيار التوازن" className="mt-2 flex gap-1.5">
           {(['businesses', 'population'] as const).map((value) => (
             <button key={value} onClick={() => setWeight(value)} aria-pressed={weight === value}
               className={cn('flex-1 rounded-lg border py-2 text-sm', weight === value ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
@@ -160,15 +174,17 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         {groups && status !== 'loading' && (
           <ol className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
             {groups.map((group, index) => (
-              <li key={group.territory}>
-                <button onClick={() => setRep(index)} className={cn('flex w-full items-center gap-2 rounded-lg border p-2 text-start text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
+              // the share opens its own explanation card, so it sits beside the row's button, never inside it
+              <li key={group.territory} aria-current={rep === index ? 'true' : undefined}
+                className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
+                <button type="button" onClick={() => setRep(index)} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                   <span className="size-3.5 shrink-0 rounded-sm" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                   <span className="font-bold">المندوب {numberFormat.format(index + 1)}</span>
                   <span className="truncate text-sm text-muted-foreground">{counted(group.districts.length, 'district')}</span>
-                  <Explained title={`حصة المندوب ${numberFormat.format(index + 1)}`} lines={EXPLAIN.territory(weight)} className="ms-auto shrink-0 font-semibold">
-                    {weight === 'population' ? `${numberFormat.format(Math.round(group.weight))} ساكن` : counted(Math.round(group.weight), 'business')}
-                  </Explained>
                 </button>
+                <Explained title={`حصة المندوب ${numberFormat.format(index + 1)}`} lines={EXPLAIN.territory(weight)} className="shrink-0 font-semibold">
+                  {weight === 'population' ? `${numberFormat.format(Math.round(group.weight))} ساكن` : counted(Math.round(group.weight), 'business')}
+                </Explained>
               </li>
             ))}
           </ol>

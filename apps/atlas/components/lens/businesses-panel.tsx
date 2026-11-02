@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
 
 type Status = 'idle' | 'loading' | 'ready' | 'login' | 'error'
 const PAGE = 200
+// one search per district, so a wide selection is read up to this many districts and the count says so
+const MAX_DISTRICTS = 5
 
 /**
  * The step that turns an insight into action: the selected districts' real businesses, optionally narrowed to an
@@ -30,6 +32,8 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState('')
+  // how many of the selected districts the last search covered (it reads the first MAX_DISTRICTS of them)
+  const [searched, setSearched] = useState<number | null>(null)
   // the poi_key of the business whose directory details are expanded, or null
   const [openId, setOpenId] = useState<string | null>(null)
   const key = districts.join('|')
@@ -45,7 +49,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       const found: PublicDirectoryEntity[] = []
       let count = 0
       // no district chosen: one search over the whole city, which needs an activity
-      const scopes: (string | null)[] = districts.length ? districts.slice(0, 5) : activity.trim() ? [null] : []
+      const scopes: (string | null)[] = districts.length ? districts.slice(0, MAX_DISTRICTS) : activity.trim() ? [null] : []
       for (const district of scopes) {
         const response = await fetch('/api/market/entities', {
           method: 'POST',
@@ -62,6 +66,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       const unique = [...new Map(found.map((row) => [row.id, row])).values()]
       setRows(unique)
       setTotal(count)
+      setSearched(districts.length ? scopes.length : null)
       setPicked(new Set())
       setStatus('ready')
     } catch (error) {
@@ -118,7 +123,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       {status === 'ready' && (
         <>
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}</span>
+            <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}{searched != null && searched < districts.length ? ` · في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة` : ''}</span>
           </div>
           {shown.length > 0 && (
             <label className="flex items-center gap-2 text-sm font-medium">

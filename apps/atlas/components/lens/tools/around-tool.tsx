@@ -184,7 +184,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">قارن المواقع</h2>
       <p className="text-base text-muted-foreground">اضغط على الخريطة لإضافة موقع، حتى {numberFormat.format(MAX_SITES)} مواقع.</p>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div role="group" aria-label="نطاق كل موقع" className="grid grid-cols-3 gap-1.5">
         {REACHES.map((value) => (
           <button key={reachLabel(value)} onClick={() => setReach(value)} aria-pressed={sameReach(reach, value)}
             className={cn('rounded-lg border py-2 text-base', sameReach(reach, value) ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
