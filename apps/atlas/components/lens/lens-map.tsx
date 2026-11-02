@@ -386,6 +386,7 @@ export function LensMap() {
   // a city whose districts came back empty, and a shading figure no district of the city has: said, not drawn blank
   const noDistricts = data.status === 'ready' && data.features.length === 0
   const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0
+  const unshaded = data.status === 'ready' ? data.rows.length - steps.size : 0
   // which of the lens's figures any district of this city has: in a small city most are missing, so their chips are
   // marked «غير متاح» and the key offers the first figure that does colour the map, instead of «choose another» blind
   const missingMetrics = useMemo(() => new Set(data.status === 'ready' && data.rows.length
@@ -512,6 +513,14 @@ export function LensMap() {
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
                   </Explained>}
+                  {/* districts without the figure are drawn unshaded: the key names that, so a blank district (Jeddah's
+                      central markets under «السكان») reads as «غير متاح», not as the lowest value */}
+                  {!metricMissing && unshaded > 0 && (
+                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <span className="h-4 w-7 rounded-sm border border-dashed border-muted-foreground/50" aria-hidden />
+                      بلا لون: غير متاح ({counted(unshaded, 'district')})
+                    </span>
+                  )}
                   </>}
                 </>
               )}
