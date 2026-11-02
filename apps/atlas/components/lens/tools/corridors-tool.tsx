@@ -7,7 +7,7 @@ import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { ListingCard } from '../listing-card'
 import { cn } from '@/lib/utils'
@@ -110,7 +110,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     }))
     const top = corridors[0]?.properties
     const summary = mode !== 'cluster' || status === 'loading' || !result ? null
-      : top ? `${numberFormat.format(corridors.length)} شارعاً لـ«${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.n)} محل`
+      : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.n)} محل`
         : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
       summary, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
@@ -119,6 +119,10 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
     })
   }, [mode, corridors, colors, active, onOverlay, units, unit, focus, status, result, studied.label])
+
+  // a long list draws 30 streets at a time; a street picked on the map further down is drawn so it can come into view
+  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
+  const visible = Math.max(limit, active != null ? active + 1 : 0)
 
   // a corridor picked on the map comes into view in the list
   useEffect(() => {
@@ -165,9 +169,9 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       )}
       {mode === 'cluster' && status !== 'loading' && corridors.length > 0 && (
         <>
-          <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
+          <p className="text-base">{counted(corridors.length, 'street')} يتجمع {corridors.length === 1 ? 'فيه' : 'فيها'} «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
-            {corridors.map(({ properties: corridor }, index) => (
+            {corridors.slice(0, visible).map(({ properties: corridor }, index) => (
               <ResultRow key={index} id={`corridor-${index}`} active={index === active} onClick={() => setActive(index)}
                 leading={<span className="h-3 w-5 shrink-0 rounded-sm" style={{ background: colors[index] }} aria-hidden />}
                 title={corridor.street_ar}
@@ -182,6 +186,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
                 )} />
             ))}
           </ol>
+          <MoreRows shown={Math.min(visible, corridors.length)} total={corridors.length} noun="street" onMore={showMore} />
           {picked && units && <StreetUnits street={picked.properties.street_ar} units={units} onOpen={(item) => { setUnit(item); setFocus({ lon: item.lon, lat: item.lat }) }} />}
         </>
       )}
