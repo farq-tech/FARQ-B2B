@@ -126,7 +126,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         while (below < counts.length && counts[below] < item.n) below++
         colors.set(id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
       }
-      onOverlay({ colors, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
+      const most = brand.by_district.reduce<Count | null>((top, item) => (!top || item.n > top.n ? item : top), null)
+      onOverlay({ colors, lead: most ? ids.get(most.district_ar) ?? null : null, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
       return
     }
     if (!table.length) { onOverlay({}); return }
@@ -141,7 +142,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       while (below < dense.length && dense[below] < item.perKm2) below++
       colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
     }
-    onOverlay({ colors, summary, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+    // «أرني الأعلى» opens the district the summary names
+    onOverlay({ colors, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
   }, [table, brand, rows, onOverlay, cityTotal, studied.label])
 
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])

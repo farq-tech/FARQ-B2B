@@ -135,9 +135,11 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
       summary,
+      // «أرني الأعلى» opens the district of the first listing in the list
+      lead: result.status === 'ready' ? shown[0]?.district_id ?? null : null,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary])
+  }, [result.listings, result.status, shown, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">

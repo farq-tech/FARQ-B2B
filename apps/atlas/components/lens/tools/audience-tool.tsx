@@ -135,7 +135,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const segment = both ? `${ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]}: ` : ''
     const size = list.length ? `${show(list.reduce((sum, item) => sum + item.size, 0))} ${mode === 'people' ? 'شخص' : 'منشأة'}` : 'غير متاح'
     const summary = status === 'loading' ? null : `حجم الجمهور ${where}: ${segment}${size}${scored[0] ? ` · الأعلى: ${scored[0].row.name}` : ''}`
-    onOverlay({ colors, summary })
+    // «أرني الأعلى» opens the best-matching district, the first of the ranking
+    onOverlay({ colors, summary, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
   }, [scored, onOverlay, selected, both, ranked, sex, nationality, mode, status])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
