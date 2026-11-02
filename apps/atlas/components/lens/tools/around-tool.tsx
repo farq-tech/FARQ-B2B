@@ -9,7 +9,7 @@ import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
-import { PALETTE } from '@/lib/palette'
+import { PALETTE, readableOn } from '@/lib/palette'
 import { areaKm2, districtAt } from '@/lib/geo-measure'
 import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
@@ -102,6 +102,16 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
         .catch((error: Error) => settle({ status: 'error', message: error.message || 'تعذر الحساب.' }))
     }
   }, [sites, reach, keyOf, city, activity])
+
+  // a failed card is asked again on the same area; the comparison figures already on screen stay as they are
+  const retryCard = useCallback((site: Point & { id: number }) => {
+    const key = keyOf(site)
+    const geometry = results[key]?.geometry
+    if (!geometry) return
+    const put = (card: SiteCardState) => { if (mounted.current) setResults((current) => (current[key] ? { ...current, [key]: { ...current[key], card } } : current)) }
+    put({ status: 'loading' })
+    cardFor(city, site, geometry, activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
+  }, [keyOf, results, city, activity])
 
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
 
@@ -196,7 +206,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                 {labelled.map((site) => (
                   <th key={site.id} className="py-1.5 text-center font-medium">
                     <span className="inline-flex items-center gap-1">
-                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: site.color }}>{site.label}</span>
+                      <span className="inline-flex size-6 items-center justify-center rounded-full text-sm font-bold" style={{ background: site.color, color: readableOn(site.color) }}>{site.label}</span>
                       <button onClick={() => setSites((current) => current.filter((item) => item.id !== site.id))} aria-label={`إزالة الموقع ${site.label}`} className="text-muted-foreground hover:text-foreground">
                         <X className="size-4" aria-hidden />
                       </button>
@@ -248,7 +258,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
       {ready.length > 0 && (
         <div className="space-y-3">
           {ready.map((site) => (
-            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} />
+            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} />
           ))}
         </div>
       )}
