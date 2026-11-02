@@ -1,6 +1,8 @@
 'use client'
 
-import { ShieldCheck } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
@@ -13,12 +15,25 @@ export function templateVariables(body: string) {
 
 type TemplateRecipient = Pick<Business, 'name'> & { districtId?: string; district?: string }
 
+/** The message cut into its fixed text and its filled-in values; a value with nothing to fill it is `missing`. */
+export function templateParts(body: string, vars: Record<string, string>, b?: TemplateRecipient): { text: string; missing?: boolean }[] {
+  const parts: { text: string; missing?: boolean }[] = []
+  let last = 0
+  for (const match of body.matchAll(/\{\{(.+?)\}\}/g)) {
+    if (match.index! > last) parts.push({ text: body.slice(last, match.index) })
+    const key = match[1]
+    const value = key === 'اسم_المنشأة' ? b?.name
+      : key === 'الحي' ? b?.district ?? (b?.districtId ? districtById.get(b.districtId)?.name : undefined)
+        : vars[key]?.trim()
+    parts.push(value ? { text: value } : { text: `[${key.replace(/_/g, ' ')}]`, missing: true })
+    last = match.index! + match[0].length
+  }
+  if (last < body.length) parts.push({ text: body.slice(last) })
+  return parts
+}
+
 export function renderTemplate(body: string, vars: Record<string, string>, b?: TemplateRecipient) {
-  return body.replace(/\{\{(.+?)\}\}/g, (_, key: string) => {
-    if (key === 'اسم_المنشأة') return b?.name ?? '[اسم المنشأة]'
-    if (key === 'الحي') return b?.district ?? (b?.districtId ? districtById.get(b.districtId)?.name : undefined) ?? '[الحي]'
-    return vars[key]?.trim() || `[${key.replace(/_/g, ' ')}]`
-  })
+  return templateParts(body, vars, b).map((part) => part.text).join('')
 }
 
 export function eligibility(b: Business): { ok: boolean; reason?: string } {
@@ -55,7 +70,10 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
   const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
-  const sampleId = value.included.find((id) => businessIds.includes(id)) ?? businessIds[0]
+  // the preview walks the actual recipients, so each one's name and district can be checked before review
+  const recipients = value.included.filter((id) => businessIds.includes(id))
+  const [at, setAt] = useState(0)
+  const sampleId = recipients[Math.min(at, Math.max(0, recipients.length - 1))] ?? businessIds[0]
   const sample = businessById.get(sampleId) ?? liveById.get(sampleId)
 
   return (
@@ -115,10 +133,25 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
 
         {template ? (
           <div className="flex flex-col gap-1.5">
-            <p className="text-xs font-medium text-muted-foreground">معاينة {sample ? `لـ ${sample.name}` : ''}</p>
-            <div className="max-w-md self-start rounded-2xl rounded-tr-sm bg-accent px-3.5 py-2.5 text-sm leading-relaxed text-accent-foreground">
-              {renderTemplate(template.body, value.variables, sample)}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground">{sample ? `كما تصل إلى ${sample.name}` : 'معاينة الرسالة'}</p>
+              {recipients.length > 1 && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Button variant="ghost" size="sm" onClick={() => setAt((i) => (i - 1 + recipients.length) % recipients.length)} aria-label="المستلم السابق"><ChevronRight aria-hidden /></Button>
+                  <span className="tabular-nums" aria-live="polite">{numberFormat.format(Math.min(at, recipients.length - 1) + 1)} من {numberFormat.format(recipients.length)}</span>
+                  <Button variant="ghost" size="sm" onClick={() => setAt((i) => (i + 1) % recipients.length)} aria-label="المستلم التالي"><ChevronLeft aria-hidden /></Button>
+                </div>
+              )}
             </div>
+            {/* the recipient's chat: an incoming bubble, line breaks kept, and any value still empty marked in the text */}
+            <div className="max-w-md self-start whitespace-pre-line rounded-2xl rounded-ss-sm bg-accent px-3.5 py-2.5 text-sm leading-relaxed text-accent-foreground">
+              {templateParts(template.body, value.variables, sample).map((part, index) => part.missing
+                ? <mark key={index} className="rounded bg-destructive/10 px-0.5 text-destructive">{part.text}</mark>
+                : <span key={index}>{part.text}</span>)}
+            </div>
+            {templateParts(template.body, value.variables, sample).some((part) => part.missing) && (
+              <p className="text-xs text-destructive">ما بين القوسين لم يُملأ لهذا المستلم بعد، فأكمله قبل المراجعة.</p>
+            )}
           </div>
         ) : null}
       </section>
