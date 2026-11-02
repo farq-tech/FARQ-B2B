@@ -147,14 +147,18 @@ function cloudRequest(value: CloudRequest): RequestItem | null {
 function normalizeCampaignRecipients(request: RequestItem): RequestItem {
   if (!request.campaign) return request
   const liveById = new Map(request.liveBusinesses?.map((business) => [business.id, business]))
+  // a recipient the person left out at review stays out after a reload: only a workspace saved without a recipient
+  // list starts from everyone on the list who can receive WhatsApp
+  const chosen = Array.isArray(request.campaign.included) ? new Set(request.campaign.included) : null
   const eligibleIds = request.businessIds.filter((id) => {
+    if (chosen && !chosen.has(id)) return false
     const business = businessById.get(id)
     const liveBusiness = liveById.get(id)
     if (business) return Boolean(business.whatsapp)
     if (liveBusiness) return liveBusiness.whatsapp
     // A cloud-restored request intentionally has no directory snapshot. Preserve
     // its previously selected POI keys; the sender re-resolves them server-side.
-    return request.campaign?.included.includes(id) ?? false
+    return chosen?.has(id) ?? false
   })
   return { ...request, campaign: { ...request.campaign, included: [...new Set(eligibleIds)] } }
 }
