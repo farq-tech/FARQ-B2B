@@ -39,10 +39,22 @@ export function comparePairs<R extends District>(rows: R[], first: { district_ar
     .sort((x, y) => (order === 'gap' ? (y.a - y.b) - (x.a - x.b) || y.a - x.a : y.a - x.a || y.b - x.b))
 }
 
-/** «حجم الجمهور في المدينة: 120,400 شخص · الأعلى: النرجس»; the sizes are the service's segment figures. */
-export function audienceSummary({ selected, segment, sizes, unit, top }: { selected: number; segment: string; sizes: number[]; unit: string; top: string | null }): string {
-  const where = selected ? `في ${counted(selected, 'district')} محددة` : 'في المدينة'
-  const size = sizes.length ? `${numberFormat.format(Math.round(sizes.reduce((sum, value) => sum + value, 0)))} ${unit}` : 'غير متاح'
+/**
+ * Where an audience total was counted. A district without a measured population or segment share is left out of the
+ * sum, so when some are out the total says how many it covers («في 180 من 186 حياً مقاسة») instead of «في المدينة»:
+ * a partial sum is never shown as the whole. `measured` districts were summed out of `scope` in view (the selected
+ * ones, or the city's).
+ */
+export function audienceWhere({ selected, measured, scope }: { selected: number; measured: number; scope: number }): string {
+  if (measured >= scope) return selected ? `في ${counted(selected, 'district')} محددة` : 'في المدينة'
+  return `في ${numberFormat.format(measured)} من ${counted(scope, 'district')}${selected ? ' محددة' : ''} مقاسة`
+}
+
+/** «حجم الجمهور في المدينة: 120,400 شخص · الأعلى: النرجس»; the sizes are the service's segment figures, one per measured district. */
+export function audienceSummary({ selected, scope, segment, sizes, unit, top }: { selected: number; scope: number; segment: string; sizes: number[]; unit: string; top: string | null }): string {
+  if (!sizes.length) return `حجم الجمهور: ${segment ? `${segment}: ` : ''}غير متاح`
+  const where = audienceWhere({ selected, measured: sizes.length, scope })
+  const size = `${numberFormat.format(Math.round(sizes.reduce((sum, value) => sum + value, 0)))} ${unit}`
   return `حجم الجمهور ${where}: ${segment ? `${segment}: ` : ''}${size}${top ? ` · الأعلى: ${top}` : ''}`
 }
 

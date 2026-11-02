@@ -14,7 +14,7 @@ import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
-import { audienceSummary } from './tool-answers'
+import { audienceSummary, audienceWhere } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
 
 type Mode = 'people' | 'businesses'
@@ -137,10 +137,10 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
     const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
     const summary = status === 'loading' ? null
-      : audienceSummary({ selected: ids.size, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null })
+      : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null })
     // «أرني الأعلى» opens the best-matching district, the first of the ranking
     onOverlay({ colors, summary, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
-  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status])
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status, rows.length])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
@@ -194,12 +194,16 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
       {status !== 'loading' && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-          <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'}</p>
+          <p className="text-sm text-muted-foreground">حجم الجمهور</p>
           {figures.map((figure) => (
-            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
+            <div key={figure.key}>
+            <Explained title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
               {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
               {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
             </Explained>
+            {/* the same scope words as the peek summary: a sum over part of the districts says so */}
+            {figure.list.length > 0 && <p className="text-sm text-muted-foreground">{audienceWhere({ selected: selected.length, measured: figure.list.length, scope: selected.length || rows.length })}</p>}
+            </div>
           ))}
         </div>
       )}

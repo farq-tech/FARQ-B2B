@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceSummary, comparePairs, competitorsSummary, densestDistrict, weekSummary } from './tool-answers.ts'
+import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, weekSummary } from './tool-answers.ts'
 
 const district = (id: string, name: string) => ({ id, name })
 
@@ -34,9 +34,18 @@ test('two activities pair by district, a missing count is none, and the gap orde
 })
 
 test('the audience line sums the service segment figures and names the top district', () => {
-  assert.equal(audienceSummary({ selected: 0, segment: '', sizes: [1200.4, 800.2], unit: 'شخص', top: 'النرجس' }), 'حجم الجمهور في المدينة: 2,001 شخص · الأعلى: النرجس')
-  assert.equal(audienceSummary({ selected: 2, segment: 'نساء', sizes: [500], unit: 'شخص', top: null }), 'حجم الجمهور في حيّان محددة: نساء: 500 شخص')
-  assert.equal(audienceSummary({ selected: 3, segment: '', sizes: [], unit: 'منشأة', top: null }), 'حجم الجمهور في 3 أحياء محددة: غير متاح')
+  // every district in view measured: the total is the city's, or the selection's
+  assert.equal(audienceSummary({ selected: 0, scope: 2, segment: '', sizes: [1200.4, 800.2], unit: 'شخص', top: 'النرجس' }), 'حجم الجمهور في المدينة: 2,001 شخص · الأعلى: النرجس')
+  assert.equal(audienceSummary({ selected: 2, scope: 2, segment: 'نساء', sizes: [500, 300], unit: 'شخص', top: null }), 'حجم الجمهور في حيّان محددة: نساء: 800 شخص')
+  // nothing measured: «غير متاح», never 0
+  assert.equal(audienceSummary({ selected: 3, scope: 3, segment: '', sizes: [], unit: 'منشأة', top: null }), 'حجم الجمهور: غير متاح')
+})
+
+test('a total over part of the districts says how many it covers, never «في المدينة»', () => {
+  assert.equal(audienceSummary({ selected: 0, scope: 186, segment: '', sizes: Array(180).fill(1000), unit: 'شخص', top: 'طويق' }), 'حجم الجمهور في 180 من 186 حياً مقاسة: 180,000 شخص · الأعلى: طويق')
+  assert.equal(audienceSummary({ selected: 3, scope: 3, segment: 'رجال', sizes: [400, 600], unit: 'شخص', top: null }), 'حجم الجمهور في 2 من 3 أحياء محددة مقاسة: رجال: 1,000 شخص')
+  assert.equal(audienceWhere({ selected: 0, measured: 186, scope: 186 }), 'في المدينة')
+  assert.equal(audienceWhere({ selected: 0, measured: 185, scope: 186 }), 'في 185 من 186 حياً مقاسة')
 })
 
 test('the week line agrees with the number of days', () => {
