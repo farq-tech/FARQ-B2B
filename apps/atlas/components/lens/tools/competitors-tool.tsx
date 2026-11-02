@@ -14,8 +14,8 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useMainActivities } from '@/lib/main-activities'
 
-type Activity = { main_id: string; main_ar: string }
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
 // counts; a brand's by_district carries only n
 type Count = { district_ar: string; n: number; per_km2?: number | null; residents_per?: number | null }
@@ -52,7 +52,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   /** Opens every branch of a chain across the city, for a quote request or campaign to all of them. */
   onAllBranches: (brand: string) => void
 }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
@@ -79,12 +79,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   }, [city, brand])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
-  useEffect(() => {
-    setCounts(null)
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
+  useEffect(() => { setCounts(null) }, [city])
 
   useEffect(() => {
     if (!studied) return

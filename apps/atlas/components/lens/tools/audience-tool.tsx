@@ -13,13 +13,13 @@ import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useMainActivities } from '@/lib/main-activities'
 
 type Mode = 'people' | 'businesses'
 // the measured shares plus the segment sizes the service derives from them (population × share): read, never recomputed
 type Share = DistrictShare & { district_ar: string; men: number | null; women: number | null; saudi: number | null; non_saudi: number | null }
 /** Which measured segment a figure rests on; two segments are shown side by side, never multiplied. */
 type Segment = 'none' | 'sex' | 'nationality'
-type Activity = { main_id: string; main_ar: string }
 type Count = { district_ar: string; n: number }
 type Scored = { row: DistrictRow; size: number; score: number }
 
@@ -69,7 +69,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
   const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const [shares, setShares] = useState<Map<string, Share> | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -79,9 +79,6 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
     postMarket<{ districts?: Share[] }>('district-audience', { city })
       .then((data) => setShares(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))))
       .catch(() => setShares(new Map()))
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((data) => setActivities(data.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
   }, [city])
 
   useEffect(() => {

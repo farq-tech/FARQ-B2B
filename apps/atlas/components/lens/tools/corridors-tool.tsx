@@ -11,8 +11,8 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import type { Overlay } from './overlay'
+import { useMainActivities } from '@/lib/main-activities'
 
-type Activity = { main_id: string; main_ar: string }
 type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
   length_m: number; per_100m: number; lift: number | null; road_class?: 'main' | 'secondary' | null
@@ -40,18 +40,12 @@ function explain(corridor: Corridor): string[] {
  * «ورش سيارات» shows where that trade gathers, how many shops on how many metres, and whether it is a main road.
  */
 export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (overlay: Overlay) => void }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [active, setActive] = useState<number | null>(null)
-
-  useEffect(() => {
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
 
   useEffect(() => {
     let live = true

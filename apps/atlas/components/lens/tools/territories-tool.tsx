@@ -13,9 +13,9 @@ import type { Overlay } from './overlay'
 import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { useMainActivities } from '@/lib/main-activities'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
-type Activity = { main_id: string; main_ar: string }
 type Customer = Stop & { name: string; district_ar: string }
 
 const PALETTE = CATEGORICAL
@@ -43,7 +43,7 @@ const duration = (seconds: number) => {
  * customers on the map, a start point, and the visit route on the roads, drawn part by part as it is solved.
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
-  const [activities, setActivities] = useState<Activity[]>([])
+  const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [count, setCount] = useStickyState('territories.count', 5)
   const [weight, setWeight] = useStickyState<'population' | 'businesses'>('territories.weight', 'businesses')
@@ -58,12 +58,6 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [routeError, setRouteError] = useState('')
   const abort = useRef<AbortController | null>(null)
-
-  useEffect(() => {
-    postMarket<{ summary?: { main_activities?: Activity[] } }>('market-summary', { city })
-      .then((payload) => setActivities(payload.summary?.main_activities ?? []))
-      .catch(() => setActivities([]))
-  }, [city])
 
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
   useEffect(() => {
