@@ -86,3 +86,13 @@ export function weekSummary(visits: number, days: number): string {
   const span = days === 1 ? 'يوم واحد' : days === 2 ? 'يومين' : `${numberFormat.format(days)} أيام`
   return `خطة الأسبوع: ${numberFormat.format(visits)} زيارة على ${span}`
 }
+
+/**
+ * The territories step's peek line: «5 مناطق متوازنة بالمنشآت» once the split is in, «تعذر التقسيم» when it failed,
+ * and nothing while it loads or when it came back empty. It never reads «0 مناطق».
+ */
+export function territoriesSummary(status: 'idle' | 'loading' | 'error', groups: number | null, weight: string): string | null {
+  if (status === 'error') return 'تعذر التقسيم'
+  if (status === 'loading' || !groups) return null
+  return `${numberFormat.format(groups)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
+}
