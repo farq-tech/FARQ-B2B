@@ -10,6 +10,8 @@ const steps = [
   { icon: FileSearch, title: 'راجع ثم نفّذ قرارك', text: 'احفظ القائمة أو جهّز طلب تسعير أو مسودة تواصل للمراجعة.' },
 ]
 
+const FOOTER_LINKS = [['/map', 'خريطة الفرص'], ['/homes', 'العقار'], ['/price', 'سعّر عقارك'], ['/requests', 'الطلبات'], ['/inbox', 'الوارد']] as const
+
 const benefits = [
   'ترتيب الجهات حسب نطاقك وهدفك التجاري',
   'رؤية موحّدة للبحث والخريطة والاختيار',
@@ -77,7 +79,17 @@ export default function AtlasLandingPage() {
 
       </main>
 
-      <footer className="border-t bg-card"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8"><p>© 2026 شركة فرق للتكنولوجيا</p><div className="flex gap-5"><Link href="/map">خريطة الفرص</Link><Link href="/requests">الطلبات</Link><Link href="/inbox">الوارد</Link></div></div></footer>
+      {/* every Atlas page one tap away, each link a 44px target */}
+      <footer className="border-t bg-card">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <p>© 2026 شركة فرق للتكنولوجيا</p>
+          <nav aria-label="صفحات أطلس" className="-mx-2 flex flex-wrap">
+            {FOOTER_LINKS.map(([href, label]) => (
+              <Link key={href} href={href} className="inline-flex min-h-11 items-center rounded-lg px-2 hover:text-foreground">{label}</Link>
+            ))}
+          </nav>
+        </div>
+      </footer>
     </div>
   )
 }
