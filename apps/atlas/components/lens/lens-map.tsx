@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
-import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
+import { PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
@@ -388,9 +388,11 @@ export function LensMap() {
           </PillField>
         </SearchPill>
         {!toolColors && (
-          <ChipRow label="المقياس على الخريطة">
-            {active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>)}
-          </ChipRow>
+          // the analysts' lens carries every metric: the row scrolls with a fade at the hidden edge, and the active
+          // metric is kept in view, instead of a chip cut at the panel's edge with no cue
+          <ScrollRow label="المقياس على الخريطة" active={metric} className="mx-auto w-full max-w-5xl gap-2 px-1 pb-1">
+            {active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shrink-0">{METRICS[id].label}</Chip>)}
+          </ScrollRow>
         )}
       </header>
 
