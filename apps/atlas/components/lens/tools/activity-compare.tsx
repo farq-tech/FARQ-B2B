@@ -91,6 +91,10 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   const named = first.label.length <= SHORT_NAME && rival.label.length <= SHORT_NAME && first.label !== rival.label
   const firstWord = named ? first.label : 'الأول'
   const rivalWord = named ? rival.label : 'الثاني'
+  const byDistrictMissing = (counts: Count[], cityTotal: number | null) => counts.length === 0 && (cityTotal ?? 0) > 0
+  const missing = answer?.status !== 'ready' ? null
+    : byDistrictMissing(firstCounts, firstTotal) ? first.label
+      : byDistrictMissing(answer.counts, answer.total) ? rival.label : null
   const total = (value: number | null) => (value == null ? <Unavailable className="font-bold" /> : numberFormat.format(value))
   return (
     <section aria-label={`مقارنة «${first.label}» و«${rival.label}»`} className="flex flex-col gap-2 rounded-xl border p-3">
@@ -128,7 +132,10 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             <span><span className="font-semibold text-foreground">الأول</span>: {first.label}</span>
             <span><span className="font-semibold text-foreground">الثاني</span>: {rival.label}</span>
           </p>
-          {pairs.length === 0 ? (
+          {missing ? (
+            // a city count with no district behind it: every district would read 0, which is not what is there
+            <p role="status" className="text-sm text-muted-foreground">أعداد «{missing}» حسب الحي غير متاحة الآن، فلا مقارنة بين الأحياء.</p>
+          ) : pairs.length === 0 ? (
             <EmptyState compact icon={SearchX} title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
           ) : (
             <>
