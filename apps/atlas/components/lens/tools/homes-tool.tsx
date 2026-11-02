@@ -196,7 +196,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       {result.status === 'loading' && (
         <>
           <Skeleton className="h-4 w-48 max-w-full" aria-hidden />
-          <ResultRowsSkeleton rows={5} sub leading="thumb" />
+          <ResultRowsSkeleton rows={5} sub leading="thumb" value={false} />
         </>
       )}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
