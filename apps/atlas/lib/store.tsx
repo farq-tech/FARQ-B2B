@@ -24,11 +24,18 @@ type Action =
   | { type: 'mark-read'; id: string; unread?: boolean }
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
   | { type: 'restore'; state: Pick<State, 'requests' | 'inbox'> }
+  | { type: 'add-cloud'; requests: RequestItem[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'restore':
       return { ...state, requests: action.state.requests, inbox: action.state.inbox }
+    case 'add-cloud': {
+      // the account's saved requests join what is on screen now; nothing local is replaced
+      const have = new Set(state.requests.map((request) => request.remoteId ?? request.id))
+      const fresh = action.requests.filter((request) => !have.has(request.remoteId ?? request.id))
+      return fresh.length ? { ...state, requests: [...state.requests, ...fresh] } : state
+    }
     case 'toggle-select':
       return {
         ...state,
@@ -234,10 +241,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         return (body?.data?.requests ?? body?.requests ?? []).map(cloudRequest).filter((request): request is RequestItem => Boolean(request))
       })
       .then((cloud) => {
-        if (!cloud.length) return
-        const local = readWorkspace()?.requests ?? []
-        const localIds = new Set(local.map((request) => request.remoteId ?? request.id))
-        dispatch({ type: 'restore', state: { requests: [...local, ...cloud.filter((request) => !localIds.has(request.remoteId ?? request.id))], inbox: readWorkspace()?.inbox ?? [] } })
+        // merged into the live state, not rebuilt from storage: storage is only written once this settles, so an
+        // edit or a new draft made while the account loaded would otherwise be thrown away
+        if (cloud.length) dispatch({ type: 'add-cloud', requests: cloud })
       })
       .catch(() => undefined)
       .finally(() => setWorkspaceReady(true))
