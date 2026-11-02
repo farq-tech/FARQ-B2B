@@ -82,7 +82,9 @@ function Ranking({ rows, metric, selected, onToggle, onHover, full }: {
         ))}
       </ol>
       {full && <MoreRows shown={shown.length} total={ranked.length} noun="district" onMore={showMore} />}
-      {full && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{counted(rows.length - ranked.length, 'district')}: غير متاح</p>}
+      {/* a figure no district of the city has: said in the card, which otherwise stood empty under its title */}
+      {ranked.length === 0 && rows.length > 0 && <p className="mt-2 text-sm text-muted-foreground">غير متاح في أي حي من أحياء هذه المدينة بعد</p>}
+      {full && ranked.length > 0 && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{counted(rows.length - ranked.length, 'district')}: غير متاح</p>}
     </section>
   )
 }
