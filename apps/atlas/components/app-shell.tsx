@@ -8,6 +8,7 @@ import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { WhatsNew } from '@/components/shared/whats-new'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface NavItem {
   href: string
@@ -107,21 +108,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="mr-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="ms-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {user ? (
-            <details className="relative">
-              <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-full [&::-webkit-details-marker]:hidden" aria-label="الحساب المسجل">
+            // a real menu, not <details>: Escape and a tap outside close it, arrow keys move inside it, focus returns
+            <DropdownMenu>
+              <DropdownMenuTrigger aria-label={`الحساب: ${user.displayName || user.email || 'الحساب المسجل'}`}
+                className="flex items-center gap-2.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                 <span className="flex size-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground" aria-hidden>{userInitial(user)}</span>
-                <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline">{user.displayName || user.email || 'الحساب المسجل'}</span>
-              </summary>
-              <div className="absolute left-0 top-11 z-50 w-56 rounded-xl border bg-card p-2 shadow-lg">
+                <span className="hidden max-w-44 truncate text-xs font-medium text-muted-foreground xl:inline" aria-hidden>{user.displayName || user.email || 'الحساب المسجل'}</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
                 <p className="truncate px-2 py-1.5 text-xs text-muted-foreground">{user.email || user.displayName || 'الحساب المسجل'}</p>
-                <button type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium hover:bg-muted">
-                  <LogOut className="size-4" aria-hidden />
+                <DropdownMenuItem onClick={signOut} className="px-2 py-2 font-medium">
+                  <LogOut aria-hidden />
                   خروج
-                </button>
-              </div>
-            </details>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : sessionChecked ? (
             <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
               <LogIn className="size-3.5" aria-hidden />
