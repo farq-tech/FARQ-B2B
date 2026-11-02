@@ -326,7 +326,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         </Step>
       )}
 
-      {customers && customers.length > 0 && start && (
+      {/* owner decision (2026-11-02): the week plan replaces the one long route, so step 6 shows only when no plan can be made */}
+      {customers && customers.length > 0 && start && !plan && planStatus !== 'loading' && (
         <Step n={6} title="مسار الزيارة" done={finished && day == null}>
           <button onClick={() => route()} disabled={day == null && progress != null && !finished && !routeError} className="h-11 w-full rounded-lg bg-primary text-base font-semibold text-primary-foreground disabled:opacity-60">
             {day == null && progress && !finished && !routeError ? `جارٍ الحساب: ${numberFormat.format(progress.done)} من ${numberFormat.format(progress.total)}` : finished && day == null ? 'أعد حساب المسار' : `احسب المسار لـ ${numberFormat.format(customers.length)} محطة`}
