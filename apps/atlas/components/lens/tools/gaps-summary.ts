@@ -14,5 +14,6 @@ export function gapsSummary(
   const short = result.districts.filter((row) => row.shortfall > 0)
   const top = short[0]
   if (!top) return 'لا نقص في أي حي'
-  return `${counted(short.length, 'district')} فيها نقص · الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')}`
+  // the top district leads: on a phone the line is cut at its end, and the count of districts matters least
+  return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')} · ${counted(short.length, 'district')} فيها نقص`
 }

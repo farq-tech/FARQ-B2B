@@ -11,7 +11,7 @@ const rows = [
 
 test('the peek line names the count and the top district, with the shortfall in words', () => {
   assert.equal(gapsSummary({ residents_per_business: 723, districts: rows }, counted),
-    'حيّان فيها نقص · الأعلى: المدينة الصناعية الجديدة بنقص 122 منشأة')
+    'الأعلى: المدينة الصناعية الجديدة بنقص 122 منشأة · حيّان فيها نقص')
 })
 
 test('no signed figure and no bidi controls, so nothing can land on the wrong side', () => {
