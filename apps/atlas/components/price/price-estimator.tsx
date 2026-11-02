@@ -186,7 +186,7 @@ export function PriceEstimator() {
                   'ثم نعدّل للفروق التي ثبت أثرها في نموذج عروض شمال الرياض: العمر، وعدد الشوارع، وعرض الشارع، والتأثيث. حقول مثل المكيفات والحوش وغرفة العاملة لا تدخل لأن عقار لا يعبئها بانتظام.',
                   'أسعار معروضة لا عقود، والعقود عادة أقل بنحو 5–10%.',
                 ]} className="text-sm">
-                  {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'} في {result.scope?.map((s) => s.district_ar).filter(Boolean).join('، ')}
+                  {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'}{result.scope?.some((s) => s.district_ar) ? ` في ${result.scope.map((s) => s.district_ar).filter(Boolean).join('، ')}` : ''}
                 </Explained>
               </p>
             </div>
@@ -211,9 +211,10 @@ export function PriceEstimator() {
                       <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
-                        <span className="text-sm font-bold tabular-nums">{numberFormat.format(item.price_sar)}</span>
-                        <span className="text-xs text-muted-foreground">{numberFormat.format(item.area_sqm)} م² · {item.district_ar}</span>
-                        <span className="inline-flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100"><ExternalLink className="size-3" aria-hidden />في عقار</span>
+                        <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
+                        <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.district_ar].filter(Boolean).join(' · ')}</span>
+                        {/* always shown on touch screens, where there is no hover to reveal it */}
+                        {item.url && <span className="inline-flex items-center gap-1 text-xs text-primary transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:opacity-100"><ExternalLink className="size-3" aria-hidden />في عقار<span className="sr-only">، يفتح في نافذة جديدة</span></span>}
                       </a>
                     </li>
                   ))}
