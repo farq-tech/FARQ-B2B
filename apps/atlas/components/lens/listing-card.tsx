@@ -27,7 +27,7 @@ export function Gallery({ photos, className = 'h-40' }: { photos: string[]; clas
           <button key={photo} type="button" onClick={(event) => { event.stopPropagation(); setOpen(index) }} aria-label={`افتح الصورة ${numberFormat.format(index + 1)}`}
             className="h-full w-full shrink-0 snap-center cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="" loading="lazy" onError={() => setBroken((current) => new Set(current).add(photo))} className="h-full w-full object-cover" />
+            <img src={photo} alt="" loading="lazy" decoding="async" onError={() => setBroken((current) => new Set(current).add(photo))} className="h-full w-full object-cover" />
           </button>
         ))}
       </div>

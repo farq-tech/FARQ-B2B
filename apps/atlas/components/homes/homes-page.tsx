@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -117,7 +117,8 @@ export function HomesPage() {
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
     current.some((item) => item.id === listing.id) ? current.filter((item) => item.id !== listing.id) : [...current.slice(-1), listing]
   )), [])
-  const open = (listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }); setMobileMap(true) }
+  const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }); setMobileMap(true) }, [])
+  const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
   const kindTypes = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
   const districtList = useMemo(() => data.rows.map((row) => ({ id: row.id, name: row.name })), [data.rows])
   const districtName = useCallback((id: string) => districtList.find((item) => item.id === id)?.name ?? 'حي', [districtList])
@@ -233,35 +234,9 @@ export function HomesPage() {
             )
           )}
           <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
-            {visible.slice(0, shown).map((listing) => {
-              const versus = versusDistrict(listing)
-              const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
-              const comparing = compare.some((item) => item.id === listing.id)
-              return (
-                <li key={listing.id} onMouseEnter={() => setHover(listing.id)} onMouseLeave={() => setHover(null)} className="group">
-                  <div className="relative overflow-hidden rounded-2xl bg-muted">
-                    {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
-                    {photos.length ? <Gallery photos={photos} className="aspect-[20/19]" /> : (
-                      <span className="grid aspect-[20/19] place-items-center text-sm text-muted-foreground"><Building2 className="size-8 opacity-40" aria-hidden /><span className="sr-only">بلا صور</span></span>
-                    )}
-                    {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
-                    <button onClick={() => toggleCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
-                      className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
-                      <Scale className="size-4" aria-hidden />
-                    </button>
-                  </div>
-                  <button onClick={() => open(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                    <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
-                    </span>
-                    <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
-                    {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
-                    {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
-                  </button>
-                </li>
-              )
-            })}
+            {visible.slice(0, shown).map((listing) => (
+              <HomeCard key={listing.id} listing={listing} comparing={compareIds.has(listing.id)} onOpen={open} onCompare={toggleCompare} onHover={setHover} />
+            ))}
           </ul>
           {visible.length > shown && (
             <button onClick={() => setShown((count) => count + PAGE)} className="mx-auto mt-6 block h-10 rounded-full border bg-card px-5 text-sm font-semibold transition-colors outline-none hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring">
@@ -318,3 +293,42 @@ export function HomesPage() {
     </main>
   )
 }
+
+/**
+ * One result card. Memoised: hovering a card (which lights its pin) re-renders the page, and without this every card in
+ * the grid, each with its photo strip, was drawn again on every mouse move between cards.
+ */
+const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare, onHover }: {
+  listing: Listing
+  comparing: boolean
+  onOpen: (listing: Listing) => void
+  onCompare: (listing: Listing) => void
+  onHover: (id: string | null) => void
+}) {
+  const versus = versusDistrict(listing)
+  const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  return (
+    <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
+      <div className="relative overflow-hidden rounded-2xl bg-muted">
+        {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
+        {photos.length ? <Gallery photos={photos} className="aspect-[20/19]" /> : (
+          <span className="grid aspect-[20/19] place-items-center text-sm text-muted-foreground"><Building2 className="size-8 opacity-40" aria-hidden /><span className="sr-only">بلا صور</span></span>
+        )}
+        {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
+        <button onClick={() => onCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
+          className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
+          <Scale className="size-4" aria-hidden />
+        </button>
+      </div>
+      <button onClick={() => onOpen(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+        <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
+        <span className="text-sm text-muted-foreground">
+          {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
+        </span>
+        <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
+        {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
+        {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
+      </button>
+    </li>
+  )
+})
