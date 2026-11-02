@@ -89,6 +89,17 @@ class QueryEval(unittest.TestCase):
         self.assertEqual(list(self.tx.understand('مستلزمات حلاقين', 'purchase')['targets']), ['beauty.salon_supplies'])
         self.assertEqual(list(self.tx.understand('معدات ورش', 'purchase')['targets']), ['equip.workshop_equipment'])
 
+    def test_supply_words_keep_the_suppliers_after_a_trade_name(self):   # review on #703
+        # the trade's name says who the supplies are for; it does not name the trade itself
+        self.assertEqual(list(self.tx.understand('مستلزمات ورش سيارات', 'purchase')['targets']), ['equip.workshop_equipment'])
+        self.assertIn('beauty.salon_supplies', self.tx.understand('معدات حلاقين', 'purchase')['targets'])
+        self.assertNotIn('beauty.barber', self.tx.understand('معدات حلاقين', 'purchase')['targets'])
+
+    def test_a_named_business_for_children_is_not_the_kids_goods_group(self):   # review on #703
+        for q, expect in [('عيادة أطفال', 'health.clinic'), ('مستشفى أطفال', 'health.hospital'), ('صالون أطفال', 'beauty.barber')]:
+            self.assertIn(expect, self.tx.understand(q, 'purchase')['targets'], q)
+            self.assertNotIn('group.kids', market_analytics.corridor_subs(self.tx, q, 'purchase'), q)
+
     def test_accuracy_ratchet(self):
         report = run(self.tx, self.cases)
         lines = [f'query eval: {len(self.cases)} cases']

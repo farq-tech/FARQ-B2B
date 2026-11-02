@@ -315,7 +315,7 @@ def corridor_subs(tx, q, objective=None):
         named = [sub for sub in named if sub in tx.subs]
         words = taxonomy_search.norm(q).split()
         # «أغراض مواليد», «أطفال»: the group, unless one trade is named precisely (activity_groups.group_named)
-        group = activity_groups.group_named(words, named, score)
+        group = tx.group_in(q, named, score)
         if group:
             return [group]
         # «مستلزمات حلاقين» asks for supplies: the trade word names who they are for, so the resolver decides

@@ -234,6 +234,7 @@ class Taxonomy:
                 self.spec_buyers.setdefault(bought.strip(), set()).add(r['sub_id'])
         # an everyday trade name (TRADE_TERMS) names its own trade only: «سباك» is the plumber, not every subcategory whose words contain it
         self.trade_terms = {}
+        self.trade_subs = {sid for sids in TRADE_TERMS.values() for sid in sids}
         for t, sids in TRADE_TERMS.items():
             for v in plural_variants(norm(t)) | {norm(t)}:
                 for sid in sids:
@@ -296,6 +297,9 @@ class Taxonomy:
         for g, n in self._grams(q):
             base, trade = self.sub_terms.get(g), self.trade_terms.get(g) if trades else None
             if not base and not trade: continue
+            # under a supply word a trade's own name says who the supplies are for («معدات حلاقين», «مستلزمات ورش سيارات»):
+            # it names no business type, so the product family or specialty decides
+            if supply and not set(g.split()) & supply and ((trade or set()) | (base or set())) & self.trade_subs: continue
             found, bonus = (base or set()) | (trade or set()), 0
             # under a supply word only a trade phrase that holds it («مواد كهربائية», «أدوات سباكة») still names the trade exactly
             if trade and (not supply or set(g.split()) & supply):
@@ -311,8 +315,16 @@ class Taxonomy:
         return sorted(subs)[:4], best
 
     def group_in(self, q, named=None, score=0):
-        """An activity group the words name («أغراض مواليد», «أطفال»), see activity_groups.group_named."""
-        return activity_groups.group_named(norm(q).split(), [s for s in (named or []) if s in self.subs], score)
+        """An activity group the words name («أغراض مواليد», «أطفال»), see activity_groups.group_named. A business outside the
+        group that the other words name is what the shopper asks for («عيادة أطفال», «مستشفى أطفال», «صالون أطفال»)."""
+        words = norm(q).split()
+        for group in activity_groups.GROUPS.values():
+            rest = [w for w in words if w not in group['words']]
+            if len(rest) < len(words) and rest:
+                other, other_score = self.subs_in(' '.join(rest))
+                if other and not set(other) & set(group['subs']) and other_score >= 10:
+                    return None
+        return activity_groups.group_named(words, [s for s in (named or []) if s in self.subs], score)
 
     def spec_hits(self, q):
         """Specialties named in the request, scored like families_in/subs_in (tokens*10 + length) so the three levels compare."""
