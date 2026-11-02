@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { useMainActivities } from '@/lib/main-activities'
+import { useStudiedActivity } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
 import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
@@ -265,10 +267,16 @@ export function LensMap() {
   const presetDistricts = useRef<{ city: string; ids: string[] } | null>(null)
   // a city named by the address waits for the list of cities, and falls back to the default when it is not there
   const presetCity = useRef<string | null>(null)
+  // the studied activity is shared by the steps (sticky-state); a main activity named by id waits for the city's list
+  const [studied, setStudied] = useStudiedActivity()
+  const activities = useMainActivities(city)
+  const presetMain = useRef<string | null>(null)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
     const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS)
     if (preset.city) { presetCity.current = preset.city; setCity(preset.city) }
+    if (preset.activity) setStudied({ q: preset.activity, label: preset.activity })
+    presetMain.current = preset.main
     if (preset.districts.length) presetDistricts.current = { city: preset.city ?? 'Riyadh', ids: preset.districts }
     if (preset.lens && preset.lens !== lens) {
       presetTool.current = preset.tool as ToolId | null
@@ -280,6 +288,13 @@ export function LensMap() {
     // read once on arrival; later changes come from the page itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  useEffect(() => {
+    const wanted = presetMain.current
+    if (!wanted || !activities.length) return
+    presetMain.current = null
+    const item = activities.find((activity) => activity.main_id === wanted)
+    if (item) setStudied({ main_id: item.main_id, label: item.main_ar })
+  }, [activities, setStudied])
   useEffect(() => {
     const wanted = presetCity.current
     if (!wanted || cities.length < 2) return
@@ -297,9 +312,11 @@ export function LensMap() {
   }, [data.status, data.rows, city])
   useEffect(() => {
     if (!hydrated) return
-    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null }, lensById(lens).steps[0].tool)
+    // a main activity still waiting for its city's list keeps its place in the address
+    const main = presetMain.current ?? studied.main_id ?? null
+    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null }, lensById(lens).steps[0].tool)
     if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}${window.location.hash}`)
-  }, [hydrated, city, lens, tool, selected, search])
+  }, [hydrated, city, lens, tool, selected, search, studied])
   useEffect(() => { if (selected.length) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [selected.length])
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
 

@@ -36,6 +36,8 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
   // the activity is shared with the other steps, so «المنافسون» opens on the one picked here
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
+  // an activity set from elsewhere (a shared link, another step) shows in the box too
+  useEffect(() => { setQuery(studied.q ?? '') }, [studied.q])
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
