@@ -42,7 +42,8 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   onAsk?: () => void
   /** Picks the district the open step ranks first, so a first visit reaches an answer in one tap; absent when none. */
   onShowMe?: (() => void) | null
-  /** The map failed to open: the tour keeps its place but shows nothing over the failure notice. */
+  /** The map failed to open: the tour keeps its place and shows no hint over the failure notice (the goal question,
+   * in the panel, still asks). */
   paused?: boolean
 }) {
   // null until mounted, so the server render and a returning visitor never flash the tour
@@ -51,10 +52,13 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   const [hidden, setHidden] = useState(false)
   useEffect(() => { setHidden(false) }, [state])
   // «ما الجديد» waits while the tour has something on screen, so the two never cover each other
-  const showing = !paused && (state === 'goal' || ((state === 'waiting_pick' || state === 'waiting_explain') && !hidden))
+  // the goal question sits in the panel, not on the map, so a map that failed to open (or a city without district
+  // outlines) does not hold it back: the panel's steps and figures still work, and the goal still picks them. Only the
+  // two hints, which point at the map, wait.
+  const showing = state === 'goal' || (!paused && (state === 'waiting_pick' || state === 'waiting_explain') && !hidden)
   useEffect(() => { setMapTourShowing(showing) }, [showing])
   useEffect(() => () => setMapTourShowing(false), [])
-  const asking = !paused && state === 'goal'
+  const asking = state === 'goal'
   useEffect(() => { if (asking) onAsk?.() }, [asking, onAsk])
   const go = (next: CoachState, via?: 'explain' | 'button') => {
     if (next === 'completed') trackOnboardingStep('completed', { via })
@@ -104,7 +108,8 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
     </button>
   )
 
-  if (paused || state === null || state === 'completed' || state === 'skipped' || state === 'not_started') return help
+  if (state === null || state === 'completed' || state === 'skipped' || state === 'not_started') return help
+  if (paused && state !== 'goal') return help
 
   const skip = <button onClick={() => go('skipped')} className="shrink-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">تخطَّ الجولة</button>
   // the two hints on the map are one small line pinned to its top, under the phone's floating filters: they never sit
