@@ -223,7 +223,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               {ranked.slice(0, limit).map((item) => (
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
                   sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
-                  value={numberFormat.format(item.competitors)}
+                  value={counted(item.competitors, 'business')}
                   valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
               ))}
             </ol>
