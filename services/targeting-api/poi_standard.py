@@ -13,8 +13,9 @@ What this step guarantees, so the directory is never weaker:
   the reason; the value itself is still in the directory.
 - A generated e-mail (info@ / care@ from the website domain) is marked `email:generated` and must never be a send target.
 
-    python3 poi_standard.py --targets targets.parquet --taxonomy poi_taxonomy.parquet \
-        --category-map ../../docs/qa/targeting/taxonomy/standard_category_map.csv --out poi_standard.parquet
+It runs on production, inside the service (startup_jobs, FARQ_POI_STANDARD=1), over the published release and the
+served classification (docs/production-first.md). The category map is reference/standard_category_map.csv, a copy
+of docs/qa/targeting/taxonomy/standard_category_map.csv kept identical by a test.
 """
 import argparse
 import csv
@@ -25,11 +26,14 @@ import re
 import sys
 import uuid
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import name_translation  # noqa: E402  English names learned from the directory's own pairs
-import normalize_hours  # noqa: E402  the directory's own hours reader
+import name_translation  # English names learned from the directory's own pairs
 
-VERSION = 'poi_standard_v1'
+VERSION = 'poi_standard_v2'
+# the directory's working hours as its build writes them (services/data-cleaning/normalize_hours.py, readable form):
+# «Sun: 08:30 - 23:30 | Mon: 08:30 - 13:00, 16:00 - 23:30»; any other value is not read
+DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+_SPAN = r'\d{2}:\d{2} - \d{2}:\d{2}'
+READABLE = re.compile(rf'^(Sun|Mon|Tue|Wed|Thu|Fri|Sat): {_SPAN}(, {_SPAN})*( \| (Sun|Mon|Tue|Wed|Thu|Fri|Sat): {_SPAN}(, {_SPAN})*)*$')
 NAMESPACE = uuid.UUID('6f1c7a52-5d3e-4b8e-9f1a-2c4d5e6f7a8b')   # GlobalID = uuid5(NAMESPACE, poi_key): stable across runs
 
 ARABIC = re.compile(r'[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]')
@@ -276,15 +280,15 @@ def socials(values):
 
 def hours(raw):
     """(working hours, working days, break): the standard's «Sun: 09:00-23:00; …», from any format the directory's hours
-    reader reads. Friday is never filled as closed; a day the source does not give is left out."""
-    readable = normalize_hours.normalize(raw)
-    if not readable or not isinstance(readable, str) or not normalize_hours.READABLE.match(readable):
+    build writes (READABLE). Friday is never filled as closed; a day the source does not give is left out."""
+    readable = text(raw)
+    if not readable or not READABLE.match(readable):
         return '', '', ''
     days = {}
     for part in readable.split(' | '):
         day, spans = part.split(': ', 1)
         days[day] = [s.replace(' - ', '-') for s in spans.split(', ')]
-    order = [d for d in normalize_hours.SHORT if d in days]
+    order = [d for d in DAYS if d in days]
     if len(order) == 7 and all(days[d] == ['00:00-24:00'] for d in order):
         return 'Open 24 Hours', 'Daily', 'No Break'
     text_hours = '; '.join(f"{d}: {', '.join(days[d])}" for d in order)
@@ -478,7 +482,7 @@ def standardize(row, category_map, translator=None):
     return values, inferred, flags
 
 
-def run(targets, taxonomy, category_map_path, out):
+def run(targets, taxonomy, category_map_path, out, taxonomy_json=None):
     """Standardize every directory record, then the dataset-wide checks (duplicates), and write the layer."""
     import duckdb
     import pyarrow as pa
@@ -499,7 +503,7 @@ def run(targets, taxonomy, category_map_path, out):
         db.execute('create table tx(sub_id varchar, main_id varchar)')
         db.executemany('insert into tx values (?, ?)', [(k, v['main_id']) for k, v in category_map.items()])
     # English names for Arabic-only businesses are learned from the businesses that carry both (name_translation)
-    words = business_words(os.path.join(os.path.dirname(os.path.abspath(category_map_path)), 'farq_taxonomy.json'))
+    words = business_words(taxonomy_json or os.path.join(os.path.dirname(os.path.abspath(category_map_path)), 'farq_taxonomy.json'))
     pairs = [(name_ar(a), name_en(e)) for a, e in db.execute(
         f"select {'name_ar' if 'name_ar' in have else 'null'}, {'name_en' if 'name_en' in have else 'null'} from read_parquet(?)",
         [str(targets)]).fetchall()]

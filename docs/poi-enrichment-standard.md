@@ -4,7 +4,13 @@
 - «POI Data Enrichment & Enhancement Rules».
 - «POI Dataset — Column Standards & Accepted Values».
 
-التطبيق في `services/data-cleaning/poi_standard.py`، وجدول ربط الفئات في `docs/qa/targeting/taxonomy/standard_category_map.csv`.
+التطبيق في `services/targeting-api/poi_standard.py`، وجدول ربط الفئات في `docs/qa/targeting/taxonomy/standard_category_map.csv`. نسخته في `services/targeting-api/reference/` يحرسها اختبار من الاختلاف.
+
+**يعمل على الإنتاج** (`docs/production-first.md`):
+- مهمة داخل الخدمة على Railway، يشغّلها `FARQ_POI_STANDARD=1`.
+- تقرأ الإصدار المنشور والتصنيف المعروض على الخريطة، وتكتب `poi_standard/poi_standard.parquet` بجانب مجلد السكان.
+- التقرير في السجل أعداد فقط.
+- عيّنة المراجعة (أسماء بلا تواصل) في المخزن تحت `reviews/`.
 
 ## القرار
 - **تُطبَّق كل القواعد**، إلا قاعدة كتابة «UNAVAILABLE». ما لا يوجد يبقى فارغاً، والشاشة تعرضه «غير متاح».
@@ -46,7 +52,7 @@
 | الفئة | 11 فئة عبر `standard_category_map.csv`، ويبقى تصنيف فرق (25 رئيسية و431 فرعية) كما هو |
 | حالة المنشأة | «Open» للمفتوحة. الإغلاق المعروف يبقى كما هو، لأن كتابته «Open» تُضعف البيانات |
 
-## الاسم الإنجليزي الناقص (`name_translation.py`)
+## الاسم الإنجليزي الناقص (`services/targeting-api/name_translation.py`)
 
 النقل حرفاً بحرف يكتب أسماء خاطئة («النور» ← «Al Nwr»)، فالاسم يُكتب بهذا الترتيب:
 1. **`known_name`:** الاسم العربي نفسه له اسم إنجليزي معتاد بين منشآت الدليل التي تحمل الاسمين.

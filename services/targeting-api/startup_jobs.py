@@ -246,6 +246,102 @@ def _classification_layer(data_dir, aux_dir=None):
     marker.write_text(json.dumps(signature), encoding='utf-8')
     (out_dir / 'layer_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
     LOGGER.info('classification_layer_done %s', json.dumps(report, ensure_ascii=False))   # counts only
+    # a review sample of what the layer changed, on production: names and labels only, into the bucket
+    targets = data_dir / 'targets.parquet'
+
+    def layer_review(path):
+        import duckdb
+        db = duckdb.connect()
+        _review_sql(db, f"""
+            with t as (select poi_key, any_value(city_en) city_en, any_value(name_ar) name_ar, any_value(name_en) name_en
+                       from read_parquet('{targets}') group by poi_key)
+            (select 'sub' kind, l.poi_key, t.city_en, t.name_ar, t.name_en, l.sub_id as label, l.orig_sub_id, l.ai_method, l.ai_evidence
+             from read_parquet('{out_dir / layer.LAYER}') l join t using (poi_key) where l.ai_method is not null
+             using sample 150 rows (reservoir, 7))
+            union all
+            (select 'main_only', m.poi_key, t.city_en, t.name_ar, t.name_en, m.main_id, null, m.ai_method, m.ai_evidence
+             from read_parquet('{out_dir / layer.MAIN_ONLY}') m join t using (poi_key) using sample 150 rows (reservoir, 7))""", path)
+        db.close()
+
+    if targets.is_file():
+        _review('classification_layer', layer_review, out_dir / 'layer_review_sample.csv', f'reviews/classification_layer_{layer.VERSION}.csv')
+
+
+def _upload_review(job, local, key):
+    """Put a review file (business names, never a contact) in the project's bucket under reviews/, for the owner's
+    review outside the log. Returns the key, or None when no bucket is configured."""
+    bucket = os.environ.get('BUCKET', '').strip()
+    if not bucket:
+        return None
+    import boto3
+    client = boto3.client('s3', endpoint_url=os.environ.get('ENDPOINT') or None, region_name=os.environ.get('REGION') or None,
+                          aws_access_key_id=os.environ.get('ACCESS_KEY_ID') or None, aws_secret_access_key=os.environ.get('SECRET_ACCESS_KEY') or None)
+    client.upload_file(str(local), bucket, key)
+    LOGGER.info('startup_job_review_uploaded job=%s key=%s', job, key)
+    return key
+
+
+def _review_sql(db, sql, path):
+    db.execute(f"copy ({sql}) to '{path}' (header, delimiter ',')")
+
+
+def _review(job, build, local, key):
+    """Write and upload one review sample; a failure here is logged and never fails the job it reviews."""
+    try:
+        build(local)
+        return _upload_review(job, local, key)
+    except Exception as error:   # the layer is built; only its review copy is missing
+        LOGGER.error('startup_job_review_failed job=%s error_type=%s', job, type(error).__name__)
+        return None
+
+
+def _poi_standard(data_dir, aux_dir=None):
+    """Apply the POI enrichment standard (poi_standard.run) to the published release and the served classification,
+    on production (docs/production-first.md). Writes poi_standard/poi_standard.parquet beside the population folder,
+    logs the report (counts only), and puts a review sample in the bucket. Skipped when nothing it reads changed."""
+    import classification_layer
+    import duckdb
+    import poi_standard as job
+    data_dir, aux_dir = Path(data_dir), Path(aux_dir or data_dir)
+    out_dir = aux_dir / 'poi_standard'
+    inputs = {'targets': data_dir / 'targets.parquet',
+              'taxonomy': Path(classification_layer.served_taxonomy(str(data_dir / 'poi_taxonomy.parquet'))),
+              'taxonomy_json': data_dir / 'taxonomy' / 'farq_taxonomy.json',
+              'category_map': Path(__file__).resolve().parent / 'reference' / 'standard_category_map.csv'}
+    missing = [name for name, path in inputs.items() if not path.is_file()]
+    if missing:
+        LOGGER.error('startup_job_skipped job=poi_standard missing_input=%s', ','.join(missing))
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out, marker = out_dir / 'poi_standard.parquet', out_dir / 'signature.json'
+    signature = _signature(job.VERSION, inputs)
+    try:
+        if json.loads(marker.read_text(encoding='utf-8')) == signature and out.is_file():
+            LOGGER.info('startup_job_skipped job=poi_standard reason=inputs_unchanged source=%s', job.VERSION)
+            return
+    except (OSError, ValueError):
+        pass
+    partial = out_dir / 'poi_standard.next.parquet'
+    for stale in (partial, partial.with_suffix('.report.json')):
+        stale.unlink(missing_ok=True)
+    report = job.run(str(inputs['targets']), str(inputs['taxonomy']), str(inputs['category_map']), str(partial),
+                     taxonomy_json=str(inputs['taxonomy_json']))
+    os.replace(partial, out)
+    os.replace(partial.with_suffix('.report.json'), out_dir / 'poi_standard.report.json')
+    marker.write_text(json.dumps(signature), encoding='utf-8')
+    LOGGER.info('poi_standard_done %s', json.dumps(report, ensure_ascii=False))   # counts and accuracies only
+    def standard_review(path):
+        db = duckdb.connect()
+        _review_sql(db, f"""
+            (select 'english_name' kind, poi_key, std_name_ar, std_name_en, std_category, std_secondary_category, std_flags,
+                    regexp_extract(std_inferred, 'name_en:[a-z_]+') as name_method
+             from read_parquet('{out}') where std_inferred like '%name_en:%' using sample 200 rows (reservoir, 7))
+            union all
+            (select 'flagged', poi_key, std_name_ar, std_name_en, std_category, std_secondary_category, std_flags, ''
+             from read_parquet('{out}') where std_flags <> '' using sample 100 rows (reservoir, 7))""", path)
+        db.close()
+
+    _review('poi_standard', standard_review, out_dir / 'review_sample.csv', f'reviews/poi_standard_{job.VERSION}.csv')
 
 
 def _run(name, target, *args):
@@ -268,6 +364,9 @@ def start(data_dir, aux_dir=None):
     if os.environ.get('FARQ_CLASSIFICATION_MERGED_OBJECT', '').strip() or _enabled('FARQ_AI_CLASSIFY_EVIDENCE'):
         threading.Thread(target=_run, args=('classification_layer', _classification_layer, data_dir, aux_dir), daemon=True, name='job-classification-layer').start()
         started.append('classification_layer')
+    if _enabled('FARQ_POI_STANDARD'):
+        threading.Thread(target=_run, args=('poi_standard', _poi_standard, data_dir, aux_dir), daemon=True, name='job-poi-standard').start()
+        started.append('poi_standard')
     if _enabled('FARQ_AI_CLASSIFY_PROFILE'):
         threading.Thread(target=_run, args=('ai_classification_profile', _ai_classification_profile, data_dir, aux_dir), daemon=True, name='job-ai-classification-profile').start()
         started.append('ai_classification_profile')

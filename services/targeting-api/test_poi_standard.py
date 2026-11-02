@@ -9,7 +9,8 @@ import duckdb
 
 import poi_standard as ps
 
-MAP = str(pathlib.Path(__file__).resolve().parents[2] / 'docs' / 'qa' / 'targeting' / 'taxonomy' / 'standard_category_map.csv')
+HERE = pathlib.Path(__file__).resolve().parent
+MAP = str(HERE / 'reference' / 'standard_category_map.csv')
 CATS = ps.load_category_map(MAP)
 
 
@@ -91,7 +92,7 @@ class HoursTests(unittest.TestCase):
         self.assertEqual(brk, '13:00-16:00')
 
     def test_open_24_hours(self):
-        day = ' | '.join(f'{d}: 00:00 - 24:00' for d in ps.normalize_hours.SHORT)
+        day = ' | '.join(f'{d}: 00:00 - 24:00' for d in ps.DAYS)
         self.assertEqual(ps.hours(day), ('Open 24 Hours', 'Daily', 'No Break'))
 
     def test_unknown_hours_are_empty(self):
@@ -144,6 +145,13 @@ class RecordTests(unittest.TestCase):
         self.assertNotIn('UNAVAILABLE', json.dumps(values))
 
 
+class CopyTests(unittest.TestCase):
+    def test_bundled_category_map_matches_the_taxonomy_source(self):
+        source = HERE.parent.parent / 'docs' / 'qa' / 'targeting' / 'taxonomy' / 'standard_category_map.csv'
+        self.assertEqual((HERE / 'reference' / 'standard_category_map.csv').read_bytes(), source.read_bytes(),
+                         'copy docs/qa/targeting/taxonomy/standard_category_map.csv to reference/ after editing it')
+
+
 class RunTests(unittest.TestCase):
     def test_layer_dedupes_and_never_writes_the_source(self):
         root = pathlib.Path(tempfile.mkdtemp())
@@ -171,3 +179,40 @@ class RunTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ProductionJobTests(unittest.TestCase):
+    """The standard runs on production inside the service (startup_jobs._poi_standard)."""
+
+    def test_job_builds_once_and_writes_a_review_sample(self):
+        from unittest import mock
+        import startup_jobs
+        data, aux = pathlib.Path(tempfile.mkdtemp()), pathlib.Path(tempfile.mkdtemp())
+        (data / 'taxonomy').mkdir()
+        (data / 'taxonomy' / 'farq_taxonomy.json').write_text(json.dumps({'subs': [
+            {'main_id': 'health', 'main_ar': 'صحة', 'sub_id': 'health.pharmacy', 'sub_ar': 'صيدلية', 'sub_en': 'Pharmacy'}]}, ensure_ascii=False), encoding='utf-8')
+        db = duckdb.connect()
+        db.execute("create table t(poi_key varchar, name_ar varchar, name_en varchar, latitude double, longitude double)")
+        db.executemany('insert into t values (?,?,?,?,?)', [('a', 'صيدلية النور', 'Al Noor Pharmacy', 24.1, 46.1), ('b', 'صيدلية الشفاء', None, 24.2, 46.2)])
+        db.execute(f"copy t to '{data / 'targets.parquet'}' (format parquet)")
+        db.execute("create table c(poi_key varchar, sub_id varchar, source varchar, confidence varchar)")
+        db.executemany('insert into c values (?,?,?,?)', [('a', 'health.pharmacy', 's', 'high'), ('b', 'health.pharmacy', 's', 'high')])
+        db.execute(f"copy c to '{data / 'poi_taxonomy.parquet'}' (format parquet)")
+        with mock.patch.dict(os.environ, {'FARQ_TARGETING_AUX_DATA_DIR': str(aux), 'BUCKET': ''}):
+            startup_jobs._poi_standard(data, aux)
+            out = aux / 'poi_standard' / 'poi_standard.parquet'
+            self.assertTrue(out.is_file())
+            rows = dict(db.execute(f"select poi_key, std_name_en from read_parquet('{out}')").fetchall())
+            self.assertEqual(rows['b'], 'Al Shafa Pharmacy', 'the business word is translated, the name spelled')
+            self.assertTrue((aux / 'poi_standard' / 'review_sample.csv').is_file())
+            with mock.patch('poi_standard.run') as again:
+                startup_jobs._poi_standard(data, aux)
+            again.assert_not_called()
+
+    def test_job_is_off_unless_switched_on(self):
+        from unittest import mock
+        import startup_jobs
+        with mock.patch.dict(os.environ, {}, clear=False), mock.patch.object(startup_jobs, '_poi_standard') as job:
+            os.environ.pop('FARQ_POI_STANDARD', None)
+            self.assertNotIn('poi_standard', startup_jobs.start(tempfile.mkdtemp()))
+        job.assert_not_called()
