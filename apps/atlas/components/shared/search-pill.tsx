@@ -30,7 +30,7 @@ export function PillField({ label, children, className }: { label: string; child
 }
 
 /** The quiet control inside a segment: a select or an input with no box of its own. */
-export const pillControl = 'w-full min-w-0 bg-transparent text-sm text-muted-foreground outline-none placeholder:text-muted-foreground/80 disabled:opacity-50'
+export const pillControl = 'w-full min-w-0 bg-transparent text-sm text-muted-foreground outline-none placeholder:text-muted-foreground disabled:opacity-50'
 
 /** The chip row under the pill. */
 export function ChipRow({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
