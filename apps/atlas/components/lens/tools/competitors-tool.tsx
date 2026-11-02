@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
-import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -138,6 +139,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     onOverlay({ colors, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
   }, [table, brand, rows, onOverlay])
 
+  const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
@@ -172,7 +174,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         <>
           <Skeleton className="h-5 w-3/4" aria-hidden />
           <div className="flex gap-1.5" aria-hidden><Skeleton className="h-10 flex-1 rounded-lg" /><Skeleton className="h-10 flex-1 rounded-lg" /></div>
-          <SkeletonRows label="جارٍ الحساب" rows={6} sub trailing="double" />
+          <ResultRowsSkeleton label="جارٍ الحساب" rows={6} sub valueSub />
         </>
       )}
       {status !== 'loading' && studied.q && <Understood value={understood} />}
@@ -198,20 +200,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             </div>
             <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
               {ranked.slice(0, 30).map((item) => (
-                <li key={item.row.id}>
-                  <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{item.row.name}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        {item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-end">
-                      <span className="block font-bold">{numberFormat.format(item.competitors)}</span>
-                      <span className="block text-sm text-muted-foreground">{item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'}</span>
-                    </span>
-                  </button>
-                </li>
+                <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
+                  sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
+                  value={numberFormat.format(item.competitors)}
+                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
               ))}
             </ol>
             </>
@@ -226,19 +218,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               {brands.brands.length === 0 && <p className="text-base text-muted-foreground">لا توجد سلسلة بثلاثة فروع أو أكثر لهذا النشاط؛ السوق كله محلات مستقلة.</p>}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
                 {brands.brands.map((item, index) => (
-                  <li key={item.brand}>
-                    <button onClick={() => pickBrand(item)} className="flex w-full items-center gap-2 py-2 text-start hover:text-primary">
-                      <span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{item.brand}</span>
-                        <span className="block text-sm text-muted-foreground">في {counted(item.districts, 'district')}{growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}</span>
-                      </span>
-                      <span className="shrink-0 text-end">
-                        <span className="block font-bold">{counted(item.branches, 'branch')}</span>
-                        <span className="block text-sm text-muted-foreground">{item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`}</span>
-                      </span>
-                    </button>
-                  </li>
+                  <ResultRow key={item.brand} onClick={() => pickBrand(item)} title={item.brand}
+                    leading={<span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>}
+                    sub={`في ${counted(item.districts, 'district')}${growthLine(item.growth) ? ` · ${growthLine(item.growth)}` : ''}`}
+                    value={counted(item.branches, 'branch')}
+                    valueSub={item.share_pct == null ? 'غير متاح' : `${percent(item.share_pct)} من السوق`} />
                 ))}
               </ol>
               {brands.uncovered && brands.uncovered.length > 0 && (
@@ -248,14 +232,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                   </Explained>
                   <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
                     {brands.uncovered.map((item) => {
-                      const id = rows.find((row) => row.name === item.district_ar)?.id
+                      const id = idByName.get(item.district_ar)
                       return (
-                        <li key={item.district_ar}>
-                          <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                            <span className="min-w-0 flex-1 truncate">{item.district_ar}</span>
-                            <span className="shrink-0 text-end text-sm text-muted-foreground">{numberFormat.format(item.population)} ساكن · {numberFormat.format(item.businesses)} منشأة من النشاط</span>
-                          </button>
-                        </li>
+                        <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} title={item.district_ar}
+                          valueSub={`${numberFormat.format(item.population)} ساكن · ${numberFormat.format(item.businesses)} منشأة من النشاط`} />
                       )
                     })}
                   </ol>
@@ -293,14 +273,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               </button>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
                 {brand.by_district.map((item) => {
-                  const id = rows.find((row) => row.name === item.district_ar)?.id
-                  return (
-                    <li key={item.district_ar}>
-                      <button disabled={!id} onClick={() => id && onSelect(id)} className="flex w-full justify-between py-2 text-start hover:text-primary disabled:hover:text-inherit">
-                        <span>{item.district_ar}</span><span className="font-semibold">{numberFormat.format(item.n)}</span>
-                      </button>
-                    </li>
-                  )
+                  const id = idByName.get(item.district_ar)
+                  return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
                 })}
               </ol>
             </>

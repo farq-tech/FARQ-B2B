@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
-import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
@@ -180,7 +181,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
       {result.status === 'loading' && (
         <>
           <Skeleton className="h-4 w-48 max-w-full" aria-hidden />
-          <SkeletonRows rows={5} sub trailing leading="thumb" />
+          <ResultRowsSkeleton rows={5} sub leading="thumb" />
         </>
       )}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
@@ -197,18 +198,13 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
               <ol className="divide-y">
                 {shown.map((listing) => {
                   const versus = versusDistrict(listing)
+                  const away = myPoint ? `${numberFormat.format(Math.round(distanceKm(listing, myPoint) * 10) / 10)} كم من نقطتك` : null
                   return (
-                    <li key={listing.id}>
-                      <button onClick={() => open(listing)} className={cn('flex w-full items-center justify-between gap-2 py-2 text-start hover:text-primary', active?.id === listing.id && 'text-primary')}>
-                        <Thumb src={listing.photo} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
-                          {versus && <span className={cn('block text-sm', versus.tone === 'good' ? 'text-primary' : 'text-muted-foreground')}>{versus.text}</span>}
-                          {myPoint && <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(distanceKm(listing, myPoint) * 10) / 10)} كم من نقطتك</span>}
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold">{priceLine(listing)}</span>
-                      </button>
-                    </li>
+                    <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
+                      leading={<Thumb src={listing.photo} />}
+                      title={[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}
+                      sub={versus || away ? <>{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</> : null}
+                      value={<span className="text-sm">{priceLine(listing)}</span>} />
                   )
                 })}
               </ol>

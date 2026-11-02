@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Explained } from '@/components/shared/explained'
-import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
@@ -173,7 +174,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
             <Skeleton className="h-4 w-40" />
             {figures.map((figure) => <Skeleton key={figure.key} className="h-7 w-36" />)}
           </SkeletonStatus>
-          <SkeletonRows label="جارٍ الحساب" rows={5} trailing />
+          <ResultRowsSkeleton label="جارٍ الحساب" rows={5} valueSub />
         </>
       )}
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
@@ -193,12 +194,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
             {scored.slice(0, 10).map((item) => (
-              <li key={item.row.id}>
-                <button onClick={() => onSelect(item.row.id)} className="flex w-full items-center justify-between py-2 text-start hover:text-primary">
-                  <span className="font-medium">{item.row.name}</span>
-                  <span className="text-sm text-muted-foreground">{show(item.size)} {unit} · <span className="font-bold text-foreground">{numberFormat.format(item.score)}</span>/100</span>
-                </button>
-              </li>
+              <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
+                active={selected.some((row) => row.id === item.row.id)}
+                value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
             ))}
           </ol>
         </div>
