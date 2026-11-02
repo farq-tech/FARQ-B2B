@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
@@ -106,10 +106,12 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }) }, [])
 
 
-  // the list in the server's best-value order, or nearest to the viewer's point first
-  const shown = useMemo(() => (nearest && myPoint
+  // the list in the server's best-value order, or nearest to the viewer's point first, BEST at a time
+  const [limit, showMore] = useShowMore(BEST, `${city}|${kind}|${type}|${deal}|${budget}|${districtKey}|${nearest}`)
+  const ordered = useMemo(() => (nearest && myPoint
     ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
-    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
+    : result.listings), [result.listings, nearest, myPoint])
+  const shown = useMemo(() => ordered.slice(0, limit), [ordered, limit])
 
   const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
   const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
@@ -117,7 +119,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   // the step's answer in one line for the peeking sheet: the service's count, and the first listing of the list
   const summary = result.status !== 'ready' ? null
     : !result.available ? 'عروض العقار غير متاحة لهذه المدينة بعد'
-      : `${result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
+      : `${result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
 
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
@@ -199,7 +201,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
-            {result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}
+            {result.total != null ? `${counted(result.total, 'listing')} ${where}` : `عدد العروض غير متاح ${where}`}
             {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
           {result.listings.length > 0 && (
@@ -219,6 +221,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                   )
                 })}
               </ol>
+              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing" onMore={showMore} />
             </div>
           )}
         </>
