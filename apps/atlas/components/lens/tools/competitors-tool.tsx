@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
-import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -144,6 +144,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     .sort((a, b) => (order === 'dense'
       ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
       : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0)))
+  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
   const study = (next: StudiedActivity) => setStudied(next)
   const pickBrand = (next: Brand | null) => {
     setBrand(next)
@@ -199,13 +200,14 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               ))}
             </div>
             <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
-              {ranked.slice(0, 30).map((item) => (
+              {ranked.slice(0, limit).map((item) => (
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
                   sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
                   value={numberFormat.format(item.competitors)}
                   valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
               ))}
             </ol>
+            <MoreRows shown={Math.min(limit, ranked.length)} total={ranked.length} noun="district" onMore={showMore} />
             </>
           )}
           {view === 'brands' && !brands && <p className="text-base text-muted-foreground">السلاسل غير متاحة لهذا النشاط الآن.</p>}

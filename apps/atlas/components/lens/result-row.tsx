@@ -1,7 +1,8 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
 const ROW = 'flex min-w-0 flex-1 items-center gap-2 py-2 text-start'
@@ -87,5 +88,37 @@ export function ResultRowsSkeleton({ rows = 5, leading, sub = false, value = tru
         </div>
       ))}
     </SkeletonStatus>
+  )
+}
+
+/** How many rows a long list shows: `step` at first, `step` more on each «اعرض المزيد», back to `step` when `reset` changes. */
+export function useShowMore(step: number, reset: string) {
+  const [limit, setLimit] = useState(step)
+  useEffect(() => { setLimit(step) }, [step, reset])
+  return [limit, () => setLimit((current) => current + step)] as const
+}
+
+/**
+ * Under a list that shows part of what it ranks: «أعلى 30 من 120 حياً», so a cut list never reads as the whole city,
+ * and «اعرض المزيد» while there is more to show. Nothing when every row is already shown.
+ */
+export function MoreRows({ shown, total, noun, lead = 'أعلى', canMore, onMore }: {
+  shown: number
+  total: number
+  noun: Parameters<typeof counted>[1]
+  /** the word before the figure: «أعلى» for a ranking, «أقرب» for a list by distance */
+  lead?: string
+  /** whether more rows can be shown (defaults to shown < total) */
+  canMore?: boolean
+  onMore: () => void
+}) {
+  if (shown >= total) return null
+  return (
+    <div className="flex items-center justify-between gap-2 pt-1.5 text-sm text-muted-foreground">
+      <span>{lead} {numberFormat.format(shown)} من {counted(total, noun)}</span>
+      {(canMore ?? shown < total) && (
+        <button type="button" onClick={onMore} className="rounded-md font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">اعرض المزيد</button>
+      )}
+    </div>
   )
 }

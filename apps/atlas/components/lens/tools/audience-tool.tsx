@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
-import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
@@ -129,6 +129,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
     onOverlay({ colors })
   }, [scored, onOverlay])
 
+  const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
   const scope = inScope(scored)
   const unit = mode === 'people' ? 'شخص' : 'منشأة'
@@ -193,12 +194,13 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
         <div>
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
-            {scored.slice(0, 10).map((item) => (
+            {scored.slice(0, limit).map((item) => (
               <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} title={item.row.name}
                 active={selected.some((row) => row.id === item.row.id)}
                 value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
             ))}
           </ol>
+          <MoreRows shown={Math.min(limit, scored.length)} total={scored.length} noun="district" onMore={showMore} />
         </div>
       )}
     </section>

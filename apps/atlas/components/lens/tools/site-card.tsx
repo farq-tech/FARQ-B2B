@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Baby, MapPin, Store, Users } from 'lucide-react'
 import { Skeleton, SkeletonRows, SkeletonStats, SkeletonStatus } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
@@ -9,6 +10,7 @@ import { Unavailable } from '@/components/shared/unavailable'
 import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat } from '@/lib/insights-api'
 import { PALETTE, readableOn } from '@/lib/palette'
+import { MoreRows } from '../result-row'
 
 /** /api/market/site-card (services/targeting-api/site_card.py). Every figure is computed there; this only draws it. */
 export type SiteCardData = {
@@ -68,6 +70,8 @@ export function SiteCard({ label, color, reach, activity, state, onRetry }: { la
 
 function Body({ data, activity }: { data: SiteCardData; activity: string }) {
   const { people, competitors } = data
+  // the five nearest first; the service names up to eight, and the count covers every competitor in the range
+  const [nearestShown, setNearestShown] = useState(5)
   return (
     <div className="space-y-4 p-4">
       <section className="space-y-2.5">
@@ -82,21 +86,25 @@ function Body({ data, activity }: { data: SiteCardData; activity: string }) {
               <Stat label="ساكن لكل منافس" value={figure(data.residents_per_competitor)} explain={EXPLAIN.siteResidentsPerCompetitor} reason={data.reasons?.residents_per_competitor} />
             </div>
             {competitors.nearest.length > 0 ? (
-              <ul className="divide-y rounded-xl border">
-                {competitors.nearest.slice(0, 5).map((row, index) => (
-                  <li key={`${row.name}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2">
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{row.name || 'منشأة بلا اسم'}</span>
-                      {row.district_ar && <span className="block truncate text-xs text-muted-foreground">{row.district_ar}</span>}
-                    </span>
-                    {row.distance_m != null && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums">
-                        <MapPin className="size-3" aria-hidden />{formatDistance(row.distance_m)}
+              <div>
+                <ul className="divide-y rounded-xl border">
+                  {competitors.nearest.slice(0, nearestShown).map((row, index) => (
+                    <li key={`${row.name}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{row.name || 'منشأة بلا اسم'}</span>
+                        {row.district_ar && <span className="block truncate text-xs text-muted-foreground">{row.district_ar}</span>}
                       </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                      {row.distance_m != null && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums">
+                          <MapPin className="size-3" aria-hidden />{formatDistance(row.distance_m)}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <MoreRows lead="أقرب" shown={Math.min(nearestShown, competitors.nearest.length)} total={competitors.n} noun="business"
+                  canMore={nearestShown < competitors.nearest.length} onMore={() => setNearestShown(competitors.nearest.length)} />
+              </div>
             ) : (
               <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm font-medium text-primary">لا منافس من نشاطك داخل هذه المنطقة.</p>
             )}
