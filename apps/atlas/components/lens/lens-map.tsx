@@ -15,6 +15,7 @@ import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
+import { readMapQuery, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
@@ -252,13 +253,47 @@ export function LensMap() {
     setOverlay({})
     if (tool === 'growth') setMetric('growth')
   }, [tool])
+  // the view lives in the address (map-query.ts): read once, every value checked, and written back as it changes
+  const [hydrated, setHydrated] = useState(false)
+  // districts named by the address wait for their city's districts, and only ids that exist there are picked
+  const presetDistricts = useRef<{ city: string; ids: string[] } | null>(null)
+  // a city named by the address waits for the list of cities, and falls back to the default when it is not there
+  const presetCity = useRef<string | null>(null)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
-    const presetLens = query.get('lens') ?? GOAL_LENS[query.get('goal') ?? '']
-    presetTool.current = (query.get('tool') as ToolId | null) ?? null
-    if (presetLens && LENSES.some((item) => item.id === presetLens)) setLens(presetLens as LensId)
+    const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS)
+    if (preset.city) { presetCity.current = preset.city; setCity(preset.city) }
+    if (preset.districts.length) presetDistricts.current = { city: preset.city ?? 'Riyadh', ids: preset.districts }
+    if (preset.lens && preset.lens !== lens) {
+      presetTool.current = preset.tool as ToolId | null
+      setLens(preset.lens as LensId)
+    } else if (preset.tool) setTool(preset.tool as ToolId)
+    if (preset.q) { setDraft(preset.q); setSearch({ q: preset.q, nonce: Date.now() }) }
     if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
+    setHydrated(true)
+    // read once on arrival; later changes come from the page itself
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  useEffect(() => {
+    const wanted = presetCity.current
+    if (!wanted || cities.length < 2) return
+    presetCity.current = null
+    if (!cities.some((item) => item.en === wanted)) setCity('Riyadh')
+  }, [cities])
+  useEffect(() => {
+    const pending = presetDistricts.current
+    if (!pending || data.status === 'loading') return
+    if (pending.city !== city) { if (data.status === 'ready') presetDistricts.current = null; return }
+    presetDistricts.current = null
+    const known = new Set(data.rows.map((row) => row.id))
+    const ids = pending.ids.filter((id) => known.has(id))
+    if (ids.length) setSelected(ids)
+  }, [data.status, data.rows, city])
+  useEffect(() => {
+    if (!hydrated) return
+    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null }, lensById(lens).steps[0].tool)
+    if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}${window.location.hash}`)
+  }, [hydrated, city, lens, tool, selected, search])
   useEffect(() => { if (selected.length) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [selected.length])
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
 
