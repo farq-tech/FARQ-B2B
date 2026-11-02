@@ -341,7 +341,10 @@ export function LensMap() {
     presetDistricts.current = null
     const known = new Set(data.rows.map((row) => row.id))
     const ids = pending.ids.filter((id) => known.has(id))
-    if (ids.length) setSelected(ids)
+    // a shared link opens on its districts, framed, instead of the whole city with the picked ones somewhere in it
+    if (ids.length) { setSelected(ids); flyTo(...ids) }
+    // flyTo only sets state; it is rebuilt each render and needs no dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.status, data.rows, city])
   useEffect(() => {
     if (!hydrated) return
@@ -358,11 +361,11 @@ export function LensMap() {
   const toggle = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   // a district picked from a list takes the map to it (a click on the map is already looking at it); on a phone a full
   // sheet drops to half so the district shows above it
-  const [zoomTo, setZoomTo] = useState<{ id: string; nonce: number; cover: number } | null>(null)
-  const flyTo = (id: string) => {
+  const [zoomTo, setZoomTo] = useState<{ ids: string[]; nonce: number; cover: number } | null>(null)
+  const flyTo = (...ids: string[]) => {
     const phone = !window.matchMedia('(min-width: 64rem)').matches
     if (phone) setSheet('half')
-    setZoomTo({ id, nonce: Date.now(), cover: phone ? HALF : 0 })
+    setZoomTo({ ids, nonce: Date.now(), cover: phone ? HALF : 0 })
   }
   const pickFromList = (id: string) => { setSelected([id]); flyTo(id) }
   const toggleFromList = (id: string) => { if (!selected.includes(id)) flyTo(id); toggle(id) }

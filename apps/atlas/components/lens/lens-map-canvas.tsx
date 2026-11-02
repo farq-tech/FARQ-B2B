@@ -75,9 +75,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
-  /** A district picked from a list: the map flies to it. `cover` is the share of the screen a phone's sheet covers below
-   * the map's own peek, so the district lands in the part still visible; `nonce` repeats a pick of the same district. */
-  zoomTo?: { id: string; nonce: number; cover: number } | null
+  /** Districts picked from a list or named by a link: the map frames them. `cover` is the share of the screen a phone's
+   * sheet covers below the map's own peek, so they land in the part still visible; `nonce` repeats a pick of the same. */
+  zoomTo?: { ids: string[]; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
   /** Told when the map fails to open and when a retry brings it back, so the page can clear what would sit over the notice. */
@@ -321,8 +321,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
 
   useEffect(() => {
     const instance = map.current
-    const feature = zoomTo && features.find((item) => String(item.properties.id) === zoomTo.id)
-    const bounds = feature ? boundsOf([feature]) : null
+    const wanted = new Set(zoomTo?.ids ?? [])
+    const picked = features.filter((item) => wanted.has(String(item.properties.id)))
+    const bounds = picked.length ? boundsOf(picked) : null
     if (!ready || !instance || !bounds || !zoomTo) return
     const height = instance.getContainer().clientHeight
     const phone = zoomTo.cover > 0
