@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket } from '@/lib/insights-api'
-import { cn } from '@/lib/utils'
+import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
+import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import type { StudiedActivity } from '@/lib/sticky-state'
 import type { Overlay } from './overlay'
@@ -32,7 +32,6 @@ const CLUSTER = PALETTE.stone
 const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي', secondary: 'شارع فرعي' }
 
 const shade = (score: number) => SHADES[Math.min(SHADES.length - 1, Math.floor((score / 100) * SHADES.length))]
-const distance = (meters: number) => (meters >= 1000 ? `${numberFormat.format(Math.round(meters / 100) / 10)} كم` : `${numberFormat.format(meters)} م`)
 
 function requestedLine(item: Opportunity, kinds: number): string {
   if (item.requested_n != null) return `${numberFormat.format(item.requested_n)} محل منه`
@@ -55,6 +54,8 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
     let live = true
     setStatus('loading')
     setActive(null)
+    // drop the last activity's streets now, so the map never draws them beside the skeleton of a different one
+    setResult(null)
     postMarket<Result>('street-opportunities', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) })
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
@@ -70,18 +71,31 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
     const drawn = streets
       .map((item, index) => ({ id: `o${index}`, color: shade(item.properties.score), geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
       .reverse()
+    // the step's answer in one line for the phone's peeking sheet, from the service's own figures
+    const top = streets[0]?.properties
+    const summary = status !== 'idle' || !result || result.understood === false || result.available === false ? null
+      : top ? `${numberFormat.format(streets.length)} شارعاً ينقصه «${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.score)}/100`
+        : `لا شارع تجاري نشط ينقصه «${studied.label}»`
     onOverlay({
+      summary,
       streets: [...reference, ...drawn],
       onStreet: (id) => { if (id.startsWith('o')) setActive(Number(id.slice(1))) },
       legend: drawn.length ? { from: 'فرصة أقل', to: 'فرصة أكبر', shades: SHADES, ...(reference.length ? { extra: { color: CLUSTER, label: 'يتجمع فيه النشاط الآن' } } : {}) } : null,
     })
-  }, [streets, clusters, active, onOverlay])
+  }, [streets, clusters, active, onOverlay, status, result, studied.label])
 
   useEffect(() => {
     if (active != null) document.getElementById(`opportunity-${active}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [active])
 
-  if (status === 'loading') return <Loader2 className="size-5 animate-spin text-muted-foreground" aria-label="جارٍ البحث" />
+  if (status === 'loading') {
+    return (
+      <>
+        <Skeleton className="h-5 w-3/4" aria-hidden />
+        <ResultRowsSkeleton label="جارٍ البحث عن الفرص" rows={6} leading="swatch" sub valueSub />
+      </>
+    )
+  }
   if (status === 'error') return <p role="alert" className="text-base text-destructive">تعذر جلب فرص الشوارع.</p>
   if (result?.understood === false) return <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>
   if (result?.available === false) return <p className="text-base text-muted-foreground">غير متاح</p>
@@ -92,27 +106,26 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       <p className="text-base">{numberFormat.format(streets.length)} شارعاً تجارياً نشطاً ينقصه «{studied.label}»، مرتبة بالدرجة. اضغط الدرجة لترى كيف حُسبت.</p>
       <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
         {streets.map(({ properties: item }, index) => (
-          <li key={index} id={`opportunity-${index}`}>
-            <div className={cn('flex items-start gap-2 py-2', index === active && 'text-primary')}>
-              <span className="mt-1.5 h-3 w-5 shrink-0 rounded-sm" style={{ background: shade(item.score) }} aria-hidden />
-              <button onClick={() => setActive(index)} className="min-w-0 flex-1 text-start">
-                <span className="block truncate font-medium">{item.street_ar}</span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {item.districts_ar.join('، ')}{item.road_class ? ` · ${ROAD[item.road_class]}` : ''}
+          <ResultRow key={index} id={`opportunity-${index}`} active={index === active} onClick={() => setActive(index)}
+            leading={<span className="h-3 w-5 shrink-0 rounded-sm" style={{ background: shade(item.score) }} aria-hidden />}
+            title={item.street_ar}
+            sub={(
+              <>
+                <span className="block truncate">{item.districts_ar.join('، ')}{item.road_class ? ` · ${ROAD[item.road_class]}` : ''}</span>
+                <span className="block truncate text-foreground">{numberFormat.format(item.total)} محل على الشارع · {requestedLine(item, kinds)}</span>
+                <span className="block truncate">
+                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) على ${formatDistance(item.nearest.distance_m)}` : 'لا يوجد تجمع للنشاط في المدينة'}
                 </span>
-                <span className="block text-sm">
-                  {numberFormat.format(item.total)} محل على الشارع · {requestedLine(item, kinds)}
+              </>
+            )}
+            aside={(
+              <Explained title={`${item.street_ar} · ${studied.label}`} lines={EXPLAIN.streetOpportunity(item, result?.population_used === true, kinds)} className="text-end">
+                <span>
+                  <span className="block font-bold text-primary">{numberFormat.format(item.score)}</span>
+                  <span className="block text-sm text-muted-foreground">من 100</span>
                 </span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) على ${distance(item.nearest.distance_m)}` : 'لا يوجد تجمع للنشاط في المدينة'}
-                </span>
-              </button>
-              <Explained title={`${item.street_ar} · ${studied.label}`} lines={EXPLAIN.streetOpportunity(item, result?.population_used === true, kinds)} className="shrink-0 text-end">
-                <span className="block font-bold text-primary">{numberFormat.format(item.score)}</span>
-                <span className="block text-sm text-muted-foreground">من 100</span>
               </Explained>
-            </div>
-          </li>
+            )} />
         ))}
       </ol>
     </>
