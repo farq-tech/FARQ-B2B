@@ -174,15 +174,17 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         {groups && status !== 'loading' && (
           <ol className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
             {groups.map((group, index) => (
-              <li key={group.territory}>
-                <button onClick={() => setRep(index)} className={cn('flex w-full items-center gap-2 rounded-lg border p-2 text-start text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
+              // the share opens its own explanation card, so it sits beside the row's button, never inside it
+              <li key={group.territory} aria-current={rep === index ? 'true' : undefined}
+                className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
+                <button type="button" onClick={() => setRep(index)} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                   <span className="size-3.5 shrink-0 rounded-sm" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                   <span className="font-bold">المندوب {numberFormat.format(index + 1)}</span>
                   <span className="truncate text-sm text-muted-foreground">{counted(group.districts.length, 'district')}</span>
-                  <Explained title={`حصة المندوب ${numberFormat.format(index + 1)}`} lines={EXPLAIN.territory(weight)} className="ms-auto shrink-0 font-semibold">
-                    {weight === 'population' ? `${numberFormat.format(Math.round(group.weight))} ساكن` : counted(Math.round(group.weight), 'business')}
-                  </Explained>
                 </button>
+                <Explained title={`حصة المندوب ${numberFormat.format(index + 1)}`} lines={EXPLAIN.territory(weight)} className="shrink-0 font-semibold">
+                  {weight === 'population' ? `${numberFormat.format(Math.round(group.weight))} ساكن` : counted(Math.round(group.weight), 'business')}
+                </Explained>
               </li>
             ))}
           </ol>
