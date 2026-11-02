@@ -394,7 +394,7 @@ export function LensMap() {
               ) : (
                 <>
                   {/* a tool's own key (its districts, or lines such as streets drawn over the shading) */}
-                  {overlay.legend && <MapLegend {...overlay.legend} title={legendTitle} />}
+                  {overlay.legend && <MapLegend {...overlay.legend} title={legendTitle} explain={overlay.legend.explain ?? EXPLAIN.toolColors[tool]} />}
                   {toolColors && !overlay.legend && <LegendTitle>{legendTitle}</LegendTitle>}
                   {!toolColors && overlay.legend && <span className="my-0.5 border-t" aria-hidden />}
                   {!toolColors && <>
