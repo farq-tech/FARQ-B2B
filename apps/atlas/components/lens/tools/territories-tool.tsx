@@ -17,6 +17,13 @@ import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Activity = { main_id: string; main_ar: string }
 type Customer = Stop & { name: string; district_ar: string }
+type PlanDay = { day: number; stops: string[]; count: number; meters_estimate: number; seconds_estimate: number }
+type WeekPlan = { days: PlanDay[]; unplanned: string[]; detour: number; speed_kmh: number }
+
+const WEEK_STOPS_MAX = 5000
+/** The working week: Sunday to Thursday, with Saturday first when the rep works six days. */
+const dayNames = (days: number) => (days === 6 ? ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'] : ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'].slice(0, days))
+const km = (meters: number) => `${numberFormat.format(Math.round(meters / 100) / 10)} كم`
 
 const PALETTE = CATEGORICAL
 const DIM = TONE.pebble
@@ -57,6 +64,11 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [parts, setParts] = useState<RoutePart[]>([])
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [routeError, setRouteError] = useState('')
+  const [days, setDays] = useStickyState('territories.days', 5)
+  const [perDay, setPerDay] = useStickyState('territories.perDay', 20)
+  const [plan, setPlan] = useState<WeekPlan | null>(null)
+  const [planStatus, setPlanStatus] = useState<'idle' | 'loading' | 'error' | 'too-many'>('idle')
+  const [day, setDay] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -78,7 +90,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   // step 3: one rep's customers
   useEffect(() => {
     abort.current?.abort()
-    setCustomers(null); setCustomerError(null); setParts([]); setProgress(null); setRouteError('')
+    setCustomers(null); setCustomerError(null); setParts([]); setProgress(null); setRouteError(''); setPlan(null); setDay(null)
     if (rep == null || !groups?.[rep]) return
     let active = true
     fetch('/api/market/stops', {
@@ -93,6 +105,21 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
     return () => { active = false }
   }, [rep, groups, city, mainId])
 
+  // the rep's week: rebuilt when the customers, the start point or the week's shape change
+  useEffect(() => {
+    setPlan(null); setDay(null)
+    abort.current?.abort(); setParts([]); setProgress(null); setRouteError('')   // a route from the old plan or start is stale
+    if (!customers?.length) { setPlanStatus('idle'); return }
+    if (customers.length > WEEK_STOPS_MAX) { setPlanStatus('too-many'); return }
+    let active = true
+    setPlanStatus('loading')
+    postMarket<WeekPlan>('weekly-plan', {
+      stops: customers.map(({ id, lon, lat }) => ({ id, lon, lat })), days, max_per_day: perDay, ...(start ? { start } : {}),
+    }).then((data) => { if (active) { setPlan(data); setPlanStatus('idle') } })
+      .catch(() => { if (active) setPlanStatus('error') })
+    return () => { active = false }
+  }, [customers, start, days, perDay])
+
   const pickStart = useCallback((point: Point) => { setStart(point); setPicking(false) }, [])
 
   // everything on the map comes from this one place
@@ -103,23 +130,34 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       const id = ids.get(district.district_ar) ?? String(district.district_id)
       colors.set(id, rep == null || rep === index ? PALETTE[index % PALETTE.length] : DIM)
     }))
+    const dayOf = new Map<string, number>()
+    plan?.days.forEach((planned, index) => planned.stops.forEach((id) => dayOf.set(id, index)))
+    const painted = plan && customers
+      ? customers.map((customer) => {
+        const index = dayOf.get(customer.id)
+        return { ...customer, color: index == null || (day != null && day !== index) ? DIM : PALETTE[index % PALETTE.length] }
+      })
+      : customers
     onOverlay({
       colors: groups ? colors : null,
-      points: customers,
+      points: painted,
       start,
       lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
       onPick: picking ? pickStart : null,
     })
-  }, [groups, rows, rep, customers, start, parts, picking, pickStart, onOverlay])
+  }, [groups, rows, rep, customers, plan, day, start, parts, picking, pickStart, onOverlay])
 
-  async function route() {
-    if (!start || !customers?.length) return
+  async function route(only?: Stop[]) {
+    const from = start ?? only?.[0]
+    const through = only ? (start ? only : only.slice(1)) : customers
+    if (!from || !through?.length) return
+    if (!only) setDay(null)
     abort.current?.abort()
     const controller = new AbortController()
     abort.current = controller
     setParts([]); setRouteError(''); setProgress({ done: 0, total: 1 })
     try {
-      await planRoute(start, customers, (part, done, total) => {
+      await planRoute(from, through, (part, done, total) => {
         setParts((current) => { const next = [...current]; next[part.index] = part; return next })
         setProgress({ done, total })
       }, controller.signal)
@@ -133,6 +171,13 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const seconds = solved.reduce((total, part) => total + part.seconds, 0)
   const order = useMemo(() => solved.flatMap((part) => part.order), [solved])
   const byId = useMemo(() => new Map((customers ?? []).map((customer) => [customer.id, customer])), [customers])
+  const showDay = (index: number) => {
+    if (!plan || !customers) return
+    setDay(index)
+    const byStop = new Map(customers.map((customer) => [customer.id, customer]))
+    void route(plan.days[index].stops.map((id) => byStop.get(id)).filter((stop): stop is Customer => Boolean(stop)))
+  }
+  const names = dayNames(days)
   const finished = progress != null && progress.done === progress.total && solved.length > 0
 
   return (
@@ -199,16 +244,62 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         </Step>
       )}
 
+      {customers && customers.length > 0 && (
+        <Step n={5} title="خطة الأسبوع" done={Boolean(plan)}>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-sm">أيام العمل
+              <input type="number" min={1} max={6} value={days} onChange={(e) => setDays(Math.min(6, Math.max(1, Math.round(Number(e.target.value)) || 1)))} className="h-11 rounded-lg border bg-background px-3 text-base" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">زيارات اليوم حتى
+              <input type="number" min={1} max={100} value={perDay} onChange={(e) => setPerDay(Math.min(100, Math.max(1, Math.round(Number(e.target.value)) || 1)))} className="h-11 rounded-lg border bg-background px-3 text-base" />
+            </label>
+          </div>
+          {planStatus === 'loading' && <Loader2 className="mt-2 size-5 animate-spin text-primary" aria-label="جارٍ تقسيم الأسبوع" />}
+          {planStatus === 'error' && <p role="alert" className="mt-2 text-base text-destructive">تعذر تقسيم الأسبوع.</p>}
+          {planStatus === 'too-many' && <p role="alert" className="mt-2 text-base text-destructive">المنشآت أكثر من {numberFormat.format(WEEK_STOPS_MAX)}. اختر نشاطاً أدق أو مندوبين أكثر.</p>}
+          {plan && planStatus === 'idle' && (
+            <>
+              <ol className="mt-2 space-y-1.5">
+                {plan.days.map((planned, index) => {
+                  const road = day === index && finished ? { meters, seconds } : null
+                  return (
+                    <li key={planned.day}>
+                      <button onClick={() => showDay(index)} aria-pressed={day === index}
+                        className={cn('flex w-full items-center gap-2 rounded-lg border p-2 text-start text-base', day === index ? 'border-primary' : 'hover:border-primary')}>
+                        <span className="size-3.5 shrink-0 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
+                        <span className="font-bold">{names[index] ?? `اليوم ${numberFormat.format(planned.day)}`}</span>
+                        <span className="text-sm text-muted-foreground">{numberFormat.format(planned.count)} زيارة</span>
+                        <span className="ms-auto shrink-0 text-sm">
+                          {day === index && !finished && !routeError
+                            ? <Loader2 className="size-4 animate-spin text-primary" aria-label="جارٍ حساب مسار اليوم" />
+                            : road
+                            ? <>على الطرق: {km(road.meters)} · {duration(road.seconds)}</>
+                            : <Explained title={`خطة ${names[index] ?? 'اليوم'}`} lines={EXPLAIN.weeklyPlan(plan.detour, plan.speed_kmh)}>تقدير: {km(planned.meters_estimate)} · {duration(planned.seconds_estimate)}</Explained>}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+              {day != null && routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
+              {plan.unplanned.length > 0 && (
+                <p className="mt-2 text-base"><strong>{numberFormat.format(plan.unplanned.length)}</strong> منشأة لا تتسع لها خطة هذا الأسبوع</p>
+              )}
+            </>
+          )}
+        </Step>
+      )}
+
       {customers && customers.length > 0 && start && (
-        <Step n={5} title="مسار الزيارة" done={finished}>
-          <button onClick={route} disabled={progress != null && !finished && !routeError} className="h-11 w-full rounded-lg bg-primary text-base font-semibold text-primary-foreground disabled:opacity-60">
-            {progress && !finished && !routeError ? `جارٍ الحساب: ${numberFormat.format(progress.done)} من ${numberFormat.format(progress.total)}` : finished ? 'أعد حساب المسار' : `احسب المسار لـ ${numberFormat.format(customers.length)} محطة`}
+        <Step n={6} title="مسار الزيارة" done={finished && day == null}>
+          <button onClick={() => route()} disabled={day == null && progress != null && !finished && !routeError} className="h-11 w-full rounded-lg bg-primary text-base font-semibold text-primary-foreground disabled:opacity-60">
+            {day == null && progress && !finished && !routeError ? `جارٍ الحساب: ${numberFormat.format(progress.done)} من ${numberFormat.format(progress.total)}` : finished && day == null ? 'أعد حساب المسار' : `احسب المسار لـ ${numberFormat.format(customers.length)} محطة`}
           </button>
-          {progress && !finished && !routeError && (
+          {day == null && progress && !finished && !routeError && (
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(100 * progress.done) / Math.max(1, progress.total)}%` }} /></div>
           )}
-          {routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
-          {solved.length > 0 && (
+          {day == null && routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
+          {day == null && solved.length > 0 && (
             <>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المحطات</p><p className="text-lg font-bold">{numberFormat.format(order.length)}</p></div>
