@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
+import { ChevronDown, ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
+import { BusinessDetail } from './business-detail'
 import { useAppStore } from '@/lib/store'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,8 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState('')
+  // the poi_key of the business whose directory details are expanded, or null
+  const [openId, setOpenId] = useState<string | null>(null)
   const key = districts.join('|')
 
   useEffect(() => { setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle') }, [key, city])
@@ -119,13 +122,15 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           <ul className="max-h-80 divide-y overflow-y-auto text-base">
             {shown.map((row) => (
               <li key={row.id}>
-                <label className="flex cursor-pointer items-center gap-2 py-2">
-                  <input type="checkbox" checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />
-                  <span className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 py-2">
+                  <input type="checkbox" aria-label={`اختيار ${row.name}`} checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />
+                  <button type="button" onClick={() => setOpenId(openId === row.id ? null : row.id)} aria-expanded={openId === row.id} className="min-w-0 flex-1 text-start">
                     <span className="block truncate font-medium">{row.name}</span>
                     <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>
-                  </span>
-                </label>
+                  </button>
+                  <ChevronDown aria-hidden className={cn('size-4 shrink-0 text-muted-foreground transition-transform', openId === row.id && 'rotate-180')} />
+                </div>
+                {openId === row.id && <BusinessDetail row={row} />}
               </li>
             ))}
           </ul>
