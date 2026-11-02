@@ -64,6 +64,23 @@ def _validate_provenance(value: object) -> dict:
     return value
 
 
+def _quality(path: Path | None) -> dict | None:
+    """The release quality gate (services/data-cleaning/quality_gate.py): a PASS verdict is recorded in the manifest,
+    a FAIL refuses the release. Counts only — no record content."""
+    if path is None:
+        return None
+    try:
+        gate = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("invalid quality gate JSON") from error
+    if not isinstance(gate, dict) or gate.get("gate") not in ("PASS", "FAIL"):
+        raise ValueError("quality gate JSON needs a gate verdict (PASS or FAIL)")
+    if gate["gate"] != "PASS":
+        reasons = "; ".join(str(r) for r in gate.get("reasons", [])) or "no reason given"
+        raise ValueError(f"quality gate failed: {reasons}")
+    return {key: gate.get(key) for key in ("version", "gate", "absolute", "ratchet", "baseline_used", "max_rise_pct", "validator")}
+
+
 def _provenance(path: Path) -> dict:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -72,10 +89,12 @@ def _provenance(path: Path) -> dict:
     return _validate_provenance(value)
 
 
-def stage_release(output_dir: Path, sources: dict[str, Path], provenance: dict) -> dict:
+def stage_release(output_dir: Path, sources: dict[str, Path], provenance: dict, quality: dict | None = None) -> dict:
     """Copy explicit assets into a new directory, validate them, and return its manifest."""
     output_dir = output_dir.expanduser().resolve()
     provenance = _validate_provenance(provenance)
+    if quality is not None and quality.get("gate") != "PASS":
+        raise ValueError("quality gate failed")
     if output_dir.exists():
         raise ValueError("release output already exists; use a new release directory")
     output_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +108,7 @@ def stage_release(output_dir: Path, sources: dict[str, Path], provenance: dict) 
             shutil.copy2(source, destination)
         report = validate_release(staged)
         report["provenance"] = provenance
+        report["quality"] = quality
         (staged / "release.manifest.json").write_text(
             json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
@@ -101,9 +121,10 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="new release directory; it must not already exist")
     parser.add_argument("--source", action="append", default=[], metavar="ASSET=PATH", help="repeat once for every required asset")
     parser.add_argument("--provenance", type=Path, required=True, help="JSON documenting each source's id, license, and extraction time")
+    parser.add_argument("--quality-gate", type=Path, help="*_gate.json from services/data-cleaning/quality_gate.py; a FAIL refuses the release")
     args = parser.parse_args()
     try:
-        report = stage_release(args.output, _sources(args.source), _provenance(args.provenance))
+        report = stage_release(args.output, _sources(args.source), _provenance(args.provenance), _quality(args.quality_gate))
     except ValueError as error:
         print(json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))
         return 2
