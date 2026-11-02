@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
@@ -10,15 +10,17 @@ import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
 import { MapWindow } from '@/components/shared/map-window'
+import { ListingFace } from '@/components/shared/listing-face'
 
 const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-warning' } as const
 
-/** Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out. */
-export function Gallery({ photos, className = 'h-40' }: { photos: string[]; className?: string }) {
+/** Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out, and
+ * when none is left the fallback (a ListingFace) takes the slot instead of an empty grey box. */
+export function Gallery({ photos, className = 'h-40', fallback = null }: { photos: string[]; className?: string; fallback?: ReactNode }) {
   const [broken, setBroken] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<number | null>(null)
   const shown = [...new Set(photos)].filter((photo) => !broken.has(photo))
-  if (!shown.length) return null
+  if (!shown.length) return <>{fallback}</>
   return (
     <div className="relative">
       <div className={cn('flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)} dir="ltr">
@@ -121,7 +123,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
 
   return (
     <MapWindow label="العرض المختار" onClose={onClose} tab={tab} className={className}>
-      <Gallery photos={photos} />
+      <Gallery photos={photos} fallback={<ListingFace size="band" type={listing.type} url={listing.url} facts={[listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null]} />} />
       <div className="flex flex-col gap-1.5 p-3">
         <p className="text-sm text-muted-foreground">
           {typeLabel(listing.type)} {listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''}{listing.district_ar ? ` · ${listing.district_ar}` : ''}
@@ -169,6 +171,12 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
         {listing.has_phone && <ListingPhone key={listing.id} id={listing.id} />}
+        {/* with the number on file the main button asks for it, and the ad itself stays one tap away */}
+        {listing.has_phone && listing.url && (
+          <a href={listing.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary/5">
+            <ExternalLink className="size-4" aria-hidden /> شاهد الإعلان<span className="sr-only">، يفتح في نافذة جديدة</span>
+          </a>
+        )}
         {(onCompare || (!listing.has_phone && listing.url)) && (
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             {listing.has_phone ? null : listing.url ? (

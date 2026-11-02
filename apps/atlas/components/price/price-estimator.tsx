@@ -5,11 +5,12 @@ import { Calculator, ExternalLink, Loader2, Pencil, SearchX } from 'lucide-react
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
+import { ListingFace } from '@/components/shared/listing-face'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
-import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
 import { SHOW_LISTING_PHOTOS, typeLabel } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 
@@ -77,6 +78,8 @@ export function PriceEstimator() {
   const answer = useRef<HTMLElement>(null)
   const questions = useRef<HTMLElement>(null)
   const [allExamples, setAllExamples] = useState(false)
+  // a comparable whose photo fails to load shows its type's face instead of a broken image
+  const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set())
   // on a phone the answer sits under the questions: bring it into view once it arrives
   useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }) }, [result])
 
@@ -194,7 +197,7 @@ export function PriceEstimator() {
                     ? `من ${numberFormat.format(result.comparables)} عرضاً حالياً من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).`
                     : 'من العروض الحالية من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).',
                   'المدى هو الربع الأدنى والأعلى من سعر المتر في هذه العروض، والوسط وسيطها، مضروبة في مساحتك.',
-                  'ثم نعدّل للفروق التي ثبت أثرها في نموذج عروض شمال الرياض: العمر، وعدد الشوارع، وعرض الشارع، والتأثيث. حقول مثل المكيفات والحوش وغرفة العاملة لا تدخل لأن عقار لا يعبئها بانتظام.',
+                  'ثم نعدّل للفروق التي ثبت أثرها في نموذج عروض شمال الرياض: العمر، وعدد الشوارع، وعرض الشارع، والتأثيث. حقول مثل المكيفات والحوش وغرفة العاملة لا تدخل لأن الإعلانات لا تذكرها بانتظام.',
                   'أسعار معروضة لا عقود، والعقود عادة أقل بنحو 5–10%.',
                 ]} className="text-sm">
                   {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'}{result.scope?.some((s) => s.district_ar) ? ` في ${result.scope.map((s) => s.district_ar).filter(Boolean).join('، ')}` : ''}
@@ -220,14 +223,20 @@ export function PriceEstimator() {
                 <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {result.examples.map((item, index) => (
                     <li key={item.id} className={cn(!allExamples && index >= PHONE_EXAMPLES && 'max-sm:hidden')}>
-                      <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {SHOW_LISTING_PHOTOS && item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
+                      {/* the photo (or, without one, the type's face) and its figures; the ad one tap away under them */}
+                      <div className="flex flex-col gap-1">
+                        {SHOW_LISTING_PHOTOS && item.photo && !brokenPhotos.has(item.photo) ? (
+                          <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden className="block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={item.photo} alt="" loading="lazy" decoding="async" onError={() => setBrokenPhotos((current) => new Set(current).add(item.photo!))} className="aspect-square w-full rounded-xl object-cover" />
+                          </a>
+                        ) : <ListingFace size="tile" type={item.type} className="aspect-square rounded-xl" />}
                         <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
-                        <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.district_ar].filter(Boolean).join(' · ')}</span>
-                        {/* always shown on touch screens, where there is no hover to reveal it */}
-                        {item.url && <span className="inline-flex items-center gap-1 text-xs text-primary transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:opacity-100"><ExternalLink className="size-3" aria-hidden />في عقار<span className="sr-only">، يفتح في نافذة جديدة</span></span>}
-                      </a>
+                        <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.beds ? counted(item.beds, 'room') : null, item.district_ar].filter(Boolean).join(' · ')}</span>
+                        {item.url
+                          ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 rounded text-xs font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-9"><ExternalLink className="size-3" aria-hidden />شاهد الإعلان<span className="sr-only">، يفتح في نافذة جديدة</span></a>
+                          : <span className="text-xs text-muted-foreground">الإعلان غير متاح</span>}
+                      </div>
                     </li>
                   ))}
                 </ul>
