@@ -81,7 +81,8 @@ function ListingPhone({ id }: { id: string }) {
 export function ListingCard({ listing, comparing, onCompare, compareCount = 0, onCompareNow, onClose, myPoint = null, density = null, className }: {
   listing: Listing
   comparing: boolean
-  onCompare: () => void
+  /** Absent where there is no comparison (a street's units): the card then has no compare button. */
+  onCompare?: () => void
   /** How many listings are in the comparison, this one included or not. */
   compareCount?: number
   /** Opens the comparison of the two listings in it. */
@@ -168,18 +169,22 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
         {listing.has_phone && <ListingPhone key={listing.id} id={listing.id} />}
-        <div className="mt-1 grid grid-cols-2 gap-1.5">
-          {listing.has_phone ? null : listing.url ? (
-            <a href={listing.url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
-              <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
-            </a>
-          ) : <span />}
-          <button onClick={onCompare} aria-pressed={comparing}
-            className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
-            {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
-          </button>
-        </div>
+        {(onCompare || (!listing.has_phone && listing.url)) && (
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
+            {listing.has_phone ? null : listing.url ? (
+              <a href={listing.url} target="_blank" rel="noopener noreferrer"
+                className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground', !onCompare && 'col-span-2')}>
+                <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
+              </a>
+            ) : onCompare ? <span /> : null}
+            {onCompare && (
+              <button onClick={onCompare} aria-pressed={comparing}
+                className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
+                {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
+              </button>
+            )}
+          </div>
+        )}
         {/* what adding did, said where it was tapped: one more to pick, or the comparison ready to open */}
         {comparing && compareCount < 2 && (
           <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">أُضيف للمقارنة. افتح عقاراً ثانياً من الخريطة أو القائمة وأضفه.</p>
