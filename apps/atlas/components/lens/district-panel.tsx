@@ -63,13 +63,16 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const [profile, setProfile] = useState<Profile | null>(null)
   const single = selected.length === 1 ? selected[0] : null
 
+  // keyed by the district's name, not its row: a fresh copy of the same row (the city's tables answering again) kept
+  // blanking the profile and asking for it once more
+  const singleName = single?.name ?? null
   useEffect(() => {
     setProfile(null)
-    if (!single) return
+    if (!singleName) return
     let active = true
-    postMarket<Profile>('district-profile', { city, district: single.name }).then((data) => { if (active) setProfile(data) }).catch(() => undefined)
+    postMarket<Profile>('district-profile', { city, district: singleName }).then((data) => { if (active) setProfile(data) }).catch(() => undefined)
     return () => { active = false }
-  }, [city, single])
+  }, [city, singleName])
 
   const scope = selected.length ? selected : rows
   // a total over several districts covers those that have the figure, and says so when that is not all of them
