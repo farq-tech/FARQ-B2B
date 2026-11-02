@@ -71,7 +71,7 @@ export function PriceEstimator() {
   const [result, setResult] = useState<Estimate | 'loading' | 'error' | null>(null)
   const answer = useRef<HTMLElement>(null)
   // on a phone the answer sits under the questions: bring it into view once it arrives
-  useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [result])
+  useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }) }, [result])
 
   useEffect(() => {
     let live = true
