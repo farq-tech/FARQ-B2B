@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ResultRow, ResultRowsSkeleton } from '../result-row'
+import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { ListingCard } from '../listing-card'
 import { cn } from '@/lib/utils'
@@ -188,33 +188,31 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
 
 /** «محلات متاحة على هذا الشارع»: the shops, showrooms and offices offered now within 60 m of the picked street. */
 function StreetUnits({ street, units, onOpen }: { street: string; units: Units; onOpen: (unit: Unit) => void }) {
+  const [limit, showMore] = useShowMore(UNITS_SHOWN, street)
   return (
     <div className="flex flex-col gap-2 rounded-xl border bg-background p-3">
       <div className="flex items-baseline justify-between gap-2">
         <Explained title={`محلات متاحة على ${street}`} lines={EXPLAIN.streetListings} className="text-base font-semibold">محلات متاحة على هذا الشارع</Explained>
         {units.status === 'ready' && units.available && units.total > 0 && <span className="shrink-0 font-bold text-primary">{numberFormat.format(units.total)}</span>}
       </div>
-      {units.status === 'loading' && <Loader2 className="size-5 animate-spin text-muted-foreground" aria-label="جارٍ البحث" />}
+      {units.status === 'loading' && <ResultRowsSkeleton label="جارٍ البحث عن الوحدات" rows={3} sub />}
       {units.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر جلب الوحدات المعروضة.</p>}
       {units.status === 'ready' && !units.available && <p className="text-sm text-muted-foreground">غير متاح</p>}
       {units.status === 'ready' && units.available && !units.total && <p className="text-sm text-muted-foreground">لا توجد وحدات معروضة الآن على هذا الشارع</p>}
       {units.status === 'ready' && units.total > 0 && (
-        <ul className="divide-y text-sm">
-          {units.listings.slice(0, UNITS_SHOWN).map((item) => (
-            <li key={item.id}>
-              <button onClick={() => onOpen(item)} className="flex w-full items-start justify-between gap-2 py-2 text-start hover:text-primary">
-                <span className="min-w-0">
-                  <span className="block font-medium">{typeLabel(item.type)}{item.kind === 'sale' ? ' للبيع' : item.kind === 'rent' ? ' للإيجار' : ''}</span>
-                  <span className="block truncate text-muted-foreground">
-                    {item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير مذكورة'}
-                    {item.distance_m != null ? ` · ${numberFormat.format(item.distance_m)} م من الشارع` : ''}
-                  </span>
-                </span>
-                <span className="shrink-0 text-end font-semibold">{priceLine(item)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ol className="divide-y text-base">
+            {units.listings.slice(0, limit).map((item) => (
+              <ResultRow key={item.id} onClick={() => onOpen(item)}
+                title={`${typeLabel(item.type)}${item.kind === 'sale' ? ' للبيع' : item.kind === 'rent' ? ' للإيجار' : ''}`}
+                sub={`${item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير متاحة'}${item.distance_m != null ? ` · ${formatDistance(item.distance_m)} من الشارع` : ''}`}
+                value={<span className="text-sm">{priceLine(item)}</span>} />
+            ))}
+          </ol>
+          {/* the service names up to 200; the count above is its total, so «more» stops at what it named */}
+          <MoreRows shown={Math.min(limit, units.listings.length)} total={units.total} noun="listing"
+            canMore={limit < units.listings.length} onMore={showMore} />
+        </>
       )}
     </div>
   )
