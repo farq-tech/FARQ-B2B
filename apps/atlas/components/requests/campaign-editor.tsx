@@ -82,7 +82,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
         <h2 id="tpl-title" className="font-semibold">
           نص الرسالة
         </h2>
-        <p className="text-xs text-muted-foreground">يُرسل هذا النص داخل قالب واتساب السحابي المعتمد، مع اسم المنشأة.</p>
+        <p className="text-xs text-muted-foreground">يُرسل هذا النص عبر واتساب في رسالة معتمدة، مع اسم المنشأة.</p>
         <div role="radiogroup" aria-label="القوالب" className="grid gap-2 sm:grid-cols-2">
           {TEMPLATES.map((t) => {
             const approved = t.approval === 'معتمد'
@@ -163,7 +163,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               المستلمون ومراجعة الأهلية
             </h2>
             <p className="text-xs text-muted-foreground">
-              المؤهلون للإرسال السحابي: {numberFormat.format(value.included.length)} من {numberFormat.format(businessIds.length)}. نستبعد من لا يملك رقم واتساب.
+              المؤهلون للإرسال عبر واتساب: {numberFormat.format(value.included.length)} من {numberFormat.format(businessIds.length)}. نستبعد من لا يملك رقم واتساب.
             </p>
           </div>
           <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />

@@ -117,7 +117,7 @@ export function RequestDetailView({ id }: { id: string }) {
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
+          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال عبر واتساب' : undefined} />
           {NEXT_STEP[request.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[request.status]}</p>}
         </div>
       </header>
@@ -243,7 +243,7 @@ export function RequestDetailView({ id }: { id: string }) {
         description={
           request.type === 'rfq'
             ? 'تأكد من التفاصيل قبل الاعتماد. بعدها يصبح الطلب جاهزاً للمشاركة اليدوية؛ لن يرسل أطلس طلباً تلقائياً.'
-            : 'لن تُرسل أي رسالة تلقائياً. بعد الاعتماد تصبح الحملة جاهزة، ثم يبدأ الإرسال السحابي بتأكيدك.'
+            : 'لن تُرسل أي رسالة تلقائياً. بعد الاعتماد تصبح الحملة جاهزة، ثم يبدأ الإرسال عبر واتساب بتأكيدك.'
         }
         footer={
           <>
@@ -261,11 +261,11 @@ export function RequestDetailView({ id }: { id: string }) {
                 if (request.type === 'rfq') {
                   toast.success('طلب التسعير جاهز للمشاركة اليدوية', { description: 'لم يُرسل أي شيء. شاركه بالطريقة التي تختارها ثم تابع الردود في الوارد.' })
                 } else {
-                  toast.success('الحملة جاهزة للإرسال السحابي', { description: 'لن يبدأ الإرسال إلا بعد ضغط زر الإرسال وتأكيده.' })
+                  toast.success('الحملة جاهزة للإرسال عبر واتساب', { description: 'لن يبدأ الإرسال إلا بعد ضغط زر الإرسال وتأكيده.' })
                 }
               }}
             >
-              {request.type === 'rfq' ? 'اعتماد كجاهز للمشاركة اليدوية' : 'اعتماد كجاهزة للإرسال السحابي'}
+              {request.type === 'rfq' ? 'اعتماد كجاهز للمشاركة اليدوية' : 'اعتماد كجاهزة للإرسال عبر واتساب'}
             </Button>
           </>
         }
@@ -334,7 +334,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [cloudReady, setCloudReady] = useState<boolean | null>(null)
-  const [cloudStatus, setCloudStatus] = useState('جارٍ التحقق من القالب...')
+  const [cloudStatus, setCloudStatus] = useState('جارٍ التحقق من جاهزية الإرسال...')
   const campaign = request.campaign
   if (!campaign) return null
   const t = TEMPLATES.find((x) => x.id === campaign.templateId)
@@ -358,23 +358,23 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   const refreshCloudStatus = useCallback(async () => {
     const check = ++statusCheck.current
     setCloudReady(null)
-    setCloudStatus('جارٍ التحقق من القالب...')
+    setCloudStatus('جارٍ التحقق من جاهزية الإرسال...')
     try {
       const response = await fetch('/api/campaign/send', { cache: 'no-store' })
       const result = await response.json().catch(() => null) as { ready?: boolean; status?: string; error?: string } | null
       if (check !== statusCheck.current) return
       setCloudReady(response.ok && result?.ready === true)
-      setCloudStatus(response.ok ? `قالب WhatsApp Cloud: ${result?.status ?? 'غير متاح'}` : result?.error ?? 'تعذر التحقق من الإعداد')
+      setCloudStatus(response.ok ? (result?.ready === true ? 'رسالة واتساب معتمدة وجاهزة للإرسال' : 'رسالة واتساب غير معتمدة بعد، فالإرسال متوقف') : 'تعذر التحقق من جاهزية الإرسال عبر واتساب')
     } catch {
       if (check !== statusCheck.current) return
       setCloudReady(false)
-      setCloudStatus('تعذر الاتصال بخدمة الإرسال السحابي')
+      setCloudStatus('تعذر الاتصال بخدمة الإرسال عبر واتساب')
     }
   }, [])
   useEffect(() => { void refreshCloudStatus() }, [refreshCloudStatus])
   const send = async () => {
     if (!currentBatch.length || !text || sendingId || cloudReady !== true) return
-    if (!window.confirm(`سيُرسل أطلس رسالة واتساب سحابية إلى ${numberFormat.format(currentBatch.length)} جهة الآن باستخدام القالب المعتمد farq_outreach_ar. هل تريد المتابعة؟`)) return
+    if (!window.confirm(`سيُرسل أطلس رسالة واتساب إلى ${numberFormat.format(currentBatch.length)} جهة الآن. هل تريد المتابعة؟`)) return
     setError('')
     const nextDelivery = { ...delivery }
     for (const id of currentBatch) {
@@ -390,7 +390,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
         else if (response.status >= 500) nextDelivery[id] = 'unknown'
         else {
           nextDelivery[id] = 'failed'
-          setError(result?.error || 'تعذر إرسال بعض الرسائل؛ راجع النتائج قبل إعادة المحاولة.')
+          setError('تعذر إرسال بعض الرسائل؛ راجع النتائج قبل إعادة المحاولة.')
         }
       } catch {
         // A lost response does not prove that Meta rejected the message; do not offer an automatic retry.
@@ -409,10 +409,10 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
         <Send className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
         <div className="flex flex-col gap-1">
           <h2 id="cloud-send-title" className="font-semibold">
-            إرسال واتساب سحابي
+            إرسال عبر واتساب
           </h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            {request.reviewedAt ? `اعتمدت الحملة في ${formatDateTime(request.reviewedAt)}. ` : ''}الإرسال يتم عبر WhatsApp Cloud API بعد تأكيدك أدناه. كل دفعة ترسل حتى 100 جهة، ولا يبدأ إرسال الدفعة التالية تلقائياً.
+            {request.reviewedAt ? `اعتمدت الحملة في ${formatDateTime(request.reviewedAt)}. ` : ''}الإرسال يتم عبر واتساب بعد تأكيدك أدناه. كل دفعة ترسل حتى 100 جهة، ولا يبدأ إرسال الدفعة التالية تلقائياً.
           </p>
         </div>
       </div>
@@ -428,7 +428,7 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
       <div className="flex flex-wrap gap-2">
         <Button onClick={send} disabled={Boolean(sendingId) || cloudReady !== true || !unsentIds.length || !text}>
           {sendingId ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}
-          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'التحقق من القالب...' : cloudReady ? `إرسال ${numberFormat.format(currentBatch.length)} سحابيًا${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال السحابي غير جاهز'}
+          {sendingId ? `جارٍ الإرسال (${liveById.get(sendingId)?.name ?? 'جهة'})` : sentCount === eligibleIds.length && eligibleIds.length ? 'اكتمل الإرسال' : cloudReady === null ? 'جارٍ التحقق...' : cloudReady ? `إرسال ${numberFormat.format(currentBatch.length)} عبر واتساب${failedCount ? ' (مع إعادة الفاشل)' : ''}` : 'الإرسال عبر واتساب غير جاهز'}
         </Button>
         <Button variant="ghost" onClick={onBackToDraft} disabled={Boolean(sendingId) || hasDeliveryHistory}>
           إعادة إلى مسودة للتعديل
