@@ -232,7 +232,9 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
                   )
                 })}
               </ol>
-              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing" onMore={showMore} />
+              {/* the list ranks the listings on the map, which can be fewer than the service's total above it */}
+              <MoreRows lead={nearest && myPoint ? 'أقرب' : 'أنسب'} shown={shown.length} total={ordered.length} noun="listing"
+                suffix={result.total != null && result.total > ordered.length ? ' على الخريطة' : ''} onMore={showMore} />
             </div>
           )}
         </>
