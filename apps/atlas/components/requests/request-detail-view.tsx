@@ -3,7 +3,7 @@
 import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
@@ -346,15 +346,20 @@ function CloudSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   const unlinkedCount = campaign.included.length - eligibleIds.length
   const hasDeliveryHistory = Object.keys(delivery).length > 0
   const currentBatch = unsentIds.slice(0, sendBatchSize)
+  // «إعادة التحقق» can be pressed again before the first check answers: only the latest check may set the status
+  const statusCheck = useRef(0)
   const refreshCloudStatus = useCallback(async () => {
+    const check = ++statusCheck.current
     setCloudReady(null)
     setCloudStatus('جارٍ التحقق من القالب...')
     try {
       const response = await fetch('/api/campaign/send', { cache: 'no-store' })
       const result = await response.json().catch(() => null) as { ready?: boolean; status?: string; error?: string } | null
+      if (check !== statusCheck.current) return
       setCloudReady(response.ok && result?.ready === true)
       setCloudStatus(response.ok ? `قالب WhatsApp Cloud: ${result?.status ?? 'غير متاح'}` : result?.error ?? 'تعذر التحقق من الإعداد')
     } catch {
+      if (check !== statusCheck.current) return
       setCloudReady(false)
       setCloudStatus('تعذر الاتصال بخدمة الإرسال السحابي')
     }

@@ -87,14 +87,19 @@ export function PriceEstimator() {
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
   const key = JSON.stringify([city, district, deal, kind, areaNumber, age, streets, width, furnished])
+  // each «احسب» numbers its request; an answer that comes back after a newer one was asked is dropped, so a slow
+  // first estimate can never replace the price of the answers on screen
+  const sequence = useRef(0)
   const run = () => {
     if (!ready) return
+    const ask = ++sequence.current
     setAsked({ key, kind, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
     setResult('loading')
     postMarket<Estimate>('price-estimate', {
       city, district_id: district, deal, type: kind, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
-    }).then(setResult).catch(() => setResult('error'))
+    }).then((estimate) => { if (ask === sequence.current) setResult(estimate) })
+      .catch(() => { if (ask === sequence.current) setResult('error') })
   }
   const stale = asked != null && asked.key !== key && result !== 'loading'
 
