@@ -14,6 +14,7 @@ import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { useMainActivities } from '@/lib/main-activities'
+import { weekSummary } from './tool-answers'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Customer = Stop & { name: string; district_ar: string }
@@ -186,7 +187,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   // the step's answer in one line for the peeking sheet: the route once solved, else the rep's customers, else the split
   const visits = plan ? plan.days.reduce((sum, planned) => sum + planned.count, 0) : 0
   const summary = finished ? `${day != null ? `مسار ${names[day] ?? 'اليوم'}` : 'المسار'}: ${numberFormat.format(order.length)} محطة · ${km(meters)} · ${duration(seconds)}`
-    : plan && planStatus === 'idle' ? `خطة الأسبوع: ${numberFormat.format(visits)} زيارة على ${plan.days.length === 1 ? 'يوم واحد' : plan.days.length === 2 ? 'يومين' : `${numberFormat.format(plan.days.length)} أيام`}`
+    : plan && planStatus === 'idle' ? weekSummary(visits, plan.days.length)
     : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
       : groups && status !== 'loading' ? `${numberFormat.format(groups.length)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
         : null

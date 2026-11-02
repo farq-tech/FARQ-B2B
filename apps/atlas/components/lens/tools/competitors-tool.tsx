@@ -17,6 +17,7 @@ import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
+import { competitorsSummary, densestDistrict } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
 
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
@@ -134,8 +135,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     }
     if (!table.length) { onOverlay({}); return }
     // the city's count as the service gives it, and the district where the activity is densest per km²
-    const densest = table.reduce<Row | null>((top, item) => (item.perKm2 != null && item.competitors > 0 && (top?.perKm2 == null || item.perKm2 > top.perKm2) ? item : top), null)
-    const summary = `${cityTotal == null ? `عدد منشآت «${studied.label}» غير متاح` : `${numberFormat.format(cityTotal)} منشأة «${studied.label}» في المدينة`}${densest ? ` · الأكثر تنافساً: ${densest.row.name}` : ''}`
+    const densest = densestDistrict(table)
+    const summary = competitorsSummary(cityTotal, studied.label, densest)
     const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {

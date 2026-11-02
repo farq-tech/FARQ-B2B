@@ -16,6 +16,7 @@ import { useStickyState, type StudiedActivity } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
+import { comparePairs } from './tool-answers'
 
 type Count = { district_ar: string; n: number }
 type Rival = { status: 'loading' } | { status: 'error' } | { status: 'ready'; counts: Count[]; total: number | null; understood: Understanding }
@@ -53,16 +54,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
     return () => { live = false }
   }, [city, rival])
 
-  const pairs = useMemo(() => {
-    if (answer?.status !== 'ready') return []
-    const a = new Map(firstCounts.map((count) => [count.district_ar, count.n]))
-    const b = new Map(answer.counts.map((count) => [count.district_ar, count.n]))
-    // district-counts lists the districts that have the activity; a district it leaves out has none of it
-    return rows
-      .map((row) => ({ row, a: a.get(row.name) ?? 0, b: b.get(row.name) ?? 0 }))
-      .filter((item) => item.a > 0 || item.b > 0)
-      .sort((x, y) => (order === 'gap' ? (y.a - y.b) - (x.a - x.b) || y.a - x.a : y.a - x.a || y.b - x.b))
-  }, [answer, firstCounts, rows, order])
+  const pairs = useMemo(() => (answer?.status === 'ready' ? comparePairs(rows, firstCounts, answer.counts, order) : []), [answer, firstCounts, rows, order])
   const [limit, showMore] = useShowMore(15, `${city}|${first.q ?? first.main_id}|${rival?.q ?? rival?.main_id}|${order}`)
 
   const pick = (next: StudiedActivity) => { setRival(next); setOpen(false); setQuery('') }
