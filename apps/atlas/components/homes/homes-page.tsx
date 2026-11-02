@@ -202,17 +202,30 @@ export function HomesPage() {
             </ul>
           )}
           {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
-          {result.status === 'ready' && !result.available && <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد. جرّب الرياض أو جدة.`} />}
+          {result.status === 'ready' && !result.available && (
+            <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد.`}
+              action={city !== 'Riyadh' ? <Chip onClick={() => setCity('Riyadh')}>اعرض عروض الرياض</Chip> : undefined} />
+          )}
+          {/* an empty list says which of the three narrowings emptied it, and offers the one step that undoes it */}
           {result.status === 'ready' && result.available && visible.length === 0 && (
-            <EmptyState icon={SearchX} title="لا عروض بهذه الشروط" body="جرّب مدة أخرى، أو أزل بعض الفلاتر، أو حرّك الخريطة."
-              action={(
-                <div className="flex flex-wrap justify-center gap-2">
-                  {kind === 'rent' && RENT_DEALS.filter((item) => item.id !== filters.rentDeal).map((item) => (
-                    <Chip key={item.id} onClick={() => change({ rentDeal: item.id })}>إيجار {item.label}</Chip>
-                  ))}
-                  {applied.length > 0 && <Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>}
-                </div>
-              )} />
+            filtered.length > 0 ? (
+              <EmptyState icon={MapIcon} title="لا عروض في ما تُظهره الخريطة" body={`حرّك الخريطة أو صغّرها، أو اعرض كل عروض ${cityAr}.`}
+                action={<Chip onClick={() => setInView(false)}>اعرض كل عروض {cityAr}</Chip>} />
+            ) : result.listings.length > 0 ? (
+              <EmptyState icon={SearchX} title="لا عروض بهذه الفلاتر" body={`في ${cityAr} ${offersLabel(result.listings.length)} بهذه الصفقة والنوع، والفلاتر المطبقة تستبعدها كلها.`}
+                action={<Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>} />
+            ) : (
+              <EmptyState icon={SearchX} title="لا عروض حالية من هذا النوع"
+                body={kind === 'rent' ? 'جرّب مدة إيجار أخرى أو نوعاً آخر من الأعلى.' : 'جرّب نوعاً آخر من الأعلى.'}
+                action={(
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {kind === 'rent' && RENT_DEALS.filter((item) => item.id !== filters.rentDeal).map((item) => (
+                      <Chip key={item.id} onClick={() => change({ rentDeal: item.id })}>إيجار {item.label}</Chip>
+                    ))}
+                    {filters.districts.length > 0 && <Chip onClick={() => change({ districts: [] })}>كل الأحياء</Chip>}
+                  </div>
+                )} />
+            )
           )}
           <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
             {visible.slice(0, shown).map((listing) => {
