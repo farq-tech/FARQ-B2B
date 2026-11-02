@@ -9,12 +9,20 @@ from collections import Counter
 import threading
 import math
 
+import classification_layer
 import taxonomy_search
 
 
 DATA_DIR = os.environ.get("FARQ_TARGETING_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
 DATA = os.path.join(DATA_DIR, "targets.parquet")
 POI_TAXONOMY = os.path.join(DATA_DIR, "poi_taxonomy.parquet")
+
+
+def taxonomy_path():
+    """The row-level classification the figures read: the AI layer when FARQ_AI_CLASSIFICATION is on and built,
+    else the release file (classification_layer.served_taxonomy)."""
+    return classification_layer.served_taxonomy(POI_TAXONOMY)
+
 STREET_DENSITY = os.path.join(DATA_DIR, "street_density.parquet")
 
 MAX_SUB_IDS = 50
@@ -76,6 +84,11 @@ CORE_FILLER = GENERIC_BRAND_KEYS | frozenset({
     "سياحه", "سفر", "السياحه", "السفر", "للسياحه", "للسفر", "والسفر", "والسياحه", "وسفر", "وسياحه", "سياحيه", "السياحيه",
     "اسفار", "للاسفار", "رحلات", "للرحلات", "وكاله", "وكالات", "للوكاله", "لرحلات",
     "travel", "travels", "tourism", "tour", "tours", "tourist", "touristic", "agency", "agencies", "holiday", "holidays", "trips",
+    # generic qualifiers and description words that attach to many names and are no brand on their own: they merged
+    # «زوفر/سكاي/إيدر international» and description-as-name phrases («شركة متخصصة في مجال … تقدم خدمات …») into one
+    "international", "intl", "عالميه", "العالميه", "الدوليه", "دوليه", "global", "worldwide", "national", "الوطنيه", "وطنيه",
+    "company", "companies", "corporation", "enterprise", "services", "service", "خدمات", "الخدمات", "للخدمات", "خدماتها",
+    "متخصصه", "متخصص", "المتخصصه", "مجال", "المجال", "تقدم", "متنوعه", "متنوعة", "largest", "leading", "best", "premium",
 })
 
 # Words that mark a registered company's own name: one that ends in a brand it runs is that brand
@@ -411,11 +424,17 @@ class MarketAnalytics:
         if empty_match:
             clauses.append("false")
         elif subs:
-            clauses.append(
-                "exists (select 1 from read_parquet(?) c where c.poi_key = p.poi_key "
-                "and c.confidence in ('high', 'medium') and c.sub_id in (select unnest(?::varchar[])))"
-            )
-            params.extend([POI_TAXONOMY, subs])
+            by_sub = ("exists (select 1 from read_parquet(?) c where c.poi_key = p.poi_key "
+                      "and c.confidence in ('high', 'medium') and c.sub_id in (select unnest(?::varchar[])))")
+            params.extend([taxonomy_path(), subs])
+            # a picked main activity also counts the businesses whose main is known but not their sub; a typed or
+            # sub activity never does, because their sub is not known (classification_layer)
+            main_only = classification_layer.main_only() if main_id and not q and not sub_ids else None
+            if main_only:
+                by_sub = (f"({by_sub} or exists (select 1 from read_parquet(?) m "
+                          "where m.poi_key = p.poi_key and m.main_id = ?))")
+                params.extend([main_only, main_id])
+            clauses.append(by_sub)
         if districts:
             clauses.append("p.district_ar in (select unnest(?::varchar[]))")
             params.append(districts)
@@ -432,6 +451,33 @@ class MarketAnalytics:
                 clauses.append("list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])")
                 params.append(specialty_ids)
         return city, subs, " and ".join(clauses), params, specialty_available, bounds
+
+    def competitors_within(self, body, geometry, centre=None, limit=8):
+        """The chosen activity's businesses inside a range (site_card): their count, per km² of the range, and the
+        nearest by name. The activity is read exactly as the other figures read it (_where); None without one."""
+        import district_metrics
+        import site_card
+        if not (body.get("q") or body.get("main_id") or body.get("sub_ids")):
+            return None
+        polygons = site_card.insights.canonical_data._polygons(geometry)
+        coords = [p for rings in polygons for ring in rings for p in ring]
+        if not coords:
+            return None
+        west, east = min(p[0] for p in coords), max(p[0] for p in coords)
+        south, north = min(p[1] for p in coords), max(p[1] for p in coords)
+        _, subs, where, params, _, _ = self._where({**body, "bounds": [west, south, east, north]})
+        query = f"""
+            select coalesce(nullif(p.name_ar, ''), p.name_en), p.district_ar, p.longitude, p.latitude
+            from read_parquet(?) p
+            where {where} and coalesce(p.location_precision, 'unknown') = 'point'
+            qualify row_number() over (partition by p.poi_key) = 1
+        """
+        with self.lock:
+            rows = self.db.execute(query, params).fetchall()
+        n, near = site_card.nearest(rows, geometry, centre, limit)
+        area = district_metrics.area_km2(geometry)
+        return {"n": n, "area_km2": round(area, 2) if area else None, "per_km2": district_metrics.per_km2(n, area),
+                "nearest": near, "understood": self._understood(body, subs)}
 
     def district_points(self, body, limit=20000):
         """Located directory businesses in the given districts (and activity), for planning a visit route: id, name,
@@ -578,7 +624,7 @@ class MarketAnalytics:
             pois = [poi for poi, _ in branches]
             subs = self.db.execute(
                 "select sub_id, count(distinct poi_key) from read_parquet(?) where confidence in ('high', 'medium') "
-                "and poi_key in (select unnest(?::varchar[])) group by sub_id", [POI_TAXONOMY, pois]).fetchall() if pois else []
+                "and poi_key in (select unnest(?::varchar[])) group by sub_id", [taxonomy_path(), pois]).fetchall() if pois else []
         mains = Counter()
         known = getattr(self._tx(), "subs", {}) if subs else {}
         for sub_id, n in subs:
@@ -751,7 +797,7 @@ class MarketAnalytics:
                 f"where {self.tiles.search_sql} and p.city_en = ? and p.district_reliable is true "
                 "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null group by 1",
-                [self.data, POI_TAXONOMY, city, districts],
+                [self.data, taxonomy_path(), city, districts],
             ).fetchall()
             # City coverage defines which main activities can be called missing.
             city_activity_rows = self.db.execute(
@@ -761,7 +807,7 @@ class MarketAnalytics:
                 f"where {self.tiles.search_sql} and p.city_en = ? and c.confidence in ('high','medium') "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                 "group by t.main_id",
-                taxonomy_params + [self.data, POI_TAXONOMY, city],
+                taxonomy_params + [self.data, taxonomy_path(), city],
             ).fetchall()
             main_rows = self.db.execute(
                 f"with {taxonomy_cte} select p.district_ar, t.main_id, any_value(t.main_ar), count(distinct p.poi_key) n "
@@ -771,7 +817,7 @@ class MarketAnalytics:
                 "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                 "group by p.district_ar, t.main_id",
-                taxonomy_params + [self.data, POI_TAXONOMY, city, districts],
+                taxonomy_params + [self.data, taxonomy_path(), city, districts],
             ).fetchall()
             sub_rows = self.db.execute(
                 f"with {taxonomy_cte} select p.district_ar, t.main_id, t.sub_id, any_value(t.sub_ar), count(distinct p.poi_key) n "
@@ -781,7 +827,7 @@ class MarketAnalytics:
                 "and c.confidence in ('high','medium') and p.district_ar in (select unnest(?::varchar[])) "
                 "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                 "group by p.district_ar, t.main_id, t.sub_id",
-                taxonomy_params + [self.data, POI_TAXONOMY, city, districts],
+                taxonomy_params + [self.data, taxonomy_path(), city, districts],
             ).fetchall()
 
         city_mains = {mid: {"main_id": mid, "main_ar": label, "n": n} for mid, label, n in city_activity_rows}
@@ -860,7 +906,7 @@ class MarketAnalytics:
         tx = self._tx()
         with self.lock:
             row = self.db.execute(aggregate, params).fetchone()
-            n_specialties = self.db.execute(specialty_sql, [self.data, POI_TAXONOMY] + params[1:]).fetchone()[0]
+            n_specialties = self.db.execute(specialty_sql, [self.data, taxonomy_path()] + params[1:]).fetchone()[0]
             top_districts = self.db.execute(district_sql, params).fetchall()
             activity_rows = []
             if tx is not None:
@@ -882,7 +928,7 @@ class MarketAnalytics:
                         f"where {where} and c.confidence in ('high', 'medium') "
                         "and coalesce(nullif(p.name_ar, ''), p.name_en) is not null "
                         "group by t.main_id order by n desc, t.main_id",
-                        taxonomy_params + [self.data, POI_TAXONOMY] + params[1:],
+                        taxonomy_params + [self.data, taxonomy_path()] + params[1:],
                     ).fetchall()
         # Street lines are aggregated only to subcategory in the current data asset.
         # Do not show one as an exact specialty result.
@@ -1000,7 +1046,7 @@ class MarketAnalytics:
                       and c.sub_id in (select unnest(?::varchar[]))
                     group by c.sub_id
                     """,
-                    [self.data, POI_TAXONOMY, city, ranked],
+                    [self.data, taxonomy_path(), city, ranked],
                 ).fetchall()
             counts = {sub: (n, whatsapp) for sub, n, whatsapp in rows}
         buyers = []
