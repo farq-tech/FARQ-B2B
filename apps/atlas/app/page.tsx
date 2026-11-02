@@ -18,7 +18,8 @@ const benefits = [
 
 export default function AtlasLandingPage() {
   return (
-    <main className="min-h-dvh text-foreground">
+    // banner, main and contentinfo as three landmarks: a screen reader can jump straight to the content or the footer
+    <div className="min-h-dvh text-foreground">
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <BrandMark />
@@ -30,6 +31,7 @@ export default function AtlasLandingPage() {
         </div>
       </header>
 
+      <main>
       <section className="atlas-landing-hero relative overflow-hidden border-b">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:items-center lg:py-24">
           <div>
@@ -71,7 +73,9 @@ export default function AtlasLandingPage() {
 
       <section className="border-t bg-muted/40"><div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8"><h2 className="text-3xl font-bold">ابدأ من هدفك التجاري</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">استكشف السوق وحدد الجهات المناسبة، ثم راجع قرارك قبل تنفيذه.</p><Link href="/map" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">فتح خريطة الفرص <ArrowLeft className="size-4" aria-hidden /></Link></div></section>
 
+      </main>
+
       <footer className="border-t bg-card"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8"><p>© 2026 شركة فرق للتكنولوجيا</p><div className="flex gap-5"><Link href="/map">خريطة الفرص</Link><Link href="/requests">الطلبات</Link><Link href="/inbox">الوارد</Link></div></div></footer>
-    </main>
+    </div>
   )
 }

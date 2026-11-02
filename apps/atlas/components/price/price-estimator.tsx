@@ -107,12 +107,12 @@ export function PriceEstimator() {
         </header>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-semibold">المدينة
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl border bg-background px-3 text-base font-normal">
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl border border-input bg-background px-3 text-base font-normal">
               {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-xl border bg-background px-3 text-base font-normal disabled:opacity-60">
+            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-xl border border-input bg-background px-3 text-base font-normal disabled:opacity-60">
               <option value="">{districts === null ? 'جارٍ التحميل…' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
               {districts?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -123,7 +123,7 @@ export function PriceEstimator() {
           {KINDS.map((id) => <Chip key={id} active={kind === id} onClick={() => setKind(id)}><Icon3D type={id} className="size-6" />{typeLabel(id)}</Chip>)}
         </Question>
         <label className="flex flex-col gap-1 text-base font-bold">المساحة
-          <span className="flex items-center gap-2 rounded-xl border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+          <span className="flex items-center gap-2 rounded-xl border border-input bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
             <input inputMode="numeric" dir="ltr" placeholder="مثل 180" value={area} onChange={(e) => setArea(e.target.value.replace(/[^0-9]/g, ''))}
               className="h-11 w-full bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal" />
             <span className="text-sm font-normal text-muted-foreground">م²</span>

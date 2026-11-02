@@ -49,7 +49,7 @@ interface CampaignEditorProps {
 }
 
 const fieldClass =
-  'h-9 w-full rounded-lg border bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40'
+  'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40'
 
 export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange }: CampaignEditorProps) {
   const template = TEMPLATES.find((t) => t.id === value.templateId)
@@ -99,10 +99,15 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                 <span className="text-xs text-muted-foreground">{v.replace(/_/g, ' ')}</span>
                 <input
                   disabled={!editable}
+                  required
+                  aria-invalid={!value.variables[v]?.trim() || undefined}
+                  aria-describedby={!value.variables[v]?.trim() ? `var-missing-${v}` : undefined}
                   value={value.variables[v] ?? ''}
                   onChange={(e) => onChange({ ...value, variables: { ...value.variables, [v]: e.target.value } })}
                   className={cn(fieldClass, !value.variables[v]?.trim() && 'border-destructive/60')}
                 />
+                {/* said in words, not by the red edge alone (WCAG 1.4.1) */}
+                {!value.variables[v]?.trim() && <span id={`var-missing-${v}`} className="text-xs text-destructive">مطلوب قبل المراجعة</span>}
               </label>
             ))}
           </div>
