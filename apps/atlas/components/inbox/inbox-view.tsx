@@ -6,7 +6,7 @@ import { ChipRow } from '@/components/shared/search-pill'
 import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { businessById } from '@/lib/mock-data'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
@@ -70,6 +70,17 @@ export function InboxView() {
   const open = (id: string) => { pendingFocus.current = 'detail'; setParams({ m: id }) }
   const back = () => { pendingFocus.current = selectedId; setParams({ m: null }) }
 
+  // keyboard: ↑/↓ move between messages, Home/End jump to the first and last, Enter opens (the row is a button)
+  const moveFocus = (event: KeyboardEvent<HTMLUListElement>) => {
+    const rows = visible.map((m) => document.getElementById(`inbox-row-${m.id}`)).filter((row): row is HTMLElement => Boolean(row))
+    const at = rows.indexOf(document.activeElement as HTMLElement)
+    if (at < 0) return
+    const next = event.key === 'ArrowDown' ? at + 1 : event.key === 'ArrowUp' ? at - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : null
+    if (next == null) return
+    event.preventDefault()
+    rows[Math.max(0, Math.min(rows.length - 1, next))]?.focus()
+  }
+
   // Mark read only when a message is first opened, so a manual "mark unread" isn't immediately undone.
   const lastOpened = useRef<string | null>(null)
   // keyed by the message's id and read flag, not the message object (a new object on every store change)
@@ -91,6 +102,7 @@ export function InboxView() {
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(20rem,24rem)_1fr]">
         <section aria-label="قائمة الرسائل" className={cn('flex min-w-0 flex-col gap-3', selected && 'hidden lg:flex')}>
+          <p id="inbox-keys" className="sr-only">تنقّل بين الرسائل بالسهمين لأعلى ولأسفل، واضغط Enter لفتح الرسالة.</p>
           <ChipRow label="تصفية الوارد" className="max-w-none flex-wrap overflow-visible">
             {FILTERS.map((f) => (
               <Chip key={f.id} active={filter === f.id} onClick={() => setParams({ f: f.id })}>
@@ -105,7 +117,7 @@ export function InboxView() {
               body={filter === 'all' ? 'ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا بعد أن ترسلها بنفسك من صفحة الطلب.' : 'لا رسائل في هذا التصنيف. اختر «الكل» لترى كل الوارد.'}
               action={filter === 'all' ? <Link href="/requests" className="text-sm font-semibold text-primary hover:underline">افتح الطلبات</Link> : undefined} />
           ) : (
-            <ul className="flex flex-col overflow-hidden rounded-2xl border bg-card">
+            <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
                 const b = businessById.get(m.businessId)
                 const active = m.id === selected?.id
@@ -154,7 +166,9 @@ export function InboxView() {
           )}
         </section>
 
-        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة" className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring', !selected && 'hidden lg:block')}>
+        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة"
+          // on a phone, Escape leaves the message for the list, like «كل الرسائل»; a field keeps its own Escape
+          onKeyDown={(event) => { if (event.key === 'Escape' && selected && !(event.target instanceof HTMLTextAreaElement) && !window.matchMedia('(min-width: 1024px)').matches) back() }} className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring', !selected && 'hidden lg:block')}>
           {selected ? (
             <div className="flex flex-col gap-3">
               <button
