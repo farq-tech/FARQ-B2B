@@ -8,7 +8,7 @@ import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estat
 import { cn } from '@/lib/utils'
 import { SkeletonStatus, Skeleton } from '@/components/ui/skeleton'
 import type { DistrictRow } from './city-data'
-import { districtPairs, factsLine, figure, type Fact } from './advisor-facts'
+import { boldRuns, districtPairs, factsLine, figure, replyBlocks, type Fact } from './advisor-facts'
 
 export type AdvisorSubject = { kind: 'listings'; listings: Listing[] } | { kind: 'districts'; rows: DistrictRow[] }
 type Turn = { role: 'user' | 'assistant'; content: string }
@@ -66,6 +66,18 @@ function subjectTable(subject: AdvisorSubject, rows: DistrictRow[]): { heads: st
     heads: subject.kind === 'districts' ? subject.rows.map((row) => row.name) : LETTERS.slice(0, columns.length),
     rows: labels.map((label) => ({ label, cells: columns.map((column) => column.find((fact) => fact.label === label)?.value ?? 'غير متاح') })),
   }
+}
+
+/** An assistant reply in parts: paragraphs, then points as a list, «**…**» as bold; every word of the reply kept. */
+function Reply({ text }: { text: string }) {
+  const runs = (line: string) => boldRuns(line).map(([part, bold], index) => (bold ? <strong key={index}>{part}</strong> : <span key={index}>{part}</span>))
+  return (
+    <div className="flex flex-col gap-2">
+      {replyBlocks(text).map((block, index) => (block.kind === 'p'
+        ? <p key={index} className="whitespace-pre-line">{runs(block.text)}</p>
+        : <ul key={index} className="list-disc space-y-1 ps-5">{block.items.map((item, at) => <li key={at}>{runs(item)}</li>)}</ul>))}
+    </div>
+  )
 }
 
 /** «الأرقام التي يقارن بها»: what the assistant was handed, folded, so any figure in its answer can be checked here. */
@@ -200,8 +212,8 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
         <>
           <ol ref={thread} aria-live="polite" aria-relevant="additions" aria-label="المحادثة" className="relative flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
             {turns.map((turn, index) => (
-              <li key={index} className={cn('whitespace-pre-line rounded-xl px-3 py-2 text-base leading-7', turn.role === 'assistant' ? 'bg-muted/50' : 'ms-8 bg-primary/10')}>
-                {turn.content}
+              <li key={index} className={cn('rounded-xl px-3 py-2 text-base leading-7', turn.role === 'assistant' ? 'bg-muted/50' : 'ms-8 whitespace-pre-line bg-primary/10')}>
+                {turn.role === 'assistant' ? <Reply text={turn.content} /> : turn.content}
               </li>
             ))}
             {status === 'loading' && (

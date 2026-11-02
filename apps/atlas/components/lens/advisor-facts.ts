@@ -32,3 +32,43 @@ export function districtPairs(row: Pick<DistrictRow, 'population' | 'businesses'
 
 /** The facts as one line for the assistant: «السكان 12,400 | المنشآت 310 | …». */
 export const factsLine = (facts: Fact[]) => facts.map((fact) => `${fact.label} ${fact.value}`).join(' | ')
+
+/** A part of an assistant reply: a paragraph, or a list of short points. */
+export type ReplyBlock = { kind: 'p'; text: string } | { kind: 'list'; items: string[] }
+
+const POINT = /^\s*(?:[-•*]|\d+[.)])\s+/
+
+/**
+ * An assistant reply split into paragraphs and lists of points («- …», «• …», «1. …»), so a long answer reads in
+ * parts instead of one block. Nothing is added or dropped: every line of the reply is in exactly one block.
+ */
+export function replyBlocks(reply: string): ReplyBlock[] {
+  const blocks: ReplyBlock[] = []
+  for (const chunk of reply.split(/\n\s*\n/)) {
+    const lines = chunk.split('\n').map((line) => line.trim()).filter(Boolean)
+    let paragraph: string[] = []
+    let list: string[] = []
+    const flush = () => {
+      if (paragraph.length) blocks.push({ kind: 'p', text: paragraph.join('\n') })
+      if (list.length) blocks.push({ kind: 'list', items: list })
+      paragraph = []
+      list = []
+    }
+    for (const line of lines) {
+      if (POINT.test(line)) {
+        if (paragraph.length) { blocks.push({ kind: 'p', text: paragraph.join('\n') }); paragraph = [] }
+        list.push(line.replace(POINT, ''))
+      } else {
+        if (list.length) { blocks.push({ kind: 'list', items: list }); list = [] }
+        paragraph.push(line)
+      }
+    }
+    flush()
+  }
+  return blocks
+}
+
+/** «**مهم**» in a reply as bold runs: [text, bold?] pairs, the markers removed. */
+export function boldRuns(text: string): [string, boolean][] {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, index) => [part, index % 2 === 1] as [string, boolean]).filter(([part]) => part.length > 0)
+}
