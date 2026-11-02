@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
+import { formatDistance, numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { circlePolygon, type Area, type Site } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
@@ -27,7 +27,7 @@ const REACHES: Reach[] = [
 const COLORS = [PALETTE.olive, PALETTE.ochre, PALETTE.slate]
 const MAX_SITES = 3
 const reachLabel = (reach: Reach) => (reach.kind === 'radius'
-  ? (reach.metres < 1000 ? `${reach.metres} م` : `${reach.metres / 1000} كم`)
+  ? formatDistance(reach.metres)
   : `${reach.minutes} د بالسيارة`)
 const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))

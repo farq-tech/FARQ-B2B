@@ -49,3 +49,24 @@ export const CATEGORICAL = [
   PALETTE.fern, PALETTE.pine, PALETTE.umber, PALETTE.honey, PALETTE.river, PALETTE.indigo,
   PALETTE.rosewood, PALETTE.berry, PALETTE.eucalyptus, PALETTE.walnut, PALETTE.cypress,
 ]
+
+/** WCAG relative luminance of a #rrggbb colour. */
+function luminance(hex: string) {
+  const channel = (i: number) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+}
+
+/**
+ * The text colour to write on a filled colour (a site's header, a numbered disc): white or the brand ink, whichever
+ * contrasts more. Anything that is not #rrggbb gets white, the old default.
+ */
+export function readableOn(background: string): string {
+  if (!/^#[0-9a-f]{6}$/i.test(background)) return PALETTE.white
+  const l = luminance(background)
+  const onWhite = 1.05 / (l + 0.05)
+  const onInk = (l + 0.05) / (luminance(PALETTE.ink) + 0.05)
+  return onWhite >= onInk ? PALETTE.white : PALETTE.ink
+}

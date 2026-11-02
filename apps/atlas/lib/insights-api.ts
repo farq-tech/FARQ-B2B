@@ -15,6 +15,10 @@ export const numberFormat = new Intl.NumberFormat('en-US')
 export const ltr = (text: string) => `\u2066${text}\u2069`
 /** «48%», kept whole inside an Arabic line. */
 export const percent = (value: number) => ltr(`${numberFormat.format(value)}%`)
+/** One way to write a distance everywhere: «850 م» to the nearest 10 m under a kilometre, «1.4 كم» from there. */
+export const formatDistance = (metres: number) => (Math.round(metres / 10) * 10 < 1000
+  ? `${numberFormat.format(Math.round(metres / 10) * 10)} م`
+  : `${numberFormat.format(Math.round(metres / 100) / 10)} كم`)
 
 // one, two, 3–10, a figure ending 11–99, and the singular after any other figure from 100 up (100, 105, 1,000 …)
 const NOUNS = {

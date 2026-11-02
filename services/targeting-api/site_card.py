@@ -61,6 +61,21 @@ def _split(people, share):
     return round(sum(count * share[name] for name, count in people.items()))
 
 
+NO_BUILDINGS = 'لا توجد طبقة المباني السكنية لهذه المدينة.'
+NO_RESIDENTS = 'لا مبانٍ سكنية داخل النطاق.'
+UNNAMED = 'بعض سكان النطاق خارج الأحياء المسماة، فلا يُقسَّم عددهم.'
+SEGMENTS = ('men', 'women', 'saudi', 'non_saudi', 'children')
+
+
+def _missing(people, share, what):
+    """Why _split gave None, in one short Arabic line, naming up to three districts without the share."""
+    gaps = sorted(name for name in people if share.get(name) is None)
+    if not gaps:
+        return None
+    more = f' و{len(gaps) - 3} غيرها' if len(gaps) > 3 else ''
+    return f'لا {what} لحي في النطاق: {"، ".join(gaps[:3])}{more}.'
+
+
 def segments(people_by_id, id_map, names, audience, children):
     """The card's people figures. people_by_id: {building district id: people}; id_map/names: canonical_data's
     district id map and canonical names; audience: [{district_ar, male_pct, saudi_pct}]; children: child_shares()."""
@@ -76,13 +91,44 @@ def segments(people_by_id, id_map, names, audience, children):
     known = {name: count for name, count in people.items() if name is not None}
     if len(known) != len(people):
         known = {}   # a building outside every named district: its people cannot be split, so no segment is
-    return {
+    out = {
         'population': total,
         'men': _split(known, male), 'women': _split(known, flip(male)),
         'saudi': _split(known, saudi), 'non_saudi': _split(known, flip(saudi)),
         'children': _split(known, children), 'children_is_estimate': True,
         'districts': len(known),
     }
+    out['reasons'] = _segment_reasons(out, people_by_id, people, known, male, saudi, children)
+    return out
+
+
+def _segment_reasons(out, people_by_id, people, known, male, saudi, children):
+    """{field: why it is None} for each people figure the card cannot give; a figure it gives has no entry."""
+    if people_by_id is None:
+        return {field: NO_BUILDINGS for field in ('population',) + SEGMENTS}
+    if not people:
+        cause = dict.fromkeys(SEGMENTS, NO_RESIDENTS)
+    elif not known:
+        cause = dict.fromkeys(SEGMENTS, UNNAMED)
+    else:
+        sex = _missing(known, male, 'نسبة مقيسة للذكور والإناث')
+        nationality = _missing(known, saudi, 'نسبة مقيسة للسعوديين')
+        cause = {'men': sex, 'women': sex, 'saudi': nationality, 'non_saudi': nationality,
+                 'children': _missing(known, children, 'توزيع عمري')}
+    return {field: text for field, text in cause.items() if out[field] is None and text}
+
+
+def reasons(competitors, residents_per_competitor, population):
+    """{field: why it is None} for the card's competitor figures (per_km2, residents_per_competitor). Without a chosen
+    activity there is no competitor figure at all, which the card already says, so there is nothing to explain."""
+    if competitors is None:
+        return {}
+    out = {}
+    if competitors.get('per_km2') is None:
+        out['per_km2'] = 'تعذر حساب مساحة النطاق.'
+    if residents_per_competitor is None:
+        out['residents_per_competitor'] = 'عدد السكان غير متاح.' if population is None else 'لا منافس داخل النطاق.'
+    return out
 
 
 def _metres(lon1, lat1, lon2, lat2):

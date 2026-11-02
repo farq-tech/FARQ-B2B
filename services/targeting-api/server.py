@@ -216,8 +216,10 @@ def site_card_response(body):
     children = site_card.child_shares(golden_demographics(city))
     people = site_card.segments(by_district, CANONICAL['district_id_map'], CANONICAL['district_names'], audience, children)
     competitors = MARKET_ANALYTICS.competitors_within(body, geometry, centre)
+    residents = district_metrics.residents_per(people.get('population'), (competitors or {}).get('n'))
     return {'ok': True, 'city': city, 'people': people, 'competitors': competitors,
-            'residents_per_competitor': district_metrics.residents_per(people.get('population'), (competitors or {}).get('n'))}
+            'residents_per_competitor': residents,
+            'reasons': site_card.reasons(competitors, residents, people.get('population'))}
 
 
 def _city_features(city):

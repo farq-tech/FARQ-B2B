@@ -16,14 +16,17 @@ export function StatTile({ label, children, className }: { label: string; childr
   )
 }
 
+/** The explanation card's lines for a missing figure: why it is missing first, then how it would be worked out. */
+export const withReason = (explain: string[], reason?: string | null) => (reason ? [reason, ...explain] : explain)
+
 /**
  * One figure with its «how it was worked out» card. `value` is already formatted (numberFormat); null reads
- * «غير متاح», never 0.
+ * «غير متاح», never 0, and its card opens with `reason` when the API gave one.
  */
-export function Stat({ label, value, explain }: { label: string; value: string | null; explain: string[] }) {
+export function Stat({ label, value, explain, reason }: { label: string; value: string | null; explain: string[]; reason?: string | null }) {
   return (
     <StatTile label={label}>
-      <Explained title={label} lines={explain} className={cn('mt-0.5 font-bold tabular-nums', value == null ? 'text-sm text-muted-foreground' : 'text-xl')}>
+      <Explained title={label} lines={value == null ? withReason(explain, reason) : explain} className={cn('mt-0.5 font-bold tabular-nums', value == null ? 'text-sm text-muted-foreground' : 'text-xl')}>
         {value ?? <Unavailable className="font-bold" />}
       </Explained>
     </StatTile>
@@ -33,13 +36,13 @@ export function Stat({ label, value, explain }: { label: string; value: string |
 export type SplitPart = { label: string; value: number | null; color: string }
 
 /** Two parts of one whole (women and men, Saudis and others) as one bar, each part with its number and share. */
-export function Split({ title, left, right, explain }: { title: string; left: SplitPart; right: SplitPart; explain: string[] }) {
+export function Split({ title, left, right, explain, reason }: { title: string; left: SplitPart; right: SplitPart; explain: string[]; reason?: string | null }) {
   const total = left.value != null && right.value != null ? left.value + right.value : null
   if (!total) {
     return (
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">{title}</span>
-        <Explained title={title} lines={explain} className="text-muted-foreground"><Unavailable className="font-normal" /></Explained>
+        <Explained title={title} lines={withReason(explain, reason)} className="text-muted-foreground"><Unavailable className="font-normal" /></Explained>
       </div>
     )
   }

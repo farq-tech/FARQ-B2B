@@ -23,7 +23,7 @@ export function Explained({ title, lines, children, className }: {
         {/* the «i» tells people a figure opens how it was worked out */}
         <Info className="size-3.5 shrink-0 text-muted-foreground/70 transition-colors group-hover:text-primary group-focus-visible:text-primary group-data-[popup-open]:text-primary" aria-hidden />
       </PopoverTrigger>
-      <PopoverContent side="top" className="w-80">
+      <PopoverContent side="top" className="w-[min(20rem,calc(100vw-2rem))]">
         <p className="text-base font-semibold">{title}</p>
         {lines.map((line) => (
           // a worked sum («22,600 ÷ 1,784 = 13») reads left to right like any equation, inside the Arabic card
