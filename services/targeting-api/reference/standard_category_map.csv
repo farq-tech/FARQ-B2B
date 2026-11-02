@@ -1,16 +1,16 @@
 sub_id,main_id,category,secondary_category,category_level_3
 food.restaurant,food,Restaurants,,Restaurant
-food.fast_food,food,Restaurants,Fast Food,Fast Food
+food.fast_food,food,Restaurants,Fast Food,Fast Food Restaurant
 food.buffet_popular,food,Restaurants,,Buffet / Popular Eatery
 food.cafe,food,Restaurants,Cafes & Desserts,Cafe / Coffee Shop
 food.juice_icecream,food,Restaurants,Cafes & Desserts,Juice & Ice Cream
 food.hookah,food,Restaurants,,Hookah Lounge
-food.bakery,food,Restaurants,Cafes & Desserts,Bakery & Pastry
-food.sweets,food,Restaurants,Cafes & Desserts,Sweets & Chocolate Shop
+food.bakery,food,Restaurants,Cafes & Desserts,Bakery
+food.sweets,food,Restaurants,Cafes & Desserts,Confectionery / Sweets
 food.catering,food,Restaurants,,Catering
 food.cloud_kitchen,food,Restaurants,,Central / Cloud Kitchen
 food.food_truck,food,Restaurants,Fast Food,Food Truck
-food.supermarket,food,Shopping & Distribution,General Wholesale & Retail,Supermarket / Hypermarket
+food.supermarket,food,Shopping & Distribution,General Wholesale & Retail,Grocery Store / Supermarket
 food.grocery,food,Shopping & Distribution,General Wholesale & Retail,Grocery / Mini-Market
 food.butcher,food,Shopping & Distribution,General Wholesale & Retail,Butcher
 food.fish_market,food,Shopping & Distribution,General Wholesale & Retail,Fish & Seafood Shop
@@ -236,17 +236,17 @@ fashion.clothing,fashion,Shopping & Distribution,General Wholesale & Retail,Clot
 fashion.abaya,fashion,Shopping & Distribution,General Wholesale & Retail,Abayas
 fashion.mens_thobe,fashion,Shopping & Distribution,General Wholesale & Retail,Men'S Thobes
 fashion.kids,fashion,Shopping & Distribution,General Wholesale & Retail,Kids' Clothing
-fashion.shoes,fashion,Shopping & Distribution,General Wholesale & Retail,Shoes
+fashion.shoes,fashion,Shopping & Distribution,General Wholesale & Retail,Footwear
 fashion.bags_accessories,fashion,Shopping & Distribution,General Wholesale & Retail,Bags & Accessories
-fashion.perfume,fashion,Shopping & Distribution,General Wholesale & Retail,Perfumes & Oud
+fashion.perfume,fashion,Shopping & Distribution,General Wholesale & Retail,Perfumes
 fashion.jewelry_gold,fashion,Shopping & Distribution,General Wholesale & Retail,Gold & Jewelry
 fashion.watches,fashion,Shopping & Distribution,General Wholesale & Retail,Watches
 fashion.fabrics,fashion,Shopping & Distribution,General Wholesale & Retail,Fabrics
-fashion.tailoring,fashion,Shopping & Distribution,General Wholesale & Retail,Tailoring
+fashion.tailoring,fashion,Shopping & Distribution,General Wholesale & Retail,Dressmaking
 fashion.uniforms,fashion,Shopping & Distribution,General Wholesale & Retail,Uniforms & Workwear
 fashion.apparel_wholesale,fashion,Shopping & Distribution,General Wholesale & Retail,Apparel Wholesale
 fashion.sportswear,fashion,Shopping & Distribution,General Wholesale & Retail,Sportswear
-beauty.salon_women,beauty,Life & Convenience,Beauty,Women'S Salon
+beauty.salon_women,beauty,Life & Convenience,Beauty,Ladies Hair Salon
 beauty.barber,beauty,Life & Convenience,Beauty,Barbershop
 beauty.spa_massage,beauty,Health & Medical,Beauty,Spa & Massage
 beauty.cosmetics_store,beauty,Shopping & Distribution,General Wholesale & Retail,Cosmetics Store
@@ -308,7 +308,7 @@ log.sea_transport,log,Transportation,,Sea Transport & Ports
 log.air_cargo,log,Transportation,,Air Cargo
 log.cargo_handling,log,Transportation,,Cargo Handling
 log.packaging_services,log,Transportation,,Packaging Services
-biz.law,biz,Services & Industry,Support & Outsourcing Services,Law Firm
+biz.law,biz,Services & Industry,Support & Outsourcing Services,Legal Services
 biz.accounting,biz,Services & Industry,Support & Outsourcing Services,Accounting & Audit
 biz.consulting,biz,Services & Industry,Support & Outsourcing Services,Management Consulting
 biz.head_office,biz,Services & Industry,Support & Outsourcing Services,Head Office / Holding
@@ -357,7 +357,7 @@ retail.flowers,retail,Shopping & Distribution,General Wholesale & Retail,Florist
 retail.pet_shop,retail,Shopping & Distribution,General Wholesale & Retail,Pet Shop
 retail.bookstore,retail,Shopping & Distribution,General Wholesale & Retail,Bookstore
 retail.baby,retail,Shopping & Distribution,General Wholesale & Retail,Baby Products
-retail.tobacco_vape,retail,Shopping & Distribution,General Wholesale & Retail,Tobacco & Vape
+retail.tobacco_vape,retail,Shopping & Distribution,General Wholesale & Retail,Smoking Accessories / Tobacco
 retail.party_supplies,retail,Shopping & Distribution,General Wholesale & Retail,Party Supplies
 retail.general_wholesale,retail,Shopping & Distribution,General Wholesale & Retail,General Wholesale
 retail.kiosk,retail,Shopping & Distribution,General Wholesale & Retail,Kiosk & Stall
@@ -401,7 +401,7 @@ media.arts_crafts,media,Culture & Art,,Arts & Crafts
 media.art_gallery,media,Culture & Art,,Art Gallery
 media.events_entertainment,media,Culture & Art,,Live Entertainment
 media.news_agency,media,Culture & Art,,News & Content Agency
-personal.laundry,personal,Life & Convenience,Cleaning Service,Laundry & Dry Cleaning
+personal.laundry,personal,Life & Convenience,Cleaning Service,Laundry / Dry Cleaning
 personal.shoe_repair,personal,Life & Convenience,,Shoe & Leather Repair
 personal.watch_jewelry_repair,personal,Life & Convenience,,Watch & Jewelry Repair
 personal.funeral,personal,Life & Convenience,,Funeral Services
