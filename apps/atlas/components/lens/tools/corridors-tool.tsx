@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { cn } from '@/lib/utils'
 import { EXPLAIN } from '@/lib/explanations'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ResultRow, ResultRowsSkeleton } from '../result-row'
@@ -90,9 +91,10 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <div className="flex flex-wrap gap-2">
+      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
         {EXAMPLES.map((example) => (
-          <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
+          <button key={example} onClick={() => { setQuery(example); study(example) }} aria-pressed={studied.q === example}
+            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
         ))}
       </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
