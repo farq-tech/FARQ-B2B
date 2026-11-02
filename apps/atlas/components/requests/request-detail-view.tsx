@@ -8,8 +8,8 @@ import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
-import { formatDate, formatDateTime } from '@/lib/format'
-import { numberFormat } from '@/lib/insights-api'
+import { NEXT_STEP, formatDate, formatDateTime } from '@/lib/format'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
@@ -91,10 +91,8 @@ export function RequestDetailView({ id }: { id: string }) {
       </Link>
 
       <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <TypeLabel type={request.type} />
-          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
-        </div>
+        {/* read in the order a person asks: what it is, to whom, where it stands, what to do next */}
+        <TypeLabel type={request.type} />
         {editable ? (
           // the page's one h1 even while the title is editable, with a pencil so it reads as something to change
           <h1 className="text-2xl font-bold">
@@ -111,10 +109,15 @@ export function RequestDetailView({ id }: { id: string }) {
         ) : (
           <h1 className="text-2xl font-bold text-balance">{request.title}</h1>
         )}
-        <p className="text-xs text-muted-foreground">
-          {cityById.get(request.cityId)?.name} · أنشئ {formatDate(request.createdAt)}
+        <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">إلى {counted(request.businessIds.length, 'business')}</span>
+          {cityById.get(request.cityId)?.name ? ` في ${cityById.get(request.cityId)?.name}` : ''} · أنشئ {formatDate(request.createdAt)}
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
+          {NEXT_STEP[request.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[request.status]}</p>}
+        </div>
       </header>
 
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
