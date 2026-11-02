@@ -61,6 +61,17 @@ export function HomesPage() {
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // the list follows the map only once the person can see the map: always on a wide screen, and on a phone after they
+  // open it. Before that a phone's hidden map still reports bounds, and the list was cut to a view nobody saw.
+  const [mapSeen, setMapSeen] = useState(false)
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 64rem)')
+    const sync = () => { if (wide.matches) setMapSeen(true) }
+    sync()
+    wide.addEventListener('change', sync)
+    return () => wide.removeEventListener('change', sync)
+  }, [])
+  useEffect(() => { if (mobileMap) setMapSeen(true) }, [mobileMap])
   const data = useCityData(city)
 
   // a type the deal does not offer (land for rent) falls back to a flat; a new city or deal starts its own ranges
@@ -88,11 +99,12 @@ export function HomesPage() {
 
   // narrowing: the filters first, then (when asked) what the map shows
   const filtered = useMemo(() => applyFilters(result.listings, filters), [result.listings, filters])
+  const byMap = inView && mapSeen && bounds != null
   const visible = useMemo(() => {
-    if (!inView || !bounds) return filtered
+    if (!byMap || !bounds) return filtered
     const [w, s, e, n] = bounds
     return filtered.filter((l) => l.lon >= w && l.lon <= e && l.lat >= s && l.lat <= n)
-  }, [filtered, inView, bounds])
+  }, [filtered, byMap, bounds])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const dots = useMemo<ListingDot[]>(() => filtered.map((listing) => ({
@@ -171,10 +183,10 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total != null && result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? `${result.total != null && result.total > result.listings.length && !byMap ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${byMap ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
-            <label className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
+            <label className={cn('min-h-11 items-center gap-2 text-sm text-muted-foreground', mapSeen ? 'flex' : 'hidden')}>
               <input type="checkbox" checked={inView} onChange={(event) => setInView(event.target.checked)} className="size-4 accent-[var(--primary)]" />
               حدّث القائمة عند تحريك الخريطة
             </label>
