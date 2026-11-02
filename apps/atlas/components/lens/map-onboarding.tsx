@@ -31,14 +31,20 @@ function write(state: CoachState) {
   try { localStorage.setItem(KEY, state) } catch { /* private window: the tour simply shows again next time */ }
 }
 
-export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: (lens: LensId) => void; picked: boolean }) {
+export function MapOnboarding({ lens, onLens, picked, paused = false }: {
+  lens: LensId
+  onLens: (lens: LensId) => void
+  picked: boolean
+  /** The map failed to open: the tour keeps its place but shows nothing over the failure notice. */
+  paused?: boolean
+}) {
   // null until mounted, so the server render and a returning visitor never flash the tour
   const [state, setState] = useState<CoachState | null>(null)
   // the hint's «×» hides it for this visit only; «تخطَّ الجولة» ends the tour for good
   const [hidden, setHidden] = useState(false)
   useEffect(() => { setHidden(false) }, [state])
   // «ما الجديد» waits while the tour has something on screen, so the two never cover each other
-  const showing = state === 'goal' || ((state === 'waiting_pick' || state === 'waiting_explain') && !hidden)
+  const showing = !paused && (state === 'goal' || ((state === 'waiting_pick' || state === 'waiting_explain') && !hidden))
   useEffect(() => { setMapTourShowing(showing) }, [showing])
   useEffect(() => () => setMapTourShowing(false), [])
   const go = (next: CoachState, via?: 'explain' | 'button') => {
@@ -89,7 +95,7 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
     </button>
   )
 
-  if (state === null || state === 'completed' || state === 'skipped' || state === 'not_started') return help
+  if (paused || state === null || state === 'completed' || state === 'skipped' || state === 'not_started') return help
 
   const card = 'absolute inset-x-3 z-30 mx-auto max-w-sm rounded-2xl border bg-card p-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300'
   const skip = <button onClick={() => go('skipped')} className="shrink-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">تخطَّ الجولة</button>

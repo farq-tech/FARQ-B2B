@@ -5,6 +5,7 @@ import type { GeoJSONSource, Map as MapboxMap } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { DistrictFeature } from '@/lib/insights-api'
 import { LoadError } from '@/components/shared/load-error'
+import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 
@@ -67,7 +68,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -90,6 +91,10 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   zoomTo?: { id: string; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
+  /** Told when the map fails to open and when a retry brings it back, so the page can clear what would sit over the notice. */
+  onFailed?: (failed: boolean) => void
+  /** Where the failure notice sits, when the page keeps other things at the map's top. */
+  errorClassName?: string
 }) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MapboxMap | null>(null)
@@ -102,6 +107,11 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   reportBounds.current = onBounds
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
+  // a retry opens the map again in place, so the lens, the step and the picked districts stay as they were
+  const [attempt, setAttempt] = useState(0)
+  const failed = useRef(onFailed)
+  failed.current = onFailed
+  useEffect(() => { failed.current?.(error !== '') }, [error])
   toggle.current = onToggle
   pick.current = onPick
   openListing.current = onListing
@@ -110,10 +120,12 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     let disposed = false
     ;(async () => {
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
-      const token = response?.ok ? (await response.json()).token : null
+      const token = response?.ok ? await response.json().then((body) => body.token as string | undefined).catch(() => null) : null
+      if (disposed) return
       if (!token) { setError('الخريطة'); return }
-      const mapboxgl = (await import('mapbox-gl')).default
+      const mapboxgl = await import('mapbox-gl').then((module) => module.default).catch(() => null)
       if (disposed || !container.current) return
+      if (!mapboxgl) { setError('الخريطة'); return }
       mapboxgl.accessToken = token
       const instance = new mapboxgl.Map({ container: container.current, style: STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance
@@ -230,7 +242,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
       })
     })()
     return () => { disposed = true; map.current?.remove(); map.current = null }
-  }, [])
+  }, [attempt])
+  const retry = () => { setError(''); setReady(false); setAttempt((count) => count + 1) }
 
   useEffect(() => {
     const instance = map.current
@@ -311,8 +324,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   return (
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
-      {/* a reload brings the map back, so the button offers just that */}
-      {error && <LoadError what={error} onRetry={() => window.location.reload()} className="absolute inset-x-4 top-4 mx-auto max-w-sm bg-card/95 backdrop-blur" />}
+      {error && <LoadError what={error} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
     </div>
   )
 }

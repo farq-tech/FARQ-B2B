@@ -210,6 +210,8 @@ export function LensMap() {
   const phoneSearch = useRef<HTMLInputElement>(null)
   // the phone's bottom sheet: a picked district or a search opens it halfway so the answer shows beside the map
   const [sheet, setSheet] = useState<SheetSnap>('peek')
+  // a map that failed to open: its notice takes the map, and the tour waits (there is nothing to tap)
+  const [mapFailed, setMapFailed] = useState(false)
   const data = useCityData(city)
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
   const active = lensById(lens)
@@ -302,9 +304,10 @@ export function LensMap() {
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} />
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo}
+            onFailed={setMapFailed} errorClassName="max-lg:top-1/3" />
           {overlay.popup}
-          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} />
+          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed} />
           {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3 lg:hidden">
             <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); submit() }}
