@@ -7,7 +7,7 @@ import type { DistrictRow } from './city-data'
 export type LensId = 'shops' | 'marketers' | 'distributors' | 'analysts' | 'property'
 
 /** The insight tools, named by the question each answers; their results are drawn on the one map. */
-export type ToolId = 'district' | 'homes' | 'gaps' | 'competitors' | 'audience' | 'businesses' | 'around' | 'growth' | 'territories' | 'compare'
+export type ToolId = 'district' | 'homes' | 'gaps' | 'competitors' | 'audience' | 'businesses' | 'around' | 'growth' | 'territories' | 'compare' | 'corridors'
 
 export type MetricId = 'population' | 'businesses' | 'residentsPerBusiness' | 'income' | 'growth' | 'restaurants' | 'villaShare' | 'menuPrice' | 'unmet' | 'shopRent' | 'homeRent' | 'homeRentMonthly' | 'homePrice' | 'dealPrice' | 'warehouseRent'
 
@@ -48,7 +48,7 @@ export type Lens = { id: LensId; label: string; metric: MetricId; metrics: Metri
 export const LENSES: Lens[] = [
   {
     id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'unmet', 'shopRent', 'population'],
-    steps: [{ tool: 'gaps', label: 'أين ينقص نشاطي؟' }, { tool: 'competitors', label: 'المنافسون' }, { tool: 'around', label: 'قارن المواقع' }, { tool: 'homes', label: 'محلات للإيجار' }],
+    steps: [{ tool: 'gaps', label: 'أين ينقص نشاطي؟' }, { tool: 'competitors', label: 'المنافسون' }, { tool: 'corridors', label: 'شوارع النشاط' }, { tool: 'around', label: 'قارن المواقع' }, { tool: 'homes', label: 'محلات للإيجار' }],
   },
   {
     id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare'],
@@ -56,7 +56,7 @@ export const LENSES: Lens[] = [
   },
   {
     id: 'distributors', label: 'الموزّعون', metric: 'businesses', metrics: ['businesses', 'growth', 'warehouseRent'],
-    steps: [{ tool: 'territories', label: 'المناطق والمسار' }, { tool: 'growth', label: 'أين يُبنى الآن؟' }],
+    steps: [{ tool: 'territories', label: 'المناطق والمسار' }, { tool: 'corridors', label: 'شوارع النشاط' }, { tool: 'growth', label: 'أين يُبنى الآن؟' }],
   },
   {
     id: 'analysts', label: 'المحلّلون', metric: 'population',
