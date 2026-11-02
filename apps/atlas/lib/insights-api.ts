@@ -58,6 +58,13 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
   return payload as T
 }
 
+/** One row per city (by its English name, first one kept): the service once sent every city twice, which doubled
+ * pickers and any sum over the list. */
+export function uniqueCities<T extends { en: string }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => !seen.has(row.en) && Boolean(seen.add(row.en)))
+}
+
 /** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
  * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
 export function useCities(): City[] {
@@ -67,7 +74,8 @@ export function useCities(): City[] {
       .then((response) => response.json())
       .then((rows: City[]) => {
         if (!Array.isArray(rows)) return
-        const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
+        const unique = uniqueCities(rows)
+        const mapped = unique.some((row) => typeof row.districts === 'number') ? unique.filter((row) => (row.districts ?? 0) > 0) : unique
         if (mapped.length) setCities(mapped)
       })
       .catch(() => undefined)

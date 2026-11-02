@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { NEXT_STEP, STATUS_LABEL } from './format.ts'
-import { formatDistance } from './insights-api.ts'
+import { formatDistance, uniqueCities } from './insights-api.ts'
 import { PALETTE, readableOn } from './palette.ts'
 import { mergeCloudRequests } from './workspace-merge.ts'
 
@@ -58,4 +58,12 @@ test('nothing new from the account returns the same list, so the store skips the
   const local = [{ id: 'a' }]
   assert.equal(mergeCloudRequests(local, []), local)
   assert.equal(mergeCloudRequests(local, [{ id: 'a' }]), local)
+})
+
+test('a city sent twice is listed and counted once, first row kept, order kept', () => {
+  const rows = [{ en: 'Riyadh', districts: 197 }, { en: 'Jeddah', districts: 158 }, { en: 'Riyadh', districts: 197 }, { en: 'Jeddah', districts: 158 }]
+  const unique = uniqueCities(rows)
+  assert.deepEqual(unique.map((row) => row.en), ['Riyadh', 'Jeddah'])
+  assert.equal(unique.reduce((sum, row) => sum + row.districts, 0), 355)
+  assert.equal(unique[0], rows[0])
 })
