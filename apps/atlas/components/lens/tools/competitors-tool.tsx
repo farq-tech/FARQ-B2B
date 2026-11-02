@@ -15,6 +15,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { ActivityCompare } from './activity-compare'
 import { useMainActivities } from '@/lib/main-activities'
 
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
@@ -218,6 +219,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               ))}
             </ol>
             <MoreRows shown={Math.min(limit, ranked.length)} total={ranked.length} noun="district" onMore={showMore} />
+            <ActivityCompare city={city} rows={rows} activities={activities} first={studied} firstCounts={counts} firstTotal={cityTotal} onSelect={onSelect} onHover={onHover} />
             </>
           )}
           {view === 'brands' && !brands && <p className="text-base text-muted-foreground">السلاسل غير متاحة لهذا النشاط الآن.</p>}

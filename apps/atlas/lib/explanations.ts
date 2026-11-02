@@ -259,6 +259,14 @@ export const EXPLAIN = {
     'العروض المطابقة لاختيارك مرتبة من الأقل سعراً للمتر مقارنة بوسيط حيّها إلى الأعلى.',
     'العرض في حي بلا وسيط كافٍ يأتي في الآخر.',
   ],
+  /** Two activities' counts per district side by side («قارن بنشاط آخر» in «المنافسون»). */
+  activityCompare(first: string, second: string): string[] {
+    return [
+      `عدد منشآت «${first}» و«${second}» في كل حي من دليل فرق، بالطريقة نفسها للنشاطين.`,
+      `الترتيب الأول يقدّم الأحياء التي يزيد فيها «${first}» على «${second}» بأكبر فرق، والثاني يرتّب بعدد «${first}».`,
+      'الحي الذي لا يظهر فيه نشاط في الدليل عدده 0. الخريطة تبقى ملوّنة بالنشاط الأول.',
+    ]
+  },
   aroundResidentsPer: ['السكان داخل المنطقة ÷ المنشآت داخلها.', 'كلما ارتفع الرقم قلّت المنشآت التي تخدم السكان، أي منافسة أقل.'],
   /** One trade corridor's figures («شوارع النشاط»), from the service's values for that street. */
   corridor(corridor: { sub_ar: string; n: number; n_wholesale: number; length_m: number; per_100m: number; lift: number | null }): string[] {
