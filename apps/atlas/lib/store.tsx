@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
+import { mergeCloudRequests } from './workspace-merge'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -31,10 +32,9 @@ function reducer(state: State, action: Action): State {
     case 'restore':
       return { ...state, requests: action.state.requests, inbox: action.state.inbox }
     case 'add-cloud': {
-      // the account's saved requests join what is on screen now; nothing local is replaced
-      const have = new Set(state.requests.map((request) => request.remoteId ?? request.id))
-      const fresh = action.requests.filter((request) => !have.has(request.remoteId ?? request.id))
-      return fresh.length ? { ...state, requests: [...state.requests, ...fresh] } : state
+      // the account's saved requests join what is on screen now; nothing local is replaced (lib/workspace-merge.ts)
+      const requests = mergeCloudRequests(state.requests, action.requests)
+      return requests === state.requests ? state : { ...state, requests }
     }
     case 'toggle-select':
       return {

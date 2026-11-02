@@ -8,8 +8,8 @@ import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
-import { formatDate, formatDateTime } from '@/lib/format'
-import { numberFormat } from '@/lib/insights-api'
+import { NEXT_STEP, formatDate, formatDateTime } from '@/lib/format'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
@@ -85,16 +85,14 @@ export function RequestDetailView({ id }: { id: string }) {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 py-6 pb-28 lg:py-8">
-      <Link href="/requests" className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
         <ArrowRight className="size-4" aria-hidden />
         كل الطلبات
       </Link>
 
       <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <TypeLabel type={request.type} />
-          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
-        </div>
+        {/* read in the order a person asks: what it is, to whom, where it stands, what to do next */}
+        <TypeLabel type={request.type} />
         {editable ? (
           // the page's one h1 even while the title is editable, with a pencil so it reads as something to change
           <h1 className="text-2xl font-bold">
@@ -111,10 +109,15 @@ export function RequestDetailView({ id }: { id: string }) {
         ) : (
           <h1 className="text-2xl font-bold text-balance">{request.title}</h1>
         )}
-        <p className="text-xs text-muted-foreground">
-          {cityById.get(request.cityId)?.name} · أنشئ {formatDate(request.createdAt)}
+        <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">إلى {counted(request.businessIds.length, 'business')}</span>
+          {cityById.get(request.cityId)?.name ? ` في ${cityById.get(request.cityId)?.name}` : ''} · أنشئ {formatDate(request.createdAt)}
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
+          {NEXT_STEP[request.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[request.status]}</p>}
+        </div>
       </header>
 
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
@@ -176,12 +179,13 @@ export function RequestDetailView({ id }: { id: string }) {
           <ul className="flex flex-col divide-y">
             {replies.map((m) => (
               <li key={m.id}>
-                <Link href={`/inbox?m=${m.id}`} className="flex items-start gap-3 py-2.5 hover:bg-muted/40">
+                <Link href={`/inbox?m=${m.id}`} className="flex items-start gap-3 rounded-lg py-2.5 outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring">
                   <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      {businessById.get(m.businessId)?.name}
-                      {m.unread ? <span className="size-2 rounded-full bg-primary" aria-label="غير مقروء" /> : null}
+                      {businessById.get(m.businessId)?.name ?? 'غير متاح'}
+                      {/* a span's aria-label is not read: the word goes in as hidden text */}
+                      {m.unread ? <span className="size-2 rounded-full bg-primary"><span className="sr-only">غير مقروء</span></span> : null}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{m.body}</p>
                   </div>
@@ -196,7 +200,8 @@ export function RequestDetailView({ id }: { id: string }) {
       ) : null}
 
       {editable ? (
-        <div className="fixed inset-x-3 bottom-[4.5rem] z-30 lg:right-[calc(15rem+1rem)] lg:bottom-4 lg:left-4">
+        // centred under the page: Atlas has a top bar, not a side bar, so there is no 15rem rail to leave room for
+        <div className="fixed inset-x-3 bottom-[4.5rem] z-30 lg:inset-x-4 lg:bottom-4">
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-lg">
             {issues.length ? (
               <p className="flex flex-1 items-center gap-1.5 text-xs text-muted-foreground">

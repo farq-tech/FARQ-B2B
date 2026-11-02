@@ -6,12 +6,17 @@ import { Unavailable } from '@/components/shared/unavailable'
 import { numberFormat, percent } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
-/** The muted box a figure sits in: a caption label over its value. */
+/**
+ * The muted box a figure sits in: a caption label over its value. Tiles side by side line up whatever their labels:
+ * each fills its row's height, the label sits at the top in at most two lines (always reserving two, so a short label
+ * and one that wraps on a narrow phone start their values at the same height), and the value is pushed to the foot,
+ * on one baseline across the row.
+ */
 export function StatTile({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={cn('rounded-xl bg-muted/60 px-3 py-2.5', className)}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      {children}
+    <div className={cn('flex h-full flex-col rounded-xl bg-muted/60 px-3 py-2.5', className)}>
+      <p className="line-clamp-2 min-h-[2lh] text-xs text-muted-foreground" title={label}>{label}</p>
+      <div className="mt-auto flex items-baseline">{children}</div>
     </div>
   )
 }

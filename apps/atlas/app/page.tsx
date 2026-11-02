@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowLeft, BadgeCheck, ChartNoAxesCombined, CheckCircle2, FileSearch, MapPinned, MessageSquareText, SearchCheck, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/app-shell'
 import { AtlasGoalLinks } from '@/components/landing/atlas-goal-links'
+import { ProofCounts } from '@/components/landing/proof-counts'
 
 const steps = [
   { icon: SearchCheck, title: 'حدّد ما تريد', text: 'ابدأ بهدف واضح: موردون، عملاء، أو فهم السوق.' },
@@ -68,7 +69,7 @@ export default function AtlasLandingPage() {
 
       <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
         <div className="rounded-3xl bg-primary p-8 text-primary-foreground"><MessageSquareText className="size-7" aria-hidden /><h2 className="mt-6 text-3xl font-bold leading-tight">قرارك التجاري يظل بيدك.</h2><p className="mt-4 leading-7 text-primary-foreground/80">تستطيع تجهيز قائمة أو طلب أو مسودة، ثم تراجع المحتوى والجهات المختارة قبل اتخاذ أي إجراء خارجي.</p></div>
-        <div><p className="text-sm font-semibold text-primary">مصممة لفرق الشركات</p><h2 className="mt-2 text-3xl font-bold">وضوح أكبر في كل خطوة</h2><ul className="mt-6 space-y-4">{benefits.map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden /><span className="leading-7">{benefit}</span></li>)}</ul><Link href="/requests" className="mt-8 inline-flex items-center gap-2 font-semibold text-primary">عرض الطلبات والمسودات <ArrowLeft className="size-4" aria-hidden /></Link></div>
+        <div><p className="text-sm font-semibold text-primary">مصممة لفرق الشركات</p><h2 className="mt-2 text-3xl font-bold">وضوح أكبر في كل خطوة</h2><ul className="mt-6 space-y-4">{benefits.map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden /><span className="leading-7">{benefit}</span></li>)}</ul><div className="mt-8"><ProofCounts /></div><Link href="/requests" className="mt-8 inline-flex items-center gap-2 font-semibold text-primary">عرض الطلبات والمسودات <ArrowLeft className="size-4" aria-hidden /></Link></div>
       </section>
 
       <section className="border-t bg-muted/40"><div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8"><h2 className="text-3xl font-bold">ابدأ من هدفك التجاري</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">استكشف السوق وحدد الجهات المناسبة، ثم راجع قرارك قبل تنفيذه.</p><Link href="/map" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">فتح خريطة الفرص <ArrowLeft className="size-4" aria-hidden /></Link></div></section>
