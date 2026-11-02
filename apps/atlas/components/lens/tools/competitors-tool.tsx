@@ -185,9 +185,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
             {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
           </Explained>
-          <div className="flex gap-1.5" role="tablist" aria-label="طريقة العرض">
+          {/* two views of one result, switched in place: pressed buttons, not tabs (there is no tab panel to move to) */}
+          <div className="flex gap-1.5" role="group" aria-label="طريقة العرض">
             {([['districts', 'الأحياء'], ['brands', 'السلاسل']] as const).map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
+              <button key={id} aria-pressed={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
                 className={cn('flex-1 rounded-lg border py-2 text-base font-semibold', view === id ? 'border-primary text-primary' : 'hover:border-primary')}>{label}</button>
             ))}
           </div>

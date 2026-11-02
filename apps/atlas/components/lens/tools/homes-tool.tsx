@@ -131,20 +131,20 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">اختر عقاراً</h2>
-      <div className="flex gap-1.5">
+      <div role="group" aria-label="إيجار أو شراء" className="flex gap-1.5">
         {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
           <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}
             className={cn('flex-1 rounded-lg border py-2 text-sm', kind === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label="نوع العقار" className="flex flex-wrap gap-1.5">
         {types.map((item) => (
           <button key={item.id} onClick={() => setType(item.id)} aria-pressed={type === item.id}
             className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}><Icon3D type={item.id} />{item.label}</button>
         ))}
       </div>
       {kind === 'rent' && (
-        <div className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
+        <div role="group" className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
           {[...RENT_DEALS, { id: 'all' as const, label: 'الكل' }].map((item) => (
             <button key={item.id} onClick={() => setRentDeal(item.id)} aria-pressed={rentDeal === item.id}
               className={cn('rounded-full border px-3 py-1.5 text-sm', rentDeal === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>

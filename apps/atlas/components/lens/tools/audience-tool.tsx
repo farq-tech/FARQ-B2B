@@ -29,9 +29,10 @@ const SEX_WORD: Record<Exclude<Sex, 'all'>, string> = { men: 'رجال', women: 
 const NATIONALITY_WORD: Record<Exclude<Nationality, 'all'>, string> = { saudi: 'سعوديون', non_saudi: 'غير سعوديين' }
 const show = (value: number) => numberFormat.format(Math.round(value))
 
-function Choice<T extends string | number>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange: (id: T) => void }) {
+/** One question's answers as pressed buttons; `label` names the question for screen readers («الجنس», «الجنسية»…). */
+function Choice<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: { id: T; label: string }[]; onChange: (id: T) => void }) {
   return (
-    <div className="flex gap-1.5">
+    <div role="group" aria-label={label} className="flex gap-1.5">
       {options.map((option) => (
         <button key={String(option.id)} onClick={() => onChange(option.id)} aria-pressed={value === option.id}
           className={cn('flex-1 rounded-lg border py-2 text-sm', value === option.id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
@@ -148,20 +149,20 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">أين جمهوري؟</h2>
-      <Choice value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
+      <Choice label="من تستهدف" value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
       {mode === 'people' ? (
         <>
-          <Choice value={sex} onChange={setSex} options={[{ id: 'all', label: 'الكل' }, { id: 'men', label: 'رجال' }, { id: 'women', label: 'نساء' }]} />
-          <Choice value={nationality} onChange={setNationality} options={[{ id: 'all', label: 'كل الجنسيات' }, { id: 'saudi', label: 'سعوديون' }, { id: 'non_saudi', label: 'غير سعوديين' }]} />
+          <Choice label="الجنس" value={sex} onChange={setSex} options={[{ id: 'all', label: 'الكل' }, { id: 'men', label: 'رجال' }, { id: 'women', label: 'نساء' }]} />
+          <Choice label="الجنسية" value={nationality} onChange={setNationality} options={[{ id: 'all', label: 'كل الجنسيات' }, { id: 'saudi', label: 'سعوديون' }, { id: 'non_saudi', label: 'غير سعوديين' }]} />
           {both && (
             <div>
               <p className="mb-1 text-sm text-muted-foreground">رتّب الأحياء ولوّن الخريطة حسب</p>
-              <Choice value={rankBy} onChange={setRankBy} options={[{ id: 'sex', label: segmentWord('sex') }, { id: 'nationality', label: segmentWord('nationality') }]} />
+              <Choice label="رتّب حسب" value={rankBy} onChange={setRankBy} options={[{ id: 'sex', label: segmentWord('sex') }, { id: 'nationality', label: segmentWord('nationality') }]} />
             </div>
           )}
           <div>
             <p className="mb-1 text-sm text-muted-foreground">متوسط دخل الحي الشهري</p>
-            <Choice value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? `${numberFormat.format(value)}+` : 'أي دخل' }))} />
+            <Choice label="متوسط دخل الحي الشهري" value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? `${numberFormat.format(value)}+` : 'أي دخل' }))} />
           </div>
         </>
       ) : (

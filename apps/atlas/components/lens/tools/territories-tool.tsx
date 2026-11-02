@@ -161,7 +161,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
               className="size-11 rounded-lg border text-lg font-semibold hover:border-primary disabled:opacity-40">+</button>
           </div>
         </div>
-        <div className="mt-2 flex gap-1.5">
+        <div role="group" aria-label="معيار التوازن" className="mt-2 flex gap-1.5">
           {(['businesses', 'population'] as const).map((value) => (
             <button key={value} onClick={() => setWeight(value)} aria-pressed={weight === value}
               className={cn('flex-1 rounded-lg border py-2 text-sm', weight === value ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
