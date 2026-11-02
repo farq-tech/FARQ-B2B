@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
+import { openNow, statusLabel, todayHours } from '@/lib/business-status'
 
 const sar = (value: number) => `${numberFormat.format(Math.round(value))} ر.س`
 
@@ -23,8 +24,28 @@ const LONG = 220
  * signals, and the operational facts the directory carries. Only present fields are shown; a missing one is left out,
  * never «0». Contacts are never shown — the directory withholds them from the browser.
  */
+// a voted status that is not a definite "open" is better trusted than hours that may be stale, so the live
+// «مفتوح الآن» badge is shown only when the business is not voted closed/inactive
+const SUPPRESS_LIVE = new Set(['closed_temporary', 'closed_permanent', 'inactive'])
+
 export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
   const [open, setOpen] = useState(false)
+  const now = new Date()
+
+  // operating status: the voted status as an Arabic line; an unknown or absent vote is «غير متاح», never guessed
+  const hasStatus = row.statusVoted != null
+  const status = statusLabel(row.statusVoted)
+  const lowConfidence = row.statusConfidence === 'low'
+
+  // today's hours and a live open-now badge, computed from the canonical weekly hours in Asia/Riyadh
+  const today = todayHours(row.hoursWeek, now)
+  const live = openNow(row.hoursWeek, now)
+  const showBadge = live != null && !SUPPRESS_LIVE.has(String(row.statusVoted))
+
+  // WhatsApp affordance: shown only when the state is not «not_available» (older releases fall back to the flag)
+  const waAvailable = row.whatsappState ? row.whatsappState !== 'not_available' : row.whatsapp === true
+  const waVerified = row.whatsappState === 'verified'
+
   const facts: [string, string][] = []
   if (row.operatingHours) facts.push(['ساعات العمل', fact(row.operatingHours)])
   if (row.paymentMethods) facts.push(['طرق الدفع', fact(row.paymentMethods)])
@@ -45,9 +66,43 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
 
   const description = row.description ? latin(row.description) : ''
   const folded = description.length > LONG && !open
-  const empty = !description && facts.length === 0 && delivery.length === 0
+  const hasHours = today != null
+  const empty = !description && facts.length === 0 && delivery.length === 0 && !hasStatus && !hasHours && !waAvailable
   return (
     <div className="mb-2 flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3 text-sm">
+      {(hasStatus || hasHours || waAvailable) && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {hasStatus && (
+              <span className={`font-semibold ${status && !lowConfidence ? '' : 'text-muted-foreground'}`}>
+                {status ?? 'غير متاح'}
+                {status && lowConfidence && <span className="mr-1 text-xs font-normal text-muted-foreground"> (غير مؤكد)</span>}
+              </span>
+            )}
+            {showBadge && live && (
+              <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${live.open ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                {live.open ? (live.until ? `مفتوح الآن · حتى ${live.until}` : 'مفتوح الآن') : (live.opensAt ? `مغلق الآن · يفتح ${live.opensAt}` : 'مغلق الآن')}
+              </span>
+            )}
+            {waAvailable && (
+              <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${waVerified ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                {waVerified ? 'واتساب موثّق' : 'واتساب متاح'}
+              </span>
+            )}
+          </div>
+          {hasHours && today && (
+            <p className="text-xs text-muted-foreground">
+              {`اليوم (${today.day}): `}
+              {today.intervals.length ? today.intervals.map(([start, end]) => `${start} - ${end}`).join('، ') : 'مغلق'}
+            </p>
+          )}
+          {row.lastSeenAt && (
+            <p className="text-xs text-muted-foreground">
+              {`آخر رصد: ${row.lastSeenAt}`}{row.isStale && ' · بيانات قد تكون قديمة'}
+            </p>
+          )}
+        </div>
+      )}
       {description && (
         <div>
           <p className={folded ? 'line-clamp-3 whitespace-pre-line leading-relaxed' : 'whitespace-pre-line leading-relaxed'}>{description}</p>
