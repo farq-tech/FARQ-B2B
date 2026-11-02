@@ -87,6 +87,30 @@ class TradeCorridorTest(unittest.TestCase):
             self.assertEqual((n, nw), (6, 1))
 
 
+class CorridorActivityTest(unittest.TestCase):
+    class Taxonomy:
+        subs = {'auto.workshop': {}, 'beauty.barber': {}, 'equip.workshop_equipment': {}}
+        named = {'ورش سيارات': ['auto.workshop'], 'حلاق': ['beauty.barber']}
+
+        def subs_in(self, q):
+            return self.named.get(q, []), 10.0
+
+        def understand(self, q, objective):
+            # the commercial resolver reads «ورش» as equipment to buy
+            return {'targets': {'equip.workshop_equipment': 2.0} if 'ورش' in q else {}}
+
+    def test_the_named_trade_wins_over_a_product_reading(self):
+        tx = self.Taxonomy()
+        self.assertEqual(market_analytics.corridor_subs(tx, 'ورش سيارات'), ['auto.workshop'])
+        self.assertEqual(market_analytics.corridor_subs(tx, 'حلاق'), ['beauty.barber'])
+
+    def test_no_named_trade_or_a_seller_falls_back_to_the_resolver(self):
+        tx = self.Taxonomy()
+        self.assertEqual(market_analytics.corridor_subs(tx, 'معدات ورش'), ['equip.workshop_equipment'])
+        self.assertEqual(market_analytics.corridor_subs(tx, 'ورش سيارات', 'marketing'), ['equip.workshop_equipment'])
+        self.assertEqual(market_analytics.corridor_subs(tx, 'شيء غير معروف'), [])
+
+
 class StreetDistrictFilterTest(unittest.TestCase):
     def test_a_corridor_matches_every_district_it_crosses(self):
         con = duckdb.connect()

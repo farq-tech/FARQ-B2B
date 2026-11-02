@@ -302,6 +302,18 @@ SCHOOL_PUBLIC = r"ابتدائي|متوسط|ثانوي|elementary|primary|second
 
 
 
+def corridor_subs(tx, q, objective=None):
+    """The activity whose streets a request asks for. A street is lined by the trade itself, so the business type the
+    words name («ورش سيارات» → car workshops, «حلاق» → barbers) comes first; the commercial resolver, which can read the
+    same words as a product to buy («ورش» → workshop equipment, «حلاق» → salon supplies), answers only when no type is
+    named or when a seller asks for his buyers."""
+    if objective != 'marketing':
+        named = [sub for sub in tx.subs_in(q)[0] if sub in tx.subs]
+        if named:
+            return named
+    return list(tx.understand(q, 'marketing' if objective == 'marketing' else 'purchase')['targets'])
+
+
 def street_density_district_sql(columns):
     """District filter on the street table: a corridor matches every district it crosses (districts_ar), an older
     file only its own district_ar."""

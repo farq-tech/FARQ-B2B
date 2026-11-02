@@ -1272,7 +1272,7 @@ class H(BaseHTTPRequestHandler):
                         db.close()
                         self._json({'type': 'FeatureCollection', 'features': [], 'specialty_available': False, 'basis': 'مصدر كثافة الشوارع لا يفصل التخصصات حتى الآن؛ أخفينا الخطوط العامة كي لا تبدو كأنها مطابقة للتخصص.'}); return
                 if q and tx is not None and not subs:
-                    subs = list(tx.understand(q, 'marketing' if body.get('objective') == 'marketing' else 'purchase')['targets'])
+                    subs = market_analytics.corridor_subs(tx, q, body.get('objective'))
                     # a request the taxonomy cannot read finds no street, rather than every corridor in the city under its name
                     if not subs and not main and not specialties:
                         db.close()
