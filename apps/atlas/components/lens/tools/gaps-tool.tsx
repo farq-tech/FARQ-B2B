@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
@@ -13,6 +12,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type Activity = { main_id: string; main_ar: string }
 type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
@@ -52,6 +52,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
     return () => { live = false }
   }, [city, studied])
 
+  const label = studied.label
   useEffect(() => {
     if (!result) { onOverlay({}); return }
     const ids = new Map(rows.map((row) => [row.name, row.id]))
@@ -63,13 +64,15 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
       if (!id) continue
       colors.set(id, row.shortfall > 0 ? SHADES[Math.min(4, Math.floor((5 * row.shortfall) / (largest + 1e-9)))] : SURPLUS)
     }
-    onOverlay({ colors, legend: { from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
-  }, [result, rows, onOverlay])
+    onOverlay({ colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
+  }, [result, rows, onOverlay, label])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
 
   const ids = new Map(rows.map((row) => [row.name, row.id]))
   const gaps = result?.districts.filter((row) => row.shortfall > 0) ?? []
+  // the bar only scales each row's shortfall, as the API returned it, against the largest in the list
+  const widest = Math.max(0, ...gaps.map((row) => row.shortfall))
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -78,7 +81,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
         <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') study(query.trim()) }}
           placeholder="اكتب نشاطك: صيدلية، مغسلة ملابس…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
         <button onClick={() => study(query.trim())} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
-          {status === 'loading' ? <Loader2 className="size-5 animate-spin" aria-label="جارٍ الحساب" /> : 'احسب'}
+          {status === 'loading' ? 'جارٍ الحساب' : 'احسب'}
         </button>
       </div>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
@@ -89,20 +92,39 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status === 'loading' && (
+        // the shape of the answer while it is worked out: the city rate, then district rows with their bars
+        <div role="status" aria-label="جارٍ حساب النقص" className="flex flex-col gap-3">
+          <Skeleton className="h-5 w-3/4" />
+          {[0, 1, 2, 3, 4].map((index) => (
+            <div key={index} className="flex items-center gap-3 py-1">
+              <div className="flex flex-1 flex-col gap-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-1.5" style={{ width: `${90 - index * 15}%` }} /></div>
+              <Skeleton className="h-6 w-14" />
+            </div>
+          ))}
+        </div>
+      )}
       {status !== 'loading' && studied.q && <Understood value={result?.understood} />}
-      {result && result.residents_per_business == null && <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>}
-      {result && result.residents_per_business != null && (
+      {status !== 'loading' && result && result.residents_per_business == null && <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>}
+      {status !== 'loading' && result && result.residents_per_business != null && (
         <>
           <p className="text-base">
             معدل المدينة: منشأة لكل <strong>{numberFormat.format(result.residents_per_business)}</strong> ساكن · {numberFormat.format(gaps.length)} حياً فيها نقص
           </p>
-          <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
+          <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
             {gaps.map((row) => (
-              <li key={row.district_ar} className="flex items-center gap-2 py-2">
-                <button onClick={() => { const id = ids.get(row.district_ar); if (id) onSelect(id) }} className="flex-1 truncate text-start font-medium hover:text-primary">{row.district_ar}</button>
-                <span className="text-sm text-muted-foreground">{numberFormat.format(row.businesses)} موجودة</span>
-                <Explained title={`النقص في ${row.district_ar}`} lines={EXPLAIN.gap(row.expected_businesses, row.businesses, result.residents_per_business as number)} className="w-14 text-end font-bold text-primary">
-                  +{numberFormat.format(Math.round(row.shortfall))}
+              <li key={row.district_ar} className="flex items-center gap-3 py-2.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="flex items-baseline gap-2">
+                    <button onClick={() => { const id = ids.get(row.district_ar); if (id) onSelect(id) }} className="min-w-0 flex-1 truncate text-start font-medium hover:text-primary">{row.district_ar}</button>
+                    <span className="shrink-0 text-sm text-muted-foreground tabular-nums">{numberFormat.format(row.businesses)} موجودة</span>
+                  </span>
+                  <span className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <span className="block h-full rounded-full bg-primary/70" style={{ width: `${widest > 0 ? (100 * row.shortfall) / widest : 0}%` }} />
+                  </span>
+                </div>
+                <Explained title={`النقص في ${row.district_ar}`} lines={EXPLAIN.gap(row.expected_businesses, row.businesses, result.residents_per_business as number)} className="shrink-0 text-lg font-bold text-primary tabular-nums">
+                  <bdi dir="ltr">+{numberFormat.format(Math.round(row.shortfall))}</bdi>
                 </Explained>
               </li>
             ))}

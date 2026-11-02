@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ChevronDown, Loader2, MousePointerClick, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { ChevronDown, MousePointerClick, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { numberFormat, useCities } from '@/lib/insights-api'
@@ -24,7 +25,7 @@ import { CorridorsTool } from './tools/corridors-tool'
 import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import { HomesTool } from './tools/homes-tool'
-import { MapLegend } from './tools/map-legend'
+import { LegendTitle, MapLegend } from './tools/map-legend'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
 
@@ -93,15 +94,94 @@ function ChipSelect({ label, value, onChange, options }: { label: string; value:
   )
 }
 
-/** The step of a journey, as a numbered tab. */
+/**
+ * A row that scrolls sideways on a phone. It keeps its padding at both ends, starts at the reading (RTL) start, fades
+ * the edge that hides more chips so the cut reads as «there is more», and brings the active item (`aria-selected` or
+ * `aria-pressed`) into view when `active` changes. Where everything fits, nothing fades and nothing moves.
+ */
+function ScrollRow({ label, role = 'group', active, className, style, onKeyDown, children }: {
+  label: string
+  role?: 'group' | 'tablist'
+  active?: string
+  className?: string
+  style?: CSSProperties
+  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
+  children: ReactNode
+}) {
+  const row = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+  // measured from the items themselves, so it holds in RTL and LTR alike
+  const measure = useCallback(() => {
+    const el = row.current
+    if (!el || !el.children.length) return
+    const box = el.getBoundingClientRect()
+    const rects = Array.from(el.children, (child) => child.getBoundingClientRect())
+    const left = Math.min(...rects.map((rect) => rect.left)) < box.left - 1
+    const right = Math.max(...rects.map((rect) => rect.right)) > box.right + 1
+    setEdges((current) => (current.left === left && current.right === right ? current : { left, right }))
+  }, [])
+  useEffect(() => {
+    const el = row.current
+    if (!el) return
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [measure])
+  // items come and go with the lens (metric chips, steps): measuring is cheap and a same answer changes nothing
+  useEffect(() => { measure() })
+  useEffect(() => {
+    const el = row.current
+    const item = active == null ? null : el?.querySelector<HTMLElement>('[aria-selected="true"], [aria-pressed="true"]')
+    if (!el || !item) return
+    const box = el.getBoundingClientRect()
+    const rect = item.getBoundingClientRect()
+    const behavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    // the extra 40px clears the fade, so the active item is read, not guessed
+    if (rect.left < box.left + 4) el.scrollBy({ left: rect.left - box.left - 40, behavior })
+    else if (rect.right > box.right - 4) el.scrollBy({ left: rect.right - box.right + 40, behavior })
+  }, [active])
+  const fade = edges.left || edges.right
+    ? `linear-gradient(to right, ${edges.left ? 'transparent' : '#000'}, #000 40px, #000 calc(100% - 40px), ${edges.right ? 'transparent' : '#000'})`
+    : undefined
+  return (
+    <div ref={row} role={role} aria-label={label} onScroll={measure} onKeyDown={onKeyDown}
+      className={cn('flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
+      style={{ ...style, maskImage: fade, WebkitMaskImage: fade }}>
+      {children}
+    </div>
+  )
+}
+
+/**
+ * The step of a journey as a numbered tab: a chip in the phone's scrolling row, and from lg one cell of a stepper
+ * (number over a short label) so the panel's results start near its top.
+ */
 function StepTab({ index, label, active, onClick }: { index: number; label: string; active: boolean; onClick: () => void }) {
   return (
-    <button role="tab" aria-selected={active} onClick={onClick}
-      className={cn('flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60', active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+    <button role="tab" aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick}
+      className={cn('flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        'lg:min-w-0 lg:flex-col lg:justify-start lg:gap-1 lg:px-1 lg:py-2 lg:text-center lg:leading-snug',
+        active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground lg:border-transparent lg:hover:bg-muted/60')}>
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
     </button>
   )
+}
+
+/** Arrow keys, Home and End move between the tabs of a tablist and open the one they land on (WAI-ARIA tabs). */
+function tabKeys(event: KeyboardEvent<HTMLDivElement>) {
+  const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]'))
+  const at = tabs.indexOf(document.activeElement as HTMLElement)
+  if (at < 0) return
+  // in RTL the next step sits to the left
+  const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
+  const arrows: Record<string, number> = { ArrowLeft: rtl ? 1 : -1, ArrowRight: rtl ? -1 : 1 }
+  const step = arrows[event.key]
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : step != null ? (at + step + tabs.length) % tabs.length : null
+  if (next == null) return
+  event.preventDefault()
+  tabs[next].focus()
+  tabs[next].click()
 }
 
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
@@ -181,8 +261,10 @@ export function LensMap() {
   const districtValue = selected.length === 1 ? selected[0] : selected.length > 1 ? DISTRICTS_MULTI : ''
   const pickDistrict = (value: string) => { if (value !== DISTRICTS_MULTI) setSelected(value ? [value] : []) }
   const submit = () => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }
-  // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait
-  const colorsNote = overlay.colors ? `ألوان الخريطة من «${step?.label}»` : null
+  // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait, and the
+  // key in the map's corner says whose colours they are
+  const toolColors = overlay.colors != null
+  const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${step?.label} · ${chosen.map((row) => row.name).join('، ')}` : `${active.label} · ${step?.label ?? ''}`
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
 
@@ -211,11 +293,11 @@ export function LensMap() {
               placeholder="مثل: مورد قهوة" className={pillControl} />
           </PillField>
         </SearchPill>
-        <ChipRow label="المقياس على الخريطة">
-          {colorsNote ? <p className="py-2 text-sm text-muted-foreground">{colorsNote}</p> : active.metrics.map((id) => (
-            <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>
-          ))}
-        </ChipRow>
+        {!toolColors && (
+          <ChipRow label="المقياس على الخريطة">
+            {active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>)}
+          </ChipRow>
+        )}
       </header>
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
@@ -231,30 +313,41 @@ export function LensMap() {
                 placeholder="ابحث عن مورد أو نشاط" className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
               <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
             </form>
-            <div className="pointer-events-auto -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="المدينة والفئة والمقياس">
+            <ScrollRow label="المدينة والحي والفئة والمقياس" className="pointer-events-auto -mx-3 gap-2 px-3 pb-1">
               <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
               <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
-              {colorsNote
-                ? <span className="inline-flex h-9 shrink-0 items-center rounded-full border bg-card/95 px-3.5 text-sm text-muted-foreground shadow-sm">{colorsNote}</span>
-                : active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
+              {!toolColors && active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
+            </ScrollRow>
+          </div>
+          {/* the colour key, titled with what it colours: clear of the map's attribution (bottom corner) and of the
+              «؟» button, above the phone's peeking sheet and the screen's safe area */}
+          <div className="pointer-events-none absolute start-3 bottom-[calc(2.25rem+env(safe-area-inset-bottom))] z-[5] flex max-w-[calc(100%-5rem)] flex-col items-start gap-1.5">
+            <div className="pointer-events-auto flex flex-col gap-1.5 rounded-xl border bg-card/95 px-3 py-2.5 shadow-sm backdrop-blur">
+              {data.status === 'loading' ? (
+                // the key's shape while the city's districts load; the map stays in view
+                <div role="status" className="flex flex-col gap-1.5">
+                  <LegendTitle>جارٍ تحميل أحياء {cityName}</LegendTitle>
+                  <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <Skeleton key={shade} className="h-4 w-7 rounded-sm" />)}</span>
+                </div>
+              ) : (
+                <>
+                  {/* a tool's own key (its districts, or lines such as streets drawn over the shading) */}
+                  {overlay.legend && <MapLegend {...overlay.legend} title={legendTitle} />}
+                  {toolColors && !overlay.legend && <LegendTitle>{legendTitle}</LegendTitle>}
+                  {!toolColors && overlay.legend && <span className="my-0.5 border-t" aria-hidden />}
+                  {!toolColors && <>
+                  <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
+                  <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
+                    <span className="text-muted-foreground">أقل</span>
+                    <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
+                    <span className="text-muted-foreground">أعلى</span>
+                  </Explained>
+                  </>}
+                </>
+              )}
             </div>
           </div>
-          <div className="pointer-events-none absolute bottom-3 start-3 flex flex-col items-start gap-1.5">
-            {/* the key to a tool's colours sits on the map with them, above the districts' own shading key */}
-            {overlay.legend && <div className="pointer-events-auto rounded-lg border bg-card/90 px-2.5 py-2 shadow-sm backdrop-blur"><MapLegend {...overlay.legend} /></div>}
-            {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="pointer-events-auto flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
-              <span className="text-muted-foreground">أقل</span>
-              {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}
-              <span className="text-muted-foreground">أعلى · {METRICS[metric].label}</span>
-            </Explained>}
-          </div>
-          {data.status === 'loading' && (
-            // a small note in the corner: the map stays visible while the city loads
-            <div role="status" className="absolute bottom-14 start-3 flex lg:top-3 lg:bottom-auto items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-sm shadow-sm backdrop-blur">
-              <Loader2 className="size-4 animate-spin text-primary" aria-hidden />جارٍ تحميل أحياء {cityName}
-            </div>
-          )}
         </div>
         <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle}>
           {data.status === 'error' ? (
@@ -269,11 +362,13 @@ export function LensMap() {
               )}
               {!search && (
                 <>
-                  <div role="tablist" aria-label={`خطوات ${active.label}`} className="-mx-3 flex shrink-0 gap-1.5 overflow-x-auto px-3 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0">
+                  <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys}
+                    style={{ '--steps': active.steps.length } as CSSProperties}
+                    className="-mx-3 shrink-0 gap-1.5 px-3 pb-1 lg:mx-0 lg:grid lg:grid-cols-[repeat(var(--steps),minmax(0,1fr))] lg:gap-1 lg:overflow-visible lg:rounded-2xl lg:border lg:bg-card lg:p-1">
                     {active.steps.map((item, index) => (
                       <StepTab key={item.tool} index={index} label={item.label} active={tool === item.tool} onClick={() => setTool(item.tool)} />
                     ))}
-                  </div>
+                  </ScrollRow>
                   {tool === 'gaps' && <GapsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} />}
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} />}
                   {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} onActivity={setRival}
