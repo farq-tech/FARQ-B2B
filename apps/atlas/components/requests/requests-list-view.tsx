@@ -8,13 +8,13 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cityById } from '@/lib/mock-data'
-import { STATUS_LABEL, formatDate } from '@/lib/format'
+import { NEXT_STEP, STATUS_LABEL, formatDate } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
 import type { RequestStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { StatusBadge, TypeLabel } from './request-badges'
+import { STATUS_ICON, StatusBadge, TypeLabel } from './request-badges'
 
 const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'awaiting', 'completed']
 // where a person's next step is: a decision first, then what is ready to send, then drafts to finish
@@ -53,12 +53,16 @@ export function RequestsListView() {
       </SearchPill>
 
       <ChipRow label="حالة الطلب" className="max-w-none">
-        {TABS.map((s) => (
+        {TABS.map((s) => {
+          const Icon = STATUS_ICON[s]
+          return (
           <Chip key={s} active={tab === s} onClick={() => setTab(s)}>
+            <Icon className="size-4" aria-hidden />
             {STATUS_LABEL[s]}
             <ChipCount value={requests.filter((r) => r.status === s).length} active={tab === s} />
           </Chip>
-        ))}
+          )
+        })}
       </ChipRow>
 
       {visible.length === 0 ? (
@@ -82,6 +86,7 @@ export function RequestsListView() {
                       <StatusBadge status={r.status} />
                     </div>
                     <h2 className="truncate font-semibold">{r.title}</h2>
+                    {NEXT_STEP[r.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[r.status]}</p>}
                     <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <span>{cityById.get(r.cityId)?.name}</span>
                       <span>{counted(r.businessIds.length, 'business')}</span>

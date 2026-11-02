@@ -1,12 +1,14 @@
 'use client'
 
-import { ArrowRight, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ChipRow } from '@/components/shared/search-pill'
 import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { businessById } from '@/lib/mock-data'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
@@ -40,6 +42,7 @@ export function InboxView() {
 
   const sorted = [...inbox].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   const visible = sorted.filter((m) => matches(m, filter))
+  const unreadVisible = visible.filter((m) => m.unread)
 
   const setParams = (next: { m?: string | null; f?: InboxFilter }) => {
     const sp = new URLSearchParams(params.toString())
@@ -70,24 +73,50 @@ export function InboxView() {
   const open = (id: string) => { pendingFocus.current = 'detail'; setParams({ m: id }) }
   const back = () => { pendingFocus.current = selectedId; setParams({ m: null }) }
 
+  // keyboard: ↑/↓ move between messages, Home/End jump to the first and last, Enter opens (the row is a button)
+  const moveFocus = (event: KeyboardEvent<HTMLUListElement>) => {
+    const rows = visible.map((m) => document.getElementById(`inbox-row-${m.id}`)).filter((row): row is HTMLElement => Boolean(row))
+    const at = rows.indexOf(document.activeElement as HTMLElement)
+    if (at < 0) return
+    const next = event.key === 'ArrowDown' ? at + 1 : event.key === 'ArrowUp' ? at - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : null
+    if (next == null) return
+    event.preventDefault()
+    rows[Math.max(0, Math.min(rows.length - 1, next))]?.focus()
+  }
+
   // Mark read only when a message is first opened, so a manual "mark unread" isn't immediately undone.
   const lastOpened = useRef<string | null>(null)
+  // keyed by the message's id and read flag, not the message object (a new object on every store change)
+  const selectedUnread = selected?.unread ?? false
   useEffect(() => {
-    if (!selected || lastOpened.current === selected.id) return
-    lastOpened.current = selected.id
-    if (selected.unread) markRead(selected.id)
-  }, [selected, markRead])
+    if (!selectedId || !selected || lastOpened.current === selectedId) return
+    lastOpened.current = selectedId
+    if (selectedUnread) markRead(selectedId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `selected` is read for presence only; its id is the key
+  }, [selectedId, Boolean(selected), selectedUnread, markRead])
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6 pb-24 lg:py-8 lg:pb-8">
       {/* with a message open on a phone the header is hidden from sight but not from screen readers: the page keeps its h1 */}
-      <header className={cn('flex flex-col gap-1', selected && 'max-lg:sr-only')}>
-        <h1 className="text-2xl font-bold text-balance">الوارد</h1>
-        <p className="text-sm text-muted-foreground">ردود طلبات التسعير وتفاعلات الحملات التسويقية في مكان واحد.</p>
+      <header className={cn('flex flex-wrap items-end justify-between gap-3', selected && 'max-lg:sr-only')}>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-balance">الوارد</h1>
+          <p className="text-sm text-muted-foreground">
+            ردود طلبات التسعير وتفاعلات الحملات التسويقية في مكان واحد.
+            {unreadVisible.length > 0 && <span className="font-semibold text-foreground"> {numberFormat.format(unreadVisible.length)} غير مقروءة.</span>}
+          </p>
+        </div>
+        {/* clearing a backlog took one open per message; this marks what the current filter shows, nothing hidden */}
+        {unreadVisible.length > 1 && (
+          <Button variant="outline" size="sm" onClick={() => unreadVisible.forEach((m) => markRead(m.id))}>
+            <CheckCheck data-icon="inline-start" />علّم المعروض كمقروء
+          </Button>
+        )}
       </header>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(20rem,24rem)_1fr]">
         <section aria-label="قائمة الرسائل" className={cn('flex min-w-0 flex-col gap-3', selected && 'hidden lg:flex')}>
+          <p id="inbox-keys" className="sr-only">تنقّل بين الرسائل بالسهمين لأعلى ولأسفل، واضغط Enter لفتح الرسالة.</p>
           <ChipRow label="تصفية الوارد" className="max-w-none flex-wrap overflow-visible">
             {FILTERS.map((f) => (
               <Chip key={f.id} active={filter === f.id} onClick={() => setParams({ f: f.id })}>
@@ -102,7 +131,7 @@ export function InboxView() {
               body={filter === 'all' ? 'ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا بعد أن ترسلها بنفسك من صفحة الطلب.' : 'لا رسائل في هذا التصنيف. اختر «الكل» لترى كل الوارد.'}
               action={filter === 'all' ? <Link href="/requests" className="text-sm font-semibold text-primary hover:underline">افتح الطلبات</Link> : undefined} />
           ) : (
-            <ul className="flex flex-col overflow-hidden rounded-2xl border bg-card">
+            <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
                 const b = businessById.get(m.businessId)
                 const active = m.id === selected?.id
@@ -151,7 +180,9 @@ export function InboxView() {
           )}
         </section>
 
-        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة" className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring', !selected && 'hidden lg:block')}>
+        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة"
+          // on a phone, Escape leaves the message for the list, like «كل الرسائل»; a field keeps its own Escape
+          onKeyDown={(event) => { if (event.key === 'Escape' && selected && !(event.target instanceof HTMLTextAreaElement) && !window.matchMedia('(min-width: 1024px)').matches) back() }} className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring', !selected && 'hidden lg:block')}>
           {selected ? (
             <div className="flex flex-col gap-3">
               <button
