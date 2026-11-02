@@ -105,6 +105,20 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   )), [])
   const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }) }, [])
 
+
+  // the list in the server's best-value order, or nearest to the viewer's point first
+  const shown = useMemo(() => (nearest && myPoint
+    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
+    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
+
+  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
+  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+
+  // the step's answer in one line for the peeking sheet: the service's count, and the first listing of the list
+  const summary = result.status !== 'ready' ? null
+    : !result.available ? 'عروض العقار غير متاحة لهذه المدينة بعد'
+      : `${result.total != null ? `${numberFormat.format(result.total)} عرضاً ${where}` : `عدد العروض غير متاح ${where}`}${shown[0] ? ` · ${nearest && myPoint ? 'الأقرب' : 'الأنسب'}: ${priceLine(shown[0])}` : ''}`
+
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
@@ -118,17 +132,10 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
         compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
         myPoint={myPoint} density={active.district_id ? density.get(active.district_id) ?? null : null} /> : null,
       start: myPoint,
+      summary,
       onPick: picking ? (point) => { setMyPoint(point); savePoint(point); setPicking(false); setNearest(true) } : null,
     })
-  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density])
-
-  // the list in the server's best-value order, or nearest to the viewer's point first
-  const shown = useMemo(() => (nearest && myPoint
-    ? [...result.listings].sort((a, b) => distanceKm(a, myPoint) - distanceKm(b, myPoint))
-    : result.listings).slice(0, BEST), [result.listings, nearest, myPoint])
-
-  const where = selected.length ? (selected.length === 1 ? `في ${selected[0].name}` : `في ${counted(selected.length, 'district')}`) : 'في المدينة'
-  const types = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
+  }, [result.listings, byId, active, focus, compare, toggleCompare, onOverlay, myPoint, picking, density, summary])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">

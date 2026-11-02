@@ -126,10 +126,13 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         while (below < counts.length && counts[below] < item.n) below++
         colors.set(id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
       }
-      onOverlay({ colors, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT } })
+      onOverlay({ colors, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT }, summary: `${brand.brand}: ${counted(brand.branches, 'branch')} في ${counted(brand.districts, 'district')}` })
       return
     }
     if (!table.length) { onOverlay({}); return }
+    // the city's count as the service gives it, and the district where the activity is densest per km²
+    const densest = table.reduce<Row | null>((top, item) => (item.perKm2 != null && item.competitors > 0 && (top?.perKm2 == null || item.perKm2 > top.perKm2) ? item : top), null)
+    const summary = `${cityTotal == null ? `عدد منشآت «${studied.label}» غير متاح` : `${numberFormat.format(cityTotal)} منشأة «${studied.label}» في المدينة`}${densest ? ` · الأكثر تنافساً: ${densest.row.name}` : ''}`
     const dense = table.flatMap((item) => (item.competitors > 0 && item.perKm2 != null ? [item.perKm2] : [])).sort((a, b) => a - b)
     const colors = new Map<string, string>()
     for (const item of table) {
@@ -138,8 +141,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       while (below < dense.length && dense[below] < item.perKm2) below++
       colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
     }
-    onOverlay({ colors, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
-  }, [table, brand, rows, onOverlay])
+    onOverlay({ colors, summary, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
+  }, [table, brand, rows, onOverlay, cityTotal, studied.label])
 
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)

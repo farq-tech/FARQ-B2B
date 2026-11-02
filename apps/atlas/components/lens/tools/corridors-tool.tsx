@@ -74,8 +74,12 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     const streets = corridors
       .map((item, index) => ({ id: String(index), color: colors[index], geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
       .reverse()
-    onOverlay({ streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null })
-  }, [corridors, colors, active, onOverlay])
+    const top = corridors[0]?.properties
+    const summary = status === 'loading' || !result ? null
+      : top ? `${numberFormat.format(corridors.length)} شارعاً لـ«${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.n)} محل`
+        : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
+    onOverlay({ summary, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null })
+  }, [corridors, colors, active, onOverlay, status, result, studied.label])
 
   // a corridor picked on the map comes into view in the list
   useEffect(() => {

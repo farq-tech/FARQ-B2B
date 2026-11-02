@@ -99,22 +99,6 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
   const pickStart = useCallback((point: Point) => { setStart(point); setPicking(false) }, [])
 
-  // everything on the map comes from this one place
-  useEffect(() => {
-    const ids = new Map(rows.map((row) => [row.name, row.id]))
-    const colors = new Map<string, string>()
-    groups?.forEach((group, index) => group.districts.forEach((district) => {
-      const id = ids.get(district.district_ar) ?? String(district.district_id)
-      colors.set(id, rep == null || rep === index ? PALETTE[index % PALETTE.length] : DIM)
-    }))
-    onOverlay({
-      colors: groups ? colors : null,
-      points: customers,
-      start,
-      lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
-      onPick: picking ? pickStart : null,
-    })
-  }, [groups, rows, rep, customers, start, parts, picking, pickStart, onOverlay])
 
   async function route() {
     if (!start || !customers?.length) return
@@ -138,6 +122,30 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const order = useMemo(() => solved.flatMap((part) => part.order), [solved])
   const byId = useMemo(() => new Map((customers ?? []).map((customer) => [customer.id, customer])), [customers])
   const finished = progress != null && progress.done === progress.total && solved.length > 0
+
+  // the step's answer in one line for the peeking sheet: the route once solved, else the rep's customers, else the split
+  const summary = finished ? `المسار: ${numberFormat.format(order.length)} محطة · ${numberFormat.format(Math.round(meters / 1000))} كم · ${duration(seconds)}`
+    : rep != null && customers ? `المندوب ${numberFormat.format(rep + 1)}: ${numberFormat.format(customers.length)} منشأة على الخريطة`
+      : groups && status !== 'loading' ? `${numberFormat.format(groups.length)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
+        : null
+
+  // everything on the map comes from this one place
+  useEffect(() => {
+    const ids = new Map(rows.map((row) => [row.name, row.id]))
+    const colors = new Map<string, string>()
+    groups?.forEach((group, index) => group.districts.forEach((district) => {
+      const id = ids.get(district.district_ar) ?? String(district.district_id)
+      colors.set(id, rep == null || rep === index ? PALETTE[index % PALETTE.length] : DIM)
+    }))
+    onOverlay({
+      colors: groups ? colors : null,
+      points: customers,
+      start,
+      lines: parts.filter((part) => part?.line).map((part) => part.line as GeoJSON.LineString),
+      onPick: picking ? pickStart : null,
+      summary,
+    })
+  }, [groups, rows, rep, customers, start, parts, picking, pickStart, onOverlay, summary])
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
