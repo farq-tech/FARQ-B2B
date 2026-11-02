@@ -20,7 +20,14 @@ const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف ا
  * its handle, or tap it, between a peek that shows the title and the steps, half the screen, and nearly all of it.
  * From lg up it is the same panel as a fixed column beside the map, and the snap does nothing.
  */
-export function MapSheet({ snap, onSnap, title, children }: { snap: SheetSnap; onSnap: (next: SheetSnap) => void; title: ReactNode; children: ReactNode }) {
+export function MapSheet({ snap, onSnap, title, summary, children }: {
+  snap: SheetSnap
+  onSnap: (next: SheetSnap) => void
+  title: ReactNode
+  /** The step's answer in one line under the title, so a peeking sheet already says what the map shows. */
+  summary?: ReactNode
+  children: ReactNode
+}) {
   const sheet = useRef<HTMLElement>(null)
   const drag = useRef<{ y: number; height: number; moved: boolean } | null>(null)
   const [dragged, setDragged] = useState<number | null>(null)
@@ -81,6 +88,7 @@ export function MapSheet({ snap, onSnap, title, children }: { snap: SheetSnap; o
       >
         <span className="h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
         <span className="w-full truncate text-center text-sm font-semibold">{title}</span>
+        {summary && <span className="w-full truncate text-center text-sm text-muted-foreground tabular-nums">{summary}</span>}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3 pt-1 lg:pt-3">{children}</div>
     </aside>

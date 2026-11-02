@@ -20,6 +20,8 @@ export type Overlay = {
   focus?: { lon: number; lat: number } | null
   /** The key to the tool's colours, shown in the map's corner. */
   legend?: Legend | null
+  /** The step's answer in one line, from the API's values as returned, for the phone's sheet while it only peeks. */
+  summary?: string | null
   /** A card the tool floats over the map, such as the listing a click opened. */
   popup?: ReactNode
 }
