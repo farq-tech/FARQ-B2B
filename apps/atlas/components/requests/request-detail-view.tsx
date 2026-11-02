@@ -154,14 +154,18 @@ export function RequestDetailView({ id }: { id: string }) {
         <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} />
       ) : null}
 
-      <BusinessListEditor
-        title={request.type === 'rfq' ? 'الموردون المدعوون' : request.type === 'campaign' ? 'المنشآت المستهدفة' : 'المنشآت في القائمة'}
-        cityId={request.cityId}
-        businessIds={request.businessIds}
-        liveBusinesses={request.liveBusinesses}
-        editable={editable}
-        onChange={changeBusinesses}
-      />
+      {/* once a campaign is reviewed its recipients list (with each one's send state) already names every business:
+          the same names a second time only push the replies down */}
+      {request.campaign && !editable ? null : (
+        <BusinessListEditor
+          title={request.type === 'rfq' ? 'الموردون المدعوون' : request.type === 'campaign' ? 'المنشآت المستهدفة' : 'المنشآت في القائمة'}
+          cityId={request.cityId}
+          businessIds={request.businessIds}
+          liveBusinesses={request.liveBusinesses}
+          editable={editable}
+          onChange={changeBusinesses}
+        />
+      )}
 
       {request.type === 'list' ? (
         <label className="flex flex-col gap-1 rounded-2xl border bg-card p-4">

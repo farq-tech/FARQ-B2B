@@ -203,7 +203,13 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               return (
                 <li key={id} className="flex items-center gap-3 py-2">
                   <StateIcon className={cn('size-4 shrink-0', state.tone)} aria-hidden />
-                  <span className={cn('min-w-0 flex-1 truncate text-sm', state.muted && 'text-muted-foreground')}>{b.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cn('block truncate text-sm', state.muted && 'text-muted-foreground')}>{b.name}</span>
+                    {/* the facts the business list below used to repeat, now that this is the one list */}
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {(mockBusiness ? [mockBusiness.role, districtById.get(mockBusiness.districtId)?.name] : [liveBusiness?.category, liveBusiness?.district]).filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
                   <span className={cn('shrink-0 text-xs', state.tone)}>{state.label}</span>
                 </li>
               )
