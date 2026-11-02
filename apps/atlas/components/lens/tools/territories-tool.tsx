@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { planRoute, type Point, type RoutePart, type Stop } from '@/lib/route-plan'
@@ -155,7 +155,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             </button>
           ))}
         </div>
-        {status === 'loading' && <Loader2 className="mt-2 size-5 animate-spin text-primary" aria-label="جارٍ التقسيم" />}
+        {status === 'loading' && <SkeletonRows label="جارٍ التقسيم" rows={groups?.length || 3} boxed leading="swatch" trailing className="mt-2" />}
         {status === 'error' && <p role="alert" className="mt-2 text-base text-destructive">تعذر التقسيم.</p>}
         {groups && status !== 'loading' && (
           <ol className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
@@ -177,7 +177,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
       {rep != null && (
         <Step n={3} title={`عملاء المندوب ${numberFormat.format(rep + 1)}`} done={Boolean(customers?.length)}>
-          {!customers && !customerError && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
+          {!customers && !customerError && <SkeletonStatus><Skeleton className="h-6 w-44" /></SkeletonStatus>}
           {customerError && (
             <p role="alert" className="text-base text-destructive">
               {customerError.text} {customerError.login && <Link href="/login?next=%2Fmap%3Ftool%3Dterritories" className="font-semibold text-primary underline">تسجيل الدخول</Link>}

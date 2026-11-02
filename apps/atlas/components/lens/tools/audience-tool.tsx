@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
@@ -168,7 +168,15 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect }: {
           <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
-      {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ الحساب" />}
+      {status === 'loading' && (
+        <>
+          <SkeletonStatus label="جارٍ الحساب" className="flex flex-col gap-2 rounded-xl bg-muted/40 px-3 py-2.5">
+            <Skeleton className="h-4 w-40" />
+            {figures.map((figure) => <Skeleton key={figure.key} className="h-7 w-36" />)}
+          </SkeletonStatus>
+          <SkeletonRows label="جارٍ الحساب" rows={5} trailing />
+        </>
+      )}
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
       {status !== 'loading' && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">

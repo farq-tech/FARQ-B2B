@@ -6,6 +6,7 @@ import { Loader2, Scale, Send, X } from 'lucide-react'
 import { ltr, numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
+import { SkeletonStatus, Skeleton } from '@/components/ui/skeleton'
 import type { DistrictRow } from './city-data'
 
 export type AdvisorSubject = { kind: 'listings'; listings: Listing[] } | { kind: 'districts'; rows: DistrictRow[] }
@@ -166,7 +167,13 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
                 {turn.content}
               </li>
             ))}
-            {status === 'loading' && <li><Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحضير" /></li>}
+            {status === 'loading' && (
+              <li>
+                <SkeletonStatus label="جارٍ التحضير" className="flex flex-col gap-2 rounded-xl bg-muted/50 px-3 py-3">
+                  <Skeleton className="h-4 w-11/12" /><Skeleton className="h-4 w-4/5" /><Skeleton className="h-4 w-3/5" />
+                </SkeletonStatus>
+              </li>
+            )}
           </ol>
           <div className="flex gap-2">
             <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} maxLength={500}

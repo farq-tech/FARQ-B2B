@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { SkeletonRows } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
 import type { Listing } from '@/lib/real-estate'
@@ -78,7 +78,7 @@ export function ListingSurroundings({ listing, myPoint, density }: { listing: Li
           كثافة الحي: {density != null ? `${numberFormat.format(Math.round(density))} ساكن لكل كم²` : 'غير متاح'}
         </Explained>
       </p>
-      {near === null && <Loader2 className="size-4 animate-spin text-primary" aria-label="جارٍ التحميل" />}
+      {near === null && <SkeletonRows rows={5} dense trailing />}
       {near === 'error' && <p className="text-muted-foreground">ما حول العقار غير متاح الآن.</p>}
       {near && near !== 'error' && (
         <ul className="flex flex-col gap-1">

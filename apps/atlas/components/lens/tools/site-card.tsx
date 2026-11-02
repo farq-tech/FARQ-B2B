@@ -1,6 +1,7 @@
 'use client'
 
-import { Baby, Loader2, MapPin, Store, Users } from 'lucide-react'
+import { Baby, MapPin, Store, Users } from 'lucide-react'
+import { Skeleton, SkeletonRows, SkeletonStats, SkeletonStatus } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, percent } from '@/lib/insights-api'
@@ -85,7 +86,20 @@ export function SiteCard({ label, color, reach, activity, state }: { label: stri
         </div>
       </header>
       {(!state || state.status === 'loading') && (
-        <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin text-primary" aria-hidden />جارٍ حساب البطاقة</div>
+        <div className="space-y-4 p-4">
+          <section className="space-y-2.5">
+            <Skeleton className="h-4 w-28" aria-hidden />
+            <SkeletonStats label="جارٍ حساب البطاقة" />
+            <SkeletonRows label="جارٍ حساب البطاقة" rows={3} sub trailing className="rounded-xl border px-3" />
+          </section>
+          <SkeletonStatus label="جارٍ حساب البطاقة" className="space-y-3">
+            <Skeleton className="h-4 w-28" />
+            <div className="flex items-baseline justify-between"><Skeleton className="h-4 w-16" /><Skeleton className="h-8 w-24" /></div>
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-11 w-full rounded-xl" />
+          </SkeletonStatus>
+        </div>
       )}
       {state?.status === 'error' && <p className="p-4 text-sm text-destructive">{state.message}</p>}
       {state?.status === 'ready' && <Body data={state.data} activity={activity} />}

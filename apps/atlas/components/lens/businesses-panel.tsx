@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ChevronDown, ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
+import { ChevronDown, ClipboardList, Megaphone, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { BusinessDetail } from './business-detail'
+import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
 import { useAppStore } from '@/lib/store'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -105,7 +106,12 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           <Search className="size-4" aria-hidden /> اعرض
         </button>
       </div>
-      {status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
+      {status === 'loading' && (
+        <>
+          <Skeleton className="h-4 w-32" aria-hidden />
+          <SkeletonRows rows={6} sub leading="check" />
+        </>
+      )}
       {status === 'login' && <p className="text-base">لعرض المنشآت وإنشاء طلب <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
       {status === 'error' && <p role="alert" className="text-base text-destructive">{message}</p>}
       {status === 'ready' && (

@@ -5,6 +5,7 @@ import { Calculator, ExternalLink, Loader2, SearchX } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
@@ -136,6 +137,23 @@ export function PriceEstimator() {
 
       <section ref={answer} aria-live="polite" aria-label="السعر المتوقع" className="flex scroll-mt-20 flex-col gap-4">
         {result === null && <EmptyState icon={Calculator} title="السعر يظهر هنا" body="نقارن عقارك بأقرب العروض الحالية في حيه وما حوله، ونعدّل للفروق التي ثبت أثرها في البيانات." />}
+        {result === 'loading' && (
+          <SkeletonStatus label="جارٍ حساب السعر" className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 rounded-3xl border bg-card p-5 shadow-sm">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-10 w-2/3" />
+              <Skeleton className="h-5 w-3/5" />
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <div className="flex flex-col gap-2.5 rounded-3xl border bg-card p-5">
+              <Skeleton className="h-5 w-32" />
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="flex justify-between gap-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-16" /></div>
+              ))}
+            </div>
+          </SkeletonStatus>
+        )}
         {result === 'error' && <LoadError what="السعر" onRetry={run} />}
         {result && result !== 'loading' && result !== 'error' && !result.available && (
           <EmptyState icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'} />

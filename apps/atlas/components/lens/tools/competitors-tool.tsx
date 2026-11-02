@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonRows, SkeletonStatus } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -169,6 +170,13 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           ))}
         </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status === 'loading' && (
+        <>
+          <Skeleton className="h-5 w-3/4" aria-hidden />
+          <div className="flex gap-1.5" aria-hidden><Skeleton className="h-10 flex-1 rounded-lg" /><Skeleton className="h-10 flex-1 rounded-lg" /></div>
+          <SkeletonRows label="جارٍ الحساب" rows={6} sub trailing="double" />
+        </>
+      )}
       {status !== 'loading' && studied.q && <Understood value={understood} />}
       {studied && counts && status !== 'loading' && (
         <>
@@ -264,7 +272,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               <Explained title="توسّع السلسلة" lines={EXPLAIN.chainGrowth} className="self-start text-sm">
                 التوسّع: {growthLine(brand.growth) ?? 'غير متاح'}
               </Explained>
-              {profile === null && <Loader2 className="size-5 animate-spin" aria-label="جارٍ التحميل" />}
+              {profile === null && (
+                <SkeletonStatus className="flex flex-col gap-2 rounded-xl border p-3">
+                  <Skeleton className="h-5 w-3/4" /><Skeleton className="h-5 w-1/2" />
+                </SkeletonStatus>
+              )}
               {profile === 'error' && <p className="text-sm text-muted-foreground">بقية فروع السلسلة غير متاحة الآن.</p>}
               {profile && profile !== 'error' && (
                 <div className="flex flex-col gap-1 rounded-xl border p-3 text-base">

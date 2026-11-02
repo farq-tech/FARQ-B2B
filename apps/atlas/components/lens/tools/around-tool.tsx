@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket, type DistrictFeature } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -209,7 +210,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                 <th className="py-2.5 text-start text-sm font-semibold">جاذبية الموقع</th>
                 {labelled.map((site) => {
                   const result = site.result
-                  if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center"><Loader2 className="mx-auto size-4 animate-spin text-primary" aria-label="جارٍ الحساب" /></td>
+                  if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center" aria-busy="true"><Skeleton className="mx-auto h-5 w-12" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
                   if (result.status === 'error') return <td key={site.id} className="py-2.5 text-center text-sm text-muted-foreground">—</td>
                   const value = scoreById.get(site.id)
                   return (
@@ -228,7 +229,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                     <th className="py-2 text-start text-sm font-medium text-muted-foreground">{row.label}</th>
                     {labelled.map((site) => {
                       const result = site.result
-                      if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center"><Loader2 className="mx-auto size-4 animate-spin text-primary" aria-label="جارٍ الحساب" /></td>
+                      if (!result || result.status === 'loading') return <td key={site.id} className="py-2 text-center" aria-busy="true"><Skeleton className="mx-auto h-4 w-10" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
                       if (result.status === 'error') return <td key={site.id} className="py-2 text-center text-sm text-destructive">{result.message}</td>
                       const value = row.value(result.figures!)
                       return (

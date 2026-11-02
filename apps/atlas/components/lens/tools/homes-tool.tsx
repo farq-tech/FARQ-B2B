@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, MapPin, Scale, X } from 'lucide-react'
+import { MapPin, Scale, X } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
@@ -176,7 +177,12 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
         )}
       </div>
 
-      {result.status === 'loading' && <Loader2 className="size-5 animate-spin text-primary" aria-label="جارٍ التحميل" />}
+      {result.status === 'loading' && (
+        <>
+          <Skeleton className="h-4 w-48 max-w-full" aria-hidden />
+          <SkeletonRows rows={5} sub trailing leading="thumb" />
+        </>
+      )}
       {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
       {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
       {result.status === 'ready' && result.available && (

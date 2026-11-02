@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
@@ -107,7 +108,13 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
       {status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
       {status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
-      {corridors.length > 0 && (
+      {status === 'loading' && (
+        <>
+          <Skeleton className="h-4 w-3/4" aria-hidden />
+          <SkeletonRows rows={6} sub trailing="double" leading="swatch" />
+        </>
+      )}
+      {status !== 'loading' && corridors.length > 0 && (
         <>
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
