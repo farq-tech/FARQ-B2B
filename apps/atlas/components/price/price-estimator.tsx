@@ -10,7 +10,7 @@ import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { numberFormat, postMarket, useCities } from '@/lib/insights-api'
-import { typeLabel } from '@/lib/real-estate'
+import { SHOW_LISTING_PHOTOS, typeLabel } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 
 const DEALS = [['rent_year', 'إيجار سنوي'], ['rent_month', 'إيجار شهري'], ['sale', 'بيع']] as const
@@ -222,7 +222,7 @@ export function PriceEstimator() {
                     <li key={item.id} className={cn(!allExamples && index >= PHONE_EXAMPLES && 'max-sm:hidden')}>
                       <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
+                        {SHOW_LISTING_PHOTOS && item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
                         <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
                         <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.district_ar].filter(Boolean).join(' · ')}</span>
                         {/* always shown on touch screens, where there is no hover to reveal it */}
