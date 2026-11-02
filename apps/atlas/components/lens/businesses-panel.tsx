@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ClipboardList, Loader2, Megaphone, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { counted, numberFormat } from '@/lib/insights-api'
@@ -41,14 +41,17 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   // the poi_key of the business whose directory details are expanded, or null
   const [openId, setOpenId] = useState<string | null>(null)
   const key = districts.join('|')
+  // each search takes a number; an answer that is no longer the latest (another search, city or districts since) is dropped
+  const latest = useRef(0)
 
-  useEffect(() => { setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle') }, [key, city])
+  useEffect(() => { latest.current++; setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle') }, [key, city])
   // a search from the top of the map runs at once, over the selected districts or the whole city
   useEffect(() => { if (query) void load() }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load(text: string = activity) {
     const typed = text.trim()
-    if (status === 'loading') return
+    const mine = ++latest.current
+    const stale = () => mine !== latest.current
     setStatus('loading')
     try {
       const found: PublicDirectoryEntity[] = []
@@ -63,11 +66,13 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(typed ? { q: typed, objective: 'purchase' } : {}) }),
         })
         const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string } | null
+        if (stale()) return
         if (response.status === 401) { setStatus('login'); return }
         if (!response.ok || !body) throw new Error(body?.error || 'تعذر تحميل المنشآت.')
         found.push(...(body.rows ?? []))
         count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
       }
+      if (stale()) return
       const unique = [...new Map(found.map((row) => [row.id, row])).values()]
       setRows(unique)
       setTotal(count)
@@ -75,6 +80,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       setPicked(new Set())
       setStatus('ready')
     } catch (error) {
+      if (stale()) return
       setMessage(error instanceof Error ? error.message : 'تعذر تحميل المنشآت.')
       setStatus('error')
     }

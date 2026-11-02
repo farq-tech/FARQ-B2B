@@ -44,6 +44,8 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
   // the map opens painted with the studied activity; any other activity replaces it
   useEffect(() => {
     let live = true
+    // the previous activity's answer goes at once, so the map never paints it under the new activity's name
+    setResult(null)
     setStatus('loading')
     const body: Record<string, unknown> = { city, min_population: 5000, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     postMarket<Result>('market-gaps', body)
