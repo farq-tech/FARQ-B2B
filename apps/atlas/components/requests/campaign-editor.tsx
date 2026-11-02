@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react'
+import { CircleCheck, ChevronLeft, ChevronRight, CircleQuestionMark, Clock, Minus, ShieldCheck, CircleX, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -55,6 +55,19 @@ export function campaignIssues(c: CampaignDetails) {
   return issues
 }
 
+type Delivery = NonNullable<CampaignDetails['delivery']>[string]
+
+/** Where one recipient of a reviewed campaign stands: left out and why, or its send result. */
+export function recipientState(ineligible: string | undefined, included: boolean, demo: boolean, delivery: Delivery | undefined): { label: string; icon: LucideIcon; tone: string; muted?: boolean } {
+  if (ineligible) return { label: ineligible, icon: Minus, tone: 'text-muted-foreground', muted: true }
+  if (!included) return { label: 'استُبعدت عند المراجعة', icon: Minus, tone: 'text-muted-foreground', muted: true }
+  if (demo) return { label: 'ليست من نتائج الدليل الحية', icon: Minus, tone: 'text-muted-foreground', muted: true }
+  if (delivery === 'sent') return { label: 'أُرسلت', icon: CircleCheck, tone: 'text-primary' }
+  if (delivery === 'failed') return { label: 'فشل الإرسال', icon: CircleX, tone: 'text-destructive' }
+  if (delivery === 'unknown') return { label: 'النتيجة غير مؤكدة', icon: CircleQuestionMark, tone: 'text-warning' }
+  return { label: 'بانتظار الإرسال', icon: Clock, tone: 'text-muted-foreground' }
+}
+
 interface CampaignEditorProps {
   value: CampaignDetails
   businessIds: string[]
@@ -83,7 +96,14 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
           نص الرسالة
         </h2>
         <p className="text-xs text-muted-foreground">يُرسل هذا النص عبر واتساب في رسالة معتمدة، مع اسم المنشأة.</p>
-        <div role="radiogroup" aria-label="القوالب" className="grid gap-2 sm:grid-cols-2">
+        {/* after review the choice is made: name it, instead of four greyed-out options and locked fields */}
+        {!editable ? (
+          <p className="text-sm">
+            <span className="text-muted-foreground">الصيغة: </span>
+            <span className="font-medium">{template ? `${template.name} (${template.kind})` : 'غير متاح'}</span>
+          </p>
+        ) : null}
+        {editable ? <div role="radiogroup" aria-label="القوالب" className="grid gap-2 sm:grid-cols-2">
           {TEMPLATES.map((t) => {
             const approved = t.approval === 'معتمد'
             const active = t.id === value.templateId
@@ -108,9 +128,9 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               </button>
             )
           })}
-        </div>
+        </div> : null}
 
-        {vars.length ? (
+        {editable && vars.length ? (
           <div className="grid gap-2 sm:grid-cols-2">
             {vars.map((v) => (
               <label key={v} className="flex flex-col gap-1">
@@ -160,7 +180,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
         <div className="flex items-start justify-between gap-2">
           <div>
             <h2 id="recip-title" className="font-semibold">
-              المستلمون ومراجعة الأهلية
+              {editable ? 'المستلمون ومراجعة الأهلية' : 'المستلمون وحالة الإرسال'}
             </h2>
             <p className="text-xs text-muted-foreground">
               المؤهلون للإرسال عبر واتساب: {numberFormat.format(value.included.length)} من {numberFormat.format(businessIds.length)}. نستبعد من لا يملك رقم واتساب.
@@ -176,6 +196,18 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
             if (!b) return null
             const e = mockBusiness ? eligibility(mockBusiness) : { ok: Boolean(liveBusiness?.whatsapp), reason: 'لا توجد إشارة واتساب' }
             const checked = value.included.includes(id)
+            if (!editable) {
+              // after review the row says where this recipient stands, so a sent batch shows who got it
+              const state = recipientState(e.ok ? undefined : e.reason, checked, Boolean(mockBusiness), value.delivery?.[id])
+              const StateIcon = state.icon
+              return (
+                <li key={id} className="flex items-center gap-3 py-2">
+                  <StateIcon className={cn('size-4 shrink-0', state.tone)} aria-hidden />
+                  <span className={cn('min-w-0 flex-1 truncate text-sm', state.muted && 'text-muted-foreground')}>{b.name}</span>
+                  <span className={cn('shrink-0 text-xs', state.tone)}>{state.label}</span>
+                </li>
+              )
+            }
             return (
               <li key={id} className="flex items-center gap-3 py-2">
                 <Checkbox
