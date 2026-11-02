@@ -27,6 +27,10 @@ test('a count takes the noun form Arabic agreement asks for', () => {
   assert.equal(counted(1, 'chain'), 'سلسلة واحدة')
   assert.equal(counted(5, 'chain'), '5 سلاسل')
   assert.equal(counted(37, 'chain'), '37 سلسلة')
+  assert.equal(counted(9, 'shop'), '9 محلات')
+  assert.equal(counted(70, 'shop'), '70 محلاً')
+  assert.equal(counted(671, 'shop'), '671 محلاً')
+  assert.equal(counted(300, 'shop'), '300 محل')
 })
 
 test('rooms, bathrooms and listing totals agree with their count', () => {
