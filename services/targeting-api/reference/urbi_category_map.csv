@@ -1,0 +1,147 @@
+category_en,farq_sub_id
+Car service / garages,auto.workshop
+Cafe / Restaurants,food.cafe
+Warehousing services,log.warehousing
+Women's clothing,fashion.clothing
+Grocery stores / Supermarkets,food.grocery
+Department store,retail.department_store
+Fast food restaurants,food.fast_food
+Climate equipment maintenance,contract.hvac
+Men's clothing,fashion.clothing
+Ladies hair styling salons,beauty.salon_women
+Commercial Building Construction,contract.general
+Home Appliances,elec.appliances_store
+Woodworking industry,ind.wood_products
+Coffee shop,food.cafe
+Barbershops,beauty.barber
+Truck repair,auto.trucks_repair
+Spare parts for passenger cars,auto.spare_parts
+Beauty products / Perfumes,beauty.cosmetics_store
+Metal processing,ind.metal
+Construction materials,build.general_materials
+Cars for sale,auto.used_cars
+Buildings repair and reconstruction,contract.maintenance
+Air conditioners,build.hvac_supply
+Housing construction,contract.residential_builder
+Mosques,noncom.mosque
+Automation of business processes,elec.software
+Wrought iron goods,build.metal_fabrication
+Bags / Leather accessories,fashion.bags_accessories
+Industrial construction,contract.general
+Sanitaryware / Bathroom equipment,build.plumbing_supply
+Metals / Alloys,ind.metal
+Industrial equipment repair,ind.industrial_installation
+Gift shops / home decoration,retail.gifts
+Nuts / Seeds,food.nuts_spices
+Shoe stores,fashion.shoes
+Confectionery / Sweets,food.sweets
+Metalware,build.hardware_tools
+Furniture stores,home.furniture
+Mobile phones,elec.mobile_shop
+Car AC repair,auto.workshop
+Car accessories,auto.accessories_tint
+Land transport,log.trucking
+Bedding / Home textiles,home.bedding_linen
+Catering,food.catering
+Stage scenery,hosp.event_rental
+Sale of trucks,auto.trucks_buses
+Electrical products,build.electrical_supply
+Flower shops,retail.flowers
+Repair of electronic control systems for vehicles,auto.workshop
+Clocks / Watches / Accessories,fashion.watches
+Meat / Semi-finished products,food.butcher
+Vehicle chassis repair,auto.workshop
+Repair / installation of household appliances,elec.appliance_repair
+National clothing / footwear,fashion.clothing
+Tools / Equipment rental,equip.rental
+Car wash,auto.car_wash
+Electrical tools,build.hardware_tools
+Tyre workshops,auto.tires
+Car electronics repair,auto.workshop
+Tyres / Wheel rims,auto.tires
+Sportswear / sports shoes,fashion.sportswear
+Bakery,food.bakery
+Municipalities of city / emirate,noncom.government
+Courier services,log.courier
+Auto body repair,auto.body_paint
+Ceramic products,build.tiles_ceramic
+Kitchen furniture,build.kitchens_cabinets
+Living room furniture,home.furniture
+Smoking accessories / Tobacco goods,retail.tobacco_vape
+Spare parts for trucks,auto.spare_parts
+Safety and security systems,elec.cctv_security
+Plastic containers,ind.plastic
+Children's clothing,fashion.kids
+Real estate management,re.property_mgmt
+Car batteries,auto.batteries
+Laundries / Dry-cleaning,personal.laundry
+Catering facilities equipment,food.restaurant_equipment
+Textiles,fashion.fabrics
+Vegetables / Fruits,food.fruits_veg
+Oil Change stations,auto.oil_change
+Bedroom furniture,home.furniture
+Toys,retail.toys
+Individual storage warehouses,log.warehousing
+Mobile phone accessories,elec.mobile_shop
+Petrol stations,energy.fuel_station
+Paintwork materials,build.paint
+Rental of tents / scenic designs for events,hosp.event_rental
+Non-alcoholic beverages,food.beverage_distributor
+Cargo shipping companies,log.freight_customs
+Jewelry stones,fashion.jewelry_gold
+Interior doors,build.doors_windows
+Fit-out works,contract.finishing
+Stationery / school supplies,biz.stationery_office
+Facing stone,build.marble_stone
+Dress-making businesses,fashion.tailoring
+Tea / Coffee / Cacao,food.coffee_tea_supplier
+MEP engineering,contract.engineering_consult
+Carpets,home.carpets
+Medicinal products - wholesale,health.pharma_distributor
+Curtain textile / Fabrics,home.curtains_upholstery
+Interior design,contract.interior_design
+Household goods,home.home_goods_general
+Schools,edu.school
+Car rentals,auto.rental
+Hotels,hosp.hotel
+Grain processing / Flour mills,food.grain_mills
+Architectural design,contract.engineering_consult
+Detailing,auto.car_wash
+PR / public relations,biz.marketing_agency
+Management consulting,biz.consulting
+Lighting equipment,build.lighting_supply
+Food industry ingredients,food.food_wholesale
+Audio equipment / Video equipment,elec.audio_visual
+Organization of exhibitions,hosp.event_planning
+Glass / Mirrors,build.aluminum_glass
+Building Equipment and Machinery,equip.heavy_sales
+Fish / Seafood,food.fish_market
+Household chemicals,home.cleaning_supplies
+Hunting gear,sports.camping_outdoor
+Welding works,build.metal_fabrication
+Special events organization,hosp.event_planning
+Car / Motorcycle lubricants,auto.lubricants_distributor
+Guest houses,hosp.furnished_apartments
+Water purification equipment,energy.water_treatment
+Automation of trade,elec.pos_systems
+Advertising design,biz.advertising_signage
+PC stores,elec.computers
+Copy services,biz.copy_center
+Marble factory,build.marble_workshop
+Real estate agencies / Brokerage services,re.office
+Woodworking equipment,equip.workshop_equipment
+Business incubators,biz.coworking
+Tableware,home.kitchenware
+Government services,noncom.government
+Pet shops,retail.pet_shop
+Electrical installation works,contract.electrical
+Roads construction / Repair,contract.roads
+Nonferrous metal products,ind.metal
+Mobile phone repair,elec.repair
+Wiring products,build.cables_wires
+Diet / soy products,food.health_food
+Fragrances,fashion.perfume
+International cargo services,log.freight_customs
+Manufacturing of plastic items,ind.plastic
+Furniture fittings,build.hardware_tools
+Installation of security and fire alarm system,contract.fire_safety
