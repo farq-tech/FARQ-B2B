@@ -222,6 +222,27 @@ export const EXPLAIN = {
     'المسافة من موقع العرض على الخريطة إلى أقرب نقطة على الشارع، والأقرب أولاً.',
     'السعر كما في الإعلان وبالمدة التي يذكرها، والمساحة تظهر حين يذكرها الإعلان.',
   ],
+  /** «فرص الشوارع»: one street's opportunity score and the figures behind it (services/targeting-api/street_opportunities.py). */
+  streetOpportunity(street: {
+    others: number; activities: number; expected: number; requested_n: number | null; requested_below: number | null
+    population: number | null; road_class?: 'main' | 'secondary' | null
+  }, populationUsed: boolean, kinds: number): string[] {
+    const requested = street.requested_n != null
+      ? `على الشارع ${n(street.requested_n)} محل من النشاط المطلوب.`
+      : street.requested_below != null
+        ? `النشاط المطلوب أقل من ${n(street.requested_below)} محلات على هذا الشارع${kinds > 1 ? ' من كل نوع' : ''}، فلا يظهر له تجمع.`
+        : 'عدد محلات النشاط المطلوب على هذا الشارع غير متاح.'
+    return [
+      'درجة من 100 داخل المدينة، والأعلى أقوى فرصة. لا تُقارن بمدينة أخرى، وهي دليل لا توصية.',
+      `على الشارع ${n(street.others)} محل من أنشطة أخرى تتجمع عليه (${n(street.activities)} نشاط)، بحساب كل نشاط له 5 محلات على الأقل على الشارع نفسه؛ الأنشطة الأقل لا تُحسب، فالرقم حدّ أدنى.`,
+      requested,
+      `شارع بهذا العدد من المحلات يحمل في المتوسط نحو ${n(street.expected)} محل من النشاط المطلوب بحصته بين محلات المدينة.`,
+      'الدرجة تجمع ثلاثة: حجم الحركة التجارية على الشارع، والنقص عن المتوسط المتوقع، و' +
+        (populationUsed ? 'ترتيب سكان أحياء الشارع بين الشوارع المعروضة (الشارع بلا رقم سكان يُعامل معاملة وسطى).' : 'لا يدخلها السكان لأن أرقامهم غير متاحة لأحياء هذه المدينة.'),
+      ...(street.population != null ? [`متوسط سكان أحياء الشارع ${n(street.population)} نسمة.`] : []),
+      'المسافة إلى أقرب تجمع للنشاط مقيسة بين خطي الشارعين على الخريطة.',
+    ]
+  },
   bestListings: [
     'العروض المطابقة لاختيارك مرتبة من الأقل سعراً للمتر مقارنة بوسيط حيّها إلى الأعلى.',
     'العرض في حي بلا وسيط كافٍ يأتي في الآخر.',
