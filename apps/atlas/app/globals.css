@@ -47,6 +47,28 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Radius scale: three steps, one per kind of surface. Every primitive in components/ui follows it.
+       control  rounded-lg   (--radius-control)  inputs, buttons, chips, badges, select triggers, tab lists
+       card     rounded-2xl  (--radius-card)     cards, popovers, select menus
+       panel    rounded-3xl  (--radius-panel)    sheets, dialogs, map panels and windows
+     Two derived rules, not new steps: an element nested inside a control (a tab trigger, a menu item) uses
+     rounded-md so the curves stay concentric; a compact control (h-7 or less) clamps the control radius with
+     rounded-[min(var(--radius-control),10px)] so it does not turn into a pill.
+     Write the t-shirt class (rounded-lg / rounded-2xl / rounded-3xl) in markup, not rounded-control: cn() and
+     tailwind-merge only recognise t-shirt names, so a caller's className override merges cleanly.
+     rounded-full is kept for round things only: avatars, dots, icon discs, progress tracks. */
+  --radius-control: var(--radius-lg);
+  --radius-card: var(--radius-2xl);
+  --radius-panel: var(--radius-3xl);
+
+  /* Type scale: five steps, Tailwind's own sizes with a fixed role each (no new utility names, for the same
+     tailwind-merge reason: text-caption would be mistaken for a colour and dropped).
+       caption      text-xs    labels, units, sources, counts, helper lines
+       body         text-sm    default UI text, descriptions, inputs on desktop
+       body-strong  text-base  card titles, emphasised values, inputs on phones (16px stops iOS zooming)
+       title        text-lg    dialog and sheet titles, section headers
+       heading      text-xl    page headings; larger sizes (2xl+) are for hero numbers only */
 }
 
 :root {

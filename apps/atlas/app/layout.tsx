@@ -4,6 +4,7 @@ import { IBM_Plex_Sans_Arabic } from 'next/font/google'
 import { AppShell } from '@/components/app-shell'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { PALETTE } from '@/lib/palette'
 import { AppStoreProvider } from '@/lib/store'
 import './globals.css'
 
@@ -28,8 +29,10 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'dark',
-  themeColor: '#f7f5f1',
+  // Atlas is a light UI (globals.css sets color-scheme: light), so the browser chrome follows it
+  colorScheme: 'light',
+  // a meta tag cannot read a CSS variable: the literal comes from the palette, the same value as --background
+  themeColor: PALETTE.ground,
 }
 
 export default function RootLayout({

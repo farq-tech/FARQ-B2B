@@ -2,10 +2,11 @@
 
 import { Baby, Loader2, MapPin, Store, Users } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
+import { Split, Stat } from '@/components/shared/stat'
+import { Unavailable } from '@/components/shared/unavailable'
 import { EXPLAIN } from '@/lib/explanations'
-import { numberFormat, percent } from '@/lib/insights-api'
+import { numberFormat } from '@/lib/insights-api'
 import { PALETTE } from '@/lib/palette'
-import { cn } from '@/lib/utils'
 
 /** /api/market/site-card (services/targeting-api/site_card.py). Every figure is computed there; this only draws it. */
 export type SiteCardData = {
@@ -20,55 +21,10 @@ export type SiteCardData = {
 }
 export type SiteCardState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: SiteCardData }
 
-const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
+/** A whole figure, or null when the data does not have it (Stat then reads «غير متاح»). */
+const figure = (value: number | null | undefined) => (value == null ? null : numberFormat.format(Math.round(value)))
+const show = (value: number | null | undefined) => figure(value) ?? <Unavailable />
 const distance = (metres: number | null) => (metres == null ? '' : metres < 1000 ? `${numberFormat.format(Math.round(metres / 10) * 10)} م` : `${numberFormat.format(Math.round(metres / 100) / 10)} كم`)
-
-function Stat({ label, value, explain }: { label: string; value: string; explain: string[] }) {
-  return (
-    <div className="rounded-xl bg-muted/60 px-3 py-2.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <Explained title={label} lines={explain} className={cn('mt-0.5 font-bold tabular-nums', value === 'غير متاح' ? 'text-sm text-muted-foreground' : 'text-xl')}>{value}</Explained>
-    </div>
-  )
-}
-
-/** Two parts of one whole (women and men, Saudis and others) as one bar, each part with its number and share. */
-function Split({ title, left, right, explain }: {
-  title: string
-  left: { label: string; value: number | null; color: string }
-  right: { label: string; value: number | null; color: string }
-  explain: string[]
-}) {
-  const total = left.value != null && right.value != null ? left.value + right.value : null
-  if (!total) {
-    return (
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{title}</span>
-        <Explained title={title} lines={explain} className="text-muted-foreground">غير متاح</Explained>
-      </div>
-    )
-  }
-  const share = (value: number) => Math.round((100 * value) / total)
-  return (
-    <div className="space-y-1.5">
-      <p className="text-sm font-medium">{title}</p>
-      <div className="flex h-2.5 overflow-hidden rounded-full" aria-hidden>
-        <span style={{ width: `${share(left.value!)}%`, background: left.color }} />
-        <span style={{ width: `${100 - share(left.value!)}%`, background: right.color }} />
-      </div>
-      <div className="flex justify-between text-sm">
-        {[left, right].map((part) => (
-          <Explained key={part.label} title={part.label} lines={explain} className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full" style={{ background: part.color }} aria-hidden />
-            <span className="text-muted-foreground">{part.label}</span>
-            <span className="font-bold tabular-nums">{show(part.value)}</span>
-            <span className="text-xs text-muted-foreground">{percent(share(part.value!))}</span>
-          </Explained>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 /**
  * «بطاقة الموقع»: for one candidate site and its range, who already competes there (by name and distance) and who
@@ -104,9 +60,9 @@ function Body({ data, activity }: { data: SiteCardData; activity: string }) {
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">
-              <Stat label="عددهم" value={show(competitors.n)} explain={EXPLAIN.siteCompetitors(activity)} />
-              <Stat label="لكل كم²" value={competitors.per_km2 == null ? 'غير متاح' : numberFormat.format(Math.round(competitors.per_km2 * 10) / 10)} explain={EXPLAIN.siteCompetitorDensity} />
-              <Stat label="ساكن لكل منافس" value={show(data.residents_per_competitor)} explain={EXPLAIN.siteResidentsPerCompetitor} />
+              <Stat label="عددهم" value={figure(competitors.n)} explain={EXPLAIN.siteCompetitors(activity)} />
+              <Stat label="لكل كم²" value={competitors.per_km2 == null ? null : numberFormat.format(Math.round(competitors.per_km2 * 10) / 10)} explain={EXPLAIN.siteCompetitorDensity} />
+              <Stat label="ساكن لكل منافس" value={figure(data.residents_per_competitor)} explain={EXPLAIN.siteResidentsPerCompetitor} />
             </div>
             {competitors.nearest.length > 0 ? (
               <ul className="divide-y rounded-xl border">
