@@ -10,6 +10,7 @@ import threading
 import math
 
 import classification_layer
+import activity_groups
 import taxonomy_search
 
 
@@ -308,7 +309,13 @@ def corridor_subs(tx, q, objective=None):
     same words as a product to buy («ورش» → workshop equipment, «حلاق» → salon supplies), answers only when no type is
     named or when a seller asks for his buyers."""
     if objective != 'marketing':
-        named = [sub for sub in tx.subs_in(q)[0] if sub in tx.subs]
+        named, score = tx.subs_in(q)
+        named = [sub for sub in named if sub in tx.subs]
+        words = set(taxonomy_search.norm(q).split())
+        for gid, group in activity_groups.GROUPS.items():
+            # «أغراض مواليد», «أطفال»: the group, unless one of its trades is named by two words or more («ملابس أطفال»)
+            if words & set(group['words']) and not (named and set(named) <= set(group['subs']) and score >= 20):
+                return [gid]
         if named:
             return named
     return list(tx.understand(q, 'marketing' if objective == 'marketing' else 'purchase')['targets'])
