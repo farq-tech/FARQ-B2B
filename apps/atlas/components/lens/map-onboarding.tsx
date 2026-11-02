@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { CircleHelp, Info, MousePointerClick, X } from 'lucide-react'
+import { setMapTourShowing } from '@/components/shared/whats-new'
 import { trackOnboardingStep } from '@/lib/commercial-metrics'
 import { LENSES, type LensId } from './lenses'
 
@@ -36,6 +37,10 @@ export function MapOnboarding({ lens, onLens, picked }: { lens: LensId; onLens: 
   // the hint's «×» hides it for this visit only; «تخطَّ الجولة» ends the tour for good
   const [hidden, setHidden] = useState(false)
   useEffect(() => { setHidden(false) }, [state])
+  // «ما الجديد» waits while the tour has something on screen, so the two never cover each other
+  const showing = state === 'goal' || ((state === 'waiting_pick' || state === 'waiting_explain') && !hidden)
+  useEffect(() => { setMapTourShowing(showing) }, [showing])
+  useEffect(() => () => setMapTourShowing(false), [])
   const go = (next: CoachState, via?: 'explain' | 'button') => {
     if (next === 'completed') trackOnboardingStep('completed', { via })
     if (next === 'skipped') trackOnboardingStep('skipped', { at: state ?? undefined })
