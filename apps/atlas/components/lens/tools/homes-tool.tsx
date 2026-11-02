@@ -6,7 +6,7 @@ import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, formatDistance, numberFormat, postMarket } from '@/lib/insights-api'
 import { distanceKm } from '@/lib/geo-measure'
 import { BUDGETS, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, isPublishable, priceLine, toneColor, typeLabel, versusDistrict, type Deal, type Listing, type ListingKind } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
@@ -198,7 +198,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset }: {
               <ol className="divide-y">
                 {shown.map((listing) => {
                   const versus = versusDistrict(listing)
-                  const away = myPoint ? `${numberFormat.format(Math.round(distanceKm(listing, myPoint) * 10) / 10)} كم من نقطتك` : null
+                  const away = myPoint ? `${formatDistance(distanceKm(listing, myPoint) * 1000)} من نقطتك` : null
                   return (
                     <ResultRow key={listing.id} onClick={() => open(listing)} active={active?.id === listing.id}
                       leading={<Thumb src={listing.photo} />}
