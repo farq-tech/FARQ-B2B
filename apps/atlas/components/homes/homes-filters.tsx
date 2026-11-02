@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Chip } from '@/components/ui/chip'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
+import { normalizeArabic } from '@/lib/search'
 import { FEATURES, LISTING_TYPES, PERIOD_WORD, RENT_DEALS, TENANTS_LABEL } from '@/lib/real-estate'
 import { AGE_STEPS, COUNT_STEPS, DEFAULT_FILTERS, SORTS, STREET_STEPS, ageStepLabel, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,17 @@ function NumberBox({ label, value, onChange, unit }: { label: string; value: num
         <span className="shrink-0 text-xs text-muted-foreground">{unit}</span>
       </span>
     </label>
+  )
+}
+
+/** «من» above «إلى» empties the list without a word: say so, with the swap one tap away. */
+function RangeHint({ low, high, onSwap }: { low: number | null; high: number | null; onSwap: () => void }) {
+  if (low == null || high == null || low <= high) return null
+  return (
+    <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-warning">
+      «من» أكبر من «إلى»، فلا يطابق أي عرض.
+      <button type="button" onClick={onSwap} className="min-h-11 rounded-lg px-2 font-semibold underline underline-offset-4">اعكسهما</button>
+    </p>
   )
 }
 
@@ -68,8 +80,9 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
   const types = LISTING_TYPES.filter((item) => item.kinds.includes(filters.kind))
   const chosen = new Set(filters.districts)
   const shownDistricts = useMemo(() => {
-    const text = query.trim()
-    const list = text ? districts.filter((item) => item.name.includes(text)) : districts
+    // «ملقا», «الملقا» and «المَلقا» find the same district: hamza, ta marbuta, alif maqsura and diacritics are ignored
+    const text = normalizeArabic(query.trim())
+    const list = text ? districts.filter((item) => normalizeArabic(item.name).includes(text)) : districts
     // the chosen ones first, then by name
     return [...list].sort((a, b) => Number(chosen.has(b.id)) - Number(chosen.has(a.id)) || a.name.localeCompare(b.name, 'ar'))
   }, [districts, query, filters.districts])
@@ -128,6 +141,7 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
               <NumberBox label="من" value={filters.minPrice} onChange={(value) => onChange({ minPrice: value })} unit="ريال" />
               <NumberBox label="إلى" value={filters.maxPrice} onChange={(value) => onChange({ maxPrice: value })} unit="ريال" />
             </div>
+            <RangeHint low={filters.minPrice} high={filters.maxPrice} onSwap={() => onChange({ minPrice: filters.maxPrice, maxPrice: filters.minPrice })} />
           </Section>
 
           <Section title="المساحة">
@@ -135,6 +149,7 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
               <NumberBox label="من" value={filters.minArea} onChange={(value) => onChange({ minArea: value })} unit="م²" />
               <NumberBox label="إلى" value={filters.maxArea} onChange={(value) => onChange({ maxArea: value })} unit="م²" />
             </div>
+            <RangeHint low={filters.minArea} high={filters.maxArea} onSwap={() => onChange({ minArea: filters.maxArea, maxArea: filters.minArea })} />
           </Section>
 
           <Section title="الغرف">

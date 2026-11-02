@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
-import { cn } from '@/lib/utils'
-import { EXPLAIN } from '@/lib/explanations'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ResultRow, ResultRowsSkeleton } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'

@@ -53,10 +53,10 @@ function ListingPhone({ id }: { id: string }) {
     const international = `966${state.phone.slice(1)}`
     return (
       <div className="grid grid-cols-2 gap-1.5">
-        <a href={`tel:+${international}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" dir="ltr">
+        <a href={`tel:+${international}`} className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" dir="ltr">
           <Phone className="size-4" aria-hidden /> {state.phone}
         </a>
-        <a href={`https://wa.me/${international}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold hover:border-primary">
+        <a href={`https://wa.me/${international}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold hover:border-primary">
           <MessageCircle className="size-4" aria-hidden /> واتساب
         </a>
       </div>
@@ -64,7 +64,7 @@ function ListingPhone({ id }: { id: string }) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <button onClick={reveal} disabled={state.loading} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+      <button onClick={reveal} disabled={state.loading} className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
         <Phone className="size-4" aria-hidden /> {state.loading ? 'يجلب الرقم…' : 'اعرض رقم المعلن'}
       </button>
       {state.phone === null && <p className="text-sm text-muted-foreground">رقم المعلن غير متاح لهذا العرض.</p>}
@@ -163,7 +163,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           </p>
         )}
         <button onClick={() => setAround((open) => !open)} aria-expanded={around}
-          className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-semibold hover:border-primary">
+          className="flex items-center justify-between pointer-coarse:min-h-11 rounded-lg border px-3 py-1.5 text-sm font-semibold hover:border-primary">
           حول العقار: مدارس، مستشفى، المطار، وسط المدينة{myPoint ? '، نقطتك' : ''}
           <ChevronDown className={cn('size-4 transition-transform', around && 'rotate-180')} aria-hidden />
         </button>
@@ -173,13 +173,13 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             {listing.has_phone ? null : listing.url ? (
               <a href={listing.url} target="_blank" rel="noopener noreferrer"
-                className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground', !onCompare && 'col-span-2')}>
+                className={cn('inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground', !onCompare && 'col-span-2')}>
                 <ExternalLink className="size-4" aria-hidden /> اتصل أو راسل المعلن
               </a>
             ) : onCompare ? <span /> : null}
             {onCompare && (
               <button onClick={onCompare} aria-pressed={comparing}
-                className={cn('inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
+                className={cn('inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors', listing.has_phone && 'col-span-2', comparing ? 'border-primary bg-primary/10 text-primary' : 'hover:border-primary')}>
                 {comparing ? <Check className="size-4" strokeWidth={3} aria-hidden /> : <Scale className="size-4" aria-hidden />} {comparing ? 'أُضيف للمقارنة' : 'أضف للمقارنة'}
               </button>
             )}
@@ -190,7 +190,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">أُضيف للمقارنة. افتح عقاراً ثانياً من الخريطة أو القائمة وأضفه.</p>
         )}
         {compareCount === 2 && onCompareNow && (
-          <button onClick={onCompareNow} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
+          <button onClick={onCompareNow} className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
             <Scale className="size-4" aria-hidden /> قارن العقارين جنباً إلى جنب
           </button>
         )}

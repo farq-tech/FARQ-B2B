@@ -148,11 +148,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn('relative flex flex-col items-center justify-center gap-1 text-xs font-medium', active ? 'text-primary' : 'text-muted-foreground')}
+              className={cn('relative flex flex-col items-center justify-center gap-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', active ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}
             >
-              <span className="relative">
-                <item.icon className="size-5" aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 -left-2.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}</span> : null}
+              {/* the open page is marked by shape as well as colour: a filled pill behind its icon, its label bold */}
+              <span className={cn('relative grid h-7 w-14 place-items-center rounded-full transition-colors', active ? 'bg-secondary text-primary' : 'text-current')}>
+                <item.icon className="size-5" strokeWidth={active ? 2.4 : 2} aria-hidden />
+                {item.count ? <span className="absolute -top-1.5 end-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}</span> : null}
               </span>
               {item.label}
             </Link>

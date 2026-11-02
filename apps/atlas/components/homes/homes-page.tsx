@@ -61,6 +61,17 @@ export function HomesPage() {
   const [shown, setShown] = useState(PAGE)
   const [mobileMap, setMobileMap] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // the list follows the map only once the person can see the map: always on a wide screen, and on a phone after they
+  // open it. Before that a phone's hidden map still reports bounds, and the list was cut to a view nobody saw.
+  const [mapSeen, setMapSeen] = useState(false)
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 64rem)')
+    const sync = () => { if (wide.matches) setMapSeen(true) }
+    sync()
+    wide.addEventListener('change', sync)
+    return () => wide.removeEventListener('change', sync)
+  }, [])
+  useEffect(() => { if (mobileMap) setMapSeen(true) }, [mobileMap])
   const data = useCityData(city)
 
   // a type the deal does not offer (land for rent) falls back to a flat; a new city or deal starts its own ranges
@@ -88,11 +99,12 @@ export function HomesPage() {
 
   // narrowing: the filters first, then (when asked) what the map shows
   const filtered = useMemo(() => applyFilters(result.listings, filters), [result.listings, filters])
+  const byMap = inView && mapSeen && bounds != null
   const visible = useMemo(() => {
-    if (!inView || !bounds) return filtered
+    if (!byMap || !bounds) return filtered
     const [w, s, e, n] = bounds
     return filtered.filter((l) => l.lon >= w && l.lon <= e && l.lat >= s && l.lat <= n)
-  }, [filtered, inView, bounds])
+  }, [filtered, byMap, bounds])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const dots = useMemo<ListingDot[]>(() => filtered.map((listing) => ({
@@ -171,10 +183,10 @@ export function HomesPage() {
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}
               {result.status === 'ready'
-                ? `${result.total != null && result.total > result.listings.length && !(inView && bounds) ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${inView && bounds ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
+                ? `${result.total != null && result.total > result.listings.length && !byMap ? 'أنسب ' : ''}${visible.length ? offersLabel(visible.length) : 'لا عروض'} ${byMap ? 'في ما تُظهره الخريطة' : `في ${cityAr}`}`
                 : `عروض ${cityAr}`}
             </h1>
-            <label className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
+            <label className={cn('min-h-11 items-center gap-2 text-sm text-muted-foreground', mapSeen ? 'flex' : 'hidden')}>
               <input type="checkbox" checked={inView} onChange={(event) => setInView(event.target.checked)} className="size-4 accent-[var(--primary)]" />
               حدّث القائمة عند تحريك الخريطة
             </label>
@@ -190,17 +202,30 @@ export function HomesPage() {
             </ul>
           )}
           {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
-          {result.status === 'ready' && !result.available && <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد. جرّب الرياض أو جدة.`} />}
+          {result.status === 'ready' && !result.available && (
+            <EmptyState icon={Building2} title="غير متاحة بعد" body={`عروض العقار غير متاحة في ${cityAr} بعد.`}
+              action={city !== 'Riyadh' ? <Chip onClick={() => setCity('Riyadh')}>اعرض عروض الرياض</Chip> : undefined} />
+          )}
+          {/* an empty list says which of the three narrowings emptied it, and offers the one step that undoes it */}
           {result.status === 'ready' && result.available && visible.length === 0 && (
-            <EmptyState icon={SearchX} title="لا عروض بهذه الشروط" body="جرّب مدة أخرى، أو أزل بعض الفلاتر، أو حرّك الخريطة."
-              action={(
-                <div className="flex flex-wrap justify-center gap-2">
-                  {kind === 'rent' && RENT_DEALS.filter((item) => item.id !== filters.rentDeal).map((item) => (
-                    <Chip key={item.id} onClick={() => change({ rentDeal: item.id })}>إيجار {item.label}</Chip>
-                  ))}
-                  {applied.length > 0 && <Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>}
-                </div>
-              )} />
+            filtered.length > 0 ? (
+              <EmptyState icon={MapIcon} title="لا عروض في ما تُظهره الخريطة" body={`حرّك الخريطة أو صغّرها، أو اعرض كل عروض ${cityAr}.`}
+                action={<Chip onClick={() => setInView(false)}>اعرض كل عروض {cityAr}</Chip>} />
+            ) : result.listings.length > 0 ? (
+              <EmptyState icon={SearchX} title="لا عروض بهذه الفلاتر" body={`في ${cityAr} ${offersLabel(result.listings.length)} بهذه الصفقة والنوع، والفلاتر المطبقة تستبعدها كلها.`}
+                action={<Chip onClick={() => change({ ...DEFAULT_FILTERS, kind, rentDeal: filters.rentDeal, types: types.slice(0, 1) })}>مسح الفلاتر</Chip>} />
+            ) : (
+              <EmptyState icon={SearchX} title="لا عروض حالية من هذا النوع"
+                body={kind === 'rent' ? 'جرّب مدة إيجار أخرى أو نوعاً آخر من الأعلى.' : 'جرّب نوعاً آخر من الأعلى.'}
+                action={(
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {kind === 'rent' && RENT_DEALS.filter((item) => item.id !== filters.rentDeal).map((item) => (
+                      <Chip key={item.id} onClick={() => change({ rentDeal: item.id })}>إيجار {item.label}</Chip>
+                    ))}
+                    {filters.districts.length > 0 && <Chip onClick={() => change({ districts: [] })}>كل الأحياء</Chip>}
+                  </div>
+                )} />
+            )
           )}
           <ul className="grid grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2">
             {visible.slice(0, shown).map((listing) => {
@@ -210,19 +235,22 @@ export function HomesPage() {
               return (
                 <li key={listing.id} onMouseEnter={() => setHover(listing.id)} onMouseLeave={() => setHover(null)} className="group">
                   <div className="relative overflow-hidden rounded-2xl bg-muted">
-                    <Gallery photos={photos} className="aspect-[20/19]" />
+                    {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
+                    {photos.length ? <Gallery photos={photos} className="aspect-[20/19]" /> : (
+                      <span className="grid aspect-[20/19] place-items-center text-sm text-muted-foreground"><Building2 className="size-8 opacity-40" aria-hidden /><span className="sr-only">بلا صور</span></span>
+                    )}
                     {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
-                    <button onClick={() => toggleCompare(listing)} aria-pressed={comparing} aria-label={comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}
-                      className={cn('absolute end-3 top-3 grid size-9 place-items-center rounded-full backdrop-blur', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
+                    <button onClick={() => toggleCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
+                      className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>
                       <Scale className="size-4" aria-hidden />
                     </button>
                   </div>
-                  <button onClick={() => open(listing)} className="mt-2 flex w-full flex-col gap-0.5 text-start">
+                  <button onClick={() => open(listing)} className="mt-2 flex w-full flex-col gap-0.5 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     <span className="font-semibold">{typeLabel(listing.type)}{listing.district_ar ? ` في ${listing.district_ar}` : ''}</span>
                     <span className="text-sm text-muted-foreground">
                       {[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? `${numberFormat.format(listing.beds)} غرف` : null, listing.street_width ? `شارع ${numberFormat.format(listing.street_width)} م` : null, listing.age != null ? (listing.age === 0 ? 'جديد' : `عمره ${ageLabel(listing.age)}`) : null].filter(Boolean).join(' · ')}
                     </span>
-                    <span className="mt-1 font-bold underline-offset-4 group-hover:underline">{priceLine(listing)}</span>
+                    <span className="mt-1 font-bold underline-offset-4 group-hover:underline group-focus-within:underline">{priceLine(listing)}</span>
                     {versus && versus.tone !== 'good' && <span className="text-xs text-muted-foreground">{versus.text}</span>}
                     {listing.signal && <span className="mt-0.5 w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{listing.signal.label}</span>}
                   </button>
@@ -259,7 +287,7 @@ export function HomesPage() {
         {compare.length === 1 && (
           <p role="status" className="pointer-events-auto inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-semibold shadow-lg">
             <Scale className="size-4 text-primary" aria-hidden /> عقار واحد في المقارنة · أضف الثاني
-            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
+            <button onClick={() => setCompare([])} aria-label="أفرغ المقارنة" className="-me-1 grid size-6 pointer-coarse:size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-3.5" aria-hidden /></button>
           </p>
         )}
         {compare.length === 2 && (
