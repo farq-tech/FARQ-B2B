@@ -69,6 +69,8 @@ export function PriceEstimator() {
   const [width, setWidth] = useState<string | null>(null)
   const [furnished, setFurnished] = useState<string | null>('no')
   const [result, setResult] = useState<Estimate | 'loading' | 'error' | null>(null)
+  // the answers the shown price was worked out for: its heading names them, and a later change marks it out of date
+  const [asked, setAsked] = useState<{ key: string; kind: string; area: number; districtName?: string; deal: string } | null>(null)
   const answer = useRef<HTMLElement>(null)
   // on a phone the answer sits under the questions: bring it into view once it arrives
   useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }) }, [result])
@@ -84,15 +86,17 @@ export function PriceEstimator() {
 
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
+  const key = JSON.stringify([city, district, deal, kind, areaNumber, age, streets, width, furnished])
   const run = () => {
     if (!ready) return
+    setAsked({ key, kind, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
     setResult('loading')
     postMarket<Estimate>('price-estimate', {
       city, district_id: district, deal, type: kind, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
     }).then(setResult).catch(() => setResult('error'))
   }
-  const districtName = districts?.find((item) => item.id === district)?.name
+  const stale = asked != null && asked.key !== key && result !== 'loading'
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 pb-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:py-10">
@@ -158,11 +162,17 @@ export function PriceEstimator() {
         {result && result !== 'loading' && result !== 'error' && !result.available && (
           <EmptyState icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'} />
         )}
-        {result && result !== 'loading' && result !== 'error' && result.available && result.price && (
-          <>
+        {stale && result && result !== 'error' && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-warning/30 bg-warning/5 p-3 text-sm">
+            <span>غيّرت الإجابات. السعر أدناه لعقارك كما كان، احسبه من جديد ليطابق إجاباتك.</span>
+            <Button size="sm" variant="outline" onClick={run} disabled={!ready}><Calculator aria-hidden />احسب من جديد</Button>
+          </div>
+        )}
+        {result && result !== 'loading' && result !== 'error' && result.available && result.price && asked && (
+          <div className={cn('flex flex-col gap-4 transition-opacity', stale && 'opacity-50')}>
             <div className="rounded-3xl border bg-card p-5 shadow-sm">
-              <p className="text-sm text-muted-foreground">{typeLabel(kind)} {numberFormat.format(areaNumber)} م² في {districtName}</p>
-              <p className="mt-1 text-4xl font-bold tabular-nums">{sar(result.price.mid)}<span className="text-lg font-semibold text-muted-foreground">{PERIOD[deal]}</span></p>
+              <p className="text-sm text-muted-foreground">{typeLabel(asked.kind)} {numberFormat.format(asked.area)} م² في {asked.districtName ?? 'حي غير متاح'}</p>
+              <p className="mt-1 text-4xl font-bold tabular-nums">{sar(result.price.mid)}<span className="text-lg font-semibold text-muted-foreground">{PERIOD[asked.deal]}</span></p>
               <p className="mt-1 text-base">
                 المدى المتوقع: <span className="font-semibold tabular-nums">{numberFormat.format(result.price.low)} – {numberFormat.format(result.price.high)}</span> ريال
               </p>
@@ -210,7 +220,7 @@ export function PriceEstimator() {
                 </ul>
               </div>
             )}
-          </>
+          </div>
         )}
       </section>
     </main>
