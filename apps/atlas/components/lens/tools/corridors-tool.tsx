@@ -16,7 +16,7 @@ type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
   length_m: number; per_100m: number; lift: number | null; road_class?: 'main' | 'secondary' | null
 }
-type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; properties: Corridor }[]; basis?: string }
+type Result = { type: 'FeatureCollection'; features: { geometry: GeoJSON.LineString | GeoJSON.MultiLineString; properties: Corridor }[]; basis?: string; /** false when the service could not read the activity typed. */ understood?: boolean }
 
 const EXAMPLES = ['أدوات صحية', 'ورش سيارات', 'قطع غيار سيارات', 'صالون حلاقة', 'خياطة', 'مفروشات']
 // more shops on the street reads as a deeper colour, in five even groups of the corridors shown
@@ -105,7 +105,8 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
         ))}
       </div>
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر جلب الشوارع.</p>}
-      {status === 'idle' && result && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
+      {status === 'idle' && result?.understood === false && <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>}
+      {status === 'idle' && result && result.understood !== false && !corridors.length && <p className="text-base text-muted-foreground">لا يوجد شارع يتجمع فيه هذا النشاط في المدينة (5 محلات على الأقل على الشارع نفسه).</p>}
       {corridors.length > 0 && (
         <>
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>

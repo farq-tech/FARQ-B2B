@@ -301,6 +301,14 @@ SCHOOL_PRIVATE = r"اهلي|عالمي|international|private|خاص"
 SCHOOL_PUBLIC = r"ابتدائي|متوسط|ثانوي|elementary|primary|secondary|intermediate|high school|تحفيظ"
 
 
+
+def street_density_district_sql(columns):
+    """District filter on the street table: a corridor matches every district it crosses (districts_ar), an older
+    file only its own district_ar."""
+    if 'districts_ar' in columns:
+        return "list_has_any(string_split(coalesce(nullif(districts_ar, ''), district_ar), '|'), ?::varchar[])"
+    return 'district_ar in (select unnest(?::varchar[]))'
+
 class MarketAnalytics:
     def __init__(self, directory_tiles, street_density=None):
         self.tiles = directory_tiles
@@ -974,7 +982,9 @@ class MarketAnalytics:
             clauses.append("main_id = ?")
             params.append(main_id)
         if districts:
-            clauses.append("district_ar in (select unnest(?::varchar[]))")
+            # a corridor built on the road network matches every district it crosses (build_trade_corridors.py)
+            columns = {c[0] for c in self.db.execute("describe select * from read_parquet(?)", [self.street_density]).fetchall()}
+            clauses.append(street_density_district_sql(columns))
             params.append(districts)
         row = self.db.execute(
             "select street_ar, district_ar, n, length_m, per_100m, sub_ar "

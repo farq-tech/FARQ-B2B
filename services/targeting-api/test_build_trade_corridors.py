@@ -6,6 +6,7 @@ from pathlib import Path
 import duckdb
 
 import build_trade_corridors as btc
+import market_analytics
 
 SUBS = {
     'tailor': {'sub_ar': 'خياطة وتفصيل', 'main_id': 'services', 'main_ar': 'خدمات'},
@@ -84,6 +85,17 @@ class TradeCorridorTest(unittest.TestCase):
                 self.assertIn(needed, cols)
             n, nw = duckdb.sql(f"select n, n_wholesale from read_parquet('{out}')").fetchone()
             self.assertEqual((n, nw), (6, 1))
+
+
+class StreetDistrictFilterTest(unittest.TestCase):
+    def test_a_corridor_matches_every_district_it_crosses(self):
+        con = duckdb.connect()
+        con.execute("create table t as select * from (values ('شارع أ', 'الخليج', 'الخليج|الملك فيصل'), ('شارع ب', 'النرجس', '')) v(street_ar, district_ar, districts_ar)")
+        where = market_analytics.street_density_district_sql({'district_ar', 'districts_ar'})
+        found = lambda d: [r[0] for r in con.execute(f'select street_ar from t where {where} order by 1', [d]).fetchall()]
+        self.assertEqual(found(['الملك فيصل']), ['شارع أ'])
+        self.assertEqual(found(['النرجس']), ['شارع ب'])   # empty districts_ar falls back to district_ar
+        self.assertIn('district_ar in', market_analytics.street_density_district_sql({'district_ar'}))
 
 
 if __name__ == '__main__':
