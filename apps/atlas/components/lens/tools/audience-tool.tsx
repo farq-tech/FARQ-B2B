@@ -5,7 +5,7 @@ import { Explained } from '@/components/shared/explained'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
-import { counted, numberFormat, postMarket } from '@/lib/insights-api'
+import { counted, ltr, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
@@ -176,7 +176,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           )}
           <div>
             <p className="mb-1 text-sm text-muted-foreground">متوسط دخل الحي الشهري</p>
-            <Choice label="متوسط دخل الحي الشهري" value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? `${numberFormat.format(value)}+` : 'أي دخل' }))} />
+            <Choice label="متوسط دخل الحي الشهري" value={minIncome} onChange={setMinIncome} options={INCOMES.map((value) => ({ id: value, label: value ? ltr(`${numberFormat.format(value)}+`) : 'أي دخل' }))} />
           </div>
         </>
       ) : (
