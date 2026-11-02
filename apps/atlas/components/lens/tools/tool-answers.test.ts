@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, weekSummary } from './tool-answers.ts'
+import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, rankCompetition, weekSummary } from './tool-answers.ts'
 
 const district = (id: string, name: string) => ({ id, name })
 
@@ -52,4 +52,11 @@ test('the week line agrees with the number of days', () => {
   assert.equal(weekSummary(96, 5), 'خطة الأسبوع: 96 زيارة على 5 أيام')
   assert.equal(weekSummary(18, 1), 'خطة الأسبوع: 18 زيارة على يوم واحد')
   assert.equal(weekSummary(40, 2), 'خطة الأسبوع: 40 زيارة على يومين')
+})
+
+test('«الأقل تنافساً» puts a populated district with no competitor first, and an unknown density last', () => {
+  const at = (id: string, population: number | null, competitors: number, perKm2: number | null) => ({ row: { id, name: id, population }, competitors, perKm2 })
+  const table = [at('a', 9000, 4, 2.5), at('b', 3000, 0, null), at('c', 12000, 0, null), at('d', 5000, 2, null), at('e', 7000, 1, 0.4), at('f', null, 0, null)]
+  assert.deepEqual(rankCompetition(table, 'light').map((item) => item.row.id), ['c', 'b', 'e', 'a', 'd'])
+  assert.deepEqual(rankCompetition(table, 'dense').map((item) => item.row.id), ['a', 'e', 'd'])
 })

@@ -16,6 +16,19 @@ export function densestDistrict<T extends CompetitorRow>(table: T[]): T | null {
   return table.reduce<T | null>((top, item) => (item.perKm2 != null && item.competitors > 0 && (top?.perKm2 == null || item.perKm2 > top.perKm2) ? item : top), null)
 }
 
+/**
+ * The districts as «المنافسون» lists them. «dense»: those with the activity, most competitors per km² first.
+ * «light»: the populated districts, and a district with none of the activity is the lightest of all (no competitor at
+ * all, whatever its area), so it comes first, the most populous of them first; then the fewest per km², and a district
+ * whose density is unknown (no area) last.
+ */
+export function rankCompetition<T extends CompetitorRow & { row: { population: number | null } }>(table: T[], order: 'dense' | 'light'): T[] {
+  if (order === 'dense') return table.filter((item) => item.competitors > 0).sort((a, b) => (b.perKm2 ?? -1) - (a.perKm2 ?? -1))
+  const lightness = (item: T) => (item.competitors === 0 ? -1 : item.perKm2 ?? Infinity)
+  return table.filter((item) => item.row.population != null)
+    .sort((a, b) => lightness(a) - lightness(b) || (b.row.population ?? 0) - (a.row.population ?? 0))
+}
+
 /** «1,234 منشأة «صيدلية» في المدينة · الأكثر تنافساً: العليا». */
 export function competitorsSummary(cityTotal: number | null, label: string, densest: CompetitorRow | null): string {
   const total = cityTotal == null ? `عدد منشآت «${label}» غير متاح` : `${numberFormat.format(cityTotal)} منشأة «${label}» في المدينة`
