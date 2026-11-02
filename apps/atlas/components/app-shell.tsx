@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
+            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 pointer-coarse:min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
               <LogIn className="size-3.5" aria-hidden />
               دخول
             </Link>
