@@ -55,6 +55,21 @@ export function InboxView() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
 
+  // On a phone the list and the message take turns on screen, so the button that was tapped disappears: focus
+  // moves to the message on open and back to its row on «كل الرسائل», instead of falling to the page.
+  const detail = useRef<HTMLElement>(null)
+  const pendingFocus = useRef<'detail' | string | null>(null)
+  useEffect(() => {
+    const target = pendingFocus.current
+    if (!target) return
+    pendingFocus.current = null
+    if (window.matchMedia('(min-width: 1024px)').matches) return   // side by side: the row is still there
+    if (target === 'detail') detail.current?.focus({ preventScroll: false })
+    else document.getElementById(`inbox-row-${target}`)?.focus()
+  }, [selectedId])
+  const open = (id: string) => { pendingFocus.current = 'detail'; setParams({ m: id }) }
+  const back = () => { pendingFocus.current = selectedId; setParams({ m: null }) }
+
   // Mark read only when a message is first opened, so a manual "mark unread" isn't immediately undone.
   const lastOpened = useRef<string | null>(null)
   useEffect(() => {
@@ -95,10 +110,11 @@ export function InboxView() {
                   <li key={m.id} className="border-b last:border-b-0">
                     <button
                       type="button"
-                      onClick={() => setParams({ m: m.id })}
+                      id={`inbox-row-${m.id}`}
+                      onClick={() => open(m.id)}
                       aria-current={active ? 'true' : undefined}
                       className={cn(
-                        'flex w-full items-start gap-3 px-4 py-3 text-right transition-colors outline-none focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                        'flex w-full items-start gap-3 px-4 py-3 text-start transition-colors outline-none focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                         active ? 'bg-accent/50' : 'hover:bg-muted/50',
                       )}
                     >
@@ -113,7 +129,7 @@ export function InboxView() {
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="flex items-center gap-2">
-                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{b?.name}</span>
+                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{b?.name ?? 'غير متاح'}</span>
                           <time className="shrink-0 text-xs text-muted-foreground" dateTime={m.receivedAt}>
                             {formatDateTime(m.receivedAt)}
                           </time>
@@ -134,13 +150,13 @@ export function InboxView() {
           )}
         </section>
 
-        <section aria-label="تفاصيل الرسالة" className={cn('min-w-0', !selected && 'hidden lg:block')}>
+        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة" className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring', !selected && 'hidden lg:block')}>
           {selected ? (
             <div className="flex flex-col gap-3">
               <button
                 type="button"
-                onClick={() => setParams({ m: null })}
-                className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground lg:hidden"
+                onClick={back}
+                className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
               >
                 <ArrowRight className="size-4" aria-hidden />
                 كل الرسائل
