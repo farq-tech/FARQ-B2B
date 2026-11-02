@@ -80,14 +80,18 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
   useEffect(() => {
+    // the shares of a city left behind never land on the next one
+    let active = true
     setShares(null)
     postMarket<{ districts?: Share[] }>('district-audience', { city })
-      .then((data) => setShares(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))))
-      .catch(() => setShares(new Map()))
+      .then((data) => { if (active) setShares(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))) })
+      .catch(() => { if (active) setShares(new Map()) })
+    return () => { active = false }
   }, [city])
 
   useEffect(() => {
-    if (mode !== 'businesses') return
+    // leaving «منشآت» while its counts load drops them, so the people card never waits on them
+    if (mode !== 'businesses') { setStatus('idle'); return }
     let active = true
     setStatus('loading')
     // drop the last activity's counts now, so the map clears instead of shading districts for a different activity
