@@ -4,7 +4,7 @@ import { Check, Timer, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { businessById } from '@/lib/mock-data'
 import { formatSar } from '@/lib/format'
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { quoteHighlights, quoteTotal as total } from '@/lib/quote-highlights'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -40,7 +40,7 @@ export function QuoteComparison({ quotes, acceptedId, canDecide, onAccept }: Quo
                 <div className="min-w-0">
                   <p className="truncate font-medium">{b?.name ?? 'غير متاح'}</p>
                   <p className="text-xs text-muted-foreground">
-                    التوريد {m.quote?.deliveryDays != null ? `خلال ${numberFormat.format(m.quote.deliveryDays)} أيام` : 'غير متاح'} · صلاحية {m.quote?.validity}
+                    التوريد {m.quote?.deliveryDays != null ? `خلال ${counted(m.quote.deliveryDays, 'day')}` : 'غير متاح'} · صلاحية {m.quote?.validity}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">

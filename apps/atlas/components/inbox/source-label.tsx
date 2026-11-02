@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -30,7 +31,12 @@ export function SourceLabel({ message, compact }: { message: InboxMessage; compa
           {message.sentiment}
         </span>
       ) : null}
-      {!compact && request ? <span className="truncate text-xs text-muted-foreground">{request.title}</span> : null}
+      {/* the request the reply belongs to, one tap away */}
+      {!compact && request ? (
+        <Link href={`/requests/${request.id}`} className="truncate rounded text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+          ردّ على «{request.title}»
+        </Link>
+      ) : null}
     </span>
   )
 }

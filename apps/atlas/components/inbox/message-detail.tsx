@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { businessById, districtById } from '@/lib/mock-data'
 import { formatDateTime, formatPhone, formatSar } from '@/lib/format'
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
@@ -29,11 +29,18 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
         <p className="text-xs text-muted-foreground">
           {/* only the parts the directory has, so a missing district never leaves «·  ·» */}
           {[b?.category, b ? districtById.get(b.districtId)?.name : null].filter(Boolean).map((part) => `${part} · `).join('')}
-          <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span> · {formatDateTime(message.receivedAt)}
+          <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span>
         </p>
       </header>
 
-      <div className="max-w-lg self-start rounded-2xl rounded-ss-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed">{message.body}</div>
+      {/* the thread reads like a chat: who wrote and when above the bubble, the message at reading size with its own
+          line breaks, so a long supplier reply is not a grey block of small text */}
+      <figure className="flex max-w-xl flex-col gap-1 self-start">
+        <figcaption className="text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{b?.name ?? 'غير متاح'}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+        </figcaption>
+        <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote>
+      </figure>
 
       {message.quote ? (
         <section aria-labelledby="quote-title" className="flex flex-col gap-2 rounded-xl border p-3">
@@ -58,14 +65,15 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
               ))}
             </tbody>
           </table>
-          <p className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
-            <span>
-              الإجمالي: <span className="font-semibold text-foreground tabular-nums">{formatSar(total)}</span>
-            </span>
-            <span>
-              التسليم خلال {numberFormat.format(message.quote.deliveryDays)} أيام · صلاحية {message.quote.validity}
-            </span>
+          {/* the figure a buyer looks for first, at a size it can be found: the total on its own row, then the terms */}
+          <p className="flex items-baseline justify-between gap-2 border-t pt-2">
+            <span className="text-sm font-semibold">الإجمالي</span>
+            <span className="text-lg font-bold tabular-nums">{formatSar(total)}</span>
           </p>
+          <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div className="flex gap-1"><dt>التسليم</dt><dd className="font-semibold text-foreground">{message.quote.deliveryDays != null ? `خلال ${counted(message.quote.deliveryDays, 'day')}` : 'غير متاح'}</dd></div>
+            <div className="flex gap-1"><dt>صلاحية العرض</dt><dd className="font-semibold text-foreground">{message.quote.validity || 'غير متاح'}</dd></div>
+          </dl>
         </section>
       ) : null}
 

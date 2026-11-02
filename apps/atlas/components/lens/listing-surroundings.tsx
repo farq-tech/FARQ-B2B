@@ -43,23 +43,40 @@ export function ListingSurroundings({ listing, myPoint, density }: { listing: Li
   const [near, setNear] = useState<Near | null | 'error'>(null)
   const [times, setTimes] = useState<Record<string, Drive>>({})
 
+  // the places near the home, once per listing; moving the viewer's own point never asks for them again
   useEffect(() => {
     let live = true
     setNear(null)
-    setTimes({})
     postMarket<Near>('places-near', { city: listing.city, lon: listing.lon, lat: listing.lat })
-      .then((data) => {
-        if (!live) return
-        setNear(data)
-        const targets: [string, MyPoint][] = [...Object.entries(data.anchors ?? {}).map(([key, anchor]) => [key, { lon: anchor.lon, lat: anchor.lat }] as [string, MyPoint]), ...(myPoint ? [['mine', myPoint] as [string, MyPoint]] : [])]
-        if (!targets.length) return
-        drives({ lon: listing.lon, lat: listing.lat }, targets.map(([, point]) => point))
-          .then((found) => { if (live) setTimes(Object.fromEntries(targets.map(([key], i) => [key, found[i]]))) })
-          .catch(() => { /* straight-line distances stay */ })
-      })
+      .then((data) => { if (live) setNear(data) })
       .catch(() => { if (live) setNear('error') })
     return () => { live = false }
-  }, [listing.id, listing.city, listing.lon, listing.lat, myPoint])
+  }, [listing.id, listing.city, listing.lon, listing.lat])
+
+  // the drive times to the anchors and the viewer's point, keyed by the coordinates (never by the point object), and
+  // dropped when the home or the point changed before the answer came
+  const anchors = near && near !== 'error' ? near.anchors ?? {} : null
+  const anchorKey = anchors ? Object.entries(anchors).map(([key, anchor]) => `${key}:${anchor.lon},${anchor.lat}`).join('|') : null
+  const mineLon = myPoint?.lon
+  const mineLat = myPoint?.lat
+  useEffect(() => {
+    setTimes({})
+    if (anchorKey == null) return
+    const targets: [string, MyPoint][] = [
+      ...anchorKey.split('|').filter(Boolean).map((part): [string, MyPoint] => {
+        const [key, at] = part.split(':')
+        const [lon, lat] = at.split(',').map(Number)
+        return [key, { lon, lat }]
+      }),
+      ...(mineLon != null && mineLat != null ? [['mine', { lon: mineLon, lat: mineLat }] as [string, MyPoint]] : []),
+    ]
+    if (!targets.length) return
+    let live = true
+    drives({ lon: listing.lon, lat: listing.lat }, targets.map(([, point]) => point))
+      .then((found) => { if (live) setTimes(Object.fromEntries(targets.map(([key], i) => [key, found[i]]))) })
+      .catch(() => { /* straight-line distances stay */ })
+    return () => { live = false }
+  }, [anchorKey, listing.lon, listing.lat, mineLon, mineLat])
 
   // the same straight-line measure as the homes list's «من نقطتك», so both read the same figure
   const straight = (point: MyPoint) => distanceKm(listing, point)

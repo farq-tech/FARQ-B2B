@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
-import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
+import { LISTING_TYPES, shownPhotos, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
 import { cn } from '@/lib/utils'
@@ -306,7 +306,7 @@ const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare,
   onHover: (id: string | null) => void
 }) {
   const versus = versusDistrict(listing)
-  const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  const photos = shownPhotos(listing)
   return (
     <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
       <div className="relative overflow-hidden rounded-2xl bg-muted">

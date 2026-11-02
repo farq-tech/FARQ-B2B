@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { numberFormat } from '@/lib/insights-api'
+import { ltr, numberFormat } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { openNow, statusLabel, todayHours } from '@/lib/business-status'
 
@@ -56,10 +56,9 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
   if (row.buildingUse) facts.push(['استخدام المبنى', fact(row.buildingUse)])
 
   const delivery: [string, string][] = []
-  if (row.deliveryRating != null) {
-    const count = row.deliveryRateCount != null ? ` (${numberFormat.format(row.deliveryRateCount)})` : ''
-    delivery.push(['التقييم', `${numberFormat.format(Math.round(row.deliveryRating * 10) / 10)} / 5${count}`])
-  }
+  // in words: «4.5 / 5 (120)» inside an Arabic line read as «5 / 4.5», and the bare «(120)» did not say what it counts
+  if (row.deliveryRating != null) delivery.push(['التقييم', `${numberFormat.format(Math.round(row.deliveryRating * 10) / 10)} من 5`])
+  if (row.deliveryRating != null && row.deliveryRateCount != null) delivery.push(['عدد التقييمات', numberFormat.format(row.deliveryRateCount)])
   if (row.deliveryFee != null) delivery.push(['رسوم التوصيل', sar(row.deliveryFee)])
   if (row.deliveryMinOrder != null) delivery.push(['أقل طلب', sar(row.deliveryMinOrder)])
   if (row.deliveryEta) delivery.push(['زمن التوصيل', fact(row.deliveryEta)])
@@ -76,7 +75,7 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
             {hasStatus && (
               <span className={`font-semibold ${status && !lowConfidence ? '' : 'text-muted-foreground'}`}>
                 {status ?? 'غير متاح'}
-                {status && lowConfidence && <span className="mr-1 text-xs font-normal text-muted-foreground"> (غير مؤكد)</span>}
+                {status && lowConfidence && <span className="ms-1 text-xs font-normal text-muted-foreground"> (غير مؤكد)</span>}
               </span>
             )}
             {showBadge && live && (
@@ -93,12 +92,14 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
           {hasHours && today && (
             <p className="text-xs text-muted-foreground">
               {`اليوم (${today.day}): `}
-              {today.intervals.length ? today.intervals.map(([start, end]) => `${start} - ${end}`).join('، ') : 'مغلق'}
+              {/* «من 09:00 إلى 23:00»: a bare «09:00 - 23:00» flips its two times inside the Arabic line */}
+              {today.intervals.length ? today.intervals.map(([start, end]) => `من ${start} إلى ${end}`).join('، ') : 'مغلق'}
             </p>
           )}
           {row.lastSeenAt && (
             <p className="text-xs text-muted-foreground">
-              {`آخر رصد: ${row.lastSeenAt}`}{row.isStale && ' · بيانات قد تكون قديمة'}
+              {/* the date kept whole: after an Arabic word «2026-10-28» reads as «28-10-2026» */}
+              {`آخر رصد: ${ltr(row.lastSeenAt)}`}{row.isStale && ' · بيانات قد تكون قديمة'}
             </p>
           )}
         </div>

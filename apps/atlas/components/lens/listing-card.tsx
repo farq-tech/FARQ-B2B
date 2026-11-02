@@ -5,7 +5,7 @@ import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Sca
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat } from '@/lib/insights-api'
-import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
@@ -103,7 +103,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
     listing.beds ? counted(listing.beds, 'room') : null,
     listing.wc ? counted(listing.wc, 'bathroom') : null,
   ].filter(Boolean)
-  const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  const photos = shownPhotos(listing)
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
   const listed = daysAgo(listing.listed_on)
@@ -136,7 +136,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
         <p className="text-sm">
           <Explained title="عمر العقار" lines={EXPLAIN.listingAge(listing.age_source)} className="text-sm">
-            عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span>
+            <span>عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span></span>
           </Explained>
         </p>
         {(listing.tenants || has.length > 0) && (

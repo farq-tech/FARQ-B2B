@@ -103,6 +103,14 @@ function counted(n: number, one: string, two: string, few: string, many: string)
 export const isPublishable = (listing: Listing) =>
   !listing.check && listing.price_sar != null && listing.deal !== 'rent_unstated' && ((listing.photos?.length ?? 0) > 0 || !!listing.photo)
 
+/** Ad photos carry the ad site's own logo, and Atlas names no outside source on screen (foundation §5), so it
+ * shows none of them (owner, 2026-11-02). The ad itself stays one tap away. Turn this back on in one place. */
+export const SHOW_LISTING_PHOTOS = false
+
+/** The photos Atlas shows of a listing: none while SHOW_LISTING_PHOTOS is off. */
+export const shownPhotos = (listing: Pick<Listing, 'photos' | 'photo'>): string[] =>
+  !SHOW_LISTING_PHOTOS ? [] : listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+
 export const PERIOD_WORD: Record<Deal, string> = { sale: '', rent_year: 'سنوياً', rent_month: 'شهرياً', rent_unstated: '' }
 export const RENT_DEALS: { id: Deal; label: string }[] = [
   { id: 'rent_year', label: 'سنوي' },
