@@ -25,7 +25,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 /** A number box that is empty for «any», never 0. */
 function NumberBox({ label, value, onChange, unit }: { label: string; value: number | null; onChange: (value: number | null) => void; unit: string }) {
   return (
-    <label className="flex flex-1 flex-col gap-1 rounded-xl border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/60">
+    <label className="flex flex-1 flex-col gap-1 rounded-xl border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="flex items-center gap-1.5">
         <input type="text" inputMode="numeric" dir="ltr" placeholder="أي" value={value == null ? '' : numberFormat.format(value)}
@@ -110,7 +110,7 @@ export function HomesFilters({ open, onClose, filters, onChange, districts, coun
           </Section>
 
           <Section title="الحي" hint={filters.districts.length ? `${numberFormat.format(filters.districts.length)} مختارة` : 'كل الأحياء. اختر حياً أو أكثر.'}>
-            <label className="flex h-11 items-center gap-2 rounded-xl border bg-card px-3 focus-within:ring-2 focus-within:ring-ring/60">
+            <label className="flex h-11 items-center gap-2 rounded-xl border bg-card px-3 focus-within:ring-2 focus-within:ring-ring">
               <Search className="size-4 text-muted-foreground" aria-hidden />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن حي" aria-label="ابحث عن حي"
                 className="w-full min-w-0 bg-transparent text-sm outline-none" />

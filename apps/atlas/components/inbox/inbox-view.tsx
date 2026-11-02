@@ -98,7 +98,7 @@ export function InboxView() {
                       onClick={() => setParams({ m: m.id })}
                       aria-current={active ? 'true' : undefined}
                       className={cn(
-                        'flex w-full items-start gap-3 px-4 py-3 text-right transition-colors outline-none focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
+                        'flex w-full items-start gap-3 px-4 py-3 text-right transition-colors outline-none focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                         active ? 'bg-accent/50' : 'hover:bg-muted/50',
                       )}
                     >

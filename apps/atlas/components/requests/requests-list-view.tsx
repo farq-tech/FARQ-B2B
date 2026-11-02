@@ -68,7 +68,7 @@ export function RequestsListView() {
               <li key={r.id}>
                 <Link
                   href={`/requests/${r.id}`}
-                  className="group flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-sm transition-all outline-none hover:border-foreground/20 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/60"
+                  className="group flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-sm transition-all outline-none hover:border-foreground/20 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">

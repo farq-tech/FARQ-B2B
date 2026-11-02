@@ -17,7 +17,7 @@ export function Unavailable({ reason, className }: { reason?: string; className?
   return (
     <Popover>
       <PopoverTrigger aria-label={`${UNAVAILABLE}: ${reason}`}
-        className={cn(look, 'cursor-help touch-manipulation rounded-md underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60')}>
+        className={cn(look, 'cursor-help touch-manipulation rounded-md underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
         {UNAVAILABLE}
       </PopoverTrigger>
       <PopoverContent side="top" className="w-64">

@@ -94,7 +94,8 @@
   --warning: #8f6304;
   --border: #e6e0d6;
   --input: #968c7e;
-  --ring: #a3b80f;
+  /* focus rings: moss, 4.9:1 on the ground (apple #a3b80f was 2.1:1, under WCAG 2.2's 3:1 for a focus indicator) */
+  --ring: #5c7318;
   --chart-1: #3e573b;
   --chart-2: #c48a0a;
   --chart-3: #6f8796;
@@ -108,7 +109,7 @@
   --sidebar-accent: #e7f0de;
   --sidebar-accent-foreground: #3e573b;
   --sidebar-border: #e6e0d6;
-  --sidebar-ring: #a3b80f;
+  --sidebar-ring: #5c7318;
   --map-land: #efebe4;
   --map-road: #ffffff;
   /* the Farq page wash and its pulsing hex dots (farq ui/glass.css .nx-wash / .nx-dots), in a warm stone grey (owner) */
@@ -194,7 +195,7 @@ body::before {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply text-foreground;

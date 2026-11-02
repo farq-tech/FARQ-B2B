@@ -119,7 +119,7 @@ export function PriceEstimator() {
           {KINDS.map((id) => <Chip key={id} active={kind === id} onClick={() => setKind(id)}><Icon3D type={id} className="size-6" />{typeLabel(id)}</Chip>)}
         </Question>
         <label className="flex flex-col gap-1 text-base font-bold">المساحة
-          <span className="flex items-center gap-2 rounded-xl border bg-background px-3 focus-within:ring-2 focus-within:ring-ring/60">
+          <span className="flex items-center gap-2 rounded-xl border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
             <input inputMode="numeric" dir="ltr" placeholder="مثل 180" value={area} onChange={(e) => setArea(e.target.value.replace(/[^0-9]/g, ''))}
               className="h-11 w-full bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal" />
             <span className="text-sm font-normal text-muted-foreground">م²</span>
@@ -198,7 +198,7 @@ export function PriceEstimator() {
                 <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {result.examples.map((item) => (
                     <li key={item.id}>
-                      <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+                      <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-1 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {item.photo ? <img src={item.photo} alt="" className="aspect-square w-full rounded-xl object-cover" /> : <span className="grid aspect-square place-items-center rounded-xl bg-muted text-xs text-muted-foreground">بلا صورة</span>}
                         <span className="text-sm font-bold tabular-nums">{numberFormat.format(item.price_sar)}</span>

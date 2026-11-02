@@ -124,7 +124,7 @@ export function MapWindow({ label, onClose, tab, children, className }: {
   if (phone) {
     return createPortal(folded ? (
       <div className="fixed start-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex max-w-[80%] items-center gap-2 rounded-full border bg-card py-1 ps-1 pe-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tab}
         </button>
         <button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" aria-hidden /></button>
@@ -154,7 +154,7 @@ export function MapWindow({ label, onClose, tab, children, className }: {
     // above the foot of the map, clear of the phone's list/map switch and the colour key
     return (
       <div className="absolute start-3 bottom-16 z-10 flex max-w-[75%] items-center gap-2 rounded-full border bg-card py-1 ps-1 pe-1.5 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        <button onClick={() => setFolded(false)} aria-label={`افتح: ${label}`} className="flex min-w-0 items-center gap-2 rounded-full text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tab}
         </button>
         <button onClick={onClose} aria-label={`أغلق: ${label}`} className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" aria-hidden /></button>
@@ -183,7 +183,7 @@ export function MapWindow({ label, onClose, tab, children, className }: {
           </button>
         </div>
         <button type="button" onKeyDown={nudge} aria-label="اسحب لتحريك البطاقة فوق الخريطة" title="اسحب لتحريك البطاقة"
-          className="grid h-full place-items-center px-3 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60">
+          className="grid h-full place-items-center px-3 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
           <GripHorizontal className="size-5" aria-hidden />
         </button>
       </div>

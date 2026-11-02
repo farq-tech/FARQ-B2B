@@ -18,7 +18,7 @@ export function Explained({ title, lines, children, className }: {
 }) {
   return (
     <Popover>
-      <PopoverTrigger className={cn('group inline-flex cursor-help touch-manipulation items-center gap-1 rounded-md text-start underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60', className)} aria-label={`كيف حُسب: ${title}`}>
+      <PopoverTrigger className={cn('group inline-flex cursor-help touch-manipulation items-center gap-1 rounded-md text-start underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring', className)} aria-label={`كيف حُسب: ${title}`}>
         {children}
         {/* the «i» tells people a figure opens how it was worked out */}
         <Info className="size-3.5 shrink-0 text-muted-foreground/70 transition-colors group-hover:text-primary group-focus-visible:text-primary group-data-[popup-open]:text-primary" aria-hidden />

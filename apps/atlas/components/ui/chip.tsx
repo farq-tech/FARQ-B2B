@@ -11,7 +11,7 @@ export function Chip({ active, className, ...props }: ComponentProps<'button'> &
       aria-selected={props.role === 'tab' ? active : undefined}
       className={cn(
         'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 text-sm whitespace-nowrap transition-colors outline-none',
-        'focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         active ? 'border-primary bg-primary/10 font-semibold text-primary' : 'bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground',
         className,
       )}

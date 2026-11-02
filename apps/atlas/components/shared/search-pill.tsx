@@ -13,7 +13,7 @@ export function SearchPill({ children, onSubmit, label = 'ابحث', className }
       className={cn('mx-auto flex w-full max-w-4xl flex-wrap items-center gap-1 rounded-3xl border bg-card p-1.5 shadow-sm transition-shadow focus-within:shadow-md sm:flex-nowrap sm:rounded-full', className)}>
       {children}
       {onSubmit
-        ? <button type="submit" aria-label={label} className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2"><Search className="size-5" aria-hidden /></button>
+        ? <button type="submit" aria-label={label} className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Search className="size-5" aria-hidden /></button>
         : <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground" aria-hidden><Search className="size-5" /></span>}
     </form>
   )
