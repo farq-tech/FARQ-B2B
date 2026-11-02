@@ -13,6 +13,8 @@ const count = (value: number | null | undefined, unit = '') => (value ? `${numbe
 const has = (value: 0 | 1 | undefined) => (value === 1 ? 'يوجد' : value === 0 ? 'لا يوجد' : 'غير متاح')
 const licence = (value: boolean | undefined) => (value === true ? 'مرخّص' : value === false ? 'غير مرخّص' : 'غير متاح')
 
+const day = (value: string | undefined) => (value ? Date.parse(`${value}T00:00:00Z`) || null : null)
+
 type Row = { label: string; cells: [ReactNode, ReactNode]; better?: 0 | 1 | null }
 
 /** Which side is better on a figure where less (or more) wins; none when either is missing or both are equal. */
@@ -81,6 +83,8 @@ export function ListingCompare({ listings, onClose, onRemove, onAdvisor }: {
       label, cells: [has(a.features?.[key]), has(b.features?.[key])] as [ReactNode, ReactNode],
     })),
     { label: 'نُشر', cells: [daysAgo(a.listed_on) ?? 'غير متاح', daysAgo(b.listed_on) ?? 'غير متاح'] },
+    // the more recently touched ad is the likelier to still be on offer
+    { label: 'آخر تحديث', cells: [daysAgo(a.updated_on) ?? 'غير متاح', daysAgo(b.updated_on) ?? 'غير متاح'], better: better(day(a.updated_on), day(b.updated_on), 'more') },
     { label: 'ترخيص الإعلان', cells: [licence(a.licensed), licence(b.licensed)] },
   ]
 

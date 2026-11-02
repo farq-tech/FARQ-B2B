@@ -133,6 +133,8 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
   const listed = daysAgo(listing.listed_on)
+  // an ad up for a year may have been touched last week: its last update says whether it is still current
+  const updated = listing.updated_on && listing.updated_on !== listing.listed_on ? daysAgo(listing.updated_on) : null
 
   const tab = (
     <>
@@ -171,9 +173,10 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
             {has.map((label) => <li key={label} className="rounded-full border px-2.5 py-0.5 text-sm">{label}</li>)}
           </ul>
         )}
-        {(listed || listing.licensed) && (
+        {(listed || updated || listing.licensed) && (
           <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
             {listed && <span>نُشر {listed}</span>}
+            {updated && updated !== listed && <span>· حُدّث {updated}</span>}
             {listing.licensed && <span className="inline-flex items-center gap-1"><BadgeCheck className="size-4 text-primary" aria-hidden /> إعلان مرخّص</span>}
           </p>
         )}
