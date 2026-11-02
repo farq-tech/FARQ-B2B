@@ -64,7 +64,17 @@ export function audienceWhere({ selected, measured, scope }: { selected: number;
 }
 
 /** «حجم الجمهور في المدينة: 120,400 شخص · الأعلى: النرجس»; the sizes are the service's segment figures, one per measured district. */
-export function audienceSummary({ selected, scope, segment, sizes, unit, top }: { selected: number; scope: number; segment: string; sizes: number[]; unit: string; top: string | null }): string {
+export function audienceSummary({ selected, scope, segment, sizes, unit, top, cityTotal }: {
+  selected: number; scope: number; segment: string; sizes: number[]; unit: string; top: string | null
+  /**
+   * Businesses over the whole city: the service's own city count, which includes businesses with no known district,
+   * so the line agrees with «المنافسون». null reads «غير متاح»; left out, the districts' sizes are summed.
+   */
+  cityTotal?: number | null
+}): string {
+  if (cityTotal !== undefined && !selected) {
+    return cityTotal == null ? 'حجم الجمهور: غير متاح' : `حجم الجمهور في المدينة: ${numberFormat.format(cityTotal)} ${unit}${top ? ` · الأعلى: ${top}` : ''}`
+  }
   if (!sizes.length) return `حجم الجمهور: ${segment ? `${segment}: ` : ''}غير متاح`
   const where = audienceWhere({ selected, measured: sizes.length, scope })
   const size = `${numberFormat.format(Math.round(sizes.reduce((sum, value) => sum + value, 0)))} ${unit}`

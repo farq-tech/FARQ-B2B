@@ -60,3 +60,11 @@ test('«الأقل تنافساً» puts a populated district with no competitor
   assert.deepEqual(rankCompetition(table, 'light').map((item) => item.row.id), ['c', 'b', 'e', 'a', 'd'])
   assert.deepEqual(rankCompetition(table, 'dense').map((item) => item.row.id), ['a', 'e', 'd'])
 })
+
+test('businesses over the whole city read the service city count, not the sum of its districts', () => {
+  // 9,616 of 10,405 fell in a known district: the sum is part of the city, the line gives the city's count
+  assert.equal(audienceSummary({ selected: 0, scope: 186, segment: '', sizes: [9000, 616], unit: 'منشأة', top: 'العليا', cityTotal: 10405 }), 'حجم الجمهور في المدينة: 10,405 منشأة · الأعلى: العليا')
+  assert.equal(audienceSummary({ selected: 0, scope: 186, segment: '', sizes: [9000], unit: 'منشأة', top: null, cityTotal: null }), 'حجم الجمهور: غير متاح')
+  // selected districts are summed as before: every business in them has a district
+  assert.equal(audienceSummary({ selected: 2, scope: 2, segment: '', sizes: [40, 60], unit: 'منشأة', top: null, cityTotal: 10405 }), 'حجم الجمهور في حيّان محددة: 100 منشأة')
+})

@@ -77,6 +77,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
+  // the city's own count of the activity (district-counts total), and how many of it fell in a known district
+  const [cityCount, setCityCount] = useState<{ total: number | null; located: number | null } | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
   useEffect(() => {
@@ -96,8 +98,14 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     setStatus('loading')
     // drop the last activity's counts now, so the map clears instead of shading districts for a different activity
     setCounts(null)
-    postMarket<{ districts?: Count[] }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
-      .then((data) => { if (active) { setCounts(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))); setStatus('idle') } })
+    setCityCount(null)
+    postMarket<{ districts?: Count[]; total?: number; located?: number }>('district-counts', { city, ...(mainId ? { main_id: mainId } : {}) })
+      .then((data) => {
+        if (!active) return
+        setCounts(new Map((data.districts ?? []).map((row) => [row.district_ar, row])))
+        setCityCount({ total: typeof data.total === 'number' ? data.total : null, located: typeof data.located === 'number' ? data.located : null })
+        setStatus('idle')
+      })
       .catch(() => { if (active) setStatus('error') })
     return () => { active = false }
   }, [city, mode, mainId])
@@ -141,12 +149,13 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
     const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
     const summary = status === 'loading' ? null
-      : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null })
+      : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null,
+        ...(mode === 'businesses' ? { cityTotal: cityCount?.total ?? null } : {}) })
     // «أرني الأعلى» opens the best-matching district, the first of the ranking
     // the key the map corner draws: the same five shades by score, and the grey of a district the filters leave empty
     const legend = scored.length ? { from: 'تطابق أقل', to: 'تطابق أكثر', shades: SHADES, extra: { color: PALETTE.pebble, label: 'لا جمهور بهذه الفلاتر' } } : null
     onOverlay({ colors, summary, legend, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
-  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status, rows.length])
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status, rows.length, cityCount])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
@@ -198,7 +207,21 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </>
       )}
       {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
-      {status !== 'loading' && (
+      {status !== 'loading' && mode === 'businesses' && !selected.length && (
+        // the whole city: the service's city count (with the businesses no district holds), the same as «المنافسون»
+        <div className="rounded-xl bg-muted/40 px-3 py-2.5">
+          <p className="text-sm text-muted-foreground">حجم الجمهور</p>
+          <Explained title="حجم الجمهور" lines={[...explain, ...unknownLine(unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
+            <span>{cityCount?.total == null ? 'غير متاح' : `${numberFormat.format(cityCount.total)} ${unit}`}</span>
+          </Explained>
+          {cityCount?.total != null && (
+            <p className="text-sm text-muted-foreground">
+              في المدينة{cityCount.located != null && cityCount.located < cityCount.total ? ` · ${numberFormat.format(cityCount.located)} منها بحي معروف` : ''}
+            </p>
+          )}
+        </div>
+      )}
+      {status !== 'loading' && !(mode === 'businesses' && !selected.length) && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
           <p className="text-sm text-muted-foreground">حجم الجمهور</p>
           {figures.map((figure) => (
