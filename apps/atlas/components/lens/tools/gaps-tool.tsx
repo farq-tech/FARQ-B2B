@@ -106,8 +106,10 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
       {status !== 'loading' && result && result.residents_per_business == null && <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>}
       {status !== 'loading' && result && result.residents_per_business != null && (
         <>
-          <p className="text-base">
-            معدل المدينة: منشأة لكل <strong>{numberFormat.format(result.residents_per_business)}</strong> ساكن · {counted(gaps.length, 'district')} فيها نقص
+          {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}
+          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base">
+            <span className="whitespace-nowrap">معدل المدينة: منشأة لكل <strong className="tabular-nums">{numberFormat.format(result.residents_per_business)}</strong> ساكن</span>
+            <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} فيها نقص</span>
           </p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
             {gaps.slice(0, limit).map((row) => {

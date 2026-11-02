@@ -23,11 +23,11 @@ type Profile = {
 const DEAL_ORDER = ['sale_', 'rent_year_', 'rent_month_']
 const dealRank = (key: string) => DEAL_ORDER.findIndex((prefix) => key.startsWith(prefix))
 
-type FigureKey = 'population' | 'businesses' | 'perBusiness' | 'unmet' | 'restaurants' | 'sex' | 'saudi' | 'menuPrice' | 'villaShare' | 'income' | 'growth' | 'topAge'
+type FigureKey = 'population' | 'businesses' | 'perBusiness' | 'unmet' | 'restaurants' | 'male' | 'female' | 'saudi' | 'menuPrice' | 'villaShare' | 'income' | 'growth' | 'topAge'
 /** The figures each group decides on, first in its summary (its map metrics, then its secondary cards). */
 const LEAD: Record<LensId, FigureKey[]> = {
   shops: ['perBusiness', 'unmet', 'population', 'businesses', 'saudi'],
-  marketers: ['population', 'income', 'villaShare', 'sex', 'topAge'],
+  marketers: ['population', 'income', 'villaShare', 'male', 'female', 'topAge'],
   distributors: ['businesses', 'growth', 'population'],
   analysts: ['population', 'businesses', 'perBusiness'],
   property: ['income', 'villaShare', 'growth', 'population'],
@@ -36,11 +36,13 @@ const LEAD: Record<LensId, FigureKey[]> = {
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
 /** One figure; tapping it explains how it was worked out. */
-function Figure({ label, value, explain }: { label: string; value: string; explain: string[] }) {
+function Figure({ label, short, value, explain }: { label: string; short?: string; value: string; explain: string[] }) {
+  // the value sits at the tile's foot, so a row's two figures line up even when one label runs to two lines; a long
+  // label can show a short form, and its card keeps the full name
   return (
-    <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <Explained title={label} lines={explain} className={value === 'غير متاح' ? 'mt-0.5 text-base text-muted-foreground' : 'mt-0.5 text-xl font-bold'}>
+    <div className="flex flex-col justify-between gap-0.5 rounded-xl bg-muted/40 px-3 py-2.5">
+      <p className="text-sm text-muted-foreground">{short ?? label}</p>
+      <Explained title={label} lines={explain} className={value === 'غير متاح' ? 'mt-0.5 self-start text-base text-muted-foreground' : 'mt-0.5 self-start text-xl font-bold'}>
         {value}
       </Explained>
     </div>
@@ -73,9 +75,10 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   const businesses = selected.length ? sumOf(scope, 'businesses') : total
   const male = profile?.male ?? null
   const female = profile?.female ?? null
-  const sex = male != null && female != null && male + female > 0
-    ? `${Math.round((100 * male) / (male + female))}% · ${Math.round((100 * female) / (male + female))}%`
-    : 'غير متاح'
+  // each share on its own tile: the two figures in one «57% · 43%» line ran left to right inside the Arabic label
+  // «ذكور · إناث», so the first label sat over the second figure
+  const measured = male != null && female != null && male + female > 0
+  const share = (part: number | null) => (measured && part != null ? `${Math.round((100 * part) / (male! + female!))}%` : 'غير متاح')
   const topAge = profile?.ages.length ? [...profile.ages].sort((a, b) => b.total - a.total)[0] : null
   const title = single ? single.name : selected.length ? counted(selected.length, 'district') : cityName
   const scopeKind = single ? 'district' : selected.length ? 'districts' : 'city'
@@ -87,8 +90,9 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
     ['businesses', <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />],
     ['perBusiness', lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={show(perBusiness)} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />],
     ['unmet', single && <Figure label="بحث بلا نتيجة" value={single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : 'غير متاح'} explain={EXPLAIN.unmet(single.searches, single.unmetSearches)} />],
-    ['restaurants', <Figure label="مطاعم على تطبيقات التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />],
-    ['sex', single && <Figure label="ذكور · إناث" value={sex} explain={EXPLAIN.sex} />],
+    ['restaurants', <Figure label="مطاعم على تطبيقات التوصيل" short="مطاعم التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />],
+    ['male', single && <Figure label="الذكور" value={share(male)} explain={EXPLAIN.sex} />],
+    ['female', single && <Figure label="الإناث" value={share(female)} explain={EXPLAIN.sex} />],
     ['saudi', single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />],
     ['menuPrice', single && <Figure label="سعر الصنف المعتاد" value={show(single.menuPrice, ' ر.س')} explain={EXPLAIN.menuPrice(single.menuPricePlaces)} />],
     ['villaShare', single && lens !== 'distributors' && <Figure label="حصة الفلل من المساكن" value={single.villaShare == null ? 'غير متاح' : `${Math.round(single.villaShare)}%`} explain={EXPLAIN.villaShare} />],
@@ -181,8 +185,20 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         <div className="mt-4">
           <Explained title="أكثر الأنشطة" lines={EXPLAIN.activities} className="mb-1 text-sm font-semibold text-muted-foreground">أكثر الأنشطة</Explained>
           <ul className="space-y-1.5 text-base">
-            {profile.main_activities.slice(0, 5).map((row) => (
-              <li key={row.main_ar} className="flex items-center justify-between gap-2"><span className="flex items-center gap-2">{row.main_id && <Icon3D type={`main-${row.main_id}`} className="size-7" />}{row.main_ar}</span><span className="font-semibold">{numberFormat.format(row.n)}</span></li>
+            {/* each count says what it counts, with a bar against the largest of the five so the mix reads at a glance */}
+            {profile.main_activities.slice(0, 5).map((row, _, top) => (
+              <li key={row.main_ar} className="flex items-center gap-2">
+                {row.main_id && <Icon3D type={`main-${row.main_id}`} className="size-7 shrink-0" />}
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="truncate">{row.main_ar}</span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">{counted(row.n, 'business')}</span>
+                  </span>
+                  <span className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <span className="block h-full rounded-full bg-primary/60" style={{ width: `${(100 * row.n) / Math.max(1, ...top.map((item) => item.n))}%` }} />
+                  </span>
+                </span>
+              </li>
             ))}
           </ul>
         </div>
