@@ -28,6 +28,7 @@ export function RequestsListView() {
   const tab = chosen ?? ATTENTION.find((s) => requests.some((r) => r.status === s)) ?? 'draft'
   const [q, setQ] = useState('')
 
+  const none = requests.length === 0
   const nq = normalizeArabic(q)
   const visible = requests
     .filter((r) => r.status === tab && (!nq || normalizeArabic(r.title).includes(nq)))
@@ -40,11 +41,21 @@ export function RequestsListView() {
           <h1 className="text-2xl font-bold text-balance">الطلبات</h1>
           <p className="text-sm text-muted-foreground">القوائم وطلبات التسعير ومسودات الحملات في مكان واحد.</p>
         </div>
-        <Button variant="outline" nativeButton={false} render={<Link href="/map" />}>
-          <MapPinned data-icon="inline-start" />
-          طلب جديد من الخريطة
-        </Button>
+        {!none && (
+          <Button variant="outline" nativeButton={false} render={<Link href="/map" />}>
+            <MapPinned data-icon="inline-start" />
+            طلب جديد من الخريطة
+          </Button>
+        )}
       </header>
+
+      {/* a first visit has nothing to search or sort: one welcome that says what a request is and where it starts,
+          instead of an empty search box, five «0» tabs and «لا شيء في مسودات» */}
+      {none ? (
+        <EmptyState icon={ClipboardList} title="لا طلبات بعد"
+          body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."
+          action={<Button nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
+      ) : (<>
 
       <SearchPill label="ابحث في الطلبات">
         <PillField label="ابحث في الطلبات">
@@ -105,6 +116,7 @@ export function RequestsListView() {
           })}
         </ul>
       )}
+      </>)}
     </main>
   )
 }
