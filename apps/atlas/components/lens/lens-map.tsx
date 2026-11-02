@@ -17,6 +17,7 @@ import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
+import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapQuery, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
@@ -55,31 +56,33 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
   }
 }
 
-function Ranking({ rows, metric, selected, onToggle, full }: {
+function Ranking({ rows, metric, selected, onToggle, onHover, full }: {
   rows: DistrictRow[]
   metric: MetricId
   selected: string[]
   onToggle: (id: string) => void
+  onHover?: (id: string | null) => void
   full: boolean
 }) {
   const { label, value, unit } = METRICS[metric]
   const ranked = rows.filter((row) => value(row) != null).sort((a, b) => (value(b) as number) - (value(a) as number))
-  const shown = full ? ranked : ranked.slice(0, 5)
+  // the full ranking opens on 20 and grows on «اعرض المزيد», saying how much of the city it shows
+  const [limit, showMore] = useShowMore(full ? 20 : 5, metric)
+  const shown = ranked.slice(0, limit)
   return (
     <section aria-label={`ترتيب الأحياء حسب ${label}`} className="rounded-2xl border bg-card p-4">
       <h3 className="text-base font-bold">الأعلى في {label}</h3>
-      <ol className={cn('mt-2 divide-y text-base', full && 'max-h-[50vh] overflow-y-auto')}>
+      <ol className="mt-2 divide-y text-base">
         {shown.map((row, index) => (
-          <li key={row.id}>
-            <div className={cn('flex w-full items-center gap-2 py-2', selected.includes(row.id) && 'text-primary')}>
-              <span className="w-6 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>
-              <button onClick={() => onToggle(row.id)} className="flex-1 truncate text-start font-medium hover:text-primary">{row.name}</button>
-              <Explained title={`${label} · ${row.name}`} lines={metricExplanation(metric, row)} className="font-semibold tabular-nums">{format(value(row), unit)}</Explained>
-            </div>
-          </li>
+          <ResultRow key={row.id} active={selected.includes(row.id)} onClick={() => onToggle(row.id)} onHover={(on) => onHover?.(on ? row.id : null)}
+            // ranks up to 192 (Riyadh) keep one column width
+            leading={<span className="w-8 shrink-0 text-sm text-muted-foreground tabular-nums">{numberFormat.format(index + 1)}</span>}
+            title={row.name}
+            aside={<Explained title={`${label} · ${row.name}`} lines={metricExplanation(metric, row)} className="font-semibold tabular-nums">{format(value(row), unit)}</Explained>} />
         ))}
       </ol>
-      {full && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{numberFormat.format(rows.length - ranked.length)} حياً: غير متاح</p>}
+      {full && <MoreRows shown={shown.length} total={ranked.length} noun="district" onMore={showMore} />}
+      {full && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{counted(rows.length - ranked.length, 'district')}: غير متاح</p>}
     </section>
   )
 }
@@ -515,7 +518,7 @@ export function LensMap() {
                     </div>
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
-                  {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} full={lens === 'analysts' || tool === 'growth'} />}
+                  {(tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} />}
                 </>
               )}
             </>
