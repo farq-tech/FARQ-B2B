@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Area, Circle, ListingDot, MapPoint, Site, StreetLine } from '../lens-map-canvas'
+import type { Legend } from './map-legend'
 
 /** What a tool draws on the shared lens map: its own district colours, a circle, listings, a card over the map, and whether clicks pick a point. */
 export type Overlay = {
@@ -17,6 +18,8 @@ export type Overlay = {
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
+  /** The key to the tool's colours, shown in the map's corner. */
+  legend?: Legend | null
   /** A card the tool floats over the map, such as the listing a click opened. */
   popup?: ReactNode
 }

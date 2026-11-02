@@ -9,7 +9,6 @@ import { OCHRE_STEPS } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
-import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 
 type Activity = { main_id: string; main_ar: string }
@@ -78,7 +77,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
     const streets = corridors
       .map((item, index) => ({ id: String(index), color: colors[index], geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
       .reverse()
-    onOverlay({ streets, onStreet: (id) => setActive(Number(id)) })
+    onOverlay({ streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null })
   }, [corridors, colors, active, onOverlay])
 
   // a corridor picked on the map comes into view in the list
@@ -110,7 +109,6 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       {corridors.length > 0 && (
         <>
           <p className="text-base">{numberFormat.format(corridors.length)} شارعاً يتجمع فيه «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
-          <MapLegend from="محلات أقل" to="محلات أكثر" shades={HEAT} />
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
             {corridors.map(({ properties: corridor }, index) => (
               <li key={index} id={`corridor-${index}`}>
