@@ -20,9 +20,11 @@ import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
 import { CompetitorsTool } from './tools/competitors-tool'
+import { CorridorsTool } from './tools/corridors-tool'
 import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import { HomesTool } from './tools/homes-tool'
+import { MapLegend } from './tools/map-legend'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
 
@@ -218,7 +220,7 @@ export function LensMap() {
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} focus={overlay.focus} zoomTo={zoomTo} />
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} />
           {overlay.popup}
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} />
           {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
@@ -238,11 +240,15 @@ export function LensMap() {
                 : active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
             </div>
           </div>
-          {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="absolute bottom-3 start-3 flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
-            <span className="text-muted-foreground">أقل</span>
-            {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}
-            <span className="text-muted-foreground">أعلى · {METRICS[metric].label}</span>
-          </Explained>}
+          <div className="pointer-events-none absolute bottom-3 start-3 flex flex-col items-start gap-1.5">
+            {/* the key to a tool's colours sits on the map with them, above the districts' own shading key */}
+            {overlay.legend && <div className="pointer-events-auto rounded-lg border bg-card/90 px-2.5 py-2 shadow-sm backdrop-blur"><MapLegend {...overlay.legend} /></div>}
+            {!overlay.colors && <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="pointer-events-auto flex items-center gap-1 rounded-lg border bg-card/90 px-2.5 py-2 text-sm no-underline backdrop-blur">
+              <span className="text-muted-foreground">أقل</span>
+              {SHADES.map((shade) => <span key={shade} className="h-3 w-6 rounded-sm" style={{ background: shade }} />)}
+              <span className="text-muted-foreground">أعلى · {METRICS[metric].label}</span>
+            </Explained>}
+          </div>
           {data.status === 'loading' && (
             // a small note in the corner: the map stays visible while the city loads
             <div role="status" className="absolute bottom-14 start-3 flex lg:top-3 lg:bottom-auto items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-sm shadow-sm backdrop-blur">
@@ -272,6 +278,7 @@ export function LensMap() {
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} />}
                   {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} onActivity={setRival}
                     onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
+                  {tool === 'corridors' && <CorridorsTool city={city} onOverlay={onOverlay} />}
                   {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
                   {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}

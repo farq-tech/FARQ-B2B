@@ -7,7 +7,6 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, nounAfter, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
-import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 import { OCHRE_STEPS, PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -125,7 +124,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         while (below < counts.length && counts[below] < item.n) below++
         colors.set(id, HEAT[Math.min(4, Math.floor((5 * below) / counts.length))])
       }
-      onOverlay({ colors })
+      onOverlay({ colors, legend: { from: 'فرع واحد', to: 'فروع أكثر', shades: HEAT } })
       return
     }
     if (!table.length) { onOverlay({}); return }
@@ -137,7 +136,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       while (below < dense.length && dense[below] < item.perKm2) below++
       colors.set(item.row.id, HEAT[Math.min(4, Math.floor((5 * below) / Math.max(1, dense.length)))])
     }
-    onOverlay({ colors })
+    onOverlay({ colors, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
   }, [table, brand, rows, onOverlay])
 
   const ranked = [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
@@ -185,7 +184,6 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           </div>
           {view === 'districts' && (
             <>
-            <MapLegend from="منافسة قليلة" to="منافسة كثيفة" shades={HEAT} extra={{ color: NONE, label: 'لا منافس' }} />
             <div className="flex gap-1.5" role="group" aria-label="ترتيب الأحياء">
               {([['dense', 'الأكثر تنافساً'], ['light', 'الأقل تنافساً']] as const).map(([id, label]) => (
                 <button key={id} onClick={() => setOrder(id)} aria-pressed={order === id}
@@ -283,7 +281,6 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               <button onClick={() => onAllBranches(brand.brand)} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground">
                 طلب تسعير أو حملة لكل الفروع
               </button>
-              <MapLegend from="فرع واحد" to="فروع أكثر" shades={HEAT} />
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
                 {brand.by_district.map((item) => {
                   const id = rows.find((row) => row.name === item.district_ar)?.id

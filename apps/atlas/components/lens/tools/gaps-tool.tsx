@@ -7,7 +7,6 @@ import { EXPLAIN } from '@/lib/explanations'
 import { numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
-import { MapLegend } from './map-legend'
 import type { Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -64,7 +63,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
       if (!id) continue
       colors.set(id, row.shortfall > 0 ? SHADES[Math.min(4, Math.floor((5 * row.shortfall) / (largest + 1e-9)))] : SURPLUS)
     }
-    onOverlay({ colors })
+    onOverlay({ colors, legend: { from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
   }, [result, rows, onOverlay])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
@@ -97,7 +96,6 @@ export function GapsTool({ city, rows, onOverlay, onSelect }: {
           <p className="text-base">
             معدل المدينة: منشأة لكل <strong>{numberFormat.format(result.residents_per_business)}</strong> ساكن · {numberFormat.format(gaps.length)} حياً فيها نقص
           </p>
-          <MapLegend from="نقص قليل" to="نقص كبير" shades={SHADES} extra={{ color: SURPLUS, label: 'مكتفٍ' }} />
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
             {gaps.map((row) => (
               <li key={row.district_ar} className="flex items-center gap-2 py-2">
