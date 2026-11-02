@@ -36,11 +36,13 @@ const LEAD: Record<LensId, FigureKey[]> = {
 const show = (value: number | null | undefined, unit = '') => (value == null ? 'غير متاح' : `${numberFormat.format(Math.round(value))}${unit}`)
 
 /** One figure; tapping it explains how it was worked out. */
-function Figure({ label, value, explain }: { label: string; value: string; explain: string[] }) {
+function Figure({ label, short, value, explain }: { label: string; short?: string; value: string; explain: string[] }) {
+  // the value sits at the tile's foot, so a row's two figures line up even when one label runs to two lines; a long
+  // label can show a short form, and its card keeps the full name
   return (
-    <div className="rounded-xl bg-muted/40 px-3 py-2.5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <Explained title={label} lines={explain} className={value === 'غير متاح' ? 'mt-0.5 text-base text-muted-foreground' : 'mt-0.5 text-xl font-bold'}>
+    <div className="flex flex-col justify-between gap-0.5 rounded-xl bg-muted/40 px-3 py-2.5">
+      <p className="text-sm text-muted-foreground">{short ?? label}</p>
+      <Explained title={label} lines={explain} className={value === 'غير متاح' ? 'mt-0.5 self-start text-base text-muted-foreground' : 'mt-0.5 self-start text-xl font-bold'}>
         {value}
       </Explained>
     </div>
@@ -88,7 +90,7 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
     ['businesses', <Figure label="المنشآت" value={show(businesses)} explain={EXPLAIN.businesses(scopeKind)} />],
     ['perBusiness', lens !== 'distributors' && <Figure label="ساكن لكل منشأة" value={show(perBusiness)} explain={EXPLAIN.residentsPerBusiness(people, businesses)} />],
     ['unmet', single && <Figure label="بحث بلا نتيجة" value={single.unmetSearches != null && single.searches != null ? `${show(single.unmetSearches)} من ${show(single.searches)}` : 'غير متاح'} explain={EXPLAIN.unmet(single.searches, single.unmetSearches)} />],
-    ['restaurants', <Figure label="مطاعم على تطبيقات التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />],
+    ['restaurants', <Figure label="مطاعم على تطبيقات التوصيل" short="مطاعم التوصيل" value={show(sumOf(scope, 'restaurants'))} explain={EXPLAIN.restaurants} />],
     ['male', single && <Figure label="الذكور" value={share(male)} explain={EXPLAIN.sex} />],
     ['female', single && <Figure label="الإناث" value={share(female)} explain={EXPLAIN.sex} />],
     ['saudi', single && <Figure label="السعوديون" value={profile?.saudi_pct == null ? 'غير متاح' : `${Math.round(profile.saudi_pct)}%`} explain={EXPLAIN.saudi} />],
