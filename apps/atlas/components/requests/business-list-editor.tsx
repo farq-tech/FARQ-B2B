@@ -8,6 +8,9 @@ import { numberFormat } from '@/lib/insights-api'
 import { businessById, districtById } from '@/lib/mock-data'
 import type { Business, LiveBusinessSnapshot } from '@/lib/types'
 
+// «موزع · الشاطئ»: the facts the directory has, with a separator, so two words never run together as one phrase
+const joinFacts = (...facts: (string | null | undefined)[]) => facts.filter(Boolean).join(' · ')
+
 interface BusinessListEditorProps {
   title: string
   cityId: string
@@ -43,8 +46,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{b.name}</p>
                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                  <span>{b.role}</span>
-                  <span>{districtById.get(b.districtId)?.name}</span>
+                  <span>{joinFacts(b.role, districtById.get(b.districtId)?.name)}</span>
                   {b.whatsapp ? (
                     <span className="inline-flex items-center gap-1">
                       <MessageCircle className="size-3 text-primary" aria-hidden />
@@ -66,7 +68,7 @@ export function BusinessListEditor({ title, cityId, businessIds, editable, onCha
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{b.name}</p>
                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                  <span>{b.category}</span><span>{b.district}</span>
+                  <span>{joinFacts(b.category, b.district)}</span>
                   {b.whatsapp ? <span className="inline-flex items-center gap-1"><MessageCircle className="size-3 text-primary" aria-hidden />إشارة واتساب</span> : null}
                 </p>
                 {b.reason ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{b.reason}</p> : null}

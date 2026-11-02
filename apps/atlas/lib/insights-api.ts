@@ -28,6 +28,10 @@ const NOUNS = {
   listing: ['عرض واحد', 'عرضان', 'عروض', 'عرضاً', 'عرض'],
   street: ['شارع واحد', 'شارعان', 'شوارع', 'شارعاً', 'شارع'],
   chain: ['سلسلة واحدة', 'سلسلتان', 'سلاسل', 'سلسلة', 'سلسلة'],
+  reply: ['ردّ واحد', 'ردّان', 'ردود', 'رداً', 'ردّ'],
+  photo: ['صورة واحدة', 'صورتان', 'صور', 'صورة', 'صورة'],
+  room: ['غرفة واحدة', 'غرفتان', 'غرف', 'غرفة', 'غرفة'],
+  bathroom: ['دورة مياه واحدة', 'دورتا مياه', 'دورات مياه', 'دورة مياه', 'دورة مياه'],
 } as const
 
 /** A count with its noun in Arabic agreement: «حي واحد», «حيّان», «5 أحياء», «23 حياً», «100 حي». */
@@ -59,6 +63,13 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
   return payload as T
 }
 
+/** One row per city (by its English name, first one kept): the service once sent every city twice, which doubled
+ * pickers and any sum over the list. */
+export function uniqueCities<T extends { en: string }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => !seen.has(row.en) && Boolean(seen.add(row.en)))
+}
+
 /** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
  * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
 export function useCities(): City[] {
@@ -68,11 +79,9 @@ export function useCities(): City[] {
       .then((response) => response.json())
       .then((rows: City[]) => {
         if (!Array.isArray(rows)) return
-        const mapped = rows.some((row) => typeof row.districts === 'number') ? rows.filter((row) => (row.districts ?? 0) > 0) : rows
-        // one entry per city, in the service's order: a list that came back doubled must not offer a city twice
-        const seen = new Set<string>()
-        const unique = mapped.filter((row) => typeof row.en === 'string' && !seen.has(row.en) && seen.add(row.en))
-        if (unique.length) setCities(unique)
+        const unique = uniqueCities(rows)
+        const mapped = unique.some((row) => typeof row.districts === 'number') ? unique.filter((row) => (row.districts ?? 0) > 0) : unique
+        if (mapped.length) setCities(mapped)
       })
       .catch(() => undefined)
   }, [])

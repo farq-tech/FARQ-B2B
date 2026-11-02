@@ -96,12 +96,14 @@ export function RequestDetailView({ id }: { id: string }) {
         {editable ? (
           // the page's one h1 even while the title is editable, with a pencil so it reads as something to change
           <h1 className="text-2xl font-bold">
-            <label className="flex items-center gap-2">
+            {/* the field is as wide as its title, so the pencil sits right after the words instead of across the page */}
+            <label className="flex max-w-full items-center gap-2">
               <span className="sr-only">عنوان الطلب</span>
               <input
                 value={request.title}
+                size={Math.max(8, request.title.length + 1)}
                 onChange={(e) => patch({ title: e.target.value })}
-                className="w-full min-w-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 outline-none hover:border-input focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-w-0 max-w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 outline-none [field-sizing:content] hover:border-input focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Pencil className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             </label>

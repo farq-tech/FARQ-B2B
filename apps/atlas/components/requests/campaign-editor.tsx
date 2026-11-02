@@ -163,7 +163,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
               المستلمون ومراجعة الأهلية
             </h2>
             <p className="text-xs text-muted-foreground">
-              {numberFormat.format(value.included.length)} مؤهلون للإرسال السحابي من {numberFormat.format(businessIds.length)}. نستبعد من لا يملك رقم واتساب.
+              المؤهلون للإرسال السحابي: {numberFormat.format(value.included.length)} من {numberFormat.format(businessIds.length)}. نستبعد من لا يملك رقم واتساب.
             </p>
           </div>
           <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />

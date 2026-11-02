@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Unavailable } from '@/components/shared/unavailable'
-import { numberFormat } from '@/lib/insights-api'
+import { numberFormat, uniqueCities } from '@/lib/insights-api'
 
 type Counts = { cities: number; districts: number } | 'loading' | 'unavailable'
 
@@ -17,9 +17,10 @@ export function ProofCounts() {
     let live = true
     fetch('/api/market/cities')
       .then((response) => (response.ok ? response.json() : null))
-      .then((rows: { districts?: number }[] | null) => {
+      .then((rows: { en: string; districts?: number }[] | null) => {
         if (!live) return
-        const covered = Array.isArray(rows) ? rows.filter((row) => typeof row.districts === 'number' && row.districts > 0) : []
+        // one row per city, so a repeated city is never counted twice
+        const covered = Array.isArray(rows) ? uniqueCities(rows).filter((row) => typeof row.districts === 'number' && row.districts > 0) : []
         setCounts(covered.length ? { cities: covered.length, districts: covered.reduce((sum, row) => sum + (row.districts ?? 0), 0) } : 'unavailable')
       })
       .catch(() => { if (live) setCounts('unavailable') })
