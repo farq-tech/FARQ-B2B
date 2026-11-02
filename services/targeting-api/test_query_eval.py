@@ -21,7 +21,10 @@ TAX = os.path.join(HERE, '..', '..', 'docs', 'qa', 'targeting', 'taxonomy')
 EVAL = os.path.join(HERE, 'query_eval.json')
 
 # measured accuracy (share of cases passed); a change may raise these, never lower them
-FLOORS = {'understand': 0.988, 'corridor': 0.988}   # 2026-11-02: 70.4% / 84.6% before the shared trade reading, 98.8% / 98.8% after
+FLOORS = {'understand': 0.988, 'corridor': 0.988}
+# a seller's request passes when it reaches the expected buyers, so over-targeting is held apart: the total of targets
+# outside expect/also over the marketing cases may fall, never rise (2026-11-02: 183 over 25 cases, 12 of them exact)
+MARKETING_EXTRA_MAX = 183   # 2026-11-02: 70.4% / 84.6% before the shared trade reading, 98.8% / 98.8% after
 
 
 def load_cases():
@@ -94,11 +97,23 @@ class QueryEval(unittest.TestCase):
         self.assertEqual(list(self.tx.understand('مستلزمات ورش سيارات', 'purchase')['targets']), ['equip.workshop_equipment'])
         self.assertIn('beauty.salon_supplies', self.tx.understand('معدات حلاقين', 'purchase')['targets'])
         self.assertNotIn('beauty.barber', self.tx.understand('معدات حلاقين', 'purchase')['targets'])
+        # a shop that sells the goods keeps its match under a supply word
+        for q, shop in [('مواد سباكة', 'build.plumbing_supply'), ('محلات مواد دهانات', 'build.paint'), ('مستلزمات إضاءة', 'build.lighting_supply')]:
+            self.assertIn(shop, self.tx.understand(q, 'purchase')['targets'], q)
 
     def test_a_named_business_for_children_is_not_the_kids_goods_group(self):   # review on #703
         for q, expect in [('عيادة أطفال', 'health.clinic'), ('مستشفى أطفال', 'health.hospital'), ('صالون أطفال', 'beauty.barber')]:
             self.assertIn(expect, self.tx.understand(q, 'purchase')['targets'], q)
             self.assertNotIn('group.kids', market_analytics.corridor_subs(self.tx, q, 'purchase'), q)
+
+    def test_marketing_over_targeting_ratchet(self):   # review on #703: these targets drive outreach
+        extra = 0
+        for case in load_cases():
+            if case['objective'] != 'marketing': continue
+            got = expand(self.tx.understand(case['q'], 'marketing')['targets'])
+            extra += len(got - expand(case['expect']) - expand(case.get('also', ())))
+        print(f'  marketing extra targets {extra} (max {MARKETING_EXTRA_MAX})')
+        self.assertLessEqual(extra, MARKETING_EXTRA_MAX)
 
     def test_accuracy_ratchet(self):
         report = run(self.tx, self.cases)

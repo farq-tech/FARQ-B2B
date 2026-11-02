@@ -117,6 +117,9 @@ TRADE_TERMS = {
 HEAD_ONLY = {'ورش': 'auto.workshop', 'ورشه': 'auto.workshop', 'ورشات': 'auto.workshop', 'مغسله': 'personal.laundry', 'مغاسل': 'personal.laundry',
              'عياده': 'health.clinic', 'عيادات': 'health.clinic'}
 # words that ask for goods to buy, not for the trade that uses them: «مستلزمات حلاقين» are salon supplies, not barbers
+SERVICE_TRADE_PREFIXES = ('contract.', 'food.', 'hosp.', 'edu.', 'sports.', 'beauty.', 'personal.')
+SERVICE_TRADES = {'auto.workshop', 'auto.body_paint', 'auto.oil_change', 'auto.car_wash', 'fashion.tailoring', 'health.clinic',
+                  'health.physio', 'elec.repair', 'biz.photography'}
 SUPPLY_CUES = {'مستلزمات', 'معدات', 'ادوات', 'اجهزه', 'مواد', 'قطع', 'مكائن', 'ماكينات', 'خامات', 'supplies', 'equipment', 'tools', 'parts'}
 # words after which a seller names the customer type: «أستهدف محلات النجارة», «عملائي المطاعم»
 TARGET_CUES = ('استهدف', 'نستهدف', 'اسوق', 'نسوق', 'عملائي', 'عملاءنا', 'زبائني', 'target', 'targeting')
@@ -234,7 +237,10 @@ class Taxonomy:
                 self.spec_buyers.setdefault(bought.strip(), set()).add(r['sub_id'])
         # an everyday trade name (TRADE_TERMS) names its own trade only: «سباك» is the plumber, not every subcategory whose words contain it
         self.trade_terms = {}
-        self.trade_subs = {sid for sids in TRADE_TERMS.values() for sid in sids}
+        # trades that use supplies rather than sell them: under a supply word their name says who the supplies are for.
+        # A shop that sells the goods (paints, plumbing supplies, lighting) keeps its match («مواد سباكة», «محلات مواد دهانات»)
+        self.trade_subs = {sid for sids in TRADE_TERMS.values() for sid in sids
+                           if sid.startswith(SERVICE_TRADE_PREFIXES) or sid in SERVICE_TRADES}
         for t, sids in TRADE_TERMS.items():
             for v in plural_variants(norm(t)) | {norm(t)}:
                 for sid in sids:
@@ -299,7 +305,9 @@ class Taxonomy:
             if not base and not trade: continue
             # under a supply word a trade's own name says who the supplies are for («معدات حلاقين», «مستلزمات ورش سيارات»):
             # it names no business type, so the product family or specialty decides
-            if supply and not set(g.split()) & supply and ((trade or set()) | (base or set())) & self.trade_subs: continue
+            if supply and not set(g.split()) & supply:
+                base, trade = (base or set()) - self.trade_subs, (trade or set()) - self.trade_subs
+                if not base and not trade: continue
             found, bonus = (base or set()) | (trade or set()), 0
             # under a supply word only a trade phrase that holds it («مواد كهربائية», «أدوات سباكة») still names the trade exactly
             if trade and (not supply or set(g.split()) & supply):
