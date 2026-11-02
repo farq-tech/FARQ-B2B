@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cityById } from '@/lib/mock-data'
-import { STATUS_LABEL, formatDate } from '@/lib/format'
+import { NEXT_STEP, STATUS_LABEL, formatDate } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
@@ -86,6 +86,7 @@ export function RequestsListView() {
                       <StatusBadge status={r.status} />
                     </div>
                     <h2 className="truncate font-semibold">{r.title}</h2>
+                    {NEXT_STEP[r.status] && <p className="text-sm font-medium text-primary">الخطوة التالية: {NEXT_STEP[r.status]}</p>}
                     <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <span>{cityById.get(r.cityId)?.name}</span>
                       <span>{counted(r.businessIds.length, 'business')}</span>
