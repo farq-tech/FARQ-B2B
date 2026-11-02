@@ -148,7 +148,8 @@ export function HomesPage() {
             <Calculator className="size-5 text-primary" aria-hidden /><span className="hidden sm:inline">سعّر عقارك</span>
           </Link>
         </div>
-        <nav aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
+        {/* a row of toggles, not links: a group, not a navigation landmark */}
+        <div role="group" aria-label="نوع العقار" className="mx-auto flex w-full max-w-5xl gap-6 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
           {kindTypes.map((item) => {
             const on = types.length === 1 && types[0] === item.id
             return (
@@ -160,7 +161,7 @@ export function HomesPage() {
               </button>
             )
           })}
-        </nav>
+        </div>
         {applied.length > 0 && (
           <ChipRow label="الفلاتر المطبقة" className="px-4 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {applied.map((item) => (
@@ -176,6 +177,8 @@ export function HomesPage() {
         cities={cityOptions} city={city} onCity={setCity}
         count={visible.length} loading={result.status === 'loading'} />
 
+      {/* the map view on a phone hides the list and its h1: the page keeps a heading for screen readers */}
+      {mobileMap && <h1 className="sr-only lg:hidden">خريطة عروض {cityAr}</h1>}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* results: two columns of photo cards */}
         <section className={cn('min-h-0 overflow-y-auto px-4 py-4 lg:px-6', mobileMap && 'hidden lg:block')} aria-label="العروض">
