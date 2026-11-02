@@ -118,12 +118,17 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             <StatTile label={`«${first.label}» في المدينة`}><p className="mt-0.5 text-xl font-bold tabular-nums">{total(firstTotal)}</p></StatTile>
             <StatTile label={`«${rival.label}» في المدينة`}><p className="mt-0.5 text-xl font-bold tabular-nums">{total(answer.total)}</p></StatTile>
           </div>
-          <div className="flex gap-1.5" role="group" aria-label="ترتيب المقارنة">
-            {([['gap', `«${first.label}» أكثر من «${rival.label}»`], ['first', `الأكثر «${first.label}»`]] as const).map(([id, label]) => (
+          {/* short labels, side by side from a small width up and stacked on a narrow phone, so long names never squeeze them */}
+          <div className="flex flex-col gap-1.5 min-[380px]:flex-row" role="group" aria-label="ترتيب المقارنة">
+            {([['gap', 'حيث يزيد الأول على الثاني'], ['first', 'الأكثر من الأول']] as const).map(([id, label]) => (
               <button key={id} type="button" onClick={() => setOrder(id)} aria-pressed={order === id}
                 className={cn('flex-1 rounded-lg border px-2 py-2 text-sm', order === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
             ))}
           </div>
+          <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span><span className="font-semibold text-foreground">الأول</span>: {first.label}</span>
+            <span><span className="font-semibold text-foreground">الثاني</span>: {rival.label}</span>
+          </p>
           {pairs.length === 0 ? (
             <p className="text-sm text-muted-foreground">لا يوجد أي من النشاطين في أحياء المدينة.</p>
           ) : (
@@ -132,8 +137,9 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
                 {pairs.slice(0, limit).map((item) => (
                   <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)}
                     title={item.row.name}
-                    value={`«${first.label}» ${numberFormat.format(item.a)}`}
-                    valueSub={`«${rival.label}» ${numberFormat.format(item.b)}`} />
+                    // the names are read once above; each row carries only its two figures, so a long name never hides the district
+                    value={`الأول ${numberFormat.format(item.a)}`}
+                    valueSub={`الثاني ${numberFormat.format(item.b)}`} />
                 ))}
               </ol>
               <MoreRows shown={Math.min(limit, pairs.length)} total={pairs.length} noun="district" onMore={showMore} />
