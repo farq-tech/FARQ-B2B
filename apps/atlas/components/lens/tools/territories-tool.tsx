@@ -243,7 +243,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             {groups.map((group, index) => (
               // the share opens its own explanation card, so it sits beside the row's button, never inside it
               <li key={group.territory} aria-current={rep === index ? 'true' : undefined}
-                className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base', rep === index ? 'border-primary' : 'hover:border-primary')}>
+                className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base tabular-nums', rep === index ? 'border-primary' : 'hover:border-primary')}>
                 <button type="button" onClick={() => setRep(index)} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                   <span className="size-3.5 shrink-0 rounded-sm" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
                   <span className="font-bold">المندوب {numberFormat.format(index + 1)}</span>
@@ -299,7 +299,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                   return (
                     // the estimate opens its own explanation card, so it sits beside the day's button, never inside it
                     <li key={planned.day} aria-current={day === index ? 'true' : undefined}
-                      className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base', day === index ? 'border-primary' : 'hover:border-primary')}>
+                      className={cn('flex items-center gap-2 rounded-lg border pe-2 text-base tabular-nums', day === index ? 'border-primary' : 'hover:border-primary')}>
                       <button type="button" onClick={() => showDay(index)} aria-pressed={day === index}
                         className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                         <span className="size-3.5 shrink-0 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} aria-hidden />
@@ -337,12 +337,12 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           {day == null && routeError && <p role="alert" className="mt-2 text-base text-destructive">{routeError}</p>}
           {day == null && solved.length > 0 && (
             <>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center tabular-nums">
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المحطات</p><p className="text-lg font-bold">{numberFormat.format(order.length)}</p></div>
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">المسافة</p><p className="text-lg font-bold">{km(meters)}</p></div>
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-sm text-muted-foreground">زمن القيادة</p><p className="text-base font-bold">{duration(seconds)}</p></div>
               </div>
-              <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-base">
+              <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-base tabular-nums">
                 {order.slice(0, 200).map((id, index) => (
                   <li key={id} className="flex gap-2"><span className="w-10 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span><span className="truncate">{byId.get(id)?.name}</span><span className="ms-auto shrink-0 text-sm text-muted-foreground">{byId.get(id)?.district_ar}</span></li>
                 ))}

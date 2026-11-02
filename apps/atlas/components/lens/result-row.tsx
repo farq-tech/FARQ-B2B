@@ -13,6 +13,7 @@ const ROW = 'flex min-w-0 flex-1 items-center gap-2 py-2 text-start'
  *
  * With `onClick` the line is one button. An interactive figure (an Explained card) cannot sit inside a button, so it
  * goes in `aside`, beside the button. `active` marks the line the map is showing, for sight and for screen readers.
+ * Every digit in the line is tabular, so figures stack in a column down the list.
  * `onHover` tells the map which line the pointer or keyboard focus is on, so it can outline that district.
  */
 export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick, onHover, active = false, disabled = false, id }: {
@@ -39,7 +40,7 @@ export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick
       </span>
       {(value != null || valueSub != null) && (
         <span className="shrink-0 text-end">
-          {value != null && <span className="block font-bold tabular-nums">{value}</span>}
+          {value != null && <span className="block font-bold">{value}</span>}
           {valueSub != null && <span className="block text-sm text-muted-foreground">{valueSub}</span>}
         </span>
       )}
@@ -49,7 +50,7 @@ export function ResultRow({ leading, title, sub, value, valueSub, aside, onClick
     <li id={id} aria-current={active ? 'true' : undefined}
       onPointerEnter={onHover && (() => onHover(true))} onPointerLeave={onHover && (() => onHover(false))}
       onFocus={onHover && (() => onHover(true))} onBlur={onHover && (() => onHover(false))}
-      className={cn('flex items-center gap-2', active && 'text-primary')}>
+      className={cn('flex items-center gap-2 tabular-nums', active && 'text-primary')}>
       {onClick ? (
         <button type="button" onClick={onClick} disabled={disabled}
           className={cn(ROW, 'rounded-md outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default disabled:hover:text-inherit')}>
@@ -119,7 +120,7 @@ export function MoreRows({ shown, total, noun, lead = 'أعلى', canMore, onMor
 }) {
   if (shown >= total) return null
   return (
-    <div className="flex items-center justify-between gap-2 pt-1.5 text-sm text-muted-foreground">
+    <div className="flex items-center justify-between gap-2 pt-1.5 text-sm tabular-nums text-muted-foreground">
       <span>{lead} {numberFormat.format(shown)} من {counted(total, noun)}</span>
       {(canMore ?? shown < total) && (
         <button type="button" onClick={onMore} className="rounded-md font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">اعرض المزيد</button>

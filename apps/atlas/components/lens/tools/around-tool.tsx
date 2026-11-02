@@ -230,7 +230,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
       )}
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-base">
+          <table className="w-full text-base tabular-nums">
             <thead>
               <tr className="text-sm text-muted-foreground">
                 <th className="py-1.5 text-start font-medium" />

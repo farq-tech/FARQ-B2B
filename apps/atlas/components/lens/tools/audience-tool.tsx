@@ -196,7 +196,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
           <p className="text-sm text-muted-foreground">حجم الجمهور {selected.length ? `في ${counted(selected.length, 'district')} محددة` : 'في المدينة'}</p>
           {figures.map((figure) => (
-            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold">
+            <Explained key={figure.key} title={figure.label ? `حجم الجمهور: ${figure.label}` : 'حجم الجمهور'} lines={[...explain, ...unknownLine(figure.unknown)]} className="mt-0.5 text-xl font-bold tabular-nums">
               {figure.label && <span className="font-normal text-muted-foreground">{figure.label}: </span>}
               {figure.list.length ? `${show(figure.list.reduce((sum, item) => sum + item.size, 0))} ${unit}` : 'غير متاح'}
             </Explained>
