@@ -1,0 +1,18 @@
+/**
+ * The one line «أين ينقص نشاطي؟» hands the phone's peeking sheet, from the API's answer as returned: its districts
+ * come largest shortfall first, so the first short one is the top. The shortfall is said in words («بنقص 122 منشأة»),
+ * not as a signed figure: a «+» beside a Latin number inside an Arabic line can drift to the wrong side of it.
+ * The formatters come in so the line is tested with the real ones (lib/insights-api.ts counted and numberFormat).
+ */
+export type GapRow = { district_ar: string; shortfall: number }
+
+export function gapsSummary(
+  result: { residents_per_business: number | null; districts: GapRow[] } | null,
+  counted: (value: number, noun: 'district' | 'business') => string,
+): string | null {
+  if (!result || result.residents_per_business == null) return null
+  const short = result.districts.filter((row) => row.shortfall > 0)
+  const top = short[0]
+  if (!top) return 'لا نقص في أي حي'
+  return `${counted(short.length, 'district')} فيها نقص · الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')}`
+}

@@ -8,6 +8,7 @@ import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
+import { gapsSummary } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStudiedActivity } from '@/lib/sticky-state'
@@ -66,11 +67,8 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
       if (!id) continue
       colors.set(id, row.shortfall > 0 ? SHADES[Math.min(4, Math.floor((5 * row.shortfall) / (largest + 1e-9)))] : SURPLUS)
     }
-    // the API returns the districts largest shortfall first, so the first short one is the top of the list; the
-    // figure is isolated left to right so its «+» stays in front of it inside the Arabic line
     const top = short[0]
-    const summary = result.residents_per_business == null ? null
-      : top ? `${counted(short.length, 'district')} فيها نقص · الأعلى: ${top.district_ar} \u2066+${numberFormat.format(Math.round(top.shortfall))}\u2069` : 'لا نقص في أي حي'
+    const summary = gapsSummary(result, counted)
     onOverlay({ summary, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
   }, [result, rows, onOverlay, label])
 
