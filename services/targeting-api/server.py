@@ -1198,6 +1198,17 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('insights', error)
                 self._json({'error': 'UNAVAILABLE'}, 503)
+        elif self.path == '/weekly-plan':
+            # A rep's working week over stops the browser already holds (weekly_plan.py): ids and points in, day order out.
+            import weekly_plan
+            try:
+                stops, days, per_day, start = weekly_plan.read(body)
+                self._json({'ok': True, **weekly_plan.plan_week(stops, days, per_day, start),
+                            'detour': weekly_plan.DETOUR, 'speed_kmh': weekly_plan.SPEED_KMH})
+            except ValueError: self._json({'error': 'INPUT'}, 400)
+            except Exception as error:
+                log_map_api_failure('weekly-plan', error)
+                self._json({'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/site-card':
             # The store owners' site card: people, measured segments and competitors inside one range.
             try: self._json(site_card_response(body))
