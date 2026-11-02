@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Send } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
@@ -96,14 +96,18 @@ export function RequestDetailView({ id }: { id: string }) {
           <StatusBadge status={request.status} label={request.status === 'ready_manual' && request.type === 'campaign' ? 'جاهزة للإرسال السحابي' : undefined} />
         </div>
         {editable ? (
-          <label>
-            <span className="sr-only">عنوان الطلب</span>
-            <input
-              value={request.title}
-              onChange={(e) => patch({ title: e.target.value })}
-              className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-2xl font-bold outline-none hover:border-border focus-visible:border-primary"
-            />
-          </label>
+          // the page's one h1 even while the title is editable, with a pencil so it reads as something to change
+          <h1 className="text-2xl font-bold">
+            <label className="flex items-center gap-2">
+              <span className="sr-only">عنوان الطلب</span>
+              <input
+                value={request.title}
+                onChange={(e) => patch({ title: e.target.value })}
+                className="w-full min-w-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 outline-none hover:border-input focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <Pencil className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            </label>
+          </h1>
         ) : (
           <h1 className="text-2xl font-bold text-balance">{request.title}</h1>
         )}
