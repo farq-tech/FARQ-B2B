@@ -104,7 +104,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
                   {numberFormat.format(item.total)} محل على الشارع · {requestedLine(item, kinds)}
                 </span>
                 <span className="block truncate text-sm text-muted-foreground">
-                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) على ${distance(item.nearest.distance_m)}` : 'لا يوجد تجمع للنشاط في المدينة'}
+                  {item.nearest ? `أقرب تجمع: ${item.nearest.street_ar} (${numberFormat.format(item.nearest.n)} محل) ${item.nearest.distance_m < 30 ? 'يتقاطع معه أو يلاصقه' : `على ${distance(item.nearest.distance_m)}`}` : 'لا يوجد تجمع للنشاط في المدينة'}
                 </span>
               </button>
               <Explained title={`${item.street_ar} · ${studied.label}`} lines={EXPLAIN.streetOpportunity(item, result?.population_used === true, kinds)} className="shrink-0 text-end">
