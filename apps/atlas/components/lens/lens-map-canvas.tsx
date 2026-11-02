@@ -8,23 +8,12 @@ import { LoadError } from '@/components/shared/load-error'
 import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
+import { boundsOf, cityBounds } from './map-bounds'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 // five steps from low to high; a district without the figure is left unshaded
 export const SHADES = OLIVE_STEPS   // Farq olive (--primary) for the highest districts
-
-function boundsOf(features: { geometry?: { coordinates?: unknown } | null }[]): [[number, number], [number, number]] | null {
-  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
-  const visit = (coords: unknown): void => {
-    if (Array.isArray(coords) && typeof coords[0] === 'number') {
-      const [x, y] = coords as [number, number]
-      west = Math.min(west, x); east = Math.max(east, x); south = Math.min(south, y); north = Math.max(north, y)
-    } else if (Array.isArray(coords)) coords.forEach(visit)
-  }
-  features.forEach((feature) => visit(feature.geometry?.coordinates))
-  return west < Infinity ? [[west, south], [east, north]] : null
-}
 
 /** Quantile step (0-4) of each district's value, so every lens reads as five even groups whatever the scale. */
 export function shadeSteps(values: Map<string, number | null>): Map<string, number> {
@@ -86,9 +75,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
-  /** A district picked from a list: the map flies to it. `cover` is the share of the screen a phone's sheet covers below
-   * the map's own peek, so the district lands in the part still visible; `nonce` repeats a pick of the same district. */
-  zoomTo?: { id: string; nonce: number; cover: number } | null
+  /** Districts picked from a list or named by a link: the map frames them. `cover` is the share of the screen a phone's
+   * sheet covers below the map's own peek, so they land in the part still visible; `nonce` repeats a pick of the same. */
+  zoomTo?: { ids: string[]; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
   /** Told when the map fails to open and when a retry brings it back, so the page can clear what would sit over the notice. */
@@ -325,14 +314,16 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
 
   useEffect(() => {
     const instance = map.current
-    const bounds = boundsOf(features)
+    // the city's own districts, not one filed far away (map-bounds.ts), so it opens readable
+    const bounds = cityBounds(features)
     if (ready && instance && bounds) instance.fitBounds(bounds, { padding: 24, duration: 0 })
   }, [ready, features])
 
   useEffect(() => {
     const instance = map.current
-    const feature = zoomTo && features.find((item) => String(item.properties.id) === zoomTo.id)
-    const bounds = feature ? boundsOf([feature]) : null
+    const wanted = new Set(zoomTo?.ids ?? [])
+    const picked = features.filter((item) => wanted.has(String(item.properties.id)))
+    const bounds = picked.length ? boundsOf(picked) : null
     if (!ready || !instance || !bounds || !zoomTo) return
     const height = instance.getContainer().clientHeight
     const phone = zoomTo.cover > 0

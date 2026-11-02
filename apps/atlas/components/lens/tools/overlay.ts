@@ -24,6 +24,9 @@ export type Overlay = {
   summary?: string | null
   /** The district the step's answer puts first (as the API ordered it), offered to a first visit as «أرني الأعلى». */
   lead?: string | null
+  /** While the tool colours the districts: one line per district id for the card beside the pointer, from the
+   * tool's own answer, so a colour reads as its figure before any click. */
+  hover?: Map<string, string> | null
   /** A card the tool floats over the map, such as the listing a click opened. */
   popup?: ReactNode
 }

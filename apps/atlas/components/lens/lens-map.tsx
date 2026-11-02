@@ -341,7 +341,10 @@ export function LensMap() {
     presetDistricts.current = null
     const known = new Set(data.rows.map((row) => row.id))
     const ids = pending.ids.filter((id) => known.has(id))
-    if (ids.length) setSelected(ids)
+    // a shared link opens on its districts, framed, instead of the whole city with the picked ones somewhere in it
+    if (ids.length) { setSelected(ids); flyTo(...ids) }
+    // flyTo only sets state; it is rebuilt each render and needs no dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.status, data.rows, city])
   useEffect(() => {
     if (!hydrated) return
@@ -358,11 +361,11 @@ export function LensMap() {
   const toggle = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   // a district picked from a list takes the map to it (a click on the map is already looking at it); on a phone a full
   // sheet drops to half so the district shows above it
-  const [zoomTo, setZoomTo] = useState<{ id: string; nonce: number; cover: number } | null>(null)
-  const flyTo = (id: string) => {
+  const [zoomTo, setZoomTo] = useState<{ ids: string[]; nonce: number; cover: number } | null>(null)
+  const flyTo = (...ids: string[]) => {
     const phone = !window.matchMedia('(min-width: 64rem)').matches
     if (phone) setSheet('half')
-    setZoomTo({ id, nonce: Date.now(), cover: phone ? HALF : 0 })
+    setZoomTo({ ids, nonce: Date.now(), cover: phone ? HALF : 0 })
   }
   const pickFromList = (id: string) => { setSelected([id]); flyTo(id) }
   const toggleFromList = (id: string) => { if (!selected.includes(id)) flyTo(id); toggle(id) }
@@ -383,6 +386,7 @@ export function LensMap() {
   // a city whose districts came back empty, and a shading figure no district of the city has: said, not drawn blank
   const noDistricts = data.status === 'ready' && data.features.length === 0
   const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0
+  const unshaded = data.status === 'ready' ? data.rows.length - steps.size : 0
   // which of the lens's figures any district of this city has: in a small city most are missing, so their chips are
   // marked «غير متاح» and the key offers the first figure that does colour the map, instead of «choose another» blind
   const missingMetrics = useMemo(() => new Set(data.status === 'ready' && data.rows.length
@@ -454,6 +458,8 @@ export function LensMap() {
               <p className="truncate font-bold">{pointedRow.name}</p>
               {/* the shading figure as the district row holds it; a step's own colours are explained in its key */}
               {!toolColors && <p className="text-muted-foreground">{METRICS[metric].label}: <span className="font-semibold text-foreground tabular-nums">{format(METRICS[metric].value(pointedRow), METRICS[metric].unit)}</span></p>}
+              {/* a step that colours the map says what its colour means for this district, from its own answer */}
+              {toolColors && overlay.hover?.get(pointedRow.id) && <p className="font-semibold text-foreground tabular-nums">{overlay.hover.get(pointedRow.id)}</p>}
               <p className="text-xs text-muted-foreground">{selected.includes(pointedRow.id) ? 'اضغط لإلغاء اختياره' : 'اضغط لترى أرقامه'}</p>
             </div>
           )}
@@ -509,6 +515,14 @@ export function LensMap() {
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
                   </Explained>}
+                  {/* districts without the figure are drawn unshaded: the key names that, so a blank district (Jeddah's
+                      central markets under «السكان») reads as «غير متاح», not as the lowest value */}
+                  {!metricMissing && unshaded > 0 && (
+                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <span className="h-4 w-7 rounded-sm border border-dashed border-muted-foreground/50" aria-hidden />
+                      بلا لون: غير متاح ({counted(unshaded, 'district')})
+                    </span>
+                  )}
                   </>}
                 </>
               )}
