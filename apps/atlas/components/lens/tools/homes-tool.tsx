@@ -139,7 +139,8 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">اختر عقاراً</h2>
+      {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
+      <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
       <div role="group" aria-label="إيجار أو شراء" className="flex gap-1.5">
         {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
           <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}

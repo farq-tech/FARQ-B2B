@@ -104,7 +104,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
 
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-lg font-bold">منشآت {where}</h2>
+      <h2 className="text-xl font-bold">منشآت {where}</h2>
       <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void load() }}>
         <input value={activity} onChange={(event) => setActivity(event.target.value)} aria-label="النشاط" enterKeyHint="search"
           placeholder="كل الأنشطة، أو اكتب نشاطاً" className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base" />

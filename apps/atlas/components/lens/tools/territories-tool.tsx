@@ -41,7 +41,7 @@ const duration = (seconds: number) => {
 }
 
 /**
- * «تقسيم المندوبين» as a full journey: the customers' activity, the number of reps, one rep's area, its
+ * «المناطق والمسار» as a full journey: the customers' activity, the number of reps, one rep's area, its
  * customers on the map, a start point, and the visit route on the roads, drawn part by part as it is solved.
  */
 export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
@@ -149,7 +149,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">تقسيم المندوبين</h2>
+      <h2 className="text-xl font-bold">المناطق والمسار</h2>
 
       <Step n={1} title="نشاط عملائك" done={Boolean(mainId)}>
         <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
