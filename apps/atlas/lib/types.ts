@@ -179,6 +179,8 @@ export interface RequestItem {
   rfq?: RfqDetails
   campaign?: CampaignDetails
   reviewedAt?: string
+  /** The map view the request was made from (a `/map?…` address), so the request leads back to it. */
+  origin?: string
   /** Inbox message id of the accepted quote. */
   acceptedQuoteId?: string
 }
@@ -208,4 +210,8 @@ export interface InboxMessage {
   quote?: { lines: QuoteLine[]; validity: string; deliveryDays: number }
   sentiment?: 'مهتم' | 'استفسار' | 'غير مهتم'
   replyDraft?: string
+  /** Set on a reply received over WhatsApp from the account's server feed (lib/inbox-feed.ts); absent on device-only items. */
+  origin?: 'whatsapp'
+  /** A received reply that is not text (image, audio, document…): its kind, and `body` holds only its caption, if any. */
+  kind?: string
 }

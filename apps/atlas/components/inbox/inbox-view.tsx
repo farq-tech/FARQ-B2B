@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, LogIn, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, Unlink, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, LogIn, MailOpen, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -9,7 +9,8 @@ import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import { businessById } from '@/lib/mock-data'
+import { businessName } from '@/lib/business-name'
+import { previewText, requestFor } from '@/lib/inbox-feed'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
 import { signInHref, useSignedIn } from '@/lib/use-signed-in'
@@ -35,7 +36,9 @@ export function InboxView() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const { inbox, markRead } = useAppStore()
+  const { inbox, requests, markRead, refreshReplies, inboxOwner } = useAppStore()
+  // new WhatsApp replies are asked for as soon as the inbox opens, not at the next minute check
+  useEffect(() => { refreshReplies(true) }, [refreshReplies])
   // a signed-out visitor is told to sign in, not «لا رسائل بعد» as if their account were empty
   const signedIn = useSignedIn()
 
@@ -123,11 +126,19 @@ export function InboxView() {
           </p>
         </div>
         {/* clearing a backlog took one open per message; this marks what the current filter shows, nothing hidden */}
-        {unreadVisible.length > 1 && (
-          <Button variant="outline" size="sm" onClick={() => unreadVisible.forEach((m) => markRead(m.id))}>
-            <CheckCheck data-icon="inline-start" />علّم المعروض كمقروء
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {unreadVisible.length > 1 && (
+            <Button variant="outline" size="sm" onClick={() => unreadVisible.forEach((m) => markRead(m.id))}>
+              <CheckCheck data-icon="inline-start" />علّم المعروض كمقروء
+            </Button>
+          )}
+          {/* a Farq owner places the replies no campaign matched; the page checks the owner again */}
+          {inboxOwner && (
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/inbox/unlinked" />}>
+              <Unlink data-icon="inline-start" />ردود غير مرتبطة
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* a first visit has no message to filter or open: one welcome that says what arrives here and where it comes
@@ -163,7 +174,7 @@ export function InboxView() {
           ) : (
             <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
-                const b = businessById.get(m.businessId)
+                const name = businessName(m.businessId, requestFor(requests, m.requestId))
                 const active = m.id === selected?.id
                 const Icon = m.source === 'rfq' ? FileText : Megaphone
                 return (
@@ -189,13 +200,13 @@ export function InboxView() {
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="flex items-center gap-2">
-                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{b?.name ?? 'غير متاح'}</span>
+                          <span className={cn('min-w-0 flex-1 truncate text-sm', m.unread ? 'font-bold' : 'font-medium')}>{name}</span>
                           <time className="shrink-0 text-xs text-muted-foreground" dateTime={m.receivedAt}>
                             {formatDateTime(m.receivedAt)}
                           </time>
                         </span>
                         <SourceLabel message={m} compact />
-                        <span className={cn('line-clamp-1 text-xs', m.unread ? 'text-foreground' : 'text-muted-foreground')}>{m.body}</span>
+                        <span className={cn('line-clamp-1 text-xs', m.unread ? 'text-foreground' : 'text-muted-foreground')}>{previewText(m)}</span>
                       </span>
                       {m.unread ? (
                         <span className="mt-2 size-2 shrink-0 rounded-full bg-primary">

@@ -12,16 +12,18 @@ import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
 import { signInHref, useSignedIn } from '@/lib/use-signed-in'
+import { requestAccessHref } from '@/lib/access-request'
 import type { RequestStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { STATUS_ICON, StatusBadge, TypeLabel } from './request-badges'
+import { SavedList } from '@/components/lens/saved-comparisons'
 
 const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'awaiting', 'completed']
 // where a person's next step is: a decision first, then what is ready to send, then drafts to finish
 const ATTENTION: RequestStatus[] = ['needs_decision', 'ready_manual', 'draft', 'awaiting', 'completed']
 
 export function RequestsListView() {
-  const { requests, inbox } = useAppStore()
+  const { requests, inbox, views } = useAppStore()
   const cities = useCities()
   // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
   // from this device after the first paint, so this is derived, not set once)
@@ -61,7 +63,10 @@ export function RequestsListView() {
       {none && signedIn === null ? null : none && !signedIn ? (
         <EmptyState heading="h2" icon={LogIn} title="سجّل الدخول لترى طلباتك"
           body="هنا قوائم المنشآت التي حفظتها وطلبات التسعير ومسودات الحملات، تراجعها قبل أي إرسال."
-          action={<Button nativeButton={false} render={<Link href={signInHref('/requests')} />}><LogIn data-icon="inline-start" />سجّل الدخول</Button>} />
+          action={<div className="flex flex-wrap items-center justify-center gap-2">
+            <Button nativeButton={false} render={<Link href={signInHref('/requests')} />}><LogIn data-icon="inline-start" />سجّل الدخول</Button>
+            <Button variant="outline" nativeButton={false} render={<Link href={requestAccessHref('/requests')} />}>اطلب حساباً</Button>
+          </div>} />
       ) : none ? (
         <EmptyState heading="h2" icon={ClipboardList} title="لا طلبات بعد"
           body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."
@@ -138,6 +143,12 @@ export function RequestsListView() {
         </ul>
       )}
       </>)}
+      {/* the comparisons saved on the map, beside the requests: kept by name inside Atlas, each one reopens on the map */}
+      {views.length > 0 && (
+        <section aria-label="المقارنات المحفوظة" className="rounded-2xl border bg-card p-4">
+          <SavedList heading="h2" />
+        </section>
+      )}
     </main>
   )
 }

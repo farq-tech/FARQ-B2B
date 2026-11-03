@@ -123,6 +123,9 @@ const BUSINESS_ID = /^[^\u0000- \u007f<>"'`\\]{1,180}$/
 // the values each step offers: tools/around-tool REACHES, tools/audience-tool INCOMES, lib/real-estate LISTING_TYPES
 // and BUDGETS, tools/territories-tool MIN_REPS..MAX_REPS and its day steppers
 const REACH_METRES = [500, 1000, 2000]
+// the Kingdom's box, generously: a site outside it is not one the map can measure
+const SITE_LON = (value: number) => Number.isFinite(value) && value >= 34 && value <= 56
+const SITE_LAT = (value: number) => Number.isFinite(value) && value >= 16 && value <= 33
 const REACH_MINUTES = [5, 10, 15]
 const INCOMES = [0, 8000, 12000, 16000]
 const LISTING_TYPES = ['room', 'apartment', 'floor', 'villa', 'store', 'office', 'warehouse', 'land']
@@ -175,6 +178,21 @@ export function mapOptions(lens: string): MapOption[] {
           reach: reach?.kind === 'radius' && REACH_METRES.includes(reach.metres ?? NaN) ? `${reach.metres}m`
             : reach?.kind === 'drive' && REACH_MINUTES.includes(reach.minutes ?? NaN) ? `${reach.minutes}min` : null,
         }
+      },
+    },
+    {
+      // the candidate sites of «قارن المواقع», in slot order: «lon,lat;lon,lat» to 5 decimals (about a metre), at most
+      // three, each inside the Kingdom's box; so a comparison reopens (and is saved by name) with its sites
+      sticky: 'around.sites', params: ['sites'], tools: ['around'], initial: [],
+      read: (query) => {
+        const raw = query.get('sites')
+        if (!raw || raw.length > 80) return undefined
+        const points = raw.split(';').slice(0, 3).map((pair) => pair.split(',').map(Number)).filter(([lon, lat]) => SITE_LON(lon) && SITE_LAT(lat)).map(([lon, lat]) => ({ lon, lat }))
+        return points.length ? points : undefined
+      },
+      write: (value) => {
+        const points = Array.isArray(value) ? (value as { lon?: unknown; lat?: unknown }[]).filter((point) => SITE_LON(Number(point?.lon)) && SITE_LAT(Number(point?.lat))).slice(0, 3) : []
+        return { sites: points.length ? points.map((point) => `${Number(point.lon).toFixed(5)},${Number(point.lat).toFixed(5)}`).join(';') : null }
       },
     },
     one('aud', 'audience.mode', ['audience'], ['people', 'businesses'], 'people'),

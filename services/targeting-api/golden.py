@@ -75,6 +75,17 @@ def population(rows, city, buildings=None, path=district_reference.PATH):
     return rows
 
 
+def with_settled_share(rows):
+    """Each row's `settled_pct`: the share of the district's grid cells the population grid holds as settled
+    (valid_cells ÷ polygon_cells, the grid's own count, kept whatever source the total came from). A district settled
+    over little of its area (وادي لبن: 2,309 of 5,519 cells, 42%) reads «light» per km² and «empty» inside its edge
+    while its people live on a part of it. None without the cell counts. The figures themselves are not changed."""
+    for row in rows:
+        valid, cells = row.get('valid_cells'), row.get('polygon_cells')
+        row['settled_pct'] = round(100.0 * float(valid) / float(cells)) if valid is not None and cells else None
+    return rows
+
+
 def demographics(rows, totals, city, path=district_reference.PATH):
     """Merged by-age rows scaled so each district adds up to its golden total (`totals`: district name ->
     population). Male and female follow the 910ths male share where it is published and are None elsewhere."""

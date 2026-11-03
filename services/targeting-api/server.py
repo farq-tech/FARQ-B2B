@@ -15,6 +15,7 @@ from market_analytics import MarketAnalytics
 import market_analytics
 import status_policy
 import read_only_test
+import wa_inbox
 from metrics import ServiceMetrics, route_label
 import contextvars
 from health import is_ready
@@ -41,7 +42,7 @@ RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'd
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
-import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics
+import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics, access_requests
 CANONICAL = canonical_data.prepare(DATA_DIR, os.environ.get('FARQ_TARGETING_CANONICAL_DIR') or os.path.join(tempfile.gettempdir(), 'farq-targeting-canonical'))
 DATA = CANONICAL['targets.parquet']
 CLUSTERS = CANONICAL['trade_clusters.parquet']
@@ -93,7 +94,7 @@ def _golden_population(city):
     rows=[dict(zip(('district_id','district_ar','district_en','population','coverage_pct','valid_cells','polygon_cells','year','source','license'),row)) for row in rows]
     # one row per canonical district: polygons merged in districts.geojson are summed here too
     merged=canonical_data.merge_population_rows(rows,CANONICAL['district_id_map'],CANONICAL['district_names'])
-    return golden.population(merged,city,golden.building_totals(built,CANONICAL['district_id_map']))
+    return golden.with_settled_share(golden.population(merged,city,golden.building_totals(built,CANONICAL['district_id_map'])))
 
 
 _GOLDEN_DEMO = {}   # city -> whole-city golden demographics rows (or None); the districts= filtered path is not cached
@@ -132,9 +133,9 @@ def _golden_demographics(city, districts=(), population=None):
 
 
 def district_population_by_name(city):
-    """Canonical district name -> {population, male, female, source}: the golden table, keyed for name-based joins."""
+    """Canonical district name -> {population, male, female, source, coverage_pct}: the golden table, keyed for name-based joins."""
     population=golden_population(city) or []
-    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source')}
+    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source'),'coverage_pct':row.get('coverage_pct'),'settled_pct':row.get('settled_pct')}
          for row in population if row.get('district_ar')}
     for row in golden_demographics(city,population=population) or []:
         if row['age_code']=='ALL' and row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
@@ -910,6 +911,44 @@ def _send_farq(body):
 
 WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
 WA_GRAPH = 'https://graph.facebook.com/v23.0'
+# Incoming replies for the Atlas inbox (wa_inbox.py): the webhook checks every body against the app secret and answers
+# Meta's subscription check with the verify token. Unset either one and that half of the webhook stays closed.
+WA_APP_SECRET = os.environ.get('WHATSAPP_APP_SECRET'); WA_VERIFY_TOKEN = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
+INBOX = wa_inbox.InboxStore(os.path.join(RUNTIME_DIR, 'wa_inbox.sqlite3'))
+WEBHOOK_PATH = '/whatsapp/webhook'
+# Where incoming replies come from. `construction_db` (default): the construction API owns this number's Meta webhook
+# and stores every reply; they are read from its database, read only (wa_construction_source.py). `webhook`: Meta posts
+# to /whatsapp/webhook here instead (only if this service owns the callback). The webhook routes answer 404 otherwise.
+INBOX_SOURCE = (os.environ.get('FARQ_INBOX_SOURCE') or 'construction_db').strip().lower()
+def webhook_enabled(): return INBOX_SOURCE == 'webhook' and not read_only_test.enabled()
+
+def _poll_construction_inbox():
+    """Background reader of replies from the construction inbox; counts only in the log, never text or numbers."""
+    import wa_construction_source
+    source = wa_construction_source.postgres_source(DB_URL)
+    every = max(30, int(os.environ.get('FARQ_INBOX_POLL_SECONDS') or 60))
+    while True:
+        try:
+            result = source.poll(INBOX)
+            INBOX.record_poll('construction_db', True, counts=result)
+            if result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+        except Exception as error:
+            kind = type(error).__name__
+            try: failures = INBOX.record_poll('construction_db', False, kind)
+            except Exception: failures = -1
+            LOGGER.warning('inbox_construction_poll failed: %s', kind)
+            # one alert line on the first failure and every 10th in a row, so a broken source is seen without flooding
+            if failures in (1, -1) or failures % 10 == 0:
+                LOGGER.error('ALERT inbox_source_unhealthy source=construction_db error=%s failures_in_row=%s', kind, failures)
+        time.sleep(every)
+
+INBOX_SOURCE_STATE = {'running': False}
+def start_inbox_source():
+    if INBOX_SOURCE == 'construction_db' and DB_URL and not read_only_test.enabled():
+        INBOX_SOURCE_STATE['running'] = True
+        threading.Thread(target=_poll_construction_inbox, daemon=True, name='inbox-construction').start()
+        return 'construction_db'
+    return 'webhook' if webhook_enabled() else 'off'
 def graph(path, body=None, method=None):
     if not read_only_test.provider_calls_allowed():
         return {'error': {'message': 'READ_ONLY_TEST_ENV'}}
@@ -981,9 +1020,31 @@ def _send_template(body):
     log_decision('send_template', None, row['poi_key'], 'accept', why)
     r = provider_send(payload)
     ok = bool(r.get('messages'))
+    message_id = (r.get('messages') or [{}])[0].get('id')
+    if ok and body.get('atlas_campaign') is True and message_id:
+        # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'))
+        except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
+
+def directory_names(poi_keys):
+    """Business names for the owner's review of unlinked replies: name only, never a contact."""
+    keys = sorted({k for k in poi_keys if isinstance(k, str) and KEY_RE.match(k)})[:500]
+    if not keys: return {}
+    with LOCK:
+        rows = con.execute("select poi_key, name_ar, name_en from t where poi_key in (select unnest(?::varchar[]))", [keys]).fetchall()
+    return {k: (ar or en or None) for k, ar, en in rows}
+
+def unlinked_replies():
+    rows = INBOX.unlinked()
+    names = directory_names([c['poiKey'] for r in rows for c in r['candidates']])
+    for r in rows:
+        for c in r['candidates']: c['name'] = names.get(c['poiKey'])
+    # the reply source's health, so the owner sees a broken source here instead of an empty list
+    health = {**(INBOX.health(INBOX_SOURCE) if INBOX_SOURCE == 'construction_db' else {'source': INBOX_SOURCE}), 'running': INBOX_SOURCE_STATE['running'] or webhook_enabled()}
+    return {'ok': True, 'messages': rows, 'health': health}
 
 def test_mobile(value):
     """Normalize a Saudi mobile supplied only for an owner test message."""
@@ -1076,6 +1137,12 @@ class H(BaseHTTPRequestHandler):
         except http.cookies.CookieError: return False
         sid = jar['ft_session'].value if 'ft_session' in jar else ''
         return bool(sid) and session_ok(sid)
+    def _console_session(self):
+        """A browser signed in to this console with its password (not the service token Atlas holds)."""
+        try: jar = http.cookies.SimpleCookie(self.headers.get('Cookie') or '')
+        except http.cookies.CookieError: return False
+        sid = jar['ft_session'].value if 'ft_session' in jar else ''
+        return bool(sid) and session_ok(sid)
     def _client_ip(self):
         return (self.headers.get('X-Forwarded-For') or self.client_address[0]).split(',')[0].strip()
     def _json(self, obj, code=200):
@@ -1091,6 +1158,11 @@ class H(BaseHTTPRequestHandler):
             self._json({'ok': ready, 'service': 'farq-targeting'}, 200 if ready else 503)
             return
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
+        if route.path == WEBHOOK_PATH:
+            # Meta's subscription check: public by design, answered only with our verify token (wa_inbox.handle_verify)
+            if not webhook_enabled(): self.send_response(404); self.end_headers(); return
+            status, text = wa_inbox.handle_verify(urllib.parse.parse_qs(route.query), WA_VERIFY_TOKEN)
+            b = text.encode(); self.send_response(status); self.send_header('Content-Type', 'text/plain; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
         if route.path == '/metrics':
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             body = METRICS.render_prometheus()
@@ -1158,10 +1230,38 @@ class H(BaseHTTPRequestHandler):
             self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
         elif self.path == '/templates':
             self._json(list_templates())
+        elif route.path == '/inbox/unlinked':
+            try: self._json(unlinked_replies())
+            except Exception as error:
+                log_map_api_failure('inbox-unlinked', error)
+                self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
+        elif route.path == '/inbox':
+            # one Atlas account's WhatsApp replies; the Atlas server names the account from its own session
+            query = urllib.parse.parse_qs(route.query)
+            account = wa_inbox.accounts_of(query.get('account', []))
+            if not account: self._json({'error': 'INPUT'}, 400); return
+            try: since = int(query.get('since', ['0'])[0] or 0)
+            except ValueError: self._json({'error': 'INPUT'}, 400); return
+            try: self._json({'ok': True, **INBOX.feed(account, since)})
+            except Exception as error:
+                log_map_api_failure('inbox', error)
+                self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/cities':
             self._json(cities())
         elif self.path.startswith('/template-status'):
             st = template_status('farq_outreach_ar'); st['holder'] = load_holder(); self._json(st)
+        elif route.path == '/access-requests':
+            # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            query = urllib.parse.parse_qs(route.query)
+            saved = 'حُذفت بيانات التواصل.' if query.get('redacted') == ['1'] else 'حُفظ القرار.' if query.get('saved') == ['1'] else ''
+            access_requests.apply_retention(RUNTIME_DIR)   # details past the retention period are emptied before anyone sees them
+            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0]).encode()
+            self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        elif route.path == '/access-requests/count':
+            # the console's badge: how many requests wait for a decision (a number only, no contact)
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            self._json({'new': access_requests.unread_count(RUNTIME_DIR)})
         elif self.path == '/log':
             rows = []
             if os.path.exists(LOG):
@@ -1180,6 +1280,19 @@ class H(BaseHTTPRequestHandler):
                 import startup_jobs
                 for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): LOGGER.info('startup job running in background after upload: %s', job)
             return
+        if urllib.parse.urlparse(self.path).path == WEBHOOK_PATH:
+            # WhatsApp webhook: public by design, every body must carry Meta's signature (wa_inbox.handle_post)
+            if not webhook_enabled(): self.send_response(404); self.end_headers(); return
+            try: n = int(self.headers.get('Content-Length', 0))
+            except ValueError: n = -1
+            if n < 0 or n > wa_inbox.MAX_WEBHOOK_BYTES: self._json({'ok': False, 'error': 'TOO_LARGE'}, 413); return
+            raw = self.rfile.read(n)
+            try: status, result = wa_inbox.handle_post(raw, self.headers.get('X-Hub-Signature-256'), WA_APP_SECRET, INBOX, WA_PHONE_ID)
+            except Exception as error:
+                log_map_api_failure('whatsapp-webhook', error)
+                status, result = 500, {'ok': False, 'error': 'UNAVAILABLE'}
+            LOGGER.info('whatsapp_webhook status=%s new=%s duplicate=%s unlinked=%s statuses=%s', status, result.get('new'), result.get('duplicate'), result.get('unlinked'), result.get('statuses'))
+            self._json(result, status); return
         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
         if self.path == '/login':
             if not login_allowed(self._client_ip()): self._json({'error': 'TOO_MANY_ATTEMPTS'}, 429); return
@@ -1204,6 +1317,20 @@ class H(BaseHTTPRequestHandler):
                 'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
             }, 403)
             return
+        if self.path in ('/access-requests/review', '/access-requests/redact'):
+            # the owner's decision on a request, or removing its personal details on the person's request, from the
+            # list's own forms (console login only; the cookie is SameSite=Strict)
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            form = urllib.parse.parse_qs(raw.decode(errors='replace'), keep_blank_values=True)
+            field = lambda name: form.get(name, [''])[0]
+            if self.path.endswith('/review'):
+                status, answer = access_requests.review(RUNTIME_DIR, field('id'), field('status'), field('note')); done = 'saved'
+            else:
+                status, answer = access_requests.redact(RUNTIME_DIR, field('id')); done = 'redacted'
+            LOGGER.info('access_request_%s status=%s', 'review' if done == 'saved' else 'redact', status)
+            if status != 200: self._json(answer, status); return
+            back = field('back') if field('back') in access_requests.FILTERS else 'all'
+            self.send_response(303); self.send_header('Location', f'/access-requests?status={back}&{done}=1'); self.end_headers(); return
         body = json.loads(raw or b'{}')
         if self.path in ('/map-query','/map-profile','/map-focus'):
             try:
@@ -1224,6 +1351,14 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('map-context', error)
                 self._json({'error':'UNAVAILABLE'},503)
+        elif self.path == '/access-requests':
+            # «اطلب حساباً» from Atlas: stored for the owner's review, nothing is sent and no account is created
+            try: known = {row['en'] for row in cities()}
+            except Exception: known = None
+            access_requests.apply_retention(RUNTIME_DIR)
+            status, answer = access_requests.submit(RUNTIME_DIR, body, known)
+            LOGGER.info('access_request status=%s', status)
+            self._json(answer, status)
         elif self.path == '/trial-search':
             try:
                 result=TRIAL_DIRECTORY.search(body.get('q'), body.get('city'), body.get('objective', 'purchase'),min(200,max(1,int(body.get('limit',30)))),int(body.get('offset',0)));result.pop('_map_rows',None);self._json(result)
@@ -1460,6 +1595,17 @@ class H(BaseHTTPRequestHandler):
         elif self.path == '/send-farq':
             try: self._json(send_farq(body))
             except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/inbox/read':
+            # the account's own replies read or unread again, so the state follows the person across devices
+            try: self._json({'ok': True, 'changed': INBOX.set_read(body.get('account'), body.get('ids'), body.get('read') is not False)})
+            except Exception as error: log_map_api_failure('inbox-read', error); self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
+        elif self.path in ('/inbox/attach', '/inbox/dismiss'):
+            # Farq owner review (the Atlas server checks the owner); a reply is placed only on a message sent to its number
+            try:
+                done = INBOX.attach(body.get('message_id'), body.get('outbound_id'), body.get('reviewer')) if self.path == '/inbox/attach' \
+                    else INBOX.dismiss(body.get('message_id'), body.get('reviewer'))
+                self._json({'ok': done}, 200 if done else 409)
+            except Exception as error: log_map_api_failure('inbox-review', error); self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/log':
             new = not os.path.exists(LOG)
             with open(LOG, 'a', encoding='utf-8', newline='') as f:
@@ -1476,6 +1622,7 @@ if __name__ == '__main__':
     import startup_jobs
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
+    print(f"inbox source: {start_inbox_source()}", flush=True)
     httpd = ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H)
     # socket is bound now, so /healthz answers at once; warm the cold caches on a daemon thread that never blocks serving
     threading.Thread(target=_warm_caches, daemon=True, name='warm-caches').start()

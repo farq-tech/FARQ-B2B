@@ -32,4 +32,24 @@ export type Overlay = {
   facts?: Map<string, string> | null
   /** A card the tool floats over the map, such as the listing a click opened. */
   popup?: ReactNode
+  /** The step's own request while it has no answer: `loading` (and `slow` once it has taken long), or `error` with the
+   * step's `retry`. The map says it where the step's line goes (the phone's peeking sheet) and, when slow, why and
+   * what to do; a step that is waiting for the customer posts none. */
+  state?: 'loading' | 'error' | null
+  /** «قارن المواقع»: the sites side by side (their districts, scores and factors as the step measured them), so the
+   * shop owner's closing card can show them without measuring again. */
+  comparison?: { sites: SiteComparison[]; reach: string; byIncome: boolean } | null
+  slow?: boolean
+  retry?: (() => void) | null
+}
+
+/** One compared site: its slot's label, the district its pin sits in, its 0–100 score (needs two complete sites), and
+ * its three factors (people in reach, income or villa share of its district, businesses per km²); null where unmeasured. */
+export type SiteComparison = { label: string; district: string | null; score: number | null; audience: number | null; spending: number | null; density: number | null }
+
+/** The overlay of a step whose answer is not in yet: its request's state as `useAnswer` holds it, nothing when idle. */
+export function waiting(answer: { status: 'idle' | 'loading' | 'ready' | 'error'; slow: boolean; retry: () => void }): Overlay {
+  if (answer.status === 'loading') return { state: 'loading', slow: answer.slow }
+  if (answer.status === 'error') return { state: 'error', retry: answer.retry }
+  return {}
 }

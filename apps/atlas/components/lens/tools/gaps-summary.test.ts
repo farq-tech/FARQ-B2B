@@ -49,4 +49,6 @@ test('the hidden industrial districts are counted in one line under the visible 
   assert.equal(hiddenCaveatsLine(2, numberFormat), 'ومنطقتان صناعيتان أو سكن عمال في الأسفل')
   assert.equal(hiddenCaveatsLine(7, numberFormat), 'و7 مناطق صناعية أو سكن عمال في الأسفل')
   assert.equal(hiddenCaveatsLine(1200, numberFormat), 'و1,200 منطقة صناعية أو سكن عمال في الأسفل')
+  // Al Khobar: الظهران listed last for its grid population is named with the others
+  assert.equal(hiddenCaveatsLine(2, numberFormat, true), 'ومنطقتان صناعيتان أو سكن عمال أو بسكان مقدّرين في الأسفل')
 })

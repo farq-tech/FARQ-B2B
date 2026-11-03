@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, Copy, FileText, Hand, LoaderCircle, MapPinned, Megaphone, MessageSquareText, Pencil, Send } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -13,6 +13,10 @@ import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
+import { useBackClose } from '@/lib/use-back-close'
+import { businessName } from '@/lib/business-name'
+import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
+import { repliesFor, trackedFor } from '@/lib/inbox-feed'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -25,9 +29,10 @@ const SEND_BATCH_SIZE = 100
 
 export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
-  const { requests, inbox, updateRequest, createDraft } = useAppStore()
+  const { requests, inbox, deliveries, updateRequest, createDraft } = useAppStore()
   const cities = useCities()
-  const [reviewOpen, setReviewOpen] = useState(false)
+  // the phone's Back closes the review instead of leaving the request (lib/use-back-close.ts)
+  const [reviewOpen, setReviewOpen] = useBackClose('review')
   const request = requests.find((r) => r.id === id)
 
   if (!request) {
@@ -46,6 +51,8 @@ export function RequestDetailView({ id }: { id: string }) {
   const city = requestCity(request, cities)
   const replies = inbox.filter((m) => m.requestId === request.id).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   const quotes = replies.filter((m) => m.quote)
+  // the map view the request was made from; an older request without one opens its city and its search
+  const mapView = safeMapOrigin(request.origin) ?? mapHref({ city: cityKey(request.cityId, cities), q: request.query })
   const patch = (p: Partial<RequestItem>) => updateRequest(request.id, p)
 
   const changeBusinesses = (ids: string[]) => {
@@ -78,6 +85,7 @@ export function RequestDetailView({ id }: { id: string }) {
       liveBusinesses: request.liveBusinesses,
       categoryHint: firstLiveBusiness?.category,
       districtHint: firstLiveBusiness?.district,
+      origin: request.origin,
     })
     router.push(`/requests/${newId}`)
   }
@@ -92,10 +100,17 @@ export function RequestDetailView({ id }: { id: string }) {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 py-6 pb-28 lg:py-8">
-      <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-        <ArrowRight className="size-4" aria-hidden />
-        كل الطلبات
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+          <ArrowRight className="size-4" aria-hidden />
+          كل الطلبات
+        </Link>
+        {/* back to the map as it was when the businesses were picked: the same city, group, step, districts and search */}
+        <Link href={mapView} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+          <MapPinned className="size-4" aria-hidden />
+          {request.origin ? 'افتح الخريطة كما كانت' : 'افتح على الخريطة'}
+        </Link>
+      </div>
 
       <header className="flex flex-col gap-2">
         {/* read in the order a person asks: what it is, to whom, where it stands, what to do next */}
@@ -132,6 +147,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
         <QuoteComparison
           quotes={quotes}
+          request={request}
           acceptedId={request.acceptedQuoteId}
           canDecide={request.status === 'needs_decision' || request.status === 'awaiting'}
           onAccept={(mid) => {
@@ -148,6 +164,8 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.campaign && (request.status === 'ready_manual' || request.status === 'awaiting') ? (
         <WhatsAppSendPanel
           request={request}
+          tracked={trackedFor(deliveries, request)}
+          replied={repliesFor(inbox, request)}
           onDeliveryUpdate={(campaign, complete) => patch({ campaign, status: complete ? 'awaiting' : 'ready_manual' })}
           onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })}
         />
@@ -155,7 +173,7 @@ export function RequestDetailView({ id }: { id: string }) {
 
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
       {request.campaign ? (
-        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} />
+        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={trackedFor(deliveries, request)} replied={repliesFor(inbox, request)} />
       ) : null}
 
       {/* once a campaign is reviewed its recipients list (with each one's send state) already names every business:
@@ -168,6 +186,8 @@ export function RequestDetailView({ id }: { id: string }) {
           liveBusinesses={request.liveBusinesses}
           editable={editable}
           onChange={changeBusinesses}
+          mapView={editable ? addToRequestHref(mapView, request.id) : mapView}
+          addMore={editable}
         />
       )}
 
@@ -190,7 +210,7 @@ export function RequestDetailView({ id }: { id: string }) {
                   <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      {businessById.get(m.businessId)?.name ?? 'غير متاح'}
+                      {businessName(m.businessId, request)}
                       {/* a span's aria-label is not read: the word goes in as hidden text */}
                       {m.unread ? <span className="size-2 rounded-full bg-primary"><span className="sr-only">غير مقروء</span></span> : null}
                     </p>
@@ -330,14 +350,18 @@ function ManualRfqPanel({ request, onBackToDraft }: { request: RequestItem; onBa
   )
 }
 
-function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
+function WhatsAppSendPanel({ request, tracked, replied, onDeliveryUpdate, onBackToDraft }: {
   request: RequestItem
+  /** What WhatsApp reported on each recipient's message, from the account's feed. */
+  tracked: Record<string, 'sent' | 'delivered' | 'read' | 'failed'>
+  /** Each recipient's latest reply (its message id), from the inbox. */
+  replied: Record<string, string>
   onDeliveryUpdate: (campaign: NonNullable<RequestItem['campaign']>, complete: boolean) => void
   onBackToDraft: () => void
 }) {
   // every hook before the first early return, so the order never changes between renders
   const [sendingId, setSendingId] = useState<string | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useBackClose('send-confirm')
   const [error, setError] = useState('')
   const [ready, setReady] = useState<boolean | null>(null)
   const [readyStatus, setReadyStatus] = useState('جارٍ التحقق من جاهزية الإرسال...')
@@ -375,8 +399,9 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
   })
   const delivery = campaign.delivery ?? {}
   const unsentIds = eligibleIds.filter((id) => delivery[id] !== 'sent' && delivery[id] !== 'unknown')
-  const sentCount = eligibleIds.filter((id) => delivery[id] === 'sent').length
-  const unknownCount = eligibleIds.filter((id) => delivery[id] === 'unknown').length
+  // a result this device could not confirm is settled once WhatsApp reports on that message: it was sent
+  const sentCount = eligibleIds.filter((id) => delivery[id] === 'sent' || (delivery[id] === 'unknown' && tracked[id])).length
+  const unknownCount = eligibleIds.filter((id) => delivery[id] === 'unknown' && !tracked[id]).length
   const failedCount = eligibleIds.filter((id) => delivery[id] === 'failed').length
   const unlinkedCount = campaign.included.length - eligibleIds.length
   // on the list but left out at review: no WhatsApp number, or unticked by the person
@@ -400,7 +425,8 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
         const response = await fetch('/api/campaign/send', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ poiKey: id, message: text }),
+          // the request id lets a reply to this message reach the inbox under this request (lib/inbox-feed.ts)
+          body: JSON.stringify({ poiKey: id, message: text, requestId: request.id, requestTitle: request.title }),
         })
         const result = await response.json().catch(() => null) as { ok?: boolean } | null
         if (response.ok && result?.ok) nextDelivery[id] = 'sent'
@@ -430,11 +456,20 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
     { count: unlinkedCount, label: 'ليست من نتائج الدليل الحية' },
   ].filter((row) => row.count > 0)
 
+  const deliveredCount = eligibleIds.filter((id) => tracked[id] === 'delivered').length
+  const readCount = eligibleIds.filter((id) => tracked[id] === 'read').length
+  const undeliveredCount = eligibleIds.filter((id) => tracked[id] === 'failed').length
+  const repliedCount = eligibleIds.filter((id) => replied[id]).length
   const tally = [
     sentCount ? `${numberFormat.format(sentCount)} أُرسلت` : null,
     unsentIds.length ? `${numberFormat.format(unsentIds.length)} بانتظار الإرسال` : null,
     failedCount ? `${numberFormat.format(failedCount)} فشل` : null,
     unknownCount ? `${numberFormat.format(unknownCount)} نتيجتها غير مؤكدة` : null,
+    // what WhatsApp reported after sending: arrived, read, or did not arrive
+    deliveredCount ? `${numberFormat.format(deliveredCount)} وصلت` : null,
+    readCount ? `${numberFormat.format(readCount)} قُرئت` : null,
+    undeliveredCount ? `${numberFormat.format(undeliveredCount)} لم تصل` : null,
+    repliedCount ? `${numberFormat.format(repliedCount)} ردّت` : null,
     unlinkedCount ? `${numberFormat.format(unlinkedCount)} لا يمكن إرسالها لأنها ليست من نتائج الدليل الحية` : null,
   ].filter(Boolean)
   // nobody left to send to, and not because the campaign finished: say so instead of a disabled «إرسال 0»

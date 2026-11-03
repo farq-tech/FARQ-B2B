@@ -148,6 +148,27 @@ class MarketGapTests(unittest.TestCase):
         self.assertEqual(flagged, ["المدينة الصناعية الجديدة", "سكن عمال"], "flagged districts come last")
         self.assertEqual(order[-2:], ["المدينة الصناعية الجديدة", "سكن عمال"], "and after every residential one")
 
+    def test_model_holds_a_grid_population_over_little_of_the_district_goes_last_flagged(self):
+        analytics, population, counts, pops = self._fitting()
+        # Al Khobar's الظهران as served: 242,901 people spread from a grid over 23% of its cells, 5 pharmacies; by its
+        # shortfall it led the list. A grid figure over most of its district (الخبر الشمالية, 76%) stays ordinary.
+        population["الظهران"] = {"population": 242901.2, "male": None, "female": None, "source": "WorldPop 2025", "coverage_pct": 22.9044, "settled_pct": 23}
+        population["الخبر الشمالية"] = {"population": 45000.0, "male": None, "female": None, "source": "WorldPop 2025", "coverage_pct": 76.0}
+        result = analytics.market_gaps({"city": "Riyadh"}, population)
+        self.assertTrue(result["population_model_fits"])
+        by_name = {row["district_ar"]: row for row in result["districts"]}
+        self.assertEqual(by_name["الظهران"]["caveat"], "estimated")
+        self.assertEqual(by_name["الظهران"]["population_coverage_pct"], 23)
+        self.assertIsNone(by_name["الخبر الشمالية"]["caveat"])
+        self.assertIsNone(by_name["حي1"]["population_coverage_pct"], "a measured figure carries no coverage")
+        self.assertEqual(by_name["الظهران"]["settled_pct"], 23, "the settled share travels with the row")
+        self.assertIsNone(by_name["حي1"]["settled_pct"], "none given: none said")
+        self.assertEqual(result["districts"][-1]["district_ar"], "الظهران", "listed after every ordinary district")
+        self.assertNotEqual(result["districts"][0]["district_ar"], "الظهران")
+        # its figures are kept, never dropped or zeroed
+        self.assertEqual(by_name["الظهران"]["population"], 242901)
+        self.assertGreater(by_name["الظهران"]["shortfall"], 0)
+
     # ------- shared behaviour -------
 
     def test_no_response_field_names_an_outside_source(self):

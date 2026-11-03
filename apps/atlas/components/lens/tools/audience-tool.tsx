@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
@@ -11,11 +11,13 @@ import { counted, ltr, numberFormat, postMarket } from '@/lib/insights-api'
 import { type DistrictShare, type Nationality, type Sex } from '@/lib/audience'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
-import type { Overlay } from './overlay'
+import { waiting, type Overlay } from './overlay'
+import { trackDecisionMoment } from '@/lib/commercial-metrics'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
-import { audienceMissing, audienceSummary, audienceWhere } from './tool-answers'
+import { audienceMissing, audienceSummary, audienceVerdict, audienceWhere } from './tool-answers'
+import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 import { useMainActivities } from '@/lib/main-activities'
@@ -49,7 +51,7 @@ function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): 
  * nationality and income; a business marketer filters businesses by activity and WhatsApp reach. The map turns into
  * the best-matching districts and the card gives the audience size in the selected districts, or the whole city.
  */
-export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover }: {
+export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover, next }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
@@ -57,6 +59,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   onSelect: (id: string) => void
   /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
   onHover?: (id: string | null) => void
+  /** The step after the answer (a campaign to the top districts), under the verdict; given by the map shell. */
+  next?: ReactNode
 }) {
   const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
   const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
@@ -65,6 +69,18 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
+  // the marketer's decision moment (foundation §7): the filters changed, said by which are on (names, never values);
+  // the filters as they open (a first look, a link) are not a change
+  const filtersOn = [mode === 'businesses' ? 'businesses' : null, sex !== 'all' ? 'sex' : null, nationality !== 'all' ? 'nationality' : null, minIncome > 0 ? 'income' : null, mode === 'businesses' && mainId ? 'activity' : null].filter((item): item is string => item != null)
+  const filtersKey = filtersOn.join(',')
+  const firstFilters = useRef(filtersKey)
+  useEffect(() => {
+    if (filtersKey === firstFilters.current) return
+    firstFilters.current = '\u0000'
+    trackDecisionMoment('audience_filtered', { lens: 'marketers', city, filters: filtersOn })
+    // keyed by the filters' names as one string
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey])
 
   // the measured shares of the city; those of a city left behind never land on the next one. null while they load;
   // a failure leaves none (a sex or nationality figure then says so, with a retry, instead of «غير متاح»)
@@ -118,7 +134,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   // the map hands a new array of the same districts on every render, so the overlay follows their ids, not the array
   const selectedKey = selected.map((row) => row.id).join('|')
   // the people figures of one segment wait for the measured shares; until then the map has no answer to give
-  const pending = status === 'loading' || (mode === 'people' && (sex !== 'all' || nationality !== 'all') && shares == null)
+  // and nothing is said before the city's districts arrive: an empty table is still loading, not «غير متاح»
+  const pending = rows.length === 0 || status === 'loading' || (mode === 'people' && (sex !== 'all' || nationality !== 'all') && shares == null)
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
@@ -134,8 +151,12 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const facts = pending ? null : new Map(scored.map((item) => [item.row.id, `${show(item.size)} ${mode === 'people' ? 'شخص' : 'منشأة'} · ${numberFormat.format(item.score)}/100`] as [string, string]))
     // the key the map corner draws: the same five shades by score, and the grey of a district the filters leave empty
     const legend = scored.length ? { from: 'تطابق أقل', to: 'تطابق أكثر', shades: SHADES, extra: { color: PALETTE.pebble, label: 'لا جمهور بهذه الفلاتر' } } : null
-    onOverlay({ colors, facts, summary, legend, lead: pending ? null : scored[0]?.row.id ?? null })
-  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount])
+    // while the figures it waits for are asked, the request's own state (working, slow, failed) goes with the overlay
+    const asked = mode === 'businesses' ? countsAnswer : sharesAnswer
+    onOverlay({ ...(pending ? waiting(asked) : {}), colors, facts, summary, legend, lead: pending ? null : scored[0]?.row.id ?? null })
+    // the answers' retries are stable; their status and slow are what the waiting overlay says
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount, countsAnswer.status, countsAnswer.slow, sharesAnswer.status, sharesAnswer.slow])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
@@ -163,7 +184,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">أين جمهوري؟</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">أين جمهوري؟</h2>
       <Choice label="من تستهدف" value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
       {mode === 'people' ? (
         <>
@@ -229,13 +250,17 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </div>
       )}
       {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
+        <Verdict lift verdict={audienceVerdict(scope.map((item) => ({ name: item.row.name, size: item.size, populationSource: item.row.populationSource })), unit, segmentWord(ranked))} next={next} />
+      )}
+      {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
         <div>
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
             {scored.slice(0, limit).map((item) => (
               <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)} title={item.row.name}
                 active={selected.some((row) => row.id === item.row.id)}
-                value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
+                // the audience itself leads; the score is its place against the top district
+                value={`${show(item.size)} ${unit}`} valueSub={`${numberFormat.format(item.score)}/100`} />
             ))}
           </ol>
           <MoreRows shown={Math.min(limit, scored.length)} total={scored.length} noun="district" onMore={showMore} />

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState, type ReactNode } from 'react'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { Baby, Lock, MapPin, Store, Users } from 'lucide-react'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -13,6 +13,8 @@ import { EXPLAIN } from '@/lib/explanations'
 import { formatDistance, numberFormat } from '@/lib/insights-api'
 import { PALETTE, readableOn } from '@/lib/palette'
 import { MoreRows } from '../result-row'
+import { siteCardVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 
 /** /api/market/site-card (services/targeting-api/site_card.py). Every figure is computed there; this only draws it. */
 export type SiteCardData = {
@@ -39,7 +41,7 @@ const show = (value: number | null | undefined) => figure(value) ?? <Unavailable
  * «بطاقة الموقع»: for one candidate site and its range, who already competes there (by name and distance) and who
  * lives there (women and men, Saudis and others, children as an estimate). A missing figure reads «غير متاح».
  */
-export function SiteCard({ label, color, reach, activity, state, onRetry }: { label: string; color: string; reach: string; activity: string; state?: SiteCardState; onRetry?: () => void }) {
+export function SiteCard({ label, color, reach, activity, state, onRetry, action }: { label: string; color: string; reach: string; activity: string; state?: SiteCardState; onRetry?: () => void; /** The step after the card (a request from the businesses around the site), given by the map shell. */ action?: ReactNode }) {
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
       <header className="flex items-center gap-2 px-4 py-3" style={{ background: color, color: readableOn(color) }}>
@@ -77,10 +79,11 @@ export function SiteCard({ label, color, reach, activity, state, onRetry }: { la
       {/* not a failure: the card names competitors, so it opens for a signed-in account; the shared empty shape with its one step */}
       {state?.status === 'denied' && (
         <EmptyState compact icon={Lock} className="m-4" title={state.signIn ? 'بطاقة الموقع لمن سجّل الدخول' : 'بطاقة الموقع غير متاحة لحسابك'} body={state.message}
-          action={state.signIn ? <Link href="/login?next=%2Fmap%3Ftool%3Daround" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
+          action={state.signIn ? <SignInLink className="text-sm font-semibold text-primary underline">تسجيل الدخول</SignInLink> : undefined} />
       )}
       {state?.status === 'error' && <LoadError what="بطاقة الموقع" detail={state.message} onRetry={onRetry} className="m-4" />}
       {state?.status === 'ready' && <Body data={state.data} activity={activity} />}
+      {action && <div className="flex flex-wrap gap-2 border-t px-4 py-3">{action}</div>}
     </article>
   )
 }
@@ -91,6 +94,8 @@ function Body({ data, activity }: { data: SiteCardData; activity: string }) {
   const [nearestShown, setNearestShown] = useState(5)
   return (
     <div className="space-y-4 p-4">
+      {/* the site's answer in one line (competitors in range and the nearest), before the figures behind it */}
+      <Verdict verdict={siteCardVerdict(competitors, data.residents_per_competitor, people.population, activity, formatDistance)} />
       <section className="space-y-2.5">
         <h4 className="flex items-center gap-1.5 text-sm font-bold"><Store className="size-4 text-primary" aria-hidden />المنافسون حولك</h4>
         {competitors == null ? (

@@ -22,3 +22,9 @@ export function useSignedIn() {
 export function signInHref(path: string) {
   return `/login?next=${encodeURIComponent(path)}`
 }
+
+/** Sent on `window` when this page signs in or out, so what is kept in the account (saved comparisons) follows. */
+export const SESSION_CHANGED = 'atlas:session-changed'
+export function announceSessionChange() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SESSION_CHANGED))
+}

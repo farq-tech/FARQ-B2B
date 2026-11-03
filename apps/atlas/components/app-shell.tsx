@@ -1,13 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ClipboardList, House, Inbox, LogIn, LogOut, Map as MapIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { REMEMBERED, lastView, loginHref } from '@/lib/handoff'
+import { SignInLink } from '@/components/shared/sign-in-link'
+import { announceSessionChange } from '@/lib/use-signed-in'
 import { WhatsNew } from '@/components/shared/whats-new'
+import { ReplyNotice } from '@/components/inbox/reply-notice'
 import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
@@ -16,6 +20,8 @@ interface NavItem {
   label: string
   icon: LucideIcon
   count?: number
+  /** What the count is, for a screen reader («3 غير مقروءة»): the badge alone is only a number. */
+  countLabel?: string
 }
 
 type SessionUser = { email: string | null; displayName: string | null }
@@ -44,13 +50,14 @@ export function BrandMark({ className }: { className?: string }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { requests, inbox } = useAppStore()
   const [user, setUser] = useState<SessionUser | null>(null)
   const [sessionChecked, setSessionChecked] = useState(false)
 
   // The shell stays mounted across client navigation, so the session is read again on the way out of
   // the landing and login pages: signing in there and landing on /map shows the account straight away.
-  const ownHeader = pathname === '/' || pathname === '/login'
+  const ownHeader = pathname === '/' || pathname === '/login' || pathname === '/request-access'
   useEffect(() => {
     if (ownHeader) return
     let active = true
@@ -64,21 +71,26 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => { active = false }
   }, [ownHeader])
 
+  // the main navigation goes back to each surface's last view in this tab (the map's city, step and districts, the
+  // listings' filters, the price's answers), read again whenever the page changes; a first visit opens the default
+  const [views, setViews] = useState<Record<string, string>>({})
+  useEffect(() => { setViews(Object.fromEntries(REMEMBERED.map((path) => [path, lastView(path)]))) }, [pathname])
+
   // the header says «signed out» only once the server has cleared the session; a failed request leaves it as it was
   const signOut = async () => {
     const response = await fetch('/api/session/logout', { method: 'POST' }).catch(() => null)
-    if (response?.ok) setUser(null)
+    if (response?.ok) { setUser(null); announceSessionChange() }
   }
 
   const needsDecision = requests.filter((r) => r.status === 'needs_decision').length
   const unread = inbox.filter((m) => m.unread).length
   const items: NavItem[] = [
-    { href: '/map', label: 'الخريطة', icon: MapIcon },
-    { href: '/homes', label: 'العقار', icon: House },
-    { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
-    { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
+    { href: views['/map'] ?? '/map', label: 'الخريطة', icon: MapIcon },
+    { href: views['/homes'] ?? '/homes', label: 'العقار', icon: House },
+    { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision, countLabel: 'بانتظار قرارك' },
+    { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread, countLabel: 'غير مقروءة' },
   ]
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`) || false
+  const isActive = (href: string) => { const path = href.split('?')[0]; return pathname === path || pathname.startsWith(`${path}/`) }
 
   // The landing page owns its own header and calls to action.
   if (ownHeader) return <>{children}</>
@@ -93,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             const active = isActive(item.href)
             return (
               <Link
-                key={item.href}
+                key={item.label}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
@@ -103,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
                 {item.label}
-                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{badge(item.count)}</span> : null}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{badge(item.count)}<span className="sr-only"> {item.countLabel}</span></span> : null}
               </Link>
             )
           })}
@@ -127,10 +139,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
+            // back to the page as it is, with its whole address (the map's journey lives there), after signing in
+            <SignInLink requestAccess={false} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
               <LogIn aria-hidden />
               دخول
-            </Link>
+            </SignInLink>
           ) : null}
         </div>
       </header>
@@ -140,13 +153,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <WhatsNew onMap={pathname === '/map'} />
+      <ReplyNotice />
 
       <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
           const active = isActive(item.href)
           return (
             <Link
-              key={item.href}
+              key={item.label}
               href={item.href}
               aria-current={active ? 'page' : undefined}
               className={cn('relative flex flex-col items-center justify-center gap-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', active ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}
@@ -154,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {/* the open page is marked by shape as well as colour: a filled pill behind its icon, its label bold */}
               <span className={cn('relative grid h-7 w-14 place-items-center rounded-full transition-colors', active ? 'bg-secondary text-primary' : 'text-current')}>
                 <item.icon className="size-5" strokeWidth={active ? 2.4 : 2} aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 end-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}</span> : null}
+                {item.count ? <span className="absolute -top-1.5 end-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}<span className="sr-only"> {item.countLabel}</span></span> : null}
               </span>
               {item.label}
             </Link>

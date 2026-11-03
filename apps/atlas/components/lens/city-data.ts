@@ -13,6 +13,8 @@ export type DistrictRow = {
   name: string
   population: number | null
   populationSource: string | null
+  /** The share of the district the population grid holds as settled (golden settled_pct); absent from an older service. */
+  settledPct?: number | null
   businesses: number | null
   /** District area in km², the one authoritative figure from the service (server.py _area_km2). */
   areaKm2: number | null
@@ -65,7 +67,7 @@ export type CityData = {
   reload?: () => void
 }
 
-type PopulationRow = { district_id: string | number; district_ar: string; population: number | null; source?: string | null }
+type PopulationRow = { district_id: string | number; district_ar: string; population: number | null; source?: string | null; settled_pct?: number | null }
 /** Counts plus the derived per-district figures, each computed once in the service (server.py enrich_district_counts):
  * area, residents per business, businesses per km², density. The map reads these; it never recomputes them. */
 type CountRow = { district_ar: string; n: number; area_km2?: number | null; residents_per?: number | null; per_km2?: number | null; density?: number | null }
@@ -156,6 +158,7 @@ export function joinRows(features: DistrictFeature[], tables: Tables): DistrictR
       name,
       population: people.get(id)?.population ?? null,
       populationSource: people.get(id)?.source ?? null,
+      settledPct: people.get(id)?.settled_pct ?? null,
       businesses: c ? c.n : null,
       areaKm2: c?.area_km2 ?? null,
       residentsPerBusiness: c?.residents_per ?? null,

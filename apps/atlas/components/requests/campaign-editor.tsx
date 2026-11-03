@@ -1,12 +1,14 @@
 'use client'
 
-import { CircleCheck, ChevronLeft, ChevronRight, CircleQuestionMark, Clock, Minus, ShieldCheck, CircleX, type LucideIcon } from 'lucide-react'
+import { CheckCheck, CircleCheck, ChevronLeft, ChevronRight, CircleQuestionMark, Clock, Minus, ShieldCheck, CircleX, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
+import { deliveryLabel, type ServerDelivery } from '@/lib/inbox-feed'
 import { numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
@@ -58,11 +60,19 @@ export function campaignIssues(c: CampaignDetails) {
 
 type Delivery = NonNullable<CampaignDetails['delivery']>[string]
 
-/** Where one recipient of a reviewed campaign stands: left out and why, or its send result. */
-export function recipientState(ineligible: string | undefined, included: boolean, demo: boolean, delivery: Delivery | undefined): { label: string; icon: LucideIcon; tone: string; muted?: boolean } {
+/**
+ * Where one recipient of a reviewed campaign stands: left out and why, or its send result, and once WhatsApp reports
+ * on the message (`tracked`, from the account's feed) whether it arrived and was read. A message WhatsApp reports on
+ * was sent, so it also settles a result this device could not confirm.
+ */
+export function recipientState(ineligible: string | undefined, included: boolean, demo: boolean, delivery: Delivery | undefined, tracked?: ServerDelivery['status']): { label: string; icon: LucideIcon; tone: string; muted?: boolean } {
   if (ineligible) return { label: ineligible, icon: Minus, tone: 'text-muted-foreground', muted: true }
   if (!included) return { label: 'استُبعدت عند المراجعة', icon: Minus, tone: 'text-muted-foreground', muted: true }
   if (demo) return { label: 'ليست من نتائج الدليل الحية', icon: Minus, tone: 'text-muted-foreground', muted: true }
+  if (tracked === 'read') return { label: deliveryLabel('read'), icon: CheckCheck, tone: 'text-primary' }
+  if (tracked === 'delivered') return { label: deliveryLabel('delivered'), icon: CheckCheck, tone: 'text-muted-foreground' }
+  if (tracked === 'failed') return { label: deliveryLabel('failed'), icon: CircleX, tone: 'text-destructive' }
+  if (tracked === 'sent') return { label: deliveryLabel('sent'), icon: CircleCheck, tone: 'text-primary' }
   if (delivery === 'sent') return { label: 'أُرسلت', icon: CircleCheck, tone: 'text-primary' }
   if (delivery === 'failed') return { label: 'فشل الإرسال', icon: CircleX, tone: 'text-destructive' }
   if (delivery === 'unknown') return { label: 'النتيجة غير مؤكدة', icon: CircleQuestionMark, tone: 'text-warning' }
@@ -75,10 +85,14 @@ interface CampaignEditorProps {
   liveBusinesses?: LiveBusinessSnapshot[]
   editable: boolean
   onChange: (v: CampaignDetails) => void
+  /** What WhatsApp reported on each recipient's message (sent, delivered, read, failed), by recipient id. */
+  tracked?: Record<string, ServerDelivery['status']>
+  /** Each recipient's latest reply in the inbox (its message id), by recipient id. */
+  replied?: Record<string, string>
 }
 
 
-export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange }: CampaignEditorProps) {
+export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied }: CampaignEditorProps) {
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
   const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
@@ -197,7 +211,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
             const checked = value.included.includes(id)
             if (!editable) {
               // after review the row says where this recipient stands, so a sent batch shows who got it
-              const state = recipientState(e.ok ? undefined : e.reason, checked, Boolean(mockBusiness), value.delivery?.[id])
+              const state = recipientState(e.ok ? undefined : e.reason, checked, Boolean(mockBusiness), value.delivery?.[id], tracked?.[id])
               const StateIcon = state.icon
               return (
                 <li key={id} className="flex items-center gap-3 py-2">
@@ -209,7 +223,15 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                       {(mockBusiness ? [mockBusiness.role, districtById.get(mockBusiness.districtId)?.name] : [liveBusiness?.category, liveBusiness?.district]).filter(Boolean).join(' · ')}
                     </span>
                   </span>
-                  <span className={cn('shrink-0 text-xs', state.tone)}>{state.label}</span>
+                  <span className="flex shrink-0 flex-col items-end gap-0.5">
+                    <span className={cn('text-xs', state.tone)}>{state.label}</span>
+                    {/* whether the business answered: its reply one tap away, or «لا رد بعد» once the message went out */}
+                    {replied?.[id] ? (
+                      <Link href={`/inbox?m=${encodeURIComponent(replied[id])}`} className="rounded text-xs font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">ردّت · اقرأ الرد</Link>
+                    ) : (tracked?.[id] ? tracked[id] !== 'failed' : value.delivery?.[id] === 'sent') ? (
+                      <span className="text-xs text-muted-foreground">لا رد بعد</span>
+                    ) : null}
+                  </span>
                 </li>
               )
             }
