@@ -46,9 +46,11 @@ export function MapLegend({ from, to, shades, extra, title, explain }: Legend) {
 /**
  * «طبقات»: the one control that picks which figure colours the map, sitting in the key that shows those colours (it
  * replaced a row of chips under the search, which left a newcomer seven buttons to choose from). A list in a popover:
- * the layer in use is marked, and picking one switches the map and closes the list.
+ * the layer in use is marked, and picking one switches the map and closes the list. A layer's note («غير متاح»,
+ * «غير متاح الآن» for one that did not load this time) is said beside it, quieter than its name, and it stays pickable:
+ * a layer that failed is asked again when picked, and its key says so if it fails again.
  */
-export function LayerPicker({ options, value, onChange }: { options: [string, string][]; value: string; onChange: (id: string) => void }) {
+export function LayerPicker({ options, value, onChange }: { options: [id: string, label: string, note?: string][]; value: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   if (options.length < 2) return null
   return (
@@ -62,12 +64,13 @@ export function LayerPicker({ options, value, onChange }: { options: [string, st
       <PopoverContent side="top" align="start" className="w-[min(18rem,calc(100vw-2rem))] gap-1 p-1.5">
         <p className="px-2 pt-1 pb-0.5 text-sm font-bold">لوّن الخريطة حسب</p>
         <div role="group" aria-label="طبقات الخريطة" className="flex max-h-[50vh] flex-col overflow-y-auto">
-          {options.map(([id, label]) => (
+          {options.map(([id, label, note]) => (
             <button key={id} type="button" aria-pressed={id === value} onClick={() => { onChange(id); setOpen(false) }}
               className={cn('flex min-h-10 items-center gap-2 rounded-lg px-2 text-start text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60',
                 id === value ? 'bg-primary/10 font-semibold text-primary' : 'text-foreground')}>
               <Check className={cn('size-4 shrink-0', id === value ? 'opacity-100' : 'opacity-0')} aria-hidden />
-              <span className="min-w-0 flex-1">{label}</span>
+              <span className="min-w-0 flex-1">{label}{note && <span className="sr-only"> · </span>}</span>
+              {note && <span className="shrink-0 text-xs font-normal text-muted-foreground">{note}</span>}
             </button>
           ))}
         </div>

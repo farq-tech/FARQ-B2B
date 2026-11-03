@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, nextStep, type MetricId } from './lenses.ts'
+import { LENSES, METRICS, METRIC_TABLE, STEP_TABLES, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type MetricId } from './lenses.ts'
 
 test('the next step follows the lens order and ends on its last step', () => {
   const shops = lensById('shops')
@@ -29,4 +29,15 @@ test('a figure whose table failed is «failed», one no district has is «missin
   assert.equal(metricAvailability('population', [row(null)], ['population'], ['population']), 'loading')
   // no rows yet (still loading) is not «missing»
   assert.equal(metricAvailability('population', [], []), 'ready')
+})
+
+test('the open step and the layer in view load first; the rest wait', () => {
+  const needed = neededTables('audience', 'population')
+  assert.equal(needed[0], 'population')
+  assert.deepEqual([...needed].sort(), ['counts', 'income', 'population'])
+  // the layer's table leads, so the map colours before the step's own tables answer
+  assert.equal(neededTables('gaps', 'unmet')[0], 'demand')
+  // a layer that failed is not the step's: no notice over the panel for it
+  assert.ok(!stepTables('audience').includes('demand'))
+  for (const lens of LENSES) for (const step of lens.steps) assert.ok(STEP_TABLES[step.tool], `${lens.id}/${step.tool}`)
 })

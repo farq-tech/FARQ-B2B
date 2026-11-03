@@ -177,18 +177,24 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   useEffect(() => {
     let disposed = false
     ;(async () => {
-      const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
-      const token = response?.ok ? await response.json().then((body) => body.token as string | undefined).catch(() => null) : null
+      // the three things the map waits for are asked together, not one after another: the map library (the largest
+      // file on the page) loads while the token is asked, and the style is asked as soon as the token is in
+      const library = import('mapbox-gl').then((module) => module.default).catch(() => null)
+      const asked = fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
+      const tokenOf = asked.then((response) => (response?.ok ? response.json().then((body) => body.token as string | undefined).catch(() => null) : null))
+      const styled = tokenOf.then((token) => (token ? dressedStyle(token) : null))
+      const response = await asked
+      const token = await tokenOf
       if (disposed) return
       if (!token) {
         setErrorDetail(response ? 'الخريطة غير متاحة الآن من جهتنا، والأرقام والقوائم في اللوحة تعمل. أعد المحاولة بعد قليل.' : 'تحقق من الاتصال ثم أعد المحاولة. الأرقام في اللوحة تبقى كما هي.')
         setError('الخريطة'); return
       }
-      const mapboxgl = await import('mapbox-gl').then((module) => module.default).catch(() => null)
+      const mapboxgl = await library
       if (disposed || !container.current) return
       if (!mapboxgl) { setErrorDetail(undefined); setError('الخريطة'); return }
       mapboxgl.accessToken = token
-      const style = await dressedStyle(token)
+      const style = await styled
       if (disposed || !container.current) return
       const instance = new mapboxgl.Map({ container: container.current, style: style ?? STYLE_URL, center: [46.68, 24.71], zoom: 9.5 })
       map.current = instance

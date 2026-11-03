@@ -55,7 +55,7 @@ export type CityData = {
   /** The rows joined from the tables in so far, while the rest load: for the map's shading only (a panel or a tool
    * reading them would take a table not yet in for a district without the figure). */
   early: DistrictRow[]
-  /** Tables still being asked (a retry asks only the failed ones). */
+  /** Tables not in yet: being asked, or waiting until the page is idle (a retry asks only the failed ones). */
   pending: CityTable[]
   total: number | null
   /** Tables that failed to load this time: their figures are null in every row because they did not arrive, not
@@ -133,12 +133,6 @@ const SOURCES: { [K in CityTable]: (city: string) => Promise<NonNullable<Tables[
 }
 export const CITY_TABLES = Object.keys(SOURCES) as CityTable[]
 
-/** The tables asked first: the one the map is coloured by goes ahead of the rest (a browser opens only a few
- * connections to one host at a time, so the eleventh request waits for the first ones). */
-export function loadOrder(first?: CityTable | null): CityTable[] {
-  return first && CITY_TABLES.includes(first) ? [first, ...CITY_TABLES.filter((table) => table !== first)] : CITY_TABLES
-}
-
 /** One row per district outline, joined from the tables in so far; a table not in (or failed) leaves its figures null. */
 export function joinRows(features: DistrictFeature[], tables: Tables): DistrictRow[] {
   const people = new Map((tables.population?.districts ?? []).map((row) => [String(row.district_id), row]))
@@ -192,58 +186,121 @@ export function joinRows(features: DistrictFeature[], tables: Tables): DistrictR
 
 const EMPTY_CITY: Omit<CityData, 'reload'> = { status: 'loading', features: [], rows: [], early: [], total: null, failed: [], pending: CITY_TABLES }
 
+/** What one city has so far: its outlines (null until they answer), each table (`undefined` while not in, `null`
+ * once failed), which tables were asked, and which are being asked again after failing. */
+type CityStore = {
+  city: string
+  active: boolean
+  features: DistrictFeature[] | null
+  outlinesFailed: boolean
+  tables: Tables
+  asked: Set<CityTable>
+  retrying: Set<CityTable>
+  /** The tables nobody needs yet were scheduled (once the needed ones answered and the page went idle). */
+  rest: boolean
+}
+
+/** Once the page has painted and the main thread is free: a table nobody is looking at must not race the map. */
+function whenIdle(run: () => void): () => void {
+  // Safari has no idle callback: a plain timer stands in
+  const native = typeof window.requestIdleCallback === 'function'
+  let idle: number | null = null
+  const timer = window.setTimeout(() => {
+    idle = native ? window.requestIdleCallback(run, { timeout: 2000 }) : window.setTimeout(run, 0)
+  }, 1000)
+  return () => {
+    window.clearTimeout(timer)
+    if (idle == null) return
+    if (native) window.cancelIdleCallback(idle)
+    else window.clearTimeout(idle)
+  }
+}
+
 /**
  * A city's outlines and figures, table by table. The outlines reach the map first; each table joins the rows as it
- * arrives (`early`, for the map's shading), and `rows` come once every table has answered (the panels and tools
- * read only those). `first` (read when a city starts loading) is asked ahead of the rest. A retry after a failed
+ * arrives (`early`, for the map's shading). Only the tables in `needed` (the layer in view, the open step's) are asked
+ * at once, the layer's first; `rows` come once those have answered (the panels and tools read only those), and the
+ * city's other tables follow when the page is idle, each joining the rows as it answers (still `pending` until then,
+ * so a figure from one shows its shape, not «غير متاح»). A table `needed` later is asked then. A retry after a failed
  * table asks only the failed tables again and keeps everything else, the outlines and the camera included.
  */
-export function useCityData(city: string, first?: CityTable | null): CityData {
+export function useCityData(city: string, needed: readonly CityTable[] = CITY_TABLES): CityData {
   const [data, setData] = useState<Omit<CityData, 'reload'>>(EMPTY_CITY)
   const [attempt, setAttempt] = useState(0)
-  const firstTable = useRef(first)
-  firstTable.current = first
-  // what this city has so far, kept across a retry of its failed tables
-  const store = useRef<{ city: string | null; features: DistrictFeature[]; tables: Tables }>({ city: null, features: [], tables: {} })
-  const retryFailed = useRef(false)
+  const want = useRef(needed)
+  want.current = needed
+  const neededKey = needed.join(',')
+  const store = useRef<CityStore | null>(null)
+  const cancelIdle = useRef<(() => void) | null>(null)
 
-  useEffect(() => {
-    let active = true
-    const partial = retryFailed.current && store.current.city === city && store.current.features.length > 0
-    retryFailed.current = false
-    if (!partial) store.current = { city, features: [], tables: {} }
-    const held = store.current
-    const tables = held.tables as Record<CityTable, unknown>
-    const asked = partial ? CITY_TABLES.filter((table) => tables[table] === null) : loadOrder(firstTable.current)
-    for (const table of asked) delete tables[table]
-    const publish = () => {
-      if (!active) return
+  // the store's helpers read only refs and the store they are handed, so one copy serves the page's life
+  const helpers = useRef<{ publish: (held: CityStore) => void; ask: (held: CityStore, tables: readonly CityTable[]) => void } | null>(null)
+  if (!helpers.current) {
+    const publish = (held: CityStore) => {
+      if (!held.active || store.current !== held) return
+      const tables = held.tables as Record<CityTable, unknown>
       const pending = CITY_TABLES.filter((table) => tables[table] === undefined)
       const failed = CITY_TABLES.filter((table) => tables[table] === null)
-      const total = held.tables.counts?.total ?? null
-      if (!held.features.length) { setData({ ...EMPTY_CITY, pending }); return }
+      if (held.outlinesFailed) { setData({ ...EMPTY_CITY, status: 'error', pending: [] }); return }
+      if (!held.features) { setData({ ...EMPTY_CITY, pending }); return }
       const joined = joinRows(held.features, held.tables)
-      if (!pending.length) setData({ status: 'ready', features: held.features, rows: joined, early: joined, total, failed, pending })
-      // while a retry runs the page keeps its rows; the retried figures show once they answer
-      else setData((current) => ({ status: partial ? 'ready' : 'loading', features: held.features, rows: partial ? current.rows : [], early: joined, total: partial ? current.total : total, failed, pending }))
+      // a table asked again after failing keeps the page as it stands; its figures show once it answers
+      const ready = want.current.every((table) => tables[table] !== undefined || held.retrying.has(table))
+      setData({ status: ready ? 'ready' : 'loading', features: held.features, rows: ready ? joined : [], early: joined, total: held.tables.counts?.total ?? null, failed, pending })
     }
-    if (partial) publish()
-    else {
-      setData(EMPTY_CITY)
-      getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`).then((atlas) => {
-        if (!active) return
-        held.features = atlas.features ?? []
-        publish()
-      }, () => { if (active) setData({ ...EMPTY_CITY, status: 'error', pending: [] }) })
+    const ask = (held: CityStore, list: readonly CityTable[]) => {
+      for (const table of list) {
+        if (held.asked.has(table)) continue
+        held.asked.add(table)
+        ;(SOURCES[table](held.city) as Promise<unknown>).then((value) => { held.tables[table] = value as never }, () => { held.tables[table] = null })
+          .then(() => {
+            held.retrying.delete(table)
+            if (!held.active) return
+            publish(held)
+            rest(held)
+          })
+      }
     }
-    for (const table of asked) {
-      ;(SOURCES[table](city) as Promise<unknown>).then((value) => { tables[table] = value }, () => { tables[table] = null })
-        .then(() => { if (active && store.current === held) publish() })
+    // the tables nobody needs yet, once the needed ones have answered and the page is idle
+    const rest = (held: CityStore) => {
+      if (held.rest || !held.active || want.current.some((table) => held.tables[table] === undefined)) return
+      held.rest = true
+      cancelIdle.current = whenIdle(() => { if (held.active) ask(held, CITY_TABLES) })
     }
-    return () => { active = false }
+    helpers.current = { publish, ask }
+  }
+
+  useEffect(() => {
+    const { publish, ask } = helpers.current!
+    const held: CityStore = { city, active: true, features: null, outlinesFailed: false, tables: {}, asked: new Set(), retrying: new Set(), rest: false }
+    store.current = held
+    setData(EMPTY_CITY)
+    getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`).then((atlas) => {
+      held.features = atlas.features ?? []
+      publish(held)
+    }, () => { held.outlinesFailed = true; publish(held) })
+    ask(held, want.current)
+    return () => { held.active = false; cancelIdle.current?.(); cancelIdle.current = null }
   }, [city, attempt])
 
-  const reload = () => { retryFailed.current = data.status !== 'error'; setAttempt((n) => n + 1) }
+  // a step or a layer that needs a table not asked yet asks it now; one already in only re-checks the page's state
+  useEffect(() => {
+    const held = store.current
+    if (!held?.active) return
+    helpers.current!.ask(held, want.current)
+    helpers.current!.publish(held)
+  }, [neededKey])
+
+  const reload = () => {
+    const held = store.current
+    // a city whose outlines failed (or are still on their way) loads again whole
+    if (!held?.features) { setAttempt((n) => n + 1); return }
+    const tables = held.tables as Record<CityTable, unknown>
+    const again = CITY_TABLES.filter((table) => tables[table] === null)
+    for (const table of again) { delete tables[table]; held.asked.delete(table); held.retrying.add(table) }
+    helpers.current!.ask(held, again)
+    helpers.current!.publish(held)
+  }
   return { ...data, reload }
 }
 

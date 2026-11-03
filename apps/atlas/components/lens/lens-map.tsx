@@ -21,7 +21,7 @@ import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapQuery, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
-import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, nextStep, type LensId, type MetricId, type ToolId } from './lenses'
+import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
@@ -407,8 +407,9 @@ export function LensMap() {
   const [cardAt, setCardAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   // a pick made by a click on the map answers in its card, so the phone's sheet stays down and the map in view
   const mapPick = useRef(false)
-  // the table the map is coloured by is asked first, so the map colours before the slower tables answer
-  const data = useCityData(city, METRIC_TABLE[metric])
+  // only what the layer in view and the open step read is asked at once, the layer's table first so the map colours
+  // early; the city's other tables follow when the page is idle (lenses.ts neededTables)
+  const data = useCityData(city, neededTables(tool, metric))
   // a control that removes itself (closing the search, clearing the pick, «التالي») hands focus to this element once
   // the page has re-rendered, instead of dropping it on the page's body
   const focusAfter = useRef<string | null>(null)
@@ -580,14 +581,22 @@ export function LensMap() {
   const unshaded = data.status === 'ready' && !metricPending ? data.early.length - steps.size : 0
   // which of the lens's figures can colour this city: in a small city most are missing, and a table can fail to load
   // (Riyadh's searches answered 502 for a while); «طبقات» marks both, and the key offers the first figure that does
-  // colour the map instead of «choose another» blind. A failed table is a retry, never «غير متاح».
+  // colour the map instead of «choose another» blind. A failed table is «غير متاح الآن» (this time), and a retry.
   const availability = useMemo(() => new Map(active.metrics.map((id) => [id, data.status === 'ready' ? metricAvailability(id, data.rows, data.failed, data.pending) : 'ready'] as const)),
     [data.status, data.rows, data.failed, data.pending, active.metrics])
   const failedTable = (id: MetricId) => data.status === 'ready' && data.failed.includes(METRIC_TABLE[id])
   const metricFailed = failedTable(metric)
   const fallbackMetric = metricMissing || metricFailed ? active.metrics.find((id) => id !== metric && availability.get(id) === 'ready') ?? null : null
-  const layerOptions = active.metrics.map((id): [string, string] => [id,
-    `${METRICS[id].label}${availability.get(id) === 'missing' ? ' · غير متاح' : availability.get(id) === 'failed' ? ' · تعذّر التحميل' : ''}`])
+  // a layer that failed while nobody was looking at it is marked in «طبقات», not announced over the page; picking it
+  // asks its table again, and only then does its key say it failed (with a retry) if it fails once more
+  const layerOptions = active.metrics.map((id): [string, string, string?] => [id, METRICS[id].label,
+    availability.get(id) === 'missing' ? 'غير متاح' : availability.get(id) === 'failed' ? 'غير متاح الآن' : undefined])
+  const pickLayer = (id: MetricId) => {
+    setMetric(id)
+    if (id !== metric && availability.get(id) === 'failed') data.reload?.()
+  }
+  // a notice over the panel only for a table the open step reads; a layer's own failure is said in the map's key
+  const stepFailed = data.status === 'ready' && data.failed.some((table) => stepTables(tool).includes(table))
   // one district's value of the shading figure, as the card and the pointer's label show it
   const metricText = (row: DistrictRow) => (metricPending ? 'جارٍ التحميل' : metricFailed ? 'تعذّر التحميل' : format(METRICS[metric].value(row), METRICS[metric].unit))
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
@@ -763,7 +772,7 @@ export function LensMap() {
                   {!toolColors && <>
                   <div className="flex items-center justify-between gap-2">
                     <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                    <LayerPicker options={layerOptions} value={metric} onChange={(id) => setMetric(id as MetricId)} />
+                    <LayerPicker options={layerOptions} value={metric} onChange={(id) => pickLayer(id as MetricId)} />
                   </div>
                   {metricFailed ? (
                     <div role="alert" className="flex flex-col items-start gap-1.5">
@@ -822,7 +831,7 @@ export function LensMap() {
                   <div ref={setGoalSlot} className="empty:hidden" />
                   {/* a table that failed empties its figures in every district: said once at the top, with a retry, so a
                       «غير متاح» further down is not read as the city lacking the figure */}
-                  {data.status === 'ready' && data.failed.length > 0 && (
+                  {stepFailed && (
                     <div role="alert" className="flex flex-wrap items-center gap-2 rounded-2xl border border-dashed bg-card p-3 text-sm">
                       <span className="min-w-0 flex-1">تعذّر تحميل جزء من أرقام {cityName} الآن، وما لم يُحمَّل مكتوب «تعذّر التحميل».</span>
                       {data.reload && <Chip onClick={data.reload}>أعد المحاولة</Chip>}
