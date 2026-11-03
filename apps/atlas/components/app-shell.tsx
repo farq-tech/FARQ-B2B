@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // The shell stays mounted across client navigation, so the session is read again on the way out of
   // the landing and login pages: signing in there and landing on /map shows the account straight away.
-  const ownHeader = pathname === '/' || pathname === '/login' || pathname === '/request-access'
+  const ownHeader = pathname === '/' || pathname === '/login' || pathname === '/request-access' || pathname === '/request-access/delete'
   useEffect(() => {
     if (ownHeader) return
     let active = true

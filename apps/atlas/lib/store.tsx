@@ -493,10 +493,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       void syncViews()
     }
     window.addEventListener('focus', back)
+    // the connection coming back retries at once whatever is still on this device only (no wait: it is one event)
+    const online = () => { if (viewsRef.current.some((view) => !view.synced) || accountRef.current === 'error') void syncViews() }
+    window.addEventListener('online', online)
     document.addEventListener('visibilitychange', back)
     return () => {
       window.removeEventListener(SESSION_CHANGED, again)
       window.removeEventListener('focus', back)
+      window.removeEventListener('online', online)
       document.removeEventListener('visibilitychange', back)
     }
   }, [workspaceReady, syncViews])

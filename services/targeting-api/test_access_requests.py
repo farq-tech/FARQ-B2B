@@ -188,12 +188,87 @@ class ConsoleRound3Tests(unittest.TestCase):
         self.assertEqual(access_requests.submit(self.folder, body(contact='0550000002'), now=100.0 + 2 * 86400)[0], 201)
 
 
+class RoundETests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.first = access_requests.submit(self.folder, body(name='ريم', company='مخابز الندى', contact='0551112222', city='Jeddah'), now=100.0)[1]['id']
+        access_requests.submit(self.folder, body(name='فهد', company='توزيع الشرق', contact='fahad@east.sa', category='distributors'), now=200.0)
+
+    def test_the_retention_job_runs_on_its_own_and_stops(self):
+        import threading
+        stop, ran = threading.Event(), threading.Event()
+        with patch.object(access_requests, 'retention_days', return_value=30), patch.object(access_requests.time, 'time', return_value=100.0 + 40 * 86400):
+            access_requests.start_retention(self.folder, every=0.01, first_after=0, stop=stop, log=lambda n: ran.set())
+            self.assertTrue(ran.wait(2))
+            stop.set()
+        self.assertTrue(all(row.get('redacted_at') for row in access_requests.read_all(self.folder)))
+
+    def test_search_finds_every_word_in_any_field_and_either_city_spelling(self):
+        rows = access_requests.with_reviews(self.folder)
+        names = {'Jeddah': 'جدة', 'Riyadh': 'الرياض'}
+        self.assertEqual([row['name'] for row in rows if access_requests.matches(row, 'الندى جده', names)], ['ريم'], 'ة and ه are one letter')
+        self.assertEqual([row['name'] for row in rows if access_requests.matches(row, 'EAST.sa', names)], ['فهد'])
+        self.assertEqual([row['name'] for row in rows if access_requests.matches(row, '٥٥١١١٢', names)], ['ريم'], 'Arabic-Indic digits')
+        page = access_requests.render_html(rows, query='فهد', city_names=names)
+        self.assertIn('توزيع الشرق', page)
+        self.assertNotIn('مخابز الندى', page)
+        self.assertIn('href="/access-requests?status=new&amp;q=', page, 'the filters keep the search')
+        self.assertIn('لا طلبات تطابق البحث', access_requests.render_html(rows, query='لا أحد'))
+
+    def test_a_deletion_ask_keeps_only_a_hash_flags_the_request_and_reveals_nothing(self):
+        self.assertEqual(access_requests.request_deletion(self.folder, '+966551112222', now=300.0), (200, {'ok': True}))
+        self.assertEqual(access_requests.request_deletion(self.folder, 'nobody@x.sa', now=301.0), (200, {'ok': True}), 'same answer without a request')
+        self.assertEqual(access_requests.request_deletion(self.folder, 'x')[0], 400)
+        with open(os.path.join(self.folder, access_requests.DELETIONS_NAME), encoding='utf-8') as handle:
+            text = handle.read()
+        self.assertNotIn('551112222', text)
+        self.assertNotIn('nobody', text)
+        rows = {row['name']: row for row in access_requests.with_reviews(self.folder)}
+        self.assertTrue(rows['ريم']['deletion_asked'])
+        self.assertIsNone(rows['فهد']['deletion_asked'])
+        page = access_requests.render_html(access_requests.with_reviews(self.folder))
+        self.assertIn('طلبات حذف بيانات تنتظر: <strong>1</strong>', page)
+        access_requests.redact(self.folder, self.first)
+        self.assertNotIn('طلبات حذف بيانات تنتظر', access_requests.render_html(access_requests.with_reviews(self.folder)))
+
+    def test_a_contact_approved_before_is_flagged_on_its_next_request(self):
+        access_requests.review(self.folder, self.first, 'approved', now=150.0)
+        access_requests.submit(self.folder, body(name='ريم', contact='0551112222'), now=100.0 + 2 * 86400)
+        rows = access_requests.with_reviews(self.folder)
+        flagged = [row for row in rows if row['prior_approved']]
+        self.assertEqual(len(flagged), 1)
+        self.assertNotEqual(flagged[0]['id'], self.first, 'the approved request itself is not flagged')
+        self.assertIn('سبق قبوله', access_requests.render_html(rows))
+
+    def test_arabic_city_names_in_the_list_the_details_and_the_demand_table(self):
+        access_requests.review(self.folder, self.first, 'approved')
+        rows = access_requests.with_reviews(self.folder)
+        page = access_requests.render_html(rows, city_names={'Jeddah': 'جدة', 'Riyadh': 'الرياض'})
+        self.assertIn('المدينة: جدة', page)
+        self.assertIn('<td>الرياض</td>', page)
+        self.assertNotIn('<td>Jeddah</td>', page)
+        self.assertIn('Jeddah', access_requests.render_html(rows), 'without the list, the stored key')
+
+    def test_demand_counts_survive_clearing(self):
+        access_requests.submit(self.folder, body(contact='0553334444', city='Jeddah'), now=40 * 86400.0)
+        before = access_requests.aggregate(access_requests.with_reviews(self.folder))
+        access_requests.apply_retention(self.folder, now=400 * 86400.0, days=30)
+        after = access_requests.aggregate(access_requests.with_reviews(self.folder))
+        self.assertEqual(before, after)
+        self.assertEqual(after[0][0], '1970-02', 'newest month first')
+        self.assertEqual(sum(item[3] for item in after), 3)
+        page = access_requests.render_html(access_requests.with_reviews(self.folder))
+        self.assertIn('الطلب حسب الشهر والمدينة والفئة', page)
+        self.assertNotIn('ريم', page)
+
+
 class ReadOnlyTests(unittest.TestCase):
     def test_the_read_only_deployment_stores_no_request(self):
         with patch.dict(os.environ, {'ATLAS_READ_ONLY': '1'}, clear=False):
             self.assertTrue(read_only_test.blocks_request('/access-requests'))
             self.assertTrue(read_only_test.blocks_request('/access-requests/review'))
             self.assertTrue(read_only_test.blocks_request('/access-requests/redact'))
+            self.assertTrue(read_only_test.blocks_request('/access-requests/deletion'))
 
 
 if __name__ == '__main__':

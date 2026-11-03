@@ -112,6 +112,8 @@ export function categoryFromNext(next: string | null | undefined): AccessCategor
 }
 
 export const REQUEST_ACCESS_PATH = '/request-access'
+/** «احذف بياناتي»: asks Farq to delete what an account request holds (app/api/access-request/deletion). */
+export const DELETE_DETAILS_PATH = '/request-access/delete'
 
 /** The «اطلب حساباً» page, told where to send the person back once the request is sent (same rule as the login's). */
 export function requestAccessHref(here: string | null | undefined): string {

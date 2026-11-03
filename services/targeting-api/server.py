@@ -1294,7 +1294,10 @@ class H(BaseHTTPRequestHandler):
             query = urllib.parse.parse_qs(route.query)
             saved = 'حُذفت بيانات التواصل.' if query.get('redacted') == ['1'] else 'حُفظ القرار.' if query.get('saved') == ['1'] else ''
             access_requests.apply_retention(RUNTIME_DIR)   # details past the retention period are emptied before anyone sees them
-            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0]).encode()
+            try: names = {row['en']: row['ar'] for row in cities() if row.get('ar')}
+            except Exception: names = {}
+            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0],
+                                            query=query.get('q', [''])[0], city_names=names).encode()
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
         elif route.path == '/access-requests/count':
             # the console's badge: how many requests wait for a decision (a number only, no contact)
@@ -1389,6 +1392,11 @@ class H(BaseHTTPRequestHandler):
             except Exception as error:
                 log_map_api_failure('map-context', error)
                 self._json({'error':'UNAVAILABLE'},503)
+        elif self.path == '/access-requests/deletion':
+            # «احذف بياناتي» from Atlas: the contact's hash is kept for the owner, who deletes by hand (nothing revealed)
+            status, answer = access_requests.request_deletion(RUNTIME_DIR, body.get('contact'))
+            LOGGER.info('access_request_deletion status=%s', status)
+            self._json(answer, status)
         elif self.path == '/access-requests':
             # «اطلب حساباً» from Atlas: stored for the owner's review, nothing is sent and no account is created
             try: known = {row['en'] for row in cities()}
@@ -1661,6 +1669,9 @@ if __name__ == '__main__':
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
     print(f"inbox source: {start_inbox_source()}", flush=True)
+    if not read_only_test.enabled():
+        # «اطلب حساباً» details past their retention period are cleared once a day, whether or not anyone opens the list
+        access_requests.start_retention(RUNTIME_DIR, log=lambda n: LOGGER.info('access_request_retention cleared=%s', n))
     httpd = ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H)
     # socket is bound now, so /healthz answers at once; warm the cold caches on a daemon thread that never blocks serving
     threading.Thread(target=_warm_caches, daemon=True, name='warm-caches').start()
