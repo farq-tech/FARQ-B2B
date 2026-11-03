@@ -89,7 +89,7 @@ export function AroundTool({ city, onOverlay, districts, features, next, siteAct
   /** The step after the verdict (shops for rent near the best site, a request), given by the map shell. */
   next?: ReactNode
   /** The step under each site's card (a request from the businesses around it), given by the map shell. */
-  siteAction?: (site: { label: string; lon: number; lat: number }) => ReactNode
+  siteAction?: (site: { label: string; lon: number; lat: number; area?: Geometry }) => ReactNode
 }) {
   const [studied] = useStudiedActivity()
   // the site card counts competitors of the activity the customer chose; with none chosen it counts every business,
@@ -329,7 +329,7 @@ export function AroundTool({ city, onOverlay, districts, features, next, siteAct
       {ready.length > 0 && (
         <div className="space-y-3">
           {ready.map((site) => (
-            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} action={siteAction?.(site)} />
+            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} action={siteAction?.({ label: site.label, lon: site.lon, lat: site.lat, area: site.result?.geometry })} />
           ))}
         </div>
       )}

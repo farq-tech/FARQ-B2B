@@ -463,7 +463,8 @@ export function LensMap() {
   const [tool, setTool] = useState<ToolId>(lensById('shops').steps[0].tool)
   const [overlay, setOverlay] = useState<Overlay>({})
   const [draft, setDraft] = useState('')
-  const [search, setSearch] = useState<{ q: string; nonce: number } | null>(null)
+  // a search from the top of the map, or one inside a site's reach (`area`, from a site card in «قارن المواقع»)
+  const [search, setSearch] = useState<{ q: string; nonce: number; area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon } } | null>(null)
   // the activity «المنافسون» is studying: a picked district then lists its competitors by name
   const [rival, setRival] = useState<string | null>(null)
   const searchBox = useRef<HTMLInputElement>(null)
@@ -920,7 +921,7 @@ export function LensMap() {
   // the peeking sheet's one line is cut at its end: the picked district leads, the step (also on its tab) follows
   // where the journey stands, said once in the peeking title («الخطوة 2 من 4»); the picked district leads when there is one
   const stepAt = step ? `الخطوة ${numberFormat.format(active.steps.indexOf(step) + 1)} من ${numberFormat.format(active.steps.length)}` : ''
-  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${stepAt} · ${step?.label ?? ''}`
+  const sheetTitle = search ? (search.area ? `«${search.q}» في نطاق الموقع ${search.area.label}` : `بحث: ${search.q}`) : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${stepAt} · ${step?.label ?? ''}`
   // a pick on the map is silent to a screen reader (the canvas has no districts to read): the pick and its two golden
   // figures are said in a polite live line instead
   const pickedSay = chosen.length === 1
@@ -954,9 +955,17 @@ export function LensMap() {
     </>
     return null
   }
-  // under each site's card: the businesses of the studied activity in the site's district, from where a quote request,
-  // a campaign or a list starts (the city's when the site sits outside every district)
-  const siteAction = (site: { label: string; lon: number; lat: number }) => {
+  // under each site's card: the businesses of the studied activity inside the site's own reach (its catchment as the
+  // card drew it), from where a quote request, a campaign or a list starts; without a reach yet, the site's district
+  const siteAction = (site: { label: string; lon: number; lat: number; area?: GeoJSON.Polygon | GeoJSON.MultiPolygon }) => {
+    if (site.area) {
+      const area = { label: site.label, geometry: site.area }
+      return (
+        <NextAction icon={ClipboardList} onClick={() => { setSelected([]); setSearch({ q: studied.label, nonce: Date.now(), area }) }}>
+          اطلب تسعيراً من منشآت «{studied.label}» داخل نطاق الموقع {site.label}
+        </NextAction>
+      )
+    }
     const id = districtAt(site, data.features)
     const row = id ? data.rows.find((item) => item.id === id) ?? null : null
     return (
@@ -1168,7 +1177,7 @@ export function LensMap() {
               {search && (
                 <div className="flex flex-col gap-2">
                   <Chip onClick={() => { focusAfter.current = tabId(tool); closeSearch() }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
-                  <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} onLocate={locate} located={located?.id ?? null} onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds} />
+                  <BusinessesPanel key={search.nonce} city={city} districts={search.area ? [] : chosen.map((row) => row.name)} query={search.q} area={search.area ?? null} onLocate={locate} located={located?.id ?? null} onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds} />
                 </div>
               )}
               {!search && (
