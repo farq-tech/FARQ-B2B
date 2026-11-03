@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useMainActivities } from '@/lib/main-activities'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
+import { NoResult } from '@/components/shared/empty-state'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
@@ -118,15 +120,13 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
         </div>
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
       {status === 'error' && (
-        <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-destructive/30 p-3">
-          <p className="min-w-0 flex-1 text-base text-destructive">تعذر حساب النقص الآن: الخدمة مشغولة أو انقطع الاتصال.</p>
-          <button type="button" onClick={() => setAttempt((value) => value + 1)} className="h-10 rounded-lg border px-4 text-base font-semibold hover:border-primary hover:text-primary">أعد المحاولة</button>
-        </div>
+        <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."
+          onRetry={() => setAttempt((value) => value + 1)} />
       )}
       {/* the shape of the answer while it is worked out: district rows, each with its bar line */}
       {status === 'loading' && <ResultRowsSkeleton rows={5} sub label="جارٍ حساب النقص" />}
       {status !== 'loading' && chosen && studied.q && result && <Understood value={result.understood} />}
-      {status !== 'loading' && result && result.residents_per_business == null && <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>}
+      {status !== 'loading' && result && result.residents_per_business == null && <NoResult title={`لا توجد منشآت «${label}» في أحياء معروفة السكان`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
       {status !== 'loading' && result && result.residents_per_business != null && (
         <>
           {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}

@@ -7,6 +7,7 @@ import { ltr, numberFormat } from '@/lib/insights-api'
 import { perSqmLine, priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { SkeletonStatus, Skeleton } from '@/components/ui/skeleton'
+import { LoadError } from '@/components/shared/load-error'
 import type { DistrictRow } from './city-data'
 import { boldRuns, districtPairs, factsLine, figure, replyBlocks, type Fact } from './advisor-facts'
 
@@ -234,7 +235,9 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
       )}
       <FactsTable subject={subject} rows={rows} />
       {status === 'login' && <p className="text-base">لاستخدام المقارنة <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
-      {status === 'error' && <p role="alert" className="text-base text-destructive">{message}</p>}
+      {/* the unanswered question went back into the box, so trying again sends it as it was */}
+      {status === 'error' && <LoadError what="الرد" title="تعذر الحصول على رد." detail={message === 'تعذر الحصول على رد.' ? undefined : message}
+        onRetry={() => (turns === null ? void ask([]) : send())} />}
       <p className="text-sm text-muted-foreground">يقارن من أرقام أطلس فقط، ولا يقرر عنك.</p>
     </section>
   )
