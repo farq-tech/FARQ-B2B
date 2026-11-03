@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { AnimatePresence, DURATION, EASE, SPRING, motion, useReducedMotion } from '@/lib/motion'
 import { useCityData, type CityTable, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
-import { LensMapCanvas, SHADES, shadeSteps, type BusinessDot } from './lens-map-canvas'
+import { LensMapCanvas, SHADES, shadeSteps, type BusinessDot, type BusinessGroup } from './lens-map-canvas'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { MapOnboarding } from './map-onboarding'
 import { SavedComparisons, SavedList } from './saved-comparisons'
@@ -343,6 +343,43 @@ function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
   return <section aria-label="المقارنات المحفوظة" className="rounded-2xl border bg-card p-4"><SavedList onOpen={onOpen} /></section>
 }
 
+/** The card a group of close businesses opens on the map: how many, the first few by name, and «قرّب» for the rest. */
+function GroupCard({ group, names, at, top: ceiling, bottom: floor, onOpen, onClose, onExpand }: {
+  group: BusinessGroup
+  names: { id: string; name: string }[]
+  at: { x: number; y: number; width: number; height: number }
+  top: number
+  bottom: number
+  onOpen: (id: string) => void
+  onClose: () => void
+  onExpand: () => void
+}) {
+  const width = Math.min(256, at.width - 16)
+  const left = Math.min(Math.max(8, at.x - width / 2), at.width - width - 8)
+  const height = 64 + names.length * 30 + 44
+  const wanted = at.y - 12 - height >= ceiling ? at.y - 12 - height : at.y + 12
+  const top = Math.max(ceiling, Math.min(wanted, floor - height))
+  const more = group.count - names.length
+  return (
+    <section aria-label={`${counted(group.count, 'business')} في هذا المكان`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur" style={{ left, width, top }}>
+      <div className="flex items-center gap-2">
+        <h2 className="min-w-0 flex-1 truncate text-base font-bold">{counted(group.count, 'business')} هنا</h2>
+        <button onClick={onClose} aria-label="إغلاق" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
+      </div>
+      <ul className="flex flex-col">
+        {names.map((item) => (
+          <li key={item.id}>
+            <button type="button" onClick={() => onOpen(item.id)} className="w-full truncate rounded-md px-1 py-1 text-start font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60">{item.name}</button>
+          </li>
+        ))}
+      </ul>
+      <button onClick={onExpand} className="mt-1 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60">
+        {more > 0 ? `قرّب لترى ${counted(more, 'business')} أخرى` : 'قرّب'}
+      </button>
+    </section>
+  )
+}
+
 type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
 
 /**
@@ -467,7 +504,8 @@ export function LensMap() {
   const [tool, setTool] = useState<ToolId>(lensById('shops').steps[0].tool)
   const [overlay, setOverlay] = useState<Overlay>({})
   const [draft, setDraft] = useState('')
-  const [search, setSearch] = useState<{ q: string; nonce: number } | null>(null)
+  // a search from the top of the map, or one inside a site's reach (`area`, from a site card in «قارن المواقع»)
+  const [search, setSearch] = useState<{ q: string; nonce: number; area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon } } | null>(null)
   // the activity «المنافسون» is studying: a picked district then lists its competitors by name
   const [rival, setRival] = useState<string | null>(null)
   const searchBox = useRef<HTMLInputElement>(null)
@@ -746,6 +784,9 @@ export function LensMap() {
   // the open list's businesses, named on the map; a row and its dot light together (bizPoint), a dot opens its card
   const [biz, setBiz] = useState<{ dots: BusinessDot[]; rows: PublicDirectoryEntity[] }>({ dots: [], rows: [] })
   const [bizPoint, setBizPoint] = useState<string | null>(null)
+  // a group of close businesses that was clicked: its card names them, each opening its own card
+  const [group, setGroup] = useState<BusinessGroup | null>(null)
+  useEffect(() => { setGroup(null) }, [biz.dots, tool, city])
   // what the map shows, for a list that follows it
   const [mapBounds, setMapBounds] = useState<[number, number, number, number] | null>(null)
   // the business audience's activity (its «منشآت» mode), carried into the campaign step's list
@@ -755,6 +796,7 @@ export function LensMap() {
   const openBiz = (id: string) => {
     const row = biz.rows.find((item) => item.id === id)
     if (!row) return
+    setGroup(null)
     locate(row)
     // the row it came from is in view when the list is raised again
     document.getElementById(`biz-row-${id}`)?.scrollIntoView({ block: 'nearest' })
@@ -959,7 +1001,7 @@ export function LensMap() {
   // the peeking sheet's one line is cut at its end: the picked district leads, the step (also on its tab) follows
   // where the journey stands, said once in the peeking title («الخطوة 2 من 4»); the picked district leads when there is one
   const stepAt = step ? `الخطوة ${numberFormat.format(active.steps.indexOf(step) + 1)} من ${numberFormat.format(active.steps.length)}` : ''
-  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${stepAt} · ${step?.label ?? ''}`
+  const sheetTitle = search ? (search.area ? `«${search.q}» في نطاق الموقع ${search.area.label}` : `بحث: ${search.q}`) : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${stepAt} · ${step?.label ?? ''}`
   // a pick on the map is silent to a screen reader (the canvas has no districts to read): the pick and its two golden
   // figures are said in a polite live line instead
   const pickedSay = chosen.length === 1
@@ -993,9 +1035,17 @@ export function LensMap() {
     </>
     return null
   }
-  // under each site's card: the businesses of the studied activity in the site's district, from where a quote request,
-  // a campaign or a list starts (the city's when the site sits outside every district)
-  const siteAction = (site: { label: string; lon: number; lat: number }) => {
+  // under each site's card: the businesses of the studied activity inside the site's own reach (its catchment as the
+  // card drew it), from where a quote request, a campaign or a list starts; without a reach yet, the site's district
+  const siteAction = (site: { label: string; lon: number; lat: number; area?: GeoJSON.Polygon | GeoJSON.MultiPolygon }) => {
+    if (site.area) {
+      const area = { label: site.label, geometry: site.area }
+      return (
+        <NextAction icon={ClipboardList} onClick={() => { setSelected([]); setSearch({ q: studied.label, nonce: Date.now(), area }) }}>
+          اطلب تسعيراً من منشآت «{studied.label}» داخل نطاق الموقع {site.label}
+        </NextAction>
+      )
+    }
     const id = districtAt(site, data.features)
     const row = id ? data.rows.find((item) => item.id === id) ?? null : null
     return (
@@ -1104,10 +1154,10 @@ export function LensMap() {
             already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
           style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBusinessGroup={(next) => { setCard(null); setLocated(null); setGroup(next) }} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setLocated(null); setCard(selected.includes(hit.id) ? null : hit) }}
-            pin={cardRow ? card : located} onPin={setCardAt} />
+            pin={cardRow ? card : located ?? group} onPin={setCardAt} />
           {overlay.popup}
           {cardRow && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
             <DistrictCard name={cardRow.name} lines={cardLines(cardRow)} at={cardAt} onDetails={openDetails} onClose={closeCard}
@@ -1130,6 +1180,14 @@ export function LensMap() {
                   row?.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true })
                 }, 250)
               }}
+              {...(window.matchMedia('(min-width: 64rem)').matches
+                ? { top: 8, bottom: cardAt.height - 8 }
+                : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
+          )}
+          {/* a group of close businesses: its names, each a tap from its own card, and the zoom that splits it */}
+          {!cardRow && !located && group && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
+            <GroupCard group={group} names={group.ids.map((id) => ({ id, name: biz.rows.find((row) => row.id === id)?.name ?? 'غير متاح' }))} at={cardAt}
+              onOpen={openBiz} onClose={() => setGroup(null)} onExpand={() => { group.expand(); setGroup(null) }}
               {...(window.matchMedia('(min-width: 64rem)').matches
                 ? { top: 8, bottom: cardAt.height - 8 }
                 : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
@@ -1241,7 +1299,7 @@ export function LensMap() {
               {search && (
                 <div className="flex flex-col gap-2">
                   <Chip onClick={() => { focusAfter.current = tabId(tool); closeSearch() }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
-                  <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} onLocate={locate} located={located?.id ?? null} onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds} />
+                  <BusinessesPanel key={search.nonce} city={city} districts={search.area ? [] : chosen.map((row) => row.name)} query={search.q} area={search.area ?? null} onLocate={locate} located={located?.id ?? null} onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds} />
                 </div>
               )}
               {!search && (
@@ -1274,7 +1332,7 @@ export function LensMap() {
                         {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                           onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} next={nextFor('competitors')} />}
                         {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} siteAction={siteAction} />}
+                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} siteAction={siteAction} seed={trailNow?.leads.gaps ?? null} />}
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}

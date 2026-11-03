@@ -184,7 +184,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <h2 className="text-xl font-bold">أين جمهوري؟</h2>
+      <h2 className="text-xl font-bold max-lg:-order-2">أين جمهوري؟</h2>
       <Choice label="من تستهدف" value={mode} onChange={setMode} options={[{ id: 'people', label: 'أستهدف أفراداً' }, { id: 'businesses', label: 'أستهدف منشآت' }]} />
       {mode === 'people' ? (
         <>
@@ -250,7 +250,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </div>
       )}
       {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
-        <Verdict verdict={audienceVerdict(scope.map((item) => ({ name: item.row.name, size: item.size })), unit, segmentWord(ranked))} next={next} />
+        <Verdict lift verdict={audienceVerdict(scope.map((item) => ({ name: item.row.name, size: item.size })), unit, segmentWord(ranked))} next={next} />
       )}
       {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
         <div>

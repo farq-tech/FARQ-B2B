@@ -3,9 +3,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Building2, Calculator, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
+import { Building2, Calculator, ClipboardList, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { districtMapHref, homesHref } from '@/lib/handoff'
+import { districtMapHref, homesHref, loginHref } from '@/lib/handoff'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useAppStore } from '@/lib/store'
+import { makeId } from '@/lib/format'
+import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ListingFace } from '@/components/shared/listing-face'
@@ -329,7 +334,7 @@ export function PriceEstimator() {
               </div>
             )}
             {result.examples && result.examples.length > 0 && <Comparables title="العروض المشابهة التي وجدناها" examples={result.examples} />}
-            {asked && <NextLinks asked={asked} />}
+            {asked && <NextLinks asked={asked} cityName={cityItems.find((item) => item.value === asked.city)?.label ?? asked.city} />}
           </div>
         )}
         {stale && result && result !== 'error' && (
@@ -369,7 +374,7 @@ export function PriceEstimator() {
             </div>
 
             {result.examples && result.examples.length > 0 && <Comparables title="أقرب العروض المشابهة" examples={result.examples} />}
-            <NextLinks asked={asked} />
+            <NextLinks asked={asked} cityName={cityItems.find((item) => item.value === asked.city)?.label ?? asked.city} price={result.price.mid} />
             {/* on a phone the questions are a long scroll above: one tap back to change an answer */}
             <Button variant="outline" className="lg:hidden" onClick={() => questions.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>
               <Pencil aria-hidden />عدّل الإجابات
@@ -386,7 +391,62 @@ export function PriceEstimator() {
  * district itself on the map. Each opens on the answers already given, nothing typed again.
  */
 const PLURAL: Record<string, string> = { apartment: 'الشقق', floor: 'الأدوار', villa: 'الفلل' }
-function NextLinks({ asked }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string } }) {
+/** The real-estate businesses of the directory (its «عقار» main activity), asked by its category id. */
+const REAL_ESTATE = { main_id: 're', label: 'عقار' }
+const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السنوي', rent_month: 'للإيجار الشهري', sale: 'للبيع' }
+
+/**
+ * A priced property turned into a quote request to the district's real-estate businesses: the draft names the property
+ * (type, deal, area, district) and Atlas's expected price, and opens in «الطلبات» for review. Nothing is sent: a quote
+ * request is shared by the person after review (docs/atlas-product-foundation.md §1.5), and no contact is shown here.
+ */
+function OfficesRequest({ asked, cityName, price }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number }) {
+  const router = useRouter()
+  const { createDraft } = useAppStore()
+  const [state, setState] = useState<'idle' | 'loading' | 'login' | 'empty' | 'error'>('idle')
+  const name = asked.districtName ?? 'الحي'
+  const start = async () => {
+    if (!asked.districtName) return
+    setState('loading')
+    const response = await fetch('/api/market/entities', {
+      method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ city: asked.city, district: asked.districtName, main_id: REAL_ESTATE.main_id, q: REAL_ESTATE.label, objective: 'purchase', limit: 50, offset: 0 }),
+    }).catch(() => null)
+    const body = await response?.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; guest?: boolean } | null
+    // a signed-out visitor sees the sign-in, never a preview turned into a request
+    if (response?.status === 401 || body?.guest) { setState('login'); return }
+    if (!response?.ok || !body) { setState('error'); return }
+    const rows = body.rows ?? []
+    if (!rows.length) { setState('empty'); return }
+    const property = `${typeLabel(asked.kind)} ${DEAL_WORD[asked.deal] ?? ''} في ${name}`.replace(/\s+/g, ' ')
+    const id = createDraft({
+      type: 'rfq', businessIds: rows.map((row) => row.id), liveBusinesses: rows, cityId: asked.city.toLowerCase(), cityName,
+      query: REAL_ESTATE.label, categoryHint: REAL_ESTATE.label, districtHint: name,
+      title: `طلب عروض ${property}`,
+      rfq: {
+        lineItems: [{ id: makeId('l'), name: property, qty: 1, unit: 'عقار', spec: `${numberFormat.format(asked.area)} م²` }],
+        deliveryCity: cityName,
+        notes: price != null ? `السعر المتوقع في أطلس: ${numberFormat.format(price)} ريال${PERIOD[asked.deal] ?? ''}. أرسلوا عروضاً مشابهة إن وُجدت.` : 'أرسلوا عروضاً مشابهة إن وُجدت.',
+      },
+    })
+    toast.success('جُهّز طلب العروض', { description: `${numberFormat.format(rows.length)} منشأة عقار في ${name}. راجعه قبل أي مشاركة، لا يُرسل شيء تلقائياً.` })
+    router.push(`/requests/${id}`)
+  }
+  return (
+    <div className="flex flex-col gap-1.5 sm:col-span-2">
+      <button type="button" onClick={() => void start()} disabled={state === 'loading' || !asked.districtName}
+        className="inline-flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 text-start text-sm font-semibold outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
+        {state === 'loading' ? <Loader2 className="size-5 shrink-0 animate-spin text-primary" aria-hidden /> : <ClipboardList className="size-5 shrink-0 text-primary" aria-hidden />}
+        <span>اطلب عروضاً مشابهة من منشآت العقار في {name}</span>
+      </button>
+      {state === 'login' && <p className="text-sm">لتجهيز الطلب <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="font-semibold text-primary underline">سجّل الدخول</a>.</p>}
+      {state === 'empty' && <p className="text-sm text-muted-foreground">لا منشآت عقار في {name} في الدليل.</p>}
+      {state === 'error' && <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">تعذّر التحميل.<Chip onClick={() => void start()}>أعد المحاولة</Chip></p>}
+    </div>
+  )
+}
+
+function NextLinks({ asked, cityName, price }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number }) {
   const name = asked.districtName ?? 'الحي'
   const listings = homesHref({ city: asked.city, kind: asked.deal === 'sale' ? 'sale' : 'rent', rentDeal: asked.deal === 'sale' ? 'rent_year' : asked.deal, types: [asked.kind], districts: [asked.district] })
   const map = districtMapHref(asked.city, asked.district)
@@ -395,6 +455,7 @@ function NextLinks({ asked }: { asked: { city: string; district: string; distric
     <nav aria-label="بعد التسعير" className="grid gap-2 sm:grid-cols-2">
       <Link href={listings} className={link}><Building2 className="size-5 shrink-0 text-primary" aria-hidden /><span>{PLURAL[asked.kind] ?? 'العروض'} {asked.deal === 'sale' ? 'للبيع' : 'للإيجار'} الآن في {name}</span></Link>
       {map && <Link href={map} className={link}><MapPinned className="size-5 shrink-0 text-primary" aria-hidden /><span>تعرّف على {name} على الخريطة</span></Link>}
+      <OfficesRequest asked={asked} cityName={cityName} price={price} />
     </nav>
   )
 }
