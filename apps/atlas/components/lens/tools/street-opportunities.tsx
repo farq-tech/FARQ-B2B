@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
@@ -12,6 +12,8 @@ import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import type { StudiedActivity } from '@/lib/sticky-state'
 import type { Overlay } from './overlay'
 import { useAnswer } from './use-answer'
+import { opportunityVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 
 type Opportunity = {
   street_ar: string; districts_ar: string[]; road_class: 'main' | 'secondary' | null; total: number; others: number; activities: number
@@ -46,8 +48,10 @@ function requestedLine(item: Opportunity, kinds: number): string {
  * «أين الفرصة»: named streets with strong commercial life where the studied activity is absent or thin against the
  * street's size, scored out of 100 within the city. The evidence is shown; the choice stays with the viewer.
  */
-export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
+export function StreetOpportunities({ city, studied, clusters, onOverlay, next }: {
   city: string; studied: StudiedActivity; clusters: Cluster[]; onOverlay: (overlay: Overlay) => void
+  /** The step after the verdict (units for rent on the street, a request), given by the map shell. */
+  next?: ReactNode
 }) {
   const [active, setActive] = useState<number | null>(null)
   // keyed by what is asked, not by the prop object: a new object for the same activity asks nothing again, and a new
@@ -85,7 +89,8 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
   }, [streets, clustersKey, active, onOverlay, status, result, studied.label])
 
   // 30 streets at a time; one picked on the map further down is drawn so it can come into view
-  const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
+  // a shortlist first: the verdict names the top street, the rest are one tap away
+  const [limit, showMore] = useShowMore(10, `${city}|${studied.q ?? studied.main_id}`)
   const visible = Math.max(limit, active != null ? active + 1 : 0)
 
   useEffect(() => {
@@ -107,7 +112,8 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
 
   return (
     <>
-      <p className="text-base">{counted(streets.length, 'street')} {streets.length === 1 ? 'تجاري نشط ينقصه' : 'تجارية نشطة ينقصها'} «{studied.label}»، مرتبة بالدرجة. اضغط الدرجة لترى كيف حُسبت.</p>
+      <Verdict verdict={opportunityVerdict(streets.map((item) => item.properties), studied.label, result?.population_used !== false, formatDistance)} next={next} />
+      <p className="text-sm text-muted-foreground">{counted(streets.length, 'street')} {streets.length === 1 ? 'تجاري نشط ينقصه' : 'تجارية نشطة ينقصها'} «{studied.label}»، الأقوى فرصة أولاً. اضغط الدرجة لترى كيف حُسبت.</p>
       <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
         {streets.slice(0, visible).map(({ properties: item }, index) => (
           <ResultRow key={index} id={`opportunity-${index}`} active={index === active} onClick={() => setActive(index)}
