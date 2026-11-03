@@ -67,7 +67,7 @@ function Thumb({ src, type, comparing }: { src: string | null; type: string; com
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, next }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, next, onListings }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
@@ -78,6 +78,8 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
   onHover?: (id: string | null) => void
   /** The step after the verdict (the listing's own page, a request), given by the map shell. */
   next?: ReactNode
+  /** The listings on the map, for the shell's card on a group of them (its cheapest, each opening its card). */
+  onListings?: (listings: Listing[]) => void
 }) {
   // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
   const sticky = `homes.${preset ? 'preset' : 'plain'}`
@@ -148,6 +150,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
   // measured against), from the district rows as loaded
   const facts = useMemo(() => homesFacts(rows, homesMedianKey(kind, deal, type)), [rows, kind, deal, type])
 
+  useEffect(() => { onListings?.(result.listings) }, [result.listings, onListings])
   useEffect(() => {
     const dots = result.listings.map((listing) => ({
       id: listing.id, lon: listing.lon, lat: listing.lat,
