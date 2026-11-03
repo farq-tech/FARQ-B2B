@@ -40,6 +40,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('FARQ_TARGETING_DATA_DIR', os.path.join(HERE, 'data'))
 RUNTIME_DIR = os.environ.get('FARQ_TARGETING_RUNTIME_DIR', os.path.join(HERE, 'data'))
 AUX_DATA_DIR = os.environ.get('FARQ_TARGETING_AUX_DATA_DIR', DATA_DIR)
+# when the mounted snapshot was built, sent with every answer (X-Data-Version) so a client's kept answers know the
+# data under them changed (snapshot_version.py); fixed while this process serves the snapshot
+from snapshot_version import snapshot_version
+SNAPSHOT_VERSION = snapshot_version(DATA_DIR)
 # The mounted snapshot is served through a canonical copy (one spelling per city and district, see
 # canonical_data.py) written to scratch space; the mounted volume itself is never modified.
 import canonical_data, district_reference, golden, input_upload, price_estimate, tempfile, district_metrics, access_requests
@@ -1147,7 +1151,9 @@ class H(BaseHTTPRequestHandler):
         return (self.headers.get('X-Forwarded-For') or self.client_address[0]).split(',')[0].strip()
     def _json(self, obj, code=200):
         b = json.dumps(obj, ensure_ascii=False, default=str).encode()
-        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8'); self.send_header('Content-Length', str(len(b)))
+        if SNAPSHOT_VERSION: self.send_header('X-Data-Version', SNAPSHOT_VERSION)
+        self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
     def do_GET(self):
         route=urllib.parse.urlparse(self.path)
