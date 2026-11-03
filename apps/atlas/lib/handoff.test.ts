@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
+import { historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
 
 const TYPES = [
   { id: 'room', kinds: ['rent'] }, { id: 'apartment', kinds: ['rent', 'sale'] }, { id: 'villa', kinds: ['rent', 'sale'] }, { id: 'land', kinds: ['sale'] },
@@ -105,4 +105,22 @@ test('the open listing is in the address, and the navigation does not bring one-
   assert.equal(lastView('/homes'), '/homes?district=9')
   assert.equal(lastView('/map'), '/map?lens=marketers')
   delete (globalThis as { sessionStorage?: unknown }).sessionStorage
+})
+
+test('a meaningful change pushes one history entry; settling and follow-on changes replace it', () => {
+  let clock = 0
+  const gate = historyGate(() => clock)
+  gate.hold()
+  assert.equal(gate.push('a'), false, 'the first write records where the page is')
+  clock = 100
+  assert.equal(gate.push('b'), false, 'the page is still settling what the address asked for')
+  clock = 2000
+  assert.equal(gate.push('b'), false, 'nothing changed')
+  assert.equal(gate.push('c'), true, 'a person changed the step')
+  clock = 2100
+  assert.equal(gate.push('d'), false, 'the same action\'s follow-on change joins its entry')
+  clock = 3000
+  assert.equal(gate.push('e'), true)
+  gate.reset()
+  assert.equal(gate.push('f'), false, 'after Back the restored view is only recorded')
 })

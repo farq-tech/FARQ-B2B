@@ -20,7 +20,7 @@ import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
-import { rememberView } from '@/lib/handoff'
+import { historyGate, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
@@ -367,6 +367,12 @@ function writeDone(city: string, done: ToolId[]) {
 
 // the choices made inside the lens's steps (sort orders, filters, the second activity, the open business), beside the view
 const withOptions = (search: string, lens: LensId) => writeMapOptions(search, lens, lensById(lens).steps.map((step) => step.tool), getSticky)
+/** A new history entry for a change Back should undo (a step, a district, the city, the group, a search). */
+const pushAddress = (search: string) => {
+  if (search === window.location.search) return
+  window.history.pushState({}, '', `${window.location.pathname}${search}${window.location.hash}`)
+  rememberView('/map', search)
+}
 const replaceAddress = (search: string) => {
   if (search !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`)
   // the main navigation and a request made here come back to this view (lib/handoff.ts)
@@ -485,7 +491,11 @@ export function LensMap() {
   const presetMain = useRef<string | null>(null)
   // the second activity of «قارن بنشاط آخر» named by a main activity's id, waiting for the city's list for its name
   const presetRival = useRef<string | null>(null)
+  // Back and Forward: a change of city, group, step, districts or search is one entry; the layer, a step's own choices
+  // and the camera replace the entry they are in (lib/handoff.ts historyGate)
+  const [gate] = useState(() => historyGate())
   useEffect(() => {
+    gate.hold()
     const query = new URLSearchParams(window.location.search)
     const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS,
       Object.fromEntries(LENSES.map((item) => [item.id, item.metrics])))
@@ -535,7 +545,7 @@ export function LensMap() {
     const wanted = presetCity.current
     if (!wanted || cities.length < 2) return
     presetCity.current = null
-    if (!cities.some((item) => item.en === wanted)) setCity('Riyadh')
+    if (!cities.some((item) => item.en === wanted)) { gate.hold(); setCity('Riyadh') }
   }, [cities])
   useEffect(() => {
     const pending = presetDistricts.current
@@ -545,6 +555,7 @@ export function LensMap() {
     const known = new Set(data.rows.map((row) => row.id))
     const ids = pending.ids.filter((id) => known.has(id))
     // a shared link opens on its districts, framed, instead of the whole city with the picked ones somewhere in it
+    gate.hold()
     if (ids.length) { setSelected(ids); flyTo(...ids) }
     // flyTo only sets state; it is rebuilt each render and needs no dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -555,8 +566,53 @@ export function LensMap() {
     const main = presetMain.current ?? studied.main_id ?? null
     const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
     // a second activity still waiting for its name keeps its place too
-    replaceAddress(presetRival.current ? next : withOptions(next, lens))
+    const address = presetRival.current ? next : withOptions(next, lens)
+    if (gate.push(JSON.stringify([city, lens, tool, selected, search?.q ?? null]))) pushAddress(address)
+    else replaceAddress(address)
   }, [hydrated, city, lens, tool, selected, search, studied, metric])
+  // Back or Forward onto another entry of the map: the view that entry's address names, read like a shared link
+  // the outlines' rows (`early`), which a step still loading its own tables already has: `rows` waits for those
+  const now = useRef({ city, lens, tool, search, rows: data.early })
+  now.current = { city, lens, tool, search, rows: data.early }
+  useEffect(() => {
+    const onPop = () => {
+      if (window.location.pathname !== '/map') return
+      const view = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), {},
+        Object.fromEntries(LENSES.map((item) => [item.id, item.metrics])))
+      const at = now.current
+      gate.reset()
+      gate.hold()
+      setCard(null)
+      const nextCity = view.city ?? 'Riyadh'
+      if (nextCity !== at.city) {
+        // the other city's districts are picked once they load, as for a shared link
+        presetDistricts.current = view.districts.length ? { city: nextCity, ids: view.districts } : null
+        setCity(nextCity)
+      } else {
+        const known = new Set(at.rows.map((row) => row.id))
+        const ids = known.size ? view.districts.filter((id) => known.has(id)) : view.districts
+        setSelected(ids)
+        if (ids.length) flyTo(...ids)
+      }
+      const nextLens = (view.lens ?? 'shops') as LensId
+      if (nextLens !== at.lens) {
+        presetTool.current = view.tool as ToolId | null
+        presetLayer.current = view.layer as MetricId | null
+        setLens(nextLens)
+      } else {
+        setTool((view.tool as ToolId | null) ?? lensById(nextLens).steps[0].tool)
+        setMetric((view.layer as MetricId | null) ?? lensById(nextLens).metric)
+      }
+      if ((view.q ?? null) !== (at.search?.q ?? null)) {
+        setDraft(view.q ?? '')
+        setSearch(view.q ? { q: view.q, nonce: Date.now() } : null)
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+    // flyTo only sets state; the handler reads the page through `now`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gate])
   // a choice made inside a step goes to the address as it is made
   useEffect(() => {
     if (!hydrated) return

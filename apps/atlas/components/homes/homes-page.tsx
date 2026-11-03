@@ -18,7 +18,7 @@ import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupS
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { DEFAULT_CITY, districtMapHref, priceStartHref, readHomesQuery, rememberView, writeHomesQuery } from '@/lib/handoff'
+import { DEFAULT_CITY, districtMapHref, historyGate, priceStartHref, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
@@ -53,7 +53,8 @@ export function HomesPage() {
   const deal = dealOf(filters)
   const typesKey = types.join(','), districtsKey = filters.districts.join(',')
   const change = useCallback((next: Partial<HomeFilters>) => setFilters((current) => ({ ...current, ...next })), [])
-  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }>({ status: 'loading', available: true, total: null, listings: [] })
+  // `key` names the ask the listings answer, so a listing named by the address is looked for in the right answer
+  const [result, setResult] = useState<{ status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[]; key?: string }>({ status: 'loading', available: true, total: null, listings: [] })
   const [inView, setInView] = useState(true)
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null)
   const [hover, setHover] = useState<string | null>(null)
@@ -98,12 +99,33 @@ export function HomesPage() {
   // price page, the map or a person reopens the same listings, and the main navigation comes back to them
   const [hydrated, setHydrated] = useState(false)
   const presetCity = useRef<string | null>(null)
-  useEffect(() => {
+  // the open listing is in the address too (?listing=): it opens once the listings say it is there, and is dropped if not
+  const presetListing = useRef<string | null>(null)
+  const [listingTick, setListingTick] = useState(0)
+  // a change of city, deal, type, district or open listing is one step Back undoes (lib/handoff.ts historyGate)
+  const [gate] = useState(() => historyGate())
+  // the address as the page reads it: on arrival and when Back or Forward lands on another entry of this page
+  const applyAddress = useCallback(() => {
     const view = readHomesQuery(window.location.search, RENT_DEALS.map((item) => item.id), LISTING_TYPES)
-    if (view.city !== DEFAULT_CITY) { presetCity.current = view.city; lastCity.current = view.city; setCity(view.city) }
-    setFilters((current) => ({ ...current, kind: view.kind, rentDeal: view.rentDeal as HomeFilters['rentDeal'], types: view.types, districts: view.districts }))
+    gate.hold()
+    lastCity.current = view.city
+    if (view.city !== DEFAULT_CITY) presetCity.current = view.city
+    setCity(view.city)
+    setFilters((current) => {
+      const same = current.kind === view.kind && current.rentDeal === view.rentDeal && current.types.join(',') === view.types.join(',') && current.districts.join(',') === view.districts.join(',')
+      return same ? current : { ...current, kind: view.kind, rentDeal: view.rentDeal as HomeFilters['rentDeal'], types: view.types, districts: view.districts }
+    })
+    presetListing.current = readListing(window.location.search)
+    if (!presetListing.current) setActive(null)
+    setListingTick((n) => n + 1)
+  }, [gate])
+  useEffect(() => {
+    applyAddress()
     setHydrated(true)
-  }, [])
+    const onPop = () => { if (window.location.pathname === '/homes') { gate.reset(); applyAddress() } }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [applyAddress, gate])
   // a city the address names that is not in the list falls back to the default
   useEffect(() => {
     const wanted = presetCity.current
@@ -119,17 +141,24 @@ export function HomesPage() {
   }, [data.status, data.rows])
   useEffect(() => {
     if (!hydrated) return
-    const text = writeHomesQuery({ city, kind, rentDeal: filters.rentDeal, types, districts: filters.districts })
+    // a listing still waiting for the listings keeps its place in the address
+    const listing = active?.id ?? presetListing.current
+    const text = writeHomesQuery({ city, kind, rentDeal: filters.rentDeal, types, districts: filters.districts, listing })
     const next = text ? `?${text}` : ''
     rememberView('/homes', next)
-    if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}`)
+    const push = gate.push(JSON.stringify([city, kind, filters.rentDeal, typesKey, districtsKey, listing]))
+    if (next === window.location.search) return
+    if (push) window.history.pushState({}, '', `${window.location.pathname}${next}`)
+    else window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the ids, not the arrays
-  }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey])
+  }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey, active?.id, listingTick])
 
+  const askKey = JSON.stringify([city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
   useEffect(() => {
     // the first ask waits for the address, so a shared link does not first load (and flash) the default listings
     if (!hydrated) return
     let live = true
+    const key = askKey
     setResult((current) => ({ ...current, status: 'loading' }))
     setActive(null)
     setShown(PAGE)
@@ -140,7 +169,7 @@ export function HomesPage() {
       ...(filters.districts.length ? { district_ids: filters.districts } : {}),
     })
       // laid out flat, so every filter, count and pin reads one ad at a time; the cards fold them again (groupSimilar)
-      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: flattenSimilar(payload.listings ?? []) }) })
+      .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: flattenSimilar(payload.listings ?? []), key }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
   }, [hydrated, city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
@@ -166,7 +195,17 @@ export function HomesPage() {
   const toggleCompare = useCallback((listing: Listing) => setCompare((current) => (
     current.some((item) => item.id === listing.id) ? current.filter((item) => item.id !== listing.id) : [...current.slice(-1), listing]
   )), [])
-  const open = useCallback((listing: Listing) => { setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }); setMobileMap(true) }, [])
+  const open = useCallback((listing: Listing) => { presetListing.current = null; setActive(listing); setFocus({ lon: listing.lon, lat: listing.lat }); setMobileMap(true) }, [])
+  // the listing the address names opens once the listings are in; one no longer there is dropped from the address
+  useEffect(() => {
+    const wanted = presetListing.current
+    if (!wanted || result.status === 'loading' || (result.status === 'ready' && result.key !== askKey)) return
+    presetListing.current = null
+    gate.hold()
+    const listing = result.listings.find((item) => item.id === wanted)
+    if (listing) open(listing)
+    else setListingTick((n) => n + 1)
+  }, [result.status, result.listings, result.key, askKey, listingTick, open, gate])
   const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
   const kindTypes = LISTING_TYPES.filter((item) => item.kinds.includes(kind))
   const districtList = useMemo(() => data.rows.map((row) => ({ id: row.id, name: row.name })), [data.rows])
@@ -311,7 +350,7 @@ export function HomesPage() {
         <section className={cn('relative min-h-0 lg:p-4', !mobileMap && 'hidden lg:block')} aria-label="خريطة العروض">
           <div className="relative h-full min-h-[60vh] overflow-hidden lg:rounded-2xl lg:border">
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
-              onListing={(id) => { const listing = byId.get(id); if (listing) setActive(listing) }} onBounds={setBounds} />
+              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setActive(listing) } }} onBounds={setBounds} />
             {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
               compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }} districtHref={districtMapHref(city, active.district_id)}
               className="bottom-20 max-h-[calc(100%-6rem)] lg:bottom-3 lg:max-h-[85%]" />}

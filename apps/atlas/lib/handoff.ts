@@ -226,6 +226,30 @@ export function lastView(path: string): string {
   } catch { return path }
 }
 
+/**
+ * When an address change gets its own entry in the browser's history, so Back undoes it: a change of what the page
+ * shows (`key`) pushes, unless the page is still settling what the address asked for or a push just happened (the same
+ * action's follow-on changes join that entry). Anything else replaces the entry in place.
+ */
+export function historyGate(now: () => number = Date.now) {
+  let last: string | null = null
+  let holdUntil = 0
+  return {
+    /** Changes made in the next `ms` replace instead of pushing (arriving, restoring after Back, a preset landing). */
+    hold(ms = 700) { holdUntil = Math.max(holdUntil, now() + ms) },
+    /** Forget the last key: the next write only records where the page is (after Back restored a view). */
+    reset() { last = null },
+    /** Whether writing `key` should push a new entry. */
+    push(key: string): boolean {
+      const changed = last !== null && key !== last
+      last = key
+      if (!changed || now() < holdUntil) return false
+      holdUntil = now() + 400
+      return true
+    },
+  }
+}
+
 /** The page's own address as a login's `next`, so signing in comes back to the same view. */
 export function loginHref(here: string): string {
   const next = here.startsWith('/') && !here.startsWith('//') ? here : '/map'
