@@ -16,7 +16,9 @@ import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { useMainActivities } from '@/lib/main-activities'
-import { territoriesSummary, weekSummary } from './tool-answers'
+import { duration, territoriesSummary, weekSummary } from './tool-answers'
+import { useAnswer } from './use-answer'
+import { Choice, StillWorking } from './choice'
 
 type Territory = { territory: number; weight: number; districts: { district_ar: string; district_id: string | number }[] }
 type Customer = Stop & { name: string; district_ar: string }
@@ -82,7 +84,7 @@ const STOPS_LISTED = 200
 function StopOrder({ order, byId }: { order: string[]; byId: Map<string, Customer> }) {
   return (
     <>
-      <ol className="mt-2 max-h-64 space-y-1 overflow-y-auto text-base tabular-nums">
+      <ol className="mt-2 space-y-1 text-base tabular-nums lg:max-h-64 lg:overflow-y-auto">
         {order.slice(0, STOPS_LISTED).map((id, index) => (
           <li key={id} className="flex gap-2"><span className="w-10 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span><span className="truncate">{byId.get(id)?.name || 'منشأة بلا اسم'}</span><span className="ms-auto shrink-0 text-sm text-muted-foreground">{byId.get(id)?.district_ar}</span></li>
         ))}
@@ -90,14 +92,6 @@ function StopOrder({ order, byId }: { order: string[]; byId: Map<string, Custome
       {order.length > STOPS_LISTED && <p className="mt-1 text-sm text-muted-foreground">و{numberFormat.format(order.length - STOPS_LISTED)} محطة أخرى على الخريطة</p>}
     </>
   )
-}
-
-/** «45 دقيقة», «2 ساعة», «1 ساعة 20 دقيقة»: a whole hour never reads «… 0 دقيقة». */
-const duration = (seconds: number) => {
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${numberFormat.format(minutes)} دقيقة`
-  const hours = `${numberFormat.format(Math.floor(minutes / 60))} ساعة`
-  return minutes % 60 ? `${hours} ${numberFormat.format(minutes % 60)} دقيقة` : hours
 }
 
 /**
@@ -109,11 +103,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [count, setCount] = useStickyState('territories.count', 5)
   const [weight, setWeight] = useStickyState<'population' | 'businesses'>('territories.weight', 'businesses')
-  const [groups, setGroups] = useState<Territory[] | null>(null)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [rep, setRep] = useState<number | null>(null)
-  const [customers, setCustomers] = useState<Customer[] | null>(null)
-  const [customerError, setCustomerError] = useState<{ text: string; login: boolean } | null>(null)
   const [start, setStart] = useState<Point | null>(null)
   const [picking, setPicking] = useState(false)
   const [parts, setParts] = useState<RoutePart[]>([])
@@ -121,60 +111,48 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   const [routeError, setRouteError] = useState('')
   const [days, setDays] = useStickyState('territories.days', 5)
   const [perDay, setPerDay] = useStickyState('territories.perDay', 20)
-  const [plan, setPlan] = useState<WeekPlan | null>(null)
-  const [planStatus, setPlanStatus] = useState<'idle' | 'loading' | 'error' | 'too-many'>('idle')
   const [day, setDay] = useState<number | null>(null)
   // a day routed without a start point sets out from its first stop, which the solved parts then leave out of their order
   const [origin, setOrigin] = useState<string | null>(null)
   const abort = useRef<AbortController | null>(null)
-  // «أعد المحاولة» asks again for the territories, the rep's customers, or the week
-  const [attempt, setAttempt] = useState(0)
-  const [customersAttempt, setCustomersAttempt] = useState(0)
-  const [planAttempt, setPlanAttempt] = useState(0)
 
-  // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
-  useEffect(() => {
-    let active = true
-    // the last split goes at once, so the map never colours the old reps under the new count's skeleton
-    setStatus('loading'); setRep(null); setGroups(null)
-    postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) })
-      .then((data) => { if (active) { setGroups(data.territories ?? []); setStatus('idle') } })
-      .catch(() => { if (active) setStatus('error') })
-    return () => { active = false }
-  }, [city, count, weight, mainId, attempt])
+  // step 1-2: the territories, rebuilt whenever the activity, count or balance changes; the last split goes at once,
+  // so the map never colours the old reps under the new count's skeleton
+  const groupsKey = `${city}|${count}|${weight}|${mainId}`
+  const split = useAnswer(groupsKey, () => postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) }))
+  // one array per answer: the map's overlay effect follows it, so a new empty array on every render would loop
+  const groups = useMemo(() => (split.status === 'ready' ? split.data?.territories ?? [] : null), [split.status, split.data])
+  const status = split.status === 'loading' ? 'loading' : split.status === 'error' ? 'error' : 'idle'
+  useEffect(() => { setRep(null) }, [groupsKey])
 
-  // step 3: one rep's customers
-  useEffect(() => {
-    abort.current?.abort()
-    setCustomers(null); setCustomerError(null); setParts([]); setProgress(null); setRouteError(''); setPlan(null); setDay(null)
-    if (rep == null || !groups?.[rep]) return
-    let active = true
-    fetch('/api/market/stops', {
+  // step 3: one rep's customers, keyed by the split and the rep
+  const stopsKey = rep != null && groups?.[rep] ? `${groupsKey}|${rep}` : null
+  const stops = useAnswer<Customer[]>(stopsKey, async () => {
+    const response = await fetch('/api/market/stops', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ city, districts: groups[rep].districts.map((district) => district.district_ar), ...(mainId ? { main_id: mainId } : {}) }),
-    }).then(async (response) => {
-      const payload = await response.json().catch(() => null)
-      if (!active) return
-      if (!response.ok) { setCustomerError({ text: payload?.error || 'تعذر تحميل منشآت المنطقة.', login: response.status === 401 }); return }
-      setCustomers(payload.points ?? [])
-    }).catch(() => { if (active) setCustomerError({ text: 'تعذر تحميل منشآت المنطقة.', login: false }) })
-    return () => { active = false }
-  }, [rep, groups, city, mainId, customersAttempt])
+      body: JSON.stringify({ city, districts: groups![rep!].districts.map((district) => district.district_ar), ...(mainId ? { main_id: mainId } : {}) }),
+    })
+    const payload = await response.json().catch(() => null)
+    if (!response.ok) throw { text: payload?.error || 'تعذر تحميل منشآت المنطقة.', login: response.status === 401 }
+    return payload?.points ?? []
+  })
+  const customers = stops.data
+  const customerError = stops.status === 'error'
+    ? (typeof stops.error === 'object' && stops.error && 'text' in stops.error ? stops.error as { text: string; login: boolean } : { text: 'تعذر تحميل منشآت المنطقة.', login: false })
+    : null
 
   // the rep's week: rebuilt when the customers, the start point or the week's shape change
+  const tooMany = (customers?.length ?? 0) > WEEK_STOPS_MAX
+  const planKey = stopsKey && customers?.length && !tooMany ? `${stopsKey}|${start ? `${start.lon},${start.lat}` : ''}|${days}|${perDay}` : null
+  const week = useAnswer(planKey, () => postMarket<WeekPlan>('weekly-plan', {
+    stops: customers!.map(({ id, lon, lat }) => ({ id, lon, lat })), days, max_per_day: perDay, ...(start ? { start } : {}),
+  }))
+  const plan = week.data
+  const planStatus: 'idle' | 'loading' | 'error' | 'too-many' = tooMany ? 'too-many' : week.status === 'loading' ? 'loading' : week.status === 'error' ? 'error' : 'idle'
+  // a route from the old rep, plan or start is stale
   useEffect(() => {
-    setPlan(null); setDay(null)
-    abort.current?.abort(); setParts([]); setProgress(null); setRouteError('')   // a route from the old plan or start is stale
-    if (!customers?.length) { setPlanStatus('idle'); return }
-    if (customers.length > WEEK_STOPS_MAX) { setPlanStatus('too-many'); return }
-    let active = true
-    setPlanStatus('loading')
-    postMarket<WeekPlan>('weekly-plan', {
-      stops: customers.map(({ id, lon, lat }) => ({ id, lon, lat })), days, max_per_day: perDay, ...(start ? { start } : {}),
-    }).then((data) => { if (active) { setPlan(data); setPlanStatus('idle') } })
-      .catch(() => { if (active) setPlanStatus('error') })
-    return () => { active = false }
-  }, [customers, start, days, perDay, planAttempt])
+    abort.current?.abort(); setParts([]); setProgress(null); setRouteError(''); setDay(null)
+  }, [stopsKey, planKey])
 
   const pickStart = useCallback((point: Point) => { setStart(point); setPicking(false) }, [])
 
@@ -255,21 +233,16 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
       <Step n={2} title="المندوبون" done={Boolean(groups?.length)}>
         <Stepper id="territories-count" label="العدد" value={count} min={MIN_REPS} max={MAX_REPS} onChange={setCount} less="مندوب أقل" more="مندوب أكثر" />
-        <div role="group" aria-label="معيار التوازن" className="mt-2 flex gap-1.5">
-          {(['businesses', 'population'] as const).map((value) => (
-            <button key={value} onClick={() => setWeight(value)} aria-pressed={weight === value}
-              className={cn('flex-1 rounded-lg border py-2 text-sm', weight === value ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
-              توازن {value === 'population' ? 'بالسكان' : mainId ? 'بعملاء النشاط' : 'بالمنشآت'}
-            </button>
-          ))}
-        </div>
+        <Choice label="معيار التوازن" value={weight} onChange={setWeight} className="mt-2"
+          options={[{ id: 'businesses', label: `توازن ${mainId ? 'بعملاء النشاط' : 'بالمنشآت'}` }, { id: 'population', label: 'توازن بالسكان' }]} />
         {status === 'loading' && <SkeletonRows label="جارٍ التقسيم" rows={Math.min(count, 6)} boxed leading="swatch" trailing className="mt-2" />}
-        {status === 'error' && <LoadError what="المناطق" title="تعذر تقسيم المناطق." onRetry={() => setAttempt((n) => n + 1)} className="mt-2" />}
+        {status === 'loading' && split.slow && <div className="mt-2"><StillWorking>تقسيم المدينة كلها على المندوبين يأخذ وقتاً أطول.</StillWorking></div>}
+        {status === 'error' && <LoadError what="المناطق" title="تعذر تقسيم المناطق." onRetry={split.retry} className="mt-2" />}
         {groups && status !== 'loading' && groups.length === 0 && (
           <NoResult title="لا مناطق لهذا الاختيار" body={mainId ? 'لا منشآت من هذا النشاط في أحياء المدينة. اختر «كل المنشآت» أو نشاطاً آخر.' : 'أحياء المدينة بلا منشآت معروفة الموقع بعد.'} className="mt-2" />
         )}
         {groups && status !== 'loading' && groups.length > 0 && (
-          <ol className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
+          <ol className="mt-2 space-y-1.5 lg:max-h-56 lg:overflow-y-auto">
             {groups.map((group, index) => (
               // the share opens its own explanation card, so it sits beside the row's button, never inside it
               <li key={group.territory} aria-current={rep === index ? 'true' : undefined}
@@ -291,8 +264,9 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
       {rep != null && (
         <Step n={3} title={`عملاء المندوب ${numberFormat.format(rep + 1)}`} done={Boolean(customers?.length)}>
           {!customers && !customerError && <SkeletonStatus label="جارٍ تحميل منشآت المنطقة"><Skeleton className="h-6 w-44" /></SkeletonStatus>}
+          {!customers && !customerError && stops.slow && <div className="mt-2"><StillWorking>منطقة واسعة فيها منشآت كثيرة.</StillWorking></div>}
           {customerError && (
-            <LoadError what="منشآت المنطقة" detail={customerError.text} onRetry={() => setCustomersAttempt((n) => n + 1)}
+            <LoadError what="منشآت المنطقة" detail={customerError.text} onRetry={stops.retry}
               action={customerError.login ? <Link href="/login?next=%2Fmap%3Ftool%3Dterritories" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
           )}
           {customers && customers.length === 0 && (
@@ -322,7 +296,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             <Stepper id="territories-per-day" label="زيارات اليوم حتى" value={perDay} min={1} max={100} onChange={setPerDay} less="زيارة أقل" more="زيارة أكثر" />
           </div>
           {planStatus === 'loading' && <SkeletonRows label="جارٍ تقسيم الأسبوع" rows={days} boxed leading="swatch" sub trailing className="mt-2" />}
-          {planStatus === 'error' && <LoadError what="خطة الأسبوع" title="تعذر تقسيم الأسبوع." onRetry={() => setPlanAttempt((n) => n + 1)} className="mt-2" />}
+          {planStatus === 'loading' && week.slow && <div className="mt-2"><StillWorking>توزيع الزيارات على أيام الأسبوع يأخذ وقتاً أطول مع منشآت كثيرة.</StillWorking></div>}
+          {planStatus === 'error' && <LoadError what="خطة الأسبوع" title="تعذر تقسيم الأسبوع." onRetry={week.retry} className="mt-2" />}
           {/* a limit, not a failure: the shared «no result» shape with the two changes that fit the week */}
           {planStatus === 'too-many' && <NoResult title={`المنشآت أكثر من ${numberFormat.format(WEEK_STOPS_MAX)} لخطة أسبوع واحد`} body="اختر نشاطاً أدق، أو زد عدد المندوبين لتصغر كل منطقة." className="mt-2" />}
           {plan && planStatus === 'idle' && (
