@@ -289,15 +289,26 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           'text-field': ['get', 'label'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.4], 'text-allow-overlap': false,
           'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
         }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 6 } })
-        // a list's businesses: a dot each (olive once it is in the request being built), its name beside it zoomed in
-        instance.addSource('businesses', { type: 'geojson', data: EMPTY })
-        instance.addLayer({ id: 'business-dot', type: 'circle', source: 'businesses', paint: {
+        // a list's businesses: close ones grouped into a numbered circle until zoomed in (olive when one is in the request
+        // being built, ringed when the row under the pointer is inside), then a dot each, its name beside it
+        instance.addSource('businesses', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 36, clusterMaxZoom: 15,
+          clusterProperties: { inRequest: ['max', ['case', ['boolean', ['get', 'inRequest'], false], 1, 0]], active: ['max', ['case', ['boolean', ['get', 'active'], false], 1, 0]] } })
+        instance.addLayer({ id: 'business-cluster', type: 'circle', source: 'businesses', filter: ['has', 'point_count'], paint: {
+          'circle-color': ['case', ['>', ['get', 'inRequest'], 0], PALETTE.olive, PALETTE.ochre],
+          'circle-radius': ['step', ['get', 'point_count'], 13, 10, 17, 50, 22],
+          'circle-stroke-color': ['case', ['>', ['get', 'active'], 0], PALETTE.ink, PALETTE.white],
+          'circle-stroke-width': ['case', ['>', ['get', 'active'], 0], 3, 2],
+        } })
+        instance.addLayer({ id: 'business-count', type: 'symbol', source: 'businesses', filter: ['has', 'point_count'], layout: {
+          'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-allow-overlap': true,
+        }, paint: { 'text-color': PALETTE.white } })
+        instance.addLayer({ id: 'business-dot', type: 'circle', source: 'businesses', filter: ['!', ['has', 'point_count']], paint: {
           'circle-color': ['case', ['boolean', ['get', 'inRequest'], false], PALETTE.olive, PALETTE.ochre],
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, ['case', ['boolean', ['get', 'active'], false], 7, 4.5], 16, ['case', ['boolean', ['get', 'active'], false], 11, 8]],
           'circle-stroke-color': ['case', ['boolean', ['get', 'active'], false], PALETTE.ink, PALETTE.white],
           'circle-stroke-width': ['case', ['boolean', ['get', 'active'], false], 3, 1.5],
         } })
-        instance.addLayer({ id: 'business-name', type: 'symbol', source: 'businesses', minzoom: 13, layout: {
+        instance.addLayer({ id: 'business-name', type: 'symbol', source: 'businesses', minzoom: 13, filter: ['!', ['has', 'point_count']], layout: {
           'text-field': ['get', 'name'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': 12, 'text-offset': [0, -1.3], 'text-anchor': 'bottom',
           'text-max-width': 10, 'text-allow-overlap': false, 'symbol-sort-key': ['case', ['boolean', ['get', 'active'], false], 0, 1],
         }, paint: { 'text-color': PALETTE.ink, 'text-halo-color': PALETTE.white, 'text-halo-width': 2 } })
@@ -310,6 +321,14 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         instance.on('click', (event) => {
           const [business] = instance.queryRenderedFeatures(event.point, { layers: ['business-dot'] })
           if (business && openBusiness.current) { openBusiness.current(String(business.properties?.id)); return }
+          const [group] = instance.queryRenderedFeatures(event.point, { layers: ['business-cluster'] })
+          if (group) {
+            // a group of businesses opens at the zoom where it comes apart
+            const source = instance.getSource('businesses') as GeoJSONSource
+            const centre = (group.geometry as GeoJSON.Point).coordinates as [number, number]
+            source.getClusterExpansionZoom(Number(group.properties?.cluster_id), (error, zoom) => instance.easeTo({ center: centre, zoom: error || zoom == null ? instance.getZoom() + 2 : zoom + 0.5 }))
+            return
+          }
           const [listing] = instance.queryRenderedFeatures(event.point, { layers: ['listing-dot'] })
           if (listing && openListing.current) { openListing.current(String(listing.properties?.id)); return }
           const [cluster] = instance.queryRenderedFeatures(event.point, { layers: ['listing-cluster'] })
@@ -322,7 +341,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           districtClick.current?.({ id: String(id), lon: event.lngLat.lng, lat: event.lngLat.lat })
           toggle.current(String(id))
         })
-        for (const layer of ['listing-dot', 'listing-cluster', 'street-line', 'business-dot']) {
+        for (const layer of ['listing-dot', 'listing-cluster', 'street-line', 'business-dot', 'business-cluster']) {
           instance.on('mouseenter', layer, () => { instance.getCanvas().style.cursor = 'pointer' })
           instance.on('mouseleave', layer, () => { instance.getCanvas().style.cursor = '' })
         }

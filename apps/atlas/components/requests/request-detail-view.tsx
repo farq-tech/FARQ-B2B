@@ -13,6 +13,7 @@ import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
+import { useBackClose } from '@/lib/use-back-close'
 import { businessName } from '@/lib/business-name'
 import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
 import type { RequestItem } from '@/lib/types'
@@ -29,7 +30,8 @@ export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
   const { requests, inbox, updateRequest, createDraft } = useAppStore()
   const cities = useCities()
-  const [reviewOpen, setReviewOpen] = useState(false)
+  // the phone's Back closes the review instead of leaving the request (lib/use-back-close.ts)
+  const [reviewOpen, setReviewOpen] = useBackClose('review')
   const request = requests.find((r) => r.id === id)
 
   if (!request) {
@@ -352,7 +354,7 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
 }) {
   // every hook before the first early return, so the order never changes between renders
   const [sendingId, setSendingId] = useState<string | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useBackClose('send-confirm')
   const [error, setError] = useState('')
   const [ready, setReady] = useState<boolean | null>(null)
   const [readyStatus, setReadyStatus] = useState('جارٍ التحقق من جاهزية الإرسال...')

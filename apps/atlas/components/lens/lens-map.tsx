@@ -14,7 +14,7 @@ import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
-import { getSticky, setSticky, stickyHas, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
+import { getSticky, setSticky, stickyHas, useStickyState, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, DURATION, EASE, SPRING, motion, useReducedMotion } from '@/lib/motion'
 import { useCityData, type CityTable, type DistrictRow } from './city-data'
@@ -22,9 +22,11 @@ import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps, type BusinessDot } from './lens-map-canvas'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { MapOnboarding } from './map-onboarding'
-import { SavedComparisons } from './saved-comparisons'
+import { SavedComparisons, SavedList } from './saved-comparisons'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
+import { districtAt } from '@/lib/geo-measure'
+import { useAppStore } from '@/lib/store'
 import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
@@ -331,6 +333,13 @@ function NextAction({ href, onClick, icon: Icon, children }: { href?: string; on
   const look = 'inline-flex min-h-9 items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3 py-1 text-sm font-semibold text-primary outline-none transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11'
   const body = <><Icon className="size-4 shrink-0" aria-hidden />{children}</>
   return href ? <Link href={href} className={look}>{body}</Link> : <button type="button" onClick={onClick} className={look}>{body}</button>
+}
+
+/** The saved comparisons as a card of their own (nothing where none is saved). */
+function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
+  const { views } = useAppStore()
+  if (!views.length) return null
+  return <section aria-label="المقارنات المحفوظة" className="rounded-2xl border bg-card p-4"><SavedList onOpen={onOpen} /></section>
 }
 
 type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
@@ -734,6 +743,10 @@ export function LensMap() {
   // the open list's businesses, named on the map; a row and its dot light together (bizPoint), a dot opens its card
   const [biz, setBiz] = useState<{ dots: BusinessDot[]; rows: PublicDirectoryEntity[] }>({ dots: [], rows: [] })
   const [bizPoint, setBizPoint] = useState<string | null>(null)
+  // what the map shows, for a list that follows it
+  const [mapBounds, setMapBounds] = useState<[number, number, number, number] | null>(null)
+  // the business audience's activity (its «منشآت» mode), carried into the campaign step's list
+  const [audienceMode] = useStickyState<'people' | 'businesses'>('audience.mode', 'people')
   const onMarkers = useCallback((dots: BusinessDot[], rows: PublicDirectoryEntity[]) => setBiz({ dots, rows }), [])
   const bizDots = useMemo(() => biz.dots.map((dot) => (dot.id === bizPoint || dot.id === located?.id ? { ...dot, active: true } : dot)), [biz.dots, bizPoint, located?.id])
   const openBiz = (id: string) => {
@@ -958,6 +971,17 @@ export function LensMap() {
     </>
     return null
   }
+  // under each site's card: the businesses of the studied activity in the site's district, from where a quote request,
+  // a campaign or a list starts (the city's when the site sits outside every district)
+  const siteAction = (site: { label: string; lon: number; lat: number }) => {
+    const id = districtAt(site, data.features)
+    const row = id ? data.rows.find((item) => item.id === id) ?? null : null
+    return (
+      <NextAction icon={ClipboardList} onClick={() => { setSelected(row ? [row.id] : []); setSearch({ q: studied.label, nonce: Date.now() }) }}>
+        اطلب تسعيراً من منشآت «{studied.label}» {row ? `في ${row.name}` : 'في المدينة'}
+      </NextAction>
+    )
+  }
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
   // «ابدأ من»: a step that takes a district, opened with none picked, starts from the district an earlier step put first
   const startLeads: Partial<Record<ToolId, string>> = {}
@@ -1046,7 +1070,7 @@ export function LensMap() {
             already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
           style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setLocated(null); setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : located} onPin={setCardAt} />
@@ -1183,7 +1207,7 @@ export function LensMap() {
               {search && (
                 <div className="flex flex-col gap-2">
                   <Chip onClick={() => { focusAfter.current = tabId(tool); closeSearch() }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
-                  <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} onLocate={locate} located={located?.id ?? null} onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} />
+                  <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} onLocate={locate} located={located?.id ?? null} onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds} />
                 </div>
               )}
               {!search && (
@@ -1216,13 +1240,15 @@ export function LensMap() {
                         {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                           onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} next={nextFor('competitors')} />}
                         {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} />}
+                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} siteAction={siteAction} />}
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
                         {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
                         {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
                           here={() => (typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`)} onOpen={openView} />}
+                        {/* the analysts' first step lists what they saved, so a comparison is reopened from where the journey starts */}
+                        {tool === 'district' && lens === 'analysts' && <SavedListCard onOpen={openView} />}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1243,7 +1269,8 @@ export function LensMap() {
                   {showBusinesses && (
                     <div id={JOURNEY_BUSINESSES} className="scroll-mt-2">
                       <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} onLocate={locate} located={located?.id ?? null}
-                        onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint}
+                        onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds}
+                        prefill={tool === 'gaps' || (tool === 'businesses' && lens === 'marketers' && audienceMode === 'businesses') ? studied.label : null}
                         onAnswer={tool === 'businesses' ? onBusinessesAnswer : undefined} />
                     </div>
                   )}
