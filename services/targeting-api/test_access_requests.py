@@ -90,10 +90,50 @@ class RenderTests(unittest.TestCase):
         self.assertIn('لا طلبات بعد', access_requests.render_html([]))
 
 
+class ReviewTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        _, answer = access_requests.submit(self.folder, body(), now=10.0)
+        self.id = answer['id']
+        access_requests.submit(self.folder, body(contact='0550000001'), now=11.0)
+
+    def test_a_decision_replaces_the_earlier_one_and_the_request_file_is_untouched(self):
+        path = os.path.join(self.folder, access_requests.FILE_NAME)
+        with open(path, encoding='utf-8') as handle:
+            before = handle.read()
+        self.assertEqual(access_requests.unread_count(self.folder), 2)
+        self.assertEqual(access_requests.review(self.folder, self.id, 'reviewed', 'اتصلت به', now=20.0)[0], 200)
+        self.assertEqual(access_requests.review(self.folder, self.id, 'approved', ' أُنشئ الحساب يدوياً <b> ', now=30.0)[0], 200)
+        rows = {row['id']: row for row in access_requests.with_reviews(self.folder)}
+        self.assertEqual((rows[self.id]['status'], rows[self.id]['note']), ('approved', 'أُنشئ الحساب يدوياً b'))
+        self.assertEqual(access_requests.unread_count(self.folder), 1)
+        with open(path, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), before)
+        self.assertEqual(len(access_requests.read_reviews(self.folder)), 2, 'every decision is kept as a trail')
+
+    def test_wrong_status_note_or_id(self):
+        self.assertEqual(access_requests.review(self.folder, self.id, 'new')[0], 400)
+        self.assertEqual(access_requests.review(self.folder, self.id, 'approved', 'x' * 501)[0], 400)
+        self.assertEqual(access_requests.review(self.folder, '0' * 16, 'approved')[0], 404)
+        self.assertEqual(access_requests.review(self.folder, '../etc', 'approved')[0], 404)
+        self.assertEqual(access_requests.read_reviews(self.folder), [])
+
+    def test_the_page_shows_the_decision_the_unread_count_and_a_form_per_request(self):
+        access_requests.review(self.folder, self.id, 'rejected', 'A & "B"')
+        page = access_requests.render_html(access_requests.with_reviews(self.folder), saved=True)
+        self.assertIn('جديدة لم يُتخذ فيها قرار: <strong>1</strong>', page)
+        self.assertIn('مرفوض', page)
+        self.assertIn('A &amp; &quot;B&quot;', page)
+        self.assertNotIn('A & "B"', page)
+        self.assertEqual(page.count('action="/access-requests/review"'), 2)
+        self.assertIn('حُفظ القرار', page)
+
+
 class ReadOnlyTests(unittest.TestCase):
     def test_the_read_only_deployment_stores_no_request(self):
         with patch.dict(os.environ, {'ATLAS_READ_ONLY': '1'}, clear=False):
             self.assertTrue(read_only_test.blocks_request('/access-requests'))
+            self.assertTrue(read_only_test.blocks_request('/access-requests/review'))
 
 
 if __name__ == '__main__':

@@ -12,6 +12,8 @@ import { SESSION_CHANGED } from './use-signed-in'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
+/** The shortest gap between two account syncs of the saved comparisons started by returning to the tab. */
+const FOCUS_SYNC_MS = 30_000
 
 interface State {
   requests: RequestItem[]
@@ -419,7 +421,21 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     // signing in or out on this page (the login form, the app bar's «خروج») joins or separates the account's list
     const again = () => { void syncViews() }
     window.addEventListener(SESSION_CHANGED, again)
-    return () => window.removeEventListener(SESSION_CHANGED, again)
+    // coming back to this tab (from another device's tab, or the phone unlocked) picks up what changed meanwhile;
+    // at most once every FOCUS_SYNC_MS, so switching windows back and forth does not ask the account each time
+    let last = Date.now()
+    const back = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < FOCUS_SYNC_MS) return
+      last = Date.now()
+      void syncViews()
+    }
+    window.addEventListener('focus', back)
+    document.addEventListener('visibilitychange', back)
+    return () => {
+      window.removeEventListener(SESSION_CHANGED, again)
+      window.removeEventListener('focus', back)
+      document.removeEventListener('visibilitychange', back)
+    }
   }, [workspaceReady, syncViews])
   /** Takes a view out of the account; remembered until the account confirms, so it is not merged back meanwhile. */
   const removeFromAccount = useCallback((href: string) => {

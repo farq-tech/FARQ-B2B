@@ -98,6 +98,19 @@ export function safeNext(value: unknown): string | null {
 /** The order the fields appear in, so the first one to fix gets the focus. */
 export const ACCESS_FIELD_ORDER: AccessField[] = ['name', 'company', 'contact', 'city', 'category', 'purpose']
 
+/**
+ * The category the person most likely is, read from where they came from: the map's group (`lens=`) or the
+ * supplier search (`goal=find-supplier`). Only a suggestion, preselected in the form; '' when the address says nothing.
+ */
+export function categoryFromNext(next: string | null | undefined): AccessCategory | '' {
+  const safe = safeNext(next)
+  if (!safe) return ''
+  const query = new URLSearchParams(safe.split('?')[1] ?? '')
+  const lens = query.get('lens')
+  if (lens && Object.hasOwn(LENS_GOALS, lens)) return lens as LensId
+  return query.get('goal') === 'find-supplier' ? 'supplier' : ''
+}
+
 export const REQUEST_ACCESS_PATH = '/request-access'
 
 /** The «اطلب حساباً» page, told where to send the person back once the request is sent (same rule as the login's). */

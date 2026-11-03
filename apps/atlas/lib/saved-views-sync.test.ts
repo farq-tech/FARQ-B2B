@@ -62,3 +62,16 @@ test('signed out, only this device’s comparisons stay; the account record hold
   assert.equal(readView({ ...view('a', '/map'), synced: true })?.synced, true)
   assert.equal(readView({ ...view('a', '/map'), synced: 'yes' })?.synced, undefined)
 })
+
+test('a saved site comparison (kind: sites) keeps its kind through the account and the merge', () => {
+  const sites = view('s', '/map?lens=shops&tool=around&sites=1', '2026-11-03T09:00:00Z', { kind: 'sites', districts: ['الموقع 1 في العليا', 'الموقع 2 في الملقا'] })
+  // the record the account keeps, as JSON, read back the way app/api/saved-views reads it
+  const record = JSON.parse(JSON.stringify(viewPayload(sites))) as { view: unknown }
+  const back = readView(record.view)
+  assert.equal(back?.kind, 'sites')
+  assert.equal(mergeSavedViews([], [{ ...back!, synced: true }]).views[0].kind, 'sites')
+  assert.equal(mergeSavedViews([sites], []).upload[0].kind, 'sites')
+  const renamed = mergeSavedViews([{ ...sites, name: 'جديد', createdAt: '2026-11-03T12:00:00Z' }], [{ ...back!, synced: true }])
+  assert.deepEqual([renamed.views[0].name, renamed.views[0].kind, renamed.upload[0]?.kind], ['جديد', 'sites', 'sites'])
+  assert.equal(readView({ ...sites, kind: 'other' })?.kind, undefined, 'an unknown kind is not carried')
+})

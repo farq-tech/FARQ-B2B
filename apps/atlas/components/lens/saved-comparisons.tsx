@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Bookmark, BookmarkCheck, Trash2 } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Cloud, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, makeId } from '@/lib/format'
 import { numberFormat } from '@/lib/insights-api'
@@ -97,6 +97,12 @@ export function SavedList({ current = null, onOpen, hideEmpty = false, heading =
             const body = <>
               <span className="truncate font-semibold">{view.name}</span>
               <span className="truncate text-xs text-muted-foreground">{view.cityName} · {view.districts.join('، ')} · {formatDate(view.createdAt)}</span>
+              {/* where it is kept: in the account (opens on any device once signed in) or on this device only */}
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                {view.synced
+                  ? <><Cloud className="size-3.5 shrink-0" aria-hidden />في حسابك</>
+                  : <><Smartphone className="size-3.5 shrink-0" aria-hidden />على هذا الجهاز فقط</>}
+              </span>
             </>
             return (
               <li key={view.id} className={cn('flex items-center gap-2 py-2', view.href === current && 'text-primary')}>

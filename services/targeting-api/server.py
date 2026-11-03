@@ -1114,8 +1114,13 @@ class H(BaseHTTPRequestHandler):
         elif route.path == '/access-requests':
             # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
-            b = access_requests.render_html(access_requests.read_all(RUNTIME_DIR)).encode()
+            saved = urllib.parse.parse_qs(route.query).get('saved') == ['1']
+            b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved).encode()
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+        elif route.path == '/access-requests/count':
+            # the console's badge: how many requests wait for a decision (a number only, no contact)
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            self._json({'new': access_requests.unread_count(RUNTIME_DIR)})
         elif self.path == '/log':
             rows = []
             if os.path.exists(LOG):
@@ -1158,6 +1163,14 @@ class H(BaseHTTPRequestHandler):
                 'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
             }, 403)
             return
+        if self.path == '/access-requests/review':
+            # the owner's decision on a request, from the list's own form (console login only; the cookie is SameSite=Strict)
+            if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
+            form = urllib.parse.parse_qs(raw.decode(errors='replace'), keep_blank_values=True)
+            status, answer = access_requests.review(RUNTIME_DIR, form.get('id', [''])[0], form.get('status', [''])[0], form.get('note', [''])[0])
+            LOGGER.info('access_request_review status=%s', status)
+            if status != 200: self._json(answer, status); return
+            self.send_response(303); self.send_header('Location', '/access-requests?saved=1'); self.end_headers(); return
         body = json.loads(raw or b'{}')
         if self.path in ('/map-query','/map-profile','/map-focus'):
             try:

@@ -8,7 +8,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { ACCESS_CATEGORIES, ACCESS_FIELD_ORDER, accessRequestBody, safeNext, validateAccessRequest, type AccessErrors, type AccessField, type AccessRequestInput } from '@/lib/access-request'
+import { ACCESS_CATEGORIES, ACCESS_FIELD_ORDER, accessRequestBody, categoryFromNext, safeNext, validateAccessRequest, type AccessErrors, type AccessField, type AccessRequestInput } from '@/lib/access-request'
 import { numberFormat, useCities } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
@@ -25,7 +25,8 @@ export function RequestAccessForm() {
   const search = useSearchParams()
   const next = safeNext(search.get('next'))
   const cities = useCities()
-  const [value, setValue] = useState<AccessRequestInput>(EMPTY)
+  // the group the person came from on the map is chosen already; one tap changes it
+  const [value, setValue] = useState<AccessRequestInput>(() => ({ ...EMPTY, category: categoryFromNext(next) }))
   const [errors, setErrors] = useState<AccessErrors>({})
   const [tried, setTried] = useState(false)
   const [failure, setFailure] = useState('')
