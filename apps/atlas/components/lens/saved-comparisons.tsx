@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { Bookmark, BookmarkCheck, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -27,7 +28,7 @@ export function SavedComparisons({ city, cityName, districts, here, onOpen }: {
   /** Opens a saved comparison's address on the map. */
   onOpen: (href: string) => void
 }) {
-  const { views, saveComparison, removeComparison } = useAppStore()
+  const { views, saveComparison } = useAppStore()
   const offered = defaultName(districts)
   const [name, setName] = useState<string | null>(null)
   const typed = name ?? offered
@@ -63,28 +64,51 @@ export function SavedComparisons({ city, cityName, districts, here, onOpen }: {
           </button>
         </form>
       ))}
-      <div className="flex flex-col gap-1.5">
-        <h3 className="text-sm font-semibold text-muted-foreground">المقارنات المحفوظة{views.length ? ` (${numberFormat.format(views.length)})` : ''}</h3>
-        {views.length === 0 ? (
-          <p className="text-sm text-muted-foreground">لا مقارنة محفوظة بعد. اختر حيين ثم احفظ المقارنة باسم تعرفه.</p>
-        ) : (
-          <ul className="flex flex-col divide-y">
-            {views.map((view) => (
+      <SavedList current={current} onOpen={onOpen} />
+    </section>
+  )
+}
+
+/**
+ * The saved comparisons, newest first: each opens on the map as it was (on the map itself through `onOpen`, from any
+ * other page as a link to its address) and is deleted with one tap. `hideEmpty` leaves nothing where none is saved.
+ */
+export function SavedList({ current = null, onOpen, hideEmpty = false, heading = 'h3' }: {
+  current?: string | null
+  onOpen?: (href: string) => void
+  hideEmpty?: boolean
+  heading?: 'h2' | 'h3'
+}) {
+  const { views, removeComparison } = useAppStore()
+  if (hideEmpty && !views.length) return null
+  const Heading = heading
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Heading className="text-sm font-semibold text-muted-foreground">المقارنات المحفوظة{views.length ? ` (${numberFormat.format(views.length)})` : ''}</Heading>
+      {views.length === 0 ? (
+        <p className="text-sm text-muted-foreground">لا مقارنة محفوظة بعد. اختر حيين ثم احفظ المقارنة باسم تعرفه.</p>
+      ) : (
+        <ul className="flex flex-col divide-y">
+          {views.map((view) => {
+            const look = 'flex min-w-0 flex-1 flex-col text-start outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            const body = <>
+              <span className="truncate font-semibold">{view.name}</span>
+              <span className="truncate text-xs text-muted-foreground">{view.cityName} · {view.districts.join('، ')} · {formatDate(view.createdAt)}</span>
+            </>
+            return (
               <li key={view.id} className={cn('flex items-center gap-2 py-2', view.href === current && 'text-primary')}>
-                <button type="button" onClick={() => onOpen(view.href)} aria-current={view.href === current ? 'true' : undefined}
-                  className="flex min-w-0 flex-1 flex-col text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <span className="truncate font-semibold">{view.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">{view.cityName} · {view.districts.join('، ')} · {formatDate(view.createdAt)}</span>
-                </button>
+                {onOpen
+                  ? <button type="button" onClick={() => onOpen(view.href)} aria-current={view.href === current ? 'true' : undefined} className={look}>{body}</button>
+                  : <Link href={view.href} className={look}>{body}</Link>}
                 <button type="button" onClick={() => removeComparison(view.id)} aria-label={`احذف «${view.name}»`}
                   className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-10">
                   <Trash2 className="size-4" aria-hidden />
                 </button>
               </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }

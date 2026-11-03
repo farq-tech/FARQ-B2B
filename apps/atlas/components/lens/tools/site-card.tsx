@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { SignInLink } from '@/components/shared/sign-in-link'
 import { Baby, Lock, MapPin, Store, Users } from 'lucide-react'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
@@ -41,7 +41,7 @@ const show = (value: number | null | undefined) => figure(value) ?? <Unavailable
  * «بطاقة الموقع»: for one candidate site and its range, who already competes there (by name and distance) and who
  * lives there (women and men, Saudis and others, children as an estimate). A missing figure reads «غير متاح».
  */
-export function SiteCard({ label, color, reach, activity, state, onRetry }: { label: string; color: string; reach: string; activity: string; state?: SiteCardState; onRetry?: () => void }) {
+export function SiteCard({ label, color, reach, activity, state, onRetry, action }: { label: string; color: string; reach: string; activity: string; state?: SiteCardState; onRetry?: () => void; /** The step after the card (a request from the businesses around the site), given by the map shell. */ action?: ReactNode }) {
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
       <header className="flex items-center gap-2 px-4 py-3" style={{ background: color, color: readableOn(color) }}>
@@ -83,6 +83,7 @@ export function SiteCard({ label, color, reach, activity, state, onRetry }: { la
       )}
       {state?.status === 'error' && <LoadError what="بطاقة الموقع" detail={state.message} onRetry={onRetry} className="m-4" />}
       {state?.status === 'ready' && <Body data={state.data} activity={activity} />}
+      {action && <div className="flex flex-wrap gap-2 border-t px-4 py-3">{action}</div>}
     </article>
   )
 }
