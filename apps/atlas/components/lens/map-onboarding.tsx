@@ -23,7 +23,7 @@ const GOALS: Record<LensId, string> = {
   analysts: 'أفهم السوق والأحياء',
   property: 'أدوّر عقاراً مناسباً',
 }
-const EXPLAINED = '[aria-label="لوحة الخريطة"] [aria-label^="كيف حُسب"]'
+const EXPLAINED = '[aria-label="لوحة الخريطة"] [data-explained]'
 
 function read(): CoachState {
   try { return (localStorage.getItem(KEY) as CoachState | null) ?? 'not_started' } catch { return 'completed' }
@@ -95,7 +95,7 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
     mark()
     const watch = new MutationObserver(mark)
     watch.observe(document.body, { childList: true, subtree: true })
-    const opened = (event: MouseEvent) => { if ((event.target as Element | null)?.closest?.('[aria-label^="كيف حُسب"]')) go('completed', 'explain') }
+    const opened = (event: MouseEvent) => { if ((event.target as Element | null)?.closest?.('[data-explained]')) go('completed', 'explain') }
     document.addEventListener('click', opened, true)
     return () => { watch.disconnect(); target?.classList.remove('coach-target'); document.removeEventListener('click', opened, true) }
   }, [state])

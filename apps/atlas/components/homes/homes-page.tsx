@@ -188,7 +188,8 @@ export function HomesPage() {
       {mobileMap && <h1 className="sr-only lg:hidden">خريطة عروض {cityAr}</h1>}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* results: two columns of photo cards */}
-        <section className={cn('min-h-0 overflow-y-auto px-4 py-4 lg:px-6', mobileMap && 'hidden lg:block')} aria-label="العروض">
+        {/* the list scrolls on its own: it takes keyboard focus so arrow keys and Page Down scroll it (WCAG 2.1.1) */}
+        <section tabIndex={0} className={cn('min-h-0 overflow-y-auto px-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:px-6', mobileMap && 'hidden lg:block')} aria-label="العروض">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-xl font-bold">
               {/* the service sends the best LIMIT of a larger match: then the count is «the best N», never the city's */}

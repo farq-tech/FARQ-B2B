@@ -207,7 +207,7 @@ export function InboxView() {
               <MessageDetail key={selected.id} message={selected} />
             </div>
           ) : (
-            <EmptyState icon={MailOpen} title="اختر رسالة" body="تظهر الرسالة هنا كاملة مع الطلب الذي تخصه، وتكتب ردك وتراجعه قبل أن ترسله."
+            <EmptyState heading="h2" icon={MailOpen} title="اختر رسالة" body="تظهر الرسالة هنا كاملة مع الطلب الذي تخصه، وتكتب ردك وتراجعه قبل أن ترسله."
               className="h-full min-h-80 justify-center" />
           )}
         </section>
