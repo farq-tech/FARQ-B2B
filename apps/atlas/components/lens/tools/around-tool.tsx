@@ -129,12 +129,6 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     cardFor(city, site, geometry, activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
   }, [keyOf, results, city, activity])
 
-  // a site whose area or figures failed is worked out again from the start; the other sites stay as they are
-  const retrySite = useCallback((site: { id: number }) => {
-    requested.current.delete(keyOf(site))
-    setSites((current) => [...current])   // a new list of the same sites runs the effect above once more
-  }, [keyOf])
-
   // «ابدأ من هنا»: a first visit compares the city's two most populous districts in one tap, a site in each
   const sample = useMemo(() => {
     const outline = new Map(features.map((feature) => [String(feature.properties.id), feature.geometry]))
@@ -146,7 +140,8 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   }, [districts, features])
 
   const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
-  // sites whose area or figures failed: said once above the table, and asked again together
+  // sites whose area or figures failed: said once above the table, and asked again together (a new list of the same
+  // sites runs the request effect once more; the sites that worked stay as they are)
   const failed = labelled.filter((site) => site.result?.status === 'error')
   const retryFailed = () => {
     for (const site of failed) requested.current.delete(keyOf(site))
@@ -269,15 +264,9 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
                 {labelled.map((site) => {
                   const result = site.result
                   if (!result || result.status === 'loading') return <td key={site.id} className="py-2.5 text-center" aria-busy="true"><Skeleton className="mx-auto h-5 w-12" aria-hidden /><span className="sr-only">جارٍ الحساب</span></td>
-                  // the reason is said once, here, with a retry; the figure rows below only mark the column
-                  if (result.status === 'error') {
-                    return (
-                      <td key={site.id} className="py-2.5 text-center text-sm">
-                        <span role="alert" className="block text-destructive">{result.message}</span>
-                        <button type="button" onClick={() => retrySite(site)} className="mt-1 font-semibold text-primary underline">أعد المحاولة</button>
-                      </td>
-                    )
-                  }
+                  // the reason and the retry are said once, above the table (it was said twice, and read out twice);
+                  // the column only marks that this site failed
+                  if (result.status === 'error') return <td key={site.id} className="py-2.5 text-center text-sm font-semibold text-destructive">تعذر الحساب</td>
                   const value = scoreById.get(site.id)
                   return (
                     <td key={site.id} className="py-2.5 text-center">
