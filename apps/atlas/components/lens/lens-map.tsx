@@ -25,6 +25,7 @@ import { MapOnboarding } from './map-onboarding'
 import { SavedComparisons } from './saved-comparisons'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
+import { districtAt } from '@/lib/geo-measure'
 import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
@@ -916,6 +917,17 @@ export function LensMap() {
     </>
     return null
   }
+  // under each site's card: the businesses of the studied activity in the site's district, from where a quote request,
+  // a campaign or a list starts (the city's when the site sits outside every district)
+  const siteAction = (site: { label: string; lon: number; lat: number }) => {
+    const id = districtAt(site, data.features)
+    const row = id ? data.rows.find((item) => item.id === id) ?? null : null
+    return (
+      <NextAction icon={ClipboardList} onClick={() => { setSelected(row ? [row.id] : []); setSearch({ q: studied.label, nonce: Date.now() }) }}>
+        اطلب تسعيراً من منشآت «{studied.label}» {row ? `في ${row.name}` : 'في المدينة'}
+      </NextAction>
+    )
+  }
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
   // «ابدأ من»: a step that takes a district, opened with none picked, starts from the district an earlier step put first
   const startLeads: Partial<Record<ToolId, string>> = {}
@@ -1134,7 +1146,7 @@ export function LensMap() {
                         {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                           onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} next={nextFor('competitors')} />}
                         {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} />}
+                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} siteAction={siteAction} />}
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}

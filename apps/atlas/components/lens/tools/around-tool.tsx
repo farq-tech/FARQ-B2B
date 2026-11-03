@@ -84,10 +84,12 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * each, by distance or by drive time on the real road network. Every figure is the same golden count as the rest of
  * Atlas, only the boundary differs.
  */
-export function AroundTool({ city, onOverlay, districts, features, next }: {
+export function AroundTool({ city, onOverlay, districts, features, next, siteAction }: {
   city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[]
   /** The step after the verdict (shops for rent near the best site, a request), given by the map shell. */
   next?: ReactNode
+  /** The step under each site's card (a request from the businesses around it), given by the map shell. */
+  siteAction?: (site: { label: string; lon: number; lat: number }) => ReactNode
 }) {
   const [activity] = useStudiedActivity()
   // each site keeps its slot (its number and colour) while it is on the map; see placeSite
@@ -315,7 +317,7 @@ export function AroundTool({ city, onOverlay, districts, features, next }: {
       {ready.length > 0 && (
         <div className="space-y-3">
           {ready.map((site) => (
-            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} />
+            <SiteCard key={site.id} label={site.label} color={site.color} reach={reachLabel(reach)} activity={activity.label} state={site.result!.card} onRetry={() => retryCard(site)} action={siteAction?.(site)} />
           ))}
         </div>
       )}
