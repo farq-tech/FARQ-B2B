@@ -68,7 +68,10 @@ export function HomesPage() {
   const seenBounds = useRef<[number, number, number, number] | null>(null)
   const followBounds = useCallback((next: [number, number, number, number]) => { seenBounds.current = next; if (!activeOpen.current) setBounds(next) }, [])
   const activeOpen = useRef(false)
-  useEffect(() => { activeOpen.current = active != null; if (!active && seenBounds.current) setBounds(seenBounds.current) }, [active])
+  // only a list the person was already looking at beside the map keeps its view: a phone opening its map for the
+  // card has nothing in view yet, and takes the card's surroundings as before
+  const mapSeenRef = useRef(false)
+  useEffect(() => { activeOpen.current = active != null && mapSeenRef.current; if (!active && seenBounds.current) setBounds(seenBounds.current) }, [active])
   useEffect(() => { setGroup(null) }, [result.listings])
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -80,6 +83,7 @@ export function HomesPage() {
   // the list follows the map only once the person can see the map: always on a wide screen, and on a phone after they
   // open it. Before that a phone's hidden map still reports bounds, and the list was cut to a view nobody saw.
   const [mapSeen, setMapSeen] = useState(false)
+  mapSeenRef.current = mapSeen
   useEffect(() => {
     const wide = window.matchMedia('(min-width: 64rem)')
     const sync = () => { if (wide.matches) setMapSeen(true) }
