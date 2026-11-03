@@ -70,7 +70,8 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
     // after 12 seconds: one quiet second try after a pause, then the error with «أعد المحاولة»
     const load = () => postMarket<Result>('market-gaps', body)
     return load().catch(() => new Promise<Result>((resolve, reject) => { setTimeout(() => { load().then(resolve, reject) }, 2000) }))
-  })
+  // kept for the visit by city and activity: the half-minute answer is not asked twice (answer-cache.ts)
+  }, { cache: 'gaps' })
   const result = answer.data
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
 

@@ -94,7 +94,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       understood: data.understood ?? null,
       brands: chains,
     }))
-  })
+  // kept for the visit by city and activity, unless the chains failed (then asked again next time)
+  }, { cache: 'competitors', keep: (data) => data.brands != null })
   const counts = answer.data?.counts ?? null
   const cityTotal = answer.data?.cityTotal ?? null
   const located = answer.data?.located ?? null

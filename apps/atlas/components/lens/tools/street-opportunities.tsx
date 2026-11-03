@@ -59,7 +59,7 @@ export function StreetOpportunities({ city, rows = [], studied, clusters, onOver
   // keyed by what is asked, not by the prop object: a new object for the same activity asks nothing again, and a new
   // activity drops the last one's streets at once, so the map never draws them beside the new skeleton
   const answerKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
-  const answer = useAnswer<Result>(answerKey, () => postMarket<Result>('street-opportunities', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }))
+  const answer = useAnswer<Result>(answerKey, () => postMarket<Result>('street-opportunities', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }), { cache: 'street-gaps' })
   const result = answer.data
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
   useEffect(() => { setActive(null) }, [answerKey])

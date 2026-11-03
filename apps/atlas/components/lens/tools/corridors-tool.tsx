@@ -72,7 +72,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
 
   // the streets of one activity; a new activity clears the last one's streets at once, and its picked street with them
   const streetsKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
-  const answer = useAnswer<Result>(chosen ? streetsKey : null, () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }))
+  const answer = useAnswer<Result>(chosen ? streetsKey : null, () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }), { cache: 'streets' })
   const result = answer.data
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
   useEffect(() => { setActive(null) }, [streetsKey])
