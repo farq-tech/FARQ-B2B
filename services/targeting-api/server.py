@@ -66,9 +66,20 @@ def city_polygon_ids(city):
     return sorted(ids|{k for k,v in CANONICAL['district_id_map'].items() if str(v) in ids})
 
 
+_GOLDEN_POP = {}   # city -> golden.population rows (or None); immutable within a release
+
+
 def golden_population(city):
     """The golden population rows of a city, one per canonical district (golden.population), or None when the
-    WorldPop layer the rows are built on is missing."""
+    WorldPop layer the rows are built on is missing. Memoised per city (immutable within a release) so the first
+    cold read of the population parquets is not repeated on every population-districts / brands / gaps request."""
+    if city in _GOLDEN_POP:
+        return _GOLDEN_POP[city]
+    _GOLDEN_POP[city] = rows = _golden_population(city)
+    return rows
+
+
+def _golden_population(city):
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_population_2025.parquet')
     if not os.path.isfile(path): return None
     import insights
@@ -86,9 +97,23 @@ def golden_population(city):
     return golden.with_settled_share(golden.population(merged,city,golden.building_totals(built,CANONICAL['district_id_map'])))
 
 
+_GOLDEN_DEMO = {}   # city -> whole-city golden demographics rows (or None); the districts= filtered path is not cached
+
+
 def golden_demographics(city, districts=(), population=None):
     """Golden by-age rows of a city (or of the given canonical district ids): ages add up to the golden total and
-    male/female are given only where 910ths measured them. None when the WorldPop age layer is missing."""
+    male/female are given only where 910ths measured them. None when the WorldPop age layer is missing. The
+    whole-city call (no districts) is memoised per city — population is derived from the now-memoised
+    golden_population either way, so it does not change the result — while the districts= path stays uncached."""
+    if not districts and city in _GOLDEN_DEMO:
+        return _GOLDEN_DEMO[city]
+    rows = _golden_demographics(city, districts, population)
+    if not districts:
+        _GOLDEN_DEMO[city] = rows
+    return rows
+
+
+def _golden_demographics(city, districts=(), population=None):
     path=os.path.join(AUX_DATA_DIR,'buildings_ingest','population','district_demographics_2025.parquet')
     if not os.path.isfile(path): return None
     # a canonical district stands for every polygon merged into it; rows are chosen by the city's polygon ids
@@ -266,7 +291,7 @@ def insight_response(path, body):
         weight = body.get('weight', 'population')
         if weight not in ('population', 'businesses'): raise ValueError('weight')
         if weight == 'population':
-            weights = {name: row['population'] for name, row in district_population_by_name(city).items() if row.get('population')}
+            weights = {name: row['population'] for name, row in population_by_name_cached(city).items() if row.get('population')}
         else:
             activity = {key: body[key] for key in ('q', 'main_id') if body.get(key)}   # a distributor balances on its own customers
             weights = {row['district_ar']: row['n'] for row in MARKET_ANALYTICS.district_counts({'city': city, **activity})['districts']}
@@ -360,7 +385,7 @@ def insight_response(path, body):
         city = _city(body)
         district = body.get('district')
         if not isinstance(district, str) or not 1 <= len(district) <= 100: raise ValueError('district')
-        people = district_population_by_name(city).get(district) or {}
+        people = population_by_name_cached(city).get(district) or {}
         summary = MARKET_ANALYTICS.market_summary({'city': city, 'districts': [district]})['summary']
         # the golden rows of this city only: a district name can recur in other cities
         ages = sorted(({'age_group': r['age_group'], 'age_code': r['age_code'], 'male': None if r['male'] is None else round(r['male']),
@@ -413,6 +438,38 @@ def _record_chain_history():
         if market_analytics.record_chain_history(MARKET_ANALYTICS, CHAIN_HISTORY): LOGGER.info('chain_history snapshot recorded')
     except Exception as error:   # history is an extra; the service runs without it
         LOGGER.error('chain_history_failed error_type=%s', type(error).__name__)
+
+
+# Cities whose analytic caches + OS page cache are warmed at startup, so the first real user does not pay the cold
+# scan of targets.parquet (537MB) that was timing out behind Atlas's 12s proxy. Largest cities first; add new ones here.
+WARM_CITIES = ('Riyadh', 'Jeddah', 'Dammam')
+
+
+def _warm_city(city):
+    """Fill the per-city memos (population / areas / golden) and the market aggregates with the same arguments the
+    handlers use, then one cheap full scan to pull targets.parquet into the OS page cache."""
+    population_by_name_cached(city)
+    district_areas(city)
+    golden_population(city)
+    MARKET_ANALYTICS.market_summary({'city': city})
+    MARKET_ANALYTICS.district_counts({'city': city})
+    MARKET_ANALYTICS.brands({'city': city}, population=population_by_name_cached(city),
+                            history=market_analytics.read_chain_history(CHAIN_HISTORY))
+    with LOCK:
+        con.execute("select count(*) from read_parquet(?)", [DATA]).fetchone()
+
+
+def _warm_caches():
+    """Daemon-thread body: warm each WARM_CITIES in turn. Never raises — a per-city failure is logged and the next
+    city still runs — so warming can never crash the server, and it never touches startup/readiness."""
+    LOGGER.info('warm_caches start cities=%s', ','.join(WARM_CITIES))
+    for city in WARM_CITIES:
+        try:
+            _warm_city(city)
+            LOGGER.info('warm_caches city_done city=%s', city)
+        except Exception as error:
+            LOGGER.error('warm_caches city_failed city=%s error_type=%s', city, type(error).__name__)
+    LOGGER.info('warm_caches done')
 
 # ---------- Arabic normalisation ----------
 AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
@@ -1347,7 +1404,7 @@ class H(BaseHTTPRequestHandler):
             try:
                 city = body.get('city')
                 if not isinstance(city, str) or not 1 <= len(city) <= 80: raise ValueError('city')
-                self._json(MARKET_ANALYTICS.market_gaps(body, district_population_by_name(city)))
+                self._json(MARKET_ANALYTICS.market_gaps(body, population_by_name_cached(city)))
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('market-gaps', error)
@@ -1377,7 +1434,7 @@ class H(BaseHTTPRequestHandler):
             # chains of an activity and where their branches are (market_analytics.brands); aggregate counts only
             try:
                 city = _city(body)
-                self._json(MARKET_ANALYTICS.brands(body, population=district_population_by_name(city), history=market_analytics.read_chain_history(CHAIN_HISTORY)))
+                self._json(MARKET_ANALYTICS.brands(body, population=population_by_name_cached(city), history=market_analytics.read_chain_history(CHAIN_HISTORY)))
             except ValueError: self._json({'error': 'INPUT'}, 400)
             except Exception as error:
                 log_map_api_failure('brands', error)
@@ -1464,7 +1521,7 @@ class H(BaseHTTPRequestHandler):
                     tx = taxonomy_search.get()
                     subs = market_analytics.corridor_subs(tx, q, body.get('objective')) if tx is not None else []
                     if not subs: self._json({**empty, 'understood': False}); return
-                try: population = district_population_by_name(city)
+                try: population = population_by_name_cached(city)
                 except Exception: population = {}
                 db = duckdb.connect()
                 try: result = street_opportunities.opportunities(db, STREET_DENSITY, city, subs=subs[:20], main_id=None if subs else main, population=population)
@@ -1546,4 +1603,7 @@ if __name__ == '__main__':
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
     print(f"inbox source: {start_inbox_source()}", flush=True)
-    ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()
+    httpd = ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H)
+    # socket is bound now, so /healthz answers at once; warm the cold caches on a daemon thread that never blocks serving
+    threading.Thread(target=_warm_caches, daemon=True, name='warm-caches').start()
+    httpd.serve_forever()
