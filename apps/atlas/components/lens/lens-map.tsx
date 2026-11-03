@@ -837,7 +837,7 @@ export function LensMap() {
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
                   {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                     onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
-                  {tool === 'corridors' && <CorridorsTool city={city} onOverlay={onOverlay} />}
+                  {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
                   {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
