@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMainActivities } from '@/lib/main-activities'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
@@ -12,19 +12,20 @@ import { SHADES } from '../lens-map-canvas'
 import { waiting, type Overlay } from './overlay'
 import { gapsHoverLine, gapsSummary, hiddenCaveatsLine, isShortRow } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
-import { cn } from '@/lib/utils'
-import { Icon3D } from '@/components/shared/icon-3d'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { useAnswer } from './use-answer'
-import { gapsVerdict, populationKind } from './tool-answers'
+import { aroundOf, caveatTag, gapsVerdict, populationKind } from './tool-answers'
+import { Examples } from './examples'
+import { neighbourMap } from '@/lib/geo-measure'
+import type { DistrictFeature } from '@/lib/insights-api'
 import { Verdict } from './verdict'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
  * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
-type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number | null; shortfall: number | null; male_pct?: number | null; caveat?: 'industrial' | 'workers' | null }
+type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number | null; shortfall: number | null; male_pct?: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | null; population_coverage_pct?: number | null }
 /** `population_model_fits` is false when the activity's count does not track population here (wholesale,
  * industrial, B2B, destinations): there is no honest city rate, so `residents_per_business` and every row's
  * `expected_businesses`/`shortfall` are null, and the districts are listed by their real counts only. `fit`
@@ -40,11 +41,13 @@ const MIN_POPULATION = 5000
 const isShort = isShortRow
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
-export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover, next }: {
+export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSelect, selected = [], onHover, next }: {
   city: string
   /** The city's Arabic name, for the line that says its districts have no population. */
   cityName?: string
   rows: DistrictRow[]
+  /** The city's district outlines, for the top district's neighbours (a gap next to a surplus may be served from it). */
+  features?: DistrictFeature[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
   /** The districts picked on the map or anywhere else: their rows are marked. */
@@ -141,13 +144,27 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const [limit, showMore] = useShowMore(10, `${city}|${label}`)
   // the top district's population kind (counted, from buildings, or a density grid), so a guessed population is said
   const topSource = gaps[0] ? rows.find((row) => row.name === gaps[0].district_ar)?.populationSource ?? null : null
-  const verdict = result?.residents_per_business != null ? gapsVerdict(gaps, label, result.residents_per_business, populationKind(topSource)) : null
+  // the top district's neighbours that hold more than they need at the city rate (businesses − needed, each as its row
+  // reads it), so a gap next door to a surplus is said before the decision
+  const neighbours = useMemo(() => (features.length ? neighbourMap(features.map((feature) => ({ id: String(feature.properties.id), geometry: feature.geometry }))) : null), [features])
+  const around = useMemo(() => {
+    const top = gaps[0]
+    const topId = top ? rows.find((row) => row.name === top.district_ar)?.id : undefined
+    if (!result || !topId) return null
+    const byName = new Map(result.districts.map((row) => [row.district_ar, row]))
+    const nameOf = new Map(rows.map((row) => [row.id, row.name]))
+    return aroundOf(topId, neighbours, (id) => {
+      const row = byName.get(nameOf.get(id) ?? '')
+      return row && row.expected_businesses != null ? { name: row.district_ar, n: row.businesses - Math.round(row.expected_businesses) } : null
+    })
+  }, [gaps, rows, result, neighbours])
+  const verdict = result?.residents_per_business != null ? gapsVerdict(gaps, label, result.residents_per_business, populationKind(topSource), around) : null
   // the industrial and labour-housing districts come last, usually past the first rows shown: a line under the visible
   // rows counts them, and a click shows the list down to them
   const [reveal, setReveal] = useState(false)
   useEffect(() => { setReveal(false) }, [city, label])
   const shownRows = reveal ? gaps.length : limit
-  const caveatsLine = firstCaveat >= shownRows ? hiddenCaveatsLine(gaps.length - firstCaveat, numberFormat) : null
+  const caveatsLine = firstCaveat >= shownRows ? hiddenCaveatsLine(gaps.length - firstCaveat, numberFormat, gaps.some((row) => row.caveat === 'estimated')) : null
   const showCaveats = () => {
     setReveal(true)
     window.setTimeout(() => document.getElementById('gaps-caveats')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50)
@@ -166,16 +183,8 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
       </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      {/* the example being studied is marked, as in «المنافسون» and «شوارع النشاط» */}
-      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
-        {EXAMPLES.map((example) => {
-          const on = chosen && studied.q === example
-          return (
-            <button key={example} type="button" onClick={() => { setQuery(example); study(example) }} aria-pressed={on}
-              className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', on ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
-          )
-        })}
-      </div>
+      {/* the example being studied is marked, as in «المنافسون» and «شوارع النشاط»; once chosen they fold away */}
+      <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen} onPick={(example) => { setQuery(example); study(example) }} />
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
       {status === 'error' && (
         <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."
@@ -206,8 +215,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
               <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto" aria-label={`أحياء «${label}» بأعدادها الفعلية`}>
                 {result.districts.slice(0, shownRows).map((row) => {
                   const id = ids.get(row.district_ar)
-                  const tag = row.caveat === 'industrial' ? 'منطقة صناعية'
-                    : row.caveat === 'workers' ? (row.male_pct != null ? `${numberFormat.format(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً') : null
+                  const tag = caveatTag(row)
                   return (
                     <ResultRow key={row.district_ar}
                       title={tag ? <>{row.district_ar} <span className="ms-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{tag}</span></> : row.district_ar}
@@ -256,14 +264,13 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
             {gaps.slice(0, shownRows).map((row, index) => {
               const id = ids.get(row.district_ar)
               const need = Math.round(row.expected_businesses ?? 0)
-              const tag = row.caveat === 'industrial' ? 'منطقة صناعية'
-                : row.caveat === 'workers' ? (row.male_pct != null ? `${numberFormat.format(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً') : null
+              const tag = caveatTag(row)
               return (
                 <Fragment key={row.district_ar}>
                   {index === firstCaveat && (
                     <li id="gaps-caveats" className="pt-4 pb-1 text-sm text-muted-foreground">
-                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال</span>
-                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، فنقصها بعدد السكان لا يعني طلب أسر مقيمة. لذلك تأتي بعد الأحياء السكنية.
+                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال أو سكان مقدّرون</span>
+                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، أو سكانها تقدير من خرائط الكثافة يغطي أقل من نصف مساحتها، فنقصها بعدد السكان لا يُعتمد. لذلك تأتي بعد الأحياء السكنية.
                     </li>
                   )}
                   <ResultRow title={tag ? <>{row.district_ar} <span className="ms-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{tag}</span></> : row.district_ar}

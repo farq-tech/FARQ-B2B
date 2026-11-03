@@ -1293,9 +1293,9 @@ export function LensMap() {
                     {tool !== 'businesses' && (
                       <motion.div key={tool} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         transition={{ duration: reduce ? 0 : DURATION.fast, ease: EASE }}>
-                        {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} next={nextFor('gaps')} />}
+                        {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} features={data.features} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} next={nextFor('gaps')} />}
                         {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} next={nextFor('audience')} />}
-                        {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
+                        {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} features={data.features} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                           onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} next={nextFor('competitors')} />}
                         {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} siteAction={siteAction} seed={trailNow?.leads.gaps ?? null} />}
