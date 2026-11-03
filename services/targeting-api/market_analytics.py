@@ -1035,16 +1035,19 @@ class MarketAnalytics:
         elif main_id:
             clauses.append("main_id = ?")
             params.append(main_id)
-        if districts:
-            # a corridor built on the road network matches every district it crosses (build_trade_corridors.py)
-            columns = {c[0] for c in self.db.execute("describe select * from read_parquet(?)", [self.street_density]).fetchall()}
-            clauses.append(street_density_district_sql(columns))
-            params.append(districts)
-        row = self.db.execute(
-            "select street_ar, district_ar, n, length_m, per_100m, sub_ar "
-            f"from read_parquet(?) where {' and '.join(clauses)} order by n desc, per_100m desc limit 1",
-            params,
-        ).fetchone()
+        # the connection is shared by every request thread: a query outside the lock swaps the result set under
+        # another thread's fetch («No open result set») and fails both
+        with self.lock:
+            if districts:
+                # a corridor built on the road network matches every district it crosses (build_trade_corridors.py)
+                columns = {c[0] for c in self.db.execute("describe select * from read_parquet(?)", [self.street_density]).fetchall()}
+                clauses.append(street_density_district_sql(columns))
+                params.append(districts)
+            row = self.db.execute(
+                "select street_ar, district_ar, n, length_m, per_100m, sub_ar "
+                f"from read_parquet(?) where {' and '.join(clauses)} order by n desc, per_100m desc limit 1",
+                params,
+            ).fetchone()
         if not row:
             return None
         street, district, count, length_m, per_100m, sub = row
