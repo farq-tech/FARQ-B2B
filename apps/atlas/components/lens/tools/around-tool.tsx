@@ -14,6 +14,9 @@ import { PALETTE, readableOn } from '@/lib/palette'
 import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
 import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
+import { placeSite } from './tool-answers'
+import { useSlow } from './use-answer'
+import { Choice, StillWorking } from './choice'
 import type { DistrictRow } from '../city-data'
 
 type Within = { population: number | null; dwellings: number | null; businesses: number | null; residents_per: number | null; top_activities: { activity: string; n: number }[] }
@@ -31,7 +34,6 @@ const MAX_SITES = 3
 const reachLabel = (reach: Reach) => (reach.kind === 'radius'
   ? formatDistance(reach.metres)
   : `${numberFormat.format(reach.minutes)} د بالسيارة`)
-const sameReach = (a: Reach, b: Reach) => a.kind === b.kind && (a.kind === 'radius' ? a.metres === (b as typeof a).metres : a.minutes === (b as typeof a).minutes)
 const show = (value: number | null | undefined) => (value == null ? 'غير متاح' : numberFormat.format(Math.round(value)))
 
 /** A point inside a district to stand a sample site on: its bounding box's centre, else its outline's mean, else a corner. */
@@ -83,7 +85,8 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  */
 export function AroundTool({ city, onOverlay, districts, features }: { city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[] }) {
   const [activity] = useStudiedActivity()
-  const [sites, setSites] = useState<(Point & { id: number })[]>([])
+  // each site keeps its slot (its number and colour) while it is on the map; see placeSite
+  const [sites, setSites] = useState<(Point & { id: number; slot: number })[]>([])
   const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
   const [results, setResults] = useState<Record<string, Result>>({})
   const nextId = useRef(1)
@@ -91,16 +94,23 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
 
-  // a fourth tap replaces the oldest site
+  // a new site takes the lowest free number; a fourth tap replaces the oldest site, in its number and colour
   const pick = useCallback((point: Point) => {
     const id = nextId.current++
-    setSites((current) => [...current.slice(-(MAX_SITES - 1)), { ...point, id }])
+    setSites((current) => placeSite(current, { ...point, id }, MAX_SITES))
   }, [])
 
-  const keyOf = useCallback((site: { id: number }) => `${site.id}|${reach.kind}|${reach.kind === 'radius' ? reach.metres : reach.minutes}|${city}|${activity.q ?? activity.main_id ?? ''}`, [reach, city, activity])
+  // keyed by what is asked (the reach and the activity as strings), never by their objects; the objects are read from
+  // refs when a request starts, so a new object for the same reach or activity asks nothing again
+  const reachKey = reach.kind === 'radius' ? `r${reach.metres}` : `d${reach.minutes}`
+  const activityKey = `${activity.q ?? ''}|${activity.main_id ?? ''}`
+  const asking = useRef({ reach, activity })
+  useEffect(() => { asking.current = { reach, activity } })
+  const keyOf = useCallback((site: { id: number }) => `${site.id}|${reachKey}|${city}|${activityKey}`, [reachKey, city, activityKey])
 
   // each site × reach is worked out once; results are keyed by both, so a late answer never lands on the wrong site
   useEffect(() => {
+    const { reach, activity } = asking.current
     for (const site of sites) {
       const key = keyOf(site)
       if (requested.current.has(key)) continue
@@ -117,7 +127,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
         })
         .catch((error: Error) => settle({ status: 'error', message: error.message || 'تعذر الحساب.' }))
     }
-  }, [sites, reach, keyOf, city, activity])
+  }, [sites, keyOf, city])
 
   // a failed card is asked again on the same area; the comparison figures already on screen stay as they are
   const retryCard = useCallback((site: Point & { id: number }) => {
@@ -126,8 +136,8 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     if (!geometry) return
     const put = (card: SiteCardState) => { if (mounted.current) setResults((current) => (current[key] ? { ...current, [key]: { ...current[key], card } } : current)) }
     put({ status: 'loading' })
-    cardFor(city, site, geometry, activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
-  }, [keyOf, results, city, activity])
+    cardFor(city, site, geometry, asking.current.activity).then(put, (): void => put({ status: 'error', message: 'تعذر حساب بطاقة الموقع.' }))
+  }, [keyOf, results, city])
 
   // «ابدأ من هنا»: a first visit compares the city's two most populous districts in one tap, a site in each
   const sample = useMemo(() => {
@@ -139,7 +149,11 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
       .map((row) => ({ name: row.name, point: insidePoint(outline.get(row.id)!) }))
   }, [districts, features])
 
-  const labelled = useMemo(() => sites.map((site, index) => ({ ...site, label: String(index + 1), color: COLORS[index], result: results[keyOf(site)] })), [sites, results, keyOf])
+  // in slot order, each with the number and colour of its slot
+  const labelled = useMemo(() => [...sites].sort((a, b) => a.slot - b.slot)
+    .map((site) => ({ ...site, label: numberFormat.format(site.slot + 1), color: COLORS[site.slot], result: results[keyOf(site)] })), [sites, results, keyOf])
+  // a drive area or a busy range can take a while: said once, under the table, after a few seconds
+  const slow = useSlow(labelled.some((site) => !site.result || site.result.status === 'loading'))
   // sites whose area or figures failed: said once above the table, and asked again together (a new list of the same
   // sites runs the request effect once more; the sites that worked stay as they are)
   const failed = labelled.filter((site) => site.result?.status === 'error')
@@ -217,14 +231,9 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">قارن المواقع</h2>
       <p className="text-base text-muted-foreground">اضغط على الخريطة لإضافة موقع، حتى {numberFormat.format(MAX_SITES)} مواقع.</p>
-      <div role="group" aria-label="نطاق كل موقع" className="grid grid-cols-3 gap-1.5">
-        {REACHES.map((value) => (
-          <button key={reachLabel(value)} onClick={() => setReach(value)} aria-pressed={sameReach(reach, value)}
-            className={cn('rounded-lg border py-2 text-base', sameReach(reach, value) ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>
-            {reachLabel(value)}
-          </button>
-        ))}
-      </div>
+      <Choice label="نطاق كل موقع" size="base" className="grid grid-cols-3" value={reachKey}
+        onChange={(id) => { const next = REACHES.find((value) => (value.kind === 'radius' ? `r${value.metres}` : `d${value.minutes}`) === id); if (next) setReach(next) }}
+        options={REACHES.map((value) => ({ id: value.kind === 'radius' ? `r${value.metres}` : `d${value.minutes}`, label: reachLabel(value) }))} />
       {sites.length === 0 && sample.length === 2 && (
         <button type="button" onClick={() => sample.forEach((item) => pick(item.point))}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary px-3 py-2 text-base font-semibold text-primary hover:bg-primary/10">
@@ -300,6 +309,7 @@ export function AroundTool({ city, onOverlay, districts, features }: { city: str
           </table>
         </div>
       )}
+      {slow && <StillWorking>{reach.kind === 'drive' ? 'منطقة الوصول بالسيارة تُحسب على الطرق وتأخذ وقتاً أطول.' : 'نعدّ السكان والمنشآت داخل كل نطاق.'}</StillWorking>}
       {ready.length > 0 && (
         <div className="space-y-3">
           {ready.map((site) => (
