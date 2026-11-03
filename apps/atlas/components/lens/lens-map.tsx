@@ -21,7 +21,7 @@ import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapQuery, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK, PEEK_PX, type SheetSnap } from './map-sheet'
-import { LENSES, METRICS, TOOL_INPUTS, lensById, nextStep, type LensId, type MetricId, type ToolId } from './lenses'
+import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, nextStep, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
 import { CompareTool } from './tools/compare-tool'
@@ -57,13 +57,15 @@ function metricExplanation(metric: MetricId, row: DistrictRow): string[] {
   }
 }
 
-function Ranking({ rows, metric, selected, onToggle, onHover, full }: {
+function Ranking({ rows, metric, selected, onToggle, onHover, full, onRetry }: {
   rows: DistrictRow[]
   metric: MetricId
   selected: string[]
   onToggle: (id: string) => void
   onHover?: (id: string | null) => void
   full: boolean
+  /** Set when the figure's table failed to load: the card offers a retry instead of «غير متاح في أي حي». */
+  onRetry?: (() => void) | null
 }) {
   const { label, value, unit } = METRICS[metric]
   const ranked = rows.filter((row) => value(row) != null).sort((a, b) => (value(b) as number) - (value(a) as number))
@@ -84,8 +86,10 @@ function Ranking({ rows, metric, selected, onToggle, onHover, full }: {
       </ol>
       {full && <MoreRows shown={shown.length} total={ranked.length} noun="district" onMore={showMore} />}
       {/* a figure no district of the city has: said in the card, which otherwise stood empty under its title */}
-      {ranked.length === 0 && rows.length > 0 && <p className="mt-2 text-sm text-muted-foreground">غير متاح في أي حي من أحياء هذه المدينة بعد</p>}
-      {full && ranked.length > 0 && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{counted(rows.length - ranked.length, 'district')}: غير متاح</p>}
+      {ranked.length === 0 && rows.length > 0 && (onRetry
+        ? <p role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">تعذّر تحميل هذا الرقم الآن<Chip onClick={onRetry}>أعد المحاولة</Chip></p>
+        : <p className="mt-2 text-sm text-muted-foreground">غير متاح في أي حي من أحياء هذه المدينة بعد</p>)}
+      {full && !onRetry && ranked.length > 0 && ranked.length < rows.length && <p className="mt-2 text-sm text-muted-foreground">{counted(rows.length - ranked.length, 'district')}: غير متاح</p>}
     </section>
   )
 }
@@ -461,17 +465,20 @@ export function LensMap() {
   const toolColors = overlay.colors != null
   // a city whose districts came back empty, and a shading figure no district of the city has: said, not drawn blank
   const noDistricts = data.status === 'ready' && data.features.length === 0
-  const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0
+  const metricMissing = data.status === 'ready' && data.rows.length > 0 && steps.size === 0 && !data.failed.includes(METRIC_TABLE[metric])
   const unshaded = data.status === 'ready' ? data.rows.length - steps.size : 0
-  // which of the lens's figures any district of this city has: in a small city most are missing, so their chips are
-  // marked «غير متاح» and the key offers the first figure that does colour the map, instead of «choose another» blind
-  const missingMetrics = useMemo(() => new Set(data.status === 'ready' && data.rows.length
-    ? active.metrics.filter((id) => !data.rows.some((row) => METRICS[id].value(row) != null)) : []), [data.status, data.rows, active.metrics])
-  const fallbackMetric = metricMissing ? active.metrics.find((id) => !missingMetrics.has(id)) ?? null : null
-  const metricChip = (id: MetricId, className?: string) => (
-    <Chip key={id} active={metric === id} onClick={() => setMetric(id)} aria-label={missingMetrics.has(id) ? `${METRICS[id].label}: غير متاح في ${cityName}` : undefined}
-      className={cn(className, missingMetrics.has(id) && metric !== id && 'border-dashed opacity-60')}>{METRICS[id].label}</Chip>
-  )
+  // which of the lens's figures can colour this city: in a small city most are missing, and a table can fail to load
+  // (Riyadh's searches answered 502 for a while); «طبقات» marks both, and the key offers the first figure that does
+  // colour the map instead of «choose another» blind. A failed table is a retry, never «غير متاح».
+  const availability = useMemo(() => new Map(active.metrics.map((id) => [id, data.status === 'ready' ? metricAvailability(id, data.rows, data.failed) : 'ready'] as const)),
+    [data.status, data.rows, data.failed, active.metrics])
+  const failedTable = (id: MetricId) => data.status === 'ready' && data.failed.includes(METRIC_TABLE[id])
+  const metricFailed = failedTable(metric)
+  const fallbackMetric = metricMissing || metricFailed ? active.metrics.find((id) => id !== metric && availability.get(id) === 'ready') ?? null : null
+  const layerOptions = active.metrics.map((id): [string, string] => [id,
+    `${METRICS[id].label}${availability.get(id) === 'missing' ? ' · غير متاح' : availability.get(id) === 'failed' ? ' · تعذّر التحميل' : ''}`])
+  // one district's value of the shading figure, as the card and the pointer's label show it
+  const metricText = (row: DistrictRow) => (metricFailed ? 'تعذّر التحميل' : format(METRICS[metric].value(row), METRICS[metric].unit))
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
   const leadId = overlay.lead ?? (toolColors ? null : [...data.rows].filter((row) => METRICS[metric].value(row) != null)
     .sort((a, b) => (METRICS[metric].value(b) as number) - (METRICS[metric].value(a) as number))[0]?.id ?? null)
@@ -488,7 +495,7 @@ export function LensMap() {
     const population = { label: 'السكان', value: format(row.population) }
     // the open step's own figure for the district, as the step computed it
     if (overlay.facts) return [{ label: step?.label ?? '', value: overlay.facts.get(row.id) ?? 'غير متاح' }, population]
-    if (!toolColors && metric !== 'population') return [{ label: METRICS[metric].label, value: format(METRICS[metric].value(row), METRICS[metric].unit) }, population]
+    if (!toolColors && metric !== 'population') return [{ label: METRICS[metric].label, value: metricText(row) }, population]
     return [population]
   }
   const openDetails = () => {
@@ -550,7 +557,7 @@ export function LensMap() {
               style={{ left: pointed.x + 240 > pointed.width ? pointed.x - 234 : pointed.x + 14, top: pointed.y + 96 > pointed.height ? pointed.y - 86 : pointed.y + 14 }}>
               <p className="truncate font-bold">{pointedRow.name}</p>
               {/* the shading figure as the district row holds it; a step's own colours are explained in its key */}
-              {!toolColors && <p className="text-muted-foreground">{METRICS[metric].label}: <span className="font-semibold text-foreground tabular-nums">{format(METRICS[metric].value(pointedRow), METRICS[metric].unit)}</span></p>}
+              {!toolColors && <p className="text-muted-foreground">{METRICS[metric].label}: <span className="font-semibold text-foreground tabular-nums">{metricText(pointedRow)}</span></p>}
               {/* a step that colours the map says what its colour means for this district, from its own answer */}
               {toolColors && overlay.hover?.get(pointedRow.id) && <p className="font-semibold text-foreground tabular-nums">{overlay.hover.get(pointedRow.id)}</p>}
               <p className="text-xs text-muted-foreground">{selected.includes(pointedRow.id) ? 'اضغط لإلغاء اختياره' : 'اضغط لترى أرقامه'}</p>
@@ -589,7 +596,7 @@ export function LensMap() {
               {data.status === 'loading' ? (
                 // the key's shape while the city's districts load; the map stays in view
                 <div role="status" className="flex flex-col gap-1.5">
-                  <LegendTitle>جارٍ تحميل أحياء {cityName}</LegendTitle>
+                  <LegendTitle>{data.features.length ? `جارٍ تحميل أرقام ${cityName}` : `جارٍ تحميل أحياء ${cityName}`}</LegendTitle>
                   <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <Skeleton key={shade} className="h-4 w-7 rounded-sm" />)}</span>
                 </div>
               ) : (
@@ -601,9 +608,17 @@ export function LensMap() {
                   {!toolColors && <>
                   <div className="flex items-center justify-between gap-2">
                     <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                    <LayerPicker options={active.metrics.map((id) => [id, METRICS[id].label])} value={metric} onChange={(id) => setMetric(id as MetricId)} />
+                    <LayerPicker options={layerOptions} value={metric} onChange={(id) => setMetric(id as MetricId)} />
                   </div>
-                  {metricMissing ? (
+                  {metricFailed ? (
+                    <div role="alert" className="flex flex-col items-start gap-1.5">
+                      <p className="text-sm text-muted-foreground">تعذّر تحميل هذا الرقم الآن</p>
+                      <span className="flex flex-wrap gap-1.5">
+                        {data.reload && <Chip onClick={data.reload}>أعد المحاولة</Chip>}
+                        {fallbackMetric && <Chip onClick={() => setMetric(fallbackMetric)}>لوّن بـ«{METRICS[fallbackMetric].label}»</Chip>}
+                      </span>
+                    </div>
+                  ) : metricMissing ? (
                     <div className="flex flex-col items-start gap-1.5">
                       <p className="text-sm text-muted-foreground">غير متاح في {cityName}{fallbackMetric ? '' : '، ولا مقياس آخر لهذه الفئة بعد'}</p>
                       {fallbackMetric && <Chip onClick={() => setMetric(fallbackMetric)}>لوّن الخريطة بـ«{METRICS[fallbackMetric].label}»</Chip>}
@@ -615,7 +630,7 @@ export function LensMap() {
                   </Explained>}
                   {/* districts without the figure are drawn unshaded: the key names that, so a blank district (Jeddah's
                       central markets under «السكان») reads as «غير متاح», not as the lowest value */}
-                  {!metricMissing && unshaded > 0 && (
+                  {!metricMissing && !metricFailed && unshaded > 0 && (
                     <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <span className="h-4 w-7 rounded-sm border border-dashed border-muted-foreground/50" aria-hidden />
                       بلا لون: غير متاح ({counted(unshaded, 'district')})
@@ -675,7 +690,7 @@ export function LensMap() {
                     </div>
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
-                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} />}
                   {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
                   {next && done.includes(tool) && (
                     <button onClick={() => setTool(next.tool)}

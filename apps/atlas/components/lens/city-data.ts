@@ -44,11 +44,18 @@ export type DistrictRow = {
  * own median, in its own period (lib/real-estate.ts groupLabel names them). */
 export type RealEstateGroup = string
 
+/** The tables a city's rows are joined from, besides the district outlines the map cannot open without. */
+export type CityTable = 'population' | 'counts' | 'income' | 'growth' | 'housing' | 'realEstate' | 'deals' | 'restaurants' | 'menuPrices' | 'demand'
+
 export type CityData = {
+  /** `loading` may already carry the city's outlines (`features`), drawn while the figures still load; `rows` come with `ready`. */
   status: 'loading' | 'ready' | 'error'
   features: DistrictFeature[]
   rows: DistrictRow[]
   total: number | null
+  /** Tables that failed to load this time: their figures are null in every row because they did not arrive, not
+   * because the district lacks them, so the page says «تعذّر التحميل» with a retry instead of «غير متاح». */
+  failed: CityTable[]
   /** Load the city again after a failure. */
   reload?: () => void
 }
@@ -94,25 +101,32 @@ async function getRequired<T>(url: string): Promise<T> {
 }
 
 export function useCityData(city: string): CityData {
-  const [data, setData] = useState<CityData>({ status: 'loading', features: [], rows: [], total: null })
+  const [data, setData] = useState<CityData>({ status: 'loading', features: [], rows: [], total: null, failed: [] })
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let active = true
-    setData({ status: 'loading', features: [], rows: [], total: null })
-    const optional = <T,>(promise: Promise<T>) => promise.catch(() => null)
+    setData({ status: 'loading', features: [], rows: [], total: null, failed: [] })
+    const failed: CityTable[] = []
+    const optional = <T,>(table: CityTable, promise: Promise<T>) => promise.catch(() => { failed.push(table); return null })
+    // the outlines alone draw the city: they reach the map as soon as they arrive (about 5s in Riyadh), while the
+    // slowest figure table (growth, up to 12s) still loads, instead of a blank map until every table is in
+    const outlines = getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`)
+    outlines.then((atlas) => {
+      if (active && atlas.features?.length) setData((current) => (current.status === 'loading' ? { ...current, features: atlas.features! } : current))
+    }, () => {})
     Promise.all([
-      getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`),
-      optional(getJson<{ districts?: PopulationRow[] }>(`/api/market/population-districts?city=${encodeURIComponent(city)}`)),
-      optional(postMarket<{ districts?: CountRow[]; total?: number }>('district-counts', { city })),
-      optional(postMarket<{ districts?: IncomeRow[] }>('district-income', { city })),
-      optional(postMarket<{ districts?: GrowthRow[] }>('growth', { city })),
-      optional(postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
-      optional(postMarket<{ districts?: RealEstateRow[] }>('real-estate', { city })),
-      optional(postMarket<{ districts?: DealRow[] }>('registered-deals', { city })),
-      optional(getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
-      optional(getJson<{ districts?: MenuPriceRow[] }>(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`)),
-      optional(getJson<{ districts?: DemandRow[] }>(`/api/farq/demand?city=${encodeURIComponent(city)}`)),
+      outlines,
+      optional('population', getJson<{ districts?: PopulationRow[] }>(`/api/market/population-districts?city=${encodeURIComponent(city)}`)),
+      optional('counts', postMarket<{ districts?: CountRow[]; total?: number }>('district-counts', { city })),
+      optional('income', postMarket<{ districts?: IncomeRow[] }>('district-income', { city })),
+      optional('growth', postMarket<{ districts?: GrowthRow[] }>('growth', { city })),
+      optional('housing', postMarket<{ districts?: HousingRow[] }>('housing-level', { city })),
+      optional('realEstate', postMarket<{ districts?: RealEstateRow[] }>('real-estate', { city })),
+      optional('deals', postMarket<{ districts?: DealRow[] }>('registered-deals', { city })),
+      optional('restaurants', getJson<{ districts?: RestaurantRow[] }>(`/api/farq/restaurants?city=${encodeURIComponent(city)}`)),
+      optional('menuPrices', getJson<{ districts?: MenuPriceRow[] }>(`/api/farq/menu-prices?city=${encodeURIComponent(city)}`)),
+      optional('demand', getJson<{ districts?: DemandRow[] }>(`/api/farq/demand?city=${encodeURIComponent(city)}`)),
     ]).then(([atlas, population, counts, income, growth, housing, property, registered, restaurants, menuPrices, demand]) => {
       if (!active) return
       const features = atlas.features ?? []
@@ -163,8 +177,9 @@ export function useCityData(city: string): CityData {
           }])),
         }
       })
-      setData({ status: 'ready', features, rows, total: counts?.total ?? null })
-    }).catch(() => { if (active) setData({ status: 'error', features: [], rows: [], total: null }) })
+      // the same outlines array as drawn early, so the map does not frame the city a second time
+      setData({ status: 'ready', features, rows, total: counts?.total ?? null, failed: [...failed] })
+    }).catch(() => { if (active) setData({ status: 'error', features: [], rows: [], total: null, failed: [] }) })
     return () => { active = false }
   }, [city, attempt])
 

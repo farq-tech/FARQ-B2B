@@ -1,4 +1,4 @@
-import type { DistrictRow } from './city-data'
+import type { CityTable, DistrictRow } from './city-data'
 
 /**
  * The five user groups of docs/atlas-product-foundation.md. A lens is one journey: its own steps (the tools, in the
@@ -41,6 +41,22 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
     label: 'مبانٍ جديدة وتحت الإنشاء',
     value: (row) => (row.underConstruction != null && row.newBuildings != null ? row.underConstruction + row.newBuildings : null),
   },
+}
+
+/** The table each figure arrives in (city-data.ts): a figure whose table failed to load reads «تعذّر التحميل», not «غير متاح». */
+export const METRIC_TABLE: Record<MetricId, CityTable> = {
+  population: 'population', businesses: 'counts', residentsPerBusiness: 'counts', restaurants: 'restaurants', menuPrice: 'menuPrices',
+  unmet: 'demand', villaShare: 'housing', shopRent: 'realEstate', homeRent: 'realEstate', homeRentMonthly: 'realEstate', homePrice: 'realEstate',
+  dealPrice: 'deals', warehouseRent: 'realEstate', income: 'income', growth: 'growth',
+}
+
+/**
+ * Whether a figure can colour this city's map: `failed` when its table did not load this time (worth a retry),
+ * `missing` when it loaded and no district has it (said «غير متاح»), `ready` otherwise.
+ */
+export function metricAvailability(id: MetricId, rows: DistrictRow[], failed: readonly CityTable[]): 'ready' | 'failed' | 'missing' {
+  if (failed.includes(METRIC_TABLE[id])) return 'failed'
+  return rows.length && !rows.some((row) => METRICS[id].value(row) != null) ? 'missing' : 'ready'
 }
 
 export type Lens = { id: LensId; label: string; metric: MetricId; metrics: MetricId[]; steps: { tool: ToolId; label: string }[] }
