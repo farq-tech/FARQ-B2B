@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { ArrowLeft, Check, ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -281,6 +281,49 @@ function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails,
   )
 }
 
+type Pointed = { id: string; x: number; y: number; width: number; height: number }
+type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
+
+/**
+ * The district under the mouse, kept out of the page's state: a mouse move over the map used to re-render the whole
+ * map page (every open tool, both scrolling rows) once per pointer event. Now only the label beside the pointer
+ * follows it, at most once per frame.
+ */
+function createPointerStore(): PointerStore {
+  let value: Pointed | null = null
+  let queued: Pointed | null = null
+  let frame = 0
+  const listeners = new Set<() => void>()
+  return {
+    get: () => value,
+    subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener) } },
+    set: (next) => {
+      queued = next
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        if (queued === value || (queued && value && queued.id === value.id && queued.x === value.x && queued.y === value.y)) return
+        value = queued
+        listeners.forEach((listener) => listener())
+      })
+    },
+  }
+}
+
+/** The label beside the mouse pointer: the district's name and what `describe` says of it (null: no label). */
+function PointerTip({ store, describe }: { store: PointerStore; describe: (id: string) => ReactNode | null }) {
+  const pointed = useSyncExternalStore(store.subscribe, store.get, () => null)
+  const content = pointed ? describe(pointed.id) : null
+  if (!pointed || !content) return null
+  return (
+    <div role="tooltip" className="pointer-events-none absolute z-[6] max-w-56 rounded-lg border bg-card/95 px-2.5 py-1.5 text-sm shadow-md backdrop-blur"
+      // beside the pointer, flipped near the map's edges so it never runs off it
+      style={{ left: pointed.x + 240 > pointed.width ? pointed.x - 234 : pointed.x + 14, top: pointed.y + 96 > pointed.height ? pointed.y - 86 : pointed.y + 14 }}>
+      {content}
+    </div>
+  )
+}
+
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
 const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
 
@@ -310,7 +353,7 @@ export function LensMap() {
   // the district a step's list is pointing at, outlined on the map so a row and its place are seen together
   const [hovered, setHovered] = useState<string | null>(null)
   // the district under the mouse, named beside the pointer with its figure, before any click
-  const [pointed, setPointed] = useState<{ id: string; x: number; y: number; width: number; height: number } | null>(null)
+  const [pointer] = useState(createPointerStore)
   useEffect(() => { setHovered(null) }, [tool, city])
   // a layout effect runs before the tools' own effects post their overlay, so an answer is credited to its own step
   useLayoutEffect(() => { openTool.current = tool }, [tool])
@@ -503,7 +546,21 @@ export function LensMap() {
     // after the sheet has risen, so the summary is scrolled to where it ends up
     window.setTimeout(() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
   }
-  const pointedRow = pointed && pointed.id !== cardRow?.id ? data.rows.find((row) => row.id === pointed.id) ?? null : null
+  const rowById = useMemo(() => new Map(data.rows.map((row) => [row.id, row])), [data.rows])
+  const describePointed = (id: string) => {
+    const row = id === cardRow?.id ? null : rowById.get(id)
+    if (!row) return null
+    return (
+      <>
+        <p className="truncate font-bold">{row.name}</p>
+        {/* the shading figure as the district row holds it; a step's own colours are explained in its key */}
+        {!toolColors && <p className="text-muted-foreground">{METRICS[metric].label}: <span className="font-semibold text-foreground tabular-nums">{metricText(row)}</span></p>}
+        {/* a step that colours the map says what its colour means for this district, from its own answer */}
+        {toolColors && overlay.hover?.get(row.id) && <p className="font-semibold text-foreground tabular-nums">{overlay.hover.get(row.id)}</p>}
+        <p className="text-xs text-muted-foreground">{selected.includes(row.id) ? 'اضغط لإلغاء اختياره' : 'اضغط لترى أرقامه'}</p>
+      </>
+    )
+  }
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   // the peeking sheet's one line is cut at its end: the picked district leads, the step (also on its tab) follows
   const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${active.label} · ${step?.label ?? ''}`
@@ -539,7 +596,7 @@ export function LensMap() {
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={setPointed}
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0}
             onDistrictClick={(hit) => { mapPick.current = true; setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : null} onPin={setCardAt} />
@@ -551,18 +608,7 @@ export function LensMap() {
                 // the floating search and chips on top; below, what the sheet covers above the map's own end (the peek)
                 : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + PEEK_PX) - PEEK_PX) : 0) })} />
           )}
-          {pointedRow && pointed && (
-            <div role="tooltip" className="pointer-events-none absolute z-[6] max-w-56 rounded-lg border bg-card/95 px-2.5 py-1.5 text-sm shadow-md backdrop-blur"
-              // beside the pointer, flipped near the map's edges so it never runs off it
-              style={{ left: pointed.x + 240 > pointed.width ? pointed.x - 234 : pointed.x + 14, top: pointed.y + 96 > pointed.height ? pointed.y - 86 : pointed.y + 14 }}>
-              <p className="truncate font-bold">{pointedRow.name}</p>
-              {/* the shading figure as the district row holds it; a step's own colours are explained in its key */}
-              {!toolColors && <p className="text-muted-foreground">{METRICS[metric].label}: <span className="font-semibold text-foreground tabular-nums">{metricText(pointedRow)}</span></p>}
-              {/* a step that colours the map says what its colour means for this district, from its own answer */}
-              {toolColors && overlay.hover?.get(pointedRow.id) && <p className="font-semibold text-foreground tabular-nums">{overlay.hover.get(pointedRow.id)}</p>}
-              <p className="text-xs text-muted-foreground">{selected.includes(pointedRow.id) ? 'اضغط لإلغاء اختياره' : 'اضغط لترى أرقامه'}</p>
-            </div>
-          )}
+          <PointerTip store={pointer} describe={describePointed} />
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet}
             onShowMe={leadId ? () => pickFromList(leadId) : null} />
           {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
@@ -664,6 +710,14 @@ export function LensMap() {
               {!search && (
                 <>
                   <div ref={setGoalSlot} className="empty:hidden" />
+                  {/* a table that failed empties its figures in every district: said once at the top, with a retry, so a
+                      «غير متاح» further down is not read as the city lacking the figure */}
+                  {data.status === 'ready' && data.failed.length > 0 && (
+                    <div role="alert" className="flex flex-wrap items-center gap-2 rounded-2xl border border-dashed bg-card p-3 text-sm">
+                      <span className="min-w-0 flex-1">تعذّر تحميل جزء من أرقام {cityName} الآن، فبعضها يظهر «غير متاح».</span>
+                      {data.reload && <Chip onClick={data.reload}>أعد المحاولة</Chip>}
+                    </div>
+                  )}
                   {/* a tap answers first: the picked district leads, then the step's tool, then the full summary */}
                   {chosen.length > 0 && !['district', 'growth', 'compare', 'around', 'homes'].includes(tool) && (
                     <PickedStrip chosen={chosen} onClear={() => setSelected([])}

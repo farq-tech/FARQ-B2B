@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { districtName, postMarket, type DistrictFeature } from '@/lib/insights-api'
 
 /**
@@ -103,17 +103,21 @@ async function getRequired<T>(url: string): Promise<T> {
 export function useCityData(city: string): CityData {
   const [data, setData] = useState<CityData>({ status: 'loading', features: [], rows: [], total: null, failed: [] })
   const [attempt, setAttempt] = useState(0)
+  // a retry of the same city keeps its outlines on the map (and the camera where the visitor left it)
+  const loadedCity = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
-    setData({ status: 'loading', features: [], rows: [], total: null, failed: [] })
+    const retry = loadedCity.current === city
+    loadedCity.current = city
+    setData((current) => ({ status: 'loading', features: retry ? current.features : [], rows: [], total: null, failed: [] }))
     const failed: CityTable[] = []
     const optional = <T,>(table: CityTable, promise: Promise<T>) => promise.catch(() => { failed.push(table); return null })
     // the outlines alone draw the city: they reach the map as soon as they arrive (about 5s in Riyadh), while the
     // slowest figure table (growth, up to 12s) still loads, instead of a blank map until every table is in
     const outlines = getRequired<{ features?: DistrictFeature[] }>(`/api/market/districts?city=${encodeURIComponent(city)}`)
     outlines.then((atlas) => {
-      if (active && atlas.features?.length) setData((current) => (current.status === 'loading' ? { ...current, features: atlas.features! } : current))
+      if (active && atlas.features?.length) setData((current) => (current.status === 'loading' && !current.features.length ? { ...current, features: atlas.features! } : current))
     }, () => {})
     Promise.all([
       outlines,
@@ -177,8 +181,8 @@ export function useCityData(city: string): CityData {
           }])),
         }
       })
-      // the same outlines array as drawn early, so the map does not frame the city a second time
-      setData({ status: 'ready', features, rows, total: counts?.total ?? null, failed: [...failed] })
+      // the outlines array already drawn stays, so the map does not frame the city a second time
+      setData((current) => ({ status: 'ready', features: current.features.length ? current.features : features, rows, total: counts?.total ?? null, failed: [...failed] }))
     }).catch(() => { if (active) setData({ status: 'error', features: [], rows: [], total: null, failed: [] }) })
     return () => { active = false }
   }, [city, attempt])
