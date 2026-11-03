@@ -100,7 +100,34 @@ class StreetOpportunityTests(unittest.TestCase):
         out = so.opportunities(db, path, 'Riyadh', subs=['pharmacy'])
         top = next(f['properties'] for f in out['features'] if f['properties']['street_ar'] == 'شارع التحلية')
         self.assertIsNone(top['requested_n'])
-        self.assertIsNone(top['requested_below'])
+        # the weakest kept run has 5 shops: a street without one has fewer than 5, said as a bound, not unknown
+        self.assertEqual(top['requested_below'], 5)
+
+    def test_capped_activity_is_never_scored_as_a_full_gap(self):
+        # Riyadh pharmacies as served: past the cap the build kept only the strongest runs, so a busy street without a
+        # run may still hold up to floor − 1 shops. Scored on that bound, it no longer outranks a street that has 9 by
+        # twice (the 100/100 of «شارع عسير» rested on an unknown read as zero).
+        def scores(cap):
+            saved = so.MAX_PER_SUB
+            so.MAX_PER_SUB = cap
+            try:
+                rows = [row('pharmacy', f'ص{i}', f'حي {i}', 9, 20000 + 100 * i, main='health') for i in range(3)] + [
+                    row('cafe', 'شارع عسير', 'ظهرة لبن', 300, 6000, main='food'),
+                    row('cafe', 'شارع ب', 'الملز', 300, 8000, main='food'),
+                    row('pharmacy', 'شارع ب', 'الملز', 9, 8000, main='health'),
+                ]
+                db, path = self.build(rows)
+                return {f['properties']['street_ar']: f['properties'] for f in so.opportunities(db, path, 'Riyadh', subs=['pharmacy'])['features']}
+            finally:
+                so.MAX_PER_SUB = saved
+        capped = scores(3)
+        self.assertEqual(capped['شارع عسير']['requested_below'], 9)
+        self.assertIsNone(capped['شارع عسير']['requested_n'])
+        self.assertEqual(capped['شارع عسير']['score'], 100)
+        self.assertGreaterEqual(capped['شارع ب']['score'], 85)   # gap 1 − 9 ÷ 17.5 against 1 − 8 ÷ 17.0
+        plain = scores(10)
+        self.assertEqual(plain['شارع عسير']['requested_below'], so.MIN_SHOPS)
+        self.assertLessEqual(plain['شارع ب']['score'], 55)       # uncapped: «fewer than 5» is near none, a full gap
 
     def test_group_request_and_main_activity(self):
         out = so.opportunities(self.db, self.path, 'Riyadh', subs=['group.kids'])

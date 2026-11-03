@@ -107,9 +107,9 @@ def golden_demographics(city, districts=(), population=None):
 
 
 def district_population_by_name(city):
-    """Canonical district name -> {population, male, female, source}: the golden table, keyed for name-based joins."""
+    """Canonical district name -> {population, male, female, source, coverage_pct}: the golden table, keyed for name-based joins."""
     population=golden_population(city) or []
-    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source')}
+    out={row['district_ar']:{'population':row['population'],'male':None,'female':None,'source':row.get('source'),'coverage_pct':row.get('coverage_pct')}
          for row in population if row.get('district_ar')}
     for row in golden_demographics(city,population=population) or []:
         if row['age_code']=='ALL' and row['district_ar'] in out: out[row['district_ar']].update(male=row['male'],female=row['female'])
