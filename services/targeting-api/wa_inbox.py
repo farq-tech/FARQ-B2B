@@ -57,7 +57,8 @@ create table if not exists wa_outbound (
   status text not null default 'sent',
   status_at integer,
   sender_id text,
-  request_title text
+  request_title text,
+  follow_up_of text
 );
 create index if not exists wa_outbound_by_number on wa_outbound (wa_id, sent_at desc);
 create index if not exists wa_outbound_by_account on wa_outbound (account_id, sent_at desc);
@@ -94,7 +95,7 @@ create table if not exists wa_source_health (
 );
 """
 # columns added after the first release of the file: added in place to a store created before them
-LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text', 'request_title': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
+LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text', 'request_title': 'text', 'follow_up_of': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
 
 
 def digits(value) -> str:
@@ -268,7 +269,7 @@ class InboxStore:
             finally:
                 con.close()
 
-    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None, request_title=None) -> bool:
+    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None, request_title=None, follow_up_of=None) -> bool:
         """Remember one campaign message we sent, so its reply can be linked back. Returns False when an id is not
         usable (nothing stored); a repeated message id keeps the first record."""
         number = digits(to)
@@ -276,8 +277,9 @@ class InboxStore:
                 and isinstance(poi_key, str) and 1 <= len(poi_key) <= 200 and 8 <= len(number) <= 15):
             return False
         with self._connect() as con:
-            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id, request_title) values (?,?,?,?,?,?,?,?)',
-                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None, clean_title(request_title)))
+            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id, request_title, follow_up_of) values (?,?,?,?,?,?,?,?,?)',
+                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None,
+                         clean_title(request_title), follow_up_of if valid_id(follow_up_of) and follow_up_of != request_id else None))
         self._changed()
         return True
 
@@ -442,6 +444,7 @@ class InboxStore:
                 f'select request_id, poi_key, wa_id, min(sent_at), max(case when status != \'failed\' then 1 else 0 end) '
                 f'from wa_outbound where account_id in ({marks}) group by request_id, poi_key, wa_id', accounts).fetchall()
             sends = con.execute(f'select request_id, poi_key, sent_at from wa_outbound where account_id in ({marks})', accounts).fetchall()
+            parents = con.execute(f'select distinct request_id, follow_up_of from wa_outbound where account_id in ({marks}) and follow_up_of is not null', accounts).fetchall()
             replies = con.execute(
                 f'select request_id, poi_key, min(received_at) from wa_inbound where account_id in ({marks}) '
                 'and request_id is not null group by request_id, poi_key', accounts).fetchall()
@@ -470,6 +473,26 @@ class InboxStore:
             n = len(delays)
             row['medianReplySeconds'] = None if not n else (delays[n // 2] if n % 2 else (delays[n // 2 - 1] + delays[n // 2]) // 2)
             out.append(row)
+        # an original campaign with its follow-ups (follow_up_of, at most two steps, as Atlas allows): of the original's
+        # recipients it reached, how many answered the original or any follow-up of its chain
+        parent_of = {r[0]: r[1] for r in parents}
+        descendants = {}
+        for child in parent_of:
+            node, steps = child, 0
+            while node in parent_of and steps < 3:
+                node, steps = parent_of[node], steps + 1
+                descendants.setdefault(node, set()).add(child)
+        reached_by = {}
+        for request_id, poi_key, _wa, _sent, reached in recipients:
+            if reached: reached_by.setdefault(request_id, set()).add(poi_key)
+        for row in out:
+            chain = descendants.get(row['requestId'])
+            if not chain:
+                continue
+            reached = reached_by.get(row['requestId'], set())
+            own = {p for p in reached if (row['requestId'], p) in first_reply}
+            later = {p for p in reached - own if any((child, p) in first_reply for child in chain)}
+            row['combined'] = {'sent': len(reached), 'replied': len(own) + len(later), 'viaFollowUps': len(later), 'followUps': sorted(chain)}
         # a number that has not answered this request but answered another campaign of these accounts lately
         newest_by_number = {}
         for wa_id, request_id, message_id, received_at in latest:

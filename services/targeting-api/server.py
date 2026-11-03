@@ -1061,7 +1061,7 @@ def _send_template(body):
     message_id = (r.get('messages') or [{}])[0].get('id')
     if ok and body.get('atlas_campaign') is True and message_id:
         # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
-        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'))
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'), request_title=body.get('request_title'), follow_up_of=body.get('follow_up_of'))
         except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')

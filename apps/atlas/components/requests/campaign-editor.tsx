@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
-import { deliveryLabel, openingReplyFilter, replyFilterKey, replyGroups, wasSent, writeReplyFilter, type ReplyFilter, type ServerDelivery, type ServerElsewhere } from '@/lib/inbox-feed'
+import { deliveryLabel, heldBackState, openingReplyFilter, replyFilterKey, replyGroups, wasSent, writeReplyFilter, type ReplyFilter, type ServerDelivery, type ServerElsewhere } from '@/lib/inbox-feed'
 import { Chip, ChipCount } from '@/components/ui/chip'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -287,6 +287,8 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                     {/* the facts the business list below used to repeat, now that this is the one list */}
                     <span className="block truncate text-xs text-muted-foreground">
                       {(mockBusiness ? [mockBusiness.role, districtById.get(mockBusiness.districtId)?.name] : [liveBusiness?.category, liveBusiness?.district]).filter(Boolean).join(' · ')}
+                      {/* the reason a follow-up first left it out stays with it after the person added it */}
+                      {heldBackState(value, id) === 'added' ? ' · أُضيفت بعد المراجعة' : ''}
                     </span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-0.5">
@@ -316,9 +318,11 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                 />
                 <span className={cn('min-w-0 flex-1 truncate text-sm', !e.ok && 'text-muted-foreground')}>{b.name}</span>
                 {/* a follow-up leaves out who answered another campaign; the reason stays beside the box until it is ticked */}
-                {e.ok && !checked && value.heldBack?.[id] === 'replied_elsewhere'
+                {e.ok && heldBackState(value, id) === 'held'
                   ? <span className="text-xs text-muted-foreground">ردّت على حملة أخرى · غير محددة</span>
-                  : e.ok ? <span className="text-xs text-primary">مؤهل</span> : <span className="text-xs text-muted-foreground">{e.reason}</span>}
+                  : e.ok && heldBackState(value, id) === 'added'
+                    ? <span className="text-xs text-primary">ردّت على حملة أخرى · أُضيفت بعد المراجعة</span>
+                    : e.ok ? <span className="text-xs text-primary">مؤهل</span> : <span className="text-xs text-muted-foreground">{e.reason}</span>}
               </li>
             )
           })}

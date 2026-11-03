@@ -68,7 +68,10 @@ export async function GET(request: NextRequest) {
     const requests = (Array.isArray(payload.requests) ? payload.requests : []).flatMap((item) => {
       const r = item as Record<string, unknown>
       const sent = count(r.sent); const replied = count(r.replied)
-      return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: count(r.medianReplySeconds) }] : []
+      const c = r.combined && typeof r.combined === 'object' ? r.combined as Record<string, unknown> : null
+      const combined = c && count(c.sent) != null && count(c.replied) != null && count(c.viaFollowUps) != null
+        ? { sent: count(c.sent) as number, replied: count(c.replied) as number, viaFollowUps: count(c.viaFollowUps) as number } : undefined
+      return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: count(r.medianReplySeconds), ...(combined ? { combined } : {}) }] : []
     })
     // a recipient that has not answered this request but answered another of the person's campaigns (the reply's id)
     const elsewhere = (Array.isArray(payload.elsewhere) ? payload.elsewhere : []).flatMap((item) => {
