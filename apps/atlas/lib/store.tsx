@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
-import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
+import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType, RfqDetails } from './types'
 import { mergeCloudRequests } from './workspace-merge'
 import { safeMapOrigin } from './handoff'
 import { mergeIntoRequest, removeFromRequest } from './request-add'
@@ -85,6 +85,9 @@ export interface DraftInput {
   liveBusinesses?: LiveBusinessSnapshot[]
   /** The map view the businesses were picked in (lib/handoff.ts safeMapOrigin checks it). */
   origin?: string
+  /** A quote request's own title and details when the page that starts it already knows them (a priced property). */
+  title?: string
+  rfq?: Partial<RfqDetails>
 }
 
 function buildDraft(input: DraftInput): RequestItem {
@@ -114,7 +117,7 @@ function buildDraft(input: DraftInput): RequestItem {
   if (input.type === 'rfq') {
     return {
       ...base,
-      title: `طلب تسعير ${firstCategory} - ${place}`,
+      title: input.title ?? `طلب تسعير ${firstCategory} - ${place}`,
       rfq: {
         lineItems: [
           { id: makeId('l'), name: cat?.specialties[0] ?? 'بند جديد', qty: 100, unit: 'حبة', spec: '' },
@@ -122,6 +125,7 @@ function buildDraft(input: DraftInput): RequestItem {
         deadline: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10),
         deliveryCity: cityName ?? '',
         notes: '',
+        ...input.rfq,
       },
     }
   }

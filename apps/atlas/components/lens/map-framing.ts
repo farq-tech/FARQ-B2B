@@ -56,8 +56,16 @@ export type Padding = { top: number; bottom: number; left: number; right: number
  * panel from lg, the colour key in the bottom corner. `cover` is the share of the screen the phone's sheet covers
  * (0 while it only peeks: the map already ends above the peek), `peek` the peek in pixels.
  */
+/**
+ * How many pixels at the foot of the map a phone's sheet covers: it covers `cover` of the whole screen, of which the map
+ * already ends above the peek. 0 on a wide screen or while the sheet peeks.
+ */
+export function sheetCoverPx({ height, phone, cover, peek }: { height: number; phone: boolean; cover: number; peek: number }): number {
+  return phone && cover > 0 ? Math.max(0, cover * (height + peek) - peek) : 0
+}
+
 export function framePadding({ height, width, phone, cover, peek }: { height: number; width: number; phone: boolean; cover: number; peek: number }): Padding {
-  const sheet = phone && cover > 0 ? Math.max(0, cover * (height + peek) - peek) : 0
+  const sheet = sheetCoverPx({ height, phone, cover, peek })
   const wanted: Padding = phone
     // over a half sheet the colour key rides above it in one line (lens-map.tsx), about 56px with its gap
     ? { top: 124, bottom: sheet + (sheet > 0 ? 64 : 104), left: 16, right: 16 }

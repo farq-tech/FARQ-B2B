@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ClipboardList, ListPlus, Loader2, LogIn, MapPin, Megaphone, PlusCircle, Search, SearchX } from 'lucide-react'
 import { readAddTarget } from '@/lib/handoff'
+import { containsPoint } from '@/lib/geo-measure'
 import { draftsFor } from '@/lib/request-add'
 import type { BusinessDot } from './lens-map-canvas'
 import { TYPE_LABEL } from '@/lib/format'
@@ -40,6 +41,15 @@ function PickCount({ value, reduce }: { value: number; reduce: boolean | null })
   )
 }
 
+/** The box around a shape (west, south, east, north), the directory's own filter before the shape is applied. */
+function boxOf(geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon): [number, number, number, number] | null {
+  const rings = geometry.type === 'Polygon' ? geometry.coordinates : geometry.coordinates.flat()
+  const points = rings.flat()
+  if (!points.length) return null
+  const lons = points.map((point) => point[0]), lats = points.map((point) => point[1])
+  return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
+}
+
 type Status = 'idle' | 'loading' | 'ready' | 'login' | 'guest' | 'error' | 'needs-scope'
 const PAGE = 200
 // one search per district, so a wide selection is read up to this many districts and the count says so
@@ -50,7 +60,7 @@ const MAX_DISTRICTS = 5
  * activity, picked and turned into a request — a quote request, a WhatsApp campaign or a saved list. The request
  * opens in «الطلبات» for review; nothing is sent from here (docs/atlas-product-foundation.md §5).
  */
-export function BusinessesPanel({ city, districts, query, onLocate, located, onMarkers, pointed = null, onPoint, bounds = null, prefill = null, onAnswer }: {
+export function BusinessesPanel({ city, districts, query, onLocate, located, onMarkers, pointed = null, onPoint, bounds = null, prefill = null, onAnswer, area = null }: {
   city: string
   /** Told the list's answer in one line once it has one (its count), so the journey's step can say it. */
   onAnswer?: (line: string) => void
@@ -70,6 +80,8 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   bounds?: [number, number, number, number] | null
   /** The activity the step before already studied: the list opens on it at once for a picked district, typed in the field. */
   prefill?: string | null
+  /** A site's reach (its catchment as the site comparison drew it): the list holds only the businesses inside it. */
+  area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon } | null
 }) {
   const router = useRouter()
   const cities = useCities()
@@ -136,7 +148,10 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
     const mine = ++latest.current
     // the whole city is searched by activity only: with no district and nothing typed there is nothing to search,
     // and an empty answer would read as «no businesses in the city»
-    if (!districts.length && !typed) { setStatus('needs-scope'); return }
+    if (!districts.length && !typed && !area) { setStatus('needs-scope'); return }
+    // the studied main activity is asked by its category id, so the list matches what the city's counts counted
+    const main = studied.main_id && typed === studied.label ? studied.main_id : null
+    const reach = area ? boxOf(area.geometry) : null
     const stale = () => mine !== latest.current
     setStatus('loading')
     try {
@@ -144,13 +159,13 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       let count = 0
       let guest = false
       // no district chosen: one search over the whole city, which needs an activity
-      const scopes: (string | null)[] = districts.length ? districts.slice(0, MAX_DISTRICTS) : typed ? [null] : []
+      const scopes: (string | null)[] = area ? [null] : districts.length ? districts.slice(0, MAX_DISTRICTS) : typed ? [null] : []
       for (const district of scopes) {
         const response = await fetch('/api/market/entities', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(typed ? { q: typed, objective: 'purchase' } : {}) }),
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset: 0, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}), ...(reach ? { bounds: reach } : {}) }),
         })
         const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; total?: number; error?: string; guest?: boolean } | null
         if (stale()) return
@@ -162,7 +177,10 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
           count += typeof body.total === 'number' ? body.total : 0
           continue
         }
-        found.push(...(body.rows ?? []))
+        // a site's reach is a shape, not a box: what the box brought back is kept only inside the shape
+        const inside = area ? (body.rows ?? []).filter((row) => row.latitude != null && row.longitude != null && containsPoint(area.geometry, { lon: row.longitude, lat: row.latitude })) : body.rows ?? []
+        found.push(...inside)
+        if (area) { count += inside.length; continue }
         count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
       }
       if (stale()) return
@@ -259,7 +277,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
 
   // sign-in returns to this same view (city, districts and search kept in the address)
   const here = () => typeof window === 'undefined' ? '/map' : `${window.location.pathname}${window.location.search}`
-  const where = !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : counted(districts.length, 'district')
+  const where = area ? `نطاق الموقع ${area.label}` : !districts.length ? 'المدينة' : districts.length === 1 ? districts[0] : counted(districts.length, 'district')
 
   return (
     <section aria-label="منشآت الحي" className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
