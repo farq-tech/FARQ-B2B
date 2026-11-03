@@ -6,19 +6,31 @@ import { AdvisorPanel } from '../advisor-panel'
 import { figure } from '../advisor-facts'
 import type { DistrictRow } from '../city-data'
 import { districtsVerdict, type DistrictFigure } from './tool-answers'
+import { RELIABLE_LISTINGS } from '../lenses'
 import { Verdict } from './verdict'
 
 /**
  * The figures the pair's summary weighs, each read from the district's golden row and shown as the comparison table
  * shows it (advisor-facts `figure`), so the line and the table never disagree.
  */
-const FIGURES: { label: string; value: (row: DistrictRow) => number | null; unit?: string }[] = [
+const FIGURES: { label: string; value: (row: DistrictRow) => number | null; unit?: string; listings?: (row: DistrictRow) => number | null }[] = [
   { label: 'السكان', value: (row) => row.population },
   { label: 'المنشآت', value: (row) => row.businesses },
   { label: 'ساكن لكل منشأة', value: (row) => row.residentsPerBusiness },
   { label: 'متوسط الدخل الشهري', value: (row) => row.income, unit: ' ريال' },
   { label: 'حصة الفلل من المساكن', value: (row) => row.villaShare, unit: '%' },
   { label: 'مبانٍ تحت الإنشاء', value: (row) => row.underConstruction },
+  // the listing medians, under the advisor table's own labels; one from fewer than RELIABLE_LISTINGS ads is never
+  // weighed (the summary names it as a small sample), as it never shades the map or enters a ranking
+  ...([
+    ['وسيط إيجار السكن السنوي للمتر', 'rent_year_residential'],
+    ['وسيط سعر بيع السكن للمتر', 'sale_residential'],
+    ['وسيط إيجار المحل السنوي للمتر', 'rent_year_commercial'],
+  ] as const).map(([label, key]) => ({
+    label, unit: ' ريال',
+    value: (row: DistrictRow) => row.realEstate[key]?.median ?? null,
+    listings: (row: DistrictRow) => row.realEstate[key]?.listings ?? null,
+  })),
 ]
 
 /**
@@ -35,6 +47,7 @@ export function CompareTool({ rows, selected }: { rows: DistrictRow[]; selected:
   const [a, b] = selected
   const figures: DistrictFigure[] = FIGURES.map((item) => ({
     label: item.label, a: item.value(a), b: item.value(b), shown: [figure(item.value(a), item.unit), figure(item.value(b), item.unit)],
+    ...(item.listings ? { thin: [(item.listings(a) ?? 0) < RELIABLE_LISTINGS, (item.listings(b) ?? 0) < RELIABLE_LISTINGS] as [boolean, boolean] } : {}),
   }))
   return (
     <div className="flex flex-col gap-3">
