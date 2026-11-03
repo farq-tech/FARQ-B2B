@@ -175,7 +175,7 @@ export function cityKey(cityId: string, cities: readonly { en: string }[]): stri
 
 const VIEW_KEY = 'atlas.view|'
 /** The surfaces whose view the main navigation brings back. */
-export const REMEMBERED = ['/map', '/homes', '/price'] as const
+export const REMEMBERED = ['/map', '/homes'] as const
 
 /** Keeps a surface's address (its query) for this tab, so the main navigation goes back to the same view. */
 export function rememberView(path: string, search: string) {

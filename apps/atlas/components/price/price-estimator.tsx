@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Building2, Calculator, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { districtMapHref, homesHref, rememberView } from '@/lib/handoff'
+import { districtMapHref, homesHref } from '@/lib/handoff'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ListingFace } from '@/components/shared/listing-face'
@@ -163,8 +163,6 @@ export function PriceEstimator() {
   useEffect(() => {
     const query = writeAnswers({ city, district, deal, kind, area, age, streets, width, furnished })
     const next = query ? `${window.location.pathname}?${query}` : window.location.pathname
-    // the main navigation comes back to these answers (lib/handoff.ts)
-    rememberView('/price', query ? `?${query}` : '')
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next)
   }, [city, district, deal, kind, area, age, streets, width, furnished])
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
