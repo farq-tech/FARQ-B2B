@@ -67,6 +67,11 @@ export function trackQuoteAccepted({ city, quoteCount }: { city: string; quoteCo
   track('atlas_rfq_quote_accepted', { city, quote_count: countBucket(quoteCount) })
 }
 
+/** An analyst saved a comparison by name (foundation §7: «حفظ المقارنة»): the city and how many are saved, no names. */
+export function trackComparisonSaved({ city, saved }: { city: string; saved: number }) {
+  track('atlas_comparison_saved', { city, saved: countBucket(saved) })
+}
+
 /** A user copied a reviewed hand-off. This does not claim that anything was sent. */
 export function trackManualHandoffCopied({ city, type, count }: { city: string; type: 'rfq' | 'campaign'; count: number }) {
   track('atlas_manual_handoff_copied', { city, type, selection_size: countBucket(count) })

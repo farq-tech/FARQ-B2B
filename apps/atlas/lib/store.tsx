@@ -7,6 +7,7 @@ import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestTy
 import { mergeCloudRequests } from './workspace-merge'
 import { safeMapOrigin } from './handoff'
 import { mergeIntoRequest, removeFromRequest } from './request-add'
+import { readView, saveView, type SavedView } from './saved-views'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -15,6 +16,8 @@ interface State {
   requests: RequestItem[]
   inbox: InboxMessage[]
   selection: string[]
+  /** Comparisons saved by name (lib/saved-views.ts), on this device with the requests. */
+  views: SavedView[]
 }
 
 type CloudRequest = { id?: unknown; title?: unknown; payload?: unknown }
@@ -26,13 +29,16 @@ type Action =
   | { type: 'update-request'; id: string; patch: Partial<RequestItem> }
   | { type: 'mark-read'; id: string; unread?: boolean }
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
-  | { type: 'restore'; state: Pick<State, 'requests' | 'inbox'> }
+  | { type: 'restore'; state: Pick<State, 'requests' | 'inbox' | 'views'> }
+  | { type: 'set-views'; views: SavedView[] }
   | { type: 'add-cloud'; requests: RequestItem[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'restore':
-      return { ...state, requests: action.state.requests, inbox: action.state.inbox }
+      return { ...state, requests: action.state.requests, inbox: action.state.inbox, views: action.state.views }
+    case 'set-views':
+      return { ...state, views: action.views }
     case 'add-cloud': {
       // the account's saved requests join what is on screen now; nothing local is replaced (lib/workspace-merge.ts)
       const requests = mergeCloudRequests(state.requests, action.requests)
@@ -203,18 +209,20 @@ function isInboxMessage(value: unknown): value is InboxMessage {
   return typeof message.id === 'string' && typeof message.requestId === 'string' && typeof message.body === 'string'
 }
 
-function readWorkspace(): Pick<State, 'requests' | 'inbox'> | null {
+function readWorkspace(): Pick<State, 'requests' | 'inbox' | 'views'> | null {
   try {
     // v2 used the browser session, so a carefully prepared draft disappeared
     // as soon as the user closed the tab. Keep v2 readable for a one-time
     // migration, then persist the same safe local workspace on this device.
     const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY) ?? window.sessionStorage.getItem(LEGACY_SESSION_STORAGE_KEY)
     if (!raw) return null
-    const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown }
+    const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown; views?: unknown }
     if (!Array.isArray(value.requests) || !Array.isArray(value.inbox)) return null
     const requests = value.requests.filter(isRequest).map(normalizeCampaignRecipients)
     const inbox = value.inbox.filter(isInboxMessage)
-    return requests.length === value.requests.length && inbox.length === value.inbox.length ? { requests, inbox } : null
+    // a workspace saved before comparisons could be saved has none; a saved one that does not read back is left out
+    const views = Array.isArray(value.views) ? value.views.map(readView).filter((view): view is SavedView => Boolean(view)) : []
+    return requests.length === value.requests.length && inbox.length === value.inbox.length ? { requests, inbox, views } : null
   } catch {
     return null
   }
@@ -230,6 +238,9 @@ interface StoreValue extends State {
   /** Takes businesses off a draft; how many came off (0 when none, or the request is past its draft). */
   removeFromRequest: (id: string, businessIds: string[]) => number
   markRead: (id: string, unread?: boolean) => void
+  /** Saves a comparison by name (the same address again is renamed, not copied); removes one by id. */
+  saveComparison: (view: SavedView) => void
+  removeComparison: (id: string) => void
   updateMessage: (id: string, patch: Partial<InboxMessage>) => void
 }
 
@@ -240,6 +251,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     requests: [],
     inbox: [],
     selection: [],
+    views: [],
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)
   const requestsRef = useRef<RequestItem[]>([])
@@ -269,17 +281,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!workspaceReady) return
     try {
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox }))
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox, views: state.views }))
     } catch {
       // Retain the current behavior on privacy-restricted browsers, even when
       // durable local storage is unavailable.
       try {
-        window.sessionStorage.setItem(LEGACY_SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox }))
+        window.sessionStorage.setItem(LEGACY_SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox, views: state.views }))
       } catch {
         // The active workspace remains usable if this browser blocks storage.
       }
     }
-  }, [workspaceReady, state.requests, state.inbox])
+  }, [workspaceReady, state.requests, state.inbox, state.views])
 
   const toggleSelect = useCallback((id: string) => dispatch({ type: 'toggle-select', id }), [])
   const setSelection = useCallback((ids: string[]) => dispatch({ type: 'set-selection', ids }), [])
@@ -329,6 +341,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     updateRequest(id, result.patch)
     return result.removed
   }, [updateRequest])
+  const viewsRef = useRef<SavedView[]>([])
+  useEffect(() => { viewsRef.current = state.views }, [state.views])
+  const saveComparison = useCallback((view: SavedView) => dispatch({ type: 'set-views', views: saveView(viewsRef.current, view) }), [])
+  const removeComparison = useCallback((id: string) => dispatch({ type: 'set-views', views: viewsRef.current.filter((view) => view.id !== id) }), [])
   const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])
   const updateMessage = useCallback(
     (id: string, patch: Partial<InboxMessage>) => dispatch({ type: 'update-message', id, patch }),
@@ -336,8 +352,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFromRequest: removeFrom, markRead, updateMessage }),
-    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFrom, markRead, updateMessage],
+    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFromRequest: removeFrom, markRead, updateMessage, saveComparison, removeComparison }),
+    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFrom, markRead, updateMessage, saveComparison, removeComparison],
   )
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

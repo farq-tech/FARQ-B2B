@@ -240,7 +240,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       {target && (
         <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
           <PlusCircle className="size-4 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1">تضيف إلى «{target.title}» · فيه {counted(target.businessIds.length, 'business')}</span>
+          <span className="min-w-0 flex-1">تضيف إلى «{target.title}» · {target.businessIds.length ? `فيه ${counted(target.businessIds.length, 'business')}` : 'لا منشآت فيه بعد'}</span>
           <button type="button" onClick={() => setAddId(null)} className="shrink-0 font-semibold underline-offset-4 hover:underline">طلب جديد بدلاً منه</button>
         </p>
       )}

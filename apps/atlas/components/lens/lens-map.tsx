@@ -20,6 +20,7 @@ import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps, type BusinessDot } from './lens-map-canvas'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { MapOnboarding } from './map-onboarding'
+import { SavedComparisons } from './saved-comparisons'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { backIfReturning, historyGate, pushedState, rememberView } from '@/lib/handoff'
@@ -591,6 +592,13 @@ export function LensMap() {
   // the outlines' rows (`early`), which a step still loading its own tables already has: `rows` waits for those
   const now = useRef({ city, lens, tool, search, rows: data.early })
   now.current = { city, lens, tool, search, rows: data.early }
+  // the same reading of the address, for a saved comparison opened from the panel (an entry of its own, like a link)
+  const applyAddress = useRef<() => void>(() => {})
+  const openView = (href: string) => {
+    if (href === `${window.location.pathname}${window.location.search}`) return
+    window.history.pushState({}, '', href)
+    applyAddress.current()
+  }
   useEffect(() => {
     const onPop = () => {
       if (window.location.pathname !== '/map') return
@@ -625,6 +633,7 @@ export function LensMap() {
         setSearch(view.q ? { q: view.q, nonce: Date.now() } : null)
       }
     }
+    applyAddress.current = onPop
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
     // flyTo only sets state; the handler reads the page through `now`
@@ -1004,6 +1013,9 @@ export function LensMap() {
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
+                        {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
+                        {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
+                          here={() => (typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`)} onOpen={openView} />}
                       </motion.div>
                     )}
                   </AnimatePresence>
