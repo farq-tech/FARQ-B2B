@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readPriceOrigin, backIfReturning, pushedState, historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
+import { priceAsk, readPriceOrigin, backIfReturning, pushedState, historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
 
 const TYPES = [
   { id: 'room', kinds: ['rent'] }, { id: 'apartment', kinds: ['rent', 'sale'] }, { id: 'villa', kinds: ['rent', 'sale'] }, { id: 'land', kinds: ['sale'] },
@@ -147,4 +147,10 @@ test('a price page opened from a listing names it and its asking price, each che
   assert.deepEqual(readPriceOrigin('?from=6918576&ask=-3'), { id: '6918576', ask: null })
   assert.equal(readPriceOrigin('?from=a%20b&ask=1'), null)
   assert.equal(readPriceOrigin('?ask=1'), null)
+})
+
+test('a listing card asks the price estimate the same question the price page would', () => {
+  assert.deepEqual(priceAsk({ city: 'Jeddah', district_id: '812', deal: 'sale', type: 'villa', area_sqm: 312.4, age: 4, street_width: 20, features: { furnished: 1 } }),
+    { city: 'Jeddah', district_id: '812', deal: 'sale', type: 'villa', area_sqm: 312, age: '3-5', street_width: '20-29', furnished: 'yes' })
+  assert.equal(priceAsk({ city: 'Riyadh', district_id: '5', deal: 'rent_year', type: 'store', area_sqm: 80 }), null, 'a type the page does not price')
 })

@@ -10,7 +10,7 @@ type Noun = 'business' | 'listing'
  * the first few named (each opening its own card), and «قرّب» for the rest. Placed beside the group, inside the part of
  * the map in view (`top` to `bottom`, pixels).
  */
-export function GroupCard({ count, items, noun, at, top: ceiling, bottom: floor, onOpen, onClose, onExpand }: {
+export function GroupCard({ count, items, noun, at, top: ceiling, bottom: floor, onOpen, onClose, onExpand, note = null }: {
   count: number
   items: { id: string; title: string; sub?: string | null }[]
   noun: Noun
@@ -20,10 +20,12 @@ export function GroupCard({ count, items, noun, at, top: ceiling, bottom: floor,
   onOpen: (id: string) => void
   onClose: () => void
   onExpand: () => void
+  /** One line under the count that says how the names are ordered when it is not obvious (a group mixing rent periods). */
+  note?: string | null
 }) {
   const width = Math.min(256, at.width - 16)
   const left = Math.min(Math.max(8, at.x - width / 2), at.width - width - 8)
-  const height = 64 + items.length * (items.some((item) => item.sub) ? 44 : 30) + 44
+  const height = (note ? 84 : 64) + items.length * (items.some((item) => item.sub) ? 44 : 30) + 44
   const wanted = at.y - 12 - height >= ceiling ? at.y - 12 - height : at.y + 12
   const top = Math.max(ceiling, Math.min(wanted, floor - height))
   const more = count - items.length
@@ -33,6 +35,7 @@ export function GroupCard({ count, items, noun, at, top: ceiling, bottom: floor,
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">{counted(count, noun)} هنا</h2>
         <button onClick={onClose} aria-label="إغلاق" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
       </div>
+      {note && <p className="text-xs text-muted-foreground">{note}</p>}
       <ul className="flex flex-col">
         {items.map((item) => (
           <li key={item.id}>

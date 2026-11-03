@@ -357,8 +357,9 @@ function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
  * A group's listings, cheapest first when they share one deal and period; a yearly and a monthly rent are never put in
  * one price order (nothing is converted between periods), so a mixed group keeps its own order.
  */
+const mixedPeriods = (listings: Listing[]) => new Set(listings.map((listing) => listing.deal)).size > 1
 function cheapestFirst(listings: Listing[]): Listing[] {
-  if (new Set(listings.map((listing) => listing.deal)).size > 1) return listings
+  if (mixedPeriods(listings)) return listings
   return [...listings].sort((a, b) => (a.price_sar ?? Infinity) - (b.price_sar ?? Infinity))
 }
 
@@ -1002,10 +1003,15 @@ export function LensMap() {
   const leadOf = overlay.lead ? data.rows.find((row) => row.id === overlay.lead) ?? null : null
   // after a pick from an answer, the business list it opens is brought into view
   const toBusinesses = () => window.setTimeout(() => document.querySelector('section[aria-label="منشآت الحي"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+  // a journey with its own rentals step (shop owners' «محلات للإيجار») opens it on a district instead of leaving the map
+  const rentalsStep = lensById(lens).steps.some((item) => item.tool === 'homes')
+  const openRentals = (id: string) => { setSelected([id]); setTool('homes') }
   const nextFor = (id: ToolId): ReactNode => {
     if (id === 'gaps' && leadOf) return <>
       <NextAction icon={ClipboardList} onClick={() => { pickFromList(leadOf.id); toBusinesses() }}>طلب تسعير أو حملة في {leadOf.name}</NextAction>
-      <NextAction icon={Building2} href={homesHref({ city, districts: [leadOf.id], types: ['store'] })}>محلات للإيجار في {leadOf.name}</NextAction>
+      {rentalsStep
+        ? <NextAction icon={Building2} onClick={() => openRentals(leadOf.id)}>محلات للإيجار في {leadOf.name}</NextAction>
+        : <NextAction icon={Building2} href={homesHref({ city, districts: [leadOf.id], types: ['store'] })}>محلات للإيجار في {leadOf.name}</NextAction>}
     </>
     if (id === 'competitors' && leadOf) return (
       <NextAction icon={Users} onClick={() => { setSelected([leadOf.id]); setSearch({ q: rival ?? studied.label, nonce: Date.now() }) }}>منشآت «{rival ?? studied.label}» في {leadOf.name}</NextAction>
@@ -1016,9 +1022,11 @@ export function LensMap() {
         جهّز حملة في {scope.length === 1 ? scope[0].name : counted(scope.length, 'district')}
       </NextAction>
     }
-    if (id === 'homes' && leadOf) return (
-      <NextAction icon={Calculator} href={priceStartHref({ city, district: leadOf.id })}>سعّر عقاراً في {leadOf.name}</NextAction>
-    )
+    if (id === 'homes' && leadOf) {
+      // the deal and the type the step is showing, from its own first listing, so the price page asks only the rest
+      const shown = stepListings.find((listing) => listing.district_id === leadOf.id) ?? stepListings[0]
+      return <NextAction icon={Calculator} href={priceStartHref({ city, district: leadOf.id, deal: shown?.deal ?? null, type: shown?.type ?? null })}>سعّر عقاراً في {leadOf.name}</NextAction>
+    }
     if (id === 'around' && overlay.sites?.length) return <>
       <NextAction icon={ArrowLeft} onClick={() => [...document.querySelectorAll('article h3')].find((title) => title.textContent?.startsWith('بطاقة الموقع'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>بطاقة الموقع</NextAction>
       {lensById(lens).steps.some((item) => item.tool === 'homes') && <NextAction icon={Building2} onClick={() => setTool('homes')}>محلات للإيجار حول المواقع</NextAction>}
@@ -1185,7 +1193,7 @@ export function LensMap() {
           )}
           {/* the rentals step: a group of price pins names its cheapest, each opening its card in the step */}
           {!cardRow && !located && !group && !overlay.popup && listingGroup && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
-            <GroupCard count={listingGroup.count} noun="listing" at={cardAt}
+            <GroupCard count={listingGroup.count} noun="listing" at={cardAt} note={mixedPeriods(listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })) ? 'إيجار سنوي وشهري معاً: مرتبة كما وردت، لا بالسعر' : null}
               items={cheapestFirst(listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })).slice(0, 5)
                 .map((listing) => ({ id: listing.id, title: priceLine(listing), sub: [typeLabel(listing.type), listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.district_ar].filter(Boolean).join(' · ') }))}
               onOpen={(id) => { setListingGroup(null); overlay.onListing?.(id) }} onClose={() => setListingGroup(null)} onExpand={() => { listingGroup.expand(); setListingGroup(null) }}
@@ -1356,7 +1364,7 @@ export function LensMap() {
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <div id="picked-summary" className="scroll-mt-2">
                       <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} failed={data.failed} pending={data.pending}
-                        onClear={() => { focusAfter.current = tabId(tool); clearPick() }} />
+                        onClear={() => { focusAfter.current = tabId(tool); clearPick() }} onRentals={rentalsStep ? openRentals : undefined} />
                     </div>
                   )}
                   {showBusinesses && (
