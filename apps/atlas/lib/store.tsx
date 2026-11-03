@@ -7,7 +7,8 @@ import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestTy
 import { mergeCloudRequests } from './workspace-merge'
 import { safeMapOrigin } from './handoff'
 import { mergeIntoRequest, removeFromRequest } from './request-add'
-import { readView, saveView, type SavedView } from './saved-views'
+import { deviceOnlyViews, mergeSavedViews, readView, saveView, viewKey, type SavedView } from './saved-views'
+import { SESSION_CHANGED } from './use-signed-in'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -16,8 +17,10 @@ interface State {
   requests: RequestItem[]
   inbox: InboxMessage[]
   selection: string[]
-  /** Comparisons saved by name (lib/saved-views.ts), on this device with the requests. */
+  /** Comparisons saved by name (lib/saved-views.ts), on this device with the requests and, signed in, in the account. */
   views: SavedView[]
+  /** Addresses of comparisons deleted here that the account has not confirmed yet (asked again on the next sync). */
+  viewsRemoved: string[]
 }
 
 type CloudRequest = { id?: unknown; title?: unknown; payload?: unknown }
@@ -29,16 +32,16 @@ type Action =
   | { type: 'update-request'; id: string; patch: Partial<RequestItem> }
   | { type: 'mark-read'; id: string; unread?: boolean }
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
-  | { type: 'restore'; state: Pick<State, 'requests' | 'inbox' | 'views'> }
-  | { type: 'set-views'; views: SavedView[] }
+  | { type: 'restore'; state: Pick<State, 'requests' | 'inbox' | 'views' | 'viewsRemoved'> }
+  | { type: 'set-views'; views: SavedView[]; viewsRemoved?: string[] }
   | { type: 'add-cloud'; requests: RequestItem[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'restore':
-      return { ...state, requests: action.state.requests, inbox: action.state.inbox, views: action.state.views }
+      return { ...state, requests: action.state.requests, inbox: action.state.inbox, views: action.state.views, viewsRemoved: action.state.viewsRemoved }
     case 'set-views':
-      return { ...state, views: action.views }
+      return { ...state, views: action.views, viewsRemoved: action.viewsRemoved ?? state.viewsRemoved }
     case 'add-cloud': {
       // the account's saved requests join what is on screen now; nothing local is replaced (lib/workspace-merge.ts)
       const requests = mergeCloudRequests(state.requests, action.requests)
@@ -209,20 +212,44 @@ function isInboxMessage(value: unknown): value is InboxMessage {
   return typeof message.id === 'string' && typeof message.requestId === 'string' && typeof message.body === 'string'
 }
 
-function readWorkspace(): Pick<State, 'requests' | 'inbox' | 'views'> | null {
+/** The account's saved comparisons; 'out' when signed out; null when the account cannot keep them or is out of reach. */
+async function fetchViews(): Promise<SavedView[] | 'out' | null> {
+  try {
+    const response = await fetch('/api/saved-views', { cache: 'no-store' })
+    if (response.status === 401) return 'out'
+    if (!response.ok) return null
+    const body = await response.json().catch(() => null) as { views?: unknown } | null
+    return Array.isArray(body?.views) ? body.views.map(readView).filter((view): view is SavedView => Boolean(view)) : null
+  } catch {
+    return null
+  }
+}
+
+async function sendView(view: SavedView) {
+  const response = await fetch('/api/saved-views', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ view }) }).catch(() => null)
+  return Boolean(response?.ok)
+}
+
+async function deleteView(href: string) {
+  const response = await fetch('/api/saved-views', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ href }) }).catch(() => null)
+  return Boolean(response?.ok)
+}
+
+function readWorkspace(): Pick<State, 'requests' | 'inbox' | 'views' | 'viewsRemoved'> | null {
   try {
     // v2 used the browser session, so a carefully prepared draft disappeared
     // as soon as the user closed the tab. Keep v2 readable for a one-time
     // migration, then persist the same safe local workspace on this device.
     const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY) ?? window.sessionStorage.getItem(LEGACY_SESSION_STORAGE_KEY)
     if (!raw) return null
-    const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown; views?: unknown }
+    const value = JSON.parse(raw) as { requests?: unknown; inbox?: unknown; views?: unknown; viewsRemoved?: unknown }
     if (!Array.isArray(value.requests) || !Array.isArray(value.inbox)) return null
     const requests = value.requests.filter(isRequest).map(normalizeCampaignRecipients)
     const inbox = value.inbox.filter(isInboxMessage)
     // a workspace saved before comparisons could be saved has none; a saved one that does not read back is left out
     const views = Array.isArray(value.views) ? value.views.map(readView).filter((view): view is SavedView => Boolean(view)) : []
-    return requests.length === value.requests.length && inbox.length === value.inbox.length ? { requests, inbox, views } : null
+    const viewsRemoved = Array.isArray(value.viewsRemoved) ? value.viewsRemoved.filter((href): href is string => typeof href === 'string' && href.length <= 600).slice(0, 100) : []
+    return requests.length === value.requests.length && inbox.length === value.inbox.length ? { requests, inbox, views, viewsRemoved } : null
   } catch {
     return null
   }
@@ -252,6 +279,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     inbox: [],
     selection: [],
     views: [],
+    viewsRemoved: [],
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)
   const requestsRef = useRef<RequestItem[]>([])
@@ -281,17 +309,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!workspaceReady) return
     try {
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox, views: state.views }))
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox, views: state.views, viewsRemoved: state.viewsRemoved }))
     } catch {
       // Retain the current behavior on privacy-restricted browsers, even when
       // durable local storage is unavailable.
       try {
-        window.sessionStorage.setItem(LEGACY_SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox, views: state.views }))
+        window.sessionStorage.setItem(LEGACY_SESSION_STORAGE_KEY, JSON.stringify({ requests: state.requests, inbox: state.inbox, views: state.views, viewsRemoved: state.viewsRemoved }))
       } catch {
         // The active workspace remains usable if this browser blocks storage.
       }
     }
-  }, [workspaceReady, state.requests, state.inbox, state.views])
+  }, [workspaceReady, state.requests, state.inbox, state.views, state.viewsRemoved])
 
   const toggleSelect = useCallback((id: string) => dispatch({ type: 'toggle-select', id }), [])
   const setSelection = useCallback((ids: string[]) => dispatch({ type: 'set-selection', ids }), [])
@@ -341,10 +369,74 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     updateRequest(id, result.patch)
     return result.removed
   }, [updateRequest])
+  // ── saved comparisons: on this device, and in the signed-in account (app/api/saved-views, lib/saved-views.ts) ──
   const viewsRef = useRef<SavedView[]>([])
-  useEffect(() => { viewsRef.current = state.views }, [state.views])
-  const saveComparison = useCallback((view: SavedView) => dispatch({ type: 'set-views', views: saveView(viewsRef.current, view) }), [])
-  const removeComparison = useCallback((id: string) => dispatch({ type: 'set-views', views: viewsRef.current.filter((view) => view.id !== id) }), [])
+  const removedRef = useRef<string[]>([])
+  /** 'in' once the account answered, 'out' once it said signed out, null before or when it could not be reached. */
+  const accountRef = useRef<'in' | 'out' | null>(null)
+  useEffect(() => { viewsRef.current = state.views; removedRef.current = state.viewsRemoved }, [state.views, state.viewsRemoved])
+  const setViews = useCallback((views: SavedView[], viewsRemoved = removedRef.current) => {
+    // the refs move with the dispatch, so a save and a sync answer arriving together both see the latest list
+    viewsRef.current = views
+    removedRef.current = viewsRemoved
+    dispatch({ type: 'set-views', views, viewsRemoved })
+  }, [])
+  const markSynced = useCallback((href: string) => {
+    const key = viewKey(href)
+    setViews(viewsRef.current.map((view) => (viewKey(view.href) === key ? { ...view, synced: true } : view)))
+  }, [setViews])
+  const pushView = useCallback((view: SavedView) => {
+    void sendView(view).then((ok) => { if (ok) markSynced(view.href) })
+  }, [markSynced])
+  const dropView = useCallback((href: string) => {
+    void deleteView(href).then((ok) => {
+      if (ok) setViews(viewsRef.current, removedRef.current.filter((item) => viewKey(item) !== viewKey(href)))
+    })
+  }, [setViews])
+  const syncViews = useCallback(async () => {
+    const cloud = await fetchViews()
+    if (cloud === 'out') {
+      accountRef.current = 'out'
+      // signed out: the account's comparisons stay in the account, this device keeps the ones saved on it
+      const own = deviceOnlyViews(viewsRef.current)
+      if (own.length !== viewsRef.current.length) setViews(own)
+      return
+    }
+    if (cloud === null) { accountRef.current = null; return }
+    accountRef.current = 'in'
+    const plan = mergeSavedViews(viewsRef.current, cloud, removedRef.current)
+    setViews(plan.views, plan.remove)
+    plan.upload.forEach(pushView)
+    plan.remove.forEach(dropView)
+  }, [setViews, pushView, dropView])
+  useEffect(() => {
+    if (!workspaceReady) return
+    void syncViews()
+    // signing in or out on this page (the login form, the app bar's «خروج») joins or separates the account's list
+    const again = () => { void syncViews() }
+    window.addEventListener(SESSION_CHANGED, again)
+    return () => window.removeEventListener(SESSION_CHANGED, again)
+  }, [workspaceReady, syncViews])
+  /** Takes a view out of the account; remembered until the account confirms, so it is not merged back meanwhile. */
+  const removeFromAccount = useCallback((href: string) => {
+    if (accountRef.current === 'out') return
+    setViews(viewsRef.current, [...removedRef.current.filter((item) => viewKey(item) !== viewKey(href)), href].slice(-100))
+    if (accountRef.current === 'in') dropView(href)
+  }, [setViews, dropView])
+  const saveComparison = useCallback((view: SavedView) => {
+    const before = viewsRef.current
+    const views = saveView(before, view)
+    setViews(views)
+    const saved = views.find((item) => item.href === view.href)
+    if (saved && accountRef.current === 'in') pushView(saved)
+    // a comparison pushed off the end by the cap leaves the account as well
+    for (const old of before) if (old.synced && !views.some((item) => viewKey(item.href) === viewKey(old.href))) removeFromAccount(old.href)
+  }, [setViews, pushView, removeFromAccount])
+  const removeComparison = useCallback((id: string) => {
+    const view = viewsRef.current.find((item) => item.id === id)
+    setViews(viewsRef.current.filter((item) => item.id !== id))
+    if (view && (view.synced || accountRef.current === 'in')) removeFromAccount(view.href)
+  }, [setViews, removeFromAccount])
   const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])
   const updateMessage = useCallback(
     (id: string, patch: Partial<InboxMessage>) => dispatch({ type: 'update-message', id, patch }),

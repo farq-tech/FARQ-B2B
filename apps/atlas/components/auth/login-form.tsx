@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { FormEvent, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { requestAccessHref } from '@/lib/access-request'
+import { announceSessionChange } from '@/lib/use-signed-in'
 
 function safeNext(value: string | null) {
   return value && value.startsWith('/') && !value.startsWith('//') ? value : '/map'
@@ -52,6 +54,7 @@ export function LoginForm() {
     }
     setPassword('')
     setPending(false)
+    announceSessionChange()
     router.replace(safeNext(search.get('next')))
     router.refresh()
   }
@@ -88,10 +91,15 @@ export function LoginForm() {
           {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <LogIn className="size-4" aria-hidden />}
           {pending ? 'جارٍ الدخول…' : 'دخول'}
         </Button>
+        {/* someone without an account: the map works without one, and an account is asked for here, back to the same page */}
+        <p className="mt-5 border-t pt-4 text-center text-sm text-muted-foreground">
+          ليس لديك حساب؟{' '}
+          <Link href={requestAccessHref(search.get('next'))} className="font-semibold text-primary underline-offset-4 hover:underline">اطلب حساباً</Link>
+        </p>
       </form>
       {/* a first visitor without an account is not stuck here: the map and its figures open without signing in */}
       <p className="max-w-sm text-center text-sm text-muted-foreground">
-        لا تملك حساباً؟ الخريطة وأرقام الأحياء تعمل بلا دخول، والدخول لأسماء المنشآت والطلبات.{' '}
+        الخريطة وأرقام الأحياء تعمل بلا دخول، والدخول لأسماء المنشآت والطلبات.{' '}
         <Link href={resumes ? next : '/map'} className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">{resumes ? 'ارجع إلى حيث كنت' : 'افتح الخريطة'}</Link>
       </p>
       <Link href="/" className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground">
