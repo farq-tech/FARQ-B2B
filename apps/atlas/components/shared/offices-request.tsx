@@ -80,4 +80,3 @@ export function OfficesRequest({ asked, cityName, price, fromListing = null, to 
     </div>
   )
 }
-
