@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { CircleHelp, Info, MousePointerClick, X } from 'lucide-react'
 import { setMapTourShowing } from '@/components/shared/whats-new'
 import { trackOnboardingStep } from '@/lib/commercial-metrics'
-import { LENSES, type LensId } from './lenses'
+import { LENSES, LENS_GOALS, type LensId } from './lenses'
 
 /**
  * The first visit to the map (skills: product-adoption, interactive-onboarding, onboarding-state-machine): one question
@@ -16,13 +16,6 @@ import { LENSES, type LensId } from './lenses'
 type CoachState = 'not_started' | 'goal' | 'waiting_pick' | 'waiting_explain' | 'completed' | 'skipped'
 
 const KEY = 'atlas.onboarding.map'
-const GOALS: Record<LensId, string> = {
-  shops: 'أفتح محلاً أو أوسّع نشاطي',
-  marketers: 'أوصل لجمهوري بحملة',
-  distributors: 'أوزّع وأغطي مناطق',
-  analysts: 'أفهم السوق والأحياء',
-  property: 'أدوّر عقاراً مناسباً',
-}
 const EXPLAINED = '[aria-label="لوحة الخريطة"] [data-explained]'
 
 function read(): CoachState {
@@ -32,7 +25,7 @@ function write(state: CoachState) {
   try { localStorage.setItem(KEY, state) } catch { /* private window: the tour simply shows again next time */ }
 }
 
-export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, onAsk, onShowMe }: {
+export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, onAsk, onShowMe, showMeName = null, firstAsk = null }: {
   lens: LensId
   onLens: (lens: LensId) => void
   picked: boolean
@@ -42,6 +35,11 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   onAsk?: () => void
   /** Picks the district the open step ranks first, so a first visit reaches an answer in one tap; absent when none. */
   onShowMe?: (() => void) | null
+  /** The name of the district «أرني» opens, so the offer says where it goes («أو اعرض طويق») instead of «الأعلى» in what. */
+  showMeName?: string | null
+  /** What the open step needs before a district means anything (its activity, «اختر نشاطك…»): the pick hint says this
+   * first, so the tour and the panel never ask for two different things; once it is done the hint asks for the pick. */
+  firstAsk?: string | null
   /** The map failed to open: the tour keeps its place and shows no hint over the failure notice (the goal question,
    * in the panel, still asks). */
   paused?: boolean
@@ -153,7 +151,7 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
               }}
                 className="flex flex-col items-start rounded-xl border bg-card px-3 py-1.5 text-start transition-colors outline-none hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 data-[current=true]:border-primary"
                 data-current={item.id === lens}>
-                <span className="text-sm font-semibold">{GOALS[item.id]}</span>
+                <span className="text-sm font-semibold">{LENS_GOALS[item.id].title}</span>
                 <span className="text-xs text-muted-foreground">{item.label}</span>
               </button>
             </li>
@@ -165,8 +163,9 @@ export function MapOnboarding({ lens, onLens, picked, paused = false, goalSlot, 
   }
 
   if (state === 'waiting_pick') {
+    if (firstAsk) return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, firstAsk)
     return hint(<MousePointerClick className="size-4 shrink-0 text-primary" aria-hidden />, onShowMe ? 'اضغط حياً على الخريطة' : 'اختر حياً: اضغطه على الخريطة',
-      onShowMe && <button onClick={() => { trackOnboardingStep('show_me'); onShowMe() }} className="shrink-0 text-sm font-semibold text-primary underline-offset-4 hover:underline">أو أرني الأعلى</button>)
+      onShowMe && <button onClick={() => { trackOnboardingStep('show_me'); onShowMe() }} className="max-w-[9rem] shrink-0 truncate text-sm font-semibold text-primary underline-offset-4 hover:underline">{showMeName ? `أو اعرض ${showMeName}` : 'أو أرني الأعلى'}</button>)
   }
 
   // waiting_explain: the pick is done, so the line now points at the «i» beside a figure in the panel

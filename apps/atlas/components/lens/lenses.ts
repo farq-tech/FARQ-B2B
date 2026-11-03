@@ -60,31 +60,87 @@ export function metricAvailability(id: MetricId, rows: DistrictRow[], failed: re
   return rows.length && !rows.some((row) => METRICS[id].value(row) != null) ? 'missing' : 'ready'
 }
 
-export type Lens = { id: LensId; label: string; metric: MetricId; metrics: MetricId[]; steps: { tool: ToolId; label: string }[] }
+/**
+ * One step of a journey: its tool, its tab's words, and `ask`, what the customer does on it to get its answer. The ask
+ * is said where the step has no answer yet (the phone's peeking sheet), instead of a figure the step never asked about.
+ */
+export type JourneyStep = { tool: ToolId; label: string; ask: string }
+
+export type Lens = { id: LensId; label: string; metric: MetricId; metrics: MetricId[]; steps: JourneyStep[] }
 
 export const LENSES: Lens[] = [
   {
     id: 'shops', label: 'أصحاب المتاجر', metric: 'residentsPerBusiness', metrics: ['residentsPerBusiness', 'unmet', 'shopRent', 'population'],
-    steps: [{ tool: 'gaps', label: 'أين ينقص نشاطي؟' }, { tool: 'competitors', label: 'المنافسون' }, { tool: 'corridors', label: 'شوارع النشاط' }, { tool: 'around', label: 'قارن المواقع' }, { tool: 'homes', label: 'محلات للإيجار' }],
+    steps: [
+      { tool: 'gaps', label: 'أين ينقص نشاطي؟', ask: 'اختر نشاطك فتتلوّن الأحياء التي ينقصها' },
+      { tool: 'competitors', label: 'المنافسون', ask: 'اختر نشاطك لترى منافسيك في كل حي' },
+      { tool: 'corridors', label: 'شوارع النشاط', ask: 'اختر نشاطك لترى الشوارع التي يتجمع فيها' },
+      { tool: 'around', label: 'قارن المواقع', ask: 'اضغط على الخريطة لتضع موقعاً مرشحاً' },
+      { tool: 'homes', label: 'محلات للإيجار', ask: 'اختر الميزانية لترى المحلات المعروضة' },
+    ],
   },
   {
     id: 'marketers', label: 'المسوّقون', metric: 'population', metrics: ['population', 'income', 'villaShare'],
-    steps: [{ tool: 'audience', label: 'أين جمهوري؟' }, { tool: 'businesses', label: 'منشآت الأحياء والحملة' }],
+    steps: [
+      { tool: 'audience', label: 'أين جمهوري؟', ask: 'اختر جمهورك فتتلوّن الأحياء الأكثر مطابقة' },
+      { tool: 'businesses', label: 'منشآت الأحياء والحملة', ask: 'اختر حياً لترى منشآته وتجهّز حملتك' },
+    ],
   },
   {
     id: 'distributors', label: 'الموزّعون', metric: 'businesses', metrics: ['businesses', 'growth', 'warehouseRent'],
-    steps: [{ tool: 'territories', label: 'المناطق والمسار' }, { tool: 'corridors', label: 'شوارع النشاط' }, { tool: 'growth', label: 'أين يُبنى الآن؟' }],
+    steps: [
+      { tool: 'territories', label: 'المناطق والمسار', ask: 'حدد نشاط عملائك وعدد المندوبين' },
+      { tool: 'corridors', label: 'شوارع النشاط', ask: 'اختر نشاط عملائك لترى الشوارع التي يتجمعون فيها' },
+      { tool: 'growth', label: 'أين يُبنى الآن؟', ask: 'اضغط حياً لترى البناء الجاري فيه' },
+    ],
   },
   {
     id: 'analysts', label: 'المحلّلون', metric: 'population',
     metrics: ['population', 'businesses', 'residentsPerBusiness', 'income', 'villaShare', 'shopRent', 'homeRent', 'homeRentMonthly', 'homePrice', 'dealPrice', 'restaurants', 'menuPrice', 'unmet', 'growth'],
-    steps: [{ tool: 'district', label: 'الأحياء والترتيب' }, { tool: 'compare', label: 'قارن حيين' }],
+    steps: [
+      { tool: 'district', label: 'الأحياء والترتيب', ask: 'اختر مقياساً من «طبقات»، واضغط حياً لملخصه' },
+      { tool: 'compare', label: 'قارن حيين', ask: 'اختر حيين لتقارن بينهما' },
+    ],
   },
   {
     id: 'property', label: 'الباحثون عن عقار', metric: 'homeRent', metrics: ['homeRent', 'homeRentMonthly', 'homePrice', 'dealPrice'],
-    steps: [{ tool: 'homes', label: 'اختر عقاراً' }, { tool: 'district', label: 'تعرّف على الحي' }],
+    steps: [
+      { tool: 'homes', label: 'اختر عقاراً', ask: 'اختر إيجاراً أو شراءً والنوع والميزانية' },
+      { tool: 'district', label: 'تعرّف على الحي', ask: 'اضغط حياً لتتعرّف عليه' },
+    ],
   },
 ]
+
+/**
+ * The goal each group comes with, in its own words: the landing's goal cards and the map's first question say the
+ * same sentence, so the choice made on one is recognised on the other. `goal` is the landing link's id (?goal=).
+ */
+export const LENS_GOALS: Record<LensId, { goal: string; title: string; text: string }> = {
+  analysts: { goal: 'explore', title: 'أفهم السوق والأحياء', text: 'رتّب الأحياء بأي مقياس وقارن بين حيين.' },
+  shops: { goal: 'expand', title: 'أختار موقعاً لمحلي', text: 'أين ينقص نشاطك، ومن منافسوك، وأي موقع أنسب.' },
+  marketers: { goal: 'target', title: 'أصل إلى جمهوري بحملة', text: 'أين جمهورك، ومنشآت أحيائه لحملتك.' },
+  distributors: { goal: 'network', title: 'أوزّع وأغطي مدينتي', text: 'مناطق متوازنة لمندوبيك ومسار كل يوم.' },
+  property: { goal: 'property', title: 'أبحث عن عقار', text: 'العروض على الخريطة بسعرها مقارنة بحيّها.' },
+}
+
+/** The lens a landing goal (?goal=) opens; «find a supplier» has none, it opens the business search instead. */
+export const GOAL_LENS: Record<string, LensId> = Object.fromEntries(Object.entries(LENS_GOALS).map(([id, item]) => [item.goal, id as LensId]))
+
+/**
+ * What a step that takes a district can start from when none is picked yet: the district an earlier step of the same
+ * journey put first (its `lead`), so the answer the customer just saw is one tap from the next question. The nearest
+ * earlier step wins; a lead the city's districts do not hold is skipped. Null when there is nothing to offer.
+ */
+export function journeyStart(lens: Lens, tool: ToolId, leads: Partial<Record<ToolId, string>>, known: (id: string) => boolean): { id: string; from: JourneyStep } | null {
+  if (!TOOL_INPUTS[tool]?.district) return null
+  const at = lens.steps.findIndex((step) => step.tool === tool)
+  for (let index = at - 1; index >= 0; index--) {
+    const from = lens.steps[index]
+    const id = leads[from.tool]
+    if (id && known(id)) return { id, from }
+  }
+  return null
+}
 
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]
 
