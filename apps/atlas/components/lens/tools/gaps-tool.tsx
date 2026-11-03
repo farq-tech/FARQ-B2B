@@ -17,7 +17,7 @@ import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { useAnswer } from './use-answer'
-import { aroundOf, caveatTag, gapsVerdict, populationKind, rankGapsAround } from './tool-answers'
+import { aroundOf, caveatTag, fitLine, gapsVerdict, populationKind, rankGapsAround } from './tool-answers'
 import { Examples } from './examples'
 import { neighbourMap } from '@/lib/geo-measure'
 import type { DistrictFeature } from '@/lib/insights-api'
@@ -217,7 +217,7 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
             {/* the measured r is shown only when it was measured over enough districts to mean anything; with too
                 few covered districts r is unreliable, so only the count is shown and the message says why */}
             {result.population_model_reason === 'weak_relationship' && result.fit != null && result.covered_districts != null && (
-              <p className="text-sm text-muted-foreground tabular-nums">قيس على {numberFormat.format(result.covered_districts)} حي يحمل سكاناً ومنشآت: ارتباط العدد بالسكان r = {numberFormat.format(result.fit)}.</p>
+              <Explained title="كيف قيس" lines={[`معامل الارتباط بين عدد «${label}» وسكان كل حي: ${numberFormat.format(result.fit)}، على ${counted(result.covered_districts, 'district')}.`]} className="text-sm text-muted-foreground">{fitLine(result.fit, result.covered_districts, label)}</Explained>
             )}
             {result.population_model_reason === 'too_few_districts' && result.covered_districts != null && (
               <p className="text-sm text-muted-foreground tabular-nums">الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط: {numberFormat.format(result.covered_districts)} فقط.</p>
@@ -270,7 +270,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
           )}
           {/* the measured strength of the population→count relationship, so the city rate is auditable */}
           {result.fit != null && result.covered_districts != null && (
-            <p className="text-sm text-muted-foreground tabular-nums">يتبع العدد السكان هنا (الارتباط r = {numberFormat.format(result.fit)} على {numberFormat.format(result.covered_districts)} حي).</p>
+            // plain words; the measured r stays in its explanation for whoever audits it
+            <Explained title="كيف قيس" lines={[`معامل الارتباط بين عدد «${label}» وسكان كل حي: ${numberFormat.format(result.fit)}، على ${counted(result.covered_districts, 'district')}.`]} className="text-sm text-muted-foreground">{fitLine(result.fit, result.covered_districts, label)}</Explained>
           )}
           {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
           {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}

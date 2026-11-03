@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  areaLine, aroundOf, attractionScores, rankGapsAround, rankLightAround, sparseLine, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
+  areaLine, aroundOf, fitLine, oversizedShop, attractionScores, rankGapsAround, rankLightAround, sparseLine, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
   districtsVerdict, pairsVerdict, populationKind, siteCardVerdict, sitesVerdict, territoriesVerdict, weekFitHint, THIN, type VerdictText,
 } from './tool-answers.ts'
 import { gapsSummary } from './gaps-summary.ts'
@@ -409,4 +409,34 @@ test('round E review: half the market is half, a near-empty district is never th
   assert.equal(ranked.at(-1)!.row.id, 'الدانة')
   assert.equal(caveatTag({ caveat: 'campus' }), 'حرم مغلق له خدماته')
   assert.equal(corridorVerdict([{ street_ar: 'شارع بلال بن رباح', n: 70, per_100m: 5.99, road_class: 'main' }], 'صيدلية')!.why[0], '70 محلاً منه، 6 لكل 100 م، على شارع رئيسي.')
+})
+
+test('a failed income table is said as a failed load, never as missing or by switching to villas', () => {
+  const site = (id: number, audience: number, density: number) => ({ id, label: String(id), audience, spending: null, density, population: audience })
+  const sites = [site(1, 48210, 3), site(2, 31950, 6)]
+  const verdict = sitesVerdict(sites, attractionScores(sites), true, ['spending'])!
+  assert.equal(verdict.lead, 'الموقع 1 هو الأجذب: 100 من 100')
+  assert.equal(verdict.caution, '«دخل الحي» تعذّر تحميله الآن، فالدرجة من السكان والمنافسة حتى يُعاد تحميله.')
+  assert.doesNotMatch(verdict.caution!, /دخل حيه غير متاح/)
+  assert.doesNotMatch(JSON.stringify(verdict), /الفلل/)
+})
+
+test('the correlation reads in plain words, by band', () => {
+  assert.equal(fitLine(0.93, 163, 'صيدلية'), 'عدد «صيدلية» يتبع السكان بقوة هنا، قيس على 163 حياً فيها سكان ومنشآت.')
+  assert.match(fitLine(0.55, 40, 'مقهى')!, /بوضوح/)
+  assert.match(fitLine(0.39, 33, 'صيدلية')!, /بقدر متوسط هنا، فالنقص دليل لا قياس دقيق/)   // Al Khobar as served
+  assert.match(fitLine(0.1, 30, 'جملة')!, /لا يتبع السكان/)
+  assert.equal(fitLine(null, 30, 'x'), null)
+  assert.doesNotMatch(fitLine(0.93, 163, 'صيدلية')!, /r =/)
+})
+
+test('an oversized shop is flagged, never dropped, and only a shop', () => {
+  // Riyadh as served: a «محل» of 2,185 m² led the shops for rent
+  assert.equal(oversizedShop('store', 2185), 'مساحة كبيرة لمحل (2,185 م²): قد يكون معرضاً أو مستودعاً أو مبنى تجارياً')
+  assert.equal(oversizedShop('store', 400), null)
+  assert.equal(oversizedShop('warehouse', 5000), null)
+  assert.equal(oversizedShop('store', null), null)
+  const verdict = listingVerdict({ type: 'محل', district: 'قرطبة', price: '250,000 ريال سنوياً', versus: 'أقل من وسيط قرطبة بـ 20%', area: 2185, away: null, oversized: oversizedShop('store', 2185) }, false)!
+  assert.match(verdict.caution!, /مساحة كبيرة لمحل \(2,185 م²\)/)
+  assert.equal(verdict.lead, 'أنسب عرض: محل في قرطبة بـ 250,000 ريال سنوياً')
 })

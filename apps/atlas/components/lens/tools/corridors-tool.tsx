@@ -19,7 +19,7 @@ import { useMainActivities } from '@/lib/main-activities'
 import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
-import { corridorVerdict } from './tool-answers'
+import { corridorVerdict, oversizedShop } from './tool-answers'
 import { Examples } from './examples'
 import { Verdict } from './verdict'
 import { corridorFacts } from './district-facts'
@@ -230,7 +230,7 @@ function StreetUnits({ street, units, onOpen, onRetry }: { street: string; units
             {units.listings.slice(0, limit).map((item) => (
               <ResultRow key={item.id} onClick={() => onOpen(item)}
                 title={`${typeLabel(item.type)}${item.kind === 'sale' ? ' للبيع' : item.kind === 'rent' ? ' للإيجار' : ''}`}
-                sub={`${item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير متاحة'}${item.distance_m != null ? ` · ${formatDistance(item.distance_m)} من الشارع` : ''}`}
+                sub={`${item.area_sqm != null ? `${numberFormat.format(item.area_sqm)} م²` : 'المساحة غير متاحة'}${item.distance_m != null ? ` · ${formatDistance(item.distance_m)} من الشارع` : ''}${oversizedShop(item.type, item.area_sqm) ? ` · ${oversizedShop(item.type, item.area_sqm)}` : ''}`}
                 value={<span className="text-sm">{priceLine(item)}</span>} />
             ))}
           </ol>

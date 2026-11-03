@@ -394,12 +394,18 @@ export const factorWord = (factor: Factor, byIncome: boolean) => (factor === 'au
  * top two are level (within 3 points). A site without a score says which factor it is missing. The population quoted
  * is the service's figure in the table, so the reason reads what the visitor sees.
  */
-export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], attraction: { scores: Map<number, number>; factors: Factor[]; dropped?: Factor[] }, byIncome: boolean): VerdictText | null {
+export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], attraction: { scores: Map<number, number>; factors: Factor[]; dropped?: Factor[] }, byIncome: boolean,
+  /** Factors whose city table failed to load this time (the income table): said as «تعذّر تحميله», with the retry
+   * beside the verdict, never as a district lacking it and never by switching silently to another figure. */
+  failed: Factor[] = []): VerdictText | null {
   const { scores, factors } = attraction
   const dropped = attraction.dropped ?? []
   // a factor the visitor left out is their choice, said as such; only a factor they kept and a site lacks is «غير متاح»
   const choice = dropped.length ? [`بلا ${names(dropped.map((factor) => factorWord(factor, byIncome)))} باختيارك.`] : []
-  const kept = (factor: Factor) => !dropped.includes(factor)
+  const kept = (factor: Factor) => !dropped.includes(factor) && !failed.includes(factor)
+  const failedLine = failed.filter((factor) => !dropped.includes(factor)).length
+    ? `«${names(failed.filter((factor) => !dropped.includes(factor)).map((factor) => factorWord(factor, byIncome)))}» تعذّر تحميله الآن، ${factors.length ? `فالدرجة من ${names(factors.map((factor) => factorWord(factor, byIncome)))} حتى يُعاد تحميله` : 'فلا درجة حتى يُعاد تحميله'}.`
+    : null
   if (sites.length === 0) return null
   if (sites.length === 1) return { lead: 'أضف موقعاً ثانياً لتعرف أيهما أجذب', why: ['اضغط على الخريطة في مكان آخر، فيُقاس بالنطاق نفسه.'] }
   // a factor one site lacks is left out of every site's score, and said: «الدرجة من السكان والمنافسة فقط»
@@ -407,9 +413,10 @@ export function sitesVerdict(sites: (SiteFactors & { label: string; population: 
     const what = kept('audience') && site.audience == null ? 'السكان' : kept('spending') && site.spending == null ? (byIncome ? 'دخل حيه' : 'حصة الفلل في حيه') : kept('density') && site.density == null ? 'كثافة المنشآت' : null
     return what ? [`الموقع ${site.label} (${what} غير متاح)`] : []
   })
-  const caution = !missing.length ? null
+  const missingLine = !missing.length ? null
     : factors.length ? `الدرجة من ${names(factors.map((factor) => factorWord(factor, byIncome)))} فقط: ${missing.join('، ')}.`
       : `بلا درجة: ${missing.join('، ')}.`
+  const caution = [failedLine, missingLine].filter(Boolean).join(' ') || null
   const scored = sites.filter((site) => scores.has(site.id)).sort((a, b) => scores.get(b.id)! - scores.get(a.id)!)
   if (scored.length < 2) return { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['لا عامل مختار متاح للمواقع كلها.', ...choice], caution }
   const [best, second] = scored
@@ -550,14 +557,14 @@ export function weekFitHint(customers: number, unplanned: number, days: number, 
 }
 
 /** «اختر عقاراً» in one line: the first listing of the list (best value, or nearest the viewer's point) and why. */
-export function listingVerdict(first: { type: string; district: string | null; price: string | null; versus: string | null; area: number | null; away: string | null } | null, nearest: boolean): VerdictText | null {
+export function listingVerdict(first: { type: string; district: string | null; price: string | null; versus: string | null; area: number | null; away: string | null; oversized?: string | null } | null, nearest: boolean): VerdictText | null {
   if (!first) return null
   const where = first.district ? ` في ${first.district}` : ''
   const line = [first.versus, first.area != null ? `${n(first.area)} م²` : null, first.away].filter(Boolean).join(' · ')
   return {
     lead: `${nearest ? 'الأقرب لنقطتك' : 'أنسب عرض'}: ${first.type}${where}${first.price ? ` بـ ${first.price}` : '، السعر غير مذكور'}`,
     why: line ? [`${line}.`] : [],
-    caution: !nearest && !first.versus ? 'حيه بلا وسيط كافٍ، فترتيبه لا يقارن سعره بجيرانه.' : null,
+    caution: [first.oversized ? `${first.oversized}. افتح الإعلان قبل المقارنة.` : null, !nearest && !first.versus ? 'حيه بلا وسيط كافٍ، فترتيبه لا يقارن سعره بجيرانه.' : null].filter(Boolean).join(' ') || null,
   }
 }
 
@@ -688,4 +695,30 @@ export function rankGapsAround<R extends GapVerdictRow>(short: R[], aroundOfRow:
   })
   scored.sort((a, b) => b.net - a.net || a.index - b.index)
   return [...scored.map(({ index: _index, ...row }) => row as R & { around: Around | null; net: number }), ...rest.map((row) => ({ ...row, around: null }))]
+}
+
+/**
+ * The gaps tool's line on how far the activity's count follows the population, in plain words, from the service's
+ * measured correlation (`fit`, Pearson r) over the districts that carry both: «عدد «صيدلية» يتبع السكان بقوة هنا،
+ * قيس على 163 حياً.» The r itself stays in the line's explanation for whoever audits it. Bands: 0.7 and over strong,
+ * 0.5 clear, 0.3 moderate (the service's own floor for a city rate), under that it does not follow.
+ */
+export function fitLine(fit: number | null | undefined, districts: number | null | undefined, label: string): string | null {
+  if (fit == null || districts == null) return null
+  const where = `قيس على ${counted(districts, 'district')} فيها سكان ومنشآت.`
+  if (fit >= 0.7) return `عدد «${label}» يتبع السكان بقوة هنا، ${where}`
+  if (fit >= 0.5) return `عدد «${label}» يتبع السكان بوضوح هنا، ${where}`
+  if (fit >= 0.3) return `عدد «${label}» يتبع السكان بقدر متوسط هنا، فالنقص دليل لا قياس دقيق. ${where}`
+  return `عدد «${label}» لا يتبع السكان هنا، فلا يُحسب له نقص بعدد السكان. ${where}`
+}
+
+/**
+ * A shop listing whose stated area is far past a shop's (over OVERSIZED_SHOP_M2): flagged, never dropped. Riyadh's
+ * shops for rent (449, 2026-11-03): median 400 m², 75 over 1,000 m², 3,000 m² at the 95th; past 1,000 m² an ad is
+ * usually a showroom, a warehouse or a whole commercial building.
+ */
+export const OVERSIZED_SHOP_M2 = 1000
+export function oversizedShop(type: string | null | undefined, area: number | null | undefined): string | null {
+  if (type !== 'store' || area == null || area <= OVERSIZED_SHOP_M2) return null
+  return `مساحة كبيرة لمحل (${n(Math.round(area))} م²): قد يكون معرضاً أو مستودعاً أو مبنى تجارياً`
 }

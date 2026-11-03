@@ -85,8 +85,12 @@ async function areaFor(point: Point, reach: Reach): Promise<Geometry> {
  * each, by distance or by drive time on the real road network. Every figure is the same golden count as the rest of
  * Atlas, only the boundary differs.
  */
-export function AroundTool({ city, onOverlay, districts, features, seed, next, siteAction }: {
+export function AroundTool({ city, onOverlay, districts, features, seed, next, siteAction, failedTables = [], onRetryTables }: {
   city: string; onOverlay: (overlay: Overlay) => void; districts: DistrictRow[]; features: DistrictFeature[]
+  /** City tables that failed to load this time (city-data `failed`): the purchasing-power factor names its own. */
+  failedTables?: readonly string[]
+  /** Asks the failed tables again (city-data `reload`). */
+  onRetryTables?: () => void
   /** The district «أين ينقص نشاطي؟» put first (its id), so «ابدأ من هنا» stands the first site where the gap is. */
   seed?: string | null
   /** The step after the verdict (shops for rent near the best site, a request), given by the map shell. */
@@ -222,12 +226,16 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
   // purchasing power (income where published, else villa share, of the حي the pin sits in), and lightness of
   // competition (fewest establishments per km²). Each factor is scaled to the best site, and the score is their mean,
   // over the factors every site has (attractionScores); a factor one site lacks is left out for all, and said.
-  const { scoreById, factors, topScore, byIncome, verdict, factored, reasons } = useMemo(() => {
-    const byIncome = districts.some((row) => row.income != null)
+  const { scoreById, factors, topScore, byIncome, verdict, factored, reasons, spendingFailed } = useMemo(() => {
+    // a failed income table is not a city without income: the factor stays «دخل الحي», said as a failed load, and
+    // never switches silently to villa share
+    const incomeFailed = failedTables.includes('income')
+    const byIncome = incomeFailed || districts.some((row) => row.income != null)
+    const spendingFailed = byIncome ? incomeFailed : failedTables.includes('housing')
     const districtById = new Map(districts.map((row) => [row.id, row]))
     const spendingOf = (point: Point): number | null => {
       const row = districtById.get(districtAt(point, features) ?? '')
-      if (!row) return null
+      if (!row || spendingFailed) return null
       return byIncome ? row.income : row.villaShare
     }
     const factored = labelled
@@ -250,11 +258,11 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
     // (a failed site is said above the table with its retry, so no verdict stands on the sites that worked)
     const settled = labelled.every((site) => site.result?.status === 'ready')
     const label = new Map(labelled.map((site) => [site.id, site.label]))
-    const verdict = settled ? sitesVerdict(factored.map((item) => ({ ...item, label: label.get(item.id) ?? '', population: item.audience })), attraction, byIncome) : null
+    const verdict = settled ? sitesVerdict(factored.map((item) => ({ ...item, label: label.get(item.id) ?? '', population: item.audience })), attraction, byIncome, spendingFailed ? ['spending'] : []) : null
     // each scored site's own reason, under its score: what it leads and trails on against the best of the others
     const reasons = settled ? siteReasons(factored.filter((item) => scoreById.has(item.id)).map((item) => ({ ...item, population: item.audience })), attraction.factors, byIncome) : new Map<number, string>()
-    return { scoreById, factors: attraction.factors, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict, factored, reasons }
-  }, [labelled, districts, features, weighed])
+    return { scoreById, factors: attraction.factors, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict, factored, reasons, spendingFailed }
+  }, [labelled, districts, features, weighed, failedTables])
   // the shop owner's decision moment (foundation §7): two or more sites scored side by side, once per set of sites and
   // reach; only how many, never where
   const scoredKey = `${[...scoreById.keys()].sort().join(',')}|${reachKey}`
@@ -331,6 +339,12 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
           detail={failed[0].result?.message} onRetry={retryFailed} />
       )}
       <Verdict lift verdict={verdict} next={verdict && scoreById.size ? next : undefined} />
+      {spendingFailed && labelled.length > 1 && onRetryTables && (
+        // the failed figure named, with its own retry, beside the score it is missing from
+        <button type="button" onClick={onRetryTables} className="self-start rounded-full border border-primary px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10">
+          أعد تحميل {byIncome ? 'دخل الأحياء' : 'حصة الفلل'}
+        </button>
+      )}
       {labelled.length > 1 && (
         // which factors the score weighs: a shop that sells on foot traffic may drop income, a premium one keep it
         <div role="group" aria-label="عوامل الجاذبية" className="flex flex-wrap items-center gap-1.5 text-sm">
