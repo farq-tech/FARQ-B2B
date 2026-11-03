@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Building2, Calculator, ClipboardList, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { districtMapHref, homesHref, loginHref } from '@/lib/handoff'
+import { districtMapHref, homesHref, loginHref, readPriceOrigin } from '@/lib/handoff'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
@@ -92,7 +92,7 @@ function readAnswers(params: URLSearchParams | { get: (key: string) => string | 
 }
 
 /** The answers as a query string, leaving out what is at its default so a plain visit keeps a plain address. */
-function writeAnswers(answers: Answers): string {
+function writeAnswers(answers: Answers, origin: { id: string; ask: number | null } | null = null): string {
   const query = new URLSearchParams()
   if (answers.city !== DEFAULT_ANSWERS.city) query.set('city', answers.city)
   if (answers.district) query.set('district', answers.district)
@@ -103,6 +103,7 @@ function writeAnswers(answers: Answers): string {
   if (answers.streets) query.set('streets', answers.streets)
   if (answers.width) query.set('width', answers.width)
   if (answers.furnished && answers.furnished !== DEFAULT_ANSWERS.furnished) query.set('furnished', answers.furnished)
+  if (origin) { query.set('from', origin.id); if (origin.ask != null) query.set('ask', String(origin.ask)) }
   return query.toString()
 }
 
@@ -134,6 +135,12 @@ export function PriceEstimator() {
   const [width, setWidth] = useState<string | null>(initial.width)
   const [furnished, setFurnished] = useState<string | null>(initial.furnished)
   const [result, setResult] = useState<Estimate | 'loading' | 'error' | null>(null)
+  // the listing the page was opened from («سعّر عقاراً مثله»), kept while the district and the type are still its own
+  const [listingOrigin] = useState(() => {
+    const origin = readPriceOrigin(params.toString())
+    return origin ? { ...origin, district: initial.district, kind: initial.kind } : null
+  })
+  const fromListing = listingOrigin && district === listingOrigin.district && kind === listingOrigin.kind ? { id: listingOrigin.id, ask: listingOrigin.ask } : null
   // the answers the shown price was worked out for: its heading names them, and a later change marks it out of date
   const [asked, setAsked] = useState<{ key: string; kind: string; area: number; city: string; district: string; districtName?: string; deal: string } | null>(null)
   const answer = useRef<HTMLElement>(null)
@@ -169,7 +176,7 @@ export function PriceEstimator() {
   // «back» never undoes one chip at a time
   const pendingMark = useRef(false)
   useEffect(() => {
-    const query = writeAnswers({ city, district, deal, kind, area, age, streets, width, furnished })
+    const query = writeAnswers({ city, district, deal, kind, area, age, streets, width, furnished }, fromListing)
     const next = query ? `${window.location.pathname}?${query}` : window.location.pathname
     const mark = pendingMark.current
     pendingMark.current = false
@@ -334,7 +341,7 @@ export function PriceEstimator() {
               </div>
             )}
             {result.examples && result.examples.length > 0 && <Comparables title="العروض المشابهة التي وجدناها" examples={result.examples} />}
-            {asked && <NextLinks asked={asked} cityName={cityItems.find((item) => item.value === asked.city)?.label ?? asked.city} />}
+            {asked && <NextLinks asked={asked} cityName={cityItems.find((item) => item.value === asked.city)?.label ?? asked.city} fromListing={fromListing} />}
           </div>
         )}
         {stale && result && result !== 'error' && (
@@ -351,6 +358,8 @@ export function PriceEstimator() {
               <p className="mt-1 text-base">
                 المدى المتوقع: <span className="font-semibold tabular-nums">{numberFormat.format(result.price.low)} – {numberFormat.format(result.price.high)}</span> ريال
               </p>
+              {/* the listing these answers came from, at its advertised price, beside the expected one */}
+              {fromListing?.ask != null && <p className="mt-1 text-sm text-muted-foreground">العرض الذي جئت منه معروض بـ <span className="font-semibold text-foreground tabular-nums">{sar(fromListing.ask)}</span>{PERIOD[asked.deal]}</p>}
               <div className="mt-3 h-2 rounded-full bg-gradient-to-l from-primary/80 via-primary/40 to-primary/10" aria-hidden />
               {/* the figures behind the price, each the shared Stat: a tap says how it was worked out (lib/explanations.ts),
                   a figure the answer lacks reads «غير متاح» */}
@@ -374,7 +383,7 @@ export function PriceEstimator() {
             </div>
 
             {result.examples && result.examples.length > 0 && <Comparables title="أقرب العروض المشابهة" examples={result.examples} />}
-            <NextLinks asked={asked} cityName={cityItems.find((item) => item.value === asked.city)?.label ?? asked.city} price={result.price.mid} />
+            <NextLinks asked={asked} cityName={cityItems.find((item) => item.value === asked.city)?.label ?? asked.city} price={result.price.mid} fromListing={fromListing} />
             {/* on a phone the questions are a long scroll above: one tap back to change an answer */}
             <Button variant="outline" className="lg:hidden" onClick={() => questions.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>
               <Pencil aria-hidden />عدّل الإجابات
@@ -391,8 +400,8 @@ export function PriceEstimator() {
  * district itself on the map. Each opens on the answers already given, nothing typed again.
  */
 const PLURAL: Record<string, string> = { apartment: 'الشقق', floor: 'الأدوار', villa: 'الفلل' }
-/** The real-estate businesses of the directory (its «عقار» main activity), asked by its category id. */
-const REAL_ESTATE = { main_id: 're', label: 'عقار' }
+/** The directory's real-estate offices (the «مكتب عقار» sub-activity of «عقار»), asked by their taxonomy id. */
+const REAL_ESTATE = { sub_id: 're.office', label: 'مكتب عقار' }
 const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السنوي', rent_month: 'للإيجار الشهري', sale: 'للبيع' }
 
 /**
@@ -400,7 +409,7 @@ const DEAL_WORD: Record<string, string> = { rent_year: 'للإيجار السن�
  * (type, deal, area, district) and Atlas's expected price, and opens in «الطلبات» for review. Nothing is sent: a quote
  * request is shared by the person after review (docs/atlas-product-foundation.md §1.5), and no contact is shown here.
  */
-function OfficesRequest({ asked, cityName, price }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number }) {
+function OfficesRequest({ asked, cityName, price, fromListing = null }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null }) {
   const router = useRouter()
   const { createDraft } = useAppStore()
   const [state, setState] = useState<'idle' | 'loading' | 'login' | 'empty' | 'error'>('idle')
@@ -410,7 +419,7 @@ function OfficesRequest({ asked, cityName, price }: { asked: { city: string; dis
     setState('loading')
     const response = await fetch('/api/market/entities', {
       method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ city: asked.city, district: asked.districtName, main_id: REAL_ESTATE.main_id, q: REAL_ESTATE.label, objective: 'purchase', limit: 50, offset: 0 }),
+      body: JSON.stringify({ city: asked.city, district: asked.districtName, sub_id: REAL_ESTATE.sub_id, q: REAL_ESTATE.label, objective: 'purchase', limit: 50, offset: 0 }),
     }).catch(() => null)
     const body = await response?.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; guest?: boolean } | null
     // a signed-out visitor sees the sign-in, never a preview turned into a request
@@ -422,14 +431,18 @@ function OfficesRequest({ asked, cityName, price }: { asked: { city: string; dis
     const id = createDraft({
       type: 'rfq', businessIds: rows.map((row) => row.id), liveBusinesses: rows, cityId: asked.city.toLowerCase(), cityName,
       query: REAL_ESTATE.label, categoryHint: REAL_ESTATE.label, districtHint: name,
-      title: `طلب عروض ${property}`,
+      title: fromListing ? `طلب عروض مثل عرض ${property}` : `طلب عروض ${property}`,
       rfq: {
         lineItems: [{ id: makeId('l'), name: property, qty: 1, unit: 'عقار', spec: `${numberFormat.format(asked.area)} م²` }],
         deliveryCity: cityName,
-        notes: price != null ? `السعر المتوقع في أطلس: ${numberFormat.format(price)} ريال${PERIOD[asked.deal] ?? ''}. أرسلوا عروضاً مشابهة إن وُجدت.` : 'أرسلوا عروضاً مشابهة إن وُجدت.',
+        notes: [
+          fromListing?.ask != null ? `عرض مثله معروض الآن بـ ${numberFormat.format(fromListing.ask)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
+          price != null ? `السعر المتوقع في أطلس: ${numberFormat.format(price)} ريال${PERIOD[asked.deal] ?? ''}.` : null,
+          'أرسلوا عروضاً مشابهة إن وُجدت.',
+        ].filter(Boolean).join(' '),
       },
     })
-    toast.success('جُهّز طلب العروض', { description: `${numberFormat.format(rows.length)} منشأة عقار في ${name}. راجعه قبل أي مشاركة، لا يُرسل شيء تلقائياً.` })
+    toast.success('جُهّز طلب العروض', { description: `${numberFormat.format(rows.length)} مكتب عقار في ${name}. راجعه قبل أي مشاركة، لا يُرسل شيء تلقائياً.` })
     router.push(`/requests/${id}`)
   }
   return (
@@ -437,16 +450,16 @@ function OfficesRequest({ asked, cityName, price }: { asked: { city: string; dis
       <button type="button" onClick={() => void start()} disabled={state === 'loading' || !asked.districtName}
         className="inline-flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 text-start text-sm font-semibold outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
         {state === 'loading' ? <Loader2 className="size-5 shrink-0 animate-spin text-primary" aria-hidden /> : <ClipboardList className="size-5 shrink-0 text-primary" aria-hidden />}
-        <span>اطلب عروضاً مشابهة من منشآت العقار في {name}</span>
+        <span>{fromListing ? 'اطلب عروضاً مثل هذا العرض' : 'اطلب عروضاً مشابهة'} من مكاتب العقار في {name}</span>
       </button>
       {state === 'login' && <p className="text-sm">لتجهيز الطلب <a href={loginHref(`${window.location.pathname}${window.location.search}`)} className="font-semibold text-primary underline">سجّل الدخول</a>.</p>}
-      {state === 'empty' && <p className="text-sm text-muted-foreground">لا منشآت عقار في {name} في الدليل.</p>}
+      {state === 'empty' && <p className="text-sm text-muted-foreground">لا مكاتب عقار في {name} في الدليل.</p>}
       {state === 'error' && <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">تعذّر التحميل.<Chip onClick={() => void start()}>أعد المحاولة</Chip></p>}
     </div>
   )
 }
 
-function NextLinks({ asked, cityName, price }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number }) {
+function NextLinks({ asked, cityName, price, fromListing = null }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string; area: number }; cityName: string; price?: number; fromListing?: { id: string; ask: number | null } | null }) {
   const name = asked.districtName ?? 'الحي'
   const listings = homesHref({ city: asked.city, kind: asked.deal === 'sale' ? 'sale' : 'rent', rentDeal: asked.deal === 'sale' ? 'rent_year' : asked.deal, types: [asked.kind], districts: [asked.district] })
   const map = districtMapHref(asked.city, asked.district)
@@ -455,7 +468,7 @@ function NextLinks({ asked, cityName, price }: { asked: { city: string; district
     <nav aria-label="بعد التسعير" className="grid gap-2 sm:grid-cols-2">
       <Link href={listings} className={link}><Building2 className="size-5 shrink-0 text-primary" aria-hidden /><span>{PLURAL[asked.kind] ?? 'العروض'} {asked.deal === 'sale' ? 'للبيع' : 'للإيجار'} الآن في {name}</span></Link>
       {map && <Link href={map} className={link}><MapPinned className="size-5 shrink-0 text-primary" aria-hidden /><span>تعرّف على {name} على الخريطة</span></Link>}
-      <OfficesRequest asked={asked} cityName={cityName} price={price} />
+      <OfficesRequest asked={asked} cityName={cityName} price={price} fromListing={fromListing} />
     </nav>
   )
 }

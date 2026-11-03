@@ -91,6 +91,8 @@ export type Site = { id: string; label: string; color: string; lon: number; lat:
 export type BusinessGroup = { ids: string[]; count: number; lon: number; lat: number; expand: () => void }
 /** How many of a group's businesses its card names. */
 export const GROUP_NAMES = 8
+/** How many of a listings group are read to name its cheapest. */
+export const LISTING_LEAVES = 100
 
 /** A business a list shows on the map: named beside its dot, lit while its row is pointed at, olive once it is in the request. */
 export type BusinessDot = { id: string; lon: number; lat: number; name: string; active?: boolean; inRequest?: boolean }
@@ -102,7 +104,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, businesses, onBusiness, onBusinessHover, onBusinessGroup, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, onListingGroup, businesses, onBusiness, onBusinessHover, onBusinessGroup, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -121,6 +123,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   businesses?: BusinessDot[] | null
   onBusiness?: ((id: string) => void) | null
   onBusinessHover?: ((id: string | null) => void) | null
+  /** A group of listings was clicked: up to LISTING_LEAVES of them by id, how many, where, and its way to come apart. */
+  onListingGroup?: ((group: BusinessGroup) => void) | null
   /** A group of businesses was clicked: the first of them by id, how many it holds, where it is, and its way to come apart. */
   onBusinessGroup?: ((group: BusinessGroup) => void) | null
   streets?: StreetLine[] | null
@@ -163,6 +167,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   hoverBusiness.current = onBusinessHover
   const openGroup = useRef(onBusinessGroup)
   openGroup.current = onBusinessGroup
+  const openListingGroup = useRef(onListingGroup)
+  openListingGroup.current = onListingGroup
   const point = useRef(onPoint)
   point.current = onPoint
   const reportBounds = useRef(onBounds)
@@ -362,7 +368,19 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           const [cluster] = instance.queryRenderedFeatures(event.point, { layers: ['listing-cluster'] })
           const [street] = instance.queryRenderedFeatures(event.point, { layers: ['street-line'] })
           if (street && openStreet.current) { openStreet.current(String(street.properties?.id)); return }
-          if (cluster) { instance.easeTo({ center: (cluster.geometry as GeoJSON.Point).coordinates as [number, number], zoom: instance.getZoom() + 2 }); return }
+          if (cluster) {
+            const centre = (cluster.geometry as GeoJSON.Point).coordinates as [number, number]
+            const expand = () => instance.easeTo({ center: centre, zoom: instance.getZoom() + 2 })
+            if (!openListingGroup.current) { expand(); return }
+            // a page that lists a group's listings («العقار») names the cheapest of them before splitting it
+            const clusterId = Number(cluster.properties?.cluster_id)
+            const count = Number(cluster.properties?.point_count) || 0
+            ;(instance.getSource('listings') as GeoJSONSource).getClusterLeaves(clusterId, LISTING_LEAVES, 0, (error, leaves) => {
+              const ids = error || !leaves ? [] : leaves.map((leaf) => String(leaf.properties?.id))
+              openListingGroup.current?.({ ids, count, lon: centre[0], lat: centre[1], expand })
+            })
+            return
+          }
           if (pick.current) { pick.current({ lon: event.lngLat.lng, lat: event.lngLat.lat }); return }
           const id = instance.queryRenderedFeatures(event.point, { layers: ['district-fill'] })[0]?.properties?.id
           if (id == null) return

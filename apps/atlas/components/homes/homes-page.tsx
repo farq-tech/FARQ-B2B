@@ -22,8 +22,9 @@ import { DEFAULT_CITY, backIfReturning, districtMapHref, historyGate, pushedStat
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
-import { LensMapCanvas, type ListingDot } from '../lens/lens-map-canvas'
+import { LensMapCanvas, type BusinessGroup, type ListingDot } from '../lens/lens-map-canvas'
 import { Gallery, ListingCard } from '../lens/listing-card'
+import { GroupCard } from '../lens/group-card'
 import { ListingCompare } from '../lens/listing-compare'
 
 const LIMIT = 1500
@@ -59,6 +60,10 @@ export function HomesPage() {
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const [active, setActive] = useState<Listing | null>(null)
+  // a group of listings that was clicked on the map (its card names the cheapest), and where it sits on screen
+  const [group, setGroup] = useState<BusinessGroup | null>(null)
+  const [groupAt, setGroupAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  useEffect(() => { setGroup(null) }, [result.listings])
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
   const [sideBySide, setSideBySide] = useState(false)
@@ -365,7 +370,17 @@ export function HomesPage() {
         <section className={cn('relative min-h-0 lg:p-4', !mobileMap && 'hidden lg:block')} aria-label="خريطة العروض">
           <div className="relative h-full min-h-[60vh] overflow-hidden lg:rounded-2xl lg:border">
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
-              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setActive(listing) } }} onBounds={setBounds} />
+              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setGroup(null); setActive(listing) } }} onBounds={setBounds}
+              onListingGroup={(next) => { setActive(null); setGroup(next) }} pin={!active ? group : null} onPin={setGroupAt} />
+            {/* a group of listings names its cheapest, each a tap from its own card, and the zoom that splits it */}
+            {!active && group && groupAt && groupAt.x >= 0 && groupAt.y >= 0 && groupAt.x <= groupAt.width && groupAt.y <= groupAt.height && (
+              <GroupCard count={group.count} noun="listing" at={groupAt} top={8} bottom={groupAt.height - 8}
+                items={group.ids.flatMap((id) => { const listing = byId.get(id); return listing ? [listing] : [] })
+                  .sort((a, b) => (a.price_sar ?? Infinity) - (b.price_sar ?? Infinity)).slice(0, 5)
+                  .map((listing) => ({ id: listing.id, title: priceLine(listing), sub: [typeLabel(listing.type), listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.district_ar].filter(Boolean).join(' · ') }))}
+                onOpen={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setGroup(null); setActive(listing) } }}
+                onClose={() => setGroup(null)} onExpand={() => { group.expand(); setGroup(null) }} />
+            )}
             {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={closeListing}
               compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }} districtHref={districtMapHref(city, active.district_id)}
               className="bottom-20 max-h-[calc(100%-6rem)] lg:bottom-3 lg:max-h-[85%]" />}

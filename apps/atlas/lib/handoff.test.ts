@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { backIfReturning, pushedState, historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
+import { readPriceOrigin, backIfReturning, pushedState, historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
 
 const TYPES = [
   { id: 'room', kinds: ['rent'] }, { id: 'apartment', kinds: ['rent', 'sale'] }, { id: 'villa', kinds: ['rent', 'sale'] }, { id: 'land', kinds: ['sale'] },
@@ -139,4 +139,12 @@ test('a pushed entry remembers the view it left, and closing back to that view s
   assert.equal(backIfReturning('a', null), false)
   assert.equal(backs, 1)
   delete (globalThis as { history?: unknown }).history
+})
+
+test('a price page opened from a listing names it and its asking price, each checked', () => {
+  assert.equal(priceHref({ city: 'Riyadh', district_id: '5', deal: 'rent_year', type: 'floor', area_sqm: 200, id: '6918576', price_sar: 45000.4 }), '/price?district=5&area=200&from=6918576&ask=45000')
+  assert.deepEqual(readPriceOrigin('?district=5&from=6918576&ask=45000'), { id: '6918576', ask: 45000 })
+  assert.deepEqual(readPriceOrigin('?from=6918576&ask=-3'), { id: '6918576', ask: null })
+  assert.equal(readPriceOrigin('?from=a%20b&ask=1'), null)
+  assert.equal(readPriceOrigin('?ask=1'), null)
 })

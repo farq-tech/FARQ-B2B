@@ -31,6 +31,12 @@ function mainId(value: unknown) {
   return /^[a-z][a-z0-9_.-]{0,39}$/.test(text) ? text : ''
 }
 
+/** A sub-activity's id in the same taxonomy («re.office»), or ''. */
+function subId(value: unknown) {
+  const text = asText(value, 80)
+  return /^[a-z][a-z0-9_]*\.[a-z0-9_.]{1,70}$/.test(text) ? text : ''
+}
+
 /** A box on the map (west, south, east, north) to search inside, or null: a site's reach, what the map shows. */
 function box(value: unknown): [number, number, number, number] | null {
   if (!Array.isArray(value) || value.length !== 4 || !value.every((item) => typeof item === 'number' && Number.isFinite(item))) return null
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
   const { session, refreshed } = await sessionForRequest(request)
   if (!session) return guestSearch(request)
   if (!isTargetingAllowed(session) || !(await verifySession(session))) return NextResponse.json({ error: 'حسابك غير مخول لعرض دليل الجهات.' }, { status: 403, headers: { 'cache-control': 'no-store' } })
-  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; offset?: unknown; district?: unknown; main_id?: unknown; bounds?: unknown }
+  let input: { q?: unknown; city?: unknown; objective?: unknown; limit?: unknown; offset?: unknown; district?: unknown; main_id?: unknown; sub_id?: unknown; bounds?: unknown }
   try { input = await request.json() } catch { return NextResponse.json({ error: 'طلب البحث غير صالح.' }, { status: 400 }) }
   const q = asText(input.q, 200)
   const city = cityNames[asText(input.city, 32).toLowerCase()] || asText(input.city, 64)
@@ -90,10 +96,11 @@ export async function POST(request: NextRequest) {
   // a main activity is searched by its category id (the taxonomy the city's counts use), not by its Arabic name as text;
   // a box keeps the answer inside a site's reach. Both go to the directory's own filters, checked again there.
   const main = mainId(input.main_id)
+  const sub = subId(input.sub_id)
   const bounds = box(input.bounds)
-  const browse = !q || Boolean(main)
-  if ((!q && !district && !main && !bounds) || !city) return NextResponse.json({ error: 'اكتب النشاط أو اختر حياً، ثم اختر المدينة.' }, { status: 400 })
-  if (q && !main && !objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
+  const browse = !q || Boolean(main) || Boolean(sub)
+  if ((!q && !district && !main && !sub && !bounds) || !city) return NextResponse.json({ error: 'اكتب النشاط أو اختر حياً، ثم اختر المدينة.' }, { status: 400 })
+  if (q && !main && !sub && !objective) return NextResponse.json({ error: 'نوع البحث غير صالح.' }, { status: 400 })
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
   if (!origin || !headers) return NextResponse.json({ error: 'خدمة الدليل غير مهيأة حالياً.' }, { status: 503 })
@@ -104,7 +111,7 @@ export async function POST(request: NextRequest) {
       method: 'POST', headers,
       body: JSON.stringify(!browse
         ? { q, city, limit, offset, objective, only_sendable: false, ...(district || bounds ? { filters: { ...(district ? { district } : {}), ...(bounds ? { bounds } : {}) } } : {}) }
-        : { city, limit, offset, objective: 'browse', filters: { ...(district ? { district } : {}), ...(main ? { taxonomy_main_id: main } : {}), ...(bounds ? { bounds } : {}) } }),
+        : { city, limit, offset, objective: 'browse', filters: { ...(district ? { district } : {}), ...(main ? { taxonomy_main_id: main } : {}), ...(sub ? { taxonomy_sub_id: sub } : {}), ...(bounds ? { bounds } : {}) } }),
       cache: 'no-store', signal: controller.signal,
     })
     const payload = await upstream.json().catch(() => null) as { rows?: unknown; total?: unknown; with_whatsapp?: unknown; has_more?: unknown; next_offset?: unknown; map_query?: unknown } | null
