@@ -233,6 +233,36 @@ try {
     check(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Jeddah phone: no sideways scroll')
     await context.close()
   }
+  // distributor, desktop: the growth step answers with its ranking first and the journey closes without a forced tap
+  // (the tour's hints wait while the map cannot open, as here without a map token: they are checked on real data)
+  {
+    const { context, page } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/map?lens=distributors`); await settle(page, 3500)
+    await tab(page, 'أين يُبنى'); await settle(page, 2500)
+    const growth = await text(page)
+    check(growth.indexOf('الأعلى في مبانٍ جديدة') >= 0 && growth.indexOf('الأعلى في مبانٍ جديدة') < growth.indexOf('مطاعم التوصيل'), '«أين يُبنى الآن؟» leads with its ranking, the city\'s general figures after it')
+    check(growth.includes('خلاصة رحلتك') && growth.includes('أكثر حي يُبنى فيه الآن: حي الثاني'), 'the distributor\'s journey closes on its ranking, without a forced tap')
+    await context.close()
+  }
+  // analyst, desktop: the one-tap pair is right under «اختر حيين», and no empty saved list stands in the way
+  {
+    const { context, page } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/map?lens=analysts&tool=compare`); await settle(page, 3500)
+    const compare = await text(page)
+    check(compare.includes('أو قارن مباشرة') && !compare.includes('لا مقارنة محفوظة بعد'), 'compare: the one-tap pair, and no empty saved list')
+    check(compare.indexOf('أو قارن مباشرة') < compare.indexOf('خلاصة رحلتك') || !compare.includes('خلاصة رحلتك'), 'compare: the shortcut comes before the rest of the panel')
+    await context.close()
+  }
+  // shop owner, phone: the peeking sheet's ask is a button that raises the sheet to the step's chips
+  {
+    const { context, page } = await open(browser, { phone: true })
+    await page.goto(`${BASE}/map?goal=expand`); await settle(page, 3000)
+    const ask = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'اختر نشاطك' }).first()
+    check(await ask.count() > 0, 'phone: the step\'s ask on the peeking sheet is a button')
+    if (await ask.count()) { await ask.click(); await settle(page, 900) }
+    check(await page.locator('[aria-label^="اللوحة نصف"]').count() > 0 && await panel(page).getByRole('button', { name: 'صيدلية' }).first().isVisible(), 'phone: tapping it raises the sheet to the activity chips')
+    await context.close()
+  }
   // a failing step, phone: the peek says it failed and offers the retry
   {
     const { context, page } = await open(browser, { phone: true, gaps: 'fail' })
