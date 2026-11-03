@@ -64,3 +64,26 @@ test('the data version is the city list: districts and business counts per city,
   assert.equal(dataVersion([{ en: 'Jeddah', districts: 120, n: 5 }, { en: 'Riyadh', districts: 192, n: 9 }]), dataVersion([{ en: 'Riyadh', districts: 192, n: 9 }, { en: 'Jeddah', districts: 120, n: 5 }]))
   assert.notEqual(dataVersion([{ en: 'Riyadh', districts: 192, n: 9 }]), dataVersion([{ en: 'Riyadh', districts: 192, n: 10 }]))
 })
+
+test('the step and the ask-ahead share one request for the same question', async () => {
+  const cache = createAnswerCache(() => null)
+  let asked = 0
+  const ask = () => { asked++; return new Promise<number>((resolve) => setTimeout(() => resolve(7), 5)) }
+  const ahead = cache.run('streets|Riyadh|صيدلية|', ask)
+  assert.equal(cache.flying('streets|Riyadh|صيدلية|'), true)
+  const step = cache.run('streets|Riyadh|صيدلية|', ask)
+  assert.deepEqual(await Promise.all([ahead, step]), [7, 7])
+  assert.equal(asked, 1)
+  // landed: kept, and asked no more
+  assert.equal(await cache.run('streets|Riyadh|صيدلية|', ask), 7)
+  assert.equal(asked, 1)
+  // a failure keeps nothing, and the next ask tries again
+  const failing = createAnswerCache(() => null)
+  await assert.rejects(failing.run('k', () => Promise.reject(new Error('down'))))
+  assert.equal(failing.flying('k'), false)
+  assert.equal(await failing.run('k', () => Promise.resolve(1)), 1)
+  // an answer `keep` refuses is returned but not kept
+  const picky = createAnswerCache(() => null)
+  assert.equal((await picky.run('c', () => Promise.resolve({ brands: null as null | number }), (value) => value.brands != null)).brands, null)
+  assert.equal(picky.get('c'), undefined)
+})

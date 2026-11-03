@@ -42,7 +42,9 @@ test('the studied activity: typed words, or a main activity by id that wins over
   assert.equal(readMapQuery('?main=../5', LENSES).main, null)
   assert.equal(readMapQuery('?main=../5&activity=مخبز', LENSES).activity, 'مخبز')
   const base = { city: 'Riyadh', lens: 'shops', tool: 'gaps', districts: [], q: null }
-  assert.equal(writeMapQuery('', { ...base, activity: 'صيدلية' }, 'gaps'), '')
+  // no activity chosen: none written; a chosen one is written, the old default «صيدلية» too (it is a choice now)
+  assert.equal(writeMapQuery('', { ...base, activity: null }, 'gaps'), '')
+  assert.equal(writeMapQuery('', { ...base, activity: 'صيدلية' }, 'gaps'), '?activity=%D8%B5%D9%8A%D8%AF%D9%84%D9%8A%D8%A9')
   assert.equal(writeMapQuery('?activity=x', { ...base, main: '5611', activity: 'مطاعم' }, 'gaps'), '?main=5611')
   assert.equal(writeMapQuery('?main=1', { ...base, activity: 'مخبز' }, 'gaps'), '?activity=%D9%85%D8%AE%D8%A8%D8%B2')
 })

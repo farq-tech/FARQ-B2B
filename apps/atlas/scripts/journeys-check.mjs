@@ -29,6 +29,8 @@ const CITIES = {
     { id: 'j3', ar: 'حي الجبل', lon: 39.22, lat: 21.54, population: 210000, n: 12000, built: [60, 90], villa: 30 },
   ],
 }
+const SNAPSHOT = '2026-11-03T05:15:00+00:00'
+const VERSION = { 'x-data-version': SNAPSHOT }
 const cityOf = (url, body) => {
   const named = url.searchParams.get('city') ?? body?.city
   return CITIES[named] ? named : 'Riyadh'
@@ -83,10 +85,12 @@ async function open(browser, { phone, gaps = 'ok' }) {
     asked.push({ path: url.pathname, body })
     const resource = url.pathname.replace('/api/market/', '')
     const D = CITIES[cityOf(url, body)]
-    if (request.method() === 'GET' && GET[url.pathname]) return route.fulfill({ json: GET[url.pathname](D) })
+    if (request.method() === 'GET' && GET[url.pathname]) return route.fulfill({ json: GET[url.pathname](D), headers: VERSION })
     if (resource === 'market-gaps' && gaps === 'slow') await new Promise((resolve) => setTimeout(resolve, 10000))
     if (resource === 'market-gaps' && gaps === 'fail') return route.fulfill({ status: 500, json: { error: 'down' } })
-    if (request.method() === 'POST' && POST[resource]) return route.fulfill({ json: POST[resource](D, body ?? {}) })
+    // the streets answer takes a while, so the step can be opened while the map's ask-ahead is still on its way
+    if (resource === 'street-density') await new Promise((resolve) => setTimeout(resolve, 3000))
+    if (request.method() === 'POST' && POST[resource]) return route.fulfill({ json: POST[resource](D, body ?? {}), headers: VERSION })
     return route.fulfill({ status: 503, json: { error: 'غير متاح' } })
   })
   const page = await context.newPage()
@@ -134,12 +138,14 @@ try {
     const gapsAsked = () => asked.filter((item) => item.path === '/api/market/market-gaps').length
     const before = gapsAsked()
     const streetsAsked = () => asked.filter((item) => item.path === '/api/market/street-density').length
-    await tab(page, 'المنافسون'); await settle(page, 4000)
+    await tab(page, 'المنافسون'); await settle(page, 1800)
     check(streetsAsked() === 1, 'the next step\'s slow answer is asked ahead once, when idle (streets, after competitors answered)')
+    // opened while that request is still on its way (it takes 3 seconds here): the step waits for it, asks nothing
+    await tab(page, 'شوارع النشاط'); await settle(page, 3500)
+    check(streetsAsked() === 1, 'the step opened mid-ask shares the ask-ahead\'s request (no second one)')
     await tab(page, 'أين ينقص نشاطي؟'); await settle(page, 800)
     check(gapsAsked() === before && (await text(page)).includes('حي الثالث'), 'a slow answer is kept for the visit (no second wait)')
-    await tab(page, 'شوارع النشاط'); await settle(page, 1000)
-    check(streetsAsked() === 1, 'the step asked ahead opens on its answer, with no second request')
+    check(await page.evaluate(() => sessionStorage.getItem('atlas.answer.version')) === `snapshot:${SNAPSHOT}`, 'kept answers are versioned by the service\'s snapshot time (X-Data-Version)')
     // two candidate sites, through the step's own «ابدأ من هنا» (the map itself needs a token here)
     await tab(page, 'قارن المواقع'); await settle(page, 800)
     await panel(page).getByRole('button', { name: /ابدأ من هنا/ }).click(); await settle(page, 3000)
@@ -151,12 +157,22 @@ try {
     check(homes.includes('الجاذبية') && homes.includes('السكان في') && homes.includes('منشآت لكل كم²'), 'the candidate sites are side by side in the closing card')
     check(new URL(page.url()).searchParams.get('sites')?.split(';').length === 2, 'the compared sites are in the address')
     await panel(page).getByRole('button', { name: 'احفظ المقارنة' }).click(); await settle(page, 800)
-    const saved = panel(page).locator('li button', { hasText: 'الموقع' }).first()
+    const saved = panel(page).locator('section[aria-label="المقارنات المحفوظة"] li button', { hasText: 'الموقع' }).first()
     check(await saved.count() > 0, 'the side-by-side is saved by name in «المقارنات المحفوظة»')
+    const entry = await saved.innerText().catch(() => '')
+    check(entry.includes('1 كم') && entry.includes('صيدلية'), 'the saved comparison names its reach and its activity')
     if (await saved.count()) { await saved.click(); await settle(page, 3500) }
     const reopened = new URL(page.url())
-    check(reopened.searchParams.get('tool') === 'around' && reopened.searchParams.get('sites')?.split(';').length === 2 && (await text(page)).includes('الموقع 2'),
+    check(reopened.searchParams.get('tool') === 'around' && reopened.searchParams.get('sites')?.split(';').length === 2 && !reopened.searchParams.has('close') && (await text(page)).includes('الموقع 2'),
       'a saved site comparison reopens on «قارن المواقع» with its sites, measured again')
+    const back = await text(page)
+    check(back.includes('خلاصة رحلتك') && /أجذب موقع: الموقع \d/.test(back) && back.includes('الجاذبية'), 'reopening a saved comparison brings its decision back, the sites side by side')
+    // and from a fresh page (the saved link opened anew, as a colleague would)
+    // the saved link is this view's address with its one-time «close» (kept off the address once read)
+    const href = `${reopened.pathname}${reopened.search}&close=1`
+    if (href) { await page.goto(`${BASE}${href}`); await settle(page, 4000) }
+    const fresh = await text(page)
+    check(fresh.includes('خلاصة رحلتك') && /أجذب موقع/.test(fresh), 'the saved link opened anew lands on its decision')
     await context.close()
   }
   // marketer, phone: the peek says the step, step 2 starts from step 1's top district, the close opens the businesses
@@ -195,6 +211,56 @@ try {
     check(/أجذب موقع: الموقع \d/.test(close), 'Jeddah: the shop owner\'s close still decides on the scored sites')
     await page.goto(`${BASE}/map?city=Jeddah&lens=analysts&district=j2`); await settle(page, 3500)
     check((await text(page)).includes('غير متاح'), 'Jeddah: a district without population reads «غير متاح», not 0')
+    await context.close()
+  }
+  // Jeddah, phone: the same journey at 390px, to its decision, with no sideways scroll
+  {
+    const { context, page } = await open(browser, { phone: true })
+    await page.goto(`${BASE}/map?city=Jeddah&goal=expand`); await settle(page, 3500)
+    await raise(page)
+    await panel(page).getByRole('button', { name: 'صيدلية' }).first().click(); await settle(page, 2500)
+    check((await text(page)).includes('حي الجبل'), 'Jeddah phone: the gaps answer names its most populous district')
+    await tab(page, 'قارن المواقع'); await settle(page, 800)
+    await raise(page)
+    await panel(page).getByRole('button', { name: /ابدأ من هنا/ }).click(); await settle(page, 3000)
+    await tab(page, 'محلات للإيجار'); await settle(page, 2500)
+    const line = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'أجذب موقع' }).first()
+    check(await line.count() > 0, 'Jeddah phone: the peeking sheet says the decision')
+    if (await line.count()) { await line.click(); await settle(page, 1500) }
+    const card = await page.locator('#journey-summary').boundingBox().catch(() => null)
+    check(card != null && card.y >= 0 && card.y < 844 && (await text(page)).includes('حصة الفلل'), 'Jeddah phone: a tap opens the card, the sites scored on villa share')
+    if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/journey-jeddah-phone.png` })
+    check(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Jeddah phone: no sideways scroll')
+    await context.close()
+  }
+  // distributor, desktop: the growth step answers with its ranking first and the journey closes without a forced tap
+  // (the tour's hints wait while the map cannot open, as here without a map token: they are checked on real data)
+  {
+    const { context, page } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/map?lens=distributors`); await settle(page, 3500)
+    await tab(page, 'أين يُبنى'); await settle(page, 2500)
+    const growth = await text(page)
+    check(growth.indexOf('الأعلى في مبانٍ جديدة') >= 0 && growth.indexOf('الأعلى في مبانٍ جديدة') < growth.indexOf('مطاعم التوصيل'), '«أين يُبنى الآن؟» leads with its ranking, the city\'s general figures after it')
+    check(growth.includes('خلاصة رحلتك') && growth.includes('أكثر حي يُبنى فيه الآن: حي الثاني'), 'the distributor\'s journey closes on its ranking, without a forced tap')
+    await context.close()
+  }
+  // analyst, desktop: the one-tap pair is right under «اختر حيين», and no empty saved list stands in the way
+  {
+    const { context, page } = await open(browser, { phone: false })
+    await page.goto(`${BASE}/map?lens=analysts&tool=compare`); await settle(page, 3500)
+    const compare = await text(page)
+    check(compare.includes('أو قارن مباشرة') && !compare.includes('لا مقارنة محفوظة بعد'), 'compare: the one-tap pair, and no empty saved list')
+    check(compare.indexOf('أو قارن مباشرة') < compare.indexOf('خلاصة رحلتك') || !compare.includes('خلاصة رحلتك'), 'compare: the shortcut comes before the rest of the panel')
+    await context.close()
+  }
+  // shop owner, phone: the peeking sheet's ask is a button that raises the sheet to the step's chips
+  {
+    const { context, page } = await open(browser, { phone: true })
+    await page.goto(`${BASE}/map?goal=expand`); await settle(page, 3000)
+    const ask = page.locator('aside[aria-label="لوحة الخريطة"] button', { hasText: 'اختر نشاطك' }).first()
+    check(await ask.count() > 0, 'phone: the step\'s ask on the peeking sheet is a button')
+    if (await ask.count()) { await ask.click(); await settle(page, 900) }
+    check(await page.locator('[aria-label^="اللوحة نصف"]').count() > 0 && await panel(page).getByRole('button', { name: 'صيدلية' }).first().isVisible(), 'phone: tapping it raises the sheet to the activity chips')
     await context.close()
   }
   // a failing step, phone: the peek says it failed and offers the retry

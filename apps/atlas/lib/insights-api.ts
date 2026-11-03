@@ -56,6 +56,25 @@ export function nounAfter(value: number, noun: keyof typeof NOUNS): string {
   return size % 100 >= 11 ? many : hundred
 }
 
+/**
+ * The data version the service sends with its answers (X-Data-Version: when the mounted snapshot was built), heard by
+ * whoever keeps answers (components/lens/tools/answer-cache.ts), so a new snapshot is noticed on the first answer
+ * that carries it. Null until an answer has carried one.
+ */
+let dataVersionSeen: string | null = null
+const versionListeners = new Set<(version: string) => void>()
+export function noteDataVersion(response: Pick<Response, 'headers'>) {
+  const version = response.headers.get('x-data-version')
+  if (!version || version === dataVersionSeen) return
+  dataVersionSeen = version
+  for (const listener of versionListeners) listener(version)
+}
+export function onDataVersion(listener: (version: string) => void): () => void {
+  versionListeners.add(listener)
+  if (dataVersionSeen) listener(dataVersionSeen)
+  return () => { versionListeners.delete(listener) }
+}
+
 /** POST a read-only market resource through the Atlas proxy and surface its Arabic error. */
 export async function postMarket<T>(resource: string, body: unknown): Promise<T> {
   const response = await fetch(`/api/market/${resource}`, {
@@ -63,6 +82,7 @@ export async function postMarket<T>(resource: string, body: unknown): Promise<T>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
+  noteDataVersion(response)
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error((payload && payload.error) || 'تعذر تحميل البيانات.')
   return payload as T
@@ -83,7 +103,7 @@ let citiesRequest: Promise<City[]> | null = null
 /** Every row of /api/market/cities, once per page load (rejects, and is retried next time, when it fails). */
 export function fetchCities(): Promise<City[]> {
   citiesRequest ??= fetch('/api/market/cities')
-    .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`cities ${response.status}`))))
+    .then((response) => { noteDataVersion(response); return response.ok ? response.json() : Promise.reject(new Error(`cities ${response.status}`)) })
     .then((rows: unknown) => (Array.isArray(rows) ? uniqueCities(rows as City[]) : Promise.reject(new Error('cities: not a list'))))
     .catch((error) => { citiesRequest = null; throw error })
   return citiesRequest

@@ -130,12 +130,22 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const sitesKey = [...sites].sort((a, b) => a.slot - b.slot).map((site) => `${site.lon.toFixed(5)},${site.lat.toFixed(5)}`).join(';')
+  const keptKey = keptSites.map((point) => `${point.lon.toFixed(5)},${point.lat.toFixed(5)}`).join(';')
+  // the arrival is the restore's (above); after it, a change of the kept sites that this step did not write
+  const arrived = useRef(false)
+  useEffect(() => {
+    if (!arrived.current) { arrived.current = true; return }
+    if (!restored.current || keptKey === sitesKey || !keptSites.length) return
+    setSites([])
+    keptSites.slice(0, MAX_SITES).forEach((point) => pick({ lon: point.lon, lat: point.lat }))
+    // only when the kept sites change from outside (this step writes them equal to its own)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keptKey])
   // nothing is written before a site has been on the map: the arrival's empty list would wipe the sites being restored
   const hadSites = useRef(false)
   if (sites.length) hadSites.current = true
   useEffect(() => {
     if (!restored.current || !hadSites.current) return
-    const keptKey = keptSites.map((point) => `${point.lon.toFixed(5)},${point.lat.toFixed(5)}`).join(';')
     if (keptKey !== sitesKey) setKeptSites([...sites].sort((a, b) => a.slot - b.slot).map((site) => ({ lon: site.lon, lat: site.lat })))
     // keyed by the sites' places as one string
     // eslint-disable-next-line react-hooks/exhaustive-deps

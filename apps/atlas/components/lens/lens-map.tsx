@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Building2, Calculator, ClipboardList, Megaphone, Users } from 'lucide-react'
-import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, Hourglass, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronUp, Hourglass, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -12,7 +12,7 @@ import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
-import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, ltr, numberFormat, onDataVersion, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
 import { getSticky, setSticky, stickyHas, useStickyState, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
@@ -156,16 +156,13 @@ function ChipSelect({ label, value, onChange, options }: { label: string; value:
  * the edge that hides more chips so the cut reads as «there is more», and brings the active item (`aria-selected` or
  * `aria-pressed`) into view when `active` changes. Where everything fits, nothing fades and nothing moves.
  */
-function ScrollRow({ label, role = 'group', active, className, style, onKeyDown, arrows = false, children }: {
+function ScrollRow({ label, role = 'group', active, className, style, onKeyDown, children }: {
   label: string
   role?: 'group' | 'tablist'
   active?: string
   className?: string
   style?: CSSProperties
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
-  /** With a mouse, a round arrow at each edge that hides more (a wheel or a trackpad does not scroll a row sideways
-   * by itself); touch swipes, and the keyboard moves through the items. */
-  arrows?: boolean
   children: ReactNode
 }) {
   const row = useRef<HTMLDivElement>(null)
@@ -203,29 +200,15 @@ function ScrollRow({ label, role = 'group', active, className, style, onKeyDown,
   const fade = edges.left || edges.right
     ? `linear-gradient(to right, ${edges.left ? 'transparent' : '#000'}, #000 40px, #000 calc(100% - 40px), ${edges.right ? 'transparent' : '#000'})`
     : undefined
-  const nudge = (direction: -1 | 1) => {
-    const el = row.current
-    if (!el) return
-    const behavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-    el.scrollBy({ left: direction * Math.max(160, el.clientWidth * 0.6), behavior })
-  }
-  const strip = (
+  // the step row wraps from lg, so no row is cut where a mouse is the usual pointer: the edge arrows it once had for a
+  // mouse are gone; touch swipes, and the keyboard moves through the items
+  return (
     <div ref={row} role={role} aria-label={label} onScroll={measure} onKeyDown={onKeyDown}
       className={cn('flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
       style={{ ...style, maskImage: fade, WebkitMaskImage: fade }}>
       {children}
     </div>
   )
-  if (!arrows) return strip
-  const arrow = (side: 'left' | 'right') => edges[side] && (
-    // out of the tab order and hidden from screen readers: the tabs themselves are reached with the arrow keys
-    <button type="button" tabIndex={-1} aria-hidden onClick={() => nudge(side === 'left' ? -1 : 1)}
-      className={cn('absolute top-1/2 z-[1] hidden size-8 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted-foreground shadow-sm hover:text-foreground pointer-fine:grid',
-        side === 'left' ? 'left-1' : 'right-1')}>
-      {side === 'left' ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
-    </button>
-  )
-  return <div className="relative">{strip}{arrow('left')}{arrow('right')}</div>
 }
 
 /**
@@ -476,9 +459,16 @@ const DISTRICTS_MULTI = '__multi__'
  * three figures on the map, and one business search for every group.
  */
 export function LensMap() {
+  const { views: savedViews } = useAppStore()
   const cities = useCities()
   // the kept answers belong to the data they came from: a city list with other counts (a new snapshot) forgets them
-  useEffect(() => { if (cities.length > 1) answerCache.setVersion(dataVersion(cities)) }, [cities])
+  // the service's own snapshot time (X-Data-Version) when it sends one, the city list's counts otherwise
+  const [snapshot, setSnapshot] = useState<string | null>(null)
+  useEffect(() => onDataVersion(setSnapshot), [])
+  useEffect(() => {
+    if (snapshot) answerCache.setVersion(`snapshot:${snapshot}`)
+    else if (cities.length > 1) answerCache.setVersion(dataVersion(cities))
+  }, [cities, snapshot])
   const reduce = useReducedMotion()
   const [city, setCity] = useState('Riyadh')
   const [lens, setLens] = useState<LensId>('shops')
@@ -562,6 +552,26 @@ export function LensMap() {
     }
   }, [tool, trailKey, markDone, remember])
   const trailNow = trail.key === trailKey ? trail : null
+  // a saved view opened on its decision: the closing card shows on that step until another step is opened
+  const [closeOpen, setCloseOpen] = useState(false)
+  const closeTool = useRef<ToolId | null>(null)
+  const broughtBack = useRef(false)
+  // set by a saved view opened in the page (openView), which pushes its address without the parameter
+  const closeAsked = useRef(false)
+  const takeClose = (onTool: ToolId) => {
+    const query = new URLSearchParams(window.location.search)
+    const asked = query.get('close') === '1' || closeAsked.current
+    closeAsked.current = false
+    if (!asked) return
+    closeTool.current = onTool
+    broughtBack.current = false
+    setCloseOpen(true)
+    if (!query.has('close')) return
+    query.delete('close')
+    const text = query.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${text ? `?${text}` : ''}${window.location.hash}`)
+  }
+  useEffect(() => { if (closeOpen && closeTool.current && tool !== closeTool.current) setCloseOpen(false) }, [tool, closeOpen])
   const [sitesTrail, setSitesTrail] = useState<{ key: string; value: SitesCompared | null }>({ key: '', value: null })
   // the decision card opened the picked districts' businesses; another step, group or city closes them
   const [decisionBusinesses, setDecisionBusinesses] = useState(false)
@@ -634,6 +644,8 @@ export function LensMap() {
       if (main && !(value as { label?: string }).label) presetRival.current = main
       else setSticky(key, value)
     }
+    // a saved view reopens on its decision (?close=1, once): the closing card shows on the step it was saved on
+    takeClose((preset.tool as ToolId | null) ?? lensById((preset.lens ?? lens) as LensId).steps[0].tool)
     if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
     setHydrated(true)
     // read once on arrival; later changes come from the page itself
@@ -686,7 +698,7 @@ export function LensMap() {
     if (!hydrated) return
     // a main activity still waiting for its city's list keeps its place in the address
     const main = presetMain.current ?? studied.main_id ?? null
-    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
+    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main || !stickyHas('activity') ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
     // a second activity still waiting for its name keeps its place too
     const address = presetRival.current ? next : withOptions(next, lens)
     const prev = gate.step(mapKey({}))
@@ -700,8 +712,16 @@ export function LensMap() {
   // the same reading of the address, for a saved comparison opened from the panel (an entry of its own, like a link)
   const applyAddress = useRef<() => void>(() => {})
   const openView = (href: string) => {
-    if (href === `${window.location.pathname}${window.location.search}`) return
-    window.history.pushState({}, '', href)
+    // a saved view's «open on its decision» is taken here as an intent, and the address pushed without it: the
+    // router keeps its own copy of a pushed address, so a parameter removed after the push came back
+    const [path, search = ''] = href.split('?')
+    const query = new URLSearchParams(search)
+    const close = query.get('close') === '1'
+    query.delete('close')
+    const target = `${path}${query.toString() ? `?${query}` : ''}`
+    if (target === `${window.location.pathname}${window.location.search}` && !close) return
+    closeAsked.current = close
+    window.history.pushState({}, '', target)
     applyAddress.current()
   }
   useEffect(() => {
@@ -737,6 +757,12 @@ export function LensMap() {
         setDraft(view.q ?? '')
         setSearch(view.q ? { q: view.q, nonce: Date.now() } : null)
       }
+      // the steps' choices the address holds (a saved site comparison's sites, its reach) and the activity it studied
+      for (const [key, value] of Object.entries(readMapOptions(window.location.search, nextLens, lensById(nextLens).steps.map((step) => step.tool)))) {
+        if (key !== 'competitors.rival') setSticky(key, value)
+      }
+      if (view.activity) setStudied({ q: view.activity, label: view.activity })
+      takeClose((view.tool as ToolId | null) ?? lensById(nextLens).steps[0].tool)
     }
     applyAddress.current = onPop
     window.addEventListener('popstate', onPop)
@@ -849,14 +875,15 @@ export function LensMap() {
   const prefetchFor = chosenActivity && next?.tool === 'corridors' && done.includes(tool) ? streetsQuestion(city, studied) : null
   const prefetchKey = prefetchFor ? `${prefetchFor.cache}|${prefetchFor.key}` : null
   useEffect(() => {
-    if (!prefetchFor || !prefetchKey || prefetched.current.has(prefetchKey) || answerCache.get(prefetchKey) !== undefined) return
+    if (!prefetchFor || !prefetchKey || prefetched.current.has(prefetchKey) || answerCache.get(prefetchKey) !== undefined || answerCache.flying(prefetchKey)) return
     const run = prefetchFor.run
     const idle = typeof window.requestIdleCallback === 'function'
       ? { start: (go: () => void) => window.requestIdleCallback(go, { timeout: 10000 }), stop: (id: number) => window.cancelIdleCallback(id) }
       : { start: (go: () => void) => window.setTimeout(go, 3000), stop: (id: number) => window.clearTimeout(id) }
     const handle = idle.start(() => {
       prefetched.current.add(prefetchKey)
-      run().then((data) => answerCache.set(prefetchKey, data)).catch(() => { prefetched.current.delete(prefetchKey) })
+      // through the cache: the step, opened while this is on its way, waits for this same request
+      answerCache.run(prefetchKey, run).catch(() => { prefetched.current.delete(prefetchKey) })
     })
     return () => idle.stop(handle)
     // keyed by the question as one string
@@ -916,6 +943,15 @@ export function LensMap() {
   const rankLine = !toolColors && leadRow && leadValue != null
     ? `الأعلى في ${METRICS[metric].label}: ${leadRow.name} ${METRICS[metric].unit === '%' ? ltr(format(leadValue, '%')) : format(leadValue, METRICS[metric].unit)}`
     : null
+  // a ranking step has answered once its ranking is drawn (its first district and line, as the ranking reads them);
+  // a pick then answers in its place (pickedLine, above)
+  const growthFirst = tool === 'growth' && data.status !== 'loading' && !selected.length
+  const ranked = (tool === 'growth' || tool === 'district') && data.status === 'ready' && !metricPending && !selected.length && rankLine != null
+  useEffect(() => {
+    if (!ranked || !rankLine) return
+    markDone(tool)
+    remember(trailKey, tool, rankLine, leadId)
+  }, [ranked, rankLine, leadId, tool, trailKey, markDone, remember])
   // a step still waiting for the customer says what to do on it; only the steps whose answer is the ranking itself
   // («الأحياء والترتيب», «أين يُبنى الآن؟») lead with the top district of the shading figure
   // the step's own line: its answer, else that it is working, slow or failed (with a retry), else what to do on it
@@ -928,6 +964,24 @@ export function LensMap() {
     </span>
   ) : null
   const peekAction = retry && !search && !chosen.length ? <Chip onClick={retry}>أعد المحاولة</Chip> : null
+  // a phone whose sheet only peeks cannot see the field the step asks for («اختر نشاطك…»): the ask is a button that
+  // raises the sheet halfway (and, with a mouse or keyboard, puts the cursor on the step's first control)
+  const startStep = () => {
+    setSheet('half')
+    // on a touch screen the field is shown, not focused: a focused field opens the keyboard over the chips under it
+    if (window.matchMedia('(pointer: coarse)').matches) return
+    window.setTimeout(() => {
+      const first = document.querySelector<HTMLElement>(`#${STEP_PANEL} input, #${STEP_PANEL} select, #${STEP_PANEL} button`)
+      first?.focus({ preventScroll: true })
+    }, 320)
+  }
+  const askAction = line?.tone === 'ask' && sheet === 'peek' && !search && !chosen.length ? (
+    <button type="button" onClick={startStep}
+      className="inline-flex min-h-9 max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11">
+      <span className="truncate">{line.text}</span>
+      <ChevronUp className="size-4 shrink-0 text-primary" aria-hidden />
+    </button>
+  ) : null
   // a slow step says why it takes long and what to do meanwhile, once, above its tool (territories and the site
   // comparison say it in their own words already)
   const slowWait = overlay.state === 'loading' && overlay.slow && tool !== 'territories' && tool !== 'around' ? STEP_WAIT[tool] : null
@@ -1066,7 +1120,8 @@ export function LensMap() {
     const budget = Number(getSticky('homes.plain.budget') ?? 0)
     return { kind, type: String(getSticky('homes.plain.type') ?? 'apartment'), deal: kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal ?? 'rent_year', budget: Number.isFinite(budget) ? budget : 0 }
   }
-  const decision = !next ? decisionFor({ lens, city, rows: data.rows, picked: chosen, leads: trailNow?.leads ?? {}, activity: chosenActivity, done,
+  const closing = !next || closeOpen
+  const decision = closing ? decisionFor({ lens, city, rows: data.rows, picked: chosen, leads: trailNow?.leads ?? {}, activity: chosenActivity, done,
     sites: sitesTrail.key === trailKey ? sitesTrail.value : null, homes: lens === 'property' ? homesChoice() : null }) : null
   const answeredSteps = active.steps.filter((item) => done.includes(item.tool)).length
   // at the journey's last step the peeking sheet says the decision itself, so a phone sees it without raising the panel
@@ -1087,6 +1142,13 @@ export function LensMap() {
       </button>
     )
     : null
+  useEffect(() => {
+    if (!closeOpen || !shownDecision || broughtBack.current) return
+    broughtBack.current = true
+    openDecision()
+    // once, when the reopened view's decision first shows
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closeOpen, shownDecision])
   // the decision moment of the journey itself: the closing card shown, once per group, city and decision in a visit
   useEffect(() => {
     if (shownDecision) trackJourneyDecision({ lens, city, moment: 'shown', answered: answeredSteps, steps: active.steps.length })
@@ -1204,9 +1266,10 @@ export function LensMap() {
           <PointerTip store={pointer} describe={describePointed} />
           <p aria-live="polite" className="sr-only">{pickedSay}</p>
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts}
-            onShowMe={leadId ? () => pickFromList(leadId) : null} showMeName={leadRow?.name ?? null}
-            // «أين ينقص نشاطي؟» is the step that waits for the activity before it colours anything (the others start on one)
-            firstAsk={tool === 'gaps' && !chosenActivity ? step?.ask ?? null : null} />
+            onShowMe={startRow ? () => pickFromList(startRow.id) : leadId ? () => pickFromList(leadId) : null} showMeName={startRow?.name ?? leadRow?.name ?? null}
+            // the hint asks what the step needs first: «أين ينقص نشاطي؟» its activity, a step that takes no district its own
+            // choice (the reps, a site, an activity); the others a district
+            firstAsk={(tool === 'gaps' && !chosenActivity) || !TOOL_INPUTS[tool].district ? step?.ask ?? null : null} onFirstAsk={startStep} />
           {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
           <CopyLinkButton className="absolute end-3 bottom-[calc(6.5rem+var(--lift,0px))] z-10 transition-[bottom,color] duration-300 motion-reduce:transition-none lg:end-16 lg:top-3 lg:bottom-auto" />
           {noDistricts && (
@@ -1290,12 +1353,12 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !decisionLine && !chosen.length ? peekLine : null} summaryAction={!search && decisionLine ? decisionLine : peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !decisionLine && !askAction && !chosen.length ? peekLine : null} summaryAction={!search && decisionLine ? decisionLine : askAction ?? peekAction} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
           panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
             // the steps stay above the scrolling body at every stop of the sheet: one sideways line on a phone, and from lg
             // they wrap, so a five-step journey shows every step and its ✓ at once (no arrows, nothing cut)
-            <ScrollRow role="tablist" arrows label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1 lg:flex-wrap lg:overflow-visible">
+            <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1 lg:flex-wrap lg:overflow-visible">
               {active.steps.map((item, index) => (
                 <StepTab key={item.tool} tool={item.tool} index={index} label={item.label} active={tool === item.tool} done={done.includes(item.tool)} onClick={() => setTool(item.tool)} />
               ))}
@@ -1345,22 +1408,26 @@ export function LensMap() {
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} onListings={setStepListings} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
-                        {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
-                        {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
+                        {/* the shortest way to an answer right under «اختر حيين»: the two districts the ranking puts first */}
+                        {compareStart && <CompareStart names={[compareStart.rows[0].name, compareStart.rows[1].name]} why={compareStart.why}
+                          onPick={() => { const ids = compareStart.rows.map((row) => row.id); setSelected(ids); flyTo(...ids) }} />}
+                        {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4); with
+                            nothing picked and nothing saved there is nothing to show yet */}
+                        {tool === 'compare' && (chosen.length === 2 || savedViews.length > 0) && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
                           here={() => (typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`)} onOpen={openView} />}
                         {/* the analysts' first step lists what they saved, so a comparison is reopened from where the journey starts */}
                         {tool === 'district' && lens === 'analysts' && <SavedListCard onOpen={openView} />}
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  {compareStart && <CompareStart names={[compareStart.rows[0].name, compareStart.rows[1].name]} why={compareStart.why}
-                    onPick={() => { const ids = compareStart.rows.map((row) => row.id); setSelected(ids); flyTo(...ids) }} />}
                   {tool === 'businesses' && !selected.length && !start && (
                     <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو اختره من «الحي» في الأعلى، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}
                   {/* while the city's tables load, the summary keeps its shape: its tiles said «غير متاح» and the ranking
                       stood empty, as if the city had no figures at all */}
                   {data.status === 'loading' && (tool === 'district' || tool === 'growth') && <SummarySkeleton cityName={cityName} />}
+                  {/* «أين يُبنى الآن؟» answers with its ranking: it comes first, the city's general figures after it */}
+                  {growthFirst && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <div id="picked-summary" className="scroll-mt-2">
                       <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} failed={data.failed} pending={data.pending}
@@ -1375,7 +1442,7 @@ export function LensMap() {
                         onAnswer={tool === 'businesses' ? onBusinessesAnswer : undefined} />
                     </div>
                   )}
-                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
+                  {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && !growthFirst && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
                   {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
                   {next && done.includes(tool) && (
                     <button onClick={() => { focusAfter.current = tabId(next.tool); setTool(next.tool) }}
@@ -1389,21 +1456,24 @@ export function LensMap() {
                     </button>
                   )}
                   {/* the last step closes the journey: what each step answered, on one card, and a link to come back to it */}
-                  {!next && active.steps.length > 1 && done.some((id) => active.steps.some((item) => item.tool === id)) && (
+                  {closing && active.steps.length > 1 && done.some((id) => active.steps.some((item) => item.tool === id)) && (
                     <JourneySummary lens={active} cityName={cityName} tool={tool} done={done} answers={trailNow?.summaries ?? {}}
                       picked={chosen.map((row) => row.name)} activity={chosenActivity} decision={decision} onAct={act}
                       onOpen={(id) => { focusAfter.current = tabId(id); setTool(id) }} />
                   )}
                   {/* the candidate sites side by side, kept by name like an analyst's comparison (its sites are in the
                       address), and reopened from the same list */}
-                  {!next && lens === 'shops' && decision?.sites && (
+                  {closing && lens === 'shops' && decision?.sites && (
                     <SavedComparisons city={city} cityName={cityName} districts={[]}
                       sites={decision.sites.sites.map((site) => `الموقع ${site.label}${site.district ? ` في ${site.district}` : ''}`)}
+                      detail={[decision.sites.reach, chosenActivity].filter(Boolean).join(' · ')}
                       // saved on «قارن المواقع» itself, so reopening it measures the same sites again from today's numbers
                       here={() => {
                         if (typeof window === 'undefined') return ''
                         const query = new URLSearchParams(window.location.search)
                         query.set('tool', 'around')
+                        // and opens on its decision, the sites side by side
+                        query.set('close', '1')
                         return `${window.location.pathname}?${query}`
                       }} onOpen={openView} />
                   )}
