@@ -258,7 +258,7 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
     }
   }
   const empty = ranked.filter((item) => item.competitors === 0).length
-  const people = top.row.population != null ? `${n(top.row.population)} ساكن` : null
+  const people = top.row.population != null ? `${n(Math.round(top.row.population))} ساكن` : null
   const nextDoor = top.competitors === 0 && around != null && around.total >= THIN.nextDoor && !top.area
   const sparse = top.row.settledPct != null && top.row.settledPct < THIN.sparse
   const cautions = [
@@ -270,8 +270,8 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
   // ranked with its neighbours (rankLightAround): the area's residents per competitor leads, the district's own after
   const area = top.area
   const areaLine = area == null ? []
-    : area.competitors === 0 ? [`لا منافس فيه ولا في الأحياء المجاورة (${n(area.districts - 1)})، وفيها ${n(area.residents)} ساكن.`]
-      : [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(area.residents)} ساكن، ${counted(area.competitors, 'business')}).`]
+    : area.competitors === 0 ? [`لا منافس فيه ولا في الأحياء المجاورة (${n(area.districts - 1)})، وفيها ${n(Math.round(area.residents))} ساكن.`]
+      : [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')}).`]
   return {
     lead: `أخف منافسة على «${label}»${area ? ' مع جواره' : ''}: ${top.row.name}`,
     why: [
@@ -279,7 +279,8 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
       top.competitors === 0
         ? `لا منافس فيه${people ? `، وفيه ${people}` : ''}.`
         : [`${counted(top.competitors, 'business')} فقط`, density(top), people].filter(Boolean).join(' · ') + '.',
-      ...(around && around.districts > 0 ? [around.total
+      // the area line already sums the neighbours; the plain list (no outlines) names them here
+      ...(around && around.districts > 0 && !area ? [around.total
         ? `حوله: ${counted(around.total, 'business')} في الأحياء المجاورة (${n(around.districts)})${around.top ? `، أكثرها ${around.top.name} (${n(around.top.n)})` : ''}.`
         : `ولا منافس في الأحياء المجاورة له (${n(around.districts)}).`] : []),
       ...(empty > 1 ? [`${counted(empty, 'district')} مأهولة بلا أي منافس، والأكثر سكاناً أولاً.`] : []),

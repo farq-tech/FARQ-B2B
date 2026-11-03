@@ -342,3 +342,13 @@ test('a factor the visitor dropped is said as their choice, apart from one a sit
   assert.equal(both.why[1], 'بلا السكان باختيارك.')
   assert.equal(sitesVerdict(sites, attractionScores(sites), true)!.why.length, 1, 'nothing dropped: no choice line')
 })
+
+test('an area of estimated people reads in whole people, never «6,245.637 ساكن»', () => {
+  // الزاهر as served: 3,795 people and five quiet neighbours, some of them grid estimates with fractions
+  const row = { row: { id: 'ز', name: 'الزاهر', population: 3795.4 }, competitors: 0, perKm2: null, area: { districts: 6, residents: 6245.637, competitors: 0 } }
+  const verdict = competitorsVerdict([row], 'light', 'صيدلية', 100, 100, { districts: 5, total: 0, top: null })!
+  assert.equal(verdict.why[0], 'لا منافس فيه ولا في الأحياء المجاورة (5)، وفيها 6,246 ساكن.')
+  assert.equal(verdict.why[1], 'لا منافس فيه، وفيه 3,795 ساكن.')
+  assert.ok(!verdict.why.some((line) => line.startsWith('ولا منافس في الأحياء المجاورة')), 'the neighbours are said once')
+  assert.doesNotMatch(JSON.stringify(verdict), /\d\.\d{2}/)
+})
