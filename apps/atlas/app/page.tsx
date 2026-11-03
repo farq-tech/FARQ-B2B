@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft, BadgeCheck, ChartNoAxesCombined, CheckCircle2, FileSearch, MapPinned, MessageSquareText, SearchCheck, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/app-shell'
+import { buttonVariants } from '@/components/ui/button'
 import { AtlasGoalLinks } from '@/components/landing/atlas-goal-links'
 import { ProofCounts } from '@/components/landing/proof-counts'
 
@@ -28,8 +29,8 @@ export default function AtlasLandingPage() {
           <BrandMark />
           <div className="flex items-center gap-2">
             {/* sign-in stays on phones too: returning customers land here first */}
-            <Link href="/login?next=%2Fmap" className="inline-flex h-10 items-center rounded-lg border px-3 text-sm font-medium hover:bg-muted">دخول</Link>
-            <Link href="/map" className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">ابدأ الآن</Link>
+            <Link href="/login?next=%2Fmap" className={buttonVariants({ variant: 'outline' })}>دخول</Link>
+            <Link href="/map" className={buttonVariants({ className: 'font-semibold' })}>ابدأ الآن</Link>
           </div>
         </div>
       </header>
@@ -42,8 +43,8 @@ export default function AtlasLandingPage() {
             <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-6xl">قل لنا وش تبي تحقق.<br />ونساعدك توصل للجهة <span className="text-primary">المناسبة.</span></h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">فرق أطلس يجمع فهم السوق، البحث عن الجهات، والخريطة في مساحة واحدة تساعدك على الوصول لقرار تجاري أسرع وأوضح.</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/map" className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">استكشف الفرص <ArrowLeft className="size-4" aria-hidden /></Link>
-              <a href="#how" className="rounded-lg border bg-card px-5 py-3 font-semibold">كيف تعمل؟</a>
+              <Link href="/map" className={buttonVariants({ size: 'lg', className: 'font-semibold' })}>استكشف الفرص <ArrowLeft aria-hidden /></Link>
+              <a href="#how" className={buttonVariants({ variant: 'outline', size: 'lg', className: 'bg-card font-semibold' })}>كيف تعمل؟</a>
             </div>
             <p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="size-4 text-primary" aria-hidden /> لا يتم إرسال أي طلب أو رسالة قبل مراجعتك.</p>
           </div>
@@ -72,10 +73,10 @@ export default function AtlasLandingPage() {
 
       <section className="mx-auto grid max-w-7xl gap-10 px-5 py-10 sm:py-16 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
         <div className="rounded-3xl bg-primary p-8 text-primary-foreground"><MessageSquareText className="size-7" aria-hidden /><h2 className="mt-6 text-3xl font-bold leading-tight">قرارك التجاري يظل بيدك.</h2><p className="mt-4 leading-7 text-primary-foreground/80">تستطيع تجهيز قائمة أو طلب أو مسودة، ثم تراجع المحتوى والجهات المختارة قبل اتخاذ أي إجراء خارجي.</p></div>
-        <div><p className="text-sm font-semibold text-primary">مصممة لفرق الشركات</p><h2 className="mt-2 text-3xl font-bold">وضوح أكبر في كل خطوة</h2><ul className="mt-6 space-y-4">{benefits.map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden /><span className="leading-7">{benefit}</span></li>)}</ul><div className="mt-8"><ProofCounts /></div><Link href="/requests" className="mt-8 inline-flex items-center gap-2 font-semibold text-primary">عرض الطلبات والمسودات <ArrowLeft className="size-4" aria-hidden /></Link></div>
+        <div><p className="text-sm font-semibold text-primary">مصممة لفرق الشركات</p><h2 className="mt-2 text-3xl font-bold">وضوح أكبر في كل خطوة</h2><ul className="mt-6 space-y-4">{benefits.map((benefit) => <li key={benefit} className="flex gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden /><span className="leading-7">{benefit}</span></li>)}</ul><div className="mt-8"><ProofCounts /></div><Link href="/requests" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg font-semibold text-primary hover:underline underline-offset-4">اعرض الطلبات والمسودات <ArrowLeft className="size-4" aria-hidden /></Link></div>
       </section>
 
-      <section className="border-t bg-muted/40"><div className="mx-auto max-w-7xl px-5 py-10 sm:py-16 text-center sm:px-8"><h2 className="text-3xl font-bold">ابدأ من هدفك التجاري</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">استكشف السوق وحدد الجهات المناسبة، ثم راجع قرارك قبل تنفيذه.</p><Link href="/map" className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground">فتح خريطة الفرص <ArrowLeft className="size-4" aria-hidden /></Link></div></section>
+      <section className="border-t bg-muted/40"><div className="mx-auto max-w-7xl px-5 py-10 sm:py-16 text-center sm:px-8"><h2 className="text-3xl font-bold">ابدأ من هدفك التجاري</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">استكشف السوق وحدد الجهات المناسبة، ثم راجع قرارك قبل تنفيذه.</p><Link href="/map" className={buttonVariants({ size: 'lg', className: 'mt-7 font-semibold' })}>افتح خريطة الفرص <ArrowLeft aria-hidden /></Link></div></section>
 
       </main>
 
