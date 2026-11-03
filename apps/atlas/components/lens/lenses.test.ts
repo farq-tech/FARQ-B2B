@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readMapQuery } from './map-query.ts'
-import { LENSES, LENS_GOALS, METRICS, METRIC_TABLE, STEP_TABLES, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type MetricId } from './lenses.ts'
+import { LENSES, LENS_GOALS, METRICS, METRIC_TABLE, STEP_TABLES, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type MetricId } from './lenses.ts'
 
 test('the next step follows the lens order and ends on its last step', () => {
   const shops = lensById('shops')
@@ -30,6 +30,27 @@ test('a figure whose table failed is «failed», one no district has is «missin
   assert.equal(metricAvailability('population', [row(null)], ['population'], ['population']), 'loading')
   // no rows yet (still loading) is not «missing»
   assert.equal(metricAvailability('population', [], []), 'ready')
+})
+
+test('every step says what to do on it', () => {
+  for (const lens of LENSES) for (const step of lens.steps) assert.ok(step.ask.trim().length > 0, `${lens.id}/${step.tool}`)
+})
+
+test('a step that takes a district starts from the nearest earlier step that put one first', () => {
+  const known = (id: string) => id !== 'gone'
+  const marketers = lensById('marketers')
+  assert.deepEqual(journeyStart(marketers, 'businesses', { audience: 'd1' }, known), { id: 'd1', from: marketers.steps[0] })
+  // nothing earlier answered, or the first step itself: nothing offered
+  assert.equal(journeyStart(marketers, 'businesses', {}, known), null)
+  assert.equal(journeyStart(marketers, 'audience', { audience: 'd1' }, known), null)
+  // a district the city does not hold is skipped for an earlier one
+  const shops = lensById('shops')
+  assert.equal(journeyStart(shops, 'homes', { gaps: 'd2', competitors: 'gone' }, known)?.id, 'd2')
+  assert.equal(journeyStart(shops, 'homes', { gaps: 'gone' }, known), null)
+  // a step that takes no district never offers one
+  assert.equal(journeyStart(shops, 'corridors', { gaps: 'd2' }, known), null)
+  const property = lensById('property')
+  assert.equal(journeyStart(property, 'district', { homes: 'd3' }, known)?.from.tool, 'homes')
 })
 
 test('the open step and the layer in view load first; the rest wait', () => {

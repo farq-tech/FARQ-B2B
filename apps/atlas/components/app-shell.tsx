@@ -8,6 +8,7 @@ import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { REMEMBERED, lastView, loginHref } from '@/lib/handoff'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { WhatsNew } from '@/components/shared/whats-new'
 import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -134,12 +135,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : sessionChecked ? (
-            // the view as it is when tapped (the map, «العقار» and the price keep theirs in the query), so signing in comes back to it
-            <Link href={loginHref(pathname)} onClick={(event) => { event.preventDefault(); router.push(loginHref(`${window.location.pathname}${window.location.search}`)) }}
-              className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
+            // back to the page as it is, with its whole address (the map's journey lives there), after signing in
+            <SignInLink className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
               <LogIn aria-hidden />
               دخول
-            </Link>
+            </SignInLink>
           ) : null}
         </div>
       </header>

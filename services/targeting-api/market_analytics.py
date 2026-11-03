@@ -4,6 +4,9 @@ All aggregates follow the directory's open-record policy. Activity-filtered
 counts use the same high/medium row-level taxonomy confidence as map discovery.
 This module returns aggregates only, never contact or business-identifying fields.
 """
+import collections
+import copy
+import json
 import os
 from collections import Counter
 import threading
@@ -30,6 +33,7 @@ MAX_SUB_IDS = 50
 MAX_DISTRICTS = 30
 MAX_SPECIALTY_IDS = 20
 MAX_TEXT = 120
+RESULT_CACHE_SIZE = 512   # remembered aggregate answers (MarketAnalytics._remembered)
 
 # Keep aggregate counts aligned with directory_tiles contact=whatsapp. A record needs
 # both the source marker and a mobile number in a supported Saudi representation.
@@ -84,6 +88,63 @@ def gap_caveat(district_ar, male_pct):
     if male_pct is not None and male_pct >= GAP_WORKERS_MALE_PCT:
         return "workers"
     return None
+
+
+# Whether an activity's district counts are driven by population here is decided only from the counts and
+# population the gap view already holds (no new data source). The gap number — expected businesses at the
+# city rate, and the shortfall under it — is published only when the population model holds, i.e. all of:
+#   * enough covered districts carry both a population figure and directory businesses,
+#   * more population means more businesses there (regression slope > 0),
+#   * the counts actually move with population (Pearson r ≥ GAP_MODEL_MIN_R),
+#   * and population itself varies between those districts (positive variance).
+# Wholesale, industrial, B2B and destination activities fail this test; for them a shortfall at the city
+# rate is a fabricated number, so the view shows «غير متاح» and the districts' real counts only.
+# The two thresholds are calibratable constants, not theory: raise GAP_MODEL_MIN_R to demand a tighter fit,
+# GAP_MODEL_MIN_DISTRICTS to demand more covered districts before any rate is trusted. 0.3 and 8 are a
+# deliberately permissive floor — they reject the clearly non-residential activities (flat or negative
+# relationship, or too few districts to tell) without discarding a noisy but real residential signal.
+GAP_MODEL_MIN_DISTRICTS = 8
+GAP_MODEL_MIN_R = 0.3
+
+# Why no shortfall is shown, told apart so the rep can act: a thin directory (too few covered districts to
+# judge the relationship — not a verdict on the activity) versus a genuine non-population activity (enough
+# districts, but the count does not track population). The second keeps the product-mandated wording.
+GAP_UNAVAILABLE_MESSAGES = {
+    "too_few_districts": "عدد الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط أقل من أن يُقاس به ارتباطه بالسكان، "
+                         "وقد يكون النشاط قليل الظهور في الدليل هنا؛ فلا يُقدَّر النقص، وتُعرض الأحياء بأعدادها الفعلية فقط.",
+    "weak_relationship": "هذا النشاط لا يتبع عدد السكان في هذه المدينة، فلا يمكن تقدير النقص؛ "
+                         "تُعرض الأحياء بأعدادها الفعلية فقط.",
+}
+
+
+def population_fit(populations, counts):
+    """Pearson r and the slope of business count on population, with the population variance, over the
+    districts that carry both figures. Returns (r, slope, variance); r and slope are None when either
+    series is flat (no variation to correlate). Pure arithmetic over the two lists, no new data."""
+    n = len(populations)
+    if n < 2:
+        return None, None, 0.0
+    mean_pop = sum(populations) / n
+    mean_count = sum(counts) / n
+    sxx = sum((p - mean_pop) ** 2 for p in populations)
+    syy = sum((c - mean_count) ** 2 for c in counts)
+    sxy = sum((p - mean_pop) * (c - mean_count) for p, c in zip(populations, counts))
+    variance = sxx / n
+    if sxx == 0 or syy == 0:
+        return None, None, variance
+    r = sxy / math.sqrt(sxx * syy)
+    slope = sxy / sxx
+    return r, slope, variance
+
+
+def market_gaps_basis(fit, covered_districts):
+    """The gap basis line, with the measured fit appended so the number is auditable: the Pearson correlation
+    between a district's population and its business count (signed, so a non-positive relationship is visible)
+    and over how many districts it was measured."""
+    if fit is None or not covered_districts:
+        return MARKET_GAPS_BASIS
+    return (MARKET_GAPS_BASIS +
+            f" ارتباط عدد المنشآت بالسكان r = {fit} على {covered_districts} حي يحمل الرقمين.")
 
 
 # a bare activity word is how many independent shops are named, not a brand (keys after letter folding)
@@ -363,8 +424,15 @@ def street_density_district_sql(columns):
 class MarketAnalytics:
     def __init__(self, directory_tiles, street_density=None):
         self.tiles = directory_tiles
+        # One query at a time on the shared database: run side by side (a cursor per thread, #739) they overran its
+        # 512MB memory limit (OutOfMemoryException) under a handful of visitors. Each thread keeps its own cursor so
+        # a result set is never swapped under another thread's fetch; repeated questions are answered from
+        # _remembered without queueing.
+        self._root = directory_tiles.db
+        self._local = threading.local()
         self.lock = directory_tiles.lock
-        self.db = directory_tiles.db
+        self._results = collections.OrderedDict()
+        self._results_lock = threading.Lock()
         # Aggregates read the same (canonical) directory copy the tiles serve, never the mounted file directly.
         self.data = getattr(directory_tiles, "path", None) or DATA
         self.street_density = street_density or STREET_DENSITY
@@ -372,6 +440,32 @@ class MarketAnalytics:
         self._taxonomy_lock = threading.Lock()
         self._specialty_column = None
         self._specialty_column_lock = threading.Lock()
+
+    @property
+    def db(self):
+        cursor = getattr(self._local, "cursor", None)
+        if cursor is None:
+            cursor = self._local.cursor = self._root.cursor()
+        return cursor
+
+    def _remembered(self, name, body, compute):
+        """The release is read-only while the service runs, so the same question gets the same answer: the city-wide
+        aggregates every visitor asks on opening the map are computed once. Copies in and out, so a caller that
+        enriches the answer never edits the stored one."""
+        try:
+            key = (name, json.dumps(body, sort_keys=True, ensure_ascii=False))
+        except (TypeError, ValueError):
+            return compute()
+        with self._results_lock:
+            if key in self._results:
+                self._results.move_to_end(key)
+                return copy.deepcopy(self._results[key])
+        result = compute()
+        with self._results_lock:
+            self._results[key] = copy.deepcopy(result)
+            while len(self._results) > RESULT_CACHE_SIZE:
+                self._results.popitem(last=False)
+        return result
 
     def _tx(self):
         if self._taxonomy is None:
@@ -572,6 +666,9 @@ class MarketAnalytics:
         return {"labels": labels[:4], "more": max(0, len(labels) - 4)}
 
     def district_counts(self, body):
+        return self._remembered('district_counts', body, lambda: self._district_counts(body))
+
+    def _district_counts(self, body):
         city, subs, where, params, specialty_available, bounds = self._where(body)
         query = f"""
             select p.district_ar, count(distinct p.poi_key) n,
@@ -617,6 +714,9 @@ class MarketAnalytics:
             return self.db.execute(f"select distinct {self._brand_sql()} from read_parquet(?) p where {where}", params).fetchall()
 
     def brands(self, body, population=None, history=None):
+        return self._remembered('brands', body, lambda: self._brands(body, population, history))
+
+    def _brands(self, body, population=None, history=None):
         """Chains of an activity in a city (see _group_chains): a brand counts as a chain from `min_branches` locations
         (default 3). Returns the chains ranked by locations, each with the districts it covers and its whole-city
         branches then and now when the directory history has an older snapshot; how much of the activity chains hold;
@@ -760,6 +860,9 @@ class MarketAnalytics:
         return {"ok": True, "city": city, "radius_km": NEAR_RADIUS_KM, "places": groups, "anchors": anchors, "basis": NEAR_BASIS}
 
     def market_gaps(self, body, population):
+        return self._remembered('market_gaps', body, lambda: self._market_gaps(body, population))
+
+    def _market_gaps(self, body, population):
         """Districts where an activity has fewer directory businesses than its residents would carry at the
         city's own rate. `population` maps a canonical district name to {"population", "male", "female"}.
 
@@ -784,6 +887,17 @@ class MarketAnalytics:
             return {"ok": True, "city": city, "residents_per_business": None, "districts": [], "understood": counted["understood"], "basis": MARKET_GAPS_BASIS,
                     "message": "لا توجد منشآت مطابقة في أحياء معروفة السكان لحساب معدل المدينة."}
         rate = city_population / city_businesses
+        # Does this activity's count actually track population here? Measured over the covered districts (both a
+        # population figure and directory businesses) from the numbers already in hand. When it does not —
+        # wholesale, industrial, B2B, destinations — the city rate is meaningless and a shortfall under it would
+        # be an invented number, so no expected count and no shortfall are emitted.
+        fit_r, slope, pop_variance = population_fit([known[name]["population"] for name in covered],
+                                                    [counts[name] for name in covered])
+        covered_districts = len(covered)
+        model_fits = bool(covered_districts >= GAP_MODEL_MIN_DISTRICTS and fit_r is not None
+                          and fit_r >= GAP_MODEL_MIN_R and slope is not None and slope > 0 and pop_variance > 0)
+        # the signed Pearson r, so a flat or negative (non-population) relationship stays visible in the number
+        fit = round(fit_r, 2) if fit_r is not None else None
         rows = []
         for name, row in known.items():
             people = row["population"]
@@ -797,24 +911,37 @@ class MarketAnalytics:
                 "district_ar": name,
                 "population": round(people),
                 "businesses": present,
-                "expected_businesses": round(expected, 1),
-                "shortfall": round(expected - present, 1),
+                "expected_businesses": round(expected, 1) if model_fits else None,
+                "shortfall": round(expected - present, 1) if model_fits else None,
                 "residents_per_business": round(people / present) if present else None,
                 "male_pct": male_pct,
                 "population_method": population_method(row.get("source")),
                 "caveat": gap_caveat(name, male_pct),
             })
-        # ordinary residential districts first, each group largest shortfall first
-        rows.sort(key=lambda row: (row["caveat"] is not None, -row["shortfall"], row["district_ar"]))
-        return {
+        base = {
             "ok": True,
             "city": city,
-            "residents_per_business": round(rate),
+            "population_model_fits": model_fits,
+            "fit": fit,
+            "covered_districts": covered_districts,
             "districts_with_population": len(known),
-            "districts": rows[:limit],
             "understood": counted["understood"],
-            "basis": MARKET_GAPS_BASIS,
+            "basis": market_gaps_basis(fit, covered_districts),
         }
+        if not model_fits:
+            # the count is not driven by population here: no city rate, no expected, no shortfall. The districts
+            # are listed by their real directory counts only, the most-served first. Two different failures are
+            # told apart so the rep knows whether to trust the verdict: with fewer than the floor of covered
+            # districts we simply cannot judge the relationship (a thin directory, often just few listings of
+            # the activity) — that is NOT a finding that the activity ignores population; with enough districts
+            # but a flat-or-negative relationship it genuinely does not track population.
+            reason = "too_few_districts" if covered_districts < GAP_MODEL_MIN_DISTRICTS else "weak_relationship"
+            rows.sort(key=lambda row: (-row["businesses"], row["district_ar"]))
+            return {**base, "residents_per_business": None, "districts": rows[:limit],
+                    "population_model_reason": reason, "message": GAP_UNAVAILABLE_MESSAGES[reason]}
+        # ordinary residential districts first, each group largest shortfall first
+        rows.sort(key=lambda row: (row["caveat"] is not None, -row["shortfall"], row["district_ar"]))
+        return {**base, "residents_per_business": round(rate), "districts": rows[:limit]}
 
     def district_insights(self, body):
         """Aggregate confidently classified activities for selected districts.
@@ -935,6 +1062,9 @@ class MarketAnalytics:
         }
 
     def market_summary(self, body):
+        return self._remembered('market_summary', body, lambda: self._market_summary(body))
+
+    def _market_summary(self, body):
         city, subs, where, params, specialty_available, bounds = self._where(body)
         aggregate = f"""
             select count(distinct p.poi_key) total,

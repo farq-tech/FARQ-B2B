@@ -29,16 +29,17 @@ async function copyText(text: string): Promise<boolean> {
  * so the link opens the same city, group, step, activity, districts and shading for whoever it is shared with inside
  * the platform (no export, docs/atlas-product-foundation.md).
  */
-export function CopyLinkButton({ className, description = 'يفتح الخريطة على ما تراه الآن.' }: { className?: string; /** What the copied link reopens, said in the toast. */ description?: string }) {
+export function CopyLinkButton({ className, label, description = 'يفتح الخريطة على ما تراه الآن.' }: { className?: string; /** Words said on every screen size instead of
+ * «انسخ الرابط» (shown from lg only), for a button inside a panel rather than over the map. */ label?: string; /** What the copied link reopens, said in the toast. */ description?: string }) {
   const copy = async () => {
     if (await copyText(window.location.href)) toast.success('نُسخ الرابط', { description })
     else toast.error('تعذر نسخ الرابط', { description: 'انسخه من شريط العنوان.' })
   }
   return (
-    <button type="button" onClick={copy} aria-label="انسخ الرابط" title="انسخ رابط ما تراه الآن"
+    <button type="button" onClick={copy} aria-label={label ?? 'انسخ الرابط'} title="انسخ رابط ما تراه الآن"
       className={cn('flex h-10 items-center gap-1.5 rounded-full border bg-card/95 px-2.5 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur transition-colors outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring lg:px-3.5', className)}>
       <Link2 className="size-5 shrink-0" aria-hidden />
-      <span className="max-lg:sr-only">انسخ الرابط</span>
+      <span className={label ? undefined : 'max-lg:sr-only'}>{label ?? 'انسخ الرابط'}</span>
     </button>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { SignInLink } from '@/components/shared/sign-in-link'
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Scale, Send, X } from 'lucide-react'
 import { ltr, numberFormat } from '@/lib/insights-api'
@@ -234,7 +234,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
         </>
       )}
       <FactsTable subject={subject} rows={rows} />
-      {status === 'login' && <p className="text-base">لاستخدام المقارنة <Link href="/login?next=/map" className="font-semibold text-primary underline">سجّل الدخول</Link>.</p>}
+      {status === 'login' && <p className="text-base">لاستخدام المقارنة <SignInLink className="font-semibold text-primary underline">سجّل الدخول</SignInLink>.</p>}
       {/* the unanswered question went back into the box, so trying again sends it as it was */}
       {status === 'error' && <LoadError what="الرد" title="تعذر الحصول على رد." detail={message === 'تعذر الحصول على رد.' ? undefined : message}
         onRetry={() => (turns === null ? void ask([]) : send())} />}
