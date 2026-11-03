@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, MapPin, Scale, SearchX, X } from 'lucide-react'
-import { EmptyState, NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { Check, MapPin, Scale, X } from 'lucide-react'
+import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -93,17 +93,20 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   useEffect(() => { setMyPoint(readPoint()) }, [])
   // residents per km², computed once in the service (server.py enrich_district_counts); read here per district
   const density = useMemo(() => new Map(rows.map((row) => [row.id, row.density])), [rows])
-  const districtIds = selected.map((row) => row.id)
-  const districtKey = districtIds.join('|')
+  const districtKey = selected.map((row) => row.id).join('|')
 
   useEffect(() => { if (!LISTING_TYPES.find((item) => item.id === type)?.kinds.includes(kind)) setType('apartment') }, [kind, type])
-  useEffect(() => { setBudget(0) }, [kind, rentDeal])
+  // a budget belongs to one deal (a yearly rent is not a monthly one), so it resets when the deal changes; it used to
+  // reset on every mount too, so coming back to this step lost the budget the visitor had set
+  const pickKind = (next: ListingKind) => { if (next !== kind) { setKind(next); setBudget(0) } }
+  const pickRentDeal = (next: Deal | 'all') => { if (next !== rentDeal) { setRentDeal(next); setBudget(0) } }
 
   // «أعد المحاولة» asks again with the same filters
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     let live = true
-    setResult((current) => ({ ...current, status: 'loading' }))
+    // the last filters' listings go at once: the map never shows their dots under the new filters' skeleton
+    setResult({ status: 'loading', available: true, total: null, listings: [] })
     setActive(null)
     postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
       city, kind, types: [type], limit: LIMIT,
@@ -165,7 +168,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
       <div role="group" aria-label="إيجار أو شراء" className="flex gap-1.5">
         {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}
+          <button key={id} onClick={() => pickKind(id)} aria-pressed={kind === id}
             className={cn('flex-1 rounded-lg border py-2 text-sm', kind === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
         ))}
       </div>
@@ -178,7 +181,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       {kind === 'rent' && (
         <div role="group" className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
           {[...RENT_DEALS, { id: 'all' as const, label: 'الكل' }].map((item) => (
-            <button key={item.id} onClick={() => setRentDeal(item.id)} aria-pressed={rentDeal === item.id}
+            <button key={item.id} onClick={() => pickRentDeal(item.id)} aria-pressed={rentDeal === item.id}
               className={cn('rounded-full border px-3 py-1.5 text-sm', rentDeal === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
           ))}
         </div>
