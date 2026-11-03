@@ -36,7 +36,7 @@ export function CopyLinkButton({ className }: { className?: string }) {
   }
   return (
     <button type="button" onClick={copy} aria-label="انسخ الرابط" title="انسخ رابط ما تراه الآن"
-      className={cn('flex h-10 items-center gap-1.5 rounded-full border bg-card/95 px-2.5 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur transition-colors outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 lg:px-3.5', className)}>
+      className={cn('flex h-10 items-center gap-1.5 rounded-full border bg-card/95 px-2.5 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur transition-colors outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring lg:px-3.5', className)}>
       <Link2 className="size-5 shrink-0" aria-hidden />
       <span className="max-lg:sr-only">انسخ الرابط</span>
     </button>

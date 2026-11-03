@@ -14,7 +14,7 @@ interface RfqEditorProps {
 }
 
 const fieldClass =
-  'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40 disabled:text-foreground'
+  'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted/40 disabled:text-foreground'
 
 /**
  * A reviewed quote request is no longer a form: the items read as a list and the terms as label and value, with the
@@ -141,7 +141,7 @@ export function RfqEditor({ value, editable, onChange }: RfqEditorProps) {
           rows={3}
           value={value.notes}
           onChange={(e) => onChange({ ...value, notes: e.target.value })}
-          className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:bg-muted/40"
+          className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted/40"
         />
       </label>
     </section>

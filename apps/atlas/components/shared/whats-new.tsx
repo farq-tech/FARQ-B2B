@@ -76,7 +76,7 @@ export function WhatsNew({ onMap = false }: {
           className="w-full truncate py-1.5 text-start text-sm font-bold lg:pointer-events-none lg:py-0">ما الجديد · {RELEASE.name}</button>
         <p className={cn('text-sm leading-7 text-muted-foreground lg:block', expanded ? 'block pb-1.5' : 'hidden')}>{RELEASE.note}</p>
       </div>
-      <button onClick={close} aria-label="إغلاق «ما الجديد»" className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+      <button onClick={close} aria-label="إغلاق «ما الجديد»" className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
         <X className="size-4" aria-hidden />
       </button>
     </aside>
