@@ -123,15 +123,27 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   const scope = `${city}|${key}|${query ?? ''}`
   // each search takes a number; an answer that is no longer the latest (another search, city or districts since) is dropped
   const latest = useRef(0)
+  // what this list's effects already did, so a repeated run does not ask again (see the reset effect)
+  const once = useRef<{ reset?: string; query?: string; prefill?: string }>({})
+  // the next page of each district a list has more of, for «اعرض المزيد» (a site's reach reads its pages itself)
+  const [more, setMore] = useState<{ district: string | null; offset: number }[]>([])
+  const [moreState, setMoreState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const lastAsk = useRef<{ typed: string; main: string | null }>({ typed: '', main: null })
 
   useEffect(() => {
-    latest.current++; setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle')
+    // each list is reset, and asked, once for what it shows: a second run of the same effect (React's development
+    // check runs effects twice) asked the directory a second time and threw the first answer away
+    if (once.current.reset === `${key}|${city}`) return
+    once.current.reset = `${key}|${city}`
+    latest.current++; setMore([]); setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle')
     // a search and a card kept for another list leave (and the address with them)
     if (kept?.scope != null && kept.scope !== scope) { setKept(null); setOpenId(null) }
   }, [key, city]) // eslint-disable-line react-hooks/exhaustive-deps
   // a search from the top of the map runs at once, over the selected districts or the whole city; a search made in
   // this same list before (a reload, or a step left and opened again) runs instead
   useEffect(() => {
+    if (once.current.query === `${scope}|${kept?.q ?? ''}`) return
+    once.current.query = `${scope}|${kept?.q ?? ''}`
     if (kept && (kept.scope == null || kept.scope === scope)) {
       if (kept.scope == null) setKept({ q: kept.q, scope })
       setActivity(kept.q)
@@ -143,6 +155,8 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
   // the activity is typed in the field and searched at once, never asked again
   useEffect(() => {
     if (!prefill || !districts.length || query || (kept && kept.scope === scope)) return
+    if (once.current.prefill === `${key}|${city}|${prefill}`) return
+    once.current.prefill = `${key}|${city}|${prefill}`
     setActivity(prefill)
     void load(prefill)
   }, [key, city, prefill]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -166,6 +180,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       const scopes: (string | null)[] = area ? [null] : districts.length ? districts.slice(0, MAX_DISTRICTS) : typed ? [null] : []
       // a site's reach pages on past one answer (the box it is asked by can hold more than PAGE), up to AREA_PAGES
       let capped = false
+      const nextPages: { district: string | null; offset: number }[] = []
       for (const district of scopes) {
         let offset = 0
         for (let page = 0; page < (area ? AREA_PAGES : 1); page++) {
@@ -188,6 +203,7 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
           if (!area) {
             found.push(...(body.rows ?? []))
             count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
+            if (body.hasMore === true) nextPages.push({ district, offset: typeof body.nextOffset === 'number' && body.nextOffset > offset ? body.nextOffset : offset + PAGE })
             break
           }
           // a site's reach is a shape, not a box: what the box brought back is kept only inside the shape
@@ -202,6 +218,9 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       }
       setAreaCapped(capped)
       if (stale()) return
+      setMore(nextPages)
+      setMoreState('idle')
+      lastAsk.current = { typed, main }
       if (guest) { setTotal(count); setSearched(districts.length ? scopes.length : null); setStatus('guest'); setKept(query && typed === query.trim() ? null : { q: typed, scope }); return }
       const unique = [...new Map(found.map((row) => [row.id, row])).values()]
       setRows(unique)
@@ -217,6 +236,36 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
       if (stale()) return
       setMessage(error instanceof Error ? error.message : 'تعذر تحميل المنشآت.')
       setStatus('error')
+    }
+  }
+
+  // «اعرض المزيد»: the next page of each district that has more, joined to the list (the same ask, the same districts)
+  async function loadMore() {
+    const pages = more
+    if (!pages.length || moreState === 'loading') return
+    const mine = latest.current
+    const { typed, main } = lastAsk.current
+    setMoreState('loading')
+    try {
+      const found: PublicDirectoryEntity[] = []
+      const nextPages: { district: string | null; offset: number }[] = []
+      for (const { district, offset } of pages) {
+        const response = await fetch('/api/market/entities', {
+          method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ city, ...(district ? { district } : {}), limit: PAGE, offset, ...(typed ? { q: typed, objective: 'purchase' } : {}), ...(main ? { main_id: main } : {}) }),
+        })
+        const body = await response.json().catch(() => null) as { rows?: PublicDirectoryEntity[]; hasMore?: boolean; nextOffset?: number | null } | null
+        if (mine !== latest.current) return
+        if (!response.ok || !body) throw new Error('more')
+        found.push(...(body.rows ?? []))
+        if (body.hasMore === true) nextPages.push({ district, offset: typeof body.nextOffset === 'number' && body.nextOffset > offset ? body.nextOffset : offset + PAGE })
+      }
+      if (mine !== latest.current) return
+      setRows((current) => [...new Map([...current, ...found].map((row) => [row.id, row])).values()])
+      setMore(nextPages)
+      setMoreState('idle')
+    } catch {
+      if (mine === latest.current) setMoreState('error')
     }
   }
 
@@ -417,6 +466,17 @@ export function BusinessesPanel({ city, districts, query, onLocate, located, onM
               </li>
             ))}
           </ul>
+          {/* the list holds the first PAGE of each district: the next ones one tap away, never all at once */}
+          {!area && more.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => void loadMore()} disabled={moreState === 'loading'}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold outline-none hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
+                {moreState === 'loading' && <Loader2 className="size-4 animate-spin" aria-hidden />}
+                اعرض المزيد{total != null && total > rows.length ? ` (${numberFormat.format(total - rows.length)})` : ''}
+              </button>
+              {moreState === 'error' && <span role="alert" className="text-sm text-muted-foreground">تعذّر التحميل، أعد المحاولة.</span>}
+            </div>
+          )}
           {/* the picks join a draft already started (the one named by the address first) instead of a new request */}
           {target ? (
             <button disabled={!picked.size} onClick={() => addTo(target.id)}
