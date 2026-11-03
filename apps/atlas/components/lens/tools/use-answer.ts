@@ -67,9 +67,10 @@ export function useAnswer<T>(key: string | null, run: () => Promise<T>, { slowAf
     if (kept !== undefined) { setHeld({ key, attempt, status: 'ready', data: kept, error: null, slow: false }); return }
     setHeld({ key, attempt, status: 'loading', data: null, error: null, slow: false })
     const timer = setTimeout(() => { if (sequence.current.isLatest(token)) setHeld((now) => ({ ...now, slow: true })) }, slowAfter)
-    runRef.current().then(
+    // a kept question goes through the cache, so a request already on its way for it (the map's ask-ahead) is shared
+    const asking = cacheKey ? answerCache.run<T>(cacheKey, () => runRef.current(), (data) => keepRef.current?.(data) ?? true) : runRef.current()
+    asking.then(
       (data) => {
-        if (cacheKey && (keepRef.current?.(data) ?? true)) answerCache.set(cacheKey, data)
         if (sequence.current.isLatest(token)) setHeld({ key, attempt, status: 'ready', data, error: null, slow: false })
       },
       (error: unknown) => { if (sequence.current.isLatest(token)) setHeld({ key, attempt, status: 'error', data: null, error, slow: false }) },

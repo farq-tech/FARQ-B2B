@@ -68,6 +68,8 @@ export function writeMapQuery(search: string, view: MapView, firstStep: string, 
   // one-time intents from a landing link: the lens they chose is now in the address, and the search box was focused
   query.delete('goal')
   query.delete('search')
+  // a saved view's «open on its decision» (lens-map takeClose) is read once, never written back
+  query.delete('close')
   set('city', view.city === MAP_DEFAULTS.city ? null : view.city)
   set('lens', view.lens === MAP_DEFAULTS.lens ? null : view.lens)
   set('tool', view.tool === firstStep ? null : view.tool)
@@ -75,7 +77,9 @@ export function writeMapQuery(search: string, view: MapView, firstStep: string, 
   set('q', cleanQuery(view.q))
   const activity = cleanQuery(view.activity)
   set('main', view.main && MAIN.test(view.main) ? view.main : null)
-  set('activity', view.main || activity === MAP_DEFAULTS.activity ? null : activity)
+  // the activity the page passes is one the customer chose (lens-map passes none otherwise), so a chosen «صيدلية»
+  // stays in the link: a step waits for a chosen activity and would not compute on one the link dropped
+  set('activity', view.main ? null : activity)
   set('layer', view.layer && view.layer !== firstLayer ? view.layer : null)
   const text = query.toString()
   return text ? `?${text}` : ''

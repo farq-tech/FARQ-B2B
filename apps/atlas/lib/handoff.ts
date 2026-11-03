@@ -217,7 +217,7 @@ export function rememberView(path: string, search: string) {
 }
 
 /** Address parameters that belong to one visit: the request a map pick is added to, the listing open on «العقار». */
-const ONE_TIME = ['add', 'listing']
+const ONE_TIME = ['add', 'listing', 'close']
 
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,60}$/
 /**
