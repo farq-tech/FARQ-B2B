@@ -974,6 +974,8 @@ export function LensMap() {
   // where the journey stands, said once in the peeking title («الخطوة 2 من 4»); the picked district leads when there is one
   const stepAt = step ? `الخطوة ${numberFormat.format(active.steps.indexOf(step) + 1)} من ${numberFormat.format(active.steps.length)}` : ''
   // a list inside a site's reach keeps that reach drawn, so the list and its area are read together
+  // and the map frames that reach whole, not only its centre
+  const catchmentFit = useMemo(() => (search?.area ? { geometry: search.area.geometry, nonce: search.nonce } : null), [search])
   const catchmentAreas = useMemo(() => (search?.area ? [{ id: 'catchment', color: PALETTE.olive, geometry: search.area.geometry }] : null), [search])
   const sheetTitle = search ? (search.area ? `«${search.q}» في نطاق الموقع ${search.area.label}` : `بحث: ${search.q}`) : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${stepAt} · ${step?.label ?? ''}`
   // a pick on the map is silent to a screen reader (the canvas has no districts to read): the pick and its two golden
@@ -1128,7 +1130,7 @@ export function LensMap() {
             already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
           style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={catchmentAreas ?? overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBusinessGroup={(next) => { setCard(null); setLocated(null); setGroup(next) }} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? search?.area?.centre ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={catchmentAreas ?? overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBusinessGroup={(next) => { setCard(null); setLocated(null); setGroup(next) }} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} fit={catchmentFit} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setLocated(null); setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : located ?? group} onPin={setCardAt} />

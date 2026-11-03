@@ -104,7 +104,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, onListingGroup, businesses, onBusiness, onBusinessHover, onBusinessGroup, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, onListingGroup, businesses, onBusiness, onBusinessHover, onBusinessGroup, streets, onStreet, focus, fit, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -130,6 +130,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
+  /** A shape the map frames whole (a site's reach while its list is open), clear of the phone's sheet; `nonce` repeats it. */
+  fit?: { geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon; nonce: number } | null
   /** Districts picked from a list or named by a link: the map frames them. `cover` is the share of the screen a phone's
    * sheet covers below the map's own peek, so they land in the part still visible; `nonce` repeats a pick of the same. */
   zoomTo?: { ids: string[]; nonce: number; cover: number } | null
@@ -505,6 +507,15 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   useEffect(() => {
     if (ready && focus) map.current?.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(map.current.getZoom(), 15) })
   }, [ready, focus])
+
+  useEffect(() => {
+    const instance = map.current
+    const bounds = fit ? boundsOf([{ geometry: fit.geometry }]) : null
+    if (!ready || !instance || !bounds) return
+    const box = instance.getContainer()
+    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone: !window.matchMedia('(min-width: 64rem)').matches, cover: sheetCover.current, peek: sheetPeek.current })
+    instance.fitBounds(bounds, { padding, maxZoom: 16, duration: 800 })
+  }, [ready, fit])
 
   // the city's districts fill the part of the map in view, leaving out the few far from the city (map-framing.ts)
   useEffect(() => {
