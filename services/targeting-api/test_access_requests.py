@@ -58,8 +58,13 @@ class SubmitTests(unittest.TestCase):
         rows = access_requests.read_all(self.folder)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['contact'], '+966551234567')
-        status, _ = access_requests.submit(self.folder, body(), {'Riyadh'}, now=1000.0 + 25 * 3600)
-        self.assertEqual(status, 201, 'a day later the same contact may ask again')
+        status, answer = access_requests.submit(self.folder, body(), {'Riyadh'}, now=1000.0 + 25 * 3600)
+        self.assertEqual((status, answer.get('duplicate')), (200, True), 'still open a day later: under review, not stored again')
+        access_requests.review(self.folder, rows[0]['id'], 'reviewed', now=2000.0)
+        self.assertEqual(access_requests.submit(self.folder, body(), now=1000.0 + 26 * 3600)[0], 200, 'reviewed is still open')
+        access_requests.review(self.folder, rows[0]['id'], 'rejected', now=3000.0)
+        status, _ = access_requests.submit(self.folder, body(), {'Riyadh'}, now=1000.0 + 27 * 3600)
+        self.assertEqual(status, 201, 'once decided, and a day later, the same contact may ask again')
 
     def test_invalid_request_is_not_stored(self):
         status, answer = access_requests.submit(self.folder, body(city='Paris'), {'Riyadh'})
@@ -84,7 +89,7 @@ class RenderTests(unittest.TestCase):
     def test_every_value_is_escaped_and_newest_first(self):
         rows = [{'id': '1', 'name': 'أول', 'received_at': 'a'}, {'id': '2', 'name': '<script>x</script>', 'received_at': 'b'}]
         page = access_requests.render_html(rows)
-        self.assertNotIn('<script>', page)
+        self.assertNotIn('<script>x</script>', page)
         self.assertIn('&lt;script&gt;', page)
         self.assertLess(page.index('&lt;script&gt;'), page.index('أول'))
         self.assertIn('لا طلبات بعد', access_requests.render_html([]))
@@ -129,11 +134,66 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('حُفظ القرار', page)
 
 
+class ConsoleRound3Tests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.ids = [access_requests.submit(self.folder, body(contact=f'05500000{i:02d}', name=f'شخص {i}'), now=100.0 + i)[1]['id'] for i in range(3)]
+        access_requests.review(self.folder, self.ids[0], 'approved', 'اتصلت', now=200.0)
+        access_requests.review(self.folder, self.ids[1], 'rejected', now=201.0)
+
+    def test_the_status_filter_shows_only_that_status_newest_first_with_counts(self):
+        rows = access_requests.with_reviews(self.folder)
+        page = access_requests.render_html(rows, status='new')
+        self.assertIn('شخص 2', page)
+        self.assertNotIn('شخص 0', page)
+        self.assertIn('<strong aria-current="page">جديد (1)</strong>', page)
+        self.assertIn('href="/access-requests?status=approved">موافق عليه (1)', page)
+        everything = access_requests.render_html(rows, status='nonsense')
+        self.assertLess(everything.index('شخص 2'), everything.index('شخص 0'), 'an unknown filter shows all, newest first')
+        self.assertIn('لا طلبات بهذه الحالة', access_requests.render_html(rows[:1], status='rejected'))
+
+    def test_approved_shows_the_account_details_to_copy_and_nothing_else_does(self):
+        page = access_requests.render_html(access_requests.with_reviews(self.folder))
+        self.assertEqual(page.count('بيانات إنشاء الحساب'), 1)
+        self.assertIn('الجوال: +966550000000', page)
+        self.assertIn('data-copy="d-' + self.ids[0] + '"', page)
+
+    def test_redact_empties_the_personal_details_and_notes_and_keeps_the_rest(self):
+        self.assertEqual(access_requests.redact(self.folder, self.ids[0], now=300.0)[0], 200)
+        self.assertEqual(access_requests.redact(self.folder, 'f' * 16)[0], 404)
+        rows = {row['id']: row for row in access_requests.with_reviews(self.folder)}
+        gone = rows[self.ids[0]]
+        for field in access_requests.PERSONAL_FIELDS:
+            self.assertNotIn(field, gone)
+        self.assertEqual((gone['status'], gone['note'], gone['city'], gone['category'], gone['redacted_why']), ('approved', '', 'Riyadh', 'shops', 'owner'))
+        self.assertEqual(rows[self.ids[2]]['name'], 'شخص 2', 'the others are untouched')
+        with open(os.path.join(self.folder, access_requests.FILE_NAME), encoding='utf-8') as handle:
+            self.assertNotIn('+966550000000', handle.read())
+        page = access_requests.render_html(access_requests.with_reviews(self.folder))
+        self.assertIn('بطلب صاحبها', page)
+        self.assertEqual(page.count('بيانات إنشاء الحساب'), 0, 'nothing left to copy')
+
+    def test_retention_empties_only_old_requests(self):
+        self.assertEqual(access_requests.apply_retention(self.folder, now=100.0 + 40 * 86400, days=30), 3)
+        self.assertEqual(access_requests.apply_retention(self.folder, now=100.0 + 41 * 86400, days=30), 0, 'once')
+        self.assertTrue(all(row.get('redacted_why') == 'retention' for row in access_requests.read_all(self.folder)))
+        fresh = tempfile.mkdtemp()
+        access_requests.submit(fresh, body(), now=1000.0)
+        self.assertEqual(access_requests.apply_retention(fresh, now=1000.0 + 29 * 86400, days=30), 0)
+        with patch.dict(os.environ, {'FARQ_ACCESS_REQUEST_RETENTION_DAYS': '5'}):
+            self.assertEqual(access_requests.retention_days(), 30, 'never shorter than 30 days')
+
+    def test_a_redacted_contact_may_ask_again(self):
+        access_requests.redact(self.folder, self.ids[2])
+        self.assertEqual(access_requests.submit(self.folder, body(contact='0550000002'), now=100.0 + 2 * 86400)[0], 201)
+
+
 class ReadOnlyTests(unittest.TestCase):
     def test_the_read_only_deployment_stores_no_request(self):
         with patch.dict(os.environ, {'ATLAS_READ_ONLY': '1'}, clear=False):
             self.assertTrue(read_only_test.blocks_request('/access-requests'))
             self.assertTrue(read_only_test.blocks_request('/access-requests/review'))
+            self.assertTrue(read_only_test.blocks_request('/access-requests/redact'))
 
 
 if __name__ == '__main__':

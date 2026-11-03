@@ -31,7 +31,8 @@ export function RequestAccessForm() {
   const [tried, setTried] = useState(false)
   const [failure, setFailure] = useState('')
   const [pending, setPending] = useState(false)
-  const [sent, setSent] = useState(false)
+  /** 'new' once stored, 'repeat' when the same contact already has a request under review */
+  const [sent, setSent] = useState<false | 'new' | 'repeat'>(false)
   const trap = useRef<HTMLInputElement>(null)
   const done = useRef<HTMLHeadingElement>(null)
   const cityNames = cities.map((city) => city.en)
@@ -73,14 +74,14 @@ export function RequestAccessForm() {
       setPending(false)
       return
     }
-    const payload = await response.json().catch(() => null) as { error?: string; fields?: AccessErrors } | null
+    const payload = await response.json().catch(() => null) as { error?: string; fields?: AccessErrors; duplicate?: boolean } | null
     setPending(false)
     if (!response.ok) {
       if (payload?.fields) { setErrors(payload.fields); focusFirst(payload.fields) }
       setFailure(payload?.error || 'تعذر إرسال طلبك. أعد المحاولة.')
       return
     }
-    setSent(true)
+    setSent(payload?.duplicate ? 'repeat' : 'new')
   }
 
   if (sent) {
@@ -89,8 +90,10 @@ export function RequestAccessForm() {
         <section className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-sm" aria-labelledby="access-done">
           <div className="mb-5 flex flex-col items-center gap-3 text-center">
             <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary"><CheckCircle2 className="size-6" aria-hidden /></span>
-            <h1 id="access-done" ref={done} tabIndex={-1} className="text-xl font-bold outline-none">وصل طلبك</h1>
-            <p className="text-sm leading-7 text-muted-foreground">شكراً لك. هذا ما يحدث بعد الآن:</p>
+            <h1 id="access-done" ref={done} tabIndex={-1} className="text-xl font-bold outline-none">{sent === 'repeat' ? 'طلبك قيد المراجعة' : 'وصل طلبك'}</h1>
+            <p className="text-sm leading-7 text-muted-foreground">{sent === 'repeat'
+              ? 'وصلنا طلب منك من قبل، وما زال عند فريق فرق. لم نسجّل طلباً ثانياً، ولا تحتاج أن ترسله مرة أخرى. هذا ما يحدث بعد الآن:'
+              : 'شكراً لك. هذا ما يحدث بعد الآن:'}</p>
           </div>
           <ol className="flex flex-col gap-3 text-sm leading-7">
             {[

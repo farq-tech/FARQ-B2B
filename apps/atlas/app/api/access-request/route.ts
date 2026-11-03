@@ -67,8 +67,9 @@ export async function POST(request: NextRequest) {
       method: 'POST', headers, cache: 'no-store', signal: controller.signal,
       body: JSON.stringify(accessRequestBody(body as unknown as AccessRequestInput, next)),
     })
-    const result = await upstream.json().catch(() => null) as { ok?: unknown; fields?: Record<string, unknown> } | null
-    if (upstream.ok && result?.ok === true) return answer({ ok: true }, 200)
+    const result = await upstream.json().catch(() => null) as { ok?: unknown; duplicate?: unknown; fields?: Record<string, unknown> } | null
+    // the same contact with a request still under review: nothing new is stored, and the person is told so
+    if (upstream.ok && result?.ok === true) return answer(result.duplicate === true ? { ok: true, duplicate: true } : { ok: true }, 200)
     if (upstream.status === 400 && result?.fields && 'city' in result.fields) return answer({ error: 'راجع الحقول المعلّمة.', fields: { city: 'اختر مدينتك من القائمة.' } }, 400)
     if (upstream.status === 429) return answer({ error: 'استقبال الطلبات ممتلئ اليوم. أعد المحاولة غداً.' }, 429)
     return answer({ error: 'تعذر حفظ طلبك الآن. أعد المحاولة بعد قليل.' }, 502)
