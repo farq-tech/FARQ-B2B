@@ -109,6 +109,25 @@ export interface LiveBusinessSnapshot {
   isStale?: boolean
   hoursWeek?: string
   whatsappState?: 'verified' | 'source_flag_unverified' | 'not_available'
+  /** Listing content the directory already carries, shown as Farq (no provider named). Each present only when the
+   * release carries a real value; a missing or placeholder value is left out entirely (never shown as «غير متاح»). */
+  website?: string
+  instagram?: string
+  facebook?: string
+  snapchat?: string
+  tiktok?: string
+  xLink?: string
+  linkedin?: string
+  menuLink?: string
+  orderLink?: string
+  reservationLink?: string
+  reviewsCount?: number
+  fullAddressAr?: string
+  fullAddressEn?: string
+  nationalAddress?: string
+  postalCode?: string
+  descriptionEn?: string
+  extraPhones?: string[]
 }
 
 export type RequestType = 'list' | 'rfq' | 'campaign'

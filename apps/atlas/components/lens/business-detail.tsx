@@ -19,6 +19,26 @@ function fact(text: string): string {
 // a description longer than this opens folded, so the facts under it are seen without scrolling
 const LONG = 220
 
+// a value that is already a web address → a usable https link; a bare handle returns '' (rendered as plain text)
+function toHref(value: string): string {
+  const v = value.trim()
+  if (/^https?:\/\//i.test(v)) return v
+  if (/^www\./i.test(v)) return `https://${v}`
+  if (/^[\w.-]+\.[a-z]{2,}(?:[/?#].*)?$/i.test(v)) return `https://${v}`
+  return ''
+}
+const SOCIAL_BASE: Record<string, string> = {
+  instagram: 'https://instagram.com/', tiktok: 'https://www.tiktok.com/@',
+  snapchat: 'https://www.snapchat.com/add/', x: 'https://x.com/',
+}
+// a social field: a full URL as-is, else a bare «@handle»/«handle» turned into the platform link; otherwise plain text
+function socialHref(platform: keyof typeof SOCIAL_BASE, value: string): string {
+  const direct = toHref(value)
+  if (direct) return direct
+  const handle = value.trim().replace(/^@/, '')
+  return /^[\w.]+$/.test(handle) ? SOCIAL_BASE[platform] + handle : ''
+}
+
 /**
  * One business's directory details, all from Farq (no source is ever named): its official description, delivery-app
  * signals, and the operational facts the directory carries. Only present fields are shown; a missing one is left out,
@@ -59,14 +79,43 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
   // in words: «4.5 / 5 (120)» inside an Arabic line read as «5 / 4.5», and the bare «(120)» did not say what it counts
   if (row.deliveryRating != null) delivery.push(['التقييم', `${numberFormat.format(Math.round(row.deliveryRating * 10) / 10)} من 5`])
   if (row.deliveryRating != null && row.deliveryRateCount != null) delivery.push(['عدد التقييمات', numberFormat.format(row.deliveryRateCount)])
+  // the directory's review count sits beside a shown rating, never alone (a bare count has nothing to qualify)
+  if (row.deliveryRating != null && row.reviewsCount != null) delivery.push(['عدد المراجعات', numberFormat.format(row.reviewsCount)])
   if (row.deliveryFee != null) delivery.push(['رسوم التوصيل', sar(row.deliveryFee)])
   if (row.deliveryMinOrder != null) delivery.push(['أقل طلب', sar(row.deliveryMinOrder)])
   if (row.deliveryEta) delivery.push(['زمن التوصيل', fact(row.deliveryEta)])
 
+  // links and social handles the directory carries; a web address becomes a link, a bare handle its platform link,
+  // anything else plain text. Only present values appear — a missing one adds no row.
+  const links: { label: string; value: string; href: string }[] = []
+  const pushLink = (label: string, value: string | undefined, href: string) => { if (value) links.push({ label, value, href }) }
+  pushLink('الموقع الإلكتروني', row.website, row.website ? toHref(row.website) : '')
+  pushLink('إنستغرام', row.instagram, row.instagram ? socialHref('instagram', row.instagram) : '')
+  pushLink('تيك توك', row.tiktok, row.tiktok ? socialHref('tiktok', row.tiktok) : '')
+  pushLink('سناب شات', row.snapchat, row.snapchat ? socialHref('snapchat', row.snapchat) : '')
+  pushLink('إكس', row.xLink, row.xLink ? socialHref('x', row.xLink) : '')
+  pushLink('فيسبوك', row.facebook, row.facebook ? toHref(row.facebook) : '')
+  pushLink('لينكدإن', row.linkedin, row.linkedin ? toHref(row.linkedin) : '')
+  pushLink('القائمة', row.menuLink, row.menuLink ? toHref(row.menuLink) : '')
+  pushLink('الطلب', row.orderLink, row.orderLink ? toHref(row.orderLink) : '')
+  pushLink('الحجز', row.reservationLink, row.reservationLink ? toHref(row.reservationLink) : '')
+  const extraPhones = row.extraPhones ?? []
+
+  // address: the Arabic full address if present, else English; the national address and postal code are added when present
+  const fullAddress = row.fullAddressAr || row.fullAddressEn || ''
+  const address: [string, string][] = []
+  if (row.nationalAddress) address.push(['العنوان الوطني', row.nationalAddress])
+  if (row.postalCode) address.push(['الرمز البريدي', fact(row.postalCode)])
+  const hasAddress = Boolean(fullAddress) || address.length > 0
+
   const description = row.description ? latin(row.description) : ''
-  const folded = description.length > LONG && !open
+  // the English description only adds value when it is not simply the Arabic one shown above
+  const descriptionEnText = row.descriptionEn ? latin(row.descriptionEn) : ''
+  const secondaryEn = description && descriptionEnText && descriptionEnText !== description ? descriptionEnText : ''
+  const mainDescription = description || descriptionEnText
+  const folded = mainDescription.length > LONG && !open
   const hasHours = today != null
-  const empty = !description && facts.length === 0 && delivery.length === 0 && !hasStatus && !hasHours && !waAvailable
+  const empty = !mainDescription && facts.length === 0 && delivery.length === 0 && !hasStatus && !hasHours && !waAvailable && links.length === 0 && extraPhones.length === 0 && !hasAddress
   return (
     <div className="mb-2 flex flex-col gap-2.5 rounded-lg border bg-muted/30 p-3 text-sm">
       {(hasStatus || hasHours || waAvailable) && (
@@ -104,10 +153,13 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
           )}
         </div>
       )}
-      {description && (
+      {mainDescription && (
         <div>
-          <p className={folded ? 'line-clamp-3 whitespace-pre-line leading-relaxed' : 'whitespace-pre-line leading-relaxed'}>{description}</p>
-          {description.length > LONG && (
+          <p className={folded ? 'line-clamp-3 whitespace-pre-line leading-relaxed' : 'whitespace-pre-line leading-relaxed'}>{mainDescription}</p>
+          {secondaryEn && !folded && (
+            <p dir="ltr" className="mt-1 whitespace-pre-line text-start leading-relaxed text-muted-foreground">{secondaryEn}</p>
+          )}
+          {mainDescription.length > LONG && (
             <button type="button" onClick={() => setOpen((was) => !was)} aria-expanded={open}
               className="mt-1 rounded-md font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">
               {open ? 'أقل' : 'اقرأ الوصف كاملاً'}
@@ -124,6 +176,45 @@ export function BusinessDetail({ row }: { row: PublicDirectoryEntity }) {
               <dd className="font-medium">{value}</dd>
             </div>
           ))}
+        </dl>
+      )}
+      {hasAddress && (
+        <section aria-label="العنوان" className="flex flex-col gap-1">
+          {fullAddress && <p className="leading-relaxed">{row.fullAddressAr ? fullAddress : <span dir="ltr" className="text-start">{fullAddress}</span>}</p>}
+          {address.length > 0 && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              {address.map(([label, value]) => (
+                <div key={label} className="contents">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="font-medium">{ltr(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      )}
+      {(links.length > 0 || extraPhones.length > 0) && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+          {links.map(({ label, value, href }) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="truncate font-medium">
+                {href
+                  ? <a href={href} target="_blank" rel="noopener noreferrer nofollow" dir="ltr" className="text-primary hover:underline">{value}</a>
+                  : <span dir="ltr" className="text-start">{value}</span>}
+              </dd>
+            </div>
+          ))}
+          {extraPhones.length > 0 && (
+            <div className="contents">
+              <dt className="text-muted-foreground">أرقام إضافية</dt>
+              <dd className="flex flex-wrap gap-x-2 gap-y-0.5 font-medium">
+                {extraPhones.map((phone) => (
+                  <a key={phone} href={`tel:${phone.replace(/[^\d+]/g, '')}`} dir="ltr" className="text-primary hover:underline">{phone}</a>
+                ))}
+              </dd>
+            </div>
+          )}
         </dl>
       )}
       {delivery.length > 0 && (

@@ -208,6 +208,12 @@ class Directory:
             # releases keep working. The raw status vote is shown to the owner; never conflated with status_class.
             enrich_attrs=', '.join([f"{c} {c}" if c in self._dir_cols else f"null {c}"
                 for c in ('status_voted','status_voted_confidence','last_seen_at','is_stale','hours_week','whatsapp_state')])
+            # listing content already carried by the release: website, socials, menu/order/reservation links, review count,
+            # full address, national address/postal code, English description, extra phones. Each column only when the
+            # release carries it, else NULL so older releases keep working. JSON keys match sanitizeLiveDirectoryEntity;
+            # shown as Farq (no provider named), never a ranking or filter input.
+            content_attrs=', '.join([f"{c} {c}" if c in self._dir_cols else f"null {c}"
+                for c in ('website','instagram','facebook','snapchat','tiktok','x_link','linkedin','menu_link','order_link','reservation_link','reviews_count','full_address_ar','full_address_en','national_address','postal_code','description_en','extra_phones')])
             legal_expr=self.source_expr('legal_name','urbi_legal_name')
             brand_expr=self.source_expr('brand_name','urbi_brand_name')
             candidates=self.db.execute(f"""select coalesce(nullif(name_ar,''),name_en) as display_name,
@@ -215,13 +221,13 @@ class Directory:
                 concat_ws(' ',category,category_ar,secondary_category,category_l3,google_category) evidence_category,
                 coalesce(district_ar,district_en,'') district,
                 coalesce(completeness_pct,0) completeness,
-                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, {legal_expr} legal_name, {brand_expr} brand_name, secondary_category, category_l3, company_status, lifecycle_state, {source_attrs}, {v7_attrs}, {enrich_attrs}
+                case when coalesce(nullif(trim(phone_norm),''),nullif(trim(email),''),nullif(trim(website),'')) is not null then 1 else 0 end contactable, poi_key, latitude, longitude, coalesce(location_precision,'point') location_precision, city_en, region_ar, region_en, name_en, phone_norm, phone_kind, has_whatsapp, email, source_count, category, {legal_expr} legal_name, {brand_expr} brand_name, secondary_category, category_l3, company_status, lifecycle_state, {source_attrs}, {v7_attrs}, {enrich_attrs}, {content_attrs}
                 from read_parquet(?) where city_en=? and coalesce(name_ar,name_en) is not null
                 and """ + self.search_sql + ' and regexp_matches('+text+', ?)',[self.path,city,pattern]).fetchall()
             ranked=[]; seen=set()
             for candidate in candidates:
                 name,category,details,district,complete,contactable=candidate[:6]
-                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state','branch_count','employee_count','payment_methods','service_languages','operating_hours','floor','building_use','makani','farq_atlas_id','description','delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta','status_voted','status_voted_confidence','last_seen_at','is_stale','hours_week','whatsapp_state'],candidate[6:]))
+                geo=dict(zip(['poi_key','latitude','longitude','location_precision','city_en','region_ar','region_en','name_en','phone','phone_kind','has_whatsapp','email','source_count','category','legal_name','brand_name','secondary_category','category_l3','company_status','lifecycle_state','branch_count','employee_count','payment_methods','service_languages','operating_hours','floor','building_use','makani','farq_atlas_id','description','delivery_rating','delivery_rate_count','delivery_fee','delivery_min_order','delivery_eta','status_voted','status_voted_confidence','last_seen_at','is_stale','hours_week','whatsapp_state','website','instagram','facebook','snapchat','tiktok','x_link','linkedin','menu_link','order_link','reservation_link','reviews_count','full_address_ar','full_address_en','national_address','postal_code','description_en','extra_phones'],candidate[6:]))
                 geo['status_class']=status_policy.normalize(geo.pop('company_status'),geo.pop('lifecycle_state'))['status_normalized']   # class only, never the raw value
                 if geo['location_precision'] != 'point': geo['latitude']=geo['longitude']=None
                 row={'name':name,'category':category,'evidence_category':details,'district':district}
