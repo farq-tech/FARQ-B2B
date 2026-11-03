@@ -66,7 +66,7 @@ function Figure({ label, short, value, note, explain, pending }: FigureSpec) {
 }
 
 /** The one summary card: the city when nothing is selected, else the selected districts with every figure once. */
-export function DistrictPanel({ city, cityName, lens, rows, selected, total, onClear, failed = [], pending = [] }: {
+export function DistrictPanel({ city, cityName, lens, rows, selected, total, onClear, failed = [], pending = [], onRentals }: {
   city: string
   cityName: string
   lens: LensId
@@ -77,6 +77,8 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
   /** The city's tables that failed to load, and those being asked again: their figures say so instead of «غير متاح». */
   failed?: readonly CityTable[]
   pending?: readonly CityTable[]
+  /** Opens the journey's own rentals step on a district (shop owners), instead of a link out to «العقار». */
+  onRentals?: (id: string) => void
 }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   // the profile's figures (sex, nationality, ages) are «غير متاح» only once it has answered or failed, not while asked
@@ -245,7 +247,13 @@ export function DistrictPanel({ city, cityName, lens, rows, selected, total, onC
         </div>
       )}
       {/* the prices above lead to the listings behind them: «العقار» opens on this district (a shop owner on shops) */}
-      {single && (
+      {single && onRentals && (
+        <button type="button" onClick={() => onRentals(single.id)}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
+          <Building2 className="size-4" aria-hidden />محلات للإيجار في {single.name}
+        </button>
+      )}
+      {single && !onRentals && (
         <Link href={homesHref({ city, districts: [single.id], ...(lens === 'shops' ? { types: ['store'] } : {}) })}
           className="mt-3 inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11">
           <Building2 className="size-4" aria-hidden />{lens === 'shops' ? 'محلات للإيجار' : 'عروض العقار'} في {single.name}

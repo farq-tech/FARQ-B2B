@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { STATUS_LABEL, formatDate, nextStep, requestCity, statusLabel } from '@/lib/format'
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
@@ -17,6 +17,7 @@ import type { RequestStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { STATUS_ICON, StatusBadge, TypeLabel } from './request-badges'
 import { SavedList } from '@/components/lens/saved-comparisons'
+import { lastView } from '@/lib/handoff'
 
 const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'awaiting', 'completed']
 // where a person's next step is: a decision first, then what is ready to send, then drafts to finish
@@ -24,6 +25,9 @@ const ATTENTION: RequestStatus[] = ['needs_decision', 'ready_manual', 'draft', '
 
 export function RequestsListView() {
   const { requests, inbox, views } = useAppStore()
+  // the map as the person left it (its city, step and districts), where a new request starts
+  const [mapView, setMapView] = useState('/map')
+  useEffect(() => { setMapView(lastView('/map')) }, [])
   const cities = useCities()
   // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
   // from this device after the first paint, so this is derived, not set once)
@@ -51,7 +55,7 @@ export function RequestsListView() {
           <p className="text-sm text-muted-foreground">القوائم وطلبات التسعير ومسودات الحملات في مكان واحد.</p>
         </div>
         {!none && (
-          <Button variant="outline" nativeButton={false} render={<Link href="/map" />}>
+          <Button variant="outline" nativeButton={false} render={<Link href={mapView} />}>
             <MapPinned data-icon="inline-start" />
             طلب جديد من الخريطة
           </Button>
@@ -70,7 +74,7 @@ export function RequestsListView() {
       ) : none ? (
         <EmptyState heading="h2" icon={ClipboardList} title="لا طلبات بعد"
           body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."
-          action={<Button nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
+          action={<Button nativeButton={false} render={<Link href={mapView} />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (<>
 
       {/* the search and the status chips stay under the app bar while a long list scrolls, so changing status or
@@ -103,7 +107,7 @@ export function RequestsListView() {
       ) : visible.length === 0 ? (
         <EmptyState heading="h2" icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
           body={q ? 'لا طلب بهذا العنوان هنا. جرّب حالة أخرى أو كلمة أقصر.' : 'اختر منشآت من الخريطة ثم «جهّز قائمة» أو «طلب تسعير»، فتظهر طلباتك هنا للمراجعة قبل أي إرسال.'}
-          action={<Button size="sm" nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
+          action={<Button size="sm" nativeButton={false} render={<Link href={mapView} />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (
         <ul className="flex flex-col gap-2">
           {visible.map((r) => {

@@ -63,6 +63,12 @@ export function HomesPage() {
   // a group of listings that was clicked on the map (its card names the cheapest), and where it sits on screen
   const [group, setGroup] = useState<BusinessGroup | null>(null)
   const [groupAt, setGroupAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  // opening a listing flies the map to it: the list keeps what it showed while the card is open (it used to shrink to
+  // the one or two listings around the card), and takes the map's view again once the card closes
+  const seenBounds = useRef<[number, number, number, number] | null>(null)
+  const followBounds = useCallback((next: [number, number, number, number]) => { seenBounds.current = next; if (!activeOpen.current) setBounds(next) }, [])
+  const activeOpen = useRef(false)
+  useEffect(() => { activeOpen.current = active != null; if (!active && seenBounds.current) setBounds(seenBounds.current) }, [active])
   useEffect(() => { setGroup(null) }, [result.listings])
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -370,7 +376,7 @@ export function HomesPage() {
         <section className={cn('relative min-h-0 lg:p-4', !mobileMap && 'hidden lg:block')} aria-label="خريطة العروض">
           <div className="relative h-full min-h-[60vh] overflow-hidden lg:rounded-2xl lg:border">
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
-              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setGroup(null); setActive(listing) } }} onBounds={setBounds}
+              onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setGroup(null); setActive(listing) } }} onBounds={followBounds}
               onListingGroup={(next) => { setActive(null); setGroup(next) }} pin={!active ? group : null} onPin={setGroupAt} />
             {/* a group of listings names its cheapest, each a tap from its own card, and the zoom that splits it */}
             {!active && group && groupAt && groupAt.x >= 0 && groupAt.y >= 0 && groupAt.x <= groupAt.width && groupAt.y <= groupAt.height && (

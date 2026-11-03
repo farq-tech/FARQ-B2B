@@ -237,14 +237,14 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
         {/* against the expected price: the line from the two figures, «غير متاح» without an estimate, a retry when it failed */}
         {ask && (
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm" aria-live="polite">
             <span className="text-muted-foreground">مقارنة بالسعر المتوقع:</span>
             {estimate.status === 'loading' ? <Skeleton className="h-4 w-28" aria-label="جارٍ حساب السعر المتوقع" />
               : estimate.status === 'error' ? <>تعذّر التحميل <Chip onClick={estimate.retry}>أعد المحاولة</Chip></>
                 : versusExpected ? <Explained title="مقارنة بالسعر المتوقع" lines={[`المدى المتوقع لعقار مثله في حيه: ${numberFormat.format(estimate.data!.price!.low)} – ${numberFormat.format(estimate.data!.price!.high)} ريال.`, 'من أقرب العروض الحالية المشابهة، كما في «سعّر عقارك».']}
                   className={cn('font-semibold', versusExpected.tone === 'inside' ? '' : versusExpected.tone === 'below' ? 'text-primary' : 'text-warning')}>{versusExpected.text}</Explained>
                   : <span className="text-muted-foreground">غير متاح</span>}
-          </p>
+          </div>
         )}
         {/* the next questions about this listing, each opening its page on this listing's own facts */}
         {(priced || districtHref) && (
