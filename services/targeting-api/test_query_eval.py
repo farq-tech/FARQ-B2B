@@ -24,7 +24,7 @@ EVAL = os.path.join(HERE, 'query_eval.json')
 FLOORS = {'understand': 1.0, 'corridor': 1.0}   # 2026-11-03: 98.8% -> 100% once the product families anchor the right buyers
 # a seller's request passes when it reaches the expected buyers, so over-targeting is held apart: the total of targets
 # outside expect/also over the marketing cases may fall, never rise (2026-11-03: 173 over 25 cases)
-MARKETING_EXTRA_MAX = 173   # 2026-11-02: 70.4% / 84.6% before the shared trade reading, 98.8% / 98.8% after; 2026-11-03: 100% / 100%, 183 -> 173
+MARKETING_EXTRA_MAX = 161   # 2026-11-02: 70.4% / 84.6% before the shared trade reading, 98.8% / 98.8% after; 2026-11-03: 100% / 100%, 183 -> 173 -> 161
 
 
 def load_cases():
