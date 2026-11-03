@@ -34,9 +34,10 @@ def people_by_district(db, points_path, geometry, household_size):
     rows = db.execute(f"""select longitude, latitude, cast(district_id as varchar), {people} from read_parquet(?)
                           where longitude between ? and ? and latitude between ? and ?""",
                       [points_path, west, east, south, north]).fetchall()
+    rows = [row for row in rows if row[3]]
     out = {}
-    for lon, lat, district, count in rows:
-        if count and insights._inside(lon, lat, polygons):
+    for (lon, lat, district, count), keep in zip(rows, insights._inside_mask([r[0] for r in rows], [r[1] for r in rows], polygons)):
+        if keep:
             out[district] = out.get(district, 0.0) + float(count)
     return out
 
@@ -140,7 +141,8 @@ def _metres(lon1, lat1, lon2, lat2):
 def nearest(rows, geometry, centre, limit):
     """rows: (name, district, lon, lat). The ones inside the range, nearest the centre first."""
     polygons = insights.canonical_data._polygons(geometry)
-    inside = [row for row in rows if row[2] is not None and row[3] is not None and insights._inside(row[2], row[3], polygons)]
+    placed = [row for row in rows if row[2] is not None and row[3] is not None]
+    inside = [row for row, keep in zip(placed, insights._inside_mask([r[2] for r in placed], [r[3] for r in placed], polygons)) if keep]
     if centre:
         ranked = sorted(inside, key=lambda row: (_metres(centre[0], centre[1], row[2], row[3]), row[0] or ''))
     else:

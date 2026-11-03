@@ -67,6 +67,31 @@ class InsightTests(unittest.TestCase):
         self.assertEqual(insights.population_within(self.db, points, None, "true", hole, 5.0)["home_buildings"], 1, "a hole is outside")
         self.assertIsNone(insights.population_within(self.db, points, None, "true", {"type": "Point"}, 5.0)["population"])
 
+    def test_inside_mask_agrees_with_the_ray_cast_and_stays_fast_on_a_drive_area(self):
+        import math
+        import random
+        import time
+        rnd = random.Random(7)
+        # a wobbly outline of 1,500 vertices (a 15-minute drive area) over 60,000 buildings in its box
+        n, r = 1500, 0.05
+        ring = [[46.7 + r * (1 + 0.3 * math.sin(7 * i * 2 * math.pi / n)) * math.cos(i * 2 * math.pi / n),
+                 24.7 + r * (1 + 0.3 * math.sin(7 * i * 2 * math.pi / n)) * math.sin(i * 2 * math.pi / n)] for i in range(n)]
+        hole = [[46.70, 24.70], [46.71, 24.70], [46.71, 24.71], [46.70, 24.71], [46.70, 24.70]]
+        polygons = [[ring + [ring[0]], hole]]
+        xs = [46.7 + rnd.uniform(-0.07, 0.07) for _ in range(60000)]
+        ys = [24.7 + rnd.uniform(-0.07, 0.07) for _ in range(60000)]
+        started = time.perf_counter()
+        mask = insights._inside_mask(xs, ys, polygons)
+        self.assertLess(time.perf_counter() - started, 2.0, "the area test no longer holds the database lock for seconds")
+        sample = range(0, 60000, 97)
+        self.assertEqual([mask[i] for i in sample], [insights._inside(xs[i], ys[i], polygons) for i in sample])
+        self.assertFalse(insights._inside_mask([46.705], [24.705], polygons)[0], "a hole is outside")
+        # a self-crossing outline (a bow tie) keeps both lobes, as the even-odd test does
+        bowtie = [[[[46.0, 24.0], [46.2, 24.2], [46.2, 24.0], [46.0, 24.2], [46.0, 24.0]]]]
+        self.assertEqual(insights._inside_mask([46.02, 46.18, 46.1], [24.1, 24.1, 24.19], bowtie),
+                         [insights._inside(x, y, bowtie) for x, y in [(46.02, 24.1), (46.18, 24.1), (46.1, 24.19)]])
+        self.assertEqual(insights._inside_mask([], [], polygons), [])
+
     def test_territories_are_balanced_runs_of_neighbouring_districts(self):
         features = [{"properties": {"id": i, "ar": f"حي{i}"}, "geometry": square(46.0 + (i % 4) * 0.01, 24.0 + (i // 4) * 0.01)} for i in range(16)]
         weights = {f"حي{i}": 100 for i in range(16)}

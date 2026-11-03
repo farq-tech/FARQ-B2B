@@ -130,6 +130,24 @@ def _inside(x, y, polygons):
     return False
 
 
+def _inside_mask(xs, ys, polygons):
+    """For each point (xs[i], ys[i]), whether it is inside the polygons: the same answer as _inside, in one vectorised
+    GEOS call. A drive-time area has thousands of vertices and its box tens of thousands of buildings, so the Python
+    ray cast took tens of seconds, all of it under the service's one database lock (every other request waited).
+    Self-crossing outlines are made valid first, which keeps every lobe and every hole as the even-odd test reads them.
+    Without shapely, or for an outline it cannot read, the plain ray cast answers instead."""
+    if not len(xs):
+        return []
+    try:
+        import numpy
+        import shapely
+        parts = [shapely.Polygon(rings[0], rings[1:]) for rings in polygons if rings]
+        shape = shapely.make_valid(shapely.MultiPolygon(parts) if len(parts) > 1 else parts[0])
+        return shapely.contains_xy(shape, numpy.asarray(xs, dtype=float), numpy.asarray(ys, dtype=float)).tolist()
+    except Exception:   # no shapely, or a ring too short to be a polygon
+        return [_inside(x, y, polygons) for x, y in zip(xs, ys)]
+
+
 def population_within(db, points_path, targets_path, search_sql, geometry, household_size):
     """Homes, people and directory businesses inside a polygon, such as a drive-time area. Same layers and the same
     people figure as population_around; only the boundary differs. Points are pre-filtered by the polygon's box in
@@ -147,14 +165,16 @@ def population_within(db, points_path, targets_path, search_sql, geometry, house
         rows = db.execute(f"""select longitude, latitude, dwellings, {people} from read_parquet(?)
                               where longitude between ? and ? and latitude between ? and ?""",
                           [points_path, west, east, south, north]).fetchall()
-        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        mask = _inside_mask([row[0] for row in rows], [row[1] for row in rows], polygons)
+        inside = [row for row, keep in zip(rows, mask) if keep]
         result.update(home_buildings=len(inside), dwellings=round(sum(float(r[2] or 0) for r in inside), 1),
                       population=round(sum(float(r[3] or 0) for r in inside)), people_per_district=has_people)
     if targets_path:
         rows = db.execute(f"""select p.longitude, p.latitude, coalesce(nullif(p.category_ar, ''), p.category) from read_parquet(?) p
                               where {search_sql} and p.longitude between ? and ? and p.latitude between ? and ?""",
                           [targets_path, west, east, south, north]).fetchall()
-        inside = [row for row in rows if _inside(row[0], row[1], polygons)]
+        mask = _inside_mask([row[0] for row in rows], [row[1] for row in rows], polygons)
+        inside = [row for row, keep in zip(rows, mask) if keep]
         result['businesses'] = len(inside)
         counts = {}
         for row in inside:
