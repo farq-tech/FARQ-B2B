@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Scale, X } from 'lucide-react'
 import { NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -14,10 +14,11 @@ import { EXPLAIN } from '@/lib/explanations'
 import { ltr, numberFormat, postMarket } from '@/lib/insights-api'
 import type { MainActivity } from '@/lib/main-activities'
 import { useStickyState, type StudiedActivity } from '@/lib/sticky-state'
-import { cn } from '@/lib/utils'
 import type { DistrictRow } from '../city-data'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
-import { comparePairs } from './tool-answers'
+import { comparePairs, sameActivity } from './tool-answers'
+import { useAnswer } from './use-answer'
+import { Choice } from './choice'
 
 type Count = { district_ar: string; n: number }
 type Rival = { status: 'loading' } | { status: 'error' } | { status: 'ready'; counts: Count[]; total: number | null; understood: Understanding }
@@ -42,26 +43,26 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   const [rival, setRival] = useStickyState<StudiedActivity | null>('competitors.rival', null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [answer, setAnswer] = useState<Rival | null>(null)
   const [order, setOrder] = useStickyState<Order>('competitors.rivalOrder', 'gap')
-  // «أعد المحاولة» asks again for the same second activity
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    if (!rival) { setAnswer(null); return }
-    // an answer for an earlier city or activity never lands on the current one
-    let live = true
-    setAnswer({ status: 'loading' })
-    postMarket<{ districts?: Count[]; total?: number; understood?: Understanding }>('district-counts', { city, ...(rival.q ? { q: rival.q } : { main_id: rival.main_id }) })
-      .then((data) => { if (live) setAnswer({ status: 'ready', counts: data.districts ?? [], total: typeof data.total === 'number' ? data.total : null, understood: data.understood }) })
-      .catch(() => { if (live) setAnswer({ status: 'error' }) })
-    return () => { live = false }
-  }, [city, rival, attempt])
+  // keyed by the second activity's q or main_id; an answer for an earlier city or activity never lands on the current one
+  const asked = useAnswer(rival ? `${city}|${rival.q ?? ''}|${rival.main_id ?? ''}` : null, () =>
+    postMarket<{ districts?: Count[]; total?: number; understood?: Understanding }>('district-counts', { city, ...(rival!.q ? { q: rival!.q } : { main_id: rival!.main_id }) }))
+  const answer = useMemo<Rival | null>(() => (asked.status === 'idle' ? null
+    : asked.status === 'loading' ? { status: 'loading' }
+      : asked.status === 'error' || !asked.data ? { status: 'error' }
+        : { status: 'ready', counts: asked.data.districts ?? [], total: typeof asked.data.total === 'number' ? asked.data.total : null, understood: asked.data.understood }),
+  [asked.status, asked.data])
 
   const pairs = useMemo(() => (answer?.status === 'ready' ? comparePairs(rows, firstCounts, answer.counts, order) : []), [answer, firstCounts, rows, order])
   const [limit, showMore] = useShowMore(15, `${city}|${first.q ?? first.main_id}|${rival?.q ?? rival?.main_id}|${order}`)
 
-  const pick = (next: StudiedActivity) => { setRival(next); setOpen(false); setQuery('') }
+  // the same activity as the studied one compares a list with itself (every gap 0): the picker says so instead
+  const sameAs = (next: StudiedActivity) => sameActivity(next, first)
+  const [same, setSame] = useState(false)
+  const pick = (next: StudiedActivity) => {
+    if (sameAs(next)) { setSame(true); return }
+    setSame(false); setRival(next); setOpen(false); setQuery('')
+  }
 
   if (!rival && !open) {
     return (
@@ -77,16 +78,25 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
       <div className="flex flex-col gap-2 rounded-xl border p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-base font-semibold">قارن «{first.label}» بـ</p>
-          <button type="button" onClick={() => setOpen(false)} aria-label="إلغاء المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
+          <button type="button" onClick={() => { setOpen(false); setSame(false) }} aria-label="إلغاء المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
         </div>
         <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (query.trim()) pick({ q: query.trim(), label: query.trim() }) }}>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="النشاط الثاني" enterKeyHint="search" autoFocus
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setSame(false) }} aria-label="النشاط الثاني" enterKeyHint="search" autoFocus
             placeholder="اكتب النشاط الثاني: عيادة، مخبز…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
           <button type="submit" className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground">قارن</button>
         </form>
         <MainActivityPicker activities={activities} value="" placeholder="أو اختر نشاطاً رئيسياً"
           onChange={(id) => { const item = activities.find((activity) => activity.main_id === id); if (item) pick({ main_id: item.main_id, label: item.main_ar }) }} />
+        {same && <p role="alert" className="text-sm text-destructive">هذا هو النشاط نفسه. اختر نشاطاً آخر لتقارن «{first.label}» به.</p>}
       </div>
+    )
+  }
+
+  // the second activity kept from before became the studied one (picked above since): no comparison with itself
+  if (sameAs(rival)) {
+    return (
+      <NoResult title={`«${rival.label}» هو النشاط المدروس الآن`} body="اختر نشاطاً ثانياً آخر لتقارنه به."
+        action={<button type="button" onClick={() => { setRival(null); setOpen(true) }} className="text-sm font-semibold text-primary underline">اختر نشاطاً</button>} />
     )
   }
 
@@ -107,7 +117,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
         </Explained>
         <button type="button" onClick={() => setRival(null)} aria-label="أزل المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
       </div>
-      {answer?.status === 'error' && <LoadError what={`منشآت «${rival.label}»`} onRetry={() => setAttempt((n) => n + 1)} />}
+      {answer?.status === 'error' && <LoadError what={`منشآت «${rival.label}»`} onRetry={asked.retry} />}
       {answer?.status === 'loading' && (
         <>
           <div className="grid grid-cols-2 gap-2" aria-hidden>
@@ -124,12 +134,8 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             <StatTile label={`«${rival.label}» في المدينة`}><p className="mt-0.5 text-xl font-bold tabular-nums">{total(answer.total)}</p></StatTile>
           </div>
           {/* short labels, side by side from a small width up and stacked on a narrow phone, so long names never squeeze them */}
-          <div className="flex flex-col gap-1.5 min-[380px]:flex-row" role="group" aria-label="ترتيب المقارنة">
-            {([['gap', 'حيث يزيد الأول على الثاني'], ['first', 'الأكثر من الأول']] as const).map(([id, label]) => (
-              <button key={id} type="button" onClick={() => setOrder(id)} aria-pressed={order === id}
-                className={cn('flex-1 rounded-lg border px-2 py-2 text-sm', order === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
-            ))}
-          </div>
+          <Choice label="ترتيب المقارنة" className="flex-col min-[380px]:flex-row" value={order} onChange={setOrder}
+            options={[{ id: 'gap', label: 'حيث يزيد الأول على الثاني' }, { id: 'first', label: 'الأكثر من الأول' }]} />
           {/* the order buttons speak of «الأول» and «الثاني», so the key stays even when the rows carry the names */}
           <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span><span className="font-semibold text-foreground">الأول</span>: {first.label}</span>
@@ -142,7 +148,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             <NoResult title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
           ) : (
             <>
-              <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
+              <ol className="divide-y text-base lg:max-h-[40vh] lg:overflow-y-auto">
                 {pairs.slice(0, limit).map((item) => (
                   <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)}
                     title={item.row.name}

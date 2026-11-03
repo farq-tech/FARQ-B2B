@@ -94,7 +94,7 @@ export type ListingDot = { id: string; lon: number; lat: number; color: string; 
 
 export { circlePolygon }
 
-export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, onDistrictClick, pin, onPin }: {
+export function LensMapCanvas({ features, steps, selected, onToggle, colors, circle, onPick, points, lines, start, areas, sites, listings, onListing, streets, onStreet, focus, zoomTo, onBounds, onFailed, errorClassName, hover, onPoint, cover = 0, peek = PEEK_PX, onDistrictClick, pin, onPin }: {
   features: DistrictFeature[]
   steps: Map<string, number>
   selected: string[]
@@ -128,6 +128,8 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   onPoint?: ((point: { id: string; x: number; y: number; width: number; height: number } | null) => void) | null
   /** The share of the screen a phone's sheet covers now (0 while it peeks), kept clear when the map frames the city. */
   cover?: number
+  /** The phone sheet's collapsed height as it measures (the map ends above it). */
+  peek?: number
   /** A click on a district, and where on the ground it landed, told before the district is picked or released. */
   onDistrictClick?: ((hit: { id: string; lon: number; lat: number }) => void) | null
   /** A place a card is pinned to: the map tells where it is on screen (`onPin`) each time the map moves. */
@@ -151,9 +153,14 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   reportPin.current = onPin
   const sheetCover = useRef(cover)
   sheetCover.current = cover
+  const sheetPeek = useRef(peek)
+  sheetPeek.current = peek
   // the first city framing is instant (nothing is on screen yet); a city changed later is flown to
   const framed = useRef(false)
   const [ready, setReady] = useState(false)
+  // the map focused from the keyboard, and the district under its centre (the keyboard's pick)
+  const [keyed, setKeyed] = useState(false)
+  const [centre, setCentre] = useState<string | null>(null)
   const [error, setError] = useState('')
   // why the map did not open, in words that point the visitor the right way: a dropped connection is theirs to fix;
   // a map the server cannot serve right now is not, and the panel's figures still work either way
@@ -205,15 +212,14 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
         const firstLabel = layers.find((layer) => layer.type === 'symbol')?.id
         // the shading sits under the streets and the place names, so both stay readable through it
         const firstRoad = layers.find((layer) => layer.type === 'line' && /road|street|bridge|tunnel/.test(layer.id))?.id ?? firstLabel
-        instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
-          'fill-color': ['coalesce', ['get', '__color'], ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)']],
-          // lighter as the map zooms in to street level
-          'fill-opacity': ['interpolate', ['linear'], ['zoom'],
-            10, ['case', ['boolean', ['get', '__selected'], false], 0.8, 0.6],
-            14, ['case', ['boolean', ['get', '__selected'], false], 0.55, 0.3]],
-        } }, firstRoad)
+        const fillColor = ['coalesce', ['get', '__color'], ['match', ['coalesce', ['get', '__step'], -1], 0, SHADES[0], 1, SHADES[1], 2, SHADES[2], 3, SHADES[3], 4, SHADES[4], 'rgba(0,0,0,0)']] as unknown as string
+        // lighter as the map zooms in to street level
+        instance.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': fillColor, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 0.3] } }, firstRoad)
+        // the picked districts: the same colour once more over them (0.6 → 0.8 at city scale, 0.3 → 0.55 in the
+        // streets), shown by a filter on their ids, so a pick never sends every outline to the map again
+        instance.addLayer({ id: 'district-picked', type: 'fill', source: 'districts', filter: ['in', ['get', 'id'], ['literal', []]], paint: { 'fill-color': fillColor, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.36] } }, firstRoad)
         instance.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': PALETTE.olive, 'line-width': 0.6, 'line-opacity': 0.35 } }, firstLabel)
-        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['==', ['get', '__selected'], true], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
+        instance.addLayer({ id: 'district-selected', type: 'line', source: 'districts', filter: ['in', ['get', 'id'], ['literal', []]], paint: { 'line-color': PALETTE.ink, 'line-width': 3 } })
         instance.addLayer({ id: 'district-hover', type: 'line', source: 'districts', filter: ['==', ['get', 'id'], ''], paint: { 'line-color': PALETTE.ink, 'line-width': 2, 'line-dasharray': [2, 1] } })
         instance.addLayer({ id: 'district-name', type: 'symbol', source: 'districts', layout: {
           'text-field': ['coalesce', ['get', 'ar'], ['get', 'district_ar'], ''],
@@ -293,6 +299,33 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           const id = event.features?.[0]?.properties?.id
           point.current?.(id == null ? null : { id: String(id), x: event.point.x, y: event.point.y, width: instance.getContainer().clientWidth, height: instance.getContainer().clientHeight })
         })
+        // the keyboard's way in: with the map focused, the arrow keys pan it (the map's own keys), the district under
+        // the centre is named, and Enter or Space picks it as a click there would
+        const canvas = instance.getCanvas()
+        // the map names itself in Arabic, with its keys (it said «Map»)
+        canvas.setAttribute('aria-label', 'الخريطة: حرّكها بالأسهم، واضغط Enter لاختيار الحي في وسطها')
+        const nameAtCentre = () => {
+          const box = instance.getContainer()
+          const hit = instance.queryRenderedFeatures([box.clientWidth / 2, box.clientHeight / 2], { layers: ['district-fill'] })[0]
+          const props = hit?.properties as { ar?: string; district_ar?: string } | undefined
+          setCentre(props ? props.ar || props.district_ar || null : null)
+        }
+        canvas.addEventListener('focus', () => { if (canvas.matches(':focus-visible')) { setKeyed(true); nameAtCentre() } })
+        canvas.addEventListener('blur', () => setKeyed(false))
+        instance.on('moveend', () => { if (document.activeElement === canvas) nameAtCentre() })
+        canvas.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return
+          event.preventDefault()
+          setKeyed(true)
+          const box = instance.getContainer()
+          const at: [number, number] = [box.clientWidth / 2, box.clientHeight / 2]
+          const ground = instance.unproject(at)
+          if (pick.current) { pick.current({ lon: ground.lng, lat: ground.lat }); return }
+          const id = instance.queryRenderedFeatures(at, { layers: ['district-fill'] })[0]?.properties?.id
+          if (id == null) return
+          districtClick.current?.({ id: String(id), lon: ground.lng, lat: ground.lat })
+          toggle.current(String(id))
+        })
         setReady(true)
       })
     })()
@@ -303,13 +336,23 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   useEffect(() => {
     const instance = map.current
     if (!ready || !instance) return
-    const chosen = new Set(selected)
     const painted = features.map((feature) => {
       const id = String(feature.properties.id)
-      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null, __selected: chosen.has(id) } }
+      return { ...feature, properties: { ...feature.properties, id, __step: colors ? null : steps.get(id) ?? null, __color: colors?.get(id) ?? null } }
     })
     ;(instance.getSource('districts') as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: painted })
-  }, [ready, features, steps, selected, colors])
+  }, [ready, features, steps, colors])
+
+  // the picked districts as a filter on their ids (a pick used to send every outline, 0.5 MB in Riyadh, to the map
+  // again), keyed by the ids: the array itself is new on every pick
+  const selectedKey = selected.join(',')
+  useEffect(() => {
+    const instance = map.current
+    if (!ready || !instance?.getLayer('district-selected')) return
+    const filter = ['in', ['get', 'id'], ['literal', selectedKey ? selectedKey.split(',') : []]] as Parameters<MapboxMap['setFilter']>[1]
+    instance.setFilter('district-selected', filter)
+    instance.setFilter('district-picked', filter)
+  }, [ready, selectedKey])
 
   useEffect(() => {
     const instance = map.current
@@ -367,7 +410,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     if (!ready || !instance || !bounds) return
     const box = instance.getContainer()
     const phone = !window.matchMedia('(min-width: 64rem)').matches
-    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone, cover: sheetCover.current, peek: PEEK_PX })
+    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone, cover: sheetCover.current, peek: sheetPeek.current })
     instance.fitBounds(bounds, { padding, maxZoom: 13, duration: framed.current ? 800 : 0 })
     framed.current = true
   }, [ready, features])
@@ -394,7 +437,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
     if (!ready || !instance || !bounds || !zoomTo) return
     const box = instance.getContainer()
     // the sheet covers `cover` of the whole screen, of which the map already ends above the peek
-    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone: zoomTo.cover > 0 || !window.matchMedia('(min-width: 64rem)').matches, cover: zoomTo.cover, peek: PEEK_PX })
+    const padding = framePadding({ height: box.clientHeight, width: box.clientWidth, phone: zoomTo.cover > 0 || !window.matchMedia('(min-width: 64rem)').matches, cover: zoomTo.cover, peek: sheetPeek.current })
     instance.fitBounds(bounds, { padding, maxZoom: 15, duration: 900 })
     // runs after the city framing above, so a pick made while the map loads still lands once it is ready;
     // features stay out of the dependencies: a repaint of the same city never moves the camera again
@@ -403,6 +446,19 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   return (
     <div className="relative h-full w-full">
       <div ref={container} className="h-full w-full" />
+      {keyed && ready && (
+        <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center" aria-hidden>
+          <span className="relative grid size-7 place-items-center">
+            <span className="absolute h-7 w-0.5 rounded bg-foreground/80" />
+            <span className="absolute h-0.5 w-7 rounded bg-foreground/80" />
+            {/* under the cross: a picked district's card opens above the point picked */}
+            <span className="absolute top-9 rounded-full border bg-card/95 px-2.5 py-1 text-sm font-semibold whitespace-nowrap shadow-sm">
+              {onPick ? 'Enter: ضع النقطة هنا' : centre ? `${centre} · Enter للاختيار` : 'حرّك الخريطة بالأسهم إلى حي'}
+            </span>
+          </span>
+        </div>
+      )}
+      <p aria-live="polite" className="sr-only">{keyed ? (onPick ? 'اضغط Enter لوضع النقطة في وسط الخريطة.' : centre ? `في الوسط: ${centre}. اضغط Enter لاختياره، والأسهم لتحريك الخريطة.` : 'لا حي في وسط الخريطة. حرّكها بالأسهم.') : ''}</p>
       {/* a light veil while the basemap opens, in place of a half-drawn map */}
       {!ready && !error && (
         <div role="status" className="absolute inset-0 z-[4] grid place-items-center bg-muted/70">

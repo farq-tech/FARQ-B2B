@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { InboxView } from '@/components/inbox/inbox-view'
+import { RouteLoading } from '@/components/shared/route-loading'
 
 export const metadata: Metadata = {
   title: 'الوارد | فرق أطلس',
@@ -9,7 +10,8 @@ export const metadata: Metadata = {
 
 export default function InboxPage() {
   return (
-    <Suspense>
+    // the view reads ?m= and ?f= on the client: until then the page keeps its shape instead of drawing nothing
+    <Suspense fallback={<RouteLoading label="الوارد" width="max-w-6xl" />}>
       <InboxView />
     </Suspense>
   )

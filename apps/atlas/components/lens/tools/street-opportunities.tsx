@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
@@ -11,6 +11,7 @@ import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import type { StudiedActivity } from '@/lib/sticky-state'
 import type { Overlay } from './overlay'
+import { useAnswer } from './use-answer'
 
 type Opportunity = {
   street_ar: string; districts_ar: string[]; road_class: 'main' | 'secondary' | null; total: number; others: number; activities: number
@@ -48,29 +49,24 @@ function requestedLine(item: Opportunity, kinds: number): string {
 export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
   city: string; studied: StudiedActivity; clusters: Cluster[]; onOverlay: (overlay: Overlay) => void
 }) {
-  const [result, setResult] = useState<Result | null>(null)
-  const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading')
   const [active, setActive] = useState<number | null>(null)
-  // «أعد المحاولة» asks again for the same activity
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    let live = true
-    setStatus('loading')
-    setActive(null)
-    // drop the last activity's streets now, so the map never draws them beside the skeleton of a different one
-    setResult(null)
-    postMarket<Result>('street-opportunities', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) })
-      .then((data) => { if (live) { setResult(data); setStatus('idle') } })
-      .catch(() => { if (live) setStatus('error') })
-    return () => { live = false }
-  }, [city, studied, attempt])
+  // keyed by what is asked, not by the prop object: a new object for the same activity asks nothing again, and a new
+  // activity drops the last one's streets at once, so the map never draws them beside the new skeleton
+  const answerKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
+  const answer = useAnswer<Result>(answerKey, () => postMarket<Result>('street-opportunities', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }))
+  const result = answer.data
+  const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
+  useEffect(() => { setActive(null) }, [answerKey])
 
   const streets = useMemo(() => result?.features ?? [], [result])
   const kinds = result?.requested_kinds ?? 1
 
+  // the reference streets are a prop array: the overlay follows their names, and reads the latest list from a ref
+  const clustersRef = useRef(clusters)
+  clustersRef.current = clusters
+  const clustersKey = clusters.map((item) => item.street_ar).join('|')
   useEffect(() => {
-    const reference = clusters.map((item, index) => ({ id: `c${index}`, color: CLUSTER, geometry: item.geometry, label: item.street_ar }))
+    const reference = clustersRef.current.map((item, index) => ({ id: `c${index}`, color: CLUSTER, geometry: item.geometry, label: item.street_ar }))
     // the strongest opportunities are drawn last, so they sit on top where streets cross
     const drawn = streets
       .map((item, index) => ({ id: `o${index}`, color: shade(item.properties.score), geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
@@ -86,7 +82,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       onStreet: (id) => { if (id.startsWith('o')) setActive(Number(id.slice(1))) },
       legend: drawn.length ? { from: 'فرصة أقل', to: 'فرصة أكبر', shades: SHADES, ...(reference.length ? { extra: { color: CLUSTER, label: 'يتجمع فيه النشاط الآن' } } : {}) } : null,
     })
-  }, [streets, clusters, active, onOverlay, status, result, studied.label])
+  }, [streets, clustersKey, active, onOverlay, status, result, studied.label])
 
   // 30 streets at a time; one picked on the map further down is drawn so it can come into view
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
@@ -104,7 +100,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       </>
     )
   }
-  if (status === 'error') return <LoadError what="فرص الشوارع" onRetry={() => setAttempt((n) => n + 1)} />
+  if (status === 'error') return <LoadError what="فرص الشوارع" onRetry={answer.retry} />
   if (result?.understood === false) return <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />
   if (result?.available === false) return <NotAvailable what="فرص الشوارع" where="هذه المدينة" body="جرّب «أين يتجمع» لترى الشوارع التي يتجمع فيها النشاط." />
   if (!streets.length) return <NoResult title={`لا شارع تجاري نشط ينقصه «${studied.label}»`} body="النشاط موجود في الشوارع التجارية النشطة. جرّب «أين يتجمع»." />
@@ -112,7 +108,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
   return (
     <>
       <p className="text-base">{counted(streets.length, 'street')} {streets.length === 1 ? 'تجاري نشط ينقصه' : 'تجارية نشطة ينقصها'} «{studied.label}»، مرتبة بالدرجة. اضغط الدرجة لترى كيف حُسبت.</p>
-      <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
+      <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
         {streets.slice(0, visible).map(({ properties: item }, index) => (
           <ResultRow key={index} id={`opportunity-${index}`} active={index === active} onClick={() => setActive(index)}
             leading={<span className="h-3 w-5 shrink-0 rounded-sm" style={{ background: shade(item.score) }} aria-hidden />}

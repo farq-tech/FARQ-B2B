@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-data'
+import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 import { mergeCloudRequests } from './workspace-merge'
@@ -68,6 +68,8 @@ export interface DraftInput {
   type: RequestType
   businessIds: string[]
   cityId: string
+  /** the city's Arabic name as the map shows it (from the shared city list) */
+  cityName?: string
   goal?: GoalId | null
   query?: string
   categoryHint?: string
@@ -81,7 +83,8 @@ function buildDraft(input: DraftInput): RequestItem {
   const firstLiveBusiness = input.liveBusinesses?.find((business) => ids.includes(business.id))
   const firstCategory =
     input.categoryHint ?? firstLiveBusiness?.category ?? (ids.length ? businessById.get(ids[0])?.category : undefined) ?? 'منشآت'
-  const place = input.districtHint ?? firstLiveBusiness?.district ?? cityById.get(input.cityId)?.name ?? ''
+  const cityName = input.cityName
+  const place = input.districtHint ?? firstLiveBusiness?.district ?? cityName ?? ''
   const cat = CATEGORIES.find((c) => c.name === firstCategory)
   const base: RequestItem = {
     id: makeId(input.type === 'rfq' ? 'rfq' : input.type === 'campaign' ? 'cmp' : 'lst'),
@@ -91,6 +94,7 @@ function buildDraft(input: DraftInput): RequestItem {
     createdAt: now,
     updatedAt: now,
     cityId: input.cityId,
+    cityName,
     businessIds: ids,
     liveBusinesses: input.liveBusinesses?.filter((business) => ids.includes(business.id)),
     goal: input.goal ?? undefined,
@@ -105,7 +109,7 @@ function buildDraft(input: DraftInput): RequestItem {
           { id: makeId('l'), name: cat?.specialties[0] ?? 'بند جديد', qty: 100, unit: 'حبة', spec: '' },
         ],
         deadline: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10),
-        deliveryCity: cityById.get(input.cityId)?.name ?? '',
+        deliveryCity: cityName ?? '',
         notes: '',
       },
     }

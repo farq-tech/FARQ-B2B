@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 export default function PageError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-16">
-      <StateMessage icon={AlertTriangle} tone="error" role="alert" title="تعذر عرض هذه الصفحة"
+      <StateMessage heading="h1" icon={AlertTriangle} tone="error" role="alert" title="تعذر عرض هذه الصفحة"
         body="حدث خطأ أثناء عرضها. طلباتك ومسوداتك محفوظة على هذا الجهاز، فأعد المحاولة أو عد إلى الخريطة."
         action={(
           <div className="flex flex-wrap justify-center gap-2">

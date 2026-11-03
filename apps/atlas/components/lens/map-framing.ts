@@ -51,14 +51,16 @@ export type Padding = { top: number; bottom: number; left: number; right: number
 
 /**
  * The room the map keeps clear around a city or a district, so it lands in the part of the map still in view: on a
- * phone the floating search and chips on top, the colour key and whatever the bottom sheet covers below; beside the
+ * phone the floating search and chips on top, the colour key and whatever the bottom sheet covers below (the key then
+ * rides above the sheet); beside the
  * panel from lg, the colour key in the bottom corner. `cover` is the share of the screen the phone's sheet covers
  * (0 while it only peeks: the map already ends above the peek), `peek` the peek in pixels.
  */
 export function framePadding({ height, width, phone, cover, peek }: { height: number; width: number; phone: boolean; cover: number; peek: number }): Padding {
   const sheet = phone && cover > 0 ? Math.max(0, cover * (height + peek) - peek) : 0
   const wanted: Padding = phone
-    ? { top: 124, bottom: sheet + (sheet > 0 ? 24 : 104), left: 16, right: 16 }
+    // over a half sheet the colour key rides above it in one line (lens-map.tsx), about 56px with its gap
+    ? { top: 124, bottom: sheet + (sheet > 0 ? 64 : 104), left: 16, right: 16 }
     : { top: 40, bottom: 104, left: 40, right: 40 }
   // a short or narrow map keeps at least a third of itself for the city
   const fit = (a: number, b: number, size: number) => {

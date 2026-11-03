@@ -7,9 +7,8 @@ import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { cityById } from '@/lib/mock-data'
-import { STATUS_LABEL, formatDate, nextStep, statusLabel } from '@/lib/format'
-import { counted, numberFormat } from '@/lib/insights-api'
+import { STATUS_LABEL, formatDate, nextStep, requestCity, statusLabel } from '@/lib/format'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
 import type { RequestStatus } from '@/lib/types'
@@ -22,6 +21,7 @@ const ATTENTION: RequestStatus[] = ['needs_decision', 'ready_manual', 'draft', '
 
 export function RequestsListView() {
   const { requests, inbox } = useAppStore()
+  const cities = useCities()
   // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
   // from this device after the first paint, so this is derived, not set once)
   const [chosen, setTab] = useState<RequestStatus | null>(null)
@@ -56,11 +56,14 @@ export function RequestsListView() {
       {/* a first visit has nothing to search or sort: one welcome that says what a request is and where it starts,
           instead of an empty search box, five «0» tabs and «لا شيء في مسودات» */}
       {none ? (
-        <EmptyState icon={ClipboardList} title="لا طلبات بعد"
+        <EmptyState heading="h2" icon={ClipboardList} title="لا طلبات بعد"
           body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."
           action={<Button nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (<>
 
+      {/* the search and the status chips stay under the app bar while a long list scrolls, so changing status or
+          search never means scrolling back up */}
+      <div className="sticky top-16 z-20 -mx-4 flex flex-col gap-3 bg-background/90 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/75">
       <SearchPill label="ابحث في الطلبات">
         <PillField label="ابحث في الطلبات">
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="بعنوان الطلب" className={pillControl} />
@@ -79,13 +82,14 @@ export function RequestsListView() {
           )
         })}
       </ChipRow>
+      </div>
 
       {visible.length === 0 && elsewhere ? (
-        <EmptyState icon={ClipboardList} title={`لا نتيجة في «${STATUS_LABEL[tab]}»`}
+        <EmptyState heading="h2" icon={ClipboardList} title={`لا نتيجة في «${STATUS_LABEL[tab]}»`}
           body={`بهذا العنوان في حالات أخرى: ${counted(matches.length, 'request')}.`}
           action={<Chip onClick={() => setTab(elsewhere)}>اعرض «{STATUS_LABEL[elsewhere]}» ({numberFormat.format(matches.filter((r) => r.status === elsewhere).length)})</Chip>} />
       ) : visible.length === 0 ? (
-        <EmptyState icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
+        <EmptyState heading="h2" icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
           body={q ? 'لا طلب بهذا العنوان هنا. جرّب حالة أخرى أو كلمة أقصر.' : 'اختر منشآت من الخريطة ثم «جهّز قائمة» أو «طلب تسعير»، فتظهر طلباتك هنا للمراجعة قبل أي إرسال.'}
           action={<Button size="sm" nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (
@@ -93,6 +97,7 @@ export function RequestsListView() {
           {visible.map((r) => {
             const replies = inbox.filter((m) => m.requestId === r.id)
             const unread = replies.filter((m) => m.unread).length
+            const next = nextStep(r.status, r.type)
             return (
               <li key={r.id}>
                 <Link
@@ -105,9 +110,10 @@ export function RequestsListView() {
                       <StatusBadge status={r.status} label={statusLabel(r.status, r.type)} />
                     </div>
                     <h2 className="truncate font-semibold">{r.title}</h2>
-                    {nextStep(r.status, r.type) && <p className="text-sm font-medium text-primary">الخطوة التالية: {nextStep(r.status, r.type)}</p>}
+                    {next && <p className="text-sm font-medium text-primary">الخطوة التالية: {next}</p>}
                     <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                      <span>{cityById.get(r.cityId)?.name}</span>
+                      {/* a request saved from a city no longer listed still says where it was, never an empty gap */}
+                      <span>{requestCity(r, cities) ?? 'المدينة غير متاحة'}</span>
                       <span>{counted(r.businessIds.length, 'business')}</span>
                       {replies.length ? (
                         <span className={cn(unread && 'font-semibold text-primary')}>

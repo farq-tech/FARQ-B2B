@@ -28,10 +28,18 @@ export const withReason = (explain: string[], reason?: string | null) => (reason
  * One figure with its «how it was worked out» card. `value` is already formatted (numberFormat); null reads
  * «غير متاح», never 0, and its card opens with `reason` when the API gave one.
  */
-export function Stat({ label, value, explain, reason }: { label: string; value: string | null; explain: string[]; reason?: string | null }) {
+export function Stat({ label, value, explain, reason, size = 'default', className }: {
+  label: string
+  value: string | null
+  explain: string[]
+  reason?: string | null
+  /** large: a headline figure (the landing's coverage); default: a figure among others */
+  size?: 'default' | 'large'
+  className?: string
+}) {
   return (
-    <StatTile label={label}>
-      <Explained title={label} lines={value == null ? withReason(explain, reason) : explain} className={cn('mt-0.5 font-bold tabular-nums', value == null ? 'text-sm text-muted-foreground' : 'text-xl')}>
+    <StatTile label={label} className={className}>
+      <Explained title={label} lines={value == null ? withReason(explain, reason) : explain} className={cn('mt-0.5 font-bold tabular-nums', value == null ? 'text-sm text-muted-foreground' : size === 'large' ? 'text-3xl' : 'text-xl')}>
         {value ?? <Unavailable className="font-bold" />}
       </Explained>
     </StatTile>

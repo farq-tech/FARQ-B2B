@@ -149,6 +149,8 @@ export interface RequestItem {
   createdAt: string
   updatedAt: string
   cityId: string
+  /** The city's Arabic name as the map showed it when the request was made (cityId alone only names the sample cities). */
+  cityName?: string
   businessIds: string[]
   /** Captures only decision fields from live search, never contact details. */
   liveBusinesses?: LiveBusinessSnapshot[]

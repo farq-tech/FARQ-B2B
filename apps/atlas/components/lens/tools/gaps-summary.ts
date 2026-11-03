@@ -6,16 +6,21 @@
  */
 export type GapRow = { district_ar: string; shortfall: number }
 
+/** Short by at least one whole business («ناقص 1» or more), the one rule the list, the map and the peek line share. */
+export const isShortRow = (row: GapRow) => Math.round(row.shortfall) > 0
+
 export function gapsSummary(
   result: { residents_per_business: number | null; districts: GapRow[] } | null,
   counted: (value: number, noun: 'district' | 'business') => string,
 ): string | null {
   if (!result || result.residents_per_business == null) return null
-  const short = result.districts.filter((row) => row.shortfall > 0)
+  // short by at least one whole business, as the list and the map read it: a shortfall under half a business rounds
+  // to «ناقص 0», so it is not counted here either, and the line's count agrees with the list's
+  const short = result.districts.filter(isShortRow)
   const top = short[0]
   if (!top) return 'لا نقص في أي حي'
   // the top district leads: on a phone the line is cut at its end, and the count of districts matters least
-  return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')} · ${counted(short.length, 'district')} فيها نقص`
+  return `الأعلى: ${top.district_ar} بنقص ${counted(Math.round(top.shortfall), 'business')} · ${counted(short.length, 'district')} ${short.length === 1 ? 'فيه' : 'فيها'} نقص`
 }
 
 /**

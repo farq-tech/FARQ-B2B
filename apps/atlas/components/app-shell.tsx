@@ -8,6 +8,7 @@ import { numberFormat } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { WhatsNew } from '@/components/shared/whats-new'
+import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface NavItem {
@@ -96,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'relative inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors',
+                  'relative inline-flex h-11 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
@@ -126,8 +127,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : sessionChecked ? (
-            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="inline-flex h-9 pointer-coarse:min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted">
-              <LogIn className="size-3.5" aria-hidden />
+            <Link href={`/login?next=${encodeURIComponent(pathname)}`} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'font-semibold' })}>
+              <LogIn aria-hidden />
               دخول
             </Link>
           ) : null}

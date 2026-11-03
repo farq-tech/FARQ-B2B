@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
-import { formatDate, formatDateTime, nextStep, statusLabel } from '@/lib/format'
-import { counted, numberFormat } from '@/lib/insights-api'
+import { TEMPLATES, businessById } from '@/lib/mock-data'
+import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '@/lib/format'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import type { RequestItem } from '@/lib/types'
@@ -25,6 +26,7 @@ const SEND_BATCH_SIZE = 100
 export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
   const { requests, inbox, updateRequest, createDraft } = useAppStore()
+  const cities = useCities()
   const [reviewOpen, setReviewOpen] = useState(false)
   const request = requests.find((r) => r.id === id)
 
@@ -41,6 +43,7 @@ export function RequestDetailView({ id }: { id: string }) {
   }
 
   const editable = request.status === 'draft'
+  const city = requestCity(request, cities)
   const replies = inbox.filter((m) => m.requestId === request.id).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   const quotes = replies.filter((m) => m.quote)
   const patch = (p: Partial<RequestItem>) => updateRequest(request.id, p)
@@ -69,6 +72,7 @@ export function RequestDetailView({ id }: { id: string }) {
       type,
       businessIds: request.businessIds,
       cityId: request.cityId,
+      cityName: request.cityName,
       goal: request.goal,
       query: request.query,
       liveBusinesses: request.liveBusinesses,
@@ -116,7 +120,7 @@ export function RequestDetailView({ id }: { id: string }) {
         )}
         <p className="text-sm text-muted-foreground">
           <span className="font-semibold text-foreground">في القائمة: {counted(request.businessIds.length, 'business')}</span>
-          {cityById.get(request.cityId)?.name ? ` في ${cityById.get(request.cityId)?.name}` : ''} · أنشئ {formatDate(request.createdAt)}
+          {city ? ` في ${city}` : ''} · أنشئ {formatDate(request.createdAt)}
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -170,13 +174,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.type === 'list' ? (
         <label className="flex flex-col gap-1 rounded-2xl border bg-card p-4">
           <span className="font-semibold">ملاحظات</span>
-          <textarea
-            disabled={!editable}
-            rows={3}
-            value={request.notes ?? ''}
-            onChange={(e) => patch({ notes: e.target.value })}
-            className="rounded-lg border border-input bg-background p-2.5 text-sm outline-none focus-visible:border-primary disabled:bg-muted/40"
-          />
+          <Textarea disabled={!editable} rows={3} value={request.notes ?? ''} onChange={(e) => patch({ notes: e.target.value })} className="bg-background font-normal" />
         </label>
       ) : null}
 

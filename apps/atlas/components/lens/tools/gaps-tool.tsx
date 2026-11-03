@@ -10,13 +10,15 @@ import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
-import { gapsHoverLine, gapsSummary } from './gaps-summary'
+import { gapsHoverLine, gapsSummary, isShortRow } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
+import { cn } from '@/lib/utils'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
+import { useAnswer } from './use-answer'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
  * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
@@ -28,8 +30,8 @@ const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
 // districts with fewer residents are left out of the answer (a few people make any count look short or full)
 const MIN_POPULATION = 5000
 /** Short by at least one whole business, as the row reads it («ناقص 1» or more): a shortfall under half a business
- * would read «ناقص 0», so it counts as sufficient on the map and in the list alike. */
-const isShort = (row: Gap) => Math.round(row.shortfall) > 0
+ * would read «ناقص 0», so it counts as sufficient on the map, in the list and in the peek line alike. */
+const isShort = isShortRow
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
 export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover }: {
@@ -53,28 +55,16 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const [query, setQuery] = useState(chosen ? studied.q ?? '' : '')
   // an activity set from elsewhere (a shared link, another step) shows in the box too
   useEffect(() => { if (stickyHas('activity')) setQuery(studied.q ?? '') }, [studied.q])
-  const [result, setResult] = useState<Result | null>(null)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [attempt, setAttempt] = useState(0)
-
-  // the map is painted with the chosen activity; any other activity replaces it
-  useEffect(() => {
-    if (!chosen) { setResult(null); setStatus('idle'); return }
-    let live = true
-    // the previous activity's answer goes at once, so the map never paints it under the new activity's name
-    setResult(null)
-    setStatus('loading')
+  // the map is painted with the chosen activity; any other activity replaces it, and its answer goes at once
+  const answer = useAnswer<Result>(chosen ? `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}` : null, () => {
     const body: Record<string, unknown> = { city, min_population: MIN_POPULATION, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     // a shared link runs this while the page's first heavy requests still hold the service, and the proxy gives up
     // after 12 seconds: one quiet second try after a pause, then the error with «أعد المحاولة»
-    let pause: ReturnType<typeof setTimeout> | undefined
     const load = () => postMarket<Result>('market-gaps', body)
-    load()
-      .catch(() => new Promise<Result>((resolve, reject) => { pause = setTimeout(() => { if (live) load().then(resolve, reject) }, 2000) }))
-      .then((data) => { if (live) { setResult(data); setStatus('idle') } })
-      .catch(() => { if (live) setStatus('error') })
-    return () => { live = false; clearTimeout(pause) }
-  }, [city, studied, chosen, attempt])
+    return load().catch(() => new Promise<Result>((resolve, reject) => { setTimeout(() => { load().then(resolve, reject) }, 2000) }))
+  })
+  const result = answer.data
+  const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
 
   const label = studied.label
   // a city none of whose districts has a population (most small cities today): no activity can be worked out there,
@@ -122,24 +112,30 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">أين ينقص نشاطي؟</h2>
-      <div className="flex gap-2">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') study(query.trim()) }}
+      {/* a search form like the other steps': a named field, the phone keyboard's «بحث» key, Enter submits */}
+      <form role="search" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); study(query.trim()) }}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="نشاطك" enterKeyHint="search"
           placeholder="اكتب نشاطك: صيدلية، مغسلة ملابس…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-        <button onClick={() => study(query.trim())} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
+        <button type="submit" disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? 'جارٍ الحساب' : 'احسب'}
         </button>
-      </div>
+      </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((example) => (
-            <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
-          ))}
-        </div>
+      {/* the example being studied is marked, as in «المنافسون» and «شوارع النشاط» */}
+      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
+        {EXAMPLES.map((example) => {
+          const on = chosen && studied.q === example
+          return (
+            <button key={example} type="button" onClick={() => { setQuery(example); study(example) }} aria-pressed={on}
+              className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', on ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
+          )
+        })}
+      </div>
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
       {status === 'error' && (
         <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."
-          onRetry={() => setAttempt((value) => value + 1)} />
+          onRetry={answer.retry} />
       )}
       {/* the shape of the answer while it is worked out: district rows, each with its bar line */}
       {status === 'loading' && <ResultRowsSkeleton rows={5} sub label="جارٍ حساب النقص" />}
@@ -155,9 +151,11 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
           {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base">
             <span className="whitespace-nowrap">معدل المدينة: منشأة لكل <strong className="tabular-nums">{numberFormat.format(result.residents_per_business)}</strong> ساكن</span>
-            <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} فيها نقص</span>
+            {gaps.length > 0 && <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} {gaps.length === 1 ? 'فيه' : 'فيها'} نقص</span>}
           </p>
-          <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
+          {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
+          {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}
+          <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto" aria-label="الأحياء الأكثر نقصاً">
             {gaps.slice(0, limit).map((row, index) => {
               const id = ids.get(row.district_ar)
               const need = Math.round(row.expected_businesses)

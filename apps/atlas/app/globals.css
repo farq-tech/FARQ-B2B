@@ -203,6 +203,14 @@ body::before {
     @apply text-foreground;
     background: transparent;
   }
+  /* Focus ring: one look everywhere, a 2px moss (--ring, 4.9:1 on the ground) line 2px off the element. Primitives
+     draw it as `focus-visible:ring-2 focus-visible:ring-ring` (never a faded ring-ring/50: half-opaque moss is under
+     WCAG 2.2's 3:1). This rule is the floor for anything that sets no ring of its own (a plain link, a native select,
+     a summary): it sits in the base layer, so an element with `outline-none` and its own ring keeps that ring. */
+  :where(a, button, select, summary, [tabindex]:not([tabindex='-1'])):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
   /* a search field's clear button in Atlas's own ink, not the browser's blue «×», and big enough to hit */
   input[type='search']::-webkit-search-cancel-button {
     -webkit-appearance: none;

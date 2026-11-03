@@ -27,7 +27,7 @@ const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف ا
  * pushes the steps away, and a collapsed sheet shows no half-scrolled body. From lg up it is the same panel as a fixed
  * column beside the map, and the snap does nothing.
  */
-export function MapSheet({ snap, onSnap, title, summary, header, resetKey, children }: {
+export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel, onPeek, children }: {
   snap: SheetSnap
   onSnap: (next: SheetSnap) => void
   title: ReactNode
@@ -37,6 +37,11 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, child
   header?: ReactNode
   /** The body returns to its top when this changes (another step opened). */
   resetKey?: string
+  /** The body as the tab panel of the header's open tab (its id, and the tab that names it). */
+  panel?: { id: string; labelledBy: string } | null
+  /** Told the collapsed stop's height as it measures (larger text or a wrapped title makes it taller than PEEK), so
+   * the map can end above it instead of under it. */
+  onPeek?: (px: number) => void
   children: ReactNode
 }) {
   const sheet = useRef<HTMLElement>(null)
@@ -55,6 +60,9 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, child
     return () => watch.disconnect()
   }, [])
   const peek = Math.max(PEEK_PX, topHeight)
+  const reportPeek = useRef(onPeek)
+  reportPeek.current = onPeek
+  useEffect(() => { reportPeek.current?.(peek) }, [peek])
   const heights: Record<SheetSnap, string> = { peek: `${peek}px`, half: `max(${peek}px, ${HALF * 100}%)`, full: `calc(100% - ${FULL_GAP}px)` }
   // a collapsed sheet starts its body from the top, and so does a newly opened step
   useEffect(() => { if (snap === 'peek' && body.current) body.current.scrollTop = 0 }, [snap])
@@ -130,7 +138,7 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, child
         {header && <div className="px-3 lg:pt-3">{header}</div>}
       </div>
       {/* collapsed, the body has no room and is hidden (and out of the tab order) rather than half-scrolled into view */}
-      <div ref={body} data-sheet-body
+      <div ref={body} data-sheet-body {...(panel ? { id: panel.id, role: 'tabpanel', 'aria-labelledby': panel.labelledBy } : {})}
         className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3 pt-1 lg:pt-3', snap === 'peek' && dragged == null && 'max-lg:invisible')}>
         {children}
       </div>

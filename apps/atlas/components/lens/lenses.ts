@@ -1,4 +1,4 @@
-import type { DistrictRow } from './city-data'
+import type { CityTable, DistrictRow } from './city-data'
 
 /**
  * The five user groups of docs/atlas-product-foundation.md. A lens is one journey: its own steps (the tools, in the
@@ -25,22 +25,39 @@ export const METRICS: Record<MetricId, { label: string; value: (row: DistrictRow
     value: (row) => (row.residentsPerBusiness == null ? null : Math.round(row.residentsPerBusiness)),
   },
   restaurants: { label: 'مطاعم على تطبيقات التوصيل', value: (row) => row.restaurants },
-  menuPrice: { label: 'سعر الصنف المعتاد', value: (row) => row.menuPrice, unit: 'ر.س' },
+  menuPrice: { label: 'سعر الصنف المعتاد', value: (row) => row.menuPrice, unit: 'ريال' },
   unmet: { label: 'بحث بلا نتيجة', value: (row) => row.unmetSearches },
   villaShare: { label: 'حصة الفلل من المساكن', value: (row) => row.villaShare, unit: '%' },
   // each rent period is its own figure, never converted (services/targeting-api/build_real_estate_reference.py)
   // a shop rent whose ad states no period counts as yearly (services/targeting-api/build_real_estate_reference.py)
-  shopRent: { label: 'إيجار متر المحل سنوياً', value: (row) => ranked(row.realEstate.rent_year_commercial), unit: 'ر.س' },
-  homeRent: { label: 'إيجار متر السكن سنوياً', value: (row) => ranked(row.realEstate.rent_year_residential), unit: 'ر.س' },
-  homeRentMonthly: { label: 'إيجار متر السكن شهرياً', value: (row) => ranked(row.realEstate.rent_month_residential), unit: 'ر.س' },
-  homePrice: { label: 'سعر متر السكن للبيع (معروض)', value: (row) => ranked(row.realEstate.sale_residential), unit: 'ر.س' },
-  dealPrice: { label: 'سعر متر البيع في الصفقات المسجلة', value: (row) => row.deals.residential?.median ?? null, unit: 'ر.س' },
-  warehouseRent: { label: 'إيجار متر المستودع سنوياً', value: (row) => ranked(row.realEstate.rent_year_warehouse), unit: 'ر.س' },
-  income: { label: 'متوسط الدخل', value: (row) => row.income, unit: 'ر.س' },
+  shopRent: { label: 'إيجار متر المحل سنوياً', value: (row) => ranked(row.realEstate.rent_year_commercial), unit: 'ريال' },
+  homeRent: { label: 'إيجار متر السكن سنوياً', value: (row) => ranked(row.realEstate.rent_year_residential), unit: 'ريال' },
+  homeRentMonthly: { label: 'إيجار متر السكن شهرياً', value: (row) => ranked(row.realEstate.rent_month_residential), unit: 'ريال' },
+  homePrice: { label: 'سعر متر السكن للبيع (معروض)', value: (row) => ranked(row.realEstate.sale_residential), unit: 'ريال' },
+  dealPrice: { label: 'سعر متر البيع في الصفقات المسجلة', value: (row) => row.deals.residential?.median ?? null, unit: 'ريال' },
+  warehouseRent: { label: 'إيجار متر المستودع سنوياً', value: (row) => ranked(row.realEstate.rent_year_warehouse), unit: 'ريال' },
+  income: { label: 'متوسط الدخل', value: (row) => row.income, unit: 'ريال' },
   growth: {
     label: 'مبانٍ جديدة وتحت الإنشاء',
     value: (row) => (row.underConstruction != null && row.newBuildings != null ? row.underConstruction + row.newBuildings : null),
   },
+}
+
+/** The table each figure arrives in (city-data.ts): a figure whose table failed to load reads «تعذّر التحميل», not «غير متاح». */
+export const METRIC_TABLE: Record<MetricId, CityTable> = {
+  population: 'population', businesses: 'counts', residentsPerBusiness: 'counts', restaurants: 'restaurants', menuPrice: 'menuPrices',
+  unmet: 'demand', villaShare: 'housing', shopRent: 'realEstate', homeRent: 'realEstate', homeRentMonthly: 'realEstate', homePrice: 'realEstate',
+  dealPrice: 'deals', warehouseRent: 'realEstate', income: 'income', growth: 'growth',
+}
+
+/**
+ * Whether a figure can colour this city's map: `loading` while its table is being asked, `failed` when it did not load this time (worth a retry),
+ * `missing` when it loaded and no district has it (said «غير متاح»), `ready` otherwise.
+ */
+export function metricAvailability(id: MetricId, rows: DistrictRow[], failed: readonly CityTable[], pending: readonly CityTable[] = []): 'ready' | 'loading' | 'failed' | 'missing' {
+  if (pending.includes(METRIC_TABLE[id])) return 'loading'
+  if (failed.includes(METRIC_TABLE[id])) return 'failed'
+  return rows.length && !rows.some((row) => METRICS[id].value(row) != null) ? 'missing' : 'ready'
 }
 
 export type Lens = { id: LensId; label: string; metric: MetricId; metrics: MetricId[]; steps: { tool: ToolId; label: string }[] }

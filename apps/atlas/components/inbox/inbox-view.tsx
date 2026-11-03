@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCheck, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -72,6 +72,18 @@ export function InboxView() {
     else document.getElementById(`inbox-row-${target}`)?.focus()
   }, [selectedId])
   const open = (id: string) => { pendingFocus.current = 'detail'; setParams({ m: id }) }
+  // where the open message sits in the list as filtered, for «2 من 9» and the previous / next buttons
+  const position = selected ? visible.findIndex((m) => m.id === selected.id) : -1
+  // (opened under «غير مقروء», a message is read and leaves that list: «next» is then the list's first)
+  const step = (by: -1 | 1) => {
+    const next = position < 0 ? (by === 1 ? visible[0] : undefined) : visible[position + by]
+    if (next) setParams({ m: next.id })
+  }
+  // the open message's row stays in sight in the list (side by side on a wide screen), clear of the sticky filters
+  useEffect(() => {
+    if (!selectedId || !window.matchMedia('(min-width: 1024px)').matches) return
+    document.getElementById(`inbox-row-${selectedId}`)?.closest('li')?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }, [selectedId])
   const back = () => { pendingFocus.current = selectedId; setParams({ m: null }) }
 
   // keyboard: ↑/↓ move between messages, Home/End jump to the first and last, Enter opens (the row is a button)
@@ -115,10 +127,19 @@ export function InboxView() {
         )}
       </header>
 
+      {/* a first visit has no message to filter or open: one welcome that says what arrives here and where it comes
+          from, instead of four «0» filters beside «لا رسائل هنا» and an «اختر رسالة» that has nothing to choose */}
+      {inbox.length === 0 ? (
+        <EmptyState heading="h2" icon={InboxIcon} title="لا رسائل بعد"
+          body="ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا، بعد أن ترسل الطلب أو الحملة بنفسك من صفحته."
+          action={<Button nativeButton={false} render={<Link href="/requests" />}><ClipboardList data-icon="inline-start" />افتح الطلبات</Button>} />
+      ) : (
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(20rem,24rem)_1fr]">
         <section aria-label="قائمة الرسائل" className={cn('flex min-w-0 flex-col gap-3', selected && 'hidden lg:flex')}>
           <p id="inbox-keys" className="sr-only">تنقّل بين الرسائل بالسهمين لأعلى ولأسفل، واضغط Enter لفتح الرسالة.</p>
           {/* one row that scrolls if it must, never a second row that pushes the list down; padding keeps focus rings whole */}
+          {/* the filters stay under the app bar while a long list scrolls */}
+          <div className="sticky top-16 z-20 -mx-4 bg-background/90 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/75 lg:mx-0 lg:px-0">
           <ChipRow label="تصفية الوارد" className="max-w-none gap-1.5 px-0.5 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((f) => (
               <Chip key={f.id} active={filter === f.id} onClick={() => setParams({ f: f.id })} className="px-2.5">
@@ -127,11 +148,11 @@ export function InboxView() {
               </Chip>
             ))}
           </ChipRow>
+          </div>
 
           {visible.length === 0 ? (
-            <EmptyState icon={InboxIcon} title="لا رسائل هنا"
-              body={filter === 'all' ? 'ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا بعد أن ترسلها بنفسك من صفحة الطلب.' : 'لا رسائل في هذا التصنيف. اختر «الكل» لترى كل الوارد.'}
-              action={filter === 'all' ? <Link href="/requests" className="text-sm font-semibold text-primary hover:underline">افتح الطلبات</Link> : undefined} />
+            <EmptyState icon={InboxIcon} title="لا رسائل في هذا التصنيف" body="اختر «الكل» لترى كل الوارد."
+              action={<Button size="sm" variant="outline" onClick={() => setParams({ f: 'all' })}>اعرض الكل</Button>} />
           ) : (
             <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
@@ -139,7 +160,7 @@ export function InboxView() {
                 const active = m.id === selected?.id
                 const Icon = m.source === 'rfq' ? FileText : Megaphone
                 return (
-                  <li key={m.id} className="border-b last:border-b-0">
+                  <li key={m.id} className="scroll-mt-32 scroll-mb-4 border-b last:border-b-0">
                     <button
                       type="button"
                       id={`inbox-row-${m.id}`}
@@ -182,27 +203,42 @@ export function InboxView() {
           )}
         </section>
 
-        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة"
-          // on a phone, Escape leaves the message for the list, like «كل الرسائل»; a field keeps its own Escape
-          onKeyDown={(event) => { if (event.key === 'Escape' && selected && !(event.target instanceof HTMLTextAreaElement) && !window.matchMedia('(min-width: 1024px)').matches) back() }} className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring', !selected && 'hidden lg:block')}>
+        <section ref={detail} tabIndex={-1} aria-label="تفاصيل الرسالة" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+          // on a phone, Escape leaves the message for the list, like «كل الرسائل»; a field keeps its own Escape.
+          // Alt+↑ / Alt+↓ open the previous / next message from anywhere in it, a field included (plain arrows stay the field's)
+          onKeyDown={(event) => {
+            if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && selected) { event.preventDefault(); step(event.key === 'ArrowUp' ? -1 : 1); return }
+            if (event.key === 'Escape' && selected && !(event.target instanceof HTMLTextAreaElement) && !window.matchMedia('(min-width: 1024px)').matches) back()
+          }}
+          // on a wide screen the open message stays in view beside a long list
+          className={cn('min-w-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto', !selected && 'hidden lg:block')}>
           {selected ? (
             <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={back}
-                className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
-              >
-                <ArrowRight className="size-4" aria-hidden />
-                كل الرسائل
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={back}
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                >
+                  <ArrowRight className="size-4" aria-hidden />
+                  كل الرسائل
+                </button>
+                {/* the next message without going back to the list: in the order the list shows, within its filter */}
+                <span className="ms-auto text-xs tabular-nums text-muted-foreground" aria-live="polite">
+                  {position >= 0 ? `${numberFormat.format(position + 1)} من ${numberFormat.format(visible.length)}` : null}
+                </span>
+                <Button variant="outline" size="icon-sm" onClick={() => step(-1)} disabled={position <= 0} aria-label="الرسالة السابقة" aria-keyshortcuts="Alt+ArrowUp"><ChevronUp aria-hidden /></Button>
+                <Button variant="outline" size="icon-sm" onClick={() => step(1)} disabled={position < 0 ? !visible.length : position >= visible.length - 1} aria-label="الرسالة التالية" aria-keyshortcuts="Alt+ArrowDown"><ChevronDown aria-hidden /></Button>
+              </div>
               <MessageDetail key={selected.id} message={selected} />
             </div>
           ) : (
-            <EmptyState icon={MailOpen} title="اختر رسالة" body="تظهر الرسالة هنا كاملة مع الطلب الذي تخصه، وتكتب ردك وتراجعه قبل أن ترسله."
-              className="h-full min-h-80 justify-center" action={<Link href="/requests" className="text-sm font-semibold text-primary hover:underline">أو انتقل إلى الطلبات</Link>} />
+            <EmptyState heading="h2" icon={MailOpen} title="اختر رسالة" body="تظهر الرسالة هنا كاملة مع الطلب الذي تخصه، وتكتب ردك وتراجعه قبل أن ترسله."
+              className="h-full min-h-80 justify-center" />
           )}
         </section>
       </div>
+      )}
     </main>
   )
 }

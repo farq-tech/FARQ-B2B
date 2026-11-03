@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, MapPin, Scale, SearchX, X } from 'lucide-react'
-import { EmptyState, NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { Check, MapPin, Scale, X } from 'lucide-react'
+import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,6 +20,8 @@ import type { MyPoint } from '../listing-surroundings'
 import type { Overlay } from './overlay'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
+import { useAnswer } from './use-answer'
+import { Choice } from './choice'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
 const LIMIT = 1500
@@ -80,7 +82,6 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   const [rentDeal, setRentDeal] = useStickyState<Deal | 'all'>(`${sticky}.rentDeal`, preset?.deal ?? 'rent_year')
   const [budget, setBudget] = useStickyState(`${sticky}.budget`, 0)
   const deal: Deal | null = kind === 'sale' ? 'sale' : rentDeal === 'all' ? null : rentDeal
-  const [result, setResult] = useState<Result>({ status: 'loading', available: true, total: null, listings: [] })
   const [active, setActive] = useState<Listing | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   const [compare, setCompare] = useState<Listing[]>([])
@@ -93,28 +94,27 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   useEffect(() => { setMyPoint(readPoint()) }, [])
   // residents per km², computed once in the service (server.py enrich_district_counts); read here per district
   const density = useMemo(() => new Map(rows.map((row) => [row.id, row.density])), [rows])
-  const districtIds = selected.map((row) => row.id)
-  const districtKey = districtIds.join('|')
+  const districtKey = selected.map((row) => row.id).join('|')
 
   useEffect(() => { if (!LISTING_TYPES.find((item) => item.id === type)?.kinds.includes(kind)) setType('apartment') }, [kind, type])
-  useEffect(() => { setBudget(0) }, [kind, rentDeal])
+  // a budget belongs to one deal (a yearly rent is not a monthly one), so it resets when the deal changes; it used to
+  // reset on every mount too, so coming back to this step lost the budget the visitor had set
+  const pickKind = (next: ListingKind) => { if (next !== kind) { setKind(next); setBudget(0) } }
+  const pickRentDeal = (next: Deal | 'all') => { if (next !== rentDeal) { setRentDeal(next); setBudget(0) } }
 
-  // «أعد المحاولة» asks again with the same filters
-  const [attempt, setAttempt] = useState(0)
-  useEffect(() => {
-    let live = true
-    setResult((current) => ({ ...current, status: 'loading' }))
-    setActive(null)
-    postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
-      city, kind, types: [type], limit: LIMIT,
-      ...(deal ? { deal } : {}),
-      ...(budget && deal ? { max_price: budget } : {}),
-      ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
-    })
-      .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? null, listings: (data.listings ?? []).filter(isPublishable) }) })
-      .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
-    return () => { live = false }
-  }, [city, kind, type, deal, budget, districtKey, attempt])
+  // keyed by the filters and the selected districts' ids; the last filters' listings go at once, so the map never
+  // shows their dots under the new filters' skeleton
+  const searchKey = `${city}|${kind}|${type}|${deal ?? 'all'}|${budget}|${districtKey}`
+  const search = useAnswer(searchKey, () => postMarket<{ available?: boolean; total?: number; listings?: Listing[] }>('real-estate-listings', {
+    city, kind, types: [type], limit: LIMIT,
+    ...(deal ? { deal } : {}),
+    ...(budget && deal ? { max_price: budget } : {}),
+    ...(districtKey ? { district_ids: districtKey.split('|') } : {}),
+  }))
+  const result = useMemo<Result>(() => (search.status === 'ready' && search.data
+    ? { status: 'ready', available: search.data.available !== false, total: search.data.total ?? null, listings: (search.data.listings ?? []).filter(isPublishable) }
+    : { status: search.status === 'error' ? 'error' : 'loading', available: true, total: null, listings: [] }), [search.status, search.data])
+  useEffect(() => { setActive(null) }, [searchKey])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
@@ -163,25 +163,11 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       {/* the heading is the step's own name (lenses.ts): the shops lens opens this tool as «محلات للإيجار» */}
       <h2 className="text-xl font-bold">{preset ? 'محلات للإيجار' : 'اختر عقاراً'}</h2>
-      <div role="group" aria-label="إيجار أو شراء" className="flex gap-1.5">
-        {([['rent', 'إيجار'], ['sale', 'شراء']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setKind(id)} aria-pressed={kind === id}
-            className={cn('flex-1 rounded-lg border py-2 text-sm', kind === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
-        ))}
-      </div>
-      <div role="group" aria-label="نوع العقار" className="flex flex-wrap gap-1.5">
-        {types.map((item) => (
-          <button key={item.id} onClick={() => setType(item.id)} aria-pressed={type === item.id}
-            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', type === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}><Icon3D type={item.id} />{item.label}</button>
-        ))}
-      </div>
+      <Choice label="إيجار أو شراء" value={kind} onChange={pickKind} options={[{ id: 'rent', label: 'إيجار' }, { id: 'sale', label: 'شراء' }]} />
+      <Choice label="نوع العقار" variant="chip" value={type} onChange={setType} options={types.map((item) => ({ id: item.id, label: item.label, icon: <Icon3D type={item.id} /> }))} />
       {kind === 'rent' && (
-        <div role="group" className="flex flex-wrap gap-1.5" aria-label="مدة الإيجار">
-          {[...RENT_DEALS, { id: 'all' as const, label: 'الكل' }].map((item) => (
-            <button key={item.id} onClick={() => setRentDeal(item.id)} aria-pressed={rentDeal === item.id}
-              className={cn('rounded-full border px-3 py-1.5 text-sm', rentDeal === item.id ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>{item.label}</button>
-          ))}
-        </div>
+        <Choice<Deal | 'all'> label="مدة الإيجار" variant="chip" value={rentDeal} onChange={pickRentDeal}
+          options={[...RENT_DEALS.map((item) => ({ id: item.id as Deal | 'all', label: item.label })), { id: 'all', label: 'الكل' }]} />
       )}
       {deal && (
         <select aria-label="الميزانية" value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="rounded-lg border bg-background px-3 py-2 text-base">
@@ -216,7 +202,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
           <ResultRowsSkeleton rows={5} sub leading="thumb" value={false} />
         </>
       )}
-      {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
+      {result.status === 'error' && <LoadError what="العروض" onRetry={search.retry} />}
       {result.status === 'ready' && !result.available && <NotAvailable what="عروض العقار" where="هذه المدينة" body="اختر مدينة أخرى من قائمة المدن لترى عروضها." />}
       {result.status === 'ready' && result.available && (
         <>
