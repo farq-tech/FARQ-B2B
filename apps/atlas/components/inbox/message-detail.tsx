@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ExternalLink, MailOpen, Mail, Scale } from 'lucide-react'
+import { Check, ExternalLink, MailOpen, Mail, MapPinned, Scale } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { requestBusiness } from '@/lib/business-name'
 import { formatDateTime, formatSar } from '@/lib/format'
-import { counted, numberFormat } from '@/lib/insights-api'
+import { cityKey, mapHref } from '@/lib/handoff'
+import { kindNote, requestFor } from '@/lib/inbox-feed'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
 import { SourceLabel } from './source-label'
@@ -17,10 +19,12 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
   const { requests, markRead, updateMessage } = useAppStore()
   const [draft, setDraft] = useState(message.replyDraft ?? '')
   const [saved, setSaved] = useState(false)
-  const request = requests.find((r) => r.id === message.requestId)
+  const cities = useCities()
+  const request = requestFor(requests, message.requestId)
   // named from the request's own saved businesses, as the map and the request show it; no contact is shown
   const b = requestBusiness(message.businessId, request)
   const name = b.name ?? 'غير متاح'
+  const note = kindNote(message.kind)
   const total = message.quote?.lines.reduce((s, l) => s + l.unitPrice * l.qty, 0) ?? 0
 
   return (
@@ -37,8 +41,11 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
       <figure className="flex max-w-xl flex-col gap-1 self-start">
         <figcaption className="text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">{name}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+          {message.origin === 'whatsapp' ? ' · واتساب' : null}
         </figcaption>
-        <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote>
+        {/* a photo, a voice note or a file is named, not shown: Atlas keeps only the words of a reply */}
+        {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
+        {message.body.trim() ? <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote> : null}
       </figure>
 
       {message.quote ? (
@@ -81,6 +88,12 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
           <Button variant="outline" nativeButton={false} render={<Link href={`/requests/${request.id}`} />}>
             {message.quote ? <Scale data-icon="inline-start" /> : <ExternalLink data-icon="inline-start" />}
             {message.quote ? 'مقارنة العروض في الطلب' : 'فتح الطلب المرتبط'}
+          </Button>
+        ) : null}
+        {/* the business on the map, in the request's city: from the reply to the place it came from */}
+        {request && b.name ? (
+          <Button variant="outline" nativeButton={false} render={<Link href={mapHref({ city: cityKey(request.cityId, cities), q: b.name })} />}>
+            <MapPinned data-icon="inline-start" />اعرضها على الخريطة
           </Button>
         ) : null}
         <Button variant="ghost" onClick={() => markRead(message.id, !message.unread)}>

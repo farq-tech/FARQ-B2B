@@ -5,6 +5,7 @@ import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType, RfqDetails } from './types'
 import { mergeCloudRequests } from './workspace-merge'
+import { mergeServerInbox, parseServerFeed, type ServerDelivery, type ServerFeed } from './inbox-feed'
 import { safeMapOrigin } from './handoff'
 import { mergeIntoRequest, removeFromRequest } from './request-add'
 import { deviceOnlyViews, mergeSavedViews, readView, saveView, viewKey, type SavedView } from './saved-views'
@@ -23,6 +24,12 @@ interface State {
   views: SavedView[]
   /** Addresses of comparisons deleted here that the account has not confirmed yet (asked again on the next sync). */
   viewsRemoved: string[]
+  /** Delivery state of the account's WhatsApp campaign messages, per request and recipient (from /api/inbox; not stored). */
+  deliveries: ServerDelivery[]
+  /** Whether the signed-in person reviews unlinked replies (a Farq owner); only shows a link, the page checks again. */
+  inboxOwner: boolean
+  /** How many feeds of replies have arrived this visit (0 before the first), so a notice can tell new from loaded. */
+  repliesVersion: number
 }
 
 type CloudRequest = { id?: unknown; title?: unknown; payload?: unknown }
@@ -37,6 +44,7 @@ type Action =
   | { type: 'restore'; state: Pick<State, 'requests' | 'inbox' | 'views' | 'viewsRemoved'> }
   | { type: 'set-views'; views: SavedView[]; viewsRemoved?: string[] }
   | { type: 'add-cloud'; requests: RequestItem[] }
+  | { type: 'add-replies'; feed: ServerFeed; pending: ReadonlySet<string> }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -48,6 +56,12 @@ function reducer(state: State, action: Action): State {
       // the account's saved requests join what is on screen now; nothing local is replaced (lib/workspace-merge.ts)
       const requests = mergeCloudRequests(state.requests, action.requests)
       return requests === state.requests ? state : { ...state, requests }
+    }
+    case 'add-replies': {
+      // WhatsApp replies from the account's feed join the device's inbox with the read state the service keeps;
+      // drafts and device-only items stay as they are (lib/inbox-feed.ts)
+      const inbox = mergeServerInbox(state.inbox, action.feed.messages, action.pending)
+      return { ...state, inbox, deliveries: action.feed.deliveries, inboxOwner: action.feed.owner, repliesVersion: state.repliesVersion + 1 }
     }
     case 'toggle-select':
       return {
@@ -275,6 +289,8 @@ interface StoreValue extends State {
   saveComparison: (view: SavedView) => void
   removeComparison: (id: string) => void
   updateMessage: (id: string, patch: Partial<InboxMessage>) => void
+  /** Asks the account's feed for new WhatsApp replies now (the inbox calls it when it opens). */
+  refreshReplies: (force?: boolean) => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -286,6 +302,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     selection: [],
     views: [],
     viewsRemoved: [],
+    deliveries: [],
+    inboxOwner: false,
+    repliesVersion: 0,
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)
   const requestsRef = useRef<RequestItem[]>([])
@@ -311,6 +330,33 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined)
       .finally(() => setWorkspaceReady(true))
   }, [])
+
+  // WhatsApp replies to the account's campaigns (app/api/inbox): on open, when the tab comes back, when the inbox
+  // opens, and every minute while the tab is in view. Signed out or not configured (401/403/503), the minute checks
+  // pause until the tab comes back or the inbox opens; the inbox stays as it is.
+  const repliesPaused = useRef(false)
+  const repliesInFlight = useRef(false)
+  // replies whose read state this device just changed: the next feed must not undo it before the service has it
+  const pendingRead = useRef(new Set<string>())
+  const refreshReplies = useCallback((force = false) => {
+    if (repliesInFlight.current || document.visibilityState !== 'visible' || (repliesPaused.current && !force)) return
+    repliesInFlight.current = true
+    fetch('/api/inbox', { cache: 'no-store' })
+      .then(async (response) => {
+        repliesPaused.current = response.status === 401 || response.status === 403 || response.status === 503
+        return response.ok ? parseServerFeed(await response.json().catch(() => null)) : null
+      })
+      .then((feed) => { if (feed) dispatch({ type: 'add-replies', feed, pending: new Set(pendingRead.current) }) })
+      .catch(() => undefined)
+      .finally(() => { repliesInFlight.current = false })
+  }, [])
+  useEffect(() => {
+    refreshReplies(true)
+    const timer = window.setInterval(() => refreshReplies(), 60_000)
+    const back = () => refreshReplies(true)
+    document.addEventListener('visibilitychange', back)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', back) }
+  }, [refreshReplies])
 
   useEffect(() => {
     if (!workspaceReady) return
@@ -457,15 +503,40 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     setViews(viewsRef.current.filter((item) => item.id !== id))
     if (view && (view.synced || accountRef.current === 'in')) removeFromAccount(view.href)
   }, [setViews, removeFromAccount])
-  const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])
+  // a WhatsApp reply's read state is also kept by the service, so it follows the person to every device. Marks made
+  // together (one click on «علّم المعروض كمقروء») go in one request.
+  const inboxRef = useRef<InboxMessage[]>([])
+  useEffect(() => { inboxRef.current = state.inbox }, [state.inbox])
+  const readQueue = useRef<{ read: Set<string>; unread: Set<string>; timer: number | null }>({ read: new Set(), unread: new Set(), timer: null })
+  const flushRead = useCallback(() => {
+    const queue = readQueue.current
+    queue.timer = null
+    for (const [read, ids] of [[true, queue.read], [false, queue.unread]] as const) {
+      if (!ids.size) continue
+      const batch = [...ids]
+      ids.clear()
+      fetch('/api/inbox', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids: batch, read }) })
+        .catch(() => undefined)
+        .finally(() => { for (const id of batch) pendingRead.current.delete(id) })
+    }
+  }, [])
+  const markRead = useCallback((id: string, unread?: boolean) => {
+    dispatch({ type: 'mark-read', id, unread })
+    if (inboxRef.current.find((message) => message.id === id)?.origin !== 'whatsapp') return
+    const queue = readQueue.current
+    pendingRead.current.add(id)
+    ;(unread ? queue.unread : queue.read).add(id)
+    ;(unread ? queue.read : queue.unread).delete(id)
+    if (queue.timer == null) queue.timer = window.setTimeout(flushRead, 250)
+  }, [flushRead])
   const updateMessage = useCallback(
     (id: string, patch: Partial<InboxMessage>) => dispatch({ type: 'update-message', id, patch }),
     [],
   )
 
   const value = useMemo(
-    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFromRequest: removeFrom, markRead, updateMessage, saveComparison, removeComparison }),
-    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFrom, markRead, updateMessage, saveComparison, removeComparison],
+    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFromRequest: removeFrom, markRead, updateMessage, saveComparison, removeComparison, refreshReplies }),
+    [state, toggleSelect, setSelection, createDraft, updateRequest, addToRequest, removeFrom, markRead, updateMessage, saveComparison, removeComparison, refreshReplies],
   )
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

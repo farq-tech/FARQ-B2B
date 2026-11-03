@@ -60,3 +60,40 @@ Unexpected failures in map read endpoints keep the existing `503 UNAVAILABLE` re
 For `/search` (including `objective: "browse"`), `/map-query`, and the resulting map tiles, an omitted or `all` `filters.contact` means **no contact-channel restriction**. This keeps the full eligible directory available for discovery and map analysis. `contact: "whatsapp"` requires both the source WhatsApp marker and a valid Saudi mobile number; `contact: "email"` restricts results to email. Browse and search remain paginated; map tiles aggregate locations at lower zoom levels.
 
 Showing a directory record does not make it eligible for a WhatsApp campaign. The Atlas campaign sender re-resolves each selected `poi_key` against the directory and requires WhatsApp eligibility for template sends. For Atlas campaigns only, a missing status (`unknown_empty`) does not block sending; known closed, inactive, hidden, or invalid statuses remain blocked. Other send paths keep the stricter status policy. The `has_whatsapp` source flag is not independent verification that a number is active on WhatsApp.
+
+## WhatsApp replies for the Atlas inbox
+
+Owner approved 2026-11-03. The service that sends Atlas campaign messages (`/send-template`) also files their replies, because it is the only one that knows each recipient's number (resolved from the directory at send time). Logic and storage are in `wa_inbox.py`, tested by `test_wa_inbox.py` with fixed fake payloads (no network).
+
+**Where replies come from (`FARQ_INBOX_SOURCE`):**
+
+- `construction_db` (the default): the construction API (`farq-construction-api`, Railway project `Farq`) owns the Meta webhook of the number Atlas sends from and stores every reply in the construction database. A background thread (`wa_construction_source.py`, every `FARQ_INBOX_POLL_SECONDS`, default 60, minimum 30) reads them through `CONSTRUCTION_DB_URL` on a read-only session (`default_transaction_read_only=on`, SELECT statements only):
+  - `construction.inbox_messages` where `channel='WHATSAPP'`: replies routed to an RFQ invite, including the catch-all holder request. The number comes from the supplier's `external_key` (`whatsapp:<msisdn>`) or `supplier_contacts.whatsapp_e164`. The quoted message id is not stored for these rows, so they link by the most recent campaign to that number.
+  - `construction.inbox_unrouted_whatsapp`: replies held as `NO_MATCH`/`AMBIGUOUS`, with the number and `context_message_id` (the quoted message).
+  - `construction.whatsapp_status_events`: delivery receipts of our campaign messages that are not final yet.
+
+  Only messages from numbers an Atlas campaign message was sent to are brought in; construction RFQ conversations with other numbers stay out of Atlas entirely. Each table is read from its cursor (the newest `received_at` seen, kept in `wa_source_cursor`) minus 30 minutes, so a row written late is still read; the store keeps each message once by its id. The first run reads the last 30 days. The schema is the construction migrations in `farq-tech/farq` (`api/db/migrations/construction`: company_inbox, conversation_channels, inbox_sending, whatsapp_status_events) and `api/lib/construction/conversation-capture.js`.
+- `webhook`: Meta posts to `/whatsapp/webhook` here. Only for a number whose callback this service owns; with any other value both webhook routes answer `404`.
+
+- **At send time:** when `/send-template` hands an Atlas campaign message (`atlas_campaign: true`) to WhatsApp, it records the message id, the Atlas account (`account_id`: the sender's Farq organisation, or `user-<id>` when they have none, named by the Atlas server), the person who sent it (`sender_id`), the request (`request_id`), the `poi_key` and the recipient number.
+- **`GET /whatsapp/webhook`** (public): Meta's subscription check. Answers `hub.challenge` only for `hub.mode=subscribe` with the configured verify token; `403` otherwise, `503` while no token is set.
+- **`POST /whatsapp/webhook`** (public): every body must carry `X-Hub-Signature-256`, the HMAC-SHA256 of the exact body keyed by the app secret. Unsigned or wrongly signed bodies get `401` and are not parsed, bodies over 1 MB get `413`, and everything gets `503` while no secret is set. Each incoming message is stored once by its message id (Meta's retries count as duplicates). Status updates move the delivery state of our own messages forward only (sent, delivered, read; failed replaces only sent). Changes for another number of the same app are ignored when `CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID` is set.
+- **Linking:** a reply that quotes a campaign message (`context.id`) belongs to that message's account and request. Otherwise it belongs to the most recent campaign message sent to the same number in the last 30 days (never one sent after the reply). Otherwise it is stored as unlinked and shown to no account.
+- **`GET /inbox?account=...&account=...&since=...`** (service token; called only by the Atlas server, with the accounts from its own session: the organisation and the person's `user-<id>`, up to 4): those accounts' linked replies (id, request, poi_key, kind, text or caption, time, read) and the delivery state of the newest campaign message per recipient and request. No phone number is ever returned. Media is not downloaded: a photo, voice note or file is stored as its kind and caption only.
+- **`POST /inbox/read`** `{account, ids, read}` (service token): marks those accounts' own replies read or unread, so the state follows the person across devices. Ids of another account's replies change nothing.
+- **Owner review** (service token; the Atlas server allows only `ATLAS_INBOX_OWNER_EMAILS`): `GET /inbox/unlinked` lists unlinked replies with the number masked (`9665****01`) and up to 5 campaign messages sent to the same number (business name from the directory, request, account, time). `POST /inbox/attach` `{message_id, outbound_id, reviewer}` places a reply on one of those messages only (anything else answers `409`); `POST /inbox/dismiss` `{message_id, reviewer}` sets it aside, in no inbox. Both record who reviewed and when.
+- **Storage:** `wa_inbox.sqlite3` in `FARQ_TARGETING_RUNTIME_DIR` (the data volume, next to the existing send logs). Standard-library SQLite, no extra service. It holds recipient numbers, so it is never copied out of the volume or into Git.
+- **Read-only deployment** (`ATLAS_READ_ONLY=1`): both webhook routes answer `404`, and `/inbox/read`, `/inbox/attach` and `/inbox/dismiss` are refused like the other writes.
+- **Upgrading a store:** columns added later (`sender_id`, `read_at`, `reviewed_at`, `reviewed_by`) are added in place the first time the service opens an older file.
+
+Environment (Railway, never in Git). With the default source only `CONSTRUCTION_DB_URL` (already set) is needed; the webhook rows apply to `FARQ_INBOX_SOURCE=webhook`:
+
+| Variable | Purpose |
+| --- | --- |
+| `FARQ_INBOX_SOURCE` | `construction_db` (default) or `webhook`. |
+| `FARQ_INBOX_POLL_SECONDS` | How often the construction inbox is read (default 60, minimum 30). |
+| `WHATSAPP_APP_SECRET` | The Meta app's secret (App settings, Basic). Verifies `X-Hub-Signature-256`. |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | A long random string you choose; the same value goes in Meta's webhook form. |
+| `CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID` | Already set for sending; also filters the webhook to our number. |
+
+**Nothing is registered in Meta with the default source.** The construction API owns the callback of this number (as of 2026-11-03 it carries `META_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` and runs `farq-construction-inbox-worker`); registering another URL would cut its inbox off. The webhook route exists for a number this service would own alone: then set `FARQ_INBOX_SOURCE=webhook` and register `https://<targeting public domain>/whatsapp/webhook`, subscribed to `messages`.
