@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { CATEGORIES, DEFAULT_VARIABLES, businessById, cityById } from './mock-data'
+import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 import { mergeCloudRequests } from './workspace-merge'
@@ -68,7 +68,7 @@ export interface DraftInput {
   type: RequestType
   businessIds: string[]
   cityId: string
-  /** the city's Arabic name, for a city the sample list (cityById) does not hold */
+  /** the city's Arabic name as the map shows it (from the shared city list) */
   cityName?: string
   goal?: GoalId | null
   query?: string
@@ -83,7 +83,7 @@ function buildDraft(input: DraftInput): RequestItem {
   const firstLiveBusiness = input.liveBusinesses?.find((business) => ids.includes(business.id))
   const firstCategory =
     input.categoryHint ?? firstLiveBusiness?.category ?? (ids.length ? businessById.get(ids[0])?.category : undefined) ?? 'منشآت'
-  const cityName = input.cityName ?? cityById.get(input.cityId)?.name
+  const cityName = input.cityName
   const place = input.districtHint ?? firstLiveBusiness?.district ?? cityName ?? ''
   const cat = CATEGORIES.find((c) => c.name === firstCategory)
   const base: RequestItem = {

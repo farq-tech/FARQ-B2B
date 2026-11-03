@@ -1,17 +1,22 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Calculator, ExternalLink, Loader2, Pencil, SearchX } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
-import { Explained } from '@/components/shared/explained'
 import { ListingFace } from '@/components/shared/listing-face'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { LoadError } from '@/components/shared/load-error'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchSelect } from '@/components/shared/search-select'
 import { Chip } from '@/components/ui/chip'
 import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
-import { SHOW_LISTING_PHOTOS, typeLabel } from '@/lib/real-estate'
+import { shownPhotos, typeLabel } from '@/lib/real-estate'
+import { EXPLAIN } from '@/lib/explanations'
+import { Stat } from '@/components/shared/stat'
+import { Unavailable } from '@/components/shared/unavailable'
+import { Gallery } from '@/components/lens/listing-card'
 import { cn } from '@/lib/utils'
 
 const DEALS = [['rent_year', 'إيجار سنوي'], ['rent_month', 'إيجار شهري'], ['sale', 'بيع']] as const
@@ -80,8 +85,6 @@ export function PriceEstimator() {
   const answer = useRef<HTMLElement>(null)
   const questions = useRef<HTMLElement>(null)
   const [allExamples, setAllExamples] = useState(false)
-  // a comparable whose photo fails to load shows its type's face instead of a broken image
-  const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set())
   // on a phone the answer sits under the questions: bring it into view once it arrives
   // (only there: on a wide screen it sits beside them, kept in view, and scrolling would pull the page away from the
   // question the person was on)
@@ -98,7 +101,9 @@ export function PriceEstimator() {
       .catch(() => { if (live) setDistricts('error') })
     return () => { live = false }
   }, [city, districtsAttempt])
-  const districtList = Array.isArray(districts) ? districts : []
+  const districtList = useMemo(() => (Array.isArray(districts) ? districts : []), [districts])
+  const districtItems = useMemo(() => districtList.map((item) => ({ id: item.id, label: item.name })), [districtList])
+  const cityItems = useMemo(() => cities.map((item) => ({ value: item.en, label: item.ar || item.en })), [cities])
 
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
@@ -122,6 +127,8 @@ export function PriceEstimator() {
       .catch(() => { if (ask === sequence.current) setResult('error') })
   }
   const stale = asked != null && asked.key !== key && result !== 'loading'
+  // the districts the comparables came from, for «أحياء المقارنة»
+  const scopeNames = result && typeof result === 'object' ? (result.scope ?? []).map((item) => item.district_ar).filter((name): name is string => Boolean(name)) : []
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 pb-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:py-10">
@@ -131,16 +138,19 @@ export function PriceEstimator() {
           <p className="mt-1 text-sm leading-7 text-muted-foreground">أجب عن الأسئلة، ونعطيك السعر المتوقع من أقرب العروض الحالية المشابهة لعقارك، مع سبب كل فرق.</p>
         </header>
         <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-sm font-semibold">المدينة
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
-            </select>
-          </label>
+          <div className="flex flex-col gap-1">
+            <span id="price-city" className="text-sm font-semibold">المدينة</span>
+            <Select items={cityItems} value={city} onValueChange={(next) => { if (next) setCity(next as string) }}>
+              <SelectTrigger aria-labelledby="price-city" className="h-11 w-full bg-background text-base"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {cityItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* a city has up to 200 districts: a list that is typed into, not one to scroll */}
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districtList.length} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
-              <option value="">{districts === null ? 'جارٍ التحميل…' : districts === 'error' ? 'تعذر التحميل' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
-              {districtList.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            <SearchSelect items={districtItems} value={district} onChange={setDistrict} disabled={!districtList.length} className="font-normal"
+              placeholder={districts === null ? 'جارٍ التحميل…' : districts === 'error' ? 'تعذر التحميل' : districts.length ? 'اكتب أو اختر الحي' : 'غير متاح'} />
           </label>
         </div>
         {districts === 'error' && <LoadError what="أحياء المدينة" onRetry={() => setDistrictsAttempt((n) => n + 1)} />}
@@ -217,28 +227,24 @@ export function PriceEstimator() {
                 المدى المتوقع: <span className="font-semibold tabular-nums">{numberFormat.format(result.price.low)} – {numberFormat.format(result.price.high)}</span> ريال
               </p>
               <div className="mt-3 h-2 rounded-full bg-gradient-to-l from-primary/80 via-primary/40 to-primary/10" aria-hidden />
-              <p className="mt-3 text-sm text-muted-foreground">
-                <Explained title="كيف حسبناه" lines={[
-                  result.comparables != null
-                    ? `من ${numberFormat.format(result.comparables)} عرضاً حالياً من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).`
-                    : 'من العروض الحالية من النوع نفسه وبمساحة قريبة (من 70% إلى 140% من مساحتك).',
-                  'المدى هو الربع الأدنى والأعلى من سعر المتر في هذه العروض، والوسط وسيطها، مضروبة في مساحتك.',
-                  'ثم نعدّل للفروق التي ثبت أثرها في نموذج عروض شمال الرياض: العمر، وعدد الشوارع، وعرض الشارع، والتأثيث. حقول مثل المكيفات والحوش وغرفة العاملة لا تدخل لأن الإعلانات لا تذكرها بانتظام.',
-                  'أسعار معروضة لا عقود، والعقود عادة أقل بنحو 5–10%.',
-                ]} className="text-sm">
-                  {result.comparables != null ? `من ${numberFormat.format(result.comparables)} عرضاً مشابهاً` : 'من العروض المشابهة'}{result.scope?.some((s) => s.district_ar) ? ` في ${result.scope.map((s) => s.district_ar).filter(Boolean).join('، ')}` : ''}
-                </Explained>
-              </p>
+              {/* the figures behind the price, each the shared Stat: a tap says how it was worked out (lib/explanations.ts),
+                  a figure the answer lacks reads «غير متاح» */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <Stat label="عروض مشابهة" value={result.comparables != null ? numberFormat.format(result.comparables) : null} explain={EXPLAIN.priceEstimate(result.comparables)} />
+                <Stat label="أحياء المقارنة" value={scopeNames.length ? numberFormat.format(scopeNames.length) : null}
+                  explain={scopeNames.length ? [...EXPLAIN.priceScope, scopeNames.join('، ')] : EXPLAIN.priceScope} />
+                <Stat label="سعر المتر لعقارك" value={result.per_sqm ? sar(result.per_sqm.mid) : null} explain={EXPLAIN.pricePerSqm} />
+              </div>
             </div>
 
             <div className="rounded-3xl border bg-card p-5">
               <h2 className="text-base font-bold">لماذا هذا السعر</h2>
               <ul className="mt-2 flex flex-col gap-1.5 text-sm">
-                <li className="flex justify-between gap-2"><span>وسيط سعر المتر في العروض المشابهة</span><span className="font-semibold tabular-nums">{sar(result.comparables_per_sqm!.mid)}</span></li>
+                <li className="flex justify-between gap-2"><span>وسيط سعر المتر في العروض المشابهة</span><span className="font-semibold tabular-nums">{result.comparables_per_sqm ? sar(result.comparables_per_sqm.mid) : <Unavailable />}</span></li>
                 {result.adjustments?.length ? result.adjustments.map((a) => (
                   <li key={a.factor} className="flex justify-between gap-2"><span>{a.label}</span><span dir="ltr" className={cn('font-semibold tabular-nums', a.pct > 0 ? 'text-primary' : 'text-warning')}>{a.pct > 0 ? '+' : ''}{numberFormat.format(a.pct)}%</span></li>
                 )) : <li className="text-muted-foreground">لا تعديل: عقارك مثل المعتاد في العروض المشابهة فيما نقيسه.</li>}
-                <li className="flex justify-between gap-2 border-t pt-1.5"><span className="font-semibold">سعر المتر لعقارك</span><span className="font-bold tabular-nums">{sar(result.per_sqm!.mid)}</span></li>
+                <li className="flex justify-between gap-2 border-t pt-1.5"><span className="font-semibold">سعر المتر لعقارك</span><span className="font-bold tabular-nums">{result.per_sqm ? sar(result.per_sqm.mid) : <Unavailable />}</span></li>
               </ul>
             </div>
 
@@ -251,12 +257,12 @@ export function PriceEstimator() {
                     <li key={item.id} className={cn(!allExamples && index >= PHONE_EXAMPLES && 'max-sm:hidden')}>
                       {/* the photo (or, without one, the type's face) and its figures; the ad one tap away under them */}
                       <div className="flex flex-col gap-1">
-                        {SHOW_LISTING_PHOTOS && item.photo && !brokenPhotos.has(item.photo) ? (
-                          <a href={item.url ?? undefined} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden className="block">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={item.photo} alt="" loading="lazy" decoding="async" onError={() => setBrokenPhotos((current) => new Set(current).add(item.photo!))} className="aspect-square w-full rounded-xl object-cover" />
-                          </a>
-                        ) : <ListingFace size="tile" type={item.type} className="aspect-square rounded-xl" />}
+                        {/* the same photo slot as a results card: the ad's photo as published (a tap opens it full size),
+                            and the type's face when there is none or it fails to load */}
+                        <div className="overflow-hidden rounded-xl">
+                          <Gallery photos={shownPhotos({ photo: item.photo, photos: [] })} className="aspect-square"
+                            fallback={<ListingFace size="tile" type={item.type} className="aspect-square" />} />
+                        </div>
                         <span className="text-sm font-bold tabular-nums">{sar(item.price_sar)}</span>
                         <span className="text-xs text-muted-foreground">{[`${numberFormat.format(item.area_sqm)} م²`, item.beds ? counted(item.beds, 'room') : null, item.district_ar].filter(Boolean).join(' · ')}</span>
                         {item.url

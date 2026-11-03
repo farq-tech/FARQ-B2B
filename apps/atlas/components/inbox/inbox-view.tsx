@@ -126,6 +126,8 @@ export function InboxView() {
         <section aria-label="قائمة الرسائل" className={cn('flex min-w-0 flex-col gap-3', selected && 'hidden lg:flex')}>
           <p id="inbox-keys" className="sr-only">تنقّل بين الرسائل بالسهمين لأعلى ولأسفل، واضغط Enter لفتح الرسالة.</p>
           {/* one row that scrolls if it must, never a second row that pushes the list down; padding keeps focus rings whole */}
+          {/* the filters stay under the app bar while a long list scrolls */}
+          <div className="sticky top-16 z-20 -mx-4 bg-background/90 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/75 lg:mx-0 lg:px-0">
           <ChipRow label="تصفية الوارد" className="max-w-none gap-1.5 px-0.5 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((f) => (
               <Chip key={f.id} active={filter === f.id} onClick={() => setParams({ f: f.id })} className="px-2.5">
@@ -134,6 +136,7 @@ export function InboxView() {
               </Chip>
             ))}
           </ChipRow>
+          </div>
 
           {visible.length === 0 ? (
             <EmptyState icon={InboxIcon} title="لا رسائل في هذا التصنيف" body="اختر «الكل» لترى كل الوارد."
