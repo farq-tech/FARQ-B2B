@@ -6,7 +6,10 @@ import { AdvisorPanel } from '../advisor-panel'
 import { figure } from '../advisor-facts'
 import { counted } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
-import { districtsVerdict, type DistrictFigure } from './tool-answers'
+import { districtsVerdict, sparseLine, type DistrictFigure, type VerdictText } from './tool-answers'
+
+/** The pair's verdict with a sparsely settled district said in its caution. */
+const withSparse = (verdict: VerdictText | null, line: string | null) => (verdict && line ? { ...verdict, caution: [verdict.caution, line].filter(Boolean).join(' ') } : verdict)
 import { RELIABLE_LISTINGS } from '../lenses'
 import { Verdict } from './verdict'
 
@@ -60,7 +63,7 @@ export function CompareTool({ rows, selected }: { rows: DistrictRow[]; selected:
   }))
   return (
     <div className="flex flex-col gap-3">
-      <Verdict verdict={districtsVerdict([a.name, b.name], figures)} />
+      <Verdict verdict={withSparse(districtsVerdict([a.name, b.name], figures), sparseLine([a.name, b.name], [a.settledPct, b.settledPct]))} />
       <AdvisorPanel key={selected.map((row) => row.id).join('|')} subject={{ kind: 'districts', rows: selected }} rows={rows} />
     </div>
   )

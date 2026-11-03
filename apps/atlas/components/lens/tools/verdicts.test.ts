@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  areaLine, aroundOf, attractionScores, rankLightAround, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
+  areaLine, aroundOf, attractionScores, rankGapsAround, rankLightAround, sparseLine, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
   districtsVerdict, pairsVerdict, populationKind, siteCardVerdict, sitesVerdict, territoriesVerdict, weekFitHint, THIN, type VerdictText,
 } from './tool-answers.ts'
+import { gapsSummary } from './gaps-summary.ts'
+import { counted } from '../../../lib/insights-api.ts'
 
 const metres = (value: number) => `${value} م`
 /** Every verdict is English digits and «%», never Hindi digits, «٪» or a bare 0 standing for a missing figure. */
@@ -312,7 +314,7 @@ test('the lightest competition counts the neighbours: none inside but a crowded 
   // هادئ with جاره: 35,000 people for 3 competitors (11,667 each), far lighter than وادي لبن's 532,500 for 668 (797);
   // within one area the district with fewer of its own comes first
   assert.deepEqual(ranked.map((item) => item.row.id), ['جاره', 'هادئ', 'وادي لبن', 'ظهرة لبن', 'طويق'])
-  assert.deepEqual(ranked[0].area, { districts: 2, residents: 35000, competitors: 3 })
+  assert.deepEqual({ ...ranked[0].area, ratio: Math.round(ranked[0].area!.ratio!) }, { districts: 2, residents: 35000, competitors: 3, ratio: 11667, small: false, weighted: false })
   assert.equal(areaLine(ranked[0].area), 'مع جواره: 11,667 ساكن لكل منافس')
   assert.equal(areaLine({ districts: 3, residents: 9000, competitors: 0 }), 'لا منافس فيه ولا في جواره')
   // without outlines: the plain ranking, no area
@@ -320,6 +322,9 @@ test('the lightest competition counts the neighbours: none inside but a crowded 
   const verdict = competitorsVerdict(ranked, 'light', 'صيدلية', 1000, 1000)!
   assert.equal(verdict.lead, 'أخف منافسة على «صيدلية» مع جواره: جاره')
   assert.equal(verdict.why[0], 'هو وجواره (حيّان): 11,667 ساكن لكل منافس (35,000 ساكن، 3 منشآت).')
+  // weighted by nearness: the order changes, the figure said is the plain one
+  const near = rankLightAround(table, neighbours, () => 6)
+  assert.match(competitorsVerdict(near, 'light', 'صيدلية', 1000, 1000)!.why[0], /11,667 ساكن لكل منافس \(35,000 ساكن، 3 منشآت\)، والترتيب يحسب الجار الأقرب أكثر\.$/)
 })
 
 test('a district settled over under half of its area is said, with the share', () => {
@@ -351,4 +356,57 @@ test('an area of estimated people reads in whole people, never «6,245.637 سا�
   assert.equal(verdict.why[1], 'لا منافس فيه، وفيه 3,795 ساكن.')
   assert.ok(!verdict.why.some((line) => line.startsWith('ولا منافس في الأحياء المجاورة')), 'the neighbours are said once')
   assert.doesNotMatch(JSON.stringify(verdict), /\d\.\d{2}/)
+})
+
+test('a small area goes after the others, and a far neighbour counts less than one next door', () => {
+  const at = (id: string, population: number, competitors: number) => ({ row: { id, name: id, population }, competitors, perKm2: null })
+  // الزاهر as served: 3,795 people, five quiet neighbours, 6,246 in all and no pharmacy: after a real area
+  const table = [at('الزاهر', 3795, 0), at('جار', 2451, 0), at('كبير', 40000, 2), at('بعيد', 60000, 30), at('قريب', 60000, 30)]
+  const neighbours = new Map([['الزاهر', new Set(['جار'])], ['جار', new Set(['الزاهر'])], ['كبير', new Set(['بعيد'])], ['بعيد', new Set(['كبير'])], ['قريب', new Set<string>()]])
+  const plain = rankLightAround(table, neighbours)
+  assert.deepEqual(plain.map((item) => item.row.id).slice(-2), ['الزاهر', 'جار'], 'under 10,000 residents in all: last')
+  assert.equal(areaLine(plain.at(-1)!.area), 'لا منافس فيه ولا في جواره، منطقة قليلة السكان')
+  // كبير's crowded neighbour بعيد is 12 km off: weighted by 1 ÷ (1 + 12 ÷ 3) it counts a fifth
+  const far = rankLightAround(table, neighbours, (a, b) => ((a === 'كبير' && b === 'بعيد') || (a === 'بعيد' && b === 'كبير') ? 12 : 1))
+  const big = far.find((item) => item.row.id === 'كبير')!
+  assert.equal(Math.round(big.area!.ratio!), Math.round((40000 + 60000 / 5) / (2 + 30 / 5)))
+  assert.ok(big.area!.ratio! > (40000 + 60000) / 32, 'nearer weighting lightens it against the plain sum')
+  assert.equal(big.area!.weighted, true)
+  assert.deepEqual([big.area!.residents, big.area!.competitors], [100000, 32], 'the counts said are the plain sums')
+})
+
+test('the gaps top reorders by the gap net of the surplus next door, and the peek line follows', () => {
+  const row = (name: string, businesses: number, expected: number, caveat: 'industrial' | null = null) => ({ district_ar: name, businesses, expected_businesses: expected, shortfall: expected - businesses, caveat })
+  // ظهرة لبن 96 short with 73 surplus next door (net 23); الملك عبدالعزيز 68 short with none next door
+  const short = [row('ظهرة لبن', 236, 332), row('الملك عبدالعزيز', 11, 79), row('المصانع', 0, 100, 'industrial')]
+  const surplus: Record<string, { districts: number; total: number; top: { name: string; n: number } | null }> = {
+    'ظهرة لبن': { districts: 6, total: 73, top: { name: 'طويق', n: 37 } }, 'الملك عبدالعزيز': { districts: 4, total: 0, top: null },
+  }
+  const ranked = rankGapsAround(short, (r) => surplus[r.district_ar] ?? null)
+  // shared: ظهرة لبن's neighbours each border six districts, so a sixth of their surplus serves it (73 ÷ 6 ≈ 12)
+  const shared = rankGapsAround(short, (r) => surplus[r.district_ar] ?? null, 10, (r) => (surplus[r.district_ar]?.total ?? 0) / 6)
+  assert.deepEqual(shared.map((r) => [r.district_ar, r.net ?? null]), [['ظهرة لبن', 84], ['الملك عبدالعزيز', 68], ['المصانع', null]])
+  assert.deepEqual(ranked.map((r) => [r.district_ar, r.net ?? null]), [['الملك عبدالعزيز', 68], ['ظهرة لبن', 23], ['المصانع', null]])
+  const verdict = gapsVerdict(ranked, 'صيدلية', 716, 'measured', ranked[0].around, true)!
+  assert.equal(verdict.lead, 'أكبر نقص في «صيدلية» مع حساب الجوار: الملك عبدالعزيز، ينقصه 68 منشأة')
+  const second = gapsVerdict(ranked.slice(1), 'صيدلية', 716, 'measured', ranked[1].around)!
+  assert.ok(second.why.includes('صافي نقصه بعد فائض جواره: 23 منشأة.'))
+  assert.equal(gapsSummary({ residents_per_business: 716, districts: short }, counted, ranked[0]), 'الأعلى مع جواره: الملك عبدالعزيز بنقص 68 منشأة · 3 أحياء فيها نقص')
+  assert.equal(gapsSummary({ residents_per_business: 716, districts: short }, counted), 'الأعلى: ظهرة لبن بنقص 96 منشأة · 3 أحياء فيها نقص')
+})
+
+test('a pair with a sparsely settled district says it', () => {
+  assert.equal(sparseLine(['وادي لبن', 'النرجس'], [42, 78]), 'وادي لبن مأهول في 42% من مساحته فقط، فسكانه في جزء منه.')
+  assert.equal(sparseLine(['أ', 'ب'], [88, null]), null)
+})
+
+test('round E review: half the market is half, a near-empty district is never the lightest, a campus is tagged, shops per 100 m read once', () => {
+  // Riyadh pharmacies as served: 5,255 of 10,575 in chains, 49.7%
+  assert.equal(brandsVerdict({ total: 10575, chains: 430, in_chains: 5255, brands: [{ brand: 'صيدلية النهدي', branches: 733, districts: 100 }] })!.lead, 'السلاسل تملك نصف السوق تقريباً: 50%')
+  // الدانة: 1 resident from a grid, inside a populous neighbourhood: after the real districts
+  const at = (id: string, population: number, competitors: number) => ({ row: { id, name: id, population }, competitors, perKm2: null })
+  const ranked = rankLightAround([at('الدانة', 1, 0), at('كبير', 40000, 0), at('جار', 30000, 3)], new Map([['الدانة', new Set(['كبير'])], ['كبير', new Set(['الدانة', 'جار'])], ['جار', new Set(['كبير'])]]))
+  assert.equal(ranked.at(-1)!.row.id, 'الدانة')
+  assert.equal(caveatTag({ caveat: 'campus' }), 'حرم مغلق له خدماته')
+  assert.equal(corridorVerdict([{ street_ar: 'شارع بلال بن رباح', n: 70, per_100m: 5.99, road_class: 'main' }], 'صيدلية')!.why[0], '70 محلاً منه، 6 لكل 100 م، على شارع رئيسي.')
 })

@@ -1,4 +1,4 @@
-import { numberFormat } from '../../lib/insights-api.ts'
+import { counted, numberFormat } from '../../lib/insights-api.ts'
 import type { DistrictRow } from './city-data'
 
 /** One figure the comparison assistant is given: its label and the value as shown, «غير متاح» when missing. */
@@ -13,7 +13,12 @@ export const figure = (value: number | null | undefined, unit = '') => (value ==
  * the line sent to the assistant and the table under «الأرقام التي يقارن بها», so the two can never disagree.
  */
 export function districtPairs(row: Pick<DistrictRow, 'population' | 'businesses' | 'residentsPerBusiness' | 'income' | 'villaShare' | 'underConstruction' | 'realEstate'>): Fact[] {
-  const median = (key: string) => figure(row.realEstate[key]?.median, ' ريال')
+  // a listing median with the ads it rests on («900 ريال من 25 عرضاً»), as the pair's summary reads it
+  const median = (key: string) => {
+    const value = figure(row.realEstate[key]?.median, ' ريال')
+    const listings = row.realEstate[key]?.listings
+    return value !== UNAVAILABLE && listings ? `${value} من ${counted(listings, 'listing')}` : value
+  }
   return [
     { label: 'السكان', value: figure(row.population) },
     { label: 'المنشآت', value: figure(row.businesses) },

@@ -196,7 +196,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
                   <Explained title={`${corridor.street_ar} · ${corridor.sub_ar}`} lines={EXPLAIN.corridor(corridor)} className="text-end">
                     <span>
                       <span className="block font-bold text-primary">{counted(corridor.n, 'shop')}</span>
-                      <span className="block text-sm text-muted-foreground">{numberFormat.format(corridor.per_100m)} لكل 100 م</span>
+                      <span className="block text-sm text-muted-foreground">{numberFormat.format(Math.round(corridor.per_100m * 10) / 10)} لكل 100 م</span>
                     </span>
                   </Explained>
                 )} />
