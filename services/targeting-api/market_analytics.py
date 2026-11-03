@@ -4,6 +4,10 @@ All aggregates follow the directory's open-record policy. Activity-filtered
 counts use the same high/medium row-level taxonomy confidence as map discovery.
 This module returns aggregates only, never contact or business-identifying fields.
 """
+import collections
+import contextlib
+import copy
+import json
 import os
 from collections import Counter
 import threading
@@ -30,6 +34,7 @@ MAX_SUB_IDS = 50
 MAX_DISTRICTS = 30
 MAX_SPECIALTY_IDS = 20
 MAX_TEXT = 120
+RESULT_CACHE_SIZE = 512   # remembered aggregate answers (MarketAnalytics._remembered)
 
 # Keep aggregate counts aligned with directory_tiles contact=whatsapp. A record needs
 # both the source marker and a mobile number in a supported Saudi representation.
@@ -363,8 +368,14 @@ def street_density_district_sql(columns):
 class MarketAnalytics:
     def __init__(self, directory_tiles, street_density=None):
         self.tiles = directory_tiles
-        self.lock = directory_tiles.lock
-        self.db = directory_tiles.db
+        # Each request thread queries through its own cursor on the shared in-memory database (duckdb: one cursor per
+        # thread), so aggregates run side by side instead of queueing behind one lock past Atlas's 12 s proxy limit.
+        # `lock` stays as a no-op so the query blocks read the same; the tiles keep their own lock for their caches.
+        self._root = directory_tiles.db
+        self._local = threading.local()
+        self.lock = contextlib.nullcontext()
+        self._results = collections.OrderedDict()
+        self._results_lock = threading.Lock()
         # Aggregates read the same (canonical) directory copy the tiles serve, never the mounted file directly.
         self.data = getattr(directory_tiles, "path", None) or DATA
         self.street_density = street_density or STREET_DENSITY
@@ -372,6 +383,32 @@ class MarketAnalytics:
         self._taxonomy_lock = threading.Lock()
         self._specialty_column = None
         self._specialty_column_lock = threading.Lock()
+
+    @property
+    def db(self):
+        cursor = getattr(self._local, "cursor", None)
+        if cursor is None:
+            cursor = self._local.cursor = self._root.cursor()
+        return cursor
+
+    def _remembered(self, name, body, compute):
+        """The release is read-only while the service runs, so the same question gets the same answer: the city-wide
+        aggregates every visitor asks on opening the map are computed once. Copies in and out, so a caller that
+        enriches the answer never edits the stored one."""
+        try:
+            key = (name, json.dumps(body, sort_keys=True, ensure_ascii=False))
+        except (TypeError, ValueError):
+            return compute()
+        with self._results_lock:
+            if key in self._results:
+                self._results.move_to_end(key)
+                return copy.deepcopy(self._results[key])
+        result = compute()
+        with self._results_lock:
+            self._results[key] = copy.deepcopy(result)
+            while len(self._results) > RESULT_CACHE_SIZE:
+                self._results.popitem(last=False)
+        return result
 
     def _tx(self):
         if self._taxonomy is None:
@@ -572,6 +609,9 @@ class MarketAnalytics:
         return {"labels": labels[:4], "more": max(0, len(labels) - 4)}
 
     def district_counts(self, body):
+        return self._remembered('district_counts', body, lambda: self._district_counts(body))
+
+    def _district_counts(self, body):
         city, subs, where, params, specialty_available, bounds = self._where(body)
         query = f"""
             select p.district_ar, count(distinct p.poi_key) n,
@@ -617,6 +657,9 @@ class MarketAnalytics:
             return self.db.execute(f"select distinct {self._brand_sql()} from read_parquet(?) p where {where}", params).fetchall()
 
     def brands(self, body, population=None, history=None):
+        return self._remembered('brands', body, lambda: self._brands(body, population, history))
+
+    def _brands(self, body, population=None, history=None):
         """Chains of an activity in a city (see _group_chains): a brand counts as a chain from `min_branches` locations
         (default 3). Returns the chains ranked by locations, each with the districts it covers and its whole-city
         branches then and now when the directory history has an older snapshot; how much of the activity chains hold;
@@ -760,6 +803,9 @@ class MarketAnalytics:
         return {"ok": True, "city": city, "radius_km": NEAR_RADIUS_KM, "places": groups, "anchors": anchors, "basis": NEAR_BASIS}
 
     def market_gaps(self, body, population):
+        return self._remembered('market_gaps', body, lambda: self._market_gaps(body, population))
+
+    def _market_gaps(self, body, population):
         """Districts where an activity has fewer directory businesses than its residents would carry at the
         city's own rate. `population` maps a canonical district name to {"population", "male", "female"}.
 
@@ -935,6 +981,9 @@ class MarketAnalytics:
         }
 
     def market_summary(self, body):
+        return self._remembered('market_summary', body, lambda: self._market_summary(body))
+
+    def _market_summary(self, body):
         city, subs, where, params, specialty_available, bounds = self._where(body)
         aggregate = f"""
             select count(distinct p.poi_key) total,
