@@ -24,6 +24,7 @@ import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { MapOnboarding } from './map-onboarding'
 import { SavedComparisons, SavedList } from './saved-comparisons'
 import { GroupCard } from './group-card'
+import { OfficesRequest, VALUERS } from '@/components/shared/offices-request'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { districtAt } from '@/lib/geo-measure'
@@ -1079,7 +1080,16 @@ export function LensMap() {
     if (id === 'homes' && leadOf) {
       // the deal and the type the step is showing, from its own first listing, so the price page asks only the rest
       const shown = stepListings.find((listing) => listing.district_id === leadOf.id) ?? stepListings[0]
-      return <NextAction icon={Calculator} href={priceStartHref({ city, district: leadOf.id, deal: shown?.deal ?? null, type: shown?.type ?? null })}>سعّر عقاراً في {leadOf.name}</NextAction>
+      const price = <NextAction icon={Calculator} href={priceStartHref({ city, district: leadOf.id, deal: shown?.deal ?? null, type: shown?.type ?? null })}>سعّر عقاراً في {leadOf.name}</NextAction>
+      if (lens !== 'property' || !shown?.deal || shown.deal === 'rent_unstated') return price
+      // a property seeker asks the district's offices for offers like the step's (a buyer its valuers too): the same
+      // reviewed draft as the price page, nothing sent
+      const asked = { city, districtName: leadOf.name, deal: shown.deal, kind: shown.type }
+      return <>
+        {price}
+        <OfficesRequest compact className="" cityName={cityName} asked={asked} />
+        {shown.deal === 'sale' && <OfficesRequest compact className="" cityName={cityName} asked={asked} to={VALUERS} />}
+      </>
     }
     if (id === 'around' && overlay.sites?.length) return <>
       <NextAction icon={ArrowLeft} onClick={() => [...document.querySelectorAll('article h3')].find((title) => title.textContent?.startsWith('بطاقة الموقع'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>بطاقة الموقع</NextAction>

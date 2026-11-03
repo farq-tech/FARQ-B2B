@@ -249,6 +249,13 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
           </div>
         )}
         {/* the next questions about this listing, each opening its page on this listing's own facts */}
+        {/* a listing the price page cannot price (a shop, an office): «like this» goes straight to the district's offices,
+            in a reviewed draft that names this listing and its asking price */}
+        {!priced && listing.deal && listing.deal !== 'rent_unstated' && listing.district_ar && (
+          <OfficesRequest compact className="" cityName={cityName}
+            asked={{ city: listing.city, districtName: listing.district_ar, deal: listing.deal, kind: listing.type, area: listing.area_sqm ? Math.round(listing.area_sqm) : null }}
+            fromListing={{ id: listing.id, ask: listing.price_sar }} />
+        )}
         {(priced || districtHref) && (
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {priced && (
