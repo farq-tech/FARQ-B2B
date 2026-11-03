@@ -184,7 +184,7 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
       {/* the example being studied is marked, as in «المنافسون» and «شوارع النشاط»; once chosen they fold away */}
-      <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen} onPick={(example) => { setQuery(example); study(example) }} />
+      <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen && verdict != null} onPick={(example) => { setQuery(example); study(example) }} />
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
       {status === 'error' && (
         <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."

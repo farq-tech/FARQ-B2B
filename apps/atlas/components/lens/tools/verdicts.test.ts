@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  aroundOf, attractionScores, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
+  areaLine, aroundOf, attractionScores, rankLightAround, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
   districtsVerdict, pairsVerdict, populationKind, siteCardVerdict, sitesVerdict, territoriesVerdict, weekFitHint, THIN, type VerdictText,
 } from './tool-answers.ts'
 
@@ -149,7 +149,7 @@ test('the sites verdict names the most attractive site and why, or that two are 
   assert.deepEqual(sitesVerdict(half, attractionScores(half), true), { lead: 'الموقع 1 هو الأجذب: 100 من 100', why: ['سكان أكثر (48,210)، منافسة أخف.'], caution: 'الدرجة من السكان والمنافسة فقط: الموقع 1 (دخل حيه غير متاح).' })
   // nothing shared: no score, and each missing factor named
   const apart = [site(1, null, 9000, null), site(2, 60000, null, 6)]
-  assert.deepEqual(sitesVerdict(apart, attractionScores(apart), false), { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['لا عامل من الثلاثة متاح للمواقع كلها.'], caution: 'بلا درجة: الموقع 1 (السكان غير متاح)، الموقع 2 (حصة الفلل في حيه غير متاح).' })
+  assert.deepEqual(sitesVerdict(apart, attractionScores(apart), false), { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['لا عامل مختار متاح للمواقع كلها.'], caution: 'بلا درجة: الموقع 1 (السكان غير متاح)، الموقع 2 (حصة الفلل في حيه غير متاح).' })
   assert.equal(sitesVerdict([], none, true), null)
   // the best site trailing on one factor says so
   const mixed = [site(1, 50000, 20000, 1), site(2, 100000, 8000, 4)]
@@ -298,4 +298,57 @@ test('a gap row listed last for its estimated population is tagged with how litt
   assert.equal(caveatTag({ caveat: 'workers', male_pct: 98.6 }), '99% من سكانه رجال')
   assert.equal(caveatTag({ caveat: 'industrial' }), 'منطقة صناعية')
   assert.equal(caveatTag({ caveat: null }), null)
+})
+
+test('the lightest competition counts the neighbours: none inside but a crowded edge no longer leads', () => {
+  const at = (id: string, population: number | null, competitors: number) => ({ row: { id, name: id, population }, competitors, perKm2: null })
+  // وادي لبن as served: 0 inside, 11,900 people; طويق and ظهرة لبن across its edge; a quiet pair far away
+  const table = [at('وادي لبن', 11900, 0), at('طويق', 282800, 432), at('ظهرة لبن', 237800, 236), at('هادئ', 20000, 2), at('جاره', 15000, 1), at('بلا سكان', null, 0)]
+  const neighbours = new Map([
+    ['وادي لبن', new Set(['طويق', 'ظهرة لبن'])], ['طويق', new Set(['وادي لبن', 'ظهرة لبن'])], ['ظهرة لبن', new Set(['وادي لبن', 'طويق'])],
+    ['هادئ', new Set(['جاره'])], ['جاره', new Set(['هادئ'])], ['بلا سكان', new Set<string>()],
+  ])
+  const ranked = rankLightAround(table, neighbours)
+  // هادئ with جاره: 35,000 people for 3 competitors (11,667 each), far lighter than وادي لبن's 532,500 for 668 (797);
+  // within one area the district with fewer of its own comes first
+  assert.deepEqual(ranked.map((item) => item.row.id), ['جاره', 'هادئ', 'وادي لبن', 'ظهرة لبن', 'طويق'])
+  assert.deepEqual(ranked[0].area, { districts: 2, residents: 35000, competitors: 3 })
+  assert.equal(areaLine(ranked[0].area), 'مع جواره: 11,667 ساكن لكل منافس')
+  assert.equal(areaLine({ districts: 3, residents: 9000, competitors: 0 }), 'لا منافس فيه ولا في جواره')
+  // without outlines: the plain ranking, no area
+  assert.deepEqual(rankLightAround(table, null).map((item) => [item.row.id, item.area]).slice(0, 1), [['وادي لبن', null]])
+  const verdict = competitorsVerdict(ranked, 'light', 'صيدلية', 1000, 1000)!
+  assert.equal(verdict.lead, 'أخف منافسة على «صيدلية» مع جواره: جاره')
+  assert.equal(verdict.why[0], 'هو وجواره (حيّان): 11,667 ساكن لكل منافس (35,000 ساكن، 3 منشآت).')
+})
+
+test('a district settled over under half of its area is said, with the share', () => {
+  const row = { row: { id: 'و', name: 'وادي لبن', population: 11900, settledPct: 42 }, competitors: 0, perKm2: null }
+  assert.match(competitorsVerdict([row], 'light', 'صيدلية', 100, 100)!.caution!, /وادي لبن مأهول في 42% من مساحته فقط/)
+  assert.equal(competitorsVerdict([{ ...row, row: { ...row.row, settledPct: 88 } }], 'light', 'صيدلية', 100, 100)!.caution, null)
+  assert.equal(THIN.sparse, 50)
+})
+
+test('a factor the visitor dropped is said as their choice, apart from one a site lacks', () => {
+  const site = (id: number, audience: number | null, spending: number | null, density: number | null) => ({ id, label: String(id), audience, spending, density, population: audience })
+  // site 2 has no income, and the visitor dropped income: nothing is missing, the choice is said
+  const sites = [site(1, 48210, 9000, 3), site(2, 31950, null, 6)]
+  const dropped = sitesVerdict(sites, attractionScores(sites, ['audience', 'density']), true)!
+  assert.equal(dropped.caution, null)
+  assert.equal(dropped.why[1], 'بلا دخل الحي باختيارك.')
+  // the visitor dropped population, and site 2 lacks income they kept: both said, each in its place
+  const both = sitesVerdict(sites, attractionScores(sites, ['spending', 'density']), true)!
+  assert.equal(both.caution, 'الدرجة من المنافسة فقط: الموقع 2 (دخل حيه غير متاح).')
+  assert.equal(both.why[1], 'بلا السكان باختيارك.')
+  assert.equal(sitesVerdict(sites, attractionScores(sites), true)!.why.length, 1, 'nothing dropped: no choice line')
+})
+
+test('an area of estimated people reads in whole people, never «6,245.637 ساكن»', () => {
+  // الزاهر as served: 3,795 people and five quiet neighbours, some of them grid estimates with fractions
+  const row = { row: { id: 'ز', name: 'الزاهر', population: 3795.4 }, competitors: 0, perKm2: null, area: { districts: 6, residents: 6245.637, competitors: 0 } }
+  const verdict = competitorsVerdict([row], 'light', 'صيدلية', 100, 100, { districts: 5, total: 0, top: null })!
+  assert.equal(verdict.why[0], 'لا منافس فيه ولا في الأحياء المجاورة (5)، وفيها 6,246 ساكن.')
+  assert.equal(verdict.why[1], 'لا منافس فيه، وفيه 3,795 ساكن.')
+  assert.ok(!verdict.why.some((line) => line.startsWith('ولا منافس في الأحياء المجاورة')), 'the neighbours are said once')
+  assert.doesNotMatch(JSON.stringify(verdict), /\d\.\d{2}/)
 })

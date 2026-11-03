@@ -172,8 +172,10 @@ export type VerdictText = { lead: string; why: string[]; caution?: string | null
  * - `rentSample`: a street median from under 10 ads (lenses.RELIABLE_LISTINGS).
  * - `nextDoor`: a district with no competitor whose neighbours hold at least 10 is said to be served from next door
  *   (وادي لبن: none inside, 240 in ظهرة لبن across its edge).
+ * - `sparse`: a district the population grid holds as settled over under half of its cells (golden settled_pct):
+ *   وادي لبن 42%, النظيم 40%, الحائر 28% in Riyadh; three in four Riyadh districts are settled over 88% or more.
  */
-export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10 } as const
+export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10, sparse: 50 } as const
 
 /** What the districts around one district hold, summed from the same answer as the list (its neighbours by outline). */
 export type Around = { districts: number; total: number; top: { name: string; n: number } | null }
@@ -238,7 +240,7 @@ export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerB
  * populated district where it is lightest (none at all first). Thin data is said: a city count of which under nine in
  * ten fell in a known district, so the districts' counts are under the whole.
  */
-export function competitorsVerdict<T extends CompetitorRow & { row: { name: string; population: number | null; populationSource?: string | null }; residentsPer?: number | null }>(
+export function competitorsVerdict<T extends CompetitorRow & { row: { name: string; population: number | null; populationSource?: string | null; settledPct?: number | null }; residentsPer?: number | null; area?: AroundArea | null }>(
   ranked: T[], order: 'dense' | 'light', label: string, cityTotal: number | null, located: number | null,
   /** The top district's neighbours by outline: how many competitors they hold together, and the most. */
   around: Around | null = null,
@@ -256,20 +258,29 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
     }
   }
   const empty = ranked.filter((item) => item.competitors === 0).length
-  const people = top.row.population != null ? `${n(top.row.population)} ساكن` : null
-  const nextDoor = top.competitors === 0 && around != null && around.total >= THIN.nextDoor
+  const people = top.row.population != null ? `${n(Math.round(top.row.population))} ساكن` : null
+  const nextDoor = top.competitors === 0 && around != null && around.total >= THIN.nextDoor && !top.area
+  const sparse = top.row.settledPct != null && top.row.settledPct < THIN.sparse
   const cautions = [
     caution,
+    sparse ? `${top.row.name} مأهول في ${n(top.row.settledPct!)}% من مساحته فقط، فسكانه في جزء منه وكثافة منافسيه لكل كم² تبدو أخف مما هي.` : null,
     nextDoor ? 'لا منافس داخل حدوده، لكن منافسي الأحياء المجاورة قريبون منه ويخدمون سكانه أيضاً.' : null,
     populationKind(top.row.populationSource) === 'grid' ? estimatedLine(top.row.name, 'خفة المنافسة فيه بعدد سكانه تقريبية') : null,
   ].filter(Boolean)
+  // ranked with its neighbours (rankLightAround): the area's residents per competitor leads, the district's own after
+  const area = top.area
+  const areaLine = area == null ? []
+    : area.competitors === 0 ? [`لا منافس فيه ولا في الأحياء المجاورة (${n(area.districts - 1)})، وفيها ${n(Math.round(area.residents))} ساكن.`]
+      : [`هو وجواره (${counted(area.districts, 'district')}): ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس (${n(Math.round(area.residents))} ساكن، ${counted(area.competitors, 'business')}).`]
   return {
-    lead: `أخف منافسة على «${label}»: ${top.row.name}`,
+    lead: `أخف منافسة على «${label}»${area ? ' مع جواره' : ''}: ${top.row.name}`,
     why: [
+      ...areaLine,
       top.competitors === 0
         ? `لا منافس فيه${people ? `، وفيه ${people}` : ''}.`
         : [`${counted(top.competitors, 'business')} فقط`, density(top), people].filter(Boolean).join(' · ') + '.',
-      ...(around && around.districts > 0 ? [around.total
+      // the area line already sums the neighbours; the plain list (no outlines) names them here
+      ...(around && around.districts > 0 && !area ? [around.total
         ? `حوله: ${counted(around.total, 'business')} في الأحياء المجاورة (${n(around.districts)})${around.top ? `، أكثرها ${around.top.name} (${n(around.top.n)})` : ''}.`
         : `ولا منافس في الأحياء المجاورة له (${n(around.districts)}).`] : []),
       ...(empty > 1 ? [`${counted(empty, 'district')} مأهولة بلا أي منافس، والأكثر سكاناً أولاً.`] : []),
@@ -341,11 +352,12 @@ const FACTORS: Factor[] = ['audience', 'spending', 'density']
  * factors every site has (`factors`), so one district without a published income no longer leaves every site without
  * a score: the verdict says the score rests on the other two. It needs two sites and one shared factor.
  */
-export function attractionScores(sites: SiteFactors[], chosen: readonly Factor[] = FACTORS): { scores: Map<number, number>; factors: Factor[] } {
+export function attractionScores(sites: SiteFactors[], chosen: readonly Factor[] = FACTORS): { scores: Map<number, number>; factors: Factor[]; dropped: Factor[] } {
   const scores = new Map<number, number>()
   // the factors the visitor kept (all three by default), of those every site has
   const factors = FACTORS.filter((factor) => chosen.includes(factor) && sites.every((site) => site[factor] != null))
-  if (sites.length < 2 || !factors.length) return { scores, factors: [] }
+  const dropped = FACTORS.filter((factor) => !chosen.includes(factor))
+  if (sites.length < 2 || !factors.length) return { scores, factors: [], dropped }
   const values = (factor: Factor) => sites.map((site) => site[factor]!)
   const top: Record<Factor, number> = {
     audience: factors.includes('audience') ? Math.max(...values('audience')) : 0,
@@ -360,7 +372,7 @@ export function attractionScores(sites: SiteFactors[], chosen: readonly Factor[]
     })
     scores.set(site.id, Math.round(parts.reduce((sum, part) => sum + part, 0) / parts.length))
   }
-  return { scores, factors }
+  return { scores, factors, dropped }
 }
 
 export const factorWord = (factor: Factor, byIncome: boolean) => (factor === 'audience' ? 'السكان' : factor === 'spending' ? (byIncome ? 'دخل الحي' : 'حصة الفلل') : 'المنافسة')
@@ -370,28 +382,32 @@ export const factorWord = (factor: Factor, byIncome: boolean) => (factor === 'au
  * top two are level (within 3 points). A site without a score says which factor it is missing. The population quoted
  * is the service's figure in the table, so the reason reads what the visitor sees.
  */
-export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], attraction: { scores: Map<number, number>; factors: Factor[] }, byIncome: boolean): VerdictText | null {
+export function sitesVerdict(sites: (SiteFactors & { label: string; population: number | null })[], attraction: { scores: Map<number, number>; factors: Factor[]; dropped?: Factor[] }, byIncome: boolean): VerdictText | null {
   const { scores, factors } = attraction
+  const dropped = attraction.dropped ?? []
+  // a factor the visitor left out is their choice, said as such; only a factor they kept and a site lacks is «غير متاح»
+  const choice = dropped.length ? [`بلا ${names(dropped.map((factor) => factorWord(factor, byIncome)))} باختيارك.`] : []
+  const kept = (factor: Factor) => !dropped.includes(factor)
   if (sites.length === 0) return null
   if (sites.length === 1) return { lead: 'أضف موقعاً ثانياً لتعرف أيهما أجذب', why: ['اضغط على الخريطة في مكان آخر، فيُقاس بالنطاق نفسه.'] }
   // a factor one site lacks is left out of every site's score, and said: «الدرجة من السكان والمنافسة فقط»
   const missing = sites.flatMap((site) => {
-    const what = site.audience == null ? 'السكان' : site.spending == null ? (byIncome ? 'دخل حيه' : 'حصة الفلل في حيه') : site.density == null ? 'كثافة المنشآت' : null
+    const what = kept('audience') && site.audience == null ? 'السكان' : kept('spending') && site.spending == null ? (byIncome ? 'دخل حيه' : 'حصة الفلل في حيه') : kept('density') && site.density == null ? 'كثافة المنشآت' : null
     return what ? [`الموقع ${site.label} (${what} غير متاح)`] : []
   })
   const caution = !missing.length ? null
     : factors.length ? `الدرجة من ${names(factors.map((factor) => factorWord(factor, byIncome)))} فقط: ${missing.join('، ')}.`
       : `بلا درجة: ${missing.join('، ')}.`
   const scored = sites.filter((site) => scores.has(site.id)).sort((a, b) => scores.get(b.id)! - scores.get(a.id)!)
-  if (scored.length < 2) return { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['لا عامل من الثلاثة متاح للمواقع كلها.'], caution }
+  if (scored.length < 2) return { lead: 'جاذبية المواقع غير متاحة للمقارنة', why: ['لا عامل مختار متاح للمواقع كلها.', ...choice], caution }
   const [best, second] = scored
   const gap = scores.get(best.id)! - scores.get(second.id)!
   if (gap <= THIN.level) {
-    return { lead: `الموقعان ${best.label} و${second.label} متقاربان: ${n(scores.get(best.id)!)} و${n(scores.get(second.id)!)} من 100`, why: ['الفرق أصغر من أن يحسم وحده: قارن المنافسين في بطاقة كل موقع.'], caution }
+    return { lead: `الموقعان ${best.label} و${second.label} متقاربان: ${n(scores.get(best.id)!)} و${n(scores.get(second.id)!)} من 100`, why: ['الفرق أصغر من أن يحسم وحده: قارن المنافسين في بطاقة كل موقع.', ...choice], caution }
   }
   return {
     lead: `الموقع ${best.label} هو الأجذب: ${n(scores.get(best.id)!)} من 100`,
-    why: [siteReasons(scored, factors, byIncome).get(best.id) ?? 'لا يتقدم في عامل واحد.'],
+    why: [siteReasons(scored, factors, byIncome).get(best.id) ?? 'لا يتقدم في عامل واحد.', ...choice],
     caution,
   }
 }
@@ -585,4 +601,32 @@ export function caveatTag(row: { caveat?: 'industrial' | 'workers' | 'estimated'
   if (row.caveat === 'workers') return row.male_pct != null ? `${n(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً'
   if (row.caveat === 'estimated') return row.population_coverage_pct != null ? `سكان مقدّرون من ${n(row.population_coverage_pct)}% من مساحته` : 'سكان مقدّرون'
   return null
+}
+
+/** A district and its neighbours together: their residents and competitors summed from the same answer. */
+export type AroundArea = { districts: number; residents: number; competitors: number }
+
+/**
+ * «أين المنافسة أخف؟» with the neighbours counted: a populated district ranks by the residents per competitor of
+ * itself and its populated neighbours together (each summed from the service's own figures), so a district with
+ * none inside but a crowded edge (وادي لبن: 0 inside, 668 next door) no longer leads. An area with no competitor at
+ * all comes first, the most residents first. Without outlines, the plain ranking (rankCompetition).
+ */
+export function rankLightAround<T extends CompetitorRow & { row: { id: string; population: number | null } }>(table: T[], neighbours: Map<string, Set<string>> | null): (T & { area: AroundArea | null })[] {
+  if (!neighbours) return rankCompetition(table, 'light').map((item) => ({ ...item, area: null }))
+  const byId = new Map(table.map((item) => [item.row.id, item]))
+  const scored = table.filter((item) => item.row.population != null).map((item) => {
+    const members = [item, ...[...(neighbours.get(item.row.id) ?? [])].map((id) => byId.get(id)).filter((other): other is T => other != null && other.row.population != null)]
+    const area = { districts: members.length, residents: members.reduce((sum, other) => sum + (other.row.population ?? 0), 0), competitors: members.reduce((sum, other) => sum + other.competitors, 0) }
+    return { ...item, area }
+  })
+  const per = (area: AroundArea) => (area.competitors === 0 ? Infinity : area.residents / area.competitors)
+  // the same area (districts that are all each other's neighbours): the district with fewer competitors of its own first
+  return scored.sort((a, b) => per(b.area) - per(a.area) || b.area.residents - a.area.residents || a.competitors - b.competitors)
+}
+
+/** A light-order row's line: «مع جواره: 2,310 ساكن لكل منافس», or that its whole area has none. */
+export function areaLine(area: AroundArea | null): string | null {
+  if (!area) return null
+  return area.competitors === 0 ? 'لا منافس فيه ولا في جواره' : `مع جواره: ${n(Math.round(area.residents / area.competitors))} ساكن لكل منافس`
 }

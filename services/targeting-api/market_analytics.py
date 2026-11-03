@@ -924,6 +924,8 @@ class MarketAnalytics:
                 "population_method": population_method(row.get("source")),
                 # how much of the district a grid population covers, said only for a grid figure
                 "population_coverage_pct": round(row["coverage_pct"]) if population_method(row.get("source")) == "grid" and row.get("coverage_pct") is not None else None,
+                # the share of the district the population grid holds as settled (golden.with_settled_share)
+                "settled_pct": row.get("settled_pct"),
                 "caveat": gap_caveat(name, male_pct, population_method(row.get("source")), row.get("coverage_pct")),
             })
         base = {
