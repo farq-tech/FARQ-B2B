@@ -14,6 +14,7 @@ import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
 import { getSticky, setSticky, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
+import { AnimatePresence, DURATION, EASE, SPRING, motion, useReducedMotion } from '@/lib/motion'
 import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
@@ -222,10 +223,16 @@ const tabId = (tool: ToolId) => `map-step-${tool}`
 const STEP_PANEL = 'map-step-panel'
 
 function StepTab({ tool, index, label, active, done, onClick }: { tool: ToolId; index: number; label: string; active: boolean; done: boolean; onClick: () => void }) {
+  const reduce = useReducedMotion()
   return (
     <button role="tab" id={tabId(tool)} aria-controls={STEP_PANEL} aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick}
-      className={cn('flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-        active ? 'border-primary bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+      className={cn('relative flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+        active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+      {/* the olive fill slides from the step that was open to this one (shared layoutId); framer measures the real DOM
+          boxes, so it lands right in RTL as in LTR. Motion reduced: it simply appears under the active step. */}
+      {active && (reduce
+        ? <span aria-hidden className="absolute inset-0 -z-10 rounded-xl bg-primary/10" />
+        : <motion.span aria-hidden layoutId="map-step-indicator" className="absolute inset-0 -z-10 rounded-xl bg-primary/10" transition={SPRING} />)}
       <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-bold', active ? 'bg-primary text-primary-foreground' : 'bg-muted')}>{numberFormat.format(index + 1)}</span>
       {label}
       {done && <><Check className="size-4 shrink-0 text-primary" strokeWidth={3} aria-hidden /><span className="sr-only">، فيها نتيجة</span></>}
@@ -391,6 +398,7 @@ const DISTRICTS_MULTI = '__multi__'
  */
 export function LensMap() {
   const cities = useCities()
+  const reduce = useReducedMotion()
   const [city, setCity] = useState('Riyadh')
   const [lens, setLens] = useState<LensId>('shops')
   const [metric, setMetric] = useState<MetricId>(lensById('shops').metric)
@@ -959,15 +967,25 @@ export function LensMap() {
                     <PickedStrip chosen={chosen} onClear={() => { focusAfter.current = tabId(tool); setSelected([]) }}
                       onDetails={() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
                   )}
-                  {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
-                  {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
-                  {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
-                    onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
-                  {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                  {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
-                  {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                  {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
-                  {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
+                  {/* the open step's tool crossfades as the step changes — a short, gentle swap so the panel reads as one
+                      surface answering, not a flicker. mode="wait" keeps one tool mounted at a time (no racing overlays);
+                      the shared panels below (summary, businesses) stay put and never remount here. */}
+                  <AnimatePresence mode="wait" initial={false}>
+                    {tool !== 'businesses' && (
+                      <motion.div key={tool} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        transition={{ duration: reduce ? 0 : DURATION.fast, ease: EASE }}>
+                        {tool === 'gaps' && <GapsTool city={city} cityName={cityName} rows={data.rows} onOverlay={onOverlay} onSelect={pickFromList} selected={selected} onHover={setHovered} />}
+                        {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
+                        {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
+                          onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
+                        {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
+                        {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
+                        {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
+                        {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}
+                        {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {tool === 'businesses' && !selected.length && (
                     <EmptyState icon={MousePointerClick} title="اختر حياً" body="اضغط حياً أو أكثر على الخريطة، أو من ترتيب «أين جمهوري؟»، فتظهر منشآته هنا. أو ابحث عن نشاط من الأعلى." />
                   )}

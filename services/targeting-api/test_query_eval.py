@@ -21,10 +21,10 @@ TAX = os.path.join(HERE, '..', '..', 'docs', 'qa', 'targeting', 'taxonomy')
 EVAL = os.path.join(HERE, 'query_eval.json')
 
 # measured accuracy (share of cases passed); a change may raise these, never lower them
-FLOORS = {'understand': 0.988, 'corridor': 0.988}
+FLOORS = {'understand': 1.0, 'corridor': 1.0}   # 2026-11-03: 98.8% -> 100% once the product families anchor the right buyers
 # a seller's request passes when it reaches the expected buyers, so over-targeting is held apart: the total of targets
-# outside expect/also over the marketing cases may fall, never rise (2026-11-02: 183 over 25 cases, 12 of them exact)
-MARKETING_EXTRA_MAX = 183   # 2026-11-02: 70.4% / 84.6% before the shared trade reading, 98.8% / 98.8% after
+# outside expect/also over the marketing cases may fall, never rise (2026-11-03: 173 over 25 cases)
+MARKETING_EXTRA_MAX = 161   # 2026-11-02: 70.4% / 84.6% before the shared trade reading, 98.8% / 98.8% after; 2026-11-03: 100% / 100%, 183 -> 173 -> 161
 
 
 def load_cases():
