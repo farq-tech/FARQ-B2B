@@ -25,7 +25,7 @@ import { Verdict } from './verdict'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
  * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
-type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number | null; shortfall: number | null; male_pct?: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | null; population_coverage_pct?: number | null }
+type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number | null; shortfall: number | null; male_pct?: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | 'campus' | null; population_coverage_pct?: number | null }
 /** `population_model_fits` is false when the activity's count does not track population here (wholesale,
  * industrial, B2B, destinations): there is no honest city rate, so `residents_per_business` and every row's
  * `expected_businesses`/`shortfall` are null, and the districts are listed by their real counts only. `fit`
@@ -275,8 +275,8 @@ export function GapsTool({ city, cityName, rows, features = [], onOverlay, onSel
                 <Fragment key={row.district_ar}>
                   {index === firstCaveat && (
                     <li id="gaps-caveats" className="pt-4 pb-1 text-sm text-muted-foreground">
-                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال أو سكان مقدّرون</span>
-                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، أو سكانها تقدير من خرائط الكثافة يغطي أقل من نصف مساحتها، فنقصها بعدد السكان لا يُعتمد. لذلك تأتي بعد الأحياء السكنية.
+                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال أو حرم مغلق أو سكان مقدّرون</span>
+                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، أو حرم جامعة أو قاعدة له خدماته داخله، أو سكانها تقدير من خرائط الكثافة يغطي أقل من نصف مساحتها، فنقصها بعدد السكان لا يُعتمد. لذلك تأتي بعد الأحياء السكنية.
                     </li>
                   )}
                   <ResultRow title={tag ? <>{row.district_ar} <span className="ms-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{tag}</span></> : row.district_ar}

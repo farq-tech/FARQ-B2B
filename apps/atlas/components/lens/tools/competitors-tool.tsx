@@ -249,7 +249,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                     item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي',
                     // the light order ranks by the district with its neighbours: the row says what that is
                     order === 'light' ? areaLine(item.area ?? null) : null,
-                    item.row.settledPct != null && item.row.settledPct < THIN.sparse ? `مأهول في ${numberFormat.format(item.row.settledPct)}% من مساحته` : null,
+                    item.row.settledPct != null && item.row.settledPct < THIN.sparse ? (item.row.settledPct < 1 ? 'غير مأهول تقريباً' : `مأهول في ${numberFormat.format(item.row.settledPct)}% من مساحته`) : null,
                   ].filter(Boolean).join(' · ')}
                   value={counted(item.competitors, 'business')}
                   // a district with none has no density to show, and its area is not what is missing

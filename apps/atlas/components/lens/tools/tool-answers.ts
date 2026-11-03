@@ -178,8 +178,10 @@ export type VerdictText = { lead: string; why: string[]; caution?: string | null
  *   «أين المنافسة أخف؟» (الزاهر led Riyadh pharmacies with 6,246 people around it and none of the activity).
  * - `nearKm`: a neighbour counts by its nearness, 1 ÷ (1 + distance ÷ 3 km) between the districts' centres, so a
  *   neighbour across a long edge 6 km away weighs a third of one next door.
+ * - `minDistrict`: a district of under 1,000 residents of its own goes after the others too, whatever its neighbours
+ *   (الدانة 1, الرحاب 4, المجد 5 in Riyadh: grid estimates of nearly empty land).
  */
-export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10, sparse: 50, minArea: 10000, nearKm: 3 } as const
+export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10, sparse: 50, minArea: 10000, nearKm: 3, minDistrict: 1000 } as const
 
 /** What the districts around one district hold, summed from the same answer as the list (its neighbours by outline). */
 export type Around = { districts: number; total: number; top: { name: string; n: number } | null }
@@ -197,7 +199,7 @@ const areas = (count: number) => (count === 2 ? 'منطقتان' : `${n(count)} 
 /** A gap row as «أين ينقص نشاطي؟» reads it (market-gaps). */
 // expected and shortfall are null where the count does not follow the population (market-gaps); such a row is never
 // short, so it never reaches the verdict
-export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | null }
+export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | 'campus' | null }
 
 /**
  * «أكبر نقص في «صيدلية»: النرجس», with what it has against what it needs at the city rate, and the next two
@@ -308,7 +310,8 @@ export function brandsVerdict(brands: { total: number; chains: number; in_chains
   if (!brands.chains || !top) return { lead: 'السوق كله محلات مستقلة', why: ['لا سلسلة لهذا النشاط بثلاثة فروع أو أكثر.'] }
   const share = Math.round((100 * brands.in_chains) / brands.total)
   return {
-    lead: share >= 50 ? `السلاسل تملك أكثر السوق: ${n(share)}%` : `أكثر السوق محلات مستقلة: السلاسل ${n(share)}% فقط`,
+    // «أكثر» only past half (5,255 of 10,575 Riyadh pharmacies is 49.7%, «50%» but not most); half said as half
+    lead: share > 50 ? `السلاسل تملك أكثر السوق: ${n(share)}%` : share === 50 ? 'السلاسل تملك نصف السوق تقريباً: 50%' : `أكثر السوق محلات مستقلة: السلاسل ${n(share)}% فقط`,
     why: [`أكبرها ${top.brand}: ${counted(top.branches, 'branch')} في ${counted(top.districts, 'district')}.`],
   }
 }
@@ -480,7 +483,7 @@ export function corridorVerdict(corridors: CorridorVerdictRow[], label: string):
   return {
     lead: `أقوى شارع لـ«${label}»: ${top.street_ar}`,
     why: [
-      `${counted(top.n, 'shop')} منه، ${n(top.per_100m)} لكل 100 م${top.road_class === 'main' ? '، على شارع رئيسي' : ''}.`,
+      `${counted(top.n, 'shop')} منه، ${n(Math.round(top.per_100m * 10) / 10)} لكل 100 م${top.road_class === 'main' ? '، على شارع رئيسي' : ''}.`,
       ...(next ? [`يليه ${next.street_ar} (${counted(next.n, 'shop')}).`] : []),
     ],
   }
@@ -611,9 +614,10 @@ export function aroundOf(id: string, neighbours: Map<string, Set<string>> | null
  * The tag on a gap row the service lists after the residential ones: an industrial name, labour housing (with the
  * measured share of men when there is one), or a population estimated from a grid over little of the district.
  */
-export function caveatTag(row: { caveat?: 'industrial' | 'workers' | 'estimated' | null; male_pct?: number | null; population_coverage_pct?: number | null }): string | null {
+export function caveatTag(row: { caveat?: 'industrial' | 'workers' | 'estimated' | 'campus' | null; male_pct?: number | null; population_coverage_pct?: number | null }): string | null {
   if (row.caveat === 'industrial') return 'منطقة صناعية'
   if (row.caveat === 'workers') return row.male_pct != null ? `${n(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً'
+  if (row.caveat === 'campus') return 'حرم مغلق له خدماته'
   if (row.caveat === 'estimated') return row.population_coverage_pct != null ? `سكان مقدّرون من ${n(row.population_coverage_pct)}% من مساحته` : 'سكان مقدّرون'
   return null
 }
@@ -649,7 +653,7 @@ export function rankLightAround<T extends CompetitorRow & { row: { id: string; p
       const w = weight(item.row.id, other.row.id)
       return { residents: sum.residents + w * (other.row.population ?? 0), competitors: sum.competitors + w * other.competitors }
     }, { residents: item.row.population ?? 0, competitors: item.competitors })
-    const area: AroundArea = { districts: others.length + 1, residents, competitors, ratio: competitors === 0 ? null : weighted.residents / weighted.competitors, small: residents < THIN.minArea, weighted: distance != null }
+    const area: AroundArea = { districts: others.length + 1, residents, competitors, ratio: competitors === 0 ? null : weighted.residents / weighted.competitors, small: residents < THIN.minArea || (item.row.population ?? 0) < THIN.minDistrict, weighted: distance != null }
     return { ...item, area }
   })
   const per = (area: AroundArea) => (area.competitors === 0 ? Infinity : area.ratio ?? 0)

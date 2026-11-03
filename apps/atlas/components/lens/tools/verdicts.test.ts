@@ -393,3 +393,14 @@ test('a pair with a sparsely settled district says it', () => {
   assert.equal(sparseLine(['وادي لبن', 'النرجس'], [42, 78]), 'وادي لبن مأهول في 42% من مساحته فقط، فسكانه في جزء منه.')
   assert.equal(sparseLine(['أ', 'ب'], [88, null]), null)
 })
+
+test('round E review: half the market is half, a near-empty district is never the lightest, a campus is tagged, shops per 100 m read once', () => {
+  // Riyadh pharmacies as served: 5,255 of 10,575 in chains, 49.7%
+  assert.equal(brandsVerdict({ total: 10575, chains: 430, in_chains: 5255, brands: [{ brand: 'صيدلية النهدي', branches: 733, districts: 100 }] })!.lead, 'السلاسل تملك نصف السوق تقريباً: 50%')
+  // الدانة: 1 resident from a grid, inside a populous neighbourhood: after the real districts
+  const at = (id: string, population: number, competitors: number) => ({ row: { id, name: id, population }, competitors, perKm2: null })
+  const ranked = rankLightAround([at('الدانة', 1, 0), at('كبير', 40000, 0), at('جار', 30000, 3)], new Map([['الدانة', new Set(['كبير'])], ['كبير', new Set(['الدانة', 'جار'])], ['جار', new Set(['كبير'])]]))
+  assert.equal(ranked.at(-1)!.row.id, 'الدانة')
+  assert.equal(caveatTag({ caveat: 'campus' }), 'حرم مغلق له خدماته')
+  assert.equal(corridorVerdict([{ street_ar: 'شارع بلال بن رباح', n: 70, per_100m: 5.99, road_class: 'main' }], 'صيدلية')!.why[0], '70 محلاً منه، 6 لكل 100 م، على شارع رئيسي.')
+})
