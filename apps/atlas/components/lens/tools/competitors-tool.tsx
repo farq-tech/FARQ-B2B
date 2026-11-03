@@ -20,6 +20,8 @@ import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
 import { competitorsSummary, densestDistrict, rankCompetition } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
+import { useAnswer } from './use-answer'
+import { Choice } from './choice'
 
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
 // counts; a brand's by_district carries only n
@@ -63,54 +65,45 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   // the map opens painted with the activity studied in any step; any other activity replaces it
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
-  const [counts, setCounts] = useState<Count[] | null>(null)
-  // the city's count from the service, which includes businesses with no reliable district
-  const [cityTotal, setCityTotal] = useState<number | null>(null)
-  // businesses that fell in a known district (Σ n), summed once in the service
-  const [located, setLocated] = useState<number | null>(null)
-  const [understood, setUnderstood] = useState<Understanding>(null)
   const [order, setOrder] = useStickyState<'dense' | 'light'>('competitors.order', 'dense')
   const [view, setView] = useStickyState<'districts' | 'brands'>('competitors.view', 'districts')
-  const [brands, setBrands] = useState<Brands | null>(null)
   const [brand, setBrand] = useState<Brand | null>(null)
-  const [profile, setProfile] = useState<Profile | null | 'error'>(null)
 
-  useEffect(() => {
-    if (!brand) return
-    let live = true
-    setProfile(null)
-    postMarket<Profile>('brand-profile', { city, keys: brand.keys })
-      .then((data) => { if (live) setProfile(data) })
-      .catch(() => { if (live) setProfile('error') })
-    return () => { live = false }
-  }, [city, brand])
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  // «أعد المحاولة» asks again for the same activity
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    let live = true
-    setStatus('loading')
-    setBrand(null)
-    // drop the last activity's counts now, so the map clears instead of shading districts for a different query
-    setCounts(null)
-    setCityTotal(null)
-    setLocated(null)
-    setBrands(null)
-    setUnderstood(null)
-    onActivity(studied.q ?? studied.label)
+  // the activity's districts and chains, keyed by its q or main_id: a new activity drops the last one's answer at once,
+  // so the map clears instead of shading districts for a different query
+  const studiedKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
+  const answer = useAnswer(studiedKey, () => {
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
-    Promise.all([
+    return Promise.all([
       postMarket<{ districts?: Count[]; total?: number; located?: number; understood?: Understanding }>('district-counts', activity),
       // chains are a second reading of the same businesses; the districts still show when they are unavailable
       postMarket<Brands>('brands', { ...activity, limit: 50 }).catch(() => null),
-    ])
-      .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setLocated(typeof data.located === 'number' ? data.located : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
-      .catch(() => { if (live) setStatus('error') })
-    return () => { live = false }
-    // keyed by what is asked: the same activity set again (a step, a shared link) asks nothing again
+    ]).then(([data, chains]) => ({
+      counts: data.districts ?? [],
+      // the city's count from the service, which includes businesses with no reliable district
+      cityTotal: typeof data.total === 'number' ? data.total : null,
+      // businesses that fell in a known district (Σ n), summed once in the service
+      located: typeof data.located === 'number' ? data.located : null,
+      understood: data.understood ?? null,
+      brands: chains,
+    }))
+  })
+  const counts = answer.data?.counts ?? null
+  const cityTotal = answer.data?.cityTotal ?? null
+  const located = answer.data?.located ?? null
+  const understood: Understanding = answer.data?.understood ?? null
+  const brands = answer.data?.brands ?? null
+  const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
+  useEffect(() => {
+    setBrand(null)
+    onActivity(studied.q ?? studied.label)
+    // once per activity asked, not per object
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, studied.q, studied.main_id, onActivity, attempt])
+  }, [studiedKey, onActivity])
+
+  // one chain's spread across the city, keyed by the chain's name
+  const profileAnswer = useAnswer(brand ? `${city}|${brand.brand}` : null, () => postMarket<Profile>('brand-profile', { city, keys: brand!.keys }))
+  const profile: Profile | null | 'error' = profileAnswer.status === 'error' ? 'error' : profileAnswer.data
 
   const table = useMemo<Row[]>(() => {
     if (!counts) return []
@@ -194,7 +187,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
           ))}
         </div>
-      {status === 'error' && <LoadError what={`منشآت «${studied.label}»`} onRetry={() => setAttempt((n) => n + 1)} />}
+      {status === 'error' && <LoadError what={`منشآت «${studied.label}»`} onRetry={answer.retry} />}
       {status === 'loading' && (
         <>
           <Skeleton className="h-5 w-3/4" aria-hidden />
@@ -217,21 +210,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             </span>
           </Explained>
           {/* two views of one result, switched in place: pressed buttons, not tabs (there is no tab panel to move to) */}
-          <div className="flex gap-1.5" role="group" aria-label="طريقة العرض">
-            {([['districts', 'الأحياء'], ['brands', 'السلاسل']] as const).map(([id, label]) => (
-              <button key={id} aria-pressed={view === id} onClick={() => { setView(id); if (id === 'districts') pickBrand(null) }}
-                className={cn('flex-1 rounded-lg border py-2 text-base font-semibold', view === id ? 'border-primary text-primary' : 'hover:border-primary')}>{label}</button>
-            ))}
-          </div>
+          <Choice label="طريقة العرض" variant="outline" size="base" value={view} onChange={(id) => { setView(id); if (id === 'districts') pickBrand(null) }}
+            options={[{ id: 'districts', label: 'الأحياء' }, { id: 'brands', label: 'السلاسل' }]} />
           {view === 'districts' && (
             <>
-            <div className="flex gap-1.5" role="group" aria-label="ترتيب الأحياء">
-              {([['dense', 'الأكثر تنافساً'], ['light', 'الأقل تنافساً']] as const).map(([id, label]) => (
-                <button key={id} onClick={() => setOrder(id)} aria-pressed={order === id}
-                  className={cn('flex-1 rounded-lg border py-2 text-sm', order === id ? 'border-primary bg-primary text-primary-foreground' : 'hover:border-primary')}>{label}</button>
-              ))}
-            </div>
-            <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
+            <Choice label="ترتيب الأحياء" value={order} onChange={setOrder} options={[{ id: 'dense', label: 'الأكثر تنافساً' }, { id: 'light', label: 'الأقل تنافساً' }]} />
+            <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
               {ranked.slice(0, limit).map((item) => (
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
                   sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
@@ -254,7 +238,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                 </span>
               </Explained>
               {brands.brands.length === 0 && <NoResult title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة. اعرض «الأحياء» بدلاً منها." />}
-              <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
+              <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
                 {brands.brands.map((item, index) => (
                   <ResultRow key={item.brand} onClick={() => pickBrand(item)} title={item.brand}
                     leading={<span className="w-6 shrink-0 text-sm text-muted-foreground">{numberFormat.format(index + 1)}</span>}
@@ -268,7 +252,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                   <Explained title="أين لم تصل السلاسل" lines={EXPLAIN.uncovered(brands.uncovered_by ?? [])} className="font-semibold">
                     أحياء مأهولة لم تصلها {(brands.uncovered_by?.length ?? 0) === 1 ? 'أكبر سلسلة' : (brands.uncovered_by?.length ?? 0) === 2 ? 'أكبر سلسلتين' : `أكبر ${counted(brands.uncovered_by?.length ?? 0, 'chain')}`}
                   </Explained>
-                  <ol className="max-h-[30vh] divide-y overflow-y-auto text-base">
+                  <ol className="divide-y text-base lg:max-h-[30vh] lg:overflow-y-auto">
                     {brands.uncovered.slice(0, uncoveredLimit).map((item) => {
                       const id = idByName.get(item.district_ar)
                       return (
@@ -310,7 +294,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               <button onClick={() => onAllBranches(brand.brand)} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground">
                 طلب تسعير أو حملة لكل الفروع
               </button>
-              <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">
+              <ol className="divide-y text-base lg:max-h-[40vh] lg:overflow-y-auto">
                 {brand.by_district.slice(0, branchLimit).map((item) => {
                   const id = idByName.get(item.district_ar)
                   return <ResultRow key={item.district_ar} disabled={!id} onClick={() => id && onSelect(id)} onHover={hover(id)} title={item.district_ar} value={numberFormat.format(item.n)} />
