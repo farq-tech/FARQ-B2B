@@ -156,6 +156,8 @@ export interface CampaignDetails {
   included: string[]
   /** Per-directory-recipient result from the WhatsApp Cloud API. */
   delivery?: Record<string, 'sent' | 'failed' | 'unknown'>
+  /** Recipients a follow-up left unticked, and why (they answered another campaign); the person may tick them at review. */
+  heldBack?: Record<string, 'replied_elsewhere'>
 }
 
 export interface RequestItem {

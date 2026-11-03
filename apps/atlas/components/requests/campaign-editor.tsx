@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
-import { deliveryLabel, readReplyFilter, replyGroups, wasSent, writeReplyFilter, type ReplyFilter, type ServerDelivery, type ServerElsewhere } from '@/lib/inbox-feed'
+import { deliveryLabel, openingReplyFilter, replyFilterKey, replyGroups, wasSent, writeReplyFilter, type ReplyFilter, type ServerDelivery, type ServerElsewhere } from '@/lib/inbox-feed'
 import { Chip, ChipCount } from '@/components/ui/chip'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
@@ -93,8 +93,11 @@ interface CampaignEditorProps {
   replied?: Record<string, string>
   /** Recipients who answered another of the person's campaigns instead of this one, by recipient id. */
   elsewhere?: Record<string, ServerElsewhere>
-  /** Starts a follow-up draft for these recipients; it is reviewed and confirmed like any campaign, nothing is sent here. */
-  onFollowUp?: (ids: string[]) => void
+  /** Starts a follow-up draft: `ids` ticked, `heldBack` listed unticked with their reason. It is reviewed and confirmed
+   * like any campaign; nothing is sent here. */
+  onFollowUp?: (ids: string[], heldBack: string[]) => void
+  /** The request's id: its recipient filter is kept for this tab under it, so the inbox and back keep the view. */
+  filterKey?: string
 }
 
 
@@ -104,15 +107,28 @@ const REPLY_FILTERS: { id: ReplyFilter; label: string }[] = [
   { id: 'replied', label: 'ردّت' },
 ]
 
-export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied, elsewhere, onFollowUp }: CampaignEditorProps) {
+export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied, elsewhere, onFollowUp, filterKey }: CampaignEditorProps) {
   // after sending: who has not answered yet, for a follow-up the person decides on (nothing is sent from here). The
   // choice is in the address (?replies=waiting|replied), so a link or a reload opens the same view.
   const [replyFilter, setReplyFilterState] = useState<ReplyFilter>('all')
-  useEffect(() => { setReplyFilterState(readReplyFilter(window.location.search)) }, [])
-  const setReplyFilter = (filter: ReplyFilter) => {
-    setReplyFilterState(filter)
+  const writeAddress = (filter: ReplyFilter) => {
     const search = writeReplyFilter(window.location.search, filter)
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`)
+  }
+  // the address wins; a bare address (from the inbox, the list, Back) reopens the filter last used on this request
+  useEffect(() => {
+    let remembered: string | null = null
+    try { remembered = filterKey ? window.sessionStorage.getItem(replyFilterKey(filterKey)) : null } catch { /* storage blocked */ }
+    const opening = openingReplyFilter(window.location.search, remembered)
+    setReplyFilterState(opening)
+    if (opening !== 'all' && !new URLSearchParams(window.location.search).has('replies')) writeAddress(opening)
+    // a filter opened from a link is the one to come back to as well
+    try { if (filterKey) window.sessionStorage.setItem(replyFilterKey(filterKey), opening) } catch { /* storage blocked */ }
+  }, [filterKey])
+  const setReplyFilter = (filter: ReplyFilter) => {
+    setReplyFilterState(filter)
+    writeAddress(filter)
+    try { if (filterKey) window.sessionStorage.setItem(replyFilterKey(filterKey), filter) } catch { /* storage blocked */ }
   }
   const sentTo = (id: string) => wasSent(id, tracked, value.delivery)
   const replyGroupsFor = replyGroups(businessIds, sentTo, replied)
@@ -240,11 +256,11 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
             answered another of the person's campaigns is left out of it (the person sees why on its row). */}
         {!editable && onFollowUp && followUpIds.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => onFollowUp(followUpIds)}>
+            <Button size="sm" variant="outline" onClick={() => onFollowUp(followUpIds, replyGroupsFor.waiting.filter((id) => elsewhere?.[id]))}>
               <MessageSquarePlus data-icon="inline-start" />جهّز حملة متابعة لمن لم يردّ ({numberFormat.format(followUpIds.length)})
             </Button>
             <span className="text-xs text-muted-foreground">
-              مسودة جديدة تراجعها وتؤكد إرسالها بنفسك.{elsewhereWaiting ? ` لا تضم ${counted(elsewhereWaiting, 'business')} ردّت على حملة أخرى.` : ''}
+              مسودة جديدة تراجعها وتؤكد إرسالها بنفسك.{elsewhereWaiting ? ` ${counted(elsewhereWaiting, 'business')} ردّت على حملة أخرى تظهر فيها غير محددة، ولك أن تضيفها.` : ''}
             </span>
           </div>
         ) : null}
@@ -299,7 +315,10 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                   }
                 />
                 <span className={cn('min-w-0 flex-1 truncate text-sm', !e.ok && 'text-muted-foreground')}>{b.name}</span>
-                {e.ok ? <span className="text-xs text-primary">مؤهل</span> : <span className="text-xs text-muted-foreground">{e.reason}</span>}
+                {/* a follow-up leaves out who answered another campaign; the reason stays beside the box until it is ticked */}
+                {e.ok && !checked && value.heldBack?.[id] === 'replied_elsewhere'
+                  ? <span className="text-xs text-muted-foreground">ردّت على حملة أخرى · غير محددة</span>
+                  : e.ok ? <span className="text-xs text-primary">مؤهل</span> : <span className="text-xs text-muted-foreground">{e.reason}</span>}
               </li>
             )
           })}

@@ -352,5 +352,43 @@ class ReplyStatsTests(Base):
         self.assertEqual(stats['cmp-e']['medianReplySeconds'], 2 * 3600)
 
 
+class ReplyTimingAndCacheTests(Base):
+    def test_a_reply_after_a_follow_up_message_is_timed_from_that_message(self):
+        self.store.record_outbound('wamid.F1', 'org-1', 'cmp-f', 'poi:1', NUMBER, sent_at=T0)
+        self.store.record_outbound('wamid.F2', 'org-1', 'cmp-f', 'poi:1', NUMBER, sent_at=T0 + 3 * 86400)   # sent again, same request
+        self.post(body([text('wamid.RF', at=T0 + 3 * 86400 + 1800)]))
+        [stat] = [r for r in self.store.reply_stats('org-1', now=T0 + 4 * 86400)['requests'] if r['requestId'] == 'cmp-f']
+        self.assertEqual(stat['medianReplySeconds'], 1800, 'from the latest message before the reply, not 3 days earlier')
+
+    def test_a_message_sent_after_the_reply_does_not_shorten_its_time(self):
+        self.store.record_outbound('wamid.G1', 'org-1', 'cmp-g', 'poi:1', NUMBER, sent_at=T0)
+        self.post(body([text('wamid.RG', at=T0 + 7200, context='wamid.G1')]))
+        self.store.record_outbound('wamid.G2', 'org-1', 'cmp-g', 'poi:1', NUMBER, sent_at=T0 + 86400)
+        [stat] = [r for r in self.store.reply_stats('org-1', now=T0 + 2 * 86400)['requests'] if r['requestId'] == 'cmp-g']
+        self.assertEqual(stat['medianReplySeconds'], 7200)
+
+    def test_the_figures_are_kept_until_a_write_or_five_minutes(self):
+        import sqlite3
+        self.store.record_outbound('wamid.C1', 'org-1', 'cmp-c', 'poi:1', NUMBER, sent_at=T0)
+        first = self.store.reply_stats('org-1', now=T0 + 10)
+        # a change behind the store's back is not seen while the answer is kept
+        con = sqlite3.connect(self.store.path)
+        con.execute("insert into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values ('wamid.C2','org-1','cmp-c','poi:2',?,?)", (OTHER, T0))
+        con.commit(); con.close()
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 20), first, 'kept')
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 10 + wa_inbox.STATS_TTL_SECONDS)['requests'][0]['sent'], 2, 'five minutes later: read again')
+        # a write through the store is seen at once
+        self.store.record_outbound('wamid.C3', 'org-1', 'cmp-c', 'poi:3', '966500000003', sent_at=T0)
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 400)['requests'][0]['sent'], 3)
+        self.post(body([text('wamid.RC', at=T0 + 60)]))
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 401)['requests'][0]['replied'], 1, 'a new reply is seen at once')
+
+    def test_a_caller_cannot_change_the_kept_answer(self):
+        self.store.record_outbound('wamid.D1', 'org-1', 'cmp-d', 'poi:1', NUMBER, sent_at=T0)
+        answer = self.store.reply_stats('org-1', now=T0)
+        answer['requests'].clear()
+        self.assertEqual(len(self.store.reply_stats('org-1', now=T0 + 1)['requests']), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

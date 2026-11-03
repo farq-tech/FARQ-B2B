@@ -222,6 +222,21 @@ export function statFor(stats: readonly ServerReplyStat[], request: Pick<Request
   return stats.find((s) => matchesRequest(s.requestId, request))
 }
 
+/**
+ * Recipients of the original who answered one of its follow-ups (this device's inbox), in the same shape as the
+ * service's «replied elsewhere», so the original does not call them silent before the service says so.
+ */
+export function answeredFollowUps(inbox: readonly InboxMessage[], original: Pick<RequestItem, 'id' | 'remoteId'>, followUps: readonly Pick<RequestItem, 'id' | 'remoteId'>[]): Record<string, ServerElsewhere> {
+  const own = repliesFor(inbox, original)
+  const out: Record<string, ServerElsewhere> = {}
+  for (const f of followUps) {
+    for (const [poiKey, messageId] of Object.entries(repliesFor(inbox, f))) {
+      if (!own[poiKey] && !out[poiKey]) out[poiKey] = { requestId: original.id, poiKey, otherRequestId: f.id, messageId, at: null }
+    }
+  }
+  return out
+}
+
 /** Recipients of one request who answered another of the person's campaigns instead, by recipient id. */
 export function elsewhereFor(elsewhere: readonly ServerElsewhere[], request: Pick<RequestItem, 'id' | 'remoteId'>): Record<string, ServerElsewhere> {
   const out: Record<string, ServerElsewhere> = {}
@@ -259,4 +274,52 @@ export function writeReplyFilter(search: string, filter: ReplyFilter): string {
   else query.set('replies', filter)
   const text = query.toString()
   return text ? `?${text}` : ''
+}
+
+/**
+ * A campaign and its follow-ups as one result: of the original's recipients the messages reached, how many answered
+ * the original or any follow-up. Null when the original reached nobody.
+ */
+export function combinedRate(
+  original: Pick<RequestItem, 'id' | 'remoteId' | 'campaign'>,
+  followUps: readonly Pick<RequestItem, 'id' | 'remoteId'>[],
+  inbox: readonly InboxMessage[],
+  sent: (id: string) => boolean,
+): { sent: number; replied: number; percent: number; viaFollowUps: number } | null {
+  const reached = (original.campaign?.included ?? []).filter(sent)
+  if (!reached.length) return null
+  const own = repliesFor(inbox, original)
+  const later = followUps.map((f) => repliesFor(inbox, f))
+  const repliedOwn = reached.filter((id) => own[id])
+  const viaFollowUps = reached.filter((id) => !own[id] && later.some((r) => r[id])).length
+  const replied = repliedOwn.length + viaFollowUps
+  return { sent: reached.length, replied, percent: Math.round((replied / reached.length) * 100), viaFollowUps }
+}
+
+/** WhatsApp lets a business answer freely for 24 hours after a person's last message; after that only an approved
+ * template may be sent. */
+export const REPLY_WINDOW_MS = 24 * 3600_000
+
+/**
+ * The 24-hour window a WhatsApp reply opened, for information only (Atlas sends no reply from the inbox): it runs from
+ * the business's latest message on that request, so an older message of the same conversation names the same end.
+ * Null for a message that is not a WhatsApp reply.
+ */
+export function replyWindow(inbox: readonly InboxMessage[], message: InboxMessage, nowMs: number): { open: boolean; until: string } | null {
+  if (message.origin !== 'whatsapp') return null
+  const latest = inbox
+    .filter((m) => m.origin === 'whatsapp' && m.requestId === message.requestId && m.businessId === message.businessId)
+    .reduce((best, m) => (m.receivedAt > best ? m.receivedAt : best), message.receivedAt)
+  const until = Date.parse(latest) + REPLY_WINDOW_MS
+  if (Number.isNaN(until)) return null
+  return { open: nowMs < until, until: new Date(until).toISOString() }
+}
+
+/** Where a request page keeps its recipient filter for this tab, so leaving for the inbox and coming back keeps it. */
+export const replyFilterKey = (requestId: string) => `atlas.replies|${requestId}`
+
+/** The filter to open on: the address wins; else the one this tab last used on this request; else «الكل». */
+export function openingReplyFilter(search: string, remembered: string | null | undefined): ReplyFilter {
+  if (new URLSearchParams(search).has('replies')) return readReplyFilter(search)
+  return remembered === 'waiting' || remembered === 'replied' ? remembered : 'all'
 }

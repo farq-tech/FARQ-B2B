@@ -25,6 +25,7 @@ logs the service already keeps there: standard library only, no new server or ve
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import hmac
 import json
@@ -35,6 +36,7 @@ import threading
 import time
 
 LINK_WINDOW_DAYS = 30
+STATS_TTL_SECONDS = 300
 MAX_BODY_CHARS = 4096
 MAX_WEBHOOK_BYTES = 1024 * 1024
 ID_RE = re.compile(r'^[A-Za-z0-9_\-:.]{1,160}$')
@@ -231,6 +233,16 @@ class InboxStore:
         self.window = int(link_window_days) * 86400
         self._lock = threading.Lock()
         self._ready = False
+        # reply_stats is asked on every inbox poll of every open tab: its answer is kept per accounts until a write
+        # that can change it (a send, a reply, a status, an owner review) or STATS_TTL_SECONDS, whichever comes first
+        self._version = 0
+        self._stats_cache = {}
+        self._stats_lock = threading.Lock()
+
+    def _changed(self) -> None:
+        with self._stats_lock:
+            self._version += 1
+            self._stats_cache.clear()
 
     @contextlib.contextmanager
     def _connect(self):
@@ -266,6 +278,7 @@ class InboxStore:
         with self._connect() as con:
             con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id, request_title) values (?,?,?,?,?,?,?,?)',
                         (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None, clean_title(request_title)))
+        self._changed()
         return True
 
     def _link(self, con, message):
@@ -312,6 +325,8 @@ class InboxStore:
                 if forward:
                     con.execute('update wa_outbound set status=?, status_at=? where message_id=?', (state, status['at'], status['message_id']))
                     result['statuses'] += 1
+        if result['new'] or result['statuses']:
+            self._changed()
         return result
 
     def known_numbers(self, numbers) -> set:
@@ -394,8 +409,26 @@ class InboxStore:
         }
 
     def reply_stats(self, account_id, now: int | None = None, elsewhere_days: int = LINK_WINDOW_DAYS) -> dict:
+        """reply_stats_uncached, kept per accounts until a write changes the figures or STATS_TTL_SECONDS pass (the
+        30-day window of «replied elsewhere» moves with time). A copy is returned, so a caller cannot change the cache."""
+        accounts = accounts_of(account_id)
+        key = (tuple(sorted(accounts)), int(elsewhere_days))
+        at = int(now or time.time())
+        with self._stats_lock:
+            hit = self._stats_cache.get(key)
+            version = self._version
+        if hit and hit[0] == version and 0 <= at - hit[1] < STATS_TTL_SECONDS:
+            return copy.deepcopy(hit[2])
+        result = self.reply_stats_uncached(accounts, at, elsewhere_days)
+        with self._stats_lock:
+            if self._version == version:   # a write landed meanwhile: do not keep an answer it may have changed
+                self._stats_cache[key] = (version, at, result)
+        return copy.deepcopy(result)
+
+    def reply_stats_uncached(self, account_id, now: int | None = None, elsewhere_days: int = LINK_WINDOW_DAYS) -> dict:
         """Per request of these accounts: how many recipients the campaign reached (sent, not failed), how many replied,
-        and the median time from a recipient's first message to their first reply. And, per recipient who has not
+        and the median time to a first reply, counted from the latest message the recipient was sent before it (a
+        follow-up's reply is timed from the follow-up, not from the first message weeks earlier). And, per recipient who has not
         replied to a request, whether the same number replied to another of these accounts' campaigns in the last
         `elsewhere_days` (the reply's id, so the inbox can open it). Only these accounts' own records are read, so
         nothing about another account's campaigns is said. No numbers in the answer."""
@@ -408,6 +441,7 @@ class InboxStore:
             recipients = con.execute(
                 f'select request_id, poi_key, wa_id, min(sent_at), max(case when status != \'failed\' then 1 else 0 end) '
                 f'from wa_outbound where account_id in ({marks}) group by request_id, poi_key, wa_id', accounts).fetchall()
+            sends = con.execute(f'select request_id, poi_key, sent_at from wa_outbound where account_id in ({marks})', accounts).fetchall()
             replies = con.execute(
                 f'select request_id, poi_key, min(received_at) from wa_inbound where account_id in ({marks}) '
                 'and request_id is not null group by request_id, poi_key', accounts).fetchall()
@@ -415,6 +449,9 @@ class InboxStore:
                 f'select wa_id, request_id, message_id, received_at from wa_inbound where account_id in ({marks}) and request_id is not null '
                 'and received_at >= ? order by received_at desc', (*accounts, int(now or time.time()) - int(elsewhere_days) * 86400)).fetchall()
         first_reply = {(r[0], r[1]): r[2] for r in replies}
+        sent_times = {}
+        for request_id, poi_key, sent_at in sends:
+            sent_times.setdefault((request_id, poi_key), []).append(int(sent_at))
         per_request = {}
         for request_id, poi_key, _wa, sent_at, reached in recipients:
             row = per_request.setdefault(request_id, {'requestId': request_id, 'sent': 0, 'replied': 0, 'delays': []})
@@ -424,7 +461,9 @@ class InboxStore:
             at = first_reply.get((request_id, poi_key))
             if at is not None:
                 row['replied'] += 1
-                row['delays'].append(max(0, int(at) - int(sent_at)))
+                # the latest message sent before the reply (5 minutes of clock skew allowed), else the first
+                before = [t for t in sent_times.get((request_id, poi_key), []) if t <= int(at) + 300]
+                row['delays'].append(max(0, int(at) - (max(before) if before else int(sent_at))))
         out = []
         for row in per_request.values():
             delays = sorted(row.pop('delays'))
@@ -483,6 +522,7 @@ class InboxStore:
                 return False
             con.execute('update wa_inbound set outbound_id=?, account_id=?, request_id=?, poi_key=?, link=?, reviewed_at=?, reviewed_by=? where message_id=?',
                         (row[0], row[1], row[2], row[3], 'manual', int(now or time.time()), reviewer, message_id))
+        self._changed()
         return True
 
     def dismiss(self, message_id: str, reviewer: str, now: int | None = None) -> bool:

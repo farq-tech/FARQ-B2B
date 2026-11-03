@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { durationParts, elsewhereFor, rateFor, readReplyFilter, statFor, writeReplyFilter } from './inbox-feed.ts'
+import { answeredFollowUps, combinedRate, durationParts, elsewhereFor, openingReplyFilter, rateFor, readReplyFilter, replyFilterKey, replyWindow, statFor, writeReplyFilter } from './inbox-feed.ts'
 import { deliveryFor, freshReplies, healthState, replyGroups, replyRate, repliesFor, trackedFor, wasSent, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
 import { inboxAccounts } from './inbox-scope.ts'
 import type { InboxMessage } from './types.ts'
@@ -158,4 +158,48 @@ test('the recipient filter lives in the address and keeps the other parameters',
   assert.equal(readReplyFilter(''), 'all')
   assert.equal(writeReplyFilter('?tab=1', 'replied'), '?tab=1&replies=replied')
   assert.equal(writeReplyFilter('?replies=waiting', 'all'), '')
+})
+
+test('a campaign and its follow-ups read as one result over the original’s recipients', () => {
+  const original = { id: 'cmp-1', campaign: { templateId: 't', variables: {}, included: ['a', 'b', 'c', 'd'] } }
+  const followUp = { id: 'cmp-2' }
+  const inbox = mergeServerInbox([], [
+    { ...reply, id: 'r-a', requestId: 'cmp-1', poiKey: 'a' },
+    { ...reply, id: 'r-b', requestId: 'cmp-2', poiKey: 'b' },
+    { ...reply, id: 'r-x', requestId: 'cmp-2', poiKey: 'x' },   // not one of the original's recipients
+  ])
+  assert.deepEqual(combinedRate(original, [followUp], inbox, (id) => id !== 'd'), { sent: 3, replied: 2, percent: 67, viaFollowUps: 1 })
+  assert.deepEqual(combinedRate(original, [], inbox, (id) => id !== 'd'), { sent: 3, replied: 1, percent: 33, viaFollowUps: 0 })
+  assert.equal(combinedRate(original, [followUp], inbox, () => false), null)
+})
+
+test('the 24-hour window runs from the business’s latest message on that request, for information only', () => {
+  const [first, second] = mergeServerInbox([], [
+    { ...reply, id: 'w1', receivedAt: '2026-11-03T08:00:00Z' }, { ...reply, id: 'w2', receivedAt: '2026-11-03T10:00:00Z' },
+  ])
+  const inbox = [first, second]
+  const now = Date.parse('2026-11-04T09:00:00Z')
+  assert.deepEqual(replyWindow(inbox, first, now), { open: true, until: '2026-11-04T10:00:00.000Z' }, 'the older message names the same end')
+  assert.equal(replyWindow(inbox, second, Date.parse('2026-11-04T10:00:01Z'))?.open, false)
+  assert.equal(replyWindow(inbox, { ...local }, now), null, 'not a WhatsApp reply')
+})
+
+test('the recipient filter opens from the address, else from this tab’s last choice for that request', () => {
+  assert.equal(replyFilterKey('cmp-1'), 'atlas.replies|cmp-1')
+  assert.equal(openingReplyFilter('?replies=replied', 'waiting'), 'replied', 'the address wins')
+  assert.equal(openingReplyFilter('?replies=all', 'waiting'), 'all', 'an explicit «all» in the address wins too')
+  assert.equal(openingReplyFilter('', 'waiting'), 'waiting')
+  assert.equal(openingReplyFilter('', '<x>'), 'all')
+  assert.equal(openingReplyFilter('', null), 'all')
+})
+
+test('a recipient who answered a follow-up is not silent on the original', () => {
+  const inbox = mergeServerInbox([], [
+    { ...reply, id: 'r-a', requestId: 'cmp-1', poiKey: 'a' },
+    { ...reply, id: 'r-a2', requestId: 'cmp-2', poiKey: 'a' },   // answered both: already a reply on the original
+    { ...reply, id: 'r-b', requestId: 'cmp-2', poiKey: 'b' },
+  ])
+  const flagged = answeredFollowUps(inbox, { id: 'cmp-1' }, [{ id: 'cmp-2' }])
+  assert.deepEqual(Object.keys(flagged), ['b'])
+  assert.deepEqual(flagged.b, { requestId: 'cmp-1', poiKey: 'b', otherRequestId: 'cmp-2', messageId: 'r-b', at: null })
 })

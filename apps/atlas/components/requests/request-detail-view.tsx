@@ -16,7 +16,7 @@ import { useAppStore } from '@/lib/store'
 import { useBackClose } from '@/lib/use-back-close'
 import { businessName } from '@/lib/business-name'
 import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
-import { durationParts, elsewhereFor, rateFor, repliesFor, replyRate, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
+import { answeredFollowUps, combinedRate, durationParts, elsewhereFor, rateFor, repliesFor, replyRate, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -92,16 +92,17 @@ export function RequestDetailView({ id }: { id: string }) {
 
   // a follow-up to the campaign's recipients who have not answered: a new draft of the same campaign, reviewed and
   // confirmed like any other before anything is sent
-  const followUp = (ids: string[]) => {
-    const firstLiveBusiness = request.liveBusinesses?.find((business) => ids.includes(business.id))
+  const followUp = (ids: string[], heldBack: string[] = []) => {
+    const all = [...ids, ...heldBack.filter((id) => !ids.includes(id))]
+    const firstLiveBusiness = request.liveBusinesses?.find((business) => all.includes(business.id))
     const newId = createDraft({
       type: 'campaign',
-      businessIds: ids,
+      businessIds: all,
       cityId: request.cityId,
       cityName: request.cityName,
       goal: request.goal,
       query: request.query,
-      liveBusinesses: request.liveBusinesses?.filter((business) => ids.includes(business.id)),
+      liveBusinesses: request.liveBusinesses?.filter((business) => all.includes(business.id)),
       categoryHint: firstLiveBusiness?.category,
       districtHint: firstLiveBusiness?.district,
       origin: request.origin,
@@ -109,7 +110,10 @@ export function RequestDetailView({ id }: { id: string }) {
     // the same message as the campaign it follows (template and filled values), to edit at review if wanted
     updateRequest(newId, {
       title: `متابعة: ${request.title}`.slice(0, 200), followUpOf: request.id,
-      ...(request.campaign ? { campaign: { templateId: request.campaign.templateId, variables: { ...request.campaign.variables }, included: [...ids] } } : {}),
+      ...(request.campaign ? { campaign: {
+        templateId: request.campaign.templateId, variables: { ...request.campaign.variables }, included: [...ids],
+        heldBack: Object.fromEntries(all.filter((id) => !ids.includes(id)).map((id) => [id, 'replied_elsewhere' as const])),
+      } } : {}),
     })
     router.push(`/requests/${newId}`)
   }
@@ -123,6 +127,13 @@ export function RequestDetailView({ id }: { id: string }) {
     : null
   const median = rate?.medianReplySeconds != null ? durationParts(rate.medianReplySeconds) : null
   const followed = request.followUpOf ? requests.find((r) => r.id === request.followUpOf) : undefined
+  // the follow-ups made from this campaign, each with its own rate, and the campaign's result counting their replies
+  const followUps = requests.filter((r) => r.followUpOf === request.id && r.campaign)
+  const followUpRates = followUps.map((f) => {
+    const t = trackedFor(deliveries, f)
+    return { request: f, rate: rateFor(statFor(replyStats, f), replyRate(f.campaign?.included ?? [], (id) => wasSent(id, t, f.campaign?.delivery), repliesFor(inbox, f))) }
+  })
+  const combined = request.campaign && followUps.length ? combinedRate(request, followUps, inbox, (id) => wasSent(id, tracked, request.campaign?.delivery)) : null
 
   const issues = request.rfq
     ? rfqIssues(request.rfq, request.businessIds.length)
@@ -186,6 +197,25 @@ export function RequestDetailView({ id }: { id: string }) {
         {followed ? (
           <p className="text-xs text-muted-foreground">متابعة لـ <Link href={`/requests/${followed.id}`} className="underline underline-offset-2 hover:text-foreground">«{followed.title}»</Link></p>
         ) : null}
+        {followUps.length ? (
+          <div className="flex flex-col gap-1 rounded-xl border px-3 py-2 text-sm">
+            {combined ? (
+              <p>
+                <span className="font-semibold">مع المتابعة: نسبة الرد {percent(combined.percent)}</span>
+                <span className="text-muted-foreground"> ({numberFormat.format(combined.replied)} من {numberFormat.format(combined.sent)}{combined.viaFollowUps ? `، منها ${numberFormat.format(combined.viaFollowUps)} بعد المتابعة` : ''})</span>
+              </p>
+            ) : null}
+            <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+              {followUpRates.map(({ request: f, rate: r }) => (
+                <li key={f.id}>
+                  <Link href={`/requests/${f.id}`} className="underline underline-offset-2 hover:text-foreground">«{f.title}»</Link>
+                  {' · '}{statusLabel(f.status, f.type)}
+                  {r ? ` · نسبة الرد ${percent(r.percent)} (${numberFormat.format(r.replied)} من ${numberFormat.format(r.sent)})` : ' · لم تُرسل بعد'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </header>
 
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
@@ -218,7 +248,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
       {request.campaign ? (
         <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={tracked} replied={replied}
-          elsewhere={elsewhereFor(repliedElsewhere, request)} onFollowUp={followUp} />
+          elsewhere={{ ...answeredFollowUps(inbox, request, followUps), ...elsewhereFor(repliedElsewhere, request) }} onFollowUp={followUp} filterKey={request.id} />
       ) : null}
 
       {/* once a campaign is reviewed its recipients list (with each one's send state) already names every business:
