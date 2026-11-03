@@ -23,6 +23,7 @@ import { LensMapCanvas, SHADES, shadeSteps, type BusinessDot, type BusinessGroup
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { MapOnboarding } from './map-onboarding'
 import { SavedComparisons, SavedList } from './saved-comparisons'
+import { GroupCard } from './group-card'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { districtAt } from '@/lib/geo-measure'
@@ -341,43 +342,6 @@ function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
   const { views } = useAppStore()
   if (!views.length) return null
   return <section aria-label="المقارنات المحفوظة" className="rounded-2xl border bg-card p-4"><SavedList onOpen={onOpen} /></section>
-}
-
-/** The card a group of close businesses opens on the map: how many, the first few by name, and «قرّب» for the rest. */
-function GroupCard({ group, names, at, top: ceiling, bottom: floor, onOpen, onClose, onExpand }: {
-  group: BusinessGroup
-  names: { id: string; name: string }[]
-  at: { x: number; y: number; width: number; height: number }
-  top: number
-  bottom: number
-  onOpen: (id: string) => void
-  onClose: () => void
-  onExpand: () => void
-}) {
-  const width = Math.min(256, at.width - 16)
-  const left = Math.min(Math.max(8, at.x - width / 2), at.width - width - 8)
-  const height = 64 + names.length * 30 + 44
-  const wanted = at.y - 12 - height >= ceiling ? at.y - 12 - height : at.y + 12
-  const top = Math.max(ceiling, Math.min(wanted, floor - height))
-  const more = group.count - names.length
-  return (
-    <section aria-label={`${counted(group.count, 'business')} في هذا المكان`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur" style={{ left, width, top }}>
-      <div className="flex items-center gap-2">
-        <h2 className="min-w-0 flex-1 truncate text-base font-bold">{counted(group.count, 'business')} هنا</h2>
-        <button onClick={onClose} aria-label="إغلاق" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
-      </div>
-      <ul className="flex flex-col">
-        {names.map((item) => (
-          <li key={item.id}>
-            <button type="button" onClick={() => onOpen(item.id)} className="w-full truncate rounded-md px-1 py-1 text-start font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60">{item.name}</button>
-          </li>
-        ))}
-      </ul>
-      <button onClick={onExpand} className="mt-1 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60">
-        {more > 0 ? `قرّب لترى ${counted(more, 'business')} أخرى` : 'قرّب'}
-      </button>
-    </section>
-  )
 }
 
 type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
@@ -1155,7 +1119,7 @@ export function LensMap() {
           )}
           {/* a group of close businesses: its names, each a tap from its own card, and the zoom that splits it */}
           {!cardRow && !located && group && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
-            <GroupCard group={group} names={group.ids.map((id) => ({ id, name: biz.rows.find((row) => row.id === id)?.name ?? 'غير متاح' }))} at={cardAt}
+            <GroupCard count={group.count} noun="business" items={group.ids.map((id) => ({ id, title: biz.rows.find((row) => row.id === id)?.name ?? 'غير متاح' }))} at={cardAt}
               onOpen={openBiz} onClose={() => setGroup(null)} onExpand={() => { group.expand(); setGroup(null) }}
               {...(window.matchMedia('(min-width: 64rem)').matches
                 ? { top: 8, bottom: cardAt.height - 8 }
