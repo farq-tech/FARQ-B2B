@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { ArrowLeft, Check, ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -20,7 +20,7 @@ import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapQuery, writeMapQuery } from './map-query'
-import { HALF, MapSheet, PEEK, PEEK_PX, type SheetSnap } from './map-sheet'
+import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, nextStep, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
@@ -140,13 +140,16 @@ function ChipSelect({ label, value, onChange, options }: { label: string; value:
  * the edge that hides more chips so the cut reads as «there is more», and brings the active item (`aria-selected` or
  * `aria-pressed`) into view when `active` changes. Where everything fits, nothing fades and nothing moves.
  */
-function ScrollRow({ label, role = 'group', active, className, style, onKeyDown, children }: {
+function ScrollRow({ label, role = 'group', active, className, style, onKeyDown, arrows = false, children }: {
   label: string
   role?: 'group' | 'tablist'
   active?: string
   className?: string
   style?: CSSProperties
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void
+  /** With a mouse, a round arrow at each edge that hides more (a wheel or a trackpad does not scroll a row sideways
+   * by itself); touch swipes, and the keyboard moves through the items. */
+  arrows?: boolean
   children: ReactNode
 }) {
   const row = useRef<HTMLDivElement>(null)
@@ -184,13 +187,29 @@ function ScrollRow({ label, role = 'group', active, className, style, onKeyDown,
   const fade = edges.left || edges.right
     ? `linear-gradient(to right, ${edges.left ? 'transparent' : '#000'}, #000 40px, #000 calc(100% - 40px), ${edges.right ? 'transparent' : '#000'})`
     : undefined
-  return (
+  const nudge = (direction: -1 | 1) => {
+    const el = row.current
+    if (!el) return
+    const behavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    el.scrollBy({ left: direction * Math.max(160, el.clientWidth * 0.6), behavior })
+  }
+  const strip = (
     <div ref={row} role={role} aria-label={label} onScroll={measure} onKeyDown={onKeyDown}
       className={cn('flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
       style={{ ...style, maskImage: fade, WebkitMaskImage: fade }}>
       {children}
     </div>
   )
+  if (!arrows) return strip
+  const arrow = (side: 'left' | 'right') => edges[side] && (
+    // out of the tab order and hidden from screen readers: the tabs themselves are reached with the arrow keys
+    <button type="button" tabIndex={-1} aria-hidden onClick={() => nudge(side === 'left' ? -1 : 1)}
+      className={cn('absolute top-1/2 z-[1] hidden size-8 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted-foreground shadow-sm hover:text-foreground pointer-fine:grid',
+        side === 'left' ? 'left-1' : 'right-1')}>
+      {side === 'left' ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
+    </button>
+  )
+  return <div className="relative">{strip}{arrow('left')}{arrow('right')}</div>
 }
 
 /**
@@ -331,6 +350,18 @@ function PointerTip({ store, describe }: { store: PointerStore; describe: (id: s
   )
 }
 
+const DONE_KEY = 'atlas.map.done'
+/** The steps answered in this tab's session for a city (sessionStorage; nothing when it is blocked). */
+function readDone(city: string): ToolId[] {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(`${DONE_KEY}|${city}`) ?? '[]')
+    return Array.isArray(saved) ? saved.filter((id): id is ToolId => typeof id === 'string' && id in TOOL_INPUTS) : []
+  } catch { return [] }
+}
+function writeDone(city: string, done: ToolId[]) {
+  try { sessionStorage.setItem(`${DONE_KEY}|${city}`, JSON.stringify(done)) } catch { /* private window: the marks last this visit only */ }
+}
+
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
 const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
 
@@ -357,6 +388,8 @@ export function LensMap() {
   const phoneSearch = useRef<HTMLInputElement>(null)
   // the phone's bottom sheet: a picked district or a search opens it halfway so the answer shows beside the map
   const [sheet, setSheet] = useState<SheetSnap>('peek')
+  // the collapsed sheet's height as it measures (MapSheet), where the phone's map ends
+  const [peekPx, setPeekPx] = useState(PEEK_PX)
   // the district a step's list is pointing at, outlined on the map so a row and its place are seen together
   const [hovered, setHovered] = useState<string | null>(null)
   // the district under the mouse, named beside the pointer with its figure, before any click
@@ -387,8 +420,15 @@ export function LensMap() {
   })
   // the steps that gave an answer in this visit (a ✓ on their tab): a tool's answer is the one-line summary or the
   // sites it posts with its overlay, read against the step that is open when it posts
+  // kept for this tab's session, per city, so a reload (or a shared link opened again) keeps the journey's progress
   const [done, setDone] = useState<ToolId[]>([])
-  const markDone = useCallback((id: ToolId) => setDone((current) => (current.includes(id) ? current : [...current, id])), [])
+  const doneCity = useRef(city)
+  const markDone = useCallback((id: ToolId) => setDone((current) => {
+    if (current.includes(id)) return current
+    const next = [...current, id]
+    writeDone(doneCity.current, next)
+    return next
+  }), [])
   const openTool = useRef<ToolId | null>(null)
   // one poster per open step: an answer that lands after its step was left (a slow fetch of the step before) is
   // dropped, instead of painting its colours under the open step's key
@@ -403,7 +443,7 @@ export function LensMap() {
   const active = lensById(lens)
 
   // a ✓ answered for the city it was given in: another city starts its journey unanswered
-  useEffect(() => { setSelected([]); setCard(null); setDone([]) }, [city])
+  useEffect(() => { setSelected([]); setCard(null); doneCity.current = city; setDone(readDone(city)) }, [city])
   // a link's ?tool= wins once over the lens's first step, when it is one of that lens's steps
   const presetTool = useRef<ToolId | null>(null)
   // and its ?layer= over the lens's own shading figure, when it is one of that lens's figures
@@ -615,7 +655,9 @@ export function LensMap() {
   const keyCompact = sheet === 'half'
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   // the peeking sheet's one line is cut at its end: the picked district leads, the step (also on its tab) follows
-  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${active.label} · ${step?.label ?? ''}`
+  // where the journey stands, said once in the peeking title («الخطوة 2 من 4»); the picked district leads when there is one
+  const stepAt = step ? `الخطوة ${numberFormat.format(active.steps.indexOf(step) + 1)} من ${numberFormat.format(active.steps.length)}` : ''
+  const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${chosen.map((row) => row.name).join('، ')} · ${step?.label}` : `${stepAt} · ${step?.label ?? ''}`
   // a pick on the map is silent to a screen reader (the canvas has no districts to read): the pick and its two golden
   // figures are said in a polite live line instead
   const pickedSay = chosen.length === 1
@@ -655,9 +697,9 @@ export function LensMap() {
         {/* --lift: how far a phone's half sheet reaches over the map (it covers HALF of the map and peek together, the map
             already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
-          style={{ '--peek': PEEK, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${PEEK_PX * (1 - HALF)}px)` } : {}) } as CSSProperties}>
+          style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
-            onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0}
+            onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : null} onPin={setCardAt} />
           {overlay.popup}
@@ -666,7 +708,7 @@ export function LensMap() {
               {...(window.matchMedia('(min-width: 64rem)').matches
                 ? { top: 8, bottom: cardAt.height - 8 }
                 // the floating search and chips on top; below, what the sheet covers above the map's own end (the peek)
-                : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + PEEK_PX) - PEEK_PX) : 0) })} />
+                : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
           )}
           <PointerTip store={pointer} describe={describePointed} />
           <p aria-live="polite" className="sr-only">{pickedSay}</p>
@@ -755,11 +797,11 @@ export function LensMap() {
             </div>
           </div>
         </div>
-        <MapSheet snap={sheet} onSnap={setSheet} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
+        <MapSheet snap={sheet} onSnap={setSheet} onPeek={setPeekPx} title={sheetTitle} summary={!search && !chosen.length ? peekLine : null} resetKey={search ? `search|${search.nonce}` : `${lens}|${tool}`}
           panel={!search && data.status !== 'error' ? { id: STEP_PANEL, labelledBy: tabId(tool) } : null}
           header={!search && data.status !== 'error' ? (
             // the steps stay above the scrolling body at every stop of the sheet, and on one line from lg too
-            <ScrollRow role="tablist" label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1">
+            <ScrollRow role="tablist" arrows label={`خطوات ${active.label}`} active={tool} onKeyDown={tabKeys} className="-mx-3 gap-1.5 px-3 pb-1">
               {active.steps.map((item, index) => (
                 <StepTab key={item.tool} tool={item.tool} index={index} label={item.label} active={tool === item.tool} done={done.includes(item.tool)} onClick={() => setTool(item.tool)} />
               ))}

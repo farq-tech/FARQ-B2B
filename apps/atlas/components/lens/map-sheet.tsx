@@ -27,7 +27,7 @@ const NAME: Record<SheetSnap, string> = { peek: 'مصغّرة', half: 'نصف ا
  * pushes the steps away, and a collapsed sheet shows no half-scrolled body. From lg up it is the same panel as a fixed
  * column beside the map, and the snap does nothing.
  */
-export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel, children }: {
+export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel, onPeek, children }: {
   snap: SheetSnap
   onSnap: (next: SheetSnap) => void
   title: ReactNode
@@ -39,6 +39,9 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel
   resetKey?: string
   /** The body as the tab panel of the header's open tab (its id, and the tab that names it). */
   panel?: { id: string; labelledBy: string } | null
+  /** Told the collapsed stop's height as it measures (larger text or a wrapped title makes it taller than PEEK), so
+   * the map can end above it instead of under it. */
+  onPeek?: (px: number) => void
   children: ReactNode
 }) {
   const sheet = useRef<HTMLElement>(null)
@@ -57,6 +60,9 @@ export function MapSheet({ snap, onSnap, title, summary, header, resetKey, panel
     return () => watch.disconnect()
   }, [])
   const peek = Math.max(PEEK_PX, topHeight)
+  const reportPeek = useRef(onPeek)
+  reportPeek.current = onPeek
+  useEffect(() => { reportPeek.current?.(peek) }, [peek])
   const heights: Record<SheetSnap, string> = { peek: `${peek}px`, half: `max(${peek}px, ${HALF * 100}%)`, full: `calc(100% - ${FULL_GAP}px)` }
   // a collapsed sheet starts its body from the top, and so does a newly opened step
   useEffect(() => { if (snap === 'peek' && body.current) body.current.scrollTop = 0 }, [snap])

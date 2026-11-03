@@ -67,16 +67,15 @@ export function WhatsNew({ onMap = false }: {
   }
   return (
     <aside aria-label="ما الجديد" className={cn(onMap && covered && 'max-lg:hidden', 'fixed inset-x-3 z-40 mx-auto flex max-w-lg items-center gap-3 rounded-2xl border bg-card/95 px-3 py-1 shadow-lg backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-300 lg:mx-0 lg:items-start lg:py-3',
-      // on the map's desktop the panel is the 400px column at the end side (left in Arabic) and the colour key holds the
-      // map's bottom start corner: the bar sat at the page's bottom end, over the panel's results. It now sits on the map
-      // itself, in its bottom end corner above the map's logo, never wider than the room the key leaves (the key is at
-      // most 26rem wide), so it covers neither the panel, nor the key, nor a notice at the map's top
-      onMap ? 'top-[11.75rem] slide-in-from-top-2 lg:top-auto lg:bottom-12 lg:end-[calc(400px+1.5rem)] lg:start-auto lg:max-w-[min(32rem,calc(100vw-400px-29rem))]' : 'bottom-20 lg:start-6 lg:end-auto lg:bottom-6')}>
-      <Megaphone className="size-5 shrink-0 text-primary lg:mt-0.5" aria-hidden />
+      // on the map's desktop it is one line in the map's top start corner (right in Arabic), which nothing else holds:
+      // the copy-link and «؟» buttons sit at the top end corner, the key at the bottom, and the bar's note opens on a
+      // click. It sat over the middle of the map's bottom, on the districts a visitor came to read, on every visit
+      onMap ? 'top-[11.75rem] slide-in-from-top-2 lg:top-[10.25rem] lg:start-[1rem] lg:end-auto lg:items-center lg:py-1 lg:max-w-[min(28rem,calc(100vw-400px-14rem))]' : 'bottom-20 lg:start-6 lg:end-auto lg:bottom-6')}>
+      <Megaphone className={cn('size-5 shrink-0 text-primary', !onMap && 'lg:mt-0.5')} aria-hidden />
       <div className="min-w-0 flex-1">
         <button type="button" onClick={() => setExpanded((was) => !was)} aria-expanded={expanded}
-          className="w-full truncate py-1.5 text-start text-sm font-bold lg:pointer-events-none lg:py-0">ما الجديد · {RELEASE.name}</button>
-        <p className={cn('text-sm leading-7 text-muted-foreground lg:block', expanded ? 'block pb-1.5' : 'hidden')}>{RELEASE.note}</p>
+          className={cn('w-full truncate py-1.5 text-start text-sm font-bold', !onMap && 'lg:pointer-events-none lg:py-0')}>ما الجديد · {RELEASE.name}</button>
+        <p className={cn('text-sm leading-7 text-muted-foreground', !onMap && 'lg:block', expanded ? 'block pb-1.5' : 'hidden')}>{RELEASE.note}</p>
       </div>
       <button onClick={close} aria-label="إغلاق «ما الجديد»" className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
         <X className="size-4" aria-hidden />
