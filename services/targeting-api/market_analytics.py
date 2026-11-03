@@ -102,6 +102,16 @@ def gap_caveat(district_ar, male_pct):
 GAP_MODEL_MIN_DISTRICTS = 8
 GAP_MODEL_MIN_R = 0.3
 
+# Why no shortfall is shown, told apart so the rep can act: a thin directory (too few covered districts to
+# judge the relationship — not a verdict on the activity) versus a genuine non-population activity (enough
+# districts, but the count does not track population). The second keeps the product-mandated wording.
+GAP_UNAVAILABLE_MESSAGES = {
+    "too_few_districts": "عدد الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط أقل من أن يُقاس به ارتباطه بالسكان، "
+                         "وقد يكون النشاط قليل الظهور في الدليل هنا؛ فلا يُقدَّر النقص، وتُعرض الأحياء بأعدادها الفعلية فقط.",
+    "weak_relationship": "هذا النشاط لا يتبع عدد السكان في هذه المدينة، فلا يمكن تقدير النقص؛ "
+                         "تُعرض الأحياء بأعدادها الفعلية فقط.",
+}
+
 
 def population_fit(populations, counts):
     """Pearson r and the slope of business count on population, with the population variance, over the
@@ -874,11 +884,15 @@ class MarketAnalytics:
         }
         if not model_fits:
             # the count is not driven by population here: no city rate, no expected, no shortfall. The districts
-            # are listed by their real directory counts only, the most-served first.
+            # are listed by their real directory counts only, the most-served first. Two different failures are
+            # told apart so the rep knows whether to trust the verdict: with fewer than the floor of covered
+            # districts we simply cannot judge the relationship (a thin directory, often just few listings of
+            # the activity) — that is NOT a finding that the activity ignores population; with enough districts
+            # but a flat-or-negative relationship it genuinely does not track population.
+            reason = "too_few_districts" if covered_districts < GAP_MODEL_MIN_DISTRICTS else "weak_relationship"
             rows.sort(key=lambda row: (-row["businesses"], row["district_ar"]))
             return {**base, "residents_per_business": None, "districts": rows[:limit],
-                    "message": "هذا النشاط لا يتبع عدد السكان في هذه المدينة، فلا يمكن تقدير النقص؛ "
-                               "تُعرض الأحياء بأعدادها الفعلية فقط."}
+                    "population_model_reason": reason, "message": GAP_UNAVAILABLE_MESSAGES[reason]}
         # ordinary residential districts first, each group largest shortfall first
         rows.sort(key=lambda row: (row["caveat"] is not None, -row["shortfall"], row["district_ar"]))
         return {**base, "residents_per_business": round(rate), "districts": rows[:limit]}

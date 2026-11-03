@@ -152,8 +152,16 @@ export const EXPLAIN = {
       'الدليل لا يضم كل المنشآت الفعلية، فالنقص يدل على مكان البحث لا على طلب مؤكد.',
     ]
   },
-  // the activity's count does not track population in this city, so no «يحتاج» and no shortfall are shown
-  gapNotPopulation(fit?: number | null, coveredDistricts?: number | null): string[] {
+  // no «يحتاج» and no shortfall are shown, for one of two reasons: too few covered districts to judge the
+  // relationship (a thin directory — NOT a verdict on the activity), or enough districts but a flat/negative
+  // relationship (the count genuinely does not track population)
+  gapNotPopulation(reason?: 'too_few_districts' | 'weak_relationship', fit?: number | null, coveredDistricts?: number | null): string[] {
+    if (reason === 'too_few_districts') {
+      return [
+        `لا تكفي الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط${coveredDistricts != null ? ` (${n(coveredDistricts)} حي فقط)` : ''} لقياس علاقة عدده بالسكان، وقد يكون النشاط قليل الظهور في الدليل هنا.`,
+        'فلا يُقدَّر «يحتاج» ولا نقص؛ تُعرض الأحياء بأعدادها الفعلية في الدليل فقط. ابحث في الأحياء المكتظة التي لا منشآت لها.',
+      ]
+    }
     return [
       'عدد منشآت هذا النشاط في هذه المدينة لا يتبع عدد سكان الأحياء، كما هي حال تجارة الجملة والمناطق الصناعية ومنشآت الأعمال والوجهات.',
       ...(fit != null && coveredDistricts != null

@@ -27,7 +27,7 @@ type Gap = { district_ar: string; population: number; businesses: number; expect
  * industrial, B2B, destinations): there is no honest city rate, so `residents_per_business` and every row's
  * `expected_businesses`/`shortfall` are null, and the districts are listed by their real counts only. `fit`
  * (R²) and `covered_districts` say how that was measured, so the decision is auditable. */
-type Result = { residents_per_business: number | null; population_model_fits?: boolean; fit?: number | null; covered_districts?: number; message?: string; districts: Gap[]; understood?: Understanding }
+type Result = { residents_per_business: number | null; population_model_fits?: boolean; population_model_reason?: 'too_few_districts' | 'weak_relationship'; fit?: number | null; covered_districts?: number; message?: string; districts: Gap[]; understood?: Understanding }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
@@ -179,8 +179,13 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
           <div role="status" className="flex flex-col gap-1 rounded-xl bg-muted/40 p-3 text-base">
             <p className="font-semibold">نقص «{label}»: غير متاح</p>
             <p className="text-sm text-muted-foreground">{result.message ?? 'هذا النشاط لا يتبع عدد السكان في هذه المدينة، فلا يمكن تقدير النقص؛ تُعرض الأحياء بأعدادها الفعلية فقط.'}</p>
-            {result.fit != null && result.covered_districts != null && (
+            {/* the measured r is shown only when it was measured over enough districts to mean anything; with too
+                few covered districts r is unreliable, so only the count is shown and the message says why */}
+            {result.population_model_reason === 'weak_relationship' && result.fit != null && result.covered_districts != null && (
               <p className="text-sm text-muted-foreground tabular-nums">قيس على {numberFormat.format(result.covered_districts)} حي يحمل سكاناً ومنشآت: ارتباط العدد بالسكان r = {numberFormat.format(result.fit)}.</p>
+            )}
+            {result.population_model_reason === 'too_few_districts' && result.covered_districts != null && (
+              <p className="text-sm text-muted-foreground tabular-nums">الأحياء التي تحمل سكاناً ومنشآت لهذا النشاط: {numberFormat.format(result.covered_districts)} فقط.</p>
             )}
           </div>
           {result.districts.length > 0 && (
@@ -204,7 +209,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
                         </span>
                       )}
                       aside={(
-                        <Explained title={`لماذا لا يُحسب النقص لـ«${label}»`} lines={EXPLAIN.gapNotPopulation(result.fit, result.covered_districts)} className="p-2">
+                        <Explained title={`لماذا لا يُحسب النقص لـ«${label}»`} lines={EXPLAIN.gapNotPopulation(result.population_model_reason, result.fit, result.covered_districts)} className="p-2">
                           <span className="sr-only">لماذا لا يُحسب</span>
                         </Explained>
                       )} />

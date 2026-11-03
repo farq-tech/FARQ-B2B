@@ -58,6 +58,9 @@ class MarketGapTests(unittest.TestCase):
         self.assertFalse(result["population_model_fits"])
         self.assertIsNone(result["residents_per_business"], "no honest city rate, so none is published")
         self.assertEqual(result["covered_districts"], 2, "only النخيل and الياسمين carry both figures")
+        # with only two covered districts the honest reason is that we cannot judge the relationship, not a
+        # verdict that the activity ignores population (r over two points is meaningless)
+        self.assertEqual(result["population_model_reason"], "too_few_districts")
         self.assertTrue(result["message"], "the panel is told why no shortfall is shown")
         for row in result["districts"]:
             self.assertIsNone(row["expected_businesses"], "no invented «يحتاج» number")
@@ -76,7 +79,26 @@ class MarketGapTests(unittest.TestCase):
         result = analytics.market_gaps({"city": "Riyadh"}, population)
         self.assertFalse(result["population_model_fits"], "3 < 8 covered districts")
         self.assertEqual(result["covered_districts"], 3)
+        self.assertEqual(result["population_model_reason"], "too_few_districts", "a positive but thin signal is not judged")
         self.assertIsNone(result["residents_per_business"])
+
+    def test_enough_districts_but_count_ignores_population_is_a_weak_relationship(self):
+        # the real wholesale/B2B case: eight covered districts, but more people means fewer businesses — the
+        # count does not track population, so it is a genuine non-population verdict, not thin data
+        counts = {f"w{i}": c for i, c in enumerate([8, 7, 6, 5, 4, 3, 2, 1])}
+        pops = {f"w{i}": p for i, p in enumerate([10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000])}
+        analytics = _analytics(self.root / "wholesale", counts)
+        population = {name: {"population": float(p), "male": None, "female": None} for name, p in pops.items()}
+        result = analytics.market_gaps({"city": "Riyadh"}, population)
+        self.assertFalse(result["population_model_fits"])
+        self.assertEqual(result["covered_districts"], 8, "enough districts to judge")
+        self.assertEqual(result["population_model_reason"], "weak_relationship", "negative relationship, not thin data")
+        self.assertLess(result["fit"], 0, "the measured correlation is negative")
+        self.assertEqual(result["message"],
+                         "هذا النشاط لا يتبع عدد السكان في هذه المدينة، فلا يمكن تقدير النقص؛ "
+                         "تُعرض الأحياء بأعدادها الفعلية فقط.", "the product-mandated wording for this case")
+        for row in result["districts"]:
+            self.assertIsNone(row["shortfall"])
 
     # ------- the population model holds (behaviour unchanged) -------
 
