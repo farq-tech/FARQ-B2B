@@ -386,13 +386,20 @@ export function LensMap() {
   const [done, setDone] = useState<ToolId[]>([])
   const markDone = useCallback((id: ToolId) => setDone((current) => (current.includes(id) ? current : [...current, id])), [])
   const openTool = useRef<ToolId | null>(null)
-  const onOverlay = useCallback((next: Overlay) => {
-    setOverlay(next)
-    if (openTool.current && (next.summary || next.sites?.length)) markDone(openTool.current)
-  }, [markDone])
+  // one poster per open step: an answer that lands after its step was left (a slow fetch of the step before) is
+  // dropped, instead of painting its colours under the open step's key
+  const onOverlay = useMemo(() => {
+    const owner = tool
+    return (next: Overlay) => {
+      if (openTool.current !== owner) return
+      setOverlay(next)
+      if (next.summary || next.sites?.length) markDone(owner)
+    }
+  }, [tool, markDone])
   const active = lensById(lens)
 
-  useEffect(() => { setSelected([]); setCard(null) }, [city])
+  // a ✓ answered for the city it was given in: another city starts its journey unanswered
+  useEffect(() => { setSelected([]); setCard(null); setDone([]) }, [city])
   // a link's ?tool= wins once over the lens's first step, when it is one of that lens's steps
   const presetTool = useRef<ToolId | null>(null)
   // and its ?layer= over the lens's own shading figure, when it is one of that lens's figures
@@ -405,7 +412,9 @@ export function LensMap() {
     setTool(presetTool.current && steps.includes(presetTool.current) ? presetTool.current : steps[0])
     presetTool.current = null
   }, [lens])
-  useEffect(() => {
+  // a layout effect, so the reset lands before the new step's own effects post its overlay: as a passive effect it
+  // ran after them (a parent's effects follow its children's) and wiped an answer the step had at hand
+  useLayoutEffect(() => {
     setOverlay({})
     if (tool === 'growth') setMetric('growth')
   }, [tool])

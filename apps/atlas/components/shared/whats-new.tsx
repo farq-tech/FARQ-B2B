@@ -55,7 +55,9 @@ export function WhatsNew({ onMap = false }: {
     try {
       const seen = localStorage.getItem(KEY)
       if (seen === null && localStorage.getItem(ONBOARDING_KEY) === null) localStorage.setItem(KEY, RELEASE.id)
-      else setOpen(seen !== RELEASE.id)
+      // release ids are dates (YYYY-MM-DD): a stored id this release or later counts as seen. Only an older one (or
+      // none, for a returning visitor) opens the bar; an exact-match test reopened it for any other stored value
+      else setOpen(seen == null || seen < RELEASE.id)
     } catch { setOpen(false) }
   }, [])
   if (!open || (onMap && tour)) return null
