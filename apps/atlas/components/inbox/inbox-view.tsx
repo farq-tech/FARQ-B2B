@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCheck, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, ClipboardList, FileText, Inbox as InboxIcon, MailOpen, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -115,6 +115,13 @@ export function InboxView() {
         )}
       </header>
 
+      {/* a first visit has no message to filter or open: one welcome that says what arrives here and where it comes
+          from, instead of four «0» filters beside «لا رسائل هنا» and an «اختر رسالة» that has nothing to choose */}
+      {inbox.length === 0 ? (
+        <EmptyState icon={InboxIcon} title="لا رسائل بعد"
+          body="ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا، بعد أن ترسل الطلب أو الحملة بنفسك من صفحته."
+          action={<Button nativeButton={false} render={<Link href="/requests" />}><ClipboardList data-icon="inline-start" />افتح الطلبات</Button>} />
+      ) : (
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(20rem,24rem)_1fr]">
         <section aria-label="قائمة الرسائل" className={cn('flex min-w-0 flex-col gap-3', selected && 'hidden lg:flex')}>
           <p id="inbox-keys" className="sr-only">تنقّل بين الرسائل بالسهمين لأعلى ولأسفل، واضغط Enter لفتح الرسالة.</p>
@@ -129,9 +136,8 @@ export function InboxView() {
           </ChipRow>
 
           {visible.length === 0 ? (
-            <EmptyState icon={InboxIcon} title="لا رسائل هنا"
-              body={filter === 'all' ? 'ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا بعد أن ترسلها بنفسك من صفحة الطلب.' : 'لا رسائل في هذا التصنيف. اختر «الكل» لترى كل الوارد.'}
-              action={filter === 'all' ? <Link href="/requests" className="text-sm font-semibold text-primary hover:underline">افتح الطلبات</Link> : undefined} />
+            <EmptyState icon={InboxIcon} title="لا رسائل في هذا التصنيف" body="اختر «الكل» لترى كل الوارد."
+              action={<Button size="sm" variant="outline" onClick={() => setParams({ f: 'all' })}>اعرض الكل</Button>} />
           ) : (
             <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
@@ -199,10 +205,11 @@ export function InboxView() {
             </div>
           ) : (
             <EmptyState icon={MailOpen} title="اختر رسالة" body="تظهر الرسالة هنا كاملة مع الطلب الذي تخصه، وتكتب ردك وتراجعه قبل أن ترسله."
-              className="h-full min-h-80 justify-center" action={<Link href="/requests" className="text-sm font-semibold text-primary hover:underline">أو انتقل إلى الطلبات</Link>} />
+              className="h-full min-h-80 justify-center" />
           )}
         </section>
       </div>
+      )}
     </main>
   )
 }
