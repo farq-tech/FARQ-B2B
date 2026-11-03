@@ -89,6 +89,18 @@ export const LENSES: Lens[] = [
 export const lensById = (id: LensId) => LENSES.find((lens) => lens.id === id) ?? LENSES[0]
 
 /**
+ * Each lens said as the visitor's goal, in one voice (simple modern Arabic, first person). The landing's goal cards and
+ * the map's first-visit row both read it, so the goal picked on one is the goal named on the other.
+ */
+export const LENS_GOALS: Record<LensId, string> = {
+  shops: 'أفتح محلاً أو أوسّع نشاطي',
+  marketers: 'أصل إلى جمهوري بحملة',
+  distributors: 'أوزّع وأغطّي المناطق',
+  analysts: 'أفهم السوق والأحياء',
+  property: 'أبحث عن عقار مناسب',
+}
+
+/**
  * What each step takes from the steps before it: the studied activity (lib/sticky-state, shared by every step) and the
  * districts picked on the map. «التالي» names what it carries into the next step. `pickAnswers` marks a step whose
  * answer is the picked districts' summary, so it counts as done once a district is picked on it.

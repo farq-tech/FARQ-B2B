@@ -12,14 +12,14 @@ import { Explained } from '@/components/shared/explained'
 import { EXPLAIN, populationMethod } from '@/lib/explanations'
 import { counted, ltr, numberFormat, useCities } from '@/lib/insights-api'
 import { useMainActivities } from '@/lib/main-activities'
-import { useStudiedActivity } from '@/lib/sticky-state'
+import { getSticky, setSticky, useStudiedActivity, watchSticky } from '@/lib/sticky-state'
 import { cn } from '@/lib/utils'
 import { useCityData, type DistrictRow } from './city-data'
 import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
-import { readMapQuery, writeMapQuery } from './map-query'
+import { readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
@@ -362,6 +362,12 @@ function writeDone(city: string, done: ToolId[]) {
   try { sessionStorage.setItem(`${DONE_KEY}|${city}`, JSON.stringify(done)) } catch { /* private window: the marks last this visit only */ }
 }
 
+// the choices made inside the lens's steps (sort orders, filters, the second activity, the open business), beside the view
+const withOptions = (search: string, lens: LensId) => writeMapOptions(search, lens, lensById(lens).steps.map((step) => step.tool), getSticky)
+const replaceAddress = (search: string) => {
+  if (search !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`)
+}
+
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
 const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
 
@@ -399,9 +405,6 @@ export function LensMap() {
   useLayoutEffect(() => { openTool.current = tool }, [tool])
   // a map that failed to open: its notice takes the map, and the tour waits (there is nothing to tap)
   const [mapFailed, setMapFailed] = useState(false)
-  // the top of the panel, where the tour asks its goal question
-  const [goalSlot, setGoalSlot] = useState<HTMLDivElement | null>(null)
-  const raiseSheet = useCallback(() => setSheet((current) => (current === 'peek' ? 'half' : current)), [])
   // the district a click on the map opened a card on, where the click landed, and where that is on screen now
   const [card, setCard] = useState<{ id: string; lon: number; lat: number } | null>(null)
   const [cardAt, setCardAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
@@ -473,6 +476,8 @@ export function LensMap() {
   const [studied, setStudied] = useStudiedActivity()
   const activities = useMainActivities(city)
   const presetMain = useRef<string | null>(null)
+  // the second activity of «قارن بنشاط آخر» named by a main activity's id, waiting for the city's list for its name
+  const presetRival = useRef<string | null>(null)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
     const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS,
@@ -490,6 +495,13 @@ export function LensMap() {
       if (preset.layer) setMetric(preset.layer as MetricId)
     }
     if (preset.q) { setDraft(preset.q); setSearch({ q: preset.q, nonce: Date.now() }) }
+    // the steps' own choices, each checked against what its step offers; the steps already open hear them
+    const openLens = (preset.lens ?? lens) as LensId
+    for (const [key, value] of Object.entries(readMapOptions(window.location.search, openLens, lensById(openLens).steps.map((step) => step.tool)))) {
+      const main = key === 'competitors.rival' ? (value as { main_id?: string; label?: string }).main_id : undefined
+      if (main && !(value as { label?: string }).label) presetRival.current = main
+      else setSticky(key, value)
+    }
     if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
     setHydrated(true)
     // read once on arrival; later changes come from the page itself
@@ -502,6 +514,16 @@ export function LensMap() {
     const item = activities.find((activity) => activity.main_id === wanted)
     if (item) setStudied({ main_id: item.main_id, label: item.main_ar })
   }, [activities, setStudied])
+  useEffect(() => {
+    const wanted = presetRival.current
+    if (!wanted || !activities.length) return
+    presetRival.current = null
+    const item = activities.find((activity) => activity.main_id === wanted)
+    if (item) setSticky('competitors.rival', { main_id: item.main_id, label: item.main_ar })
+    else replaceAddress(withOptions(window.location.search, lens))
+    // the lens is read as it stands when the list arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activities])
   useEffect(() => {
     const wanted = presetCity.current
     if (!wanted || cities.length < 2) return
@@ -525,8 +547,14 @@ export function LensMap() {
     // a main activity still waiting for its city's list keeps its place in the address
     const main = presetMain.current ?? studied.main_id ?? null
     const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
-    if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}${window.location.hash}`)
+    // a second activity still waiting for its name keeps its place too
+    replaceAddress(presetRival.current ? next : withOptions(next, lens))
   }, [hydrated, city, lens, tool, selected, search, studied, metric])
+  // a choice made inside a step goes to the address as it is made
+  useEffect(() => {
+    if (!hydrated) return
+    return watchSticky(() => { if (!presetRival.current) replaceAddress(withOptions(window.location.search, lens)) })
+  }, [hydrated, lens])
   useEffect(() => {
     const quiet = mapPick.current
     mapPick.current = false
@@ -721,7 +749,7 @@ export function LensMap() {
           )}
           <PointerTip store={pointer} describe={describePointed} />
           <p aria-live="polite" className="sr-only">{pickedSay}</p>
-          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet}
+          <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts}
             onShowMe={leadId ? () => pickFromList(leadId) : null} />
           {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
           <CopyLinkButton className="absolute end-3 bottom-[calc(6.5rem+var(--lift,0px))] z-10 transition-[bottom,color] duration-300 motion-reduce:transition-none lg:end-16 lg:top-3 lg:bottom-auto" />
@@ -828,7 +856,6 @@ export function LensMap() {
               )}
               {!search && (
                 <>
-                  <div ref={setGoalSlot} className="empty:hidden" />
                   {/* a table that failed empties its figures in every district: said once at the top, with a retry, so a
                       «غير متاح» further down is not read as the city lacking the figure */}
                   {stepFailed && (
@@ -846,7 +873,7 @@ export function LensMap() {
                   {tool === 'audience' && <AudienceTool city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onSelect={toggleFromList} onHover={setHovered} />}
                   {tool === 'competitors' && <CompetitorsTool city={city} rows={data.rows} onOverlay={onOverlay} onHover={setHovered} onSelect={pickFromList} onActivity={setRival}
                     onAllBranches={(brand) => { setSelected([]); setSearch({ q: brand, nonce: Date.now() }) }} />}
-                  {tool === 'corridors' && <CorridorsTool city={city} onOverlay={onOverlay} />}
+                  {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} />}
                   {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                   {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} />}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { LENSES, METRICS, METRIC_TABLE, STEP_TABLES, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type MetricId } from './lenses.ts'
+import { readMapQuery } from './map-query.ts'
+import { LENSES, LENS_GOALS, METRICS, METRIC_TABLE, STEP_TABLES, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type MetricId } from './lenses.ts'
 
 test('the next step follows the lens order and ends on its last step', () => {
   const shops = lensById('shops')
@@ -40,4 +41,14 @@ test('the open step and the layer in view load first; the rest wait', () => {
   // a layer that failed is not the step's: no notice over the panel for it
   assert.ok(!stepTables('audience').includes('demand'))
   for (const lens of LENSES) for (const step of lens.steps) assert.ok(STEP_TABLES[step.tool], `${lens.id}/${step.tool}`)
+})
+
+test('every lens has one goal wording, and its landing link opens that lens on its first step', () => {
+  assert.deepEqual(Object.keys(LENS_GOALS).sort(), LENSES.map((lens) => lens.id).sort())
+  const steps = Object.fromEntries(LENSES.map((lens) => [lens.id, lens.steps.map((step) => step.tool)]))
+  for (const lens of LENSES) {
+    const view = readMapQuery(`?lens=${lens.id}`, steps)
+    assert.equal(view.lens, lens.id)
+    assert.equal(view.tool, null) // no tool named: the lens opens on its first step
+  }
 })

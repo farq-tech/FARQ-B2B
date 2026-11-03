@@ -80,3 +80,183 @@ export function writeMapQuery(search: string, view: MapView, firstStep: string, 
   const text = query.toString()
   return text ? `?${text}` : ''
 }
+
+/**
+ * The choices made inside a step, kept in the address beside the view, so a reload or a shared link opens the step
+ * as it was left: the sort orders, the second activity of «قارن بنشاط آخر», the homes filters, the reps and days of
+ * the territories, the audience filters, the reach of «قارن المواقع», and the business list's search and open card.
+ *
+ * Each one is a value of lib/sticky-state (its `sticky` key, the same one the step reads), written under a short
+ * parameter only while it differs from the step's own default, and read back only when it is one of the values the
+ * step offers. `tools` names the steps it belongs to: the address keeps the options of the open lens's steps only
+ * (null: every lens). The defaults and values here repeat the steps' own (named beside each list below).
+ */
+export type MapOption = {
+  sticky: string
+  params: string[]
+  tools: string[] | null
+  initial: unknown
+  /** The value the address holds, or undefined when it holds none or one the step does not offer. */
+  read: (query: URLSearchParams) => unknown
+  /** The parameters for a value; a value the step does not offer writes nothing. */
+  write: (value: unknown) => Record<string, string | null>
+}
+
+const one = (param: string, sticky: string, tools: string[] | null, values: readonly string[], initial: string): MapOption => ({
+  sticky, params: [param], tools, initial,
+  read: (query) => { const raw = query.get(param); return raw != null && values.includes(raw) ? raw : undefined },
+  write: (value) => ({ [param]: typeof value === 'string' && values.includes(value) ? value : null }),
+})
+const whole = (param: string, sticky: string, tools: string[] | null, allowed: (value: number) => boolean, initial: number): MapOption => ({
+  sticky, params: [param], tools, initial,
+  read: (query) => {
+    const raw = query.get(param)
+    const value = raw != null && /^\d{1,9}$/.test(raw) ? Number(raw) : NaN
+    return Number.isSafeInteger(value) && allowed(value) ? value : undefined
+  },
+  write: (value) => ({ [param]: typeof value === 'number' && Number.isSafeInteger(value) && allowed(value) ? String(value) : null }),
+})
+const inRange = (min: number, max: number) => (value: number) => value >= min && value <= max
+// eslint-disable-next-line no-control-regex
+const BUSINESS_ID = /^[^\u0000- \u007f<>"'`\\]{1,180}$/
+
+// the values each step offers: tools/around-tool REACHES, tools/audience-tool INCOMES, lib/real-estate LISTING_TYPES
+// and BUDGETS, tools/territories-tool MIN_REPS..MAX_REPS and its day steppers
+const REACH_METRES = [500, 1000, 2000]
+const REACH_MINUTES = [5, 10, 15]
+const INCOMES = [0, 8000, 12000, 16000]
+const LISTING_TYPES = ['room', 'apartment', 'floor', 'villa', 'store', 'office', 'warehouse', 'land']
+const BUDGETS: Record<string, number[]> = {
+  rent_year: [30000, 50000, 80000, 120000, 200000],
+  rent_month: [2000, 3000, 5000, 8000, 12000],
+  rent_unstated: [30000, 50000, 80000, 120000, 200000],
+  sale: [700000, 1000000, 1500000, 2500000, 4000000],
+}
+const ANY_BUDGET = new Set(Object.values(BUDGETS).flat())
+/** The homes step keeps the shops lens's choices (store rents) apart from the homes lens's (tools/homes-tool). */
+export const homesSticky = (lens: string) => `homes.${lens === 'shops' ? 'preset' : 'plain'}`
+
+/** The options of a lens's steps, in the order they are written. */
+export function mapOptions(lens: string): MapOption[] {
+  const homes = homesSticky(lens)
+  const preset = lens === 'shops'
+  return [
+    one('order', 'competitors.order', ['competitors'], ['dense', 'light'], 'dense'),
+    one('view', 'competitors.view', ['competitors'], ['districts', 'brands'], 'districts'),
+    {
+      // the second activity of «قارن بنشاط آخر»: typed words (vs) or a main activity by id (vsmain), like the studied
+      // one; a main activity reads back without its name, which the page takes from the city's list
+      sticky: 'competitors.rival', params: ['vs', 'vsmain'], tools: ['competitors'], initial: null,
+      read: (query) => {
+        const main = query.get('vsmain')
+        if (main != null && MAIN.test(main)) return { main_id: main }
+        const q = cleanQuery(query.get('vs'))
+        return q ? { q, label: q } : undefined
+      },
+      write: (value) => {
+        const rival = value as { q?: string; main_id?: string } | null
+        const main = rival?.main_id && MAIN.test(rival.main_id) ? rival.main_id : null
+        return { vsmain: main, vs: main ? null : cleanQuery(rival?.q) }
+      },
+    },
+    one('vsorder', 'competitors.rivalOrder', ['competitors'], ['first', 'gap'], 'gap'),
+    {
+      sticky: 'around.reach', params: ['reach'], tools: ['around'], initial: { kind: 'radius', metres: 1000 },
+      read: (query) => {
+        const match = /^(\d{1,5})(m|min)$/.exec(query.get('reach') ?? '')
+        const n = match ? Number(match[1]) : NaN
+        if (match?.[2] === 'm' && REACH_METRES.includes(n)) return { kind: 'radius', metres: n }
+        if (match?.[2] === 'min' && REACH_MINUTES.includes(n)) return { kind: 'drive', minutes: n }
+        return undefined
+      },
+      write: (value) => {
+        const reach = value as { kind?: string; metres?: number; minutes?: number } | null
+        return {
+          reach: reach?.kind === 'radius' && REACH_METRES.includes(reach.metres ?? NaN) ? `${reach.metres}m`
+            : reach?.kind === 'drive' && REACH_MINUTES.includes(reach.minutes ?? NaN) ? `${reach.minutes}min` : null,
+        }
+      },
+    },
+    one('aud', 'audience.mode', ['audience'], ['people', 'businesses'], 'people'),
+    one('sex', 'audience.sex', ['audience'], ['all', 'men', 'women'], 'all'),
+    one('nat', 'audience.nationality', ['audience'], ['all', 'saudi', 'non_saudi'], 'all'),
+    whole('income', 'audience.minIncome', ['audience'], (value) => INCOMES.includes(value), 0),
+    one('rank', 'audience.rankBy', ['audience'], ['sex', 'nationality'], 'sex'),
+    whole('reps', 'territories.count', ['territories'], inRange(2, 50), 5),
+    one('weight', 'territories.weight', ['territories'], ['population', 'businesses'], 'businesses'),
+    whole('days', 'territories.days', ['territories'], inRange(1, 6), 5),
+    whole('perday', 'territories.perDay', ['territories'], inRange(1, 100), 20),
+    one('kind', `${homes}.kind`, ['homes'], ['rent', 'sale'], 'rent'),
+    one('type', `${homes}.type`, ['homes'], LISTING_TYPES, preset ? 'store' : 'apartment'),
+    one('deal', `${homes}.rentDeal`, ['homes'], ['all', 'rent_year', 'rent_month', 'rent_unstated'], preset ? 'all' : 'rent_year'),
+    whole('budget', `${homes}.budget`, ['homes'], (value) => value === 0 || ANY_BUDGET.has(value), 0),
+    {
+      // the business list's own search: an activity, or «كل الأنشطة» (*). The page keeps it with the list it was made
+      // in (`scope`: the city, districts and top search); read from the address it fits the first list that opens
+      sticky: 'businesses.search', params: ['bq'], tools: null, initial: null,
+      read: (query) => {
+        const raw = query.get('bq')
+        const q = raw === '*' ? '' : cleanQuery(raw)
+        return q == null ? undefined : { q, scope: null }
+      },
+      write: (value) => {
+        const q = (value as { q?: unknown } | null)?.q
+        return { bq: q === '' ? '*' : typeof q === 'string' ? cleanQuery(q) : null }
+      },
+    },
+    {
+      // the business whose directory card is open, by its key; it opens once the list holding it loads
+      sticky: 'businesses.open', params: ['biz'], tools: null, initial: null,
+      read: (query) => { const raw = query.get('biz'); return raw != null && BUSINESS_ID.test(raw) ? raw : undefined },
+      write: (value) => ({ biz: typeof value === 'string' && BUSINESS_ID.test(value) ? value : null }),
+    },
+  ]
+}
+
+const belongs = (option: MapOption, steps: readonly string[]) => option.tools == null || option.tools.some((tool) => steps.includes(tool))
+const same = (a: Record<string, string | null>, b: Record<string, string | null>) => Object.keys({ ...a, ...b }).every((key) => (a[key] ?? null) === (b[key] ?? null))
+
+/**
+ * The options the address holds for a lens whose steps are `steps`, by sticky key; a value a step does not offer is
+ * left out (the step keeps its own default). A budget is kept only with the deal it belongs to.
+ */
+export function readMapOptions(search: string, lens: string, steps: readonly string[]): Record<string, unknown> {
+  const query = new URLSearchParams(search)
+  const options = mapOptions(lens)
+  const values: Record<string, unknown> = {}
+  for (const option of options) {
+    if (!belongs(option, steps)) continue
+    const value = option.read(query)
+    if (value !== undefined) values[option.sticky] = value
+  }
+  const homes = homesSticky(lens)
+  const budget = values[`${homes}.budget`]
+  if (typeof budget === 'number' && budget > 0) {
+    const pick = (key: string) => values[`${homes}.${key}`] ?? options.find((option) => option.sticky === `${homes}.${key}`)?.initial
+    // «all» rent periods take no budget (tools/homes-tool)
+    const deal = pick('kind') === 'sale' ? 'sale' : String(pick('rentDeal'))
+    if (!(BUDGETS[deal] ?? []).includes(budget)) delete values[`${homes}.budget`]
+  }
+  return values
+}
+
+/**
+ * Writes the options into `search`, keeping every other parameter. `value(key)` gives a sticky key's current value,
+ * or undefined while it was never set (the step's default). An option of another lens's steps, or one back on its
+ * default, leaves the address.
+ */
+export function writeMapOptions(search: string, lens: string, steps: readonly string[], value: (sticky: string) => unknown): string {
+  const query = new URLSearchParams(search)
+  const options = mapOptions(lens)
+  for (const option of options) for (const param of option.params) query.delete(param)
+  for (const option of options) {
+    if (!belongs(option, steps)) continue
+    const current = value(option.sticky)
+    if (current === undefined) continue
+    const written = option.write(current)
+    if (same(written, option.write(option.initial))) continue
+    for (const [param, text] of Object.entries(written)) if (text) query.set(param, text)
+  }
+  const text = query.toString()
+  return text ? `?${text}` : ''
+}
