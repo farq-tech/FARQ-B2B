@@ -22,7 +22,7 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
-import { listingVerdict } from './tool-answers'
+import { listingVerdict, oversizedShop } from './tool-answers'
 import { Verdict } from './verdict'
 import { homesFacts, homesMedianKey } from './district-facts'
 
@@ -235,6 +235,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
               type: typeLabel(shown[0].type), district: shown[0].district_ar ?? null, price: shown[0].price_sar == null ? null : priceLine(shown[0]),
               versus: versusDistrict(shown[0])?.text ?? null, area: shown[0].area_sqm ?? null,
               away: myPoint ? `${formatDistance(distanceKm(shown[0], myPoint) * 1000)} من نقطتك` : null,
+              oversized: oversizedShop(shown[0].type, shown[0].area_sqm),
             }, nearest && Boolean(myPoint))} />
           )}
           {result.listings.length > 0 && (
@@ -253,6 +254,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, ne
                       sub={(
                         <>
                           <span className="block truncate">{[typeLabel(listing.type), listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null].filter(Boolean).join(' · ')}</span>
+                          {oversizedShop(listing.type, listing.area_sqm) && <span className="block truncate text-warning">{oversizedShop(listing.type, listing.area_sqm)}</span>}
                           {(versus || away) && <span className="block truncate">{versus && <span className={versus.tone === 'good' ? 'text-primary' : undefined}>{versus.text}</span>}{versus && away ? ' · ' : ''}{away}</span>}
                         </>
                       )} />
