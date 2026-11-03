@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, nextStep, type MetricId } from './lenses.ts'
+import { readMapQuery } from './map-query.ts'
+import { LENSES, LENS_GOALS, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, nextStep, type MetricId } from './lenses.ts'
 
 test('the next step follows the lens order and ends on its last step', () => {
   const shops = lensById('shops')
@@ -29,4 +30,14 @@ test('a figure whose table failed is «failed», one no district has is «missin
   assert.equal(metricAvailability('population', [row(null)], ['population'], ['population']), 'loading')
   // no rows yet (still loading) is not «missing»
   assert.equal(metricAvailability('population', [], []), 'ready')
+})
+
+test('every lens has one goal wording, and its landing link opens that lens on its first step', () => {
+  assert.deepEqual(Object.keys(LENS_GOALS).sort(), LENSES.map((lens) => lens.id).sort())
+  const steps = Object.fromEntries(LENSES.map((lens) => [lens.id, lens.steps.map((step) => step.tool)]))
+  for (const lens of LENSES) {
+    const view = readMapQuery(`?lens=${lens.id}`, steps)
+    assert.equal(view.lens, lens.id)
+    assert.equal(view.tool, null) // no tool named: the lens opens on its first step
+  }
 })
