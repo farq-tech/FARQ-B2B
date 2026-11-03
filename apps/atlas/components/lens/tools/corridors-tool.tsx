@@ -51,6 +51,18 @@ const HEAT = OCHRE_STEPS
 const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي', secondary: 'شارع فرعي' }
 
 /**
+ * The question «شوارع النشاط» asks for an activity: its key, its cache name and its one request. The map asks the same
+ * question ahead of time (one request, when the page is idle), so the step opens on its answer (lens-map prefetch).
+ */
+export function streetsQuestion(city: string, studied: { q?: string; main_id?: string }) {
+  return {
+    key: `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`,
+    cache: 'streets',
+    run: () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }),
+  }
+}
+
+/**
  * «شوارع النشاط»: the streets an activity lines, drawn along the streets themselves. Typing «أدوات صحية» or
  * «ورش سيارات» shows where that trade gathers, how many shops on how many metres, and whether it is a main road.
  */
@@ -71,8 +83,9 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
   const [mode, setMode] = useState<'cluster' | 'gap'>('cluster')
 
   // the streets of one activity; a new activity clears the last one's streets at once, and its picked street with them
-  const streetsKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
-  const answer = useAnswer<Result>(chosen ? streetsKey : null, () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }), { cache: 'streets' })
+  const question = streetsQuestion(city, studied)
+  const streetsKey = question.key
+  const answer = useAnswer<Result>(chosen ? streetsKey : null, question.run, { cache: question.cache })
   const result = answer.data
   const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
   useEffect(() => { setActive(null) }, [streetsKey])
