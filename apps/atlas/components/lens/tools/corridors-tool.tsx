@@ -21,6 +21,8 @@ import { useMainActivities } from '@/lib/main-activities'
 import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
+import { corridorFacts } from './district-facts'
+import type { DistrictRow } from '../city-data'
 
 type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
@@ -48,7 +50,7 @@ const ROAD: Record<'main' | 'secondary', string> = { main: 'شارع رئيسي'
  * «شوارع النشاط»: the streets an activity lines, drawn along the streets themselves. Typing «أدوات صحية» or
  * «ورش سيارات» shows where that trade gathers, how many shops on how many metres, and whether it is a main road.
  */
-export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (overlay: Overlay) => void }) {
+export function CorridorsTool({ city, rows = [], onOverlay }: { city: string; rows?: DistrictRow[]; onOverlay: (overlay: Overlay) => void }) {
   const activities = useMainActivities(city)
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
@@ -92,6 +94,8 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   useEffect(() => { setUnit(null); setFocus(null) }, [streetsKey, active])
 
   const clusters = useMemo(() => corridors.map((item) => ({ geometry: item.geometry, street_ar: item.properties.street_ar })), [corridors])
+  // the card on a clicked district: the corridor with most shops running through it, as the service counted them
+  const facts = useMemo(() => (corridors.length ? corridorFacts(corridors.map((item) => item.properties), new Map(rows.map((row) => [row.name, row.id]))) : null), [corridors, rows])
 
   useEffect(() => {
     if (mode === 'gap') return
@@ -107,12 +111,12 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       : top ? `${counted(corridors.length, 'street')} لـ«${studied.label}» · الأعلى: ${top.street_ar} ${counted(top.n, 'shop')}`
         : result.understood === false ? null : `لا شارع يتجمع فيه «${studied.label}»`
     onOverlay({
-      summary, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
+      summary, facts, streets, onStreet: (id) => setActive(Number(id)), legend: streets.length ? { from: 'محلات أقل', to: 'محلات أكثر', shades: HEAT } : null,
       listings, onListing: (id) => { const item = units?.listings.find((listing) => listing.id === id); if (item) setUnit(item) },
       focus,
       popup: unit ? <ListingCard listing={unit} comparing={false} onClose={() => setUnit(null)} /> : null,
     })
-  }, [mode, corridors, colors, active, onOverlay, units, unit, focus, status, result, studied.label])
+  }, [mode, corridors, colors, active, onOverlay, units, unit, focus, status, result, studied.label, facts])
 
   // a long list draws 30 streets at a time; a street picked on the map further down is drawn so it can come into view
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
@@ -144,7 +148,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
         ))}
       </div>
       <Choice label="طريقة العرض" size="base" value={mode} onChange={setMode} options={[{ id: 'cluster', label: 'أين يتجمع' }, { id: 'gap', label: 'أين الفرصة' }]} />
-      {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
+      {mode === 'gap' && <StreetOpportunities city={city} rows={rows} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
       {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={answer.retry} />}
       {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
       {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && (

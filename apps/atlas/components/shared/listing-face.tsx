@@ -9,8 +9,10 @@ import { cn } from '@/lib/utils'
  * the slot's shape, so a card without a photo lines up with its neighbours and reads as designed, not as broken.
  * It names no outside site: the link says «شاهد الإعلان» only.
  */
-export function ListingFace({ type, facts = [], url, size = 'card', className }: {
+export function ListingFace({ type, facts = [], url, size = 'card', failed = false, className }: {
   type: string
+  /** The ad has photos but none of them loaded: say so, rather than «no photos». */
+  failed?: boolean
   /** Short facts in reading order (area, rooms…); empty ones are dropped. */
   facts?: (string | null | undefined | false)[]
   url?: string | null
@@ -47,10 +49,11 @@ export function ListingFace({ type, facts = [], url, size = 'card', className }:
         <span className="flex flex-col gap-0.5">
           <span className="text-sm font-bold">{typeLabel(type)}</span>
           {line && <span className="text-xs text-muted-foreground">{line}</span>}
+          {failed && <span className="text-xs text-muted-foreground">تعذّر تحميل صور الإعلان، وهي في الإعلان نفسه</span>}
         </span>
       )}
       {link}
-      <span className="sr-only">لا صور لهذا الإعلان</span>
+      <span className="sr-only">{failed ? 'تعذّر تحميل صور هذا الإعلان' : 'لا صور لهذا الإعلان'}</span>
     </div>
   )
 }

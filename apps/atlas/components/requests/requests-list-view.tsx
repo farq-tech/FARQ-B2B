@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ClipboardList, MapPinned } from 'lucide-react'
+import { ChevronLeft, ClipboardList, LogIn, MapPinned } from 'lucide-react'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip, ChipCount } from '@/components/ui/chip'
@@ -11,6 +11,7 @@ import { STATUS_LABEL, formatDate, nextStep, requestCity, statusLabel } from '@/
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
+import { signInHref, useSignedIn } from '@/lib/use-signed-in'
 import type { RequestStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { STATUS_ICON, StatusBadge, TypeLabel } from './request-badges'
@@ -27,6 +28,8 @@ export function RequestsListView() {
   const [chosen, setTab] = useState<RequestStatus | null>(null)
   const tab = chosen ?? ATTENTION.find((s) => requests.some((r) => r.status === s)) ?? 'draft'
   const [q, setQ] = useState('')
+  // a signed-out visitor is told to sign in, not «لا طلبات بعد» as if their account were empty
+  const signedIn = useSignedIn()
 
   const none = requests.length === 0
   const nq = normalizeArabic(q)
@@ -55,7 +58,11 @@ export function RequestsListView() {
 
       {/* a first visit has nothing to search or sort: one welcome that says what a request is and where it starts,
           instead of an empty search box, five «0» tabs and «لا شيء في مسودات» */}
-      {none ? (
+      {none && signedIn === null ? null : none && !signedIn ? (
+        <EmptyState heading="h2" icon={LogIn} title="سجّل الدخول لترى طلباتك"
+          body="هنا قوائم المنشآت التي حفظتها وطلبات التسعير ومسودات الحملات، تراجعها قبل أي إرسال."
+          action={<Button nativeButton={false} render={<Link href={signInHref('/requests')} />}><LogIn data-icon="inline-start" />سجّل الدخول</Button>} />
+      ) : none ? (
         <EmptyState heading="h2" icon={ClipboardList} title="لا طلبات بعد"
           body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."
           action={<Button nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
