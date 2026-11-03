@@ -72,7 +72,9 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
-  }, [city, studied, attempt])
+    // keyed by what is asked: the same activity set again (a step, a shared link) asks nothing again
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, studied.q, studied.main_id, attempt])
 
   const corridors = useMemo(() => result?.features ?? [], [result])
   const colors = useMemo(() => {

@@ -61,7 +61,13 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   const pairs = useMemo(() => (answer?.status === 'ready' ? comparePairs(rows, firstCounts, answer.counts, order) : []), [answer, firstCounts, rows, order])
   const [limit, showMore] = useShowMore(15, `${city}|${first.q ?? first.main_id}|${rival?.q ?? rival?.main_id}|${order}`)
 
-  const pick = (next: StudiedActivity) => { setRival(next); setOpen(false); setQuery('') }
+  // the same activity as the studied one compares a list with itself (every gap 0): the picker says so instead
+  const sameAs = (next: StudiedActivity) => (next.q && first.q ? next.q.trim() === first.q.trim() : next.main_id != null && next.main_id === first.main_id) || next.label === first.label
+  const [same, setSame] = useState(false)
+  const pick = (next: StudiedActivity) => {
+    if (sameAs(next)) { setSame(true); return }
+    setSame(false); setRival(next); setOpen(false); setQuery('')
+  }
 
   if (!rival && !open) {
     return (
@@ -77,16 +83,25 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
       <div className="flex flex-col gap-2 rounded-xl border p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-base font-semibold">قارن «{first.label}» بـ</p>
-          <button type="button" onClick={() => setOpen(false)} aria-label="إلغاء المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
+          <button type="button" onClick={() => { setOpen(false); setSame(false) }} aria-label="إلغاء المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
         </div>
         <form role="search" className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (query.trim()) pick({ q: query.trim(), label: query.trim() }) }}>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="النشاط الثاني" enterKeyHint="search" autoFocus
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setSame(false) }} aria-label="النشاط الثاني" enterKeyHint="search" autoFocus
             placeholder="اكتب النشاط الثاني: عيادة، مخبز…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
           <button type="submit" className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground">قارن</button>
         </form>
         <MainActivityPicker activities={activities} value="" placeholder="أو اختر نشاطاً رئيسياً"
           onChange={(id) => { const item = activities.find((activity) => activity.main_id === id); if (item) pick({ main_id: item.main_id, label: item.main_ar }) }} />
+        {same && <p role="alert" className="text-sm text-destructive">هذا هو النشاط نفسه. اختر نشاطاً آخر لتقارن «{first.label}» به.</p>}
       </div>
+    )
+  }
+
+  // the second activity kept from before became the studied one (picked above since): no comparison with itself
+  if (sameAs(rival)) {
+    return (
+      <NoResult title={`«${rival.label}» هو النشاط المدروس الآن`} body="اختر نشاطاً ثانياً آخر لتقارنه به."
+        action={<button type="button" onClick={() => { setRival(null); setOpen(true) }} className="text-sm font-semibold text-primary underline">اختر نشاطاً</button>} />
     )
   }
 

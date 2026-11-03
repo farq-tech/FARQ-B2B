@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { NotAvailable } from '@/components/shared/empty-state'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, ltr, numberFormat, postMarket } from '@/lib/insights-api'
@@ -75,6 +76,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   const [minIncome, setMinIncome] = useStickyState('audience.minIncome', 0)
   const [rankBy, setRankBy] = useStickyState<'sex' | 'nationality'>('audience.rankBy', 'sex')
   const [shares, setShares] = useState<Map<string, Share> | null>(null)
+  // the measured shares failed to load: a sex or nationality figure then says so, with a retry, instead of «غير متاح»
+  const [sharesFailed, setSharesFailed] = useState(false)
+  const [sharesAttempt, setSharesAttempt] = useState(0)
   const activities = useMainActivities(city)
   const [mainId, setMainId] = useStudiedMainId(activities)
   const [counts, setCounts] = useState<Map<string, Count> | null>(null)
@@ -88,11 +92,12 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     // the shares of a city left behind never land on the next one
     let active = true
     setShares(null)
+    setSharesFailed(false)
     postMarket<{ districts?: Share[] }>('district-audience', { city })
       .then((data) => { if (active) setShares(new Map((data.districts ?? []).map((row) => [row.district_ar, row]))) })
-      .catch(() => { if (active) setShares(new Map()) })
+      .catch(() => { if (active) { setShares(new Map()); setSharesFailed(true) } })
     return () => { active = false }
-  }, [city])
+  }, [city, sharesAttempt])
 
   useEffect(() => {
     // leaving «منشآت» while its counts load drops them, so the people card never waits on them
@@ -144,6 +149,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
 
   // the map hands a new array of the same districts on every render, so the overlay follows their ids, not the array
   const selectedKey = selected.map((row) => row.id).join('|')
+  // the people figures of one segment wait for the measured shares; until then the map has no answer to give
+  const pending = status === 'loading' || (mode === 'people' && (sex !== 'all' || nationality !== 'all') && shares == null)
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
@@ -151,16 +158,16 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
     const ids = new Set(selectedKey ? selectedKey.split('|') : [])
     const list = ids.size ? scored.filter((item) => ids.has(item.row.id)) : scored
     const segment = both ? (ranked === 'sex' ? SEX_WORD[sex] : NATIONALITY_WORD[nationality]) : ''
-    const summary = status === 'loading' ? null
+    const summary = pending ? null
       : audienceSummary({ selected: ids.size, scope: ids.size || rows.length, segment, sizes: list.map((item) => item.size), unit: mode === 'people' ? 'شخص' : 'منشأة', top: scored[0]?.row.name ?? null,
         ...(mode === 'businesses' ? { cityTotal: cityCount?.total ?? null } : {}) })
     // «أرني الأعلى» opens the best-matching district, the first of the ranking
     // a district's own figure, as its row in the ranking shows it; one without a measured figure is left out («غير متاح»)
-    const facts = status === 'loading' ? null : new Map(scored.map((item) => [item.row.id, `${show(item.size)} ${mode === 'people' ? 'شخص' : 'منشأة'} · ${numberFormat.format(item.score)}/100`] as [string, string]))
+    const facts = pending ? null : new Map(scored.map((item) => [item.row.id, `${show(item.size)} ${mode === 'people' ? 'شخص' : 'منشأة'} · ${numberFormat.format(item.score)}/100`] as [string, string]))
     // the key the map corner draws: the same five shades by score, and the grey of a district the filters leave empty
     const legend = scored.length ? { from: 'تطابق أقل', to: 'تطابق أكثر', shades: SHADES, extra: { color: PALETTE.pebble, label: 'لا جمهور بهذه الفلاتر' } } : null
-    onOverlay({ colors, facts, summary, legend, lead: status === 'loading' ? null : scored[0]?.row.id ?? null })
-  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, status, rows.length, cityCount])
+    onOverlay({ colors, facts, summary, legend, lead: pending ? null : scored[0]?.row.id ?? null })
+  }, [scored, onOverlay, selectedKey, both, ranked, sex, nationality, mode, pending, rows.length, cityCount])
 
   const [limit, showMore] = useShowMore(10, `${city}|${mode}|${sex}|${nationality}|${minIncome}|${rankBy}|${mainId}`)
   const inScope = (list: Scored[]) => (selected.length ? list.filter((item) => selected.some((row) => row.id === item.row.id)) : list)
@@ -177,6 +184,21 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         ? [{ key: 'sex', list: scope, unknown }, { key: 'nationality', list: inScope(other.scored), unknown: other.unknown }]
         : [{ key: 'sex', list: inScope(other.scored), unknown: other.unknown }, { key: 'nationality', list: scope, unknown }]
       ).map((item) => ({ ...item, label: segmentWord(item.key as Segment) }))
+
+  const segmented = mode === 'people' && (sex !== 'all' || nationality !== 'all')
+  const sharesError = segmented && sharesFailed
+  // a sex or nationality figure waits for the measured shares, so it never reads «غير متاح» while they load
+  const busy = pending
+  // asked, and no district has the figure measured (a city without sex and nationality shares, or without income):
+  // said once with what is missing and what still works, never a card of «غير متاح» over an empty ranking
+  const missing = mode === 'people' && !busy && !sharesError && rows.length > 0 && scored.length === 0
+    ? (rows.every((row) => row.population == null) ? 'سكان الأحياء'
+      : minIncome > 0 && rows.every((row) => row.income == null) ? 'دخل الأحياء'
+        : segmented ? (sex !== 'all' && nationality !== 'all' ? 'الجنس والجنسية' : sex !== 'all' ? 'الجنس' : 'الجنسية') : 'سكان الأحياء')
+    : null
+  const missingBody = missing === 'دخل الأحياء' ? 'اختر «أي دخل» لترى الأحياء بسكانها.'
+    : missing === 'سكان الأحياء' ? 'جرّب «أستهدف منشآت»: المنشآت تُعدّ في كل مدينة.'
+      : 'اختر «الكل» لترى الأحياء بكل سكانها، أو «أستهدف منشآت».'
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -202,7 +224,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط المنشآت" allLabel="كل الأنشطة" />
         </>
       )}
-      {status === 'loading' && (
+      {busy && (
         <>
           <SkeletonStatus label="جارٍ الحساب" className="flex flex-col gap-2 rounded-xl bg-muted/40 px-3 py-2.5">
             <Skeleton className="h-4 w-40" />
@@ -212,7 +234,9 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </>
       )}
       {status === 'error' && <LoadError what="منشآت الأحياء" onRetry={() => setAttempt((n) => n + 1)} />}
-      {status !== 'loading' && mode === 'businesses' && !selected.length && (
+      {sharesError && <LoadError what="نسب الجنس والجنسية" onRetry={() => setSharesAttempt((n) => n + 1)} />}
+      {missing && <NotAvailable what={missing} where="هذه المدينة" body={missingBody} />}
+      {!busy && status === 'idle' && mode === 'businesses' && !selected.length && (
         // the whole city: the service's city count (with the businesses no district holds), the same as «المنافسون»
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
           <p className="text-sm text-muted-foreground">حجم الجمهور</p>
@@ -226,7 +250,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           )}
         </div>
       )}
-      {status !== 'loading' && !(mode === 'businesses' && !selected.length) && (
+      {!busy && status === 'idle' && !sharesError && !missing && !(mode === 'businesses' && !selected.length) && (
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">
           <p className="text-sm text-muted-foreground">حجم الجمهور</p>
           {figures.map((figure) => (
@@ -243,7 +267,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           ))}
         </div>
       )}
-      {scored.length > 0 && status !== 'loading' && (
+      {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
         <div>
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">

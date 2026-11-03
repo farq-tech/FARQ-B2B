@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Baby, MapPin, Store, Users } from 'lucide-react'
-import { Skeleton, SkeletonRows, SkeletonStats, SkeletonStatus } from '@/components/ui/skeleton'
+import { Baby, Lock, MapPin, Store, Users } from 'lucide-react'
+import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { Split, Stat, withReason } from '@/components/shared/stat'
@@ -48,26 +49,35 @@ export function SiteCard({ label, color, reach, activity, state, onRetry }: { la
           <p className="truncate text-xs opacity-90">{reach} · {activity}</p>
         </div>
       </header>
+      {/* one announcement for the whole card (it was said three times, once per part), the shapes of its two parts */}
       {(!state || state.status === 'loading') && (
-        <div className="space-y-4 p-4">
-          <section className="space-y-2.5">
-            <Skeleton className="h-4 w-28" aria-hidden />
-            <SkeletonStats label="جارٍ حساب البطاقة" />
-            <SkeletonRows label="جارٍ حساب البطاقة" rows={3} sub trailing className="rounded-xl border px-3" />
-          </section>
-          <SkeletonStatus label="جارٍ حساب البطاقة" className="space-y-3">
+        <SkeletonStatus label={`جارٍ حساب بطاقة الموقع ${label}`} className="space-y-4 p-4">
+          <div className="space-y-2.5">
+            <Skeleton className="h-4 w-28" />
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="flex flex-col gap-1.5 rounded-xl bg-muted/40 px-3 py-2.5"><Skeleton className="h-3 w-2/3" /><Skeleton className="h-6 w-1/2" /></div>
+              ))}
+            </div>
+            <div className="divide-y rounded-xl border px-3">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="flex items-center gap-2 py-2"><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 w-14" /></div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
             <Skeleton className="h-4 w-28" />
             <div className="flex items-baseline justify-between"><Skeleton className="h-4 w-16" /><Skeleton className="h-8 w-24" /></div>
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-11 w-full rounded-xl" />
-          </SkeletonStatus>
-        </div>
+          </div>
+        </SkeletonStatus>
       )}
+      {/* not a failure: the card names competitors, so it opens for a signed-in account; the shared empty shape with its one step */}
       {state?.status === 'denied' && (
-        <p className="m-4 rounded-xl bg-muted/60 px-3 py-2.5 text-sm">
-          {state.message}{state.signIn && <> <Link href="/login?next=%2Fmap%3Ftool%3Daround" className="font-semibold text-primary underline">تسجيل الدخول</Link></>}
-        </p>
+        <EmptyState compact icon={Lock} className="m-4" title={state.signIn ? 'بطاقة الموقع لمن سجّل الدخول' : 'بطاقة الموقع غير متاحة لحسابك'} body={state.message}
+          action={state.signIn ? <Link href="/login?next=%2Fmap%3Ftool%3Daround" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
       )}
       {state?.status === 'error' && <LoadError what="بطاقة الموقع" detail={state.message} onRetry={onRetry} className="m-4" />}
       {state?.status === 'ready' && <Body data={state.data} activity={activity} />}

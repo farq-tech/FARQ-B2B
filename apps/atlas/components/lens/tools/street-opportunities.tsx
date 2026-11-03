@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
@@ -64,13 +64,19 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
-  }, [city, studied, attempt])
+    // keyed by what is asked, not by the prop object: a new object for the same activity asks nothing again
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, studied.q, studied.main_id, attempt])
 
   const streets = useMemo(() => result?.features ?? [], [result])
   const kinds = result?.requested_kinds ?? 1
 
+  // the reference streets are a prop array: the overlay follows their names, and reads the latest list from a ref
+  const clustersRef = useRef(clusters)
+  clustersRef.current = clusters
+  const clustersKey = clusters.map((item) => item.street_ar).join('|')
   useEffect(() => {
-    const reference = clusters.map((item, index) => ({ id: `c${index}`, color: CLUSTER, geometry: item.geometry, label: item.street_ar }))
+    const reference = clustersRef.current.map((item, index) => ({ id: `c${index}`, color: CLUSTER, geometry: item.geometry, label: item.street_ar }))
     // the strongest opportunities are drawn last, so they sit on top where streets cross
     const drawn = streets
       .map((item, index) => ({ id: `o${index}`, color: shade(item.properties.score), geometry: item.geometry, label: item.properties.street_ar, active: index === active }))
@@ -86,7 +92,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       onStreet: (id) => { if (id.startsWith('o')) setActive(Number(id.slice(1))) },
       legend: drawn.length ? { from: 'فرصة أقل', to: 'فرصة أكبر', shades: SHADES, ...(reference.length ? { extra: { color: CLUSTER, label: 'يتجمع فيه النشاط الآن' } } : {}) } : null,
     })
-  }, [streets, clusters, active, onOverlay, status, result, studied.label])
+  }, [streets, clustersKey, active, onOverlay, status, result, studied.label])
 
   // 30 streets at a time; one picked on the map further down is drawn so it can come into view
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
