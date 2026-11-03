@@ -28,9 +28,12 @@ import re
 import secrets
 import threading
 import time
+import urllib.parse
 
 FILE_NAME = 'access_requests.jsonl'
 REVIEWS_NAME = 'access_request_reviews.jsonl'
+# «احذف بياناتي» from Atlas: the contact's hash and the time only, matched to the requests in the owner's list
+DELETIONS_NAME = 'access_deletion_requests.jsonl'
 # the owner's decisions, by hand: approving records the decision only, the account is made by hand in Farq
 REVIEW_STATUSES = {'reviewed': 'روجع', 'approved': 'موافق عليه', 'rejected': 'مرفوض'}
 STATUS_LABELS = {'new': 'جديد', **REVIEW_STATUSES}
@@ -163,25 +166,47 @@ def contact_key(value):
     return hashlib.sha256(('farq-access-v1:' + value).encode()).hexdigest()[:32]
 
 
-def _joined(requests, reviews):
+def read_deletions(folder):
+    """The people who asked for their details to be deleted: the time and their contact's hash, nothing else."""
+    return _read_lines(os.path.join(folder, DELETIONS_NAME), lambda row: isinstance(row.get('contact_key'), str))
+
+
+def _joined(requests, reviews, deletions=()):
+    """Each request with its latest decision, and two flags for the owner: `prior_approved` (the same contact was
+    approved on an earlier request: an account may exist already) and `deletion_asked` (the person asked for their
+    details to be deleted)."""
     latest = {review['id']: review for review in reviews}
     rows = []
     for row in requests:
         review = latest.get(row['id'])
         rows.append({**row, 'status': review['status'], 'note': review.get('note') or '', 'reviewed_at': review.get('reviewed_at')} if review
                     else {**row, 'status': 'new', 'note': '', 'reviewed_at': None})
+    approved = {}
+    for row in rows:
+        key = row.get('contact_key')
+        if key and row['status'] == 'approved':
+            approved.setdefault(key, []).append(row)
+    asked = {}
+    for entry in deletions:
+        asked[entry['contact_key']] = entry.get('asked_at')
+    for row in rows:
+        key = row.get('contact_key')
+        earlier = [other for other in approved.get(key, []) if other['id'] != row['id'] and float(other.get('ts', 0)) <= float(row.get('ts', 0))]
+        row['prior_approved'] = earlier[-1].get('reviewed_at') if earlier else None
+        row['deletion_asked'] = asked.get(key) if key else None
     return rows
 
 
 def with_reviews(folder):
     """The requests, oldest first, each with its latest decision: status, note and when (status 'new' before any)."""
-    return _joined(read_all(folder), read_reviews(folder))
+    return _joined(read_all(folder), read_reviews(folder), read_deletions(folder))
 
 
 def submit(folder, body, known_cities=None, now=None):
     """Validates and stores one request. Returns (status, answer): 201 stored; 200 with `duplicate` when the same
-    contact already has a request open (new or reviewed) or sent one in the last 24 hours (nothing new is stored, and
-    the person is told it is under review); 400 with the fields that do not pass; 429 when today's cap is reached."""
+    contact already has a request open (new or reviewed) or sent one in the last 24 hours (nothing new is stored; Atlas
+    answers «وصل طلبك» either way, so no one learns whether a contact has a request); 400 with the fields that do not
+    pass; 429 when today's cap is reached."""
     record, errors = validate(body, known_cities)
     if errors:
         return 400, {'ok': False, 'error': 'INVALID', 'fields': errors}
@@ -198,6 +223,26 @@ def submit(folder, body, known_cities=None, now=None):
                   'contact_key': key, **record}
         _append(folder, FILE_NAME, stored)
     return 201, {'ok': True, 'id': stored['id']}
+
+
+def request_deletion(folder, raw_contact, now=None):
+    """«احذف بياناتي»: keeps the contact's hash and the time for the owner, who deletes by hand. (status, answer):
+    200 always for a well-formed contact, whether or not it has a request (nothing is revealed), 400 otherwise, 429 at
+    the daily cap. Repeats of the same contact within a day are kept once."""
+    reach = contact(raw_contact)
+    if reach is None:
+        return 400, {'ok': False, 'error': 'INVALID', 'fields': {'contact': 'INVALID'}}
+    now = time.time() if now is None else now
+    key = contact_key(reach[1])
+    with _LOCK:
+        entries = read_deletions(folder)
+        if any(entry['contact_key'] == key and now - float(entry.get('ts', 0)) < SAME_CONTACT_WINDOW for entry in entries):
+            return 200, {'ok': True}
+        if sum(1 for entry in entries if now - float(entry.get('ts', 0)) < 86400) >= DAILY_CAP:
+            return 429, {'ok': False, 'error': 'DAILY_CAP'}
+        _append(folder, DELETIONS_NAME, {'id': secrets.token_hex(8), 'ts': now, 'contact_key': key,
+                                         'asked_at': time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))})
+    return 200, {'ok': True}
 
 
 def unread_count(folder):
@@ -257,54 +302,131 @@ def apply_retention(folder, now=None, days=None):
     now = time.time() if now is None else now
     limit = (days or retention_days()) * 86400
     with _LOCK:
-        return _redact_rows(folder, lambda row: now - float(row.get('ts', 0)) > limit, now, 'retention')
+        cleared = _redact_rows(folder, lambda row: now - float(row.get('ts', 0)) > limit, now, 'retention')
+        # a deletion ask older than the period has nothing left to match once those requests are cleared
+        asks = read_deletions(folder)
+        kept = [entry for entry in asks if now - float(entry.get('ts', 0)) <= limit]
+        if len(kept) != len(asks):
+            _rewrite(folder, DELETIONS_NAME, kept)
+        return cleared
+
+
+def start_retention(folder, every=86400, first_after=60, stop=None, log=None):
+    """The retention period as a scheduled job: a daemon thread that clears old details `first_after` seconds after
+    start and then every `every` seconds, so they go even if no one opens the list. Returns the thread; `stop`
+    (a threading.Event) ends it."""
+    stop = stop or threading.Event()
+
+    def loop():
+        wait = first_after
+        while not stop.wait(wait):
+            try:
+                cleared = apply_retention(folder)
+                if log:
+                    log(cleared)
+            except Exception:   # a full disk or a bad line must not end the job
+                if log:
+                    log(-1)
+            wait = every
+    thread = threading.Thread(target=loop, name='access-request-retention', daemon=True)
+    thread.start()
+    return thread
+
+
+def aggregate(rows):
+    """Demand without anyone's details: requests per month, city and category (what clearing keeps), newest month
+    first, then the largest count."""
+    counts = {}
+    for row in rows:
+        month = time.strftime('%Y-%m', time.gmtime(float(row.get('ts', 0))))
+        key = (month, row.get('city') or '', row.get('category') or '')
+        counts[key] = counts.get(key, 0) + 1
+    rows_out = [(month, city, category, n) for (month, city, category), n in counts.items()]
+    return sorted(rows_out, key=lambda item: (-int(item[0].replace('-', '')), -item[3], item[1], item[2]))
 
 
 FILTERS = {'all': 'الكل', **STATUS_LABELS}
 
 
-def account_details(row):
+def account_details(row, city_names=None):
     """What the owner copies to make the account by hand in Farq: plain lines, nothing is sent from here."""
     reach = 'البريد' if row.get('contact_kind') == 'email' else 'الجوال'
     return '\n'.join([
         f"الاسم: {row.get('name') or ''}",
         f"الجهة: {row.get('company') or ''}",
         f"{reach}: {row.get('contact') or ''}",
-        f"المدينة: {row.get('city') or ''}",
+        f"المدينة: {city_label(row.get('city'), city_names)}",
         f"الفئة: {CATEGORIES.get(row.get('category'), row.get('category') or '')}",
     ])
 
 
-def render_html(rows, saved=False, status='all'):
-    """The owner's list (with_reviews), newest first, every value escaped, filtered by status, with per request: a
-    decision form, the account details to copy once approved, and «احذف بيانات التواصل». Nothing here sends anything."""
+def city_label(city, city_names=None):
+    """A city as the owner reads it: its Arabic name from the shared city list, the stored English key otherwise."""
+    return (city_names or {}).get(city) or city or ''
+
+
+SEARCH_FIELDS = ('name', 'company', 'contact', 'city', 'purpose', 'note')
+
+
+def _fold(text):
+    """Text for search: lower case, Arabic-Indic digits as 0-9, the usual Arabic letter variants as one."""
+    text = str(text or '').translate(_DIGITS).casefold()
+    return re.sub('[أإآ]', 'ا', text).replace('ة', 'ه').replace('ى', 'ي')
+
+
+def matches(row, query, city_names=None):
+    """Whether a request has every word of `query` in its name, company, contact, city (either spelling), purpose or note."""
+    words = _fold(query).split()
+    if not words:
+        return True
+    hay = _fold(' '.join([*(str(row.get(field) or '') for field in SEARCH_FIELDS), city_label(row.get('city'), city_names)]))
+    return all(word in hay for word in words)
+
+
+def render_html(rows, saved=False, status='all', query='', city_names=None):
+    """The owner's list (with_reviews), newest first, every value escaped, filtered by status and a search, with per
+    request: a decision form, the account details to copy once approved, «احذف بيانات التواصل», and the flags
+    «سبق قبوله» and «طلب حذف بياناته»; under it, the demand by month, city and category (no one's details)."""
     status = status if status in FILTERS else 'all'
-    counts = {key: (len(rows) if key == 'all' else sum(1 for row in rows if row.get('status', 'new') == key)) for key in FILTERS}
-    shown = [row for row in rows if status == 'all' or row.get('status', 'new') == status]
+    query = clean_text(query, 0, 80) or ''
+    found = [row for row in rows if matches(row, query, city_names)]
+    counts = {key: (len(found) if key == 'all' else sum(1 for row in found if row.get('status', 'new') == key)) for key in FILTERS}
+    shown = [row for row in found if status == 'all' or row.get('status', 'new') == status]
+    unread = sum(1 for row in rows if row.get('status', 'new') == 'new')
+    asked = sum(1 for row in rows if row.get('deletion_asked') and not row.get('redacted_at'))
+    keep_q = f'&amp;q={html.escape(urllib.parse.quote(query))}' if query else ''
     tabs = ' · '.join(
         (f'<strong aria-current="page">{label} ({counts[key]})</strong>' if key == status
-         else f'<a href="/access-requests?status={key}">{label} ({counts[key]})</a>')
+         else f'<a href="/access-requests?status={key}{keep_q}">{label} ({counts[key]})</a>')
         for key, label in FILTERS.items())
+    search = ('<form method="get" action="/access-requests" role="search" style="flex-direction:row;align-items:end;max-width:560px">'
+              f'<input type="hidden" name="status" value="{html.escape(status)}">'
+              f'<label style="flex:1">ابحث بالاسم أو الجهة أو التواصل أو المدينة<input type="search" name="q" value="{html.escape(query)}" maxlength="80"></label>'
+              '<button type="submit">ابحث</button>' + (f'<a href="/access-requests?status={html.escape(status)}">مسح</a>' if query else '') + '</form>')
     head = ('<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>طلبات الحسابات</title>'
             '<style>body{font-family:-apple-system,Tahoma;background:#0f1115;color:#e8eaf0;margin:24px}a{color:#93c5fd}'
             'table{border-collapse:collapse;width:100%}th,td{border:1px solid #2a2f3a;padding:8px;text-align:start;vertical-align:top}'
             'th{background:#171a21}td.c{direction:ltr;text-align:end}tr.new td:first-child{border-inline-start:4px solid #3b82f6}'
             '.s{display:inline-block;padding:2px 8px;border-radius:999px;background:#2a2f3a;font-size:13px}.s.new{background:#1d4ed8}'
-            '.s.approved{background:#166534}.s.rejected{background:#7f1d1d}form{display:flex;flex-direction:column;gap:6px;min-width:200px}'
+            '.s.approved{background:#166534}.s.rejected{background:#7f1d1d}.s.flag{background:#854d0e}'
+            'form{display:flex;flex-direction:column;gap:6px;min-width:200px}'
             'label{display:flex;flex-direction:column;gap:2px}pre{white-space:pre-wrap;margin:6px 0;background:#171a21;padding:8px;border-radius:6px}'
-            'select,textarea,button{font:inherit;border-radius:6px;border:1px solid #2a2f3a;background:#0f1115;color:#e8eaf0;padding:6px}'
+            'input,select,textarea,button{font:inherit;border-radius:6px;border:1px solid #2a2f3a;background:#0f1115;color:#e8eaf0;padding:6px}'
             'button{background:#3b82f6;border:0;cursor:pointer}button.x{background:transparent;border:1px solid #7f1d1d;color:#fca5a5}'
-            '.ok{color:#86efac}.m{color:#9ca3af;font-size:13px}</style>'
+            '.ok{color:#86efac}.m{color:#9ca3af;font-size:13px}h2{margin-top:32px}</style>'
             f'<p><a href="/">← لوحة الاستهداف</a></p><h1>طلبات الحسابات ({len(rows)})</h1>'
-            f'<p>جديدة لم يُتخذ فيها قرار: <strong>{counts["new"]}</strong></p>'
-            f'<nav aria-label="الحالة"><p>{tabs}</p></nav>'
+            f'<p>جديدة لم يُتخذ فيها قرار: <strong>{unread}</strong>'
+            + (f' · طلبات حذف بيانات تنتظر: <strong>{asked}</strong>' if asked else '') + '</p>'
+            + search + f'<nav aria-label="الحالة"><p>{tabs}</p></nav>'
             + (f'<p class="ok" role="status">{html.escape(saved)}</p>' if isinstance(saved, str) and saved else
                '<p class="ok" role="status">حُفظ القرار.</p>' if saved else '') +
             '<p>للمراجعة اليدوية. لا يُرسل شيء من هنا. الموافقة تسجّل القرار وتعرض بيانات الحساب لتنسخها وتنشئه يدوياً '
             f'في فرق، ثم تتواصل مع صاحب الطلب بنفسك. تُحذف بيانات التواصل تلقائياً بعد {retention_days()} يوماً.</p>')
+    summary = render_aggregate(rows, city_names)
     if not shown:
-        return head + ('<p>لا طلبات بعد.</p>' if not rows else '<p>لا طلبات بهذه الحالة.</p>') + '</html>'
+        empty = 'لا طلبات بعد.' if not rows else 'لا طلبات تطابق البحث.' if query else 'لا طلبات بهذه الحالة.'
+        return head + f'<p>{empty}</p>' + summary + '</html>'
 
     def e(value):
         return html.escape(str(value or '—'))
@@ -321,13 +443,18 @@ def render_html(rows, saved=False, status='all'):
         rid = html.escape(str(row.get('id', '')))
         decided = f'<br><small>{e(row.get("reviewed_at"))}</small>' if row.get('reviewed_at') else ''
         note = f'<br>{e(row.get("note"))}' if row.get('note') else ''
+        flags = ''
+        if row.get('prior_approved'):
+            flags += f'<br><span class="s flag">سبق قبوله ({e(row.get("prior_approved"))})</span><br><small class="m">قد يكون له حساب. تحقّق قبل إنشاء حساب ثانٍ.</small>'
+        if row.get('deletion_asked') and not row.get('redacted_at'):
+            flags += f'<br><span class="s flag">طلب حذف بياناته ({e(row.get("deletion_asked"))})</span>'
         if row.get('redacted_at'):
             gone = 'بعد مدة الحفظ' if row.get('redacted_why') == 'retention' else 'بطلب صاحبها'
             actions = f'<p class="m">حُذفت بيانات التواصل {gone} ({e(row.get("redacted_at"))}).</p>'
         else:
             details = ''
             if state == 'approved':
-                details = (f'<details open><summary>بيانات إنشاء الحساب</summary><pre id="d-{rid}">{html.escape(account_details(row))}</pre>'
+                details = (f'<details open><summary>بيانات إنشاء الحساب</summary><pre id="d-{rid}">{html.escape(account_details(row, city_names))}</pre>'
                            f'<button type="button" data-copy="d-{rid}">انسخ البيانات</button>'
                            '<p class="m">أنشئ الحساب يدوياً في فرق. لا يُرسل شيء لصاحب الطلب من هنا.</p></details>')
             actions = (details +
@@ -341,8 +468,9 @@ def render_html(rows, saved=False, status='all'):
                        '<button type="submit" class="x">احذف بيانات التواصل</button></form>')
         cells = [
             (True, e(row.get('received_at'))), (False, e(row.get('name'))), (False, e(row.get('company'))), (True, e(row.get('contact'))),
-            (False, e(row.get('city'))), (False, e(CATEGORIES.get(row.get('category'), row.get('category')))), (False, e(row.get('purpose'))),
-            (True, e(row.get('next'))), (False, f'<span class="s {state}">{STATUS_LABELS[state]}</span>{decided}{note}'), (False, actions)]
+            (False, e(city_label(row.get('city'), city_names))), (False, e(CATEGORIES.get(row.get('category'), row.get('category')))),
+            (False, e(row.get('purpose'))), (True, e(row.get('next'))),
+            (False, f'<span class="s {state}">{STATUS_LABELS[state]}</span>{decided}{note}{flags}'), (False, actions)]
         body.append(f'<tr class="{state}">' + ''.join(f'<td{" class=c" if ltr else ""}>{value}</td>' for ltr, value in cells) + '</tr>')
     script = ('<script>document.addEventListener("click",function(e){var b=e.target.closest("[data-copy]");if(!b)return;'
               'var t=document.getElementById(b.dataset.copy).textContent;navigator.clipboard.writeText(t).then(function(){b.textContent="نُسخت"},'
@@ -350,4 +478,18 @@ def render_html(rows, saved=False, status='all'):
               'if(m&&!confirm(m))e.preventDefault()});</script>')
     return (head + '<table><thead><tr><th>الوقت (UTC)</th><th>الاسم</th><th>الجهة</th><th>التواصل</th><th>المدينة</th>'
             '<th>الفئة</th><th>ما يريد</th><th>الصفحة</th><th>الحالة</th><th>القرار</th></tr></thead><tbody>' + ''.join(body)
-            + '</tbody></table>' + script + '</html>')
+            + '</tbody></table>' + summary + script + '</html>')
+
+
+def render_aggregate(rows, city_names=None):
+    """The demand table: counts only, so it stays whole after details are cleared."""
+    table = aggregate(rows)
+    if not table:
+        return ''
+    lines = ''.join(
+        f'<tr><td class=c>{html.escape(month)}</td><td>{html.escape(city_label(city, city_names) or "—")}</td>'
+        f'<td>{html.escape(CATEGORIES.get(category, category) or "—")}</td><td class=c>{n}</td></tr>'
+        for month, city, category, n in table)
+    return ('<h2>الطلب حسب الشهر والمدينة والفئة</h2><p class="m">أعداد فقط، تبقى بعد حذف البيانات.</p>'
+            '<table style="max-width:720px"><thead><tr><th>الشهر</th><th>المدينة</th><th>الفئة</th><th>الطلبات</th></tr></thead>'
+            f'<tbody>{lines}</tbody></table>')
