@@ -17,6 +17,24 @@ import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { AnimatePresence, DURATION, EASE, Expand, Reveal, ease, motion, useReducedMotion } from '@/lib/motion'
+
+/** The picked count inside an action button, popping as it changes (scale/opacity only, so it reads the same in RTL). */
+function PickCount({ value, reduce }: { value: number; reduce: boolean | null }) {
+  return (
+    <span className="relative inline-flex min-w-[1.25rem] justify-center tabular-nums">
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span key={value}
+          initial={reduce ? false : { opacity: 0, scale: 0.6, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6, y: 4 }}
+          transition={{ duration: reduce ? 0 : DURATION.fast, ease: EASE }}>
+          ({numberFormat.format(value)})
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  )
+}
 
 type Status = 'idle' | 'loading' | 'ready' | 'login' | 'guest' | 'error' | 'needs-scope'
 const PAGE = 200
@@ -31,8 +49,11 @@ const MAX_DISTRICTS = 5
 export function BusinessesPanel({ city, districts, query }: { city: string; districts: string[]; query?: string }) {
   const router = useRouter()
   const cities = useCities()
+  const reduce = useReducedMotion()
   const { createDraft } = useAppStore()
   const [activity, setActivity] = useState(query ?? '')
+  // a short confirm flash on the picked rows the moment a draft is prepared, before the request page opens
+  const [flashing, setFlashing] = useState(false)
   // the activity studied in the other steps, offered as a one-tap start before anything is shown
   const [studied] = useStudiedActivity()
   const [rows, setRows] = useState<PublicDirectoryEntity[]>([])
@@ -145,7 +166,11 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       liveBusinesses: rows.filter((row) => picked.has(row.id)),
     })
     toast.success('جُهّزت المسودة', { description: `${numberFormat.format(ids.length)} منشأة، راجعها قبل أي إرسال.` })
-    router.push(`/requests/${id}`)
+    const go = () => router.push(`/requests/${id}`)
+    // reduced motion: straight to the request, no flash; otherwise a brief acknowledgement on the picked rows first
+    if (reduce) { go(); return }
+    setFlashing(true)
+    window.setTimeout(go, 260)
   }
 
   // sign-in returns to this same view (city, districts and search kept in the address)
@@ -210,7 +235,9 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
         <NoResult title={`لا منشآت ${activity.trim() ? `«${activity.trim()}» ` : ''}في ${where}`} body={activity.trim() ? 'جرّب اسماً آخر للنشاط، أو كل الأنشطة.' : 'جرّب حياً آخر.'} />
       )}
       {status === 'ready' && rows.length > 0 && (
-        <>
+        // one gentle container fade as the skeleton gives way to the real list — perceived speed, not a hard cut; it
+        // plays once on mount, never again on a pick toggle, and collapses to instant when motion is reduced
+        <Reveal className="flex min-h-0 flex-col gap-3">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>{numberFormat.format(shown.length)} منشأة معروضة{total != null && total > rows.length ? ` من ${numberFormat.format(total)}` : ''}{searched != null && searched < districts.length ? ` · في ${numberFormat.format(searched)} من ${counted(districts.length, 'district')} محددة` : ''}</span>
           </div>
@@ -223,7 +250,10 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
           <ul className="max-h-80 divide-y overflow-y-auto text-base">
             {shown.map((row) => (
               <li key={row.id}>
-                <div className="flex items-center gap-2 py-2">
+                {/* the whole row answers a hover and a press (cheap CSS, so a long list stays smooth); a picked row keeps
+                    a soft olive tint, and flashes once the moment its draft is prepared */}
+                <div className={cn('flex items-center gap-2 py-2 transition-colors hover:bg-muted/40 active:bg-muted/60',
+                  picked.has(row.id) && 'bg-primary/5', flashing && picked.has(row.id) && 'atlas-confirm-flash')}>
                   <input type="checkbox" aria-label={`اختيار ${row.name}`} checked={picked.has(row.id)} onChange={() => toggle(row.id)} className="size-4 shrink-0 accent-primary" />
                   <button type="button" onClick={() => setOpenId(openId === row.id ? null : row.id)} aria-expanded={openId === row.id} className="min-w-0 flex-1 text-start">
                     <span className="block truncate font-medium">{row.name}</span>
@@ -231,20 +261,31 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
                   </button>
                   <ChevronDown aria-hidden className={cn('size-4 shrink-0 text-muted-foreground transition-transform', openId === row.id && 'rotate-180')} />
                 </div>
-                {openId === row.id && <BusinessDetail row={row} />}
+                {/* the details open in sync with the chevron: height and opacity together, instant when motion is reduced */}
+                <Expand open={openId === row.id}><BusinessDetail row={row} /></Expand>
               </li>
             ))}
           </ul>
-          <div className="grid grid-cols-3 gap-1.5">
-            {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ListPlus]] as const).map(([type, label, Icon]) => (
-              <button key={type} disabled={!picked.size} onClick={() => act(type)}
-                className={cn('inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-semibold', picked.size ? 'border-primary text-primary hover:bg-primary hover:text-primary-foreground' : 'cursor-not-allowed opacity-50')}>
-                <Icon className="size-4" aria-hidden /> {label}{picked.size ? ` (${numberFormat.format(picked.size)})` : ''}
-              </button>
-            ))}
-          </div>
+          {/* the action bar is the acknowledgement: it arrives only once a business is picked, so the step reads «now you
+              can act», not a row of dead buttons. It leaves again when the selection is cleared. */}
+          <AnimatePresence initial={false}>
+            {picked.size > 0 && (
+              <motion.div key="actions" className="grid grid-cols-3 gap-1.5"
+                initial={reduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                transition={ease(reduce)}>
+                {([['rfq', 'طلب تسعير', ClipboardList], ['campaign', 'حملة واتساب', Megaphone], ['list', 'حفظ قائمة', ListPlus]] as const).map(([type, label, Icon]) => (
+                  <button key={type} onClick={() => act(type)}
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-primary px-2 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground">
+                    <Icon className="size-4" aria-hidden /> {label} <PickCount value={picked.size} reduce={reduce} />
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
           <p className="text-sm text-muted-foreground">{picked.size ? 'يُفتح الطلب في «الطلبات» لتراجعه. لا يُرسل شيء من هنا.' : 'اختر منشأة أو أكثر لتنشئ منها طلباً. لا يُرسل شيء من هنا.'}</p>
-        </>
+        </Reveal>
       )}
     </section>
   )
