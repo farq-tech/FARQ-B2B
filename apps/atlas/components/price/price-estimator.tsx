@@ -63,7 +63,9 @@ const sar = (value: number) => `${numberFormat.format(value)} ريال`
 export function PriceEstimator() {
   const cities = useCities()
   const [city, setCity] = useState('Riyadh')
-  const [districts, setDistricts] = useState<{ id: string; name: string }[] | null>(null)
+  // null while loading, 'error' when the list did not arrive (then a retry, not a picker that reads «غير متاح»)
+  const [districts, setDistricts] = useState<{ id: string; name: string }[] | 'error' | null>(null)
+  const [districtsAttempt, setDistrictsAttempt] = useState(0)
   const [district, setDistrict] = useState('')
   const [deal, setDeal] = useState('rent_year')
   const [kind, setKind] = useState<string>('floor')
@@ -93,9 +95,10 @@ export function PriceEstimator() {
     setDistricts(null); setDistrict('')
     postMarket<{ districts?: { district_id: string; district_ar: string }[] }>('real-estate', { city })
       .then((data) => { if (live) setDistricts((data.districts ?? []).map((row) => ({ id: row.district_id, name: row.district_ar })).sort((a, b) => a.name.localeCompare(b.name, 'ar'))) })
-      .catch(() => { if (live) setDistricts([]) })
+      .catch(() => { if (live) setDistricts('error') })
     return () => { live = false }
-  }, [city])
+  }, [city, districtsAttempt])
+  const districtList = Array.isArray(districts) ? districts : []
 
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
@@ -109,7 +112,7 @@ export function PriceEstimator() {
     if (!ready) return
     const ask = ++sequence.current
     if (type !== kind) setKind(type)
-    setAsked({ key: keyFor(type), kind: type, area: areaNumber, districtName: districts?.find((item) => item.id === district)?.name, deal })
+    setAsked({ key: keyFor(type), kind: type, area: areaNumber, districtName: districtList.find((item) => item.id === district)?.name, deal })
     setResult('loading')
     setAllExamples(false)
     postMarket<Estimate>('price-estimate', {
@@ -134,12 +137,13 @@ export function PriceEstimator() {
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
-              <option value="">{districts === null ? 'جارٍ التحميل…' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
-              {districts?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districtList.length} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
+              <option value="">{districts === null ? 'جارٍ التحميل…' : districts === 'error' ? 'تعذر التحميل' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
+              {districtList.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
         </div>
+        {districts === 'error' && <LoadError what="أحياء المدينة" onRetry={() => setDistrictsAttempt((n) => n + 1)} />}
         <Question title="الصفقة">{DEALS.map(([id, label]) => <Chip key={id} active={deal === id} onClick={() => setDeal(id)}>{label}</Chip>)}</Question>
         <Question title="نوع العقار">
           {KINDS.map((id) => <Chip key={id} active={kind === id} onClick={() => setKind(id)}><Icon3D type={id} className="size-6" />{typeLabel(id)}</Chip>)}
@@ -159,11 +163,16 @@ export function PriceEstimator() {
         <Button size="lg" onClick={() => run()} disabled={!ready || result === 'loading'} className="w-full">
           {result === 'loading' ? <Loader2 className="animate-spin" aria-hidden /> : <Calculator aria-hidden />} احسب السعر
         </Button>
-        {!ready && <p className="text-center text-xs text-muted-foreground">اختر الحي واكتب المساحة لتحسب السعر.</p>}
+        {!ready && (
+          <p className="text-center text-xs text-muted-foreground">
+            {/* a city with no listings has no district to pick: say so, instead of asking for one that cannot be chosen */}
+            {Array.isArray(districts) && !districts.length ? 'التسعير غير متاح في هذه المدينة بعد: لا عروض حالية فيها نقارن بها. اختر مدينة أخرى.' : 'اختر الحي واكتب المساحة لتحسب السعر.'}
+          </p>
+        )}
       </section>
 
       <section ref={answer} aria-live="polite" aria-label="السعر المتوقع" className="flex scroll-mt-20 flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pb-2">
-        {result === null && <EmptyState icon={Calculator} title="السعر يظهر هنا" body="نقارن عقارك بأقرب العروض الحالية في حيه وما حوله، ونعدّل للفروق التي ثبت أثرها في البيانات." />}
+        {result === null && <EmptyState heading="h2" icon={Calculator} title="السعر يظهر هنا" body="نقارن عقارك بأقرب العروض الحالية في حيه وما حوله، ونعدّل للفروق التي ثبت أثرها في البيانات." />}
         {result === 'loading' && (
           <SkeletonStatus label="جارٍ حساب السعر" className="flex flex-col gap-4">
             <div className="flex flex-col gap-3 rounded-3xl border bg-card p-5 shadow-sm">
@@ -183,7 +192,7 @@ export function PriceEstimator() {
         )}
         {result === 'error' && <LoadError what="السعر" onRetry={() => run()} />}
         {result && result !== 'loading' && result !== 'error' && !result.available && (
-          <EmptyState icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'}
+          <EmptyState heading="h2" icon={SearchX} title="غير متاح" body={REASONS[result.reason ?? ''] ?? 'تعذر حساب سعر نثق به لهذا العقار.'}
             // the same answers for the other types, one tap each, instead of scrolling back up to change one chip
             action={asked && result.reason !== 'no_listings' ? (
               <div className="flex flex-wrap justify-center gap-2">
