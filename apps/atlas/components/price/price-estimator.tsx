@@ -159,12 +159,34 @@ export function PriceEstimator() {
   const districtItems = useMemo(() => districtList.map((item) => ({ id: item.id, label: item.name })), [districtList])
   const cityItems = useMemo(() => cities.map((item) => ({ value: item.en, label: item.ar || item.en })), [cities])
 
-  // the address follows the answers (replace, not push: «back» leaves the page instead of undoing one chip)
+  // the address follows the answers. Each priced answer is its own history entry (marked PRICED), so Back returns to
+  // the price before: a change made on a priced entry starts a new entry, and further changes replace that one, so
+  // «back» never undoes one chip at a time
+  const pendingMark = useRef(false)
   useEffect(() => {
     const query = writeAnswers({ city, district, deal, kind, area, age, streets, width, furnished })
     const next = query ? `${window.location.pathname}?${query}` : window.location.pathname
-    if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next)
+    const mark = pendingMark.current
+    pendingMark.current = false
+    if (next === `${window.location.pathname}${window.location.search}`) { if (mark) markPriced(); return }
+    const priced = Boolean((window.history.state as Record<string, unknown> | null)?.[PRICED])
+    if (priced) window.history.pushState(mark ? { [PRICED]: true } : {}, '', next)
+    else window.history.replaceState(mark ? { ...window.history.state, [PRICED]: true } : window.history.state, '', next)
   }, [city, district, deal, kind, area, age, streets, width, furnished])
+  // Back or Forward onto another entry of this page: its answers, priced again from today's listings if it was priced
+  const rerun = useRef(false)
+  useEffect(() => {
+    const onPop = () => {
+      if (window.location.pathname !== '/price') return
+      const back = readAnswers(new URLSearchParams(window.location.search))
+      setCityState(back.city); setDistrict(back.district); setDeal(back.deal); setKind(back.kind); setArea(back.area)
+      setAge(back.age); setStreets(back.streets); setWidth(back.width); setFurnished(back.furnished)
+      if ((window.history.state as Record<string, unknown> | null)?.[PRICED]) rerun.current = true
+      else { sequence.current++; setResult(null); setAsked(null) }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
   const ready = district && areaNumber >= 10
   const keyFor = (type: string) => JSON.stringify([city, district, deal, type, areaNumber, age, streets, width, furnished])
@@ -176,6 +198,9 @@ export function PriceEstimator() {
   const run = (type = kind) => {
     if (!ready) return
     const ask = ++sequence.current
+    // this entry now holds a price; with another type the address changes first, and the entry is marked then
+    if (type === kind) markPriced()
+    else pendingMark.current = true
     if (type !== kind) setKind(type)
     setAsked({ key: keyFor(type), kind: type, area: areaNumber, city, district, districtName: districtList.find((item) => item.id === district)?.name, deal })
     setResult('loading')
@@ -193,6 +218,13 @@ export function PriceEstimator() {
     if (ready) run()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list arrives
   }, [districts])
+  // an entry Back landed on that held a price is priced again once its answers (and its city's districts) are in
+  useEffect(() => {
+    if (!rerun.current || !Array.isArray(districts)) return
+    rerun.current = false
+    if (ready) run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the restored answers settle
+  }, [key, districts])
   const stale = asked != null && asked.key !== key && result !== 'loading'
   // the districts the comparables came from, for «أحياء المقارنة»
   const scopeNames = result && typeof result === 'object' ? (result.scope ?? []).map((item) => item.district_ar).filter((name): name is string => Boolean(name)) : []
@@ -366,6 +398,10 @@ function NextLinks({ asked }: { asked: { city: string; district: string; distric
     </nav>
   )
 }
+
+/** The history state of an entry whose answers were priced (Back to it prices them again). */
+const PRICED = 'atlasPriced'
+const markPriced = () => window.history.replaceState({ ...window.history.state, [PRICED]: true }, '', window.location.href)
 
 type Example = NonNullable<Estimate['examples']>[number]
 
