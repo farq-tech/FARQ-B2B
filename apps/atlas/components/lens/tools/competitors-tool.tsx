@@ -88,15 +88,15 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   // «أعد المحاولة» asks again for the same activity
   const [attempt, setAttempt] = useState(0)
 
-  useEffect(() => { setCounts(null) }, [city])
-
   useEffect(() => {
-    if (!studied) return
     let live = true
     setStatus('loading')
     setBrand(null)
     // drop the last activity's counts now, so the map clears instead of shading districts for a different query
     setCounts(null)
+    setCityTotal(null)
+    setLocated(null)
+    setBrands(null)
     setUnderstood(null)
     onActivity(studied.q ?? studied.label)
     const activity = { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
@@ -108,7 +108,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setLocated(typeof data.located === 'number' ? data.located : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
-  }, [city, studied, onActivity, attempt])
+    // keyed by what is asked: the same activity set again (a step, a shared link) asks nothing again
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, studied.q, studied.main_id, onActivity, attempt])
 
   const table = useMemo<Row[]>(() => {
     if (!counts) return []
