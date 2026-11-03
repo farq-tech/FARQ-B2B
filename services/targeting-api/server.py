@@ -927,11 +927,21 @@ def _poll_construction_inbox():
     import wa_construction_source
     source = wa_construction_source.postgres_source(DB_URL)
     every = max(30, int(os.environ.get('FARQ_INBOX_POLL_SECONDS') or 60))
+    # a quiet success used to log nothing, so «it works» could not be told from «it never ran»: the first success says
+    # so, then one heartbeat an hour with the polls and rows of that hour
+    beat = {'first': True, 'at': time.time(), 'polls': 0, 'read': 0, 'new': 0}
     while True:
         try:
             result = source.poll(INBOX)
             INBOX.record_poll('construction_db', True, counts=result)
-            if result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+            beat['polls'] += 1; beat['read'] += result.get('read', 0); beat['new'] += result.get('new', 0)
+            if beat['first']:
+                beat['first'] = False
+                LOGGER.info('inbox_construction_poll first_ok %s', json.dumps(result))
+            elif result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+            if time.time() - beat['at'] >= 3600:
+                LOGGER.info('inbox_construction_poll heartbeat polls=%s read=%s new=%s', beat['polls'], beat['read'], beat['new'])
+                beat.update(at=time.time(), polls=0, read=0, new=0)
         except Exception as error:
             kind = type(error).__name__
             try: failures = INBOX.record_poll('construction_db', False, kind)
@@ -943,10 +953,34 @@ def _poll_construction_inbox():
         time.sleep(every)
 
 INBOX_SOURCE_STATE = {'running': False}
+def _watch_inbox_source():
+    """Raises `ALERT inbox_source_stale` when the source has had no success for 10 minutes, also when its poll hangs
+    and so records no failure; again every 30 minutes while stale; and says when it recovers. Counts only."""
+    watch = wa_inbox.StalenessWatch(started_at=int(time.time()))
+    while True:
+        time.sleep(60)
+        try:
+            last_ok, failures = INBOX.health_epochs('construction_db')
+            event = watch.check(last_ok, int(time.time()))
+            if event and event['event'] == 'stale':
+                LOGGER.error('ALERT inbox_source_stale source=construction_db age_seconds=%s never_succeeded=%s failures_in_row=%s',
+                             event['age_seconds'], event['never_succeeded'], failures)
+            elif event:
+                LOGGER.info('inbox_source_recovered source=construction_db')
+        except Exception as error:
+            LOGGER.warning('inbox_source_watch failed: %s', type(error).__name__)
+
+def inbox_metric_lines():
+    """The reply source's gauges for /metrics (wa_inbox.prometheus_lines); none when no source reads the database."""
+    if INBOX_SOURCE != 'construction_db': return []
+    last_ok, failures = INBOX.health_epochs('construction_db')
+    return wa_inbox.prometheus_lines('construction_db', last_ok, failures, int(time.time()), INBOX_SOURCE_STATE['running'])
+
 def start_inbox_source():
     if INBOX_SOURCE == 'construction_db' and DB_URL and not read_only_test.enabled():
         INBOX_SOURCE_STATE['running'] = True
         threading.Thread(target=_poll_construction_inbox, daemon=True, name='inbox-construction').start()
+        threading.Thread(target=_watch_inbox_source, daemon=True, name='inbox-watch').start()
         return 'construction_db'
     return 'webhook' if webhook_enabled() else 'off'
 def graph(path, body=None, method=None):
@@ -1166,6 +1200,10 @@ class H(BaseHTTPRequestHandler):
         if route.path == '/metrics':
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             body = METRICS.render_prometheus()
+            try:
+                extra = inbox_metric_lines()
+                if extra: body += ('\n'.join(extra) + '\n').encode()
+            except Exception: pass   # the HTTP metrics stay readable whatever the inbox store does
             self.send_response(200); self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)

@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
-import { deliveryLabel, type ServerDelivery } from '@/lib/inbox-feed'
+import { deliveryLabel, replyGroups, wasSent, type ReplyFilter, type ServerDelivery } from '@/lib/inbox-feed'
+import { Chip, ChipCount } from '@/components/ui/chip'
 import { numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
@@ -92,7 +93,17 @@ interface CampaignEditorProps {
 }
 
 
+const REPLY_FILTERS: { id: ReplyFilter; label: string }[] = [
+  { id: 'all', label: 'الكل' },
+  { id: 'waiting', label: 'لم تردّ' },
+  { id: 'replied', label: 'ردّت' },
+]
+
 export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied }: CampaignEditorProps) {
+  // after sending: who has not answered yet, for a follow-up the person decides on (nothing is sent from here)
+  const [replyFilter, setReplyFilter] = useState<ReplyFilter>('all')
+  const sentTo = (id: string) => wasSent(id, tracked, value.delivery)
+  const replyGroupsFor = replyGroups(businessIds, sentTo, replied)
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
   const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
@@ -201,8 +212,21 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
           </div>
           <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />
         </div>
+        {!editable && replyGroupsFor.all.some((id) => sentTo(id)) ? (
+          <div role="group" aria-label="تصفية المستلمين حسب الرد" className="flex flex-wrap gap-1.5">
+            {REPLY_FILTERS.map((f) => (
+              <Chip key={f.id} active={replyFilter === f.id} onClick={() => setReplyFilter(f.id)} className="px-2.5">
+                {f.label}
+                <ChipCount value={replyGroupsFor[f.id].length} active={replyFilter === f.id} />
+              </Chip>
+            ))}
+          </div>
+        ) : null}
+        {!editable && replyFilter !== 'all' && !replyGroupsFor[replyFilter].length ? (
+          <p className="text-sm text-muted-foreground">{replyFilter === 'waiting' ? 'كل من وصلتهم الرسالة ردّوا.' : 'لم يردّ أحد بعد.'}</p>
+        ) : null}
         <ul className="flex flex-col divide-y">
-          {businessIds.map((id) => {
+          {businessIds.filter((id) => editable || replyFilter === 'all' || replyGroupsFor[replyFilter].includes(id)).map((id) => {
             const mockBusiness = businessById.get(id)
             const liveBusiness = liveById.get(id)
             const b = mockBusiness ?? liveBusiness
@@ -228,7 +252,7 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                     {/* whether the business answered: its reply one tap away, or «لا رد بعد» once the message went out */}
                     {replied?.[id] ? (
                       <Link href={`/inbox?m=${encodeURIComponent(replied[id])}`} className="rounded text-xs font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">ردّت · اقرأ الرد</Link>
-                    ) : (tracked?.[id] ? tracked[id] !== 'failed' : value.delivery?.[id] === 'sent') ? (
+                    ) : sentTo(id) ? (
                       <span className="text-xs text-muted-foreground">لا رد بعد</span>
                     ) : null}
                   </span>

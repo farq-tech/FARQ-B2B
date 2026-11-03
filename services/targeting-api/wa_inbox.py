@@ -356,6 +356,12 @@ class InboxStore:
         return {'source': source, 'lastOkAt': iso(row[0]) if row[0] else None, 'lastErrorAt': iso(row[1]) if row[1] else None,
                 'lastErrorKind': row[2], 'failures': int(row[3] or 0), 'lastCounts': counts}
 
+    def health_epochs(self, source: str) -> tuple[int | None, int]:
+        """(last success as epoch seconds or None, failures in a row) for the watchdog and the metrics."""
+        with self._connect() as con:
+            row = con.execute('select last_ok_at, failures from wa_source_health where source=?', (source,)).fetchone()
+        return (row[0], int(row[1] or 0)) if row else (None, 0)
+
     def cursor(self, source: str) -> str | None:
         with self._connect() as con:
             row = con.execute('select value from wa_source_cursor where source=?', (source,)).fetchone()
@@ -454,3 +460,54 @@ def handle_post(raw: bytes, signature_header: str | None, app_secret: str | None
     except (ValueError, UnicodeDecodeError):
         return 400, {'ok': False, 'error': 'BAD_JSON'}
     return 200, {'ok': True, **store.ingest(payload, phone_number_id, now)}
+
+
+# ── staleness: a source that stops succeeding, including one whose poll hangs and never reports a failure ─────────
+
+STALE_AFTER_SECONDS = 10 * 60
+REALERT_SECONDS = 30 * 60
+
+
+class StalenessWatch:
+    """Says when to raise `ALERT inbox_source_stale`: once the source has had no success for `stale_after` seconds
+    (counted from the start when it never succeeded), then again every `realert` seconds while it stays stale, and
+    once more (`recovered`) when a success comes back. A poll that hangs on a connection never records a failure, so
+    the failure counter alone cannot see it; this can."""
+
+    def __init__(self, started_at: int, stale_after: int = STALE_AFTER_SECONDS, realert: int = REALERT_SECONDS):
+        self.started_at = int(started_at)
+        self.stale_after = int(stale_after)
+        self.realert = int(realert)
+        self.alerted_at = None
+
+    def check(self, last_ok_at: int | None, now: int) -> dict | None:
+        since = last_ok_at if last_ok_at else self.started_at
+        age = int(now) - int(since)
+        if age <= self.stale_after:
+            if self.alerted_at is not None:
+                self.alerted_at = None
+                return {'event': 'recovered', 'age_seconds': age}
+            return None
+        if self.alerted_at is None or now - self.alerted_at >= self.realert:
+            self.alerted_at = int(now)
+            return {'event': 'stale', 'age_seconds': age, 'never_succeeded': not last_ok_at}
+        return None
+
+
+def prometheus_lines(source: str, last_ok_at: int | None, failures: int, now: int, running: bool) -> list:
+    """Gauges for the existing authenticated /metrics, so any scraper can alert on the reply source: up (running, last
+    poll succeeded, success within STALE_AFTER_SECONDS), age of the last success (-1 when never) and failures in a row."""
+    label = re.sub(r'[^a-z0-9_]', '_', str(source).lower())[:40] or 'unknown'
+    age = int(now) - int(last_ok_at) if last_ok_at else -1
+    up = 1 if running and failures == 0 and 0 <= age <= STALE_AFTER_SECONDS else 0
+    return [
+        '# HELP atlas_inbox_source_up 1 when the WhatsApp reply source is running and read successfully in the last 10 minutes.',
+        '# TYPE atlas_inbox_source_up gauge',
+        f'atlas_inbox_source_up{{source="{label}"}} {up}',
+        '# HELP atlas_inbox_source_last_ok_age_seconds Seconds since the reply source last read successfully (-1: never).',
+        '# TYPE atlas_inbox_source_last_ok_age_seconds gauge',
+        f'atlas_inbox_source_last_ok_age_seconds{{source="{label}"}} {age}',
+        '# HELP atlas_inbox_source_failures_in_row Failed reads of the reply source since its last success.',
+        '# TYPE atlas_inbox_source_failures_in_row gauge',
+        f'atlas_inbox_source_failures_in_row{{source="{label}"}} {int(failures)}',
+    ]

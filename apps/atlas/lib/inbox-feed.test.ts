@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { deliveryFor, freshReplies, healthState, repliesFor, trackedFor, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
+import { deliveryFor, freshReplies, healthState, replyGroups, replyRate, repliesFor, trackedFor, wasSent, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
 import { inboxAccounts } from './inbox-scope.ts'
 import type { InboxMessage } from './types.ts'
 
@@ -105,4 +105,21 @@ test('the reply source’s health reads as off, never, failing, stale or ok', ()
   assert.equal(healthState({ ...base, failures: 3, lastErrorKind: 'InsufficientPrivilege' }, now), 'failing')
   assert.equal(healthState({ ...base, lastOkAt: '2026-11-03T11:30:00Z' }, now), 'stale')
   assert.equal(healthState(base, now), 'ok')
+})
+
+test('a recipient counts as sent from WhatsApp’s report, else from this device’s send result', () => {
+  assert.equal(wasSent('a', { a: 'read' }, {}), true)
+  assert.equal(wasSent('a', { a: 'failed' }, { a: 'sent' }), false, 'WhatsApp said it did not arrive')
+  assert.equal(wasSent('a', {}, { a: 'sent' }), true)
+  assert.equal(wasSent('a', undefined, { a: 'unknown' }), false)
+})
+
+test('the reply filter splits the sent recipients into waiting and replied; the rate counts only those reached', () => {
+  const ids = ['a', 'b', 'c', 'd']
+  const sent = (id: string) => id !== 'd'
+  const replied = { b: 'wamid.B', d: 'wamid.D' }
+  assert.deepEqual(replyGroups(ids, sent, replied), { all: ids, waiting: ['a', 'c'], replied: ['b', 'd'] })
+  assert.deepEqual(replyRate(ids, sent, replied), { sent: 3, replied: 1, percent: 33 })
+  assert.equal(replyRate(ids, () => false, replied), null, 'nothing sent: no rate, never 0%')
+  assert.deepEqual(replyRate(['a'], () => true, {}), { sent: 1, replied: 0, percent: 0 })
 })

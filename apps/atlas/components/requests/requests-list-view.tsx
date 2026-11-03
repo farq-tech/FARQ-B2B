@@ -11,6 +11,7 @@ import { STATUS_LABEL, formatDate, nextStep, requestCity, statusLabel } from '@/
 import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
+import { repliesFor, replyRate, requestFor, trackedFor, wasSent } from '@/lib/inbox-feed'
 import { signInHref, useSignedIn } from '@/lib/use-signed-in'
 import { requestAccessHref } from '@/lib/access-request'
 import type { RequestStatus } from '@/lib/types'
@@ -23,7 +24,7 @@ const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'await
 const ATTENTION: RequestStatus[] = ['needs_decision', 'ready_manual', 'draft', 'awaiting', 'completed']
 
 export function RequestsListView() {
-  const { requests, inbox, views } = useAppStore()
+  const { requests, inbox, views, deliveries } = useAppStore()
   const cities = useCities()
   // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
   // from this device after the first paint, so this is derived, not set once)
@@ -107,8 +108,12 @@ export function RequestsListView() {
       ) : (
         <ul className="flex flex-col gap-2">
           {visible.map((r) => {
-            const replies = inbox.filter((m) => m.requestId === r.id)
+            // a reply finds its request by its local or cloud id (lib/inbox-feed.ts requestFor)
+            const replies = inbox.filter((m) => requestFor([r], m.requestId))
             const unread = replies.filter((m) => m.unread).length
+            // a sent campaign's reply rate: of the recipients its messages reached, how many answered
+            const tracked = r.campaign ? trackedFor(deliveries, r) : {}
+            const rate = r.campaign ? replyRate(r.campaign.included, (id) => wasSent(id, tracked, r.campaign?.delivery), repliesFor(inbox, r)) : null
             const next = nextStep(r.status, r.type)
             return (
               <li key={r.id}>
@@ -130,6 +135,11 @@ export function RequestsListView() {
                       {replies.length ? (
                         <span className={cn(unread && 'font-semibold text-primary')}>
                           {counted(replies.length, 'reply')}{unread ? ` (${numberFormat.format(unread)} ${unread === 1 ? 'جديد' : 'جديدة'})` : ''}
+                        </span>
+                      ) : null}
+                      {rate ? (
+                        <span className={cn(rate.replied > 0 && 'font-semibold text-foreground')}>
+                          نسبة الرد {numberFormat.format(rate.percent)}% ({numberFormat.format(rate.replied)} من {numberFormat.format(rate.sent)})
                         </span>
                       ) : null}
                       <span>آخر تحديث {formatDate(r.updatedAt)}</span>

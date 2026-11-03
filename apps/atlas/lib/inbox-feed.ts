@@ -170,3 +170,31 @@ export function healthState(health: SourceHealth | null | undefined, nowMs: numb
   if (!health.lastOkAt) return 'never'
   return nowMs - Date.parse(health.lastOkAt) > STALE_AFTER_MS ? 'stale' : 'ok'
 }
+
+/** A recipient's message went out: WhatsApp reported on it (and not a failure), or this device saw it sent. */
+export function wasSent(id: string, tracked: Readonly<Record<string, ServerDelivery['status']>> | undefined, delivery: Readonly<Record<string, string>> | undefined): boolean {
+  const reported = tracked?.[id]
+  return reported ? reported !== 'failed' : delivery?.[id] === 'sent'
+}
+
+export type ReplyFilter = 'all' | 'waiting' | 'replied'
+
+/** The recipients a campaign's reply filter shows: everyone, those sent to who have not answered, or those who did. */
+export function replyGroups(ids: readonly string[], sent: (id: string) => boolean, replied: Readonly<Record<string, string>> | undefined): Record<ReplyFilter, string[]> {
+  return {
+    all: [...ids],
+    waiting: ids.filter((id) => sent(id) && !replied?.[id]),
+    replied: ids.filter((id) => Boolean(replied?.[id])),
+  }
+}
+
+/**
+ * A campaign's reply rate: of the recipients its messages reached (sent and not failed), how many answered. Null when
+ * nothing went out yet, so a list never says «0%» for a campaign that was not sent.
+ */
+export function replyRate(ids: readonly string[], sent: (id: string) => boolean, replied: Readonly<Record<string, string>> | undefined): { sent: number; replied: number; percent: number } | null {
+  const reached = ids.filter(sent)
+  if (!reached.length) return null
+  const answered = reached.filter((id) => replied?.[id]).length
+  return { sent: reached.length, replied: answered, percent: Math.round((answered / reached.length) * 100) }
+}

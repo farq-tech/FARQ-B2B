@@ -281,5 +281,36 @@ class TitleAndHealthTests(Base):
         self.assertEqual(self.store.health('construction_db')['lastErrorKind'], 'psycopg.errors.InsufficientPrivilege', 'the last error stays visible')
 
 
+
+class StalenessTests(Base):
+    def test_a_source_with_no_success_for_ten_minutes_alerts_once_then_every_half_hour_then_recovers(self):
+        watch = wa_inbox.StalenessWatch(started_at=T0)
+        self.assertIsNone(watch.check(None, T0 + 300), 'starting up: not stale yet')
+        first = watch.check(None, T0 + 601)
+        self.assertEqual((first['event'], first['never_succeeded']), ('stale', True))
+        self.assertIsNone(watch.check(None, T0 + 1200), 'no repeat within 30 minutes')
+        self.assertEqual(watch.check(None, T0 + 601 + 1800)['event'], 'stale')
+        self.assertEqual(watch.check(T0 + 2500, T0 + 2510), {'event': 'recovered', 'age_seconds': 10})
+        self.assertIsNone(watch.check(T0 + 2500, T0 + 2520))
+        hung = watch.check(T0 + 2500, T0 + 2500 + 700)
+        self.assertEqual((hung['event'], hung['never_succeeded']), ('stale', False), 'a hung poll records no failure; age still counts')
+
+    def test_metrics_gauges_say_up_age_and_failures(self):
+        self.store.record_poll('construction_db', True, now=T0)
+        last_ok, failures = self.store.health_epochs('construction_db')
+        self.assertEqual((last_ok, failures), (T0, 0))
+        up = wa_inbox.prometheus_lines('construction_db', last_ok, failures, T0 + 60, True)
+        self.assertIn('atlas_inbox_source_up{source="construction_db"} 1', up)
+        self.assertIn('atlas_inbox_source_last_ok_age_seconds{source="construction_db"} 60', up)
+        self.store.record_poll('construction_db', False, 'InsufficientPrivilege', now=T0 + 120)
+        down = wa_inbox.prometheus_lines('construction_db', *self.store.health_epochs('construction_db'), T0 + 120, True)
+        self.assertIn('atlas_inbox_source_up{source="construction_db"} 0', down)
+        self.assertIn('atlas_inbox_source_failures_in_row{source="construction_db"} 1', down)
+        never = wa_inbox.prometheus_lines('construction_db', None, 0, T0, True)
+        self.assertIn('atlas_inbox_source_last_ok_age_seconds{source="construction_db"} -1', never)
+        self.assertIn('atlas_inbox_source_up{source="x"} 0', wa_inbox.prometheus_lines('x', T0, 0, T0, False), 'not running: down')
+        self.assertEqual(self.store.health_epochs('nothing'), (None, 0))
+
+
 if __name__ == '__main__':
     unittest.main()
