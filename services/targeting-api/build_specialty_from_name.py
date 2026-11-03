@@ -169,6 +169,24 @@ def load_specialties(csv_path: str) -> Dict[str, Dict[str, Set[str]]]:
     return out
 
 
+def load_specialty_names(csv_path: str) -> Dict[str, Set[str]]:
+    """``specialty_id -> {folded+singular token of its own specialty_ar}``.
+
+    Used to tell a *safe* sub-default (the sub's activity word is literally this
+    specialty's own name, e.g. «شاورما» → ``food.fast_food.shawarma``) from a
+    *narrow* one (a sub-umbrella word, e.g. «مستلزمات طبية», pinned to one
+    specialty among many siblings — narrower than the name actually says).
+    """
+    out: Dict[str, Set[str]] = {}
+    with open(csv_path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            spec = (row.get("specialty_id") or "").strip()
+            if not spec:
+                continue
+            out.setdefault(spec, set()).update(_norm_tokens(row.get("specialty_ar")))
+    return out
+
+
 def load_concepts(csv_path: str) -> Dict[str, str]:
     """``specialty_id -> concept_id`` from ``specialty_concepts.csv``."""
     out: Dict[str, str] = {}
@@ -245,20 +263,35 @@ def default_term_keys(
 # --- classification (pure logic) ----------------------------------------------
 
 
+#: classification_method values, most trustworthy first.
+METHOD_DISTINCTIVE = "name_specialty"                       # a distinctive term named it
+METHOD_SUB_DEFAULT = "name_specialty_sub_default"           # sub's activity word == this specialty's own name (safe)
+METHOD_SUB_DEFAULT_NARROW = "name_specialty_sub_default_narrow"  # sub-umbrella word, narrower than the name (doubtful)
+
+
 def classify(
     name_en: Optional[str],
     name_ar: Optional[str],
     sub_id: Optional[str],
     spec_map: Dict[str, Dict[str, Set[str]]],
     default_terms: Optional[Dict[str, Set[str]]] = None,
+    spec_names: Optional[Dict[str, Set[str]]] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Return ``(specialty_id, classification_method)`` the name agrees on, else ``(None, None)``.
 
     Scans 1–3-grams of ``name_en`` and ``name_ar`` against the term map of
     ``sub_id`` **only**. If every matched term points to one specialty, returns
-    it; disagreement (or no match, or unknown sub) returns ``(None, None)``. The
-    method is ``name_specialty_sub_default`` when the only matches were the sub's
-    generic activity word, else ``name_specialty``.
+    it; disagreement (or no match, or unknown sub) returns ``(None, None)``.
+
+    Method tiers:
+      * ``name_specialty`` — a *distinctive* term (not the sub's activity word) named it.
+      * ``name_specialty_sub_default`` — the only matches were the sub's activity
+        word, but that word is literally this specialty's own name (شاورما →
+        shawarma): a safe default.
+      * ``name_specialty_sub_default_narrow`` — the only matches were a sub-umbrella
+        word that is *not* this specialty's name (مستلزمات طبية pinned to one of
+        many siblings): narrower than the name says, so doubtful. Only emitted
+        when ``spec_names`` is given; otherwise such a row stays ``sub_default``.
     """
     sub_map = spec_map.get((sub_id or "").strip())
     if not sub_map:
@@ -279,8 +312,15 @@ def classify(
         return None, None
     spec = next(iter(specialties))
     dts = (default_terms or {}).get((sub_id or "").strip(), set())
-    distinctive = any(g not in dts for g in matched)
-    return spec, ("name_specialty" if distinctive else "name_specialty_sub_default")
+    if any(g not in dts for g in matched):
+        return spec, METHOD_DISTINCTIVE
+    # all matches were the sub's activity word: safe iff one of them is this
+    # specialty's own name; narrow (doubtful) iff it is only the sub umbrella.
+    if spec_names is not None:
+        own = spec_names.get(spec, set())
+        safe = any(all(tok in own for tok in g.split()) for g in matched)
+        return spec, (METHOD_SUB_DEFAULT if safe else METHOD_SUB_DEFAULT_NARROW)
+    return spec, METHOD_SUB_DEFAULT
 
 
 # --- delta build (duckdb) -----------------------------------------------------
@@ -319,6 +359,7 @@ def build(
     spec_map = load_specialties(specialties_path)
     sub_labels = load_sub_labels(specialties_path)
     default_terms = default_term_keys(spec_map, sub_labels)
+    spec_names = load_specialty_names(specialties_path)
     concept_of = load_concepts(concepts_path) if concepts_path else {}
 
     # Separate read/write connections: issuing a write on the write connection
@@ -353,7 +394,7 @@ def build(
             break
         emit: List[Tuple[str, str, Optional[str], str]] = []
         for poi_key, name_en, name_ar, sub_id in rows:
-            spec, method = classify(name_en, name_ar, sub_id, spec_map, default_terms)
+            spec, method = classify(name_en, name_ar, sub_id, spec_map, default_terms, spec_names)
             if spec:
                 emit.append((poi_key, spec, concept_of.get(spec), method))
         if emit:
@@ -372,6 +413,7 @@ def build(
 def sub_default_flags(
     spec_map: Dict[str, Dict[str, Set[str]]],
     default_terms: Dict[str, Set[str]],
+    spec_names: Optional[Dict[str, Set[str]]] = None,
 ) -> List[Tuple[str, str, List[str]]]:
     """``[(sub_id, specialty_id, [term_key, ...]), ...]`` for owner approval.
 
@@ -387,6 +429,27 @@ def sub_default_flags(
                 by_spec.setdefault(spec, []).append(k)
         for spec in sorted(by_spec):
             out.append((sub, spec, sorted(by_spec[spec])))
+    return out
+
+
+def narrow_default_flags(
+    spec_map: Dict[str, Dict[str, Set[str]]],
+    default_terms: Dict[str, Set[str]],
+    spec_names: Dict[str, Set[str]],
+) -> List[Tuple[str, str, List[str]]]:
+    """The *doubtful* subset of :func:`sub_default_flags`.
+
+    A (sub, specialty) pair whose only triggering terms are sub-umbrella words
+    that are **not** the specialty's own name — so the bare trade noun is being
+    pinned to one narrow sibling (e.g. «مستلزمات طبية» → ``…disposables`` among
+    38 siblings). These are the ones most likely to mislead and want separate
+    owner sign-off.
+    """
+    out: List[Tuple[str, str, List[str]]] = []
+    for sub, spec, terms in sub_default_flags(spec_map, default_terms):
+        own = spec_names.get(spec, set())
+        if not any(all(tok in own for tok in k.split()) for k in terms):
+            out.append((sub, spec, terms))
     return out
 
 
@@ -411,10 +474,16 @@ if __name__ == "__main__":
     if args.flags:
         sm = load_specialties(args.specialties)
         dts = default_term_keys(sm, load_sub_labels(args.specialties))
+        names = load_specialty_names(args.specialties)
         flags = sub_default_flags(sm, dts)
-        print(f"{len(flags)} sub-default specialties (owner approval needed):")
+        narrow = narrow_default_flags(sm, dts, names)
+        narrow_set = {(s, sp) for s, sp, _ in narrow}
+        print(f"{len(flags)} sub-default specialties "
+              f"({len(flags) - len(narrow)} safe [word == specialty name], "
+              f"{len(narrow)} NARROW [doubtful, separate approval]):")
         for sub, spec, terms in flags:
-            print(f"  {sub}\t{spec}\t{'|'.join(terms)}")
+            tier = "NARROW" if (sub, spec) in narrow_set else "safe  "
+            print(f"  {tier}\t{sub}\t{spec}\t{'|'.join(terms)}")
         raise SystemExit(0)
 
     n = build(args.base, args.specialties, args.concepts, args.out, temp_directory=args.temp_directory)

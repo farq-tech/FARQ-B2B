@@ -86,6 +86,64 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(spec, "food.grocery.grocery_produce")
 
 
+class NarrowTierTests(unittest.TestCase):
+    # A sub whose activity word is «مستلزمات طبية» (an umbrella), pinned to ONE
+    # of two narrow siblings -> narrow/doubtful; plus a safe default where the
+    # activity word IS the specialty's own name.
+    SMAP = {
+        "health.medical_supply": _m([
+            ("مستلزمات طبية", "health.medical_supply.disposables"),   # umbrella -> one sibling
+            ("قفازات", "health.medical_supply.disposables"),          # distinctive
+            ("أجهزة قياس", "health.medical_supply.devices"),
+        ]),
+        "food.fast_food": _m([
+            ("شاورما", "food.fast_food.shawarma"),                    # activity word == specialty name
+        ]),
+    }
+    DTS = {
+        "health.medical_supply": {bs.term_key("مستلزمات طبية")},
+        "food.fast_food": {bs.term_key("شاورما")},
+    }
+    # specialty own-name tokens
+    NAMES = {
+        "health.medical_supply.disposables": set(bs._norm_tokens("مستهلكات ومواد يومية")),  # NOT «مستلزمات طبية»
+        "health.medical_supply.devices": set(bs._norm_tokens("أجهزة طبية")),
+        "food.fast_food.shawarma": set(bs._norm_tokens("شاورما")),
+    }
+
+    def test_narrow_default_flagged_when_umbrella_not_specialty_name(self):
+        spec, method = bs.classify(None, "مستلزمات طبية الصحة", "health.medical_supply",
+                                   self.SMAP, self.DTS, self.NAMES)
+        self.assertEqual(spec, "health.medical_supply.disposables")
+        self.assertEqual(method, bs.METHOD_SUB_DEFAULT_NARROW)
+
+    def test_safe_default_when_word_is_specialty_name(self):
+        spec, method = bs.classify(None, "شاورما النور", "food.fast_food",
+                                   self.SMAP, self.DTS, self.NAMES)
+        self.assertEqual(spec, "food.fast_food.shawarma")
+        self.assertEqual(method, bs.METHOD_SUB_DEFAULT)
+
+    def test_distinctive_term_beats_narrow(self):
+        # Matches the umbrella AND a distinctive term -> distinctive wins.
+        spec, method = bs.classify(None, "مستلزمات طبية قفازات", "health.medical_supply",
+                                   self.SMAP, self.DTS, self.NAMES)
+        self.assertEqual(spec, "health.medical_supply.disposables")
+        self.assertEqual(method, bs.METHOD_DISTINCTIVE)
+
+    def test_without_spec_names_stays_two_tier(self):
+        # Backward compatible: no spec_names -> narrow collapses to sub_default.
+        spec, method = bs.classify(None, "مستلزمات طبية الصحة", "health.medical_supply",
+                                   self.SMAP, self.DTS)
+        self.assertEqual(method, bs.METHOD_SUB_DEFAULT)
+
+    def test_narrow_default_flags_helper(self):
+        narrow = bs.narrow_default_flags(self.SMAP, self.DTS, self.NAMES)
+        self.assertIn(("health.medical_supply", "health.medical_supply.disposables",
+                       [bs.term_key("مستلزمات طبية")]), narrow)
+        self.assertNotIn(("food.fast_food", "food.fast_food.shawarma",
+                          [bs.term_key("شاورما")]), narrow)
+
+
 class NormalisationTests(unittest.TestCase):
     def test_fold_alef_hamza_tamarbuta_tatweel(self):
         # أ/إ/آ -> ا ; ة -> ه ; tatweel removed ; punctuation -> space.
