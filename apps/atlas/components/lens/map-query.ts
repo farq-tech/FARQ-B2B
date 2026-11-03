@@ -204,6 +204,7 @@ export function mapOptions(lens: string): MapOption[] {
     one('nat', 'audience.nationality', ['audience'], ['all', 'saudi', 'non_saudi'], 'all'),
     whole('income', 'audience.minIncome', ['audience'], (value) => INCOMES.includes(value), 0),
     one('rank', 'audience.rankBy', ['audience'], ['sex', 'nationality'], 'sex'),
+    one('scope', 'territories.scope', ['territories'], ['all', 'activity'], 'activity'),
     whole('reps', 'territories.count', ['territories'], inRange(2, 50), 5),
     one('weight', 'territories.weight', ['territories'], ['population', 'businesses'], 'businesses'),
     whole('days', 'territories.days', ['territories'], inRange(1, 6), 5),

@@ -34,7 +34,7 @@ import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, r
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { CompareStart, JourneySummary, StartFrom } from './journey'
-import { STEP_WAIT, decisionFor, pickedLine, stepLine, type DecisionAction, type HomesChoice, type SitesCompared } from './journey-logic'
+import { STEP_WAIT, decisionFor, partialNote, pickedLine, stepLine, type DecisionAction, type HomesChoice, type SitesCompared } from './journey-logic'
 import { trackDecisionMoment, trackJourneyDecision } from '@/lib/commercial-metrics'
 import { StillWorking } from './tools/choice'
 import { answerCache, dataVersion } from './tools/answer-cache'
@@ -547,6 +547,9 @@ export function LensMap() {
       setOverlay(next)
       if (next.summary || next.sites?.length) markDone(owner)
       remember(key, owner, next.summary ?? null, next.lead ?? null)
+      // the part of the step's own answer that failed, for the summary's «نتيجة جزئية»
+      setToolPartial((current) => (current.key === key && (current.value[owner] ?? null) === (next.partial ?? null) ? current
+        : { key, value: { ...(current.key === key ? current.value : {}), [owner]: next.partial ?? undefined } }))
       // the sites «قارن المواقع» scored, kept for the shop owner's closing card (cleared when the sites go)
       if (owner === 'around') setSitesTrail((current) => (current.key === key && current.value === (next.comparison ?? null) ? current : { key, value: next.comparison ?? null }))
     }
@@ -572,9 +575,12 @@ export function LensMap() {
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${text ? `?${text}` : ''}${window.location.hash}`)
   }
   useEffect(() => { if (closeOpen && closeTool.current && tool !== closeTool.current) setCloseOpen(false) }, [tool, closeOpen])
+  const [toolPartial, setToolPartial] = useState<{ key: string; value: Partial<Record<ToolId, string>> }>({ key: '', value: {} })
   const [sitesTrail, setSitesTrail] = useState<{ key: string; value: SitesCompared | null }>({ key: '', value: null })
   // the decision card opened the picked districts' businesses; another step, group or city closes them
   const [decisionBusinesses, setDecisionBusinesses] = useState(false)
+  // what the decision's list opens searched on (businesses-panel prefill): the journey's activity, or «*» for all
+  const [decisionPrefill, setDecisionPrefill] = useState<string | null>(null)
   useEffect(() => { setDecisionBusinesses(false) }, [tool, lens, city])
   const active = lensById(lens)
 
@@ -1166,6 +1172,7 @@ export function LensMap() {
     }
     setSelected(action.ids)
     flyTo(...action.ids)
+    setDecisionPrefill(lens === 'marketers' && audienceMode !== 'businesses' ? '*' : chosenActivity ?? '*')
     setDecisionBusinesses(true)
     // once the list is drawn (under the card, or the step's own), it comes into view
     window.setTimeout(() => document.getElementById(JOURNEY_BUSINESSES)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
@@ -1438,7 +1445,7 @@ export function LensMap() {
                     <div id={JOURNEY_BUSINESSES} className="scroll-mt-2">
                       <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} onLocate={locate} located={located?.id ?? null}
                         onMarkers={onMarkers} pointed={bizPoint} onPoint={setBizPoint} bounds={mapBounds}
-                        prefill={tool === 'gaps' || (tool === 'businesses' && lens === 'marketers' && audienceMode === 'businesses') ? studied.label : null}
+                        prefill={decisionBusinesses && decisionPrefill ? decisionPrefill : tool === 'gaps' || (tool === 'businesses' && lens === 'marketers' && audienceMode === 'businesses') ? studied.label : null}
                         onAnswer={tool === 'businesses' ? onBusinessesAnswer : undefined} />
                     </div>
                   )}
@@ -1458,6 +1465,9 @@ export function LensMap() {
                   {/* the last step closes the journey: what each step answered, on one card, and a link to come back to it */}
                   {closing && active.steps.length > 1 && done.some((id) => active.steps.some((item) => item.tool === id)) && (
                     <JourneySummary lens={active} cityName={cityName} tool={tool} done={done} answers={trailNow?.summaries ?? {}}
+                      partial={Object.fromEntries(active.steps.map((item) => [item.tool, partialNote(
+                        data.status === 'ready' ? data.failed.filter((table) => stepTables(item.tool).includes(table)).map((table) => TABLE_LABEL[table]) : [],
+                        toolPartial.key === trailKey ? toolPartial.value[item.tool] : null)]))}
                       picked={chosen.map((row) => row.name)} activity={chosenActivity} decision={decision} onAct={act}
                       onOpen={(id) => { focusAfter.current = tabId(id); setTool(id) }} />
                   )}
@@ -1481,7 +1491,7 @@ export function LensMap() {
                       after review (the same list as every step's); only when the open step does not show it already */}
                   {decisionBusinesses && selected.length > 0 && !showBusinesses && (
                     <div id={JOURNEY_BUSINESSES} className="scroll-mt-2">
-                      <BusinessesPanel key={`decision|${pickedKey}`} city={city} districts={chosen.map((row) => row.name)} onLocate={locate} located={located?.id ?? null} />
+                      <BusinessesPanel key={`decision|${pickedKey}`} city={city} districts={chosen.map((row) => row.name)} onLocate={locate} located={located?.id ?? null} prefill={decisionPrefill} />
                     </div>
                   )}
                 </>
