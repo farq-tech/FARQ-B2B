@@ -22,10 +22,11 @@ import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps, type BusinessDot } from './lens-map-canvas'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { MapOnboarding } from './map-onboarding'
-import { SavedComparisons } from './saved-comparisons'
+import { SavedComparisons, SavedList } from './saved-comparisons'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { districtAt } from '@/lib/geo-measure'
+import { useAppStore } from '@/lib/store'
 import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, journeyStart, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
@@ -329,6 +330,13 @@ function NextAction({ href, onClick, icon: Icon, children }: { href?: string; on
   const look = 'inline-flex min-h-9 items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3 py-1 text-sm font-semibold text-primary outline-none transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:min-h-11'
   const body = <><Icon className="size-4 shrink-0" aria-hidden />{children}</>
   return href ? <Link href={href} className={look}>{body}</Link> : <button type="button" onClick={onClick} className={look}>{body}</button>
+}
+
+/** The saved comparisons as a card of their own (nothing where none is saved). */
+function SavedListCard({ onOpen }: { onOpen: (href: string) => void }) {
+  const { views } = useAppStore()
+  if (!views.length) return null
+  return <section aria-label="المقارنات المحفوظة" className="rounded-2xl border bg-card p-4"><SavedList onOpen={onOpen} /></section>
 }
 
 type PointerStore = { get: () => Pointed | null; set: (next: Pointed | null) => void; subscribe: (listener: () => void) => () => void }
@@ -1153,6 +1161,8 @@ export function LensMap() {
                         {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
                         {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
                           here={() => (typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`)} onOpen={openView} />}
+                        {/* the analysts' first step lists what they saved, so a comparison is reopened from where the journey starts */}
+                        {tool === 'district' && lens === 'analysts' && <SavedListCard onOpen={openView} />}
                       </motion.div>
                     )}
                   </AnimatePresence>
