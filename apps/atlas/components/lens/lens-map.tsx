@@ -18,7 +18,7 @@ import { DistrictPanel } from './district-panel'
 import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
 import { readMapQuery, writeMapQuery } from './map-query'
-import { HALF, MapSheet, PEEK, type SheetSnap } from './map-sheet'
+import { HALF, MapSheet, PEEK, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, lensById, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
 import { AudienceTool } from './tools/audience-tool'
@@ -212,6 +212,41 @@ function PickedStrip({ chosen, onDetails, onClear }: { chosen: DistrictRow[]; on
   )
 }
 
+/**
+ * The answer to a click, on the district itself: its name, the open step's figure for it (or the shading figure, or its
+ * population) as already loaded, and «التفاصيل» for the full summary in the panel. A missing figure reads «غير متاح».
+ */
+function DistrictCard({ name, lines, at, top: ceiling, bottom: floor, onDetails, onClose }: {
+  name: string
+  lines: { label: string; value: string }[]
+  at: { x: number; y: number; width: number; height: number }
+  /** The part of the map in view, top to bottom (pixels): under the phone's floating controls, above its sheet. */
+  top: number
+  bottom: number
+  onDetails: () => void
+  onClose: () => void
+}) {
+  // above the click, centred on it; below it when the controls would cover it; always inside the part in view
+  const width = Math.min(256, at.width - 16)
+  const left = Math.min(Math.max(8, at.x - width / 2), at.width - width - 8)
+  const height = 64 + lines.length * 22 + 36
+  const wanted = at.y - 12 - height >= ceiling ? at.y - 12 - height : at.y + 12
+  const top = Math.max(ceiling, Math.min(wanted, floor - height))
+  return (
+    <section aria-label={`الحي ${name}`} className="absolute z-[7] flex flex-col gap-1.5 rounded-xl border bg-card/95 p-3 text-sm shadow-lg backdrop-blur"
+      style={{ left, width, top }}>
+      <div className="flex items-center gap-2">
+        <h2 className="min-w-0 flex-1 truncate text-base font-bold">{name}</h2>
+        <button onClick={onClose} aria-label="إغلاق" className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
+      </div>
+      {lines.map((line) => (
+        <p key={line.label} className="text-muted-foreground">{line.label}: <span className="font-semibold text-foreground tabular-nums">{line.value}</span></p>
+      ))}
+      <button onClick={onDetails} className="mt-1 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60">التفاصيل</button>
+    </section>
+  )
+}
+
 // a landing goal opens the lens that serves it; «find a supplier» opens the business search instead
 const GOAL_LENS: Record<string, LensId> = { explore: 'analysts', expand: 'shops', target: 'marketers', network: 'distributors', property: 'property' }
 
@@ -248,11 +283,16 @@ export function LensMap() {
   // the top of the panel, where the tour asks its goal question
   const [goalSlot, setGoalSlot] = useState<HTMLDivElement | null>(null)
   const raiseSheet = useCallback(() => setSheet((current) => (current === 'peek' ? 'half' : current)), [])
+  // the district a click on the map opened a card on, where the click landed, and where that is on screen now
+  const [card, setCard] = useState<{ id: string; lon: number; lat: number } | null>(null)
+  const [cardAt, setCardAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  // a pick made by a click on the map answers in its card, so the phone's sheet stays down and the map in view
+  const mapPick = useRef(false)
   const data = useCityData(city)
   const onOverlay = useCallback((next: Overlay) => setOverlay(next), [])
   const active = lensById(lens)
 
-  useEffect(() => { setSelected([]) }, [city])
+  useEffect(() => { setSelected([]); setCard(null) }, [city])
   // a link's ?tool= wins once over the lens's first step, when it is one of that lens's steps
   const presetTool = useRef<ToolId | null>(null)
   useEffect(() => {
@@ -312,7 +352,9 @@ export function LensMap() {
     presetDistricts.current = null
     const known = new Set(data.rows.map((row) => row.id))
     const ids = pending.ids.filter((id) => known.has(id))
-    if (ids.length) setSelected(ids)
+    if (ids.length) { setSelected(ids); flyTo(ids[0]) }
+    // flyTo only sets state
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.status, data.rows, city])
   useEffect(() => {
     if (!hydrated) return
@@ -321,7 +363,11 @@ export function LensMap() {
     const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null }, lensById(lens).steps[0].tool)
     if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}${window.location.hash}`)
   }, [hydrated, city, lens, tool, selected, search, studied])
-  useEffect(() => { if (selected.length) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [selected.length])
+  useEffect(() => {
+    const quiet = mapPick.current
+    mapPick.current = false
+    if (selected.length && !quiet) setSheet((current) => (current === 'peek' ? 'half' : current))
+  }, [selected.length])
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
 
   const steps = useMemo(() => shadeSteps(new Map(data.rows.map((row) => [row.id, METRICS[metric].value(row)]))), [data.rows, metric])
@@ -346,7 +392,11 @@ export function LensMap() {
     return selected.length > 1 ? [[DISTRICTS_MULTI, `${numberFormat.format(selected.length)} أحياء مختارة`], ...base] : base
   }, [data.rows, selected.length])
   const districtValue = selected.length === 1 ? selected[0] : selected.length > 1 ? DISTRICTS_MULTI : ''
-  const pickDistrict = (value: string) => { if (value !== DISTRICTS_MULTI) setSelected(value ? [value] : []) }
+  const pickDistrict = (value: string) => {
+    if (value === DISTRICTS_MULTI) return
+    setSelected(value ? [value] : [])
+    if (value) flyTo(value)
+  }
   const submit = () => { if (draft.trim()) setSearch({ q: draft.trim(), nonce: Date.now() }) }
   // the step that paints the districts itself owns the map's colours while it is open; the metric chips wait, and the
   // key in the map's corner says whose colours they are
@@ -357,7 +407,21 @@ export function LensMap() {
   // the district the open step puts first, or else the top of the shading figure (as «الأعلى في» ranks it)
   const leadId = overlay.lead ?? (toolColors ? null : [...data.rows].filter((row) => METRICS[metric].value(row) != null)
     .sort((a, b) => (METRICS[metric].value(b) as number) - (METRICS[metric].value(a) as number))[0]?.id ?? null)
-  const pointedRow = pointed ? data.rows.find((row) => row.id === pointed.id) ?? null : null
+  // the card stays while its district is picked and the map takes clicks as districts
+  const cardRow = card && selected.includes(card.id) && !overlay.onPick ? data.rows.find((row) => row.id === card.id) ?? null : null
+  const cardLines = (row: DistrictRow): { label: string; value: string }[] => {
+    const population = { label: 'السكان', value: format(row.population) }
+    // the open step's own figure for the district, as the step computed it
+    if (overlay.facts) return [{ label: step?.label ?? '', value: overlay.facts.get(row.id) ?? 'غير متاح' }, population]
+    if (!toolColors && metric !== 'population') return [{ label: METRICS[metric].label, value: format(METRICS[metric].value(row), METRICS[metric].unit) }, population]
+    return [population]
+  }
+  const openDetails = () => {
+    setSheet((current) => (current === 'full' ? current : 'half'))
+    // after the sheet has risen, so the summary is scrolled to where it ends up
+    window.setTimeout(() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
+  }
+  const pointedRow = pointed && pointed.id !== cardRow?.id ? data.rows.find((row) => row.id === pointed.id) ?? null : null
   const legendTitle = overlay.legend?.title ?? (toolColors ? `ألوان الخريطة: ${step?.label ?? ''}` : step?.label ?? '')
   const sheetTitle = search ? `بحث: ${search.q}` : chosen.length ? `${step?.label} · ${chosen.map((row) => row.name).join('، ')}` : `${active.label} · ${step?.label ?? ''}`
   const showBusinesses = !search && selected.length > 0 && lens !== 'property' && ['businesses', 'gaps', 'district', 'competitors'].includes(tool)
@@ -397,8 +461,17 @@ export function LensMap() {
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] lg:relative lg:inset-auto lg:flex-1" style={{ '--peek': PEEK } as CSSProperties}>
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={setPointed}
-            onFailed={setMapFailed} errorClassName="max-lg:top-1/3" />
+            onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0}
+            onDistrictClick={(hit) => { mapPick.current = true; setCard(selected.includes(hit.id) ? null : hit) }}
+            pin={cardRow ? card : null} onPin={setCardAt} />
           {overlay.popup}
+          {cardRow && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
+            <DistrictCard name={cardRow.name} lines={cardLines(cardRow)} at={cardAt} onDetails={openDetails} onClose={() => setCard(null)}
+              {...(window.matchMedia('(min-width: 64rem)').matches
+                ? { top: 8, bottom: cardAt.height - 8 }
+                // the floating search and chips on top; below, what the sheet covers above the map's own end (the peek)
+                : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + PEEK_PX) - PEEK_PX) : 0) })} />
+          )}
           {pointedRow && pointed && (
             <div role="tooltip" className="pointer-events-none absolute z-[6] max-w-56 rounded-lg border bg-card/95 px-2.5 py-1.5 text-sm shadow-md backdrop-blur"
               // beside the pointer, flipped near the map's edges so it never runs off it
