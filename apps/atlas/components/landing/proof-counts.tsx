@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Unavailable } from '@/components/shared/unavailable'
-import { numberFormat, uniqueCities } from '@/lib/insights-api'
+import { fetchCities, numberFormat } from '@/lib/insights-api'
 
 /** The service's floor for a city to be listed (services/targeting-api/server.py cities(): having n >= 1500). */
 const MIN_BUSINESSES = 1500
@@ -19,12 +19,11 @@ export function ProofCounts() {
   const [counts, setCounts] = useState<Counts>('loading')
   useEffect(() => {
     let live = true
-    fetch('/api/market/cities')
-      .then((response) => (response.ok ? response.json() : null))
-      .then((rows: { en: string; districts?: number }[] | null) => {
+    // the same request the city pickers use (one row per city, so a repeated city is never counted twice)
+    fetchCities()
+      .then((rows) => {
         if (!live) return
-        // one row per city, so a repeated city is never counted twice
-        const covered = Array.isArray(rows) ? uniqueCities(rows).filter((row) => typeof row.districts === 'number' && row.districts > 0) : []
+        const covered = rows.filter((row) => typeof row.districts === 'number' && row.districts > 0)
         setCounts(covered.length ? { cities: covered.length, districts: covered.reduce((sum, row) => sum + (row.districts ?? 0), 0) } : 'unavailable')
       })
       .catch(() => { if (live) setCounts('unavailable') })

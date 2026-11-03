@@ -73,20 +73,33 @@ export function uniqueCities<T extends { en: string }>(rows: T[]): T[] {
   return rows.filter((row) => !seen.has(row.en) && Boolean(seen.add(row.en)))
 }
 
+// one request for the city list per page load, shared by every picker and the landing figures: the list changes
+// with a data release, not while someone moves between the map, the listings and the price pages. A failed answer
+// is forgotten, so the next page that asks tries again.
+let citiesRequest: Promise<City[]> | null = null
+
+/** Every row of /api/market/cities, once per page load (rejects, and is retried next time, when it fails). */
+export function fetchCities(): Promise<City[]> {
+  citiesRequest ??= fetch('/api/market/cities')
+    .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`cities ${response.status}`))))
+    .then((rows: unknown) => (Array.isArray(rows) ? uniqueCities(rows as City[]) : Promise.reject(new Error('cities: not a list'))))
+    .catch((error) => { citiesRequest = null; throw error })
+  return citiesRequest
+}
+
 /** Cities that have districts in the golden atlas, largest first: every insight works per district, so a city
  * without districts would only show an empty tool. Riyadh is the fallback while loading or on failure. */
 export function useCities(): City[] {
   const [cities, setCities] = useState<City[]>([{ en: 'Riyadh', ar: 'الرياض' }])
   useEffect(() => {
-    fetch('/api/market/cities')
-      .then((response) => response.json())
-      .then((rows: City[]) => {
-        if (!Array.isArray(rows)) return
-        const unique = uniqueCities(rows)
+    let live = true
+    fetchCities()
+      .then((unique) => {
         const mapped = unique.some((row) => typeof row.districts === 'number') ? unique.filter((row) => (row.districts ?? 0) > 0) : unique
-        if (mapped.length) setCities(mapped)
+        if (live && mapped.length) setCities(mapped)
       })
       .catch(() => undefined)
+    return () => { live = false }
   }, [])
   return cities
 }
