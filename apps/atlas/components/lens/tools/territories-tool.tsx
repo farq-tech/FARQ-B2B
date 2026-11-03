@@ -92,9 +92,12 @@ function StopOrder({ order, byId }: { order: string[]; byId: Map<string, Custome
   )
 }
 
+/** «45 دقيقة», «2 ساعة», «1 ساعة 20 دقيقة»: a whole hour never reads «… 0 دقيقة». */
 const duration = (seconds: number) => {
   const minutes = Math.round(seconds / 60)
-  return minutes < 60 ? `${numberFormat.format(minutes)} دقيقة` : `${numberFormat.format(Math.floor(minutes / 60))} ساعة ${numberFormat.format(minutes % 60)} دقيقة`
+  if (minutes < 60) return `${numberFormat.format(minutes)} دقيقة`
+  const hours = `${numberFormat.format(Math.floor(minutes / 60))} ساعة`
+  return minutes % 60 ? `${hours} ${numberFormat.format(minutes % 60)} دقيقة` : hours
 }
 
 /**
@@ -132,7 +135,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
   // step 1-2: the territories, rebuilt whenever the activity, count or balance changes
   useEffect(() => {
     let active = true
-    setStatus('loading'); setRep(null)
+    // the last split goes at once, so the map never colours the old reps under the new count's skeleton
+    setStatus('loading'); setRep(null); setGroups(null)
     postMarket<{ territories: Territory[] }>('territories', { city, count, weight, ...(mainId ? { main_id: mainId } : {}) })
       .then((data) => { if (active) { setGroups(data.territories ?? []); setStatus('idle') } })
       .catch(() => { if (active) setStatus('error') })
@@ -249,7 +253,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         <MainActivityPicker activities={activities} value={mainId} onChange={setMainId} placeholder="نشاط عملائك" allLabel="كل المنشآت" />
       </Step>
 
-      <Step n={2} title="المندوبون" done={Boolean(groups)}>
+      <Step n={2} title="المندوبون" done={Boolean(groups?.length)}>
         <Stepper id="territories-count" label="العدد" value={count} min={MIN_REPS} max={MAX_REPS} onChange={setCount} less="مندوب أقل" more="مندوب أكثر" />
         <div role="group" aria-label="معيار التوازن" className="mt-2 flex gap-1.5">
           {(['businesses', 'population'] as const).map((value) => (
@@ -259,9 +263,12 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
             </button>
           ))}
         </div>
-        {status === 'loading' && <SkeletonRows label="جارٍ التقسيم" rows={groups?.length || 3} boxed leading="swatch" trailing className="mt-2" />}
+        {status === 'loading' && <SkeletonRows label="جارٍ التقسيم" rows={Math.min(count, 6)} boxed leading="swatch" trailing className="mt-2" />}
         {status === 'error' && <LoadError what="المناطق" title="تعذر تقسيم المناطق." onRetry={() => setAttempt((n) => n + 1)} className="mt-2" />}
-        {groups && status !== 'loading' && (
+        {groups && status !== 'loading' && groups.length === 0 && (
+          <NoResult title="لا مناطق لهذا الاختيار" body={mainId ? 'لا منشآت من هذا النشاط في أحياء المدينة. اختر «كل المنشآت» أو نشاطاً آخر.' : 'أحياء المدينة بلا منشآت معروفة الموقع بعد.'} className="mt-2" />
+        )}
+        {groups && status !== 'loading' && groups.length > 0 && (
           <ol className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
             {groups.map((group, index) => (
               // the share opens its own explanation card, so it sits beside the row's button, never inside it
@@ -283,7 +290,7 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
 
       {rep != null && (
         <Step n={3} title={`عملاء المندوب ${numberFormat.format(rep + 1)}`} done={Boolean(customers?.length)}>
-          {!customers && !customerError && <SkeletonStatus><Skeleton className="h-6 w-44" /></SkeletonStatus>}
+          {!customers && !customerError && <SkeletonStatus label="جارٍ تحميل منشآت المنطقة"><Skeleton className="h-6 w-44" /></SkeletonStatus>}
           {customerError && (
             <LoadError what="منشآت المنطقة" detail={customerError.text} onRetry={() => setCustomersAttempt((n) => n + 1)}
               action={customerError.login ? <Link href="/login?next=%2Fmap%3Ftool%3Dterritories" className="text-sm font-semibold text-primary underline">تسجيل الدخول</Link> : undefined} />
@@ -316,7 +323,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
           </div>
           {planStatus === 'loading' && <SkeletonRows label="جارٍ تقسيم الأسبوع" rows={days} boxed leading="swatch" sub trailing className="mt-2" />}
           {planStatus === 'error' && <LoadError what="خطة الأسبوع" title="تعذر تقسيم الأسبوع." onRetry={() => setPlanAttempt((n) => n + 1)} className="mt-2" />}
-          {planStatus === 'too-many' && <p role="alert" className="mt-2 text-base text-destructive">المنشآت أكثر من {numberFormat.format(WEEK_STOPS_MAX)}. اختر نشاطاً أدق أو مندوبين أكثر.</p>}
+          {/* a limit, not a failure: the shared «no result» shape with the two changes that fit the week */}
+          {planStatus === 'too-many' && <NoResult title={`المنشآت أكثر من ${numberFormat.format(WEEK_STOPS_MAX)} لخطة أسبوع واحد`} body="اختر نشاطاً أدق، أو زد عدد المندوبين لتصغر كل منطقة." className="mt-2" />}
           {plan && planStatus === 'idle' && (
             <>
               <ol className="mt-2 space-y-1.5">
