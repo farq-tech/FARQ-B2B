@@ -12,7 +12,9 @@ export function Chip({ active, className, ...props }: ComponentProps<'button'> &
       className={cn(
         'inline-flex h-9 pointer-coarse:min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 text-sm whitespace-nowrap transition-colors outline-none',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        active ? 'border-primary bg-primary/10 font-semibold text-primary' : 'bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+        // the olive tint is laid over an opaque card: a bare 10% tint let whatever lies under the chip (map labels on the
+        // phone's floating row) show through its text, which then read doubled
+        active ? 'border-primary bg-card bg-linear-to-r from-primary/10 to-primary/10 font-semibold text-primary' : 'bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground',
         className,
       )}
       {...props}
