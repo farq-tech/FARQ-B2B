@@ -393,6 +393,57 @@ class InboxStore:
             'deliveries': [{'requestId': r[0], 'poiKey': r[1], 'status': r[2], 'at': iso(r[3])} for r in deliveries],
         }
 
+    def reply_stats(self, account_id, now: int | None = None, elsewhere_days: int = LINK_WINDOW_DAYS) -> dict:
+        """Per request of these accounts: how many recipients the campaign reached (sent, not failed), how many replied,
+        and the median time from a recipient's first message to their first reply. And, per recipient who has not
+        replied to a request, whether the same number replied to another of these accounts' campaigns in the last
+        `elsewhere_days` (the reply's id, so the inbox can open it). Only these accounts' own records are read, so
+        nothing about another account's campaigns is said. No numbers in the answer."""
+        accounts = accounts_of(account_id)
+        if not accounts:
+            return {'requests': [], 'elsewhere': []}
+        marks = ','.join('?' * len(accounts))
+        with self._connect() as con:
+            # each recipient of each request: the first message it was sent and whether any of its messages failed for good
+            recipients = con.execute(
+                f'select request_id, poi_key, wa_id, min(sent_at), max(case when status != \'failed\' then 1 else 0 end) '
+                f'from wa_outbound where account_id in ({marks}) group by request_id, poi_key, wa_id', accounts).fetchall()
+            replies = con.execute(
+                f'select request_id, poi_key, min(received_at) from wa_inbound where account_id in ({marks}) '
+                'and request_id is not null group by request_id, poi_key', accounts).fetchall()
+            latest = con.execute(
+                f'select wa_id, request_id, message_id, received_at from wa_inbound where account_id in ({marks}) and request_id is not null '
+                'and received_at >= ? order by received_at desc', (*accounts, int(now or time.time()) - int(elsewhere_days) * 86400)).fetchall()
+        first_reply = {(r[0], r[1]): r[2] for r in replies}
+        per_request = {}
+        for request_id, poi_key, _wa, sent_at, reached in recipients:
+            row = per_request.setdefault(request_id, {'requestId': request_id, 'sent': 0, 'replied': 0, 'delays': []})
+            if not reached:
+                continue
+            row['sent'] += 1
+            at = first_reply.get((request_id, poi_key))
+            if at is not None:
+                row['replied'] += 1
+                row['delays'].append(max(0, int(at) - int(sent_at)))
+        out = []
+        for row in per_request.values():
+            delays = sorted(row.pop('delays'))
+            n = len(delays)
+            row['medianReplySeconds'] = None if not n else (delays[n // 2] if n % 2 else (delays[n // 2 - 1] + delays[n // 2]) // 2)
+            out.append(row)
+        # a number that has not answered this request but answered another campaign of these accounts lately
+        newest_by_number = {}
+        for wa_id, request_id, message_id, received_at in latest:
+            newest_by_number.setdefault(wa_id, []).append((request_id, message_id, received_at))
+        elsewhere = []
+        for request_id, poi_key, wa_id, _sent, reached in recipients:
+            if (request_id, poi_key) in first_reply:
+                continue
+            other = next((r for r in newest_by_number.get(wa_id, []) if r[0] != request_id), None)
+            if other:
+                elsewhere.append({'requestId': request_id, 'poiKey': poi_key, 'otherRequestId': other[0], 'messageId': other[1], 'at': iso(other[2])})
+        return {'requests': sorted(out, key=lambda r: r['requestId']), 'elsewhere': elsewhere}
+
     def set_read(self, account_id, message_ids, read: bool = True, now: int | None = None) -> int:
         """Marks the account's own replies read (or unread again). Ids of another account's replies change nothing."""
         ids = [i for i in (message_ids or []) if isinstance(i, str) and MESSAGE_ID_RE.match(i)][:200] if isinstance(message_ids, list) else []

@@ -21,7 +21,12 @@ export type ServerInboxMessage = {
 /** The delivery state of the newest campaign message a recipient of a request was sent. */
 export type ServerDelivery = { requestId: string; poiKey: string; status: 'sent' | 'delivered' | 'read' | 'failed'; at: string | null }
 
-export type ServerFeed = { messages: ServerInboxMessage[]; deliveries: ServerDelivery[]; owner: boolean }
+/** A request's reply figures from the service: recipients reached, how many replied, median seconds to a first reply. */
+export type ServerReplyStat = { requestId: string; sent: number; replied: number; medianReplySeconds: number | null }
+/** A recipient that has not answered this request but answered another of the person's campaigns lately. */
+export type ServerElsewhere = { requestId: string; poiKey: string; otherRequestId: string; messageId: string; at: string | null }
+
+export type ServerFeed = { messages: ServerInboxMessage[]; deliveries: ServerDelivery[]; owner: boolean; requests: ServerReplyStat[]; elsewhere: ServerElsewhere[] }
 
 /** What a reply without words of its own is, in the inbox's words. Text kinds have none. */
 const KIND_LABEL: Record<string, string> = {
@@ -129,7 +134,7 @@ const STATUSES = new Set(['sent', 'delivered', 'read', 'failed'])
 
 /** Reads `/api/inbox`'s answer; anything not in the expected shape is dropped. */
 export function parseServerFeed(payload: unknown): ServerFeed {
-  const root = payload && typeof payload === 'object' ? payload as { messages?: unknown; deliveries?: unknown; owner?: unknown } : {}
+  const root = payload && typeof payload === 'object' ? payload as { messages?: unknown; deliveries?: unknown; owner?: unknown; requests?: unknown; elsewhere?: unknown } : {}
   const messages = (Array.isArray(root.messages) ? root.messages : []).flatMap((item) => {
     const m = (item ?? {}) as Partial<Record<keyof ServerInboxMessage, unknown>>
     if (typeof m.id !== 'string' || typeof m.requestId !== 'string' || typeof m.poiKey !== 'string' || typeof m.receivedAt !== 'string' || Number.isNaN(Date.parse(m.receivedAt))) return []
@@ -140,7 +145,18 @@ export function parseServerFeed(payload: unknown): ServerFeed {
     if (typeof d.requestId !== 'string' || typeof d.poiKey !== 'string' || typeof d.status !== 'string' || !STATUSES.has(d.status)) return []
     return [{ requestId: d.requestId, poiKey: d.poiKey, status: d.status as ServerDelivery['status'], at: typeof d.at === 'string' && !Number.isNaN(Date.parse(d.at)) ? d.at : null }]
   })
-  return { messages, deliveries, owner: root.owner === true }
+  const whole = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
+  const requests = (Array.isArray(root.requests) ? root.requests : []).flatMap((item) => {
+    const r = (item ?? {}) as Record<string, unknown>
+    const sent = whole(r.sent); const replied = whole(r.replied)
+    return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: whole(r.medianReplySeconds) }] : []
+  })
+  const elsewhere = (Array.isArray(root.elsewhere) ? root.elsewhere : []).flatMap((item) => {
+    const e = (item ?? {}) as Record<string, unknown>
+    return typeof e.requestId === 'string' && typeof e.poiKey === 'string' && typeof e.otherRequestId === 'string' && typeof e.messageId === 'string'
+      ? [{ requestId: e.requestId, poiKey: e.poiKey, otherRequestId: e.otherRequestId, messageId: e.messageId, at: typeof e.at === 'string' ? e.at : null }] : []
+  })
+  return { messages, deliveries, owner: root.owner === true, requests, elsewhere }
 }
 
 /** The latest reply of each recipient of one request, by recipient id: whether, and with which message, they answered. */
@@ -197,4 +213,50 @@ export function replyRate(ids: readonly string[], sent: (id: string) => boolean,
   if (!reached.length) return null
   const answered = reached.filter((id) => replied?.[id]).length
   return { sent: reached.length, replied: answered, percent: Math.round((answered / reached.length) * 100) }
+}
+
+const matchesRequest = (id: string, request: Pick<RequestItem, 'id' | 'remoteId'>) => id === request.id || (request.remoteId != null && id === request.remoteId)
+
+/** The service's reply figures for one request (by its local or cloud id); undefined before the feed has them. */
+export function statFor(stats: readonly ServerReplyStat[], request: Pick<RequestItem, 'id' | 'remoteId'>): ServerReplyStat | undefined {
+  return stats.find((s) => matchesRequest(s.requestId, request))
+}
+
+/** Recipients of one request who answered another of the person's campaigns instead, by recipient id. */
+export function elsewhereFor(elsewhere: readonly ServerElsewhere[], request: Pick<RequestItem, 'id' | 'remoteId'>): Record<string, ServerElsewhere> {
+  const out: Record<string, ServerElsewhere> = {}
+  for (const e of elsewhere) if (matchesRequest(e.requestId, request)) out[e.poiKey] ??= e
+  return out
+}
+
+/**
+ * The reply rate as a list or a header shows it: the service's figures when it has them (every device the same), else
+ * this device's own count. Null when nothing went out.
+ */
+export function rateFor(stat: ServerReplyStat | undefined, local: { sent: number; replied: number; percent: number } | null): { sent: number; replied: number; percent: number; medianReplySeconds: number | null } | null {
+  if (stat && stat.sent > 0) return { sent: stat.sent, replied: Math.min(stat.replied, stat.sent), percent: Math.round((Math.min(stat.replied, stat.sent) / stat.sent) * 100), medianReplySeconds: stat.medianReplySeconds }
+  return local ? { ...local, medianReplySeconds: null } : null
+}
+
+/** A reply time in whole units: minutes under an hour, hours under two days, else days. */
+export function durationParts(seconds: number): { value: number; unit: 'minute' | 'hour' | 'day' } {
+  const minutes = Math.max(1, Math.round(seconds / 60))
+  if (minutes < 60) return { value: minutes, unit: 'minute' }
+  const hours = Math.round(seconds / 3600)
+  if (hours < 48) return { value: hours, unit: 'hour' }
+  return { value: Math.round(seconds / 86400), unit: 'day' }
+}
+
+/** The recipient filter in the request page's address (`?replies=waiting|replied`); anything else is «الكل». */
+export function readReplyFilter(search: string): ReplyFilter {
+  const value = new URLSearchParams(search).get('replies')
+  return value === 'waiting' || value === 'replied' ? value : 'all'
+}
+
+export function writeReplyFilter(search: string, filter: ReplyFilter): string {
+  const query = new URLSearchParams(search)
+  if (filter === 'all') query.delete('replies')
+  else query.set('replies', filter)
+  const text = query.toString()
+  return text ? `?${text}` : ''
 }

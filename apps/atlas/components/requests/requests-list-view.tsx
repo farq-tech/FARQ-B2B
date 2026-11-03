@@ -8,10 +8,10 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { STATUS_LABEL, formatDate, nextStep, requestCity, statusLabel } from '@/lib/format'
-import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, percent, useCities } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
-import { repliesFor, replyRate, requestFor, trackedFor, wasSent } from '@/lib/inbox-feed'
+import { rateFor, repliesFor, replyRate, requestFor, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
 import { signInHref, useSignedIn } from '@/lib/use-signed-in'
 import { requestAccessHref } from '@/lib/access-request'
 import type { RequestStatus } from '@/lib/types'
@@ -24,7 +24,7 @@ const TABS: RequestStatus[] = ['draft', 'needs_decision', 'ready_manual', 'await
 const ATTENTION: RequestStatus[] = ['needs_decision', 'ready_manual', 'draft', 'awaiting', 'completed']
 
 export function RequestsListView() {
-  const { requests, inbox, views, deliveries } = useAppStore()
+  const { requests, inbox, views, deliveries, replyStats } = useAppStore()
   const cities = useCities()
   // until the person picks a tab, the page opens on the first one that holds something to act on (the store loads
   // from this device after the first paint, so this is derived, not set once)
@@ -113,7 +113,8 @@ export function RequestsListView() {
             const unread = replies.filter((m) => m.unread).length
             // a sent campaign's reply rate: of the recipients its messages reached, how many answered
             const tracked = r.campaign ? trackedFor(deliveries, r) : {}
-            const rate = r.campaign ? replyRate(r.campaign.included, (id) => wasSent(id, tracked, r.campaign?.delivery), repliesFor(inbox, r)) : null
+            // the service's figures when it has them (the same on every device), else this device's own count
+            const rate = r.campaign ? rateFor(statFor(replyStats, r), replyRate(r.campaign.included, (id) => wasSent(id, tracked, r.campaign?.delivery), repliesFor(inbox, r))) : null
             const next = nextStep(r.status, r.type)
             return (
               <li key={r.id}>
@@ -139,7 +140,7 @@ export function RequestsListView() {
                       ) : null}
                       {rate ? (
                         <span className={cn(rate.replied > 0 && 'font-semibold text-foreground')}>
-                          نسبة الرد {numberFormat.format(rate.percent)}% ({numberFormat.format(rate.replied)} من {numberFormat.format(rate.sent)})
+                          نسبة الرد {percent(rate.percent)} ({numberFormat.format(rate.replied)} من {numberFormat.format(rate.sent)})
                         </span>
                       ) : null}
                       <span>آخر تحديث {formatDate(r.updatedAt)}</span>

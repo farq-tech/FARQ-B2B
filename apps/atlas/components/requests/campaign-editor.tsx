@@ -2,15 +2,16 @@
 
 import { CheckCheck, CircleCheck, ChevronLeft, ChevronRight, CircleQuestionMark, Clock, Minus, ShieldCheck, CircleX, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { MessageSquarePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AUTO_VARIABLES, TEMPLATES, businessById, districtById } from '@/lib/mock-data'
 import type { Business, CampaignDetails, LiveBusinessSnapshot } from '@/lib/types'
-import { deliveryLabel, replyGroups, wasSent, type ReplyFilter, type ServerDelivery } from '@/lib/inbox-feed'
+import { deliveryLabel, readReplyFilter, replyGroups, wasSent, writeReplyFilter, type ReplyFilter, type ServerDelivery, type ServerElsewhere } from '@/lib/inbox-feed'
 import { Chip, ChipCount } from '@/components/ui/chip'
-import { numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat } from '@/lib/insights-api'
 import { cn } from '@/lib/utils'
 
 export function templateVariables(body: string) {
@@ -90,6 +91,10 @@ interface CampaignEditorProps {
   tracked?: Record<string, ServerDelivery['status']>
   /** Each recipient's latest reply in the inbox (its message id), by recipient id. */
   replied?: Record<string, string>
+  /** Recipients who answered another of the person's campaigns instead of this one, by recipient id. */
+  elsewhere?: Record<string, ServerElsewhere>
+  /** Starts a follow-up draft for these recipients; it is reviewed and confirmed like any campaign, nothing is sent here. */
+  onFollowUp?: (ids: string[]) => void
 }
 
 
@@ -99,11 +104,20 @@ const REPLY_FILTERS: { id: ReplyFilter; label: string }[] = [
   { id: 'replied', label: 'ردّت' },
 ]
 
-export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied }: CampaignEditorProps) {
-  // after sending: who has not answered yet, for a follow-up the person decides on (nothing is sent from here)
-  const [replyFilter, setReplyFilter] = useState<ReplyFilter>('all')
+export function CampaignEditor({ value, businessIds, liveBusinesses = [], editable, onChange, tracked, replied, elsewhere, onFollowUp }: CampaignEditorProps) {
+  // after sending: who has not answered yet, for a follow-up the person decides on (nothing is sent from here). The
+  // choice is in the address (?replies=waiting|replied), so a link or a reload opens the same view.
+  const [replyFilter, setReplyFilterState] = useState<ReplyFilter>('all')
+  useEffect(() => { setReplyFilterState(readReplyFilter(window.location.search)) }, [])
+  const setReplyFilter = (filter: ReplyFilter) => {
+    setReplyFilterState(filter)
+    const search = writeReplyFilter(window.location.search, filter)
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`)
+  }
   const sentTo = (id: string) => wasSent(id, tracked, value.delivery)
   const replyGroupsFor = replyGroups(businessIds, sentTo, replied)
+  const followUpIds = replyGroupsFor.waiting.filter((id) => !elsewhere?.[id])
+  const elsewhereWaiting = replyGroupsFor.waiting.length - followUpIds.length
   const template = TEMPLATES.find((t) => t.id === value.templateId)
   const vars = template ? templateVariables(template.body).filter((v) => !AUTO_VARIABLES.includes(v)) : []
   const liveById = new Map(liveBusinesses.map((business) => [business.id, business]))
@@ -222,6 +236,18 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
             ))}
           </div>
         ) : null}
+        {/* a follow-up for those who have not answered: a new draft, reviewed and confirmed like any campaign. A recipient who
+            answered another of the person's campaigns is left out of it (the person sees why on its row). */}
+        {!editable && onFollowUp && followUpIds.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => onFollowUp(followUpIds)}>
+              <MessageSquarePlus data-icon="inline-start" />جهّز حملة متابعة لمن لم يردّ ({numberFormat.format(followUpIds.length)})
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              مسودة جديدة تراجعها وتؤكد إرسالها بنفسك.{elsewhereWaiting ? ` لا تضم ${counted(elsewhereWaiting, 'business')} ردّت على حملة أخرى.` : ''}
+            </span>
+          </div>
+        ) : null}
         {!editable && replyFilter !== 'all' && !replyGroupsFor[replyFilter].length ? (
           <p className="text-sm text-muted-foreground">{replyFilter === 'waiting' ? 'كل من وصلتهم الرسالة ردّوا.' : 'لم يردّ أحد بعد.'}</p>
         ) : null}
@@ -252,6 +278,9 @@ export function CampaignEditor({ value, businessIds, liveBusinesses = [], editab
                     {/* whether the business answered: its reply one tap away, or «لا رد بعد» once the message went out */}
                     {replied?.[id] ? (
                       <Link href={`/inbox?m=${encodeURIComponent(replied[id])}`} className="rounded text-xs font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">ردّت · اقرأ الرد</Link>
+                    ) : elsewhere?.[id] ? (
+                      // this number answered another of the person's campaigns: not a silence to chase
+                      <Link href={`/inbox?m=${encodeURIComponent(elsewhere[id].messageId)}`} className="rounded text-xs font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">ردّت على حملة أخرى</Link>
                     ) : sentTo(id) ? (
                       <span className="text-xs text-muted-foreground">لا رد بعد</span>
                     ) : null}

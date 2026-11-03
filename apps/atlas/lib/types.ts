@@ -183,6 +183,8 @@ export interface RequestItem {
   origin?: string
   /** Inbox message id of the accepted quote. */
   acceptedQuoteId?: string
+  /** The campaign this draft follows up: made from its recipients who had not replied (reviewed and sent like any other). */
+  followUpOf?: string
 }
 
 export interface Template {

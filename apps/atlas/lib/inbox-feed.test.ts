@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { durationParts, elsewhereFor, rateFor, readReplyFilter, statFor, writeReplyFilter } from './inbox-feed.ts'
 import { deliveryFor, freshReplies, healthState, replyGroups, replyRate, repliesFor, trackedFor, wasSent, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
 import { inboxAccounts } from './inbox-scope.ts'
 import type { InboxMessage } from './types.ts'
@@ -39,7 +40,7 @@ test('the feed parser keeps only well-formed replies and deliveries', () => {
   assert.deepEqual(feed.messages, [{ ...reply, read: true }])
   assert.deepEqual(feed.deliveries, [{ requestId: 'cmp-1', poiKey: 'poi:1', status: 'read', at: '2026-11-03T10:00:00Z' }])
   assert.equal(feed.owner, true)
-  assert.deepEqual(parseServerFeed(null), { messages: [], deliveries: [], owner: false })
+  assert.deepEqual(parseServerFeed(null), { messages: [], deliveries: [], owner: false, requests: [], elsewhere: [] })
   assert.equal(parseServerFeed({ owner: 'yes' }).owner, false)
 })
 
@@ -122,4 +123,39 @@ test('the reply filter splits the sent recipients into waiting and replied; the 
   assert.deepEqual(replyRate(ids, sent, replied), { sent: 3, replied: 1, percent: 33 })
   assert.equal(replyRate(ids, () => false, replied), null, 'nothing sent: no rate, never 0%')
   assert.deepEqual(replyRate(['a'], () => true, {}), { sent: 1, replied: 0, percent: 0 })
+})
+
+test('the service’s reply figures and replied-elsewhere flags are parsed and found by local or cloud id', () => {
+  const feed = parseServerFeed({
+    requests: [{ requestId: 'r-9', sent: 3, replied: 2, medianReplySeconds: 5400 }, { requestId: 'x', sent: -1, replied: 0 }],
+    elsewhere: [{ requestId: 'cmp-1', poiKey: 'poi:1', otherRequestId: 'cmp-2', messageId: 'wamid.R1', at: '2026-11-03T10:00:00Z' }, { requestId: 'cmp-1' }],
+  })
+  assert.deepEqual(feed.requests, [{ requestId: 'r-9', sent: 3, replied: 2, medianReplySeconds: 5400 }])
+  const request = { id: 'cmp-1', remoteId: 'r-9' }
+  assert.equal(statFor(feed.requests, request)?.replied, 2)
+  assert.deepEqual(Object.keys(elsewhereFor(feed.elsewhere, request)), ['poi:1'])
+  assert.equal(elsewhereFor(feed.elsewhere, { id: 'other' })['poi:1'], undefined)
+})
+
+test('the rate prefers the service’s figures, else this device’s, and never says 0% for nothing sent', () => {
+  assert.deepEqual(rateFor({ requestId: 'r', sent: 4, replied: 1, medianReplySeconds: 600 }, { sent: 3, replied: 3, percent: 100 }), { sent: 4, replied: 1, percent: 25, medianReplySeconds: 600 })
+  assert.deepEqual(rateFor(undefined, { sent: 3, replied: 2, percent: 67 }), { sent: 3, replied: 2, percent: 67, medianReplySeconds: null })
+  assert.deepEqual(rateFor({ requestId: 'r', sent: 0, replied: 0, medianReplySeconds: null }, null), null)
+  assert.equal(rateFor({ requestId: 'r', sent: 2, replied: 5, medianReplySeconds: null }, null)?.percent, 100, 'never above 100%')
+})
+
+test('a reply time reads in minutes, hours or days', () => {
+  assert.deepEqual(durationParts(20), { value: 1, unit: 'minute' })
+  assert.deepEqual(durationParts(45 * 60), { value: 45, unit: 'minute' })
+  assert.deepEqual(durationParts(5400), { value: 2, unit: 'hour' })
+  assert.deepEqual(durationParts(30 * 3600), { value: 30, unit: 'hour' })
+  assert.deepEqual(durationParts(3 * 86400), { value: 3, unit: 'day' })
+})
+
+test('the recipient filter lives in the address and keeps the other parameters', () => {
+  assert.equal(readReplyFilter('?replies=waiting'), 'waiting')
+  assert.equal(readReplyFilter('?replies=<x>'), 'all')
+  assert.equal(readReplyFilter(''), 'all')
+  assert.equal(writeReplyFilter('?tab=1', 'replied'), '?tab=1&replies=replied')
+  assert.equal(writeReplyFilter('?replies=waiting', 'all'), '')
 })

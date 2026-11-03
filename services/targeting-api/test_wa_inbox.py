@@ -312,5 +312,45 @@ class StalenessTests(Base):
         self.assertEqual(self.store.health_epochs('nothing'), (None, 0))
 
 
+class ReplyStatsTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.third = '966500000003'
+        for message_id, request_id, poi, number, at in [
+            ('wamid.A1', 'cmp-1', 'poi:1', NUMBER, T0), ('wamid.A2', 'cmp-1', 'poi:2', OTHER, T0), ('wamid.A3', 'cmp-1', 'poi:3', self.third, T0),
+            ('wamid.B1', 'cmp-2', 'poi:1', NUMBER, T0 + 7200),   # a later campaign of the same account to the same number
+        ]:
+            self.store.record_outbound(message_id, 'org-1', request_id, poi, number, sent_at=at)
+        self.store.record_outbound('wamid.X', 'org-9', 'cmp-x', 'poi:1', NUMBER, sent_at=T0 + 9000)   # another account
+        # poi:2 answers cmp-1 after 1 h (quoting it); poi:1 answers cmp-2 after 3 h; poi:3's message failed
+        self.post(body([text('wamid.R2', sender=OTHER, at=T0 + 3600, context='wamid.A2'),
+                        text('wamid.R1', sender=NUMBER, at=T0 + 7200 + 3 * 3600, context='wamid.B1')]))
+        self.post(body(statuses=[{'id': 'wamid.A3', 'status': 'failed', 'timestamp': str(T0 + 5)}]))
+
+    def test_each_request_counts_the_recipients_reached_the_replies_and_the_median_reply_time(self):
+        stats = {r['requestId']: r for r in self.store.reply_stats('org-1', now=T0 + 86400)['requests']}
+        self.assertEqual((stats['cmp-1']['sent'], stats['cmp-1']['replied'], stats['cmp-1']['medianReplySeconds']), (2, 1, 3600),
+                         'the failed recipient is not counted as reached')
+        self.assertEqual((stats['cmp-2']['sent'], stats['cmp-2']['replied'], stats['cmp-2']['medianReplySeconds']), (1, 1, 3 * 3600))
+        self.assertNotIn('cmp-x', stats, "another account's campaign is not read")
+        self.assertEqual(self.store.reply_stats('bad id!'), {'requests': [], 'elsewhere': []})
+
+    def test_a_recipient_who_answered_another_campaign_of_the_account_is_flagged(self):
+        elsewhere = self.store.reply_stats('org-1', now=T0 + 86400)['elsewhere']
+        self.assertEqual([(e['requestId'], e['poiKey'], e['otherRequestId'], e['messageId']) for e in elsewhere],
+                         [('cmp-1', 'poi:1', 'cmp-2', 'wamid.R1')])
+        self.assertNotIn(NUMBER, json.dumps(elsewhere))
+        self.assertEqual(self.store.reply_stats('org-9', now=T0 + 86400)['elsewhere'], [], "another account's replies are never named")
+        self.assertEqual(self.store.reply_stats('org-1', now=T0 + 40 * 86400)['elsewhere'], [], 'only replies of the last 30 days')
+
+    def test_an_even_number_of_reply_times_takes_the_mean_of_the_middle_two(self):
+        self.store.record_outbound('wamid.E1', 'org-1', 'cmp-e', 'poi:5', '966500000005', sent_at=T0)
+        self.store.record_outbound('wamid.E2', 'org-1', 'cmp-e', 'poi:6', '966500000006', sent_at=T0)
+        self.post(body([text('wamid.RE1', sender='966500000005', at=T0 + 3600, context='wamid.E1'),
+                        text('wamid.RE2', sender='966500000006', at=T0 + 3 * 3600, context='wamid.E2')]))
+        stats = {r['requestId']: r for r in self.store.reply_stats('org-1', now=T0 + 86400)['requests']}
+        self.assertEqual(stats['cmp-e']['medianReplySeconds'], 2 * 3600)
+
+
 if __name__ == '__main__':
     unittest.main()
