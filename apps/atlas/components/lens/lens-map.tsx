@@ -467,7 +467,7 @@ export function LensMap() {
   const [overlay, setOverlay] = useState<Overlay>({})
   const [draft, setDraft] = useState('')
   // a search from the top of the map, or one inside a site's reach (`area`, from a site card in «قارن المواقع»)
-  const [search, setSearch] = useState<{ q: string; nonce: number; area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon } } | null>(null)
+  const [search, setSearch] = useState<{ q: string; nonce: number; area?: { label: string; geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon; centre?: { lon: number; lat: number } } } | null>(null)
   // the activity «المنافسون» is studying: a picked district then lists its competitors by name
   const [rival, setRival] = useState<string | null>(null)
   const searchBox = useRef<HTMLInputElement>(null)
@@ -984,7 +984,7 @@ export function LensMap() {
   // card drew it), from where a quote request, a campaign or a list starts; without a reach yet, the site's district
   const siteAction = (site: { label: string; lon: number; lat: number; area?: GeoJSON.Polygon | GeoJSON.MultiPolygon }) => {
     if (site.area) {
-      const area = { label: site.label, geometry: site.area }
+      const area = { label: site.label, geometry: site.area, centre: { lon: site.lon, lat: site.lat } }
       return (
         <NextAction icon={ClipboardList} onClick={() => { setSelected([]); setSearch({ q: studied.label, nonce: Date.now(), area }) }}>
           اطلب تسعيراً من منشآت «{studied.label}» داخل نطاق الموقع {site.label}
@@ -1087,7 +1087,7 @@ export function LensMap() {
             already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
           style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={catchmentAreas ?? overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBusinessGroup={(next) => { setCard(null); setLocated(null); setGroup(next) }} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={catchmentAreas ?? overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBusinessGroup={(next) => { setCard(null); setLocated(null); setGroup(next) }} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? search?.area?.centre ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setLocated(null); setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : located ?? group} onPin={setCardAt} />
