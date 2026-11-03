@@ -96,3 +96,52 @@ export function territoriesSummary(status: 'idle' | 'loading' | 'error', groups:
   if (status === 'loading' || !groups) return null
   return `${numberFormat.format(groups)} مناطق متوازنة ${weight === 'population' ? 'بالسكان' : 'بالمنشآت'}`
 }
+
+/** A drive or a route's time: «45 دقيقة», «2 ساعة», «1 ساعة 20 دقيقة»; a whole hour never reads «… 0 دقيقة». */
+export function duration(seconds: number): string {
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${numberFormat.format(minutes)} دقيقة`
+  const hours = `${numberFormat.format(Math.floor(minutes / 60))} ساعة`
+  return minutes % 60 ? `${hours} ${numberFormat.format(minutes % 60)} دقيقة` : hours
+}
+
+/**
+ * Whether two studied activities are the same one: the same typed words, the same main activity, or the same name.
+ * «قارن بنشاط آخر» refuses to compare an activity with itself (a list of zero gaps).
+ */
+export function sameActivity(a: { q?: string; main_id?: string; label: string }, b: { q?: string; main_id?: string; label: string }): boolean {
+  if (a.q && b.q) return a.q.trim() === b.q.trim()
+  if (a.main_id != null && a.main_id === b.main_id) return true
+  return a.label.trim() === b.label.trim()
+}
+
+/**
+ * What «أين جمهوري؟» cannot measure in this city when no district has a figure for the filters: the population
+ * itself, the income (a minimum income set), or the measured share asked for. null when some district has a figure.
+ * The wording names what is missing; the panel says it «غير متاح» with what still works, never a 0.
+ */
+export function audienceMissing({ rows, scored, sex, nationality, minIncome }: {
+  rows: { population: number | null; income: number | null }[]; scored: number; sex: string; nationality: string; minIncome: number
+}): { what: string; body: string } | null {
+  if (!rows.length || scored > 0) return null
+  const instead = { people: 'جرّب «أستهدف منشآت»: المنشآت تُعدّ في كل مدينة.', income: 'اختر «أي دخل» لترى الأحياء بسكانها.', share: 'اختر «الكل» لترى الأحياء بكل سكانها، أو «أستهدف منشآت».' }
+  if (rows.every((row) => row.population == null)) return { what: 'سكان الأحياء', body: instead.people }
+  if (minIncome > 0 && rows.every((row) => row.income == null)) return { what: 'دخل الأحياء', body: instead.income }
+  if (sex !== 'all' && nationality !== 'all') return { what: 'الجنس والجنسية', body: instead.share }
+  if (sex !== 'all') return { what: 'الجنس', body: instead.share }
+  if (nationality !== 'all') return { what: 'الجنسية', body: instead.share }
+  return { what: 'سكان الأحياء', body: instead.people }
+}
+
+/**
+ * «قارن المواقع» keeps each site's number and colour for as long as it is on the map: a new site takes the lowest free
+ * slot (0, 1, 2), and with every slot taken it replaces the oldest site in its slot. Removing site 1 leaves site 2 as
+ * «2» in its own colour, instead of renumbering and recolouring every site after it.
+ */
+export function placeSite<S extends { id: number; slot: number }>(sites: S[], next: Omit<S, 'slot'>, slots: number): S[] {
+  const taken = new Set(sites.map((site) => site.slot))
+  const free = Array.from({ length: slots }, (_, slot) => slot).find((slot) => !taken.has(slot))
+  if (free != null) return [...sites, { ...next, slot: free } as S]
+  const oldest = sites.reduce((first, site) => (site.id < first.id ? site : first))
+  return [...sites.filter((site) => site !== oldest), { ...next, slot: oldest.slot } as S]
+}

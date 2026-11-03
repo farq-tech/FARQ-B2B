@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, rankCompetition, territoriesSummary, weekSummary } from './tool-answers.ts'
+import { audienceMissing, audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, duration, placeSite, rankCompetition, sameActivity, territoriesSummary, weekSummary } from './tool-answers.ts'
+import { answerSequence } from './use-answer.ts'
 
 const district = (id: string, name: string) => ({ id, name })
 
@@ -78,4 +79,57 @@ test('the territories peek line never reads 0: nothing while loading or empty, �
   assert.equal(territoriesSummary('error', 5, 'population'), 'تعذر التقسيم')
   assert.equal(territoriesSummary('idle', 5, 'businesses'), '5 مناطق متوازنة بالمنشآت')
   assert.equal(territoriesSummary('idle', 4, 'population'), '4 مناطق متوازنة بالسكان')
+})
+
+test('a drive or route time reads in minutes, then hours, and a whole hour has no «0 دقيقة»', () => {
+  assert.equal(duration(45 * 60), '45 دقيقة')
+  assert.equal(duration(120 * 60), '2 ساعة')
+  assert.equal(duration(80 * 60 + 10), '1 ساعة 20 دقيقة')
+  assert.doesNotMatch(duration(3600), /0 دقيقة/)
+  assert.doesNotMatch(duration(12345), /[٠-٩]/)
+})
+
+test('the same activity is the same words, the same main activity, or the same name', () => {
+  assert.equal(sameActivity({ q: 'صيدلية ', label: 'صيدلية' }, { q: 'صيدلية', label: 'صيدلية' }), true)
+  assert.equal(sameActivity({ q: 'عيادة', label: 'عيادة' }, { q: 'صيدلية', label: 'صيدلية' }), false)
+  assert.equal(sameActivity({ main_id: '12', label: 'مطاعم' }, { main_id: '12', label: 'مطاعم' }), true)
+  assert.equal(sameActivity({ main_id: '12', label: 'مطاعم' }, { q: 'مطاعم', label: 'مطاعم' }), true, 'typed as the main activity\'s name')
+  assert.equal(sameActivity({ main_id: '12', label: 'مطاعم' }, { main_id: '13', label: 'مقاهي' }), false)
+})
+
+test('the audience panel names what the city cannot measure, and nothing while a district has a figure', () => {
+  const measured = [{ population: 9000, income: null }, { population: 12000, income: null }]
+  const base = { rows: measured, scored: 0, sex: 'all', nationality: 'all', minIncome: 0 }
+  assert.equal(audienceMissing({ ...base, scored: 2 }), null)
+  assert.equal(audienceMissing({ ...base, rows: [] }), null, 'no districts yet: nothing to say')
+  assert.equal(audienceMissing({ ...base, rows: [{ population: null, income: null }] })?.what, 'سكان الأحياء')
+  assert.equal(audienceMissing({ ...base, minIncome: 8000 })?.what, 'دخل الأحياء')
+  assert.equal(audienceMissing({ ...base, sex: 'women' })?.what, 'الجنس')
+  assert.equal(audienceMissing({ ...base, nationality: 'saudi' })?.what, 'الجنسية')
+  assert.equal(audienceMissing({ ...base, sex: 'men', nationality: 'saudi' })?.what, 'الجنس والجنسية')
+  assert.doesNotMatch(JSON.stringify(audienceMissing({ ...base, sex: 'women' })), /\b0\b/)
+})
+
+test('a compared site keeps its number and colour: the lowest free slot, and a fourth replaces the oldest in its slot', () => {
+  let sites: { id: number; slot: number }[] = []
+  for (const id of [1, 2, 3]) sites = placeSite(sites, { id }, 3)
+  assert.deepEqual(sites.map((site) => [site.id, site.slot]), [[1, 0], [2, 1], [3, 2]])
+  // removing site 1 leaves 2 and 3 where they were; the next one takes slot 0
+  sites = sites.filter((site) => site.id !== 1)
+  assert.deepEqual(sites.map((site) => site.slot), [1, 2])
+  sites = placeSite(sites, { id: 4 }, 3)
+  assert.deepEqual(sites.map((site) => [site.id, site.slot]).sort((a, b) => a[1] - b[1]), [[4, 0], [2, 1], [3, 2]])
+  // all three taken: the oldest (2) gives its slot to the new one
+  sites = placeSite(sites, { id: 5 }, 3)
+  assert.deepEqual(sites.map((site) => [site.id, site.slot]).sort((a, b) => a[1] - b[1]), [[4, 0], [5, 1], [3, 2]])
+})
+
+test('only the latest request may land: an older answer, or one left by an unmount, is dropped', () => {
+  const sequence = answerSequence()
+  const first = sequence.next()
+  const second = sequence.next()
+  assert.equal(sequence.isLatest(first), false)
+  assert.equal(sequence.isLatest(second), true)
+  sequence.drop()
+  assert.equal(sequence.isLatest(second), false, 'dropped on unmount or a cleared question')
 })
