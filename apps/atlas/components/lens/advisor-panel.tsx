@@ -189,7 +189,7 @@ export function AdvisorPanel({ subject, rows, onClose }: { subject: AdvisorSubje
           <h2 className="flex items-center gap-1.5 text-lg font-bold"><Scale className="size-5 text-primary" aria-hidden /> المقارنة</h2>
           <p className="text-sm text-muted-foreground">{subjectTitle(subject)}</p>
         </div>
-        {onClose && <button onClick={onClose} aria-label="إغلاق المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>}
+        {onClose && <button onClick={onClose} aria-label="إغلاق المقارنة" className="-me-1.5 -mt-1.5 grid size-9 shrink-0 place-items-center rounded-full outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-11"><X className="size-4" aria-hidden /></button>}
       </div>
 
       {turns === null ? (

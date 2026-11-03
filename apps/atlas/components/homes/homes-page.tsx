@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
@@ -284,13 +285,12 @@ export function HomesPage() {
         <ListingCompare listings={[compare[0], compare[1]]} onClose={() => setSideBySide(false)} onRemove={toggleCompare}
           onAdvisor={() => { setSideBySide(false); setAdvise(true) }} />
       )}
-      {advise && compare.length === 2 && (
-        <div className="fixed inset-0 z-30 grid place-items-center bg-background/70 p-4 backdrop-blur" role="dialog" aria-label="مقارنة العرضين">
-          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-4">
-            <AdvisorPanel subject={{ kind: 'listings', listings: compare }} rows={data.rows} onClose={() => setAdvise(false)} />
-          </div>
-        </div>
-      )}
+      {/* a real modal: Escape and a tap outside close it, focus stays inside while it is open and returns after */}
+      <Dialog open={advise && compare.length === 2} onOpenChange={(next) => { if (!next) setAdvise(false) }}>
+        <DialogContent showCloseButton={false} aria-label="مقارنة العرضين" className="block max-h-[90dvh] overflow-y-auto rounded-2xl bg-transparent p-0 ring-0 sm:max-w-lg">
+          {compare.length === 2 && <AdvisorPanel subject={{ kind: 'listings', listings: compare }} rows={data.rows} onClose={() => setAdvise(false)} />}
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
