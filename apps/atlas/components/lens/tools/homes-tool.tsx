@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, MapPin, Scale, SearchX, X } from 'lucide-react'
-import { EmptyState } from '@/components/shared/empty-state'
+import { EmptyState, NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -98,6 +99,8 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   useEffect(() => { if (!LISTING_TYPES.find((item) => item.id === type)?.kinds.includes(kind)) setType('apartment') }, [kind, type])
   useEffect(() => { setBudget(0) }, [kind, rentDeal])
 
+  // «أعد المحاولة» asks again with the same filters
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     let live = true
     setResult((current) => ({ ...current, status: 'loading' }))
@@ -111,7 +114,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
       .then((data) => { if (live) setResult({ status: 'ready', available: data.available !== false, total: data.total ?? null, listings: (data.listings ?? []).filter(isPublishable) }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
-  }, [city, kind, type, deal, budget, districtKey])
+  }, [city, kind, type, deal, budget, districtKey, attempt])
 
   const byId = useMemo(() => new Map(result.listings.map((listing) => [listing.id, listing])), [result.listings])
   const compareIds = useMemo(() => new Set(compare.map((item) => item.id)), [compare])
@@ -213,8 +216,8 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
           <ResultRowsSkeleton rows={5} sub leading="thumb" value={false} />
         </>
       )}
-      {result.status === 'error' && <p role="alert" className="text-base text-destructive">تعذر تحميل العروض.</p>}
-      {result.status === 'ready' && !result.available && <p className="text-base text-muted-foreground">عروض العقار غير متاحة لهذه المدينة بعد.</p>}
+      {result.status === 'error' && <LoadError what="العروض" onRetry={() => setAttempt((n) => n + 1)} />}
+      {result.status === 'ready' && !result.available && <NotAvailable what="عروض العقار" where="هذه المدينة" body="اختر مدينة أخرى من قائمة المدن لترى عروضها." />}
       {result.status === 'ready' && result.available && (
         <>
           <p className="text-sm text-muted-foreground">
@@ -222,7 +225,7 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
             {result.total != null && result.total > result.listings.length ? ` · على الخريطة أنسب ${numberFormat.format(result.listings.length)}` : ''}
           </p>
           {result.listings.length === 0 && (
-            <EmptyState compact icon={SearchX} title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
+            <NoResult title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
           )}
           {result.listings.length > 0 && (
             <div>

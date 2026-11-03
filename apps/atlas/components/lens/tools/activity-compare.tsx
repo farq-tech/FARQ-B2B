@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Scale, SearchX, X } from 'lucide-react'
-import { EmptyState } from '@/components/shared/empty-state'
+import { Scale, X } from 'lucide-react'
+import { NoResult } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { StatTile } from '@/components/shared/stat'
@@ -43,6 +44,8 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
   const [query, setQuery] = useState('')
   const [answer, setAnswer] = useState<Rival | null>(null)
   const [order, setOrder] = useStickyState<Order>('competitors.rivalOrder', 'gap')
+  // «أعد المحاولة» asks again for the same second activity
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!rival) { setAnswer(null); return }
@@ -53,7 +56,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
       .then((data) => { if (live) setAnswer({ status: 'ready', counts: data.districts ?? [], total: typeof data.total === 'number' ? data.total : null, understood: data.understood }) })
       .catch(() => { if (live) setAnswer({ status: 'error' }) })
     return () => { live = false }
-  }, [city, rival])
+  }, [city, rival, attempt])
 
   const pairs = useMemo(() => (answer?.status === 'ready' ? comparePairs(rows, firstCounts, answer.counts, order) : []), [answer, firstCounts, rows, order])
   const [limit, showMore] = useShowMore(15, `${city}|${first.q ?? first.main_id}|${rival?.q ?? rival?.main_id}|${order}`)
@@ -104,7 +107,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
         </Explained>
         <button type="button" onClick={() => setRival(null)} aria-label="أزل المقارنة" className="rounded-full p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></button>
       </div>
-      {answer?.status === 'error' && <p role="alert" className="text-sm text-destructive">تعذر حساب «{rival.label}».</p>}
+      {answer?.status === 'error' && <LoadError what={`منشآت «${rival.label}»`} onRetry={() => setAttempt((n) => n + 1)} />}
       {answer?.status === 'loading' && (
         <>
           <div className="grid grid-cols-2 gap-2" aria-hidden>
@@ -136,7 +139,7 @@ export function ActivityCompare({ city, rows, activities, first, firstCounts, fi
             // a city count with no district behind it: every district would read 0, which is not what is there
             <p role="status" className="text-sm text-muted-foreground">أعداد «{missing}» حسب الحي غير متاحة الآن، فلا مقارنة بين الأحياء.</p>
           ) : pairs.length === 0 ? (
-            <EmptyState compact icon={SearchX} title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
+            <NoResult title="لا أحد من النشاطين في أحياء المدينة" body="جرّب نشاطاً ثانياً آخر." />
           ) : (
             <>
               <ol className="max-h-[40vh] divide-y overflow-y-auto text-base">

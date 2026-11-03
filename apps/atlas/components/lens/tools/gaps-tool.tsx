@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useMainActivities } from '@/lib/main-activities'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
+import { NoResult } from '@/components/shared/empty-state'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
@@ -11,18 +13,23 @@ import type { Overlay } from './overlay'
 import { gapsHoverLine, gapsSummary } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
-import { useStudiedActivity } from '@/lib/sticky-state'
+import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 
-type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number }
+/** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
+ * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
+type Gap = { district_ar: string; population: number; businesses: number; expected_businesses: number; shortfall: number; male_pct?: number | null; caveat?: 'industrial' | 'workers' | null }
 type Result = { residents_per_business: number | null; districts: Gap[]; understood?: Understanding }
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
 // districts with fewer residents are left out of the answer (a few people make any count look short or full)
 const MIN_POPULATION = 5000
+/** Short by at least one whole business, as the row reads it («ناقص 1» or more): a shortfall under half a business
+ * would read «ناقص 0», so it counts as sufficient on the map and in the list alike. */
+const isShort = (row: Gap) => Math.round(row.shortfall) > 0
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
 export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover }: {
@@ -40,24 +47,34 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const activities = useMainActivities(city)
   // the activity is shared with the other steps, so «المنافسون» opens on the one picked here
   const [studied, setStudied] = useStudiedActivity()
-  const [query, setQuery] = useState(studied.q ?? '')
+  // nothing is worked out until an activity is chosen (here, in another step or by a shared link): the tool used to
+  // run its default activity on arrival, alongside the page's first heavy requests, and timed out into «تعذر الحساب»
+  const chosen = stickyHas('activity')
+  const [query, setQuery] = useState(chosen ? studied.q ?? '' : '')
   // an activity set from elsewhere (a shared link, another step) shows in the box too
-  useEffect(() => { setQuery(studied.q ?? '') }, [studied.q])
+  useEffect(() => { if (stickyHas('activity')) setQuery(studied.q ?? '') }, [studied.q])
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [attempt, setAttempt] = useState(0)
 
-  // the map opens painted with the studied activity; any other activity replaces it
+  // the map is painted with the chosen activity; any other activity replaces it
   useEffect(() => {
+    if (!chosen) { setResult(null); setStatus('idle'); return }
     let live = true
     // the previous activity's answer goes at once, so the map never paints it under the new activity's name
     setResult(null)
     setStatus('loading')
     const body: Record<string, unknown> = { city, min_population: MIN_POPULATION, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
-    postMarket<Result>('market-gaps', body)
+    // a shared link runs this while the page's first heavy requests still hold the service, and the proxy gives up
+    // after 12 seconds: one quiet second try after a pause, then the error with «أعد المحاولة»
+    let pause: ReturnType<typeof setTimeout> | undefined
+    const load = () => postMarket<Result>('market-gaps', body)
+    load()
+      .catch(() => new Promise<Result>((resolve, reject) => { pause = setTimeout(() => { if (live) load().then(resolve, reject) }, 2000) }))
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
-    return () => { live = false }
-  }, [city, studied])
+    return () => { live = false; clearTimeout(pause) }
+  }, [city, studied, chosen, attempt])
 
   const label = studied.label
   // a city none of whose districts has a population (most small cities today): no activity can be worked out there,
@@ -70,13 +87,13 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
     // the panel says there is not enough data
     if (result.residents_per_business == null) { onOverlay({ summary: `لا توجد بيانات كافية لـ«${label}»` }); return }
     const ids = new Map(rows.map((row) => [row.name, row.id]))
-    const short = result.districts.filter((row) => row.shortfall > 0)
+    const short = result.districts.filter((row) => isShort(row))
     const largest = Math.max(1, ...short.map((row) => row.shortfall))
     const colors = new Map<string, string>()
     for (const row of result.districts) {
       const id = ids.get(row.district_ar)
       if (!id) continue
-      colors.set(id, row.shortfall > 0 ? SHADES[Math.min(4, Math.floor((5 * row.shortfall) / (largest + 1e-9)))] : SURPLUS)
+      colors.set(id, isShort(row) ? SHADES[Math.min(4, Math.floor((5 * row.shortfall) / (largest + 1e-9)))] : SURPLUS)
     }
     const top = short[0]
     const summary = gapsSummary(result, counted)
@@ -88,7 +105,9 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
 
   const ids = new Map(rows.map((row) => [row.name, row.id]))
-  const gaps = result?.districts.filter((row) => row.shortfall > 0) ?? []
+  // the service lists industrial and labour-housing districts after the residential ones; kept in that order
+  const gaps = result?.districts.filter((row) => isShort(row)) ?? []
+  const firstCaveat = gaps.findIndex((row) => row.caveat)
   // the bar only scales each row's shortfall, as the API returned it, against the largest in the list
   const widest = Math.max(0, ...gaps.map((row) => row.shortfall))
   const [limit, showMore] = useShowMore(20, `${city}|${label}`)
@@ -110,16 +129,20 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
             <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
           ))}
         </div>
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
+      {status === 'error' && (
+        <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."
+          onRetry={() => setAttempt((value) => value + 1)} />
+      )}
       {/* the shape of the answer while it is worked out: district rows, each with its bar line */}
       {status === 'loading' && <ResultRowsSkeleton rows={5} sub label="جارٍ حساب النقص" />}
-      {status !== 'loading' && studied.q && <Understood value={result?.understood} />}
+      {status !== 'loading' && chosen && studied.q && result && <Understood value={result.understood} />}
       {status !== 'loading' && result && result.residents_per_business == null && (noPeople ? (
         <div role="status" className="flex flex-col gap-1 rounded-xl bg-muted/40 p-3 text-base">
           <p className="font-semibold">سكان أحياء {cityName ?? 'هذه المدينة'}: غير متاح بعد</p>
           <p className="text-sm text-muted-foreground">النقص يُحسب من سكان كل حي، فلا يُحسب هنا لأي نشاط. «المنافسون» و«شوارع النشاط» يعملان فيها من المنشآت.</p>
         </div>
-      ) : <p className="text-base text-muted-foreground">لا توجد بيانات كافية لهذا النشاط.</p>)}
+      ) : <NoResult title={`لا توجد منشآت «${label}» في أحياء معروفة السكان`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />)}
       {status !== 'loading' && result && result.residents_per_business != null && (
         <>
           {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}
@@ -128,25 +151,40 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
             <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} فيها نقص</span>
           </p>
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
-            {gaps.slice(0, limit).map((row) => {
+            {gaps.slice(0, limit).map((row, index) => {
               const id = ids.get(row.district_ar)
+              const need = Math.round(row.expected_businesses)
+              const tag = row.caveat === 'industrial' ? 'منطقة صناعية'
+                : row.caveat === 'workers' ? (row.male_pct != null ? `${numberFormat.format(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً') : null
               return (
-                <ResultRow key={row.district_ar} title={row.district_ar} active={id != null && selected.includes(id)}
-                  onClick={id ? () => onSelect(id) : undefined} onHover={(on) => onHover?.(on && id ? id : null)}
-                  sub={(
-                    // the bar scales the API's shortfall against the list's largest; the count stays the quiet figure
-                    <span className="flex items-center gap-2">
-                      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
-                        <span className="block h-full rounded-full bg-primary/70" style={{ width: `${widest > 0 ? (100 * row.shortfall) / widest : 0}%` }} />
-                      </span>
-                      <span className="shrink-0 tabular-nums">{numberFormat.format(row.businesses)} موجودة</span>
-                    </span>
+                <Fragment key={row.district_ar}>
+                  {index === firstCaveat && (
+                    <li className="pt-4 pb-1 text-sm text-muted-foreground">
+                      <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال</span>
+                      اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، فنقصها بعدد السكان لا يعني طلب أسر مقيمة. لذلك تأتي بعد الأحياء السكنية.
+                    </li>
                   )}
-                  aside={(
-                    <Explained title={`النقص في ${row.district_ar}`} lines={EXPLAIN.gap(row.expected_businesses, row.businesses, result.residents_per_business as number)} className="text-lg font-bold text-primary tabular-nums">
-                      <bdi dir="ltr">+{numberFormat.format(Math.round(row.shortfall))}</bdi>
-                    </Explained>
-                  )} />
+                  <ResultRow title={tag ? <>{row.district_ar} <span className="ms-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{tag}</span></> : row.district_ar}
+                    active={id != null && selected.includes(id)}
+                    onClick={id ? () => onSelect(id) : undefined} onHover={(on) => onHover?.(on && id ? id : null)}
+                    sub={(
+                      // one plain line: present · needed at the city rate · missing; the bar scales the missing count
+                      // against the list's largest
+                      <span className="flex flex-col gap-1">
+                        <span className="tabular-nums">
+                          {numberFormat.format(row.businesses)} موجودة · يحتاج {numberFormat.format(need)} · <strong className="font-semibold text-primary">ناقص {numberFormat.format(need - row.businesses)}</strong>
+                        </span>
+                        <span className="block h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+                          <span className="block h-full rounded-full bg-primary/70" style={{ width: `${widest > 0 ? (100 * row.shortfall) / widest : 0}%` }} />
+                        </span>
+                      </span>
+                    )}
+                    aside={(
+                      <Explained title={`كيف حُسب «يحتاج» في ${row.district_ar}`} lines={EXPLAIN.gap(row.population, row.expected_businesses, row.businesses, result.residents_per_business as number)} className="p-2">
+                        <span className="sr-only">كيف حُسب</span>
+                      </Explained>
+                    )} />
+                </Fragment>
               )
             })}
           </ol>

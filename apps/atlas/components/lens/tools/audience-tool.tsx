@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Explained } from '@/components/shared/explained'
+import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { EXPLAIN } from '@/lib/explanations'
@@ -80,6 +81,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   // the city's own count of the activity (district-counts total), and how many of it fell in a known district
   const [cityCount, setCityCount] = useState<{ total: number | null; located: number | null } | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  // «أعد المحاولة» asks again for the same activity
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     // the shares of a city left behind never land on the next one
@@ -108,7 +111,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
       })
       .catch(() => { if (active) setStatus('error') })
     return () => { active = false }
-  }, [city, mode, mainId])
+  }, [city, mode, mainId, attempt])
 
   const both = sex !== 'all' && nationality !== 'all'
   const ranked: Segment = both ? rankBy : sex !== 'all' ? 'sex' : nationality !== 'all' ? 'nationality' : 'none'
@@ -206,7 +209,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
           <ResultRowsSkeleton label="جارٍ الحساب" rows={5} valueSub />
         </>
       )}
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status === 'error' && <LoadError what="منشآت الأحياء" onRetry={() => setAttempt((n) => n + 1)} />}
       {status !== 'loading' && mode === 'businesses' && !selected.length && (
         // the whole city: the service's city count (with the businesses no district holds), the same as «المنافسون»
         <div className="rounded-xl bg-muted/40 px-3 py-2.5">

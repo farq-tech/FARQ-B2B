@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, SearchX } from 'lucide-react'
-import { EmptyState } from '@/components/shared/empty-state'
+import { Loader2 } from 'lucide-react'
+import { NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
@@ -84,6 +85,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     return () => { live = false }
   }, [city, brand])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  // «أعد المحاولة» asks again for the same activity
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => { setCounts(null) }, [city])
 
@@ -105,7 +108,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       .then(([data, chains]) => { if (live) { setCounts(data.districts ?? []); setCityTotal(typeof data.total === 'number' ? data.total : null); setLocated(typeof data.located === 'number' ? data.located : null); setUnderstood(data.understood); setBrands(chains); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
-  }, [city, studied, onActivity])
+  }, [city, studied, onActivity, attempt])
 
   const table = useMemo<Row[]>(() => {
     if (!counts) return []
@@ -149,6 +152,8 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
     onOverlay({ colors, summary, lead: densest?.row.id ?? null, legend: { from: 'منافسة قليلة', to: 'منافسة كثيفة', shades: HEAT, extra: { color: NONE, label: 'لا منافس' } } })
   }, [table, brand, rows, onOverlay, cityTotal, studied.label])
 
+  // the service counted the activity and found none: a city total of 0, or no district and no total
+  const noneFound = counts != null && (cityTotal === 0 || (cityTotal == null && counts.length === 0))
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
   // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
@@ -183,7 +188,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
           ))}
         </div>
-      {status === 'error' && <p role="alert" className="text-base text-destructive">تعذر الحساب.</p>}
+      {status === 'error' && <LoadError what={`منشآت «${studied.label}»`} onRetry={() => setAttempt((n) => n + 1)} />}
       {status === 'loading' && (
         <>
           <Skeleton className="h-5 w-3/4" aria-hidden />
@@ -192,7 +197,11 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
         </>
       )}
       {status !== 'loading' && studied.q && <Understood value={understood} />}
-      {studied && counts && status !== 'loading' && (
+      {/* asked, and the city has none of it: said once, with what to try, instead of a list of empty districts */}
+      {studied && counts && status !== 'loading' && noneFound && (
+        <NoResult title={`لا منشأة «${studied.label}» في المدينة`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً من القائمة." />
+      )}
+      {studied && counts && status !== 'loading' && !noneFound && (
         <>
           {/* one span: the trigger is a flex box, and loose parts became three side-by-side columns that wrapped apart */}
           <Explained title="المنافسون في المدينة" lines={EXPLAIN.competitors} className="text-base">
@@ -229,7 +238,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
             <ActivityCompare city={city} rows={rows} activities={activities} first={studied} firstCounts={counts} firstTotal={cityTotal} onSelect={onSelect} onHover={onHover} />
             </>
           )}
-          {view === 'brands' && !brands && <p className="text-base text-muted-foreground">السلاسل غير متاحة لهذا النشاط الآن.</p>}
+          {view === 'brands' && !brands && <NotAvailable what="السلاسل" where={`«${studied.label}»`} body="الأحياء وعدد المنافسين فيها متاحة من «الأحياء»." />}
           {view === 'brands' && brands && !brand && (
             <>
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
@@ -238,7 +247,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
                   {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
                 </span>
               </Explained>
-              {brands.brands.length === 0 && <EmptyState compact icon={SearchX} title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة." />}
+              {brands.brands.length === 0 && <NoResult title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة. اعرض «الأحياء» بدلاً منها." />}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
                 {brands.brands.map((item, index) => (
                   <ResultRow key={item.brand} onClick={() => pickBrand(item)} title={item.brand}

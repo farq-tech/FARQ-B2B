@@ -70,6 +70,21 @@ class MarketGapTests(unittest.TestCase):
         methods = {row["district_ar"]: row["population_method"] for row in self.analytics.market_gaps({"city": "Riyadh"}, population)["districts"]}
         self.assertEqual(methods, {"النخيل": "measured", "الياسمين": "buildings", "الربيع": "grid"})
 
+    def test_industrial_and_labour_housing_districts_go_after_residential_ones(self):
+        population = dict(self.population)
+        # no pharmacy in either, and both larger than الربيع: by shortfall alone they would lead
+        population["المدينة الصناعية الجديدة"] = {"population": 100000.0, "male": 60000.0, "female": 40000.0}
+        population["سكن عمال"] = {"population": 80000.0, "male": 79000.0, "female": 1000.0}
+        result = self.analytics.market_gaps({"city": "Riyadh"}, population)
+        names = [row["district_ar"] for row in result["districts"]]
+        self.assertEqual(names, ["الربيع", "الياسمين", "النخيل", "المدينة الصناعية الجديدة", "سكن عمال"])
+        caveats = {row["district_ar"]: row["caveat"] for row in result["districts"]}
+        self.assertEqual(caveats["المدينة الصناعية الجديدة"], "industrial", "the atlas name says industrial")
+        self.assertEqual(caveats["سكن عمال"], "workers", "98.8% men: labour housing")
+        self.assertIsNone(caveats["الربيع"], "no male share measured is no caveat")
+        industrial = result["districts"][3]
+        self.assertEqual((industrial["businesses"], industrial["shortfall"]), (0, 20.0), "figures are kept as computed")
+
     def test_district_points_list_located_businesses_of_the_districts_asked(self):
         result = self.analytics.district_points({"city": "Riyadh", "districts": ["الياسمين", "مجهول"]})
         self.assertEqual(sorted(point["id"] for point in result["points"]), ["u0", "u1", "u2", "y0", "y1"])

@@ -1,5 +1,7 @@
 'use client'
 
+import { MousePointerClick } from 'lucide-react'
+import { EmptyState } from '@/components/shared/empty-state'
 import { AdvisorPanel } from '../advisor-panel'
 import type { DistrictRow } from '../city-data'
 
@@ -9,14 +11,9 @@ import type { DistrictRow } from '../city-data'
  */
 export function CompareTool({ rows, selected }: { rows: DistrictRow[]; selected: DistrictRow[] }) {
   if (selected.length !== 2) {
-    return (
-      <section className="rounded-2xl border bg-card p-4">
-        <h2 className="text-xl font-bold">قارن حيين</h2>
-        <p className="mt-1 text-base text-muted-foreground">
-          {selected.length < 2 ? `اختر ${selected.length ? 'حياً ثانياً' : 'حيين'} من الخريطة.` : 'اختر حيين فقط: أزل الزائد بالضغط عليه في الخريطة.'}
-        </p>
-      </section>
-    )
+    return selected.length < 2
+      ? <EmptyState icon={MousePointerClick} title={selected.length ? 'اختر حياً ثانياً' : 'اختر حيين'} body={`اضغط ${selected.length ? 'حياً ثانياً' : 'حيين'} على الخريطة، فتبدأ المقارنة هنا.`} />
+      : <EmptyState icon={MousePointerClick} title="اختر حيين فقط" body="أزل الزائد بالضغط عليه في الخريطة، فتبدأ المقارنة بين الاثنين الباقيين." />
   }
   return <AdvisorPanel key={selected.map((row) => row.id).join('|')} subject={{ kind: 'districts', rows: selected }} rows={rows} />
 }

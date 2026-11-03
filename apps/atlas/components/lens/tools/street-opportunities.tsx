@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { SearchX } from 'lucide-react'
-import { EmptyState } from '@/components/shared/empty-state'
+import { NoResult, NotAvailable } from '@/components/shared/empty-state'
+import { LoadError } from '@/components/shared/load-error'
 import { Explained } from '@/components/shared/explained'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXPLAIN } from '@/lib/explanations'
@@ -51,6 +51,8 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
   const [result, setResult] = useState<Result | null>(null)
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading')
   const [active, setActive] = useState<number | null>(null)
+  // «أعد المحاولة» asks again for the same activity
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let live = true
@@ -62,7 +64,7 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       .then((data) => { if (live) { setResult(data); setStatus('idle') } })
       .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
-  }, [city, studied])
+  }, [city, studied, attempt])
 
   const streets = useMemo(() => result?.features ?? [], [result])
   const kinds = result?.requested_kinds ?? 1
@@ -102,10 +104,10 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
       </>
     )
   }
-  if (status === 'error') return <p role="alert" className="text-base text-destructive">تعذر جلب فرص الشوارع.</p>
-  if (result?.understood === false) return <p className="text-base text-muted-foreground">لم نتعرف على «{studied.label}». جرّب اسماً آخر للنشاط أو اختر نشاطاً رئيسياً.</p>
-  if (result?.available === false) return <p className="text-base text-muted-foreground">غير متاح</p>
-  if (!streets.length) return <EmptyState compact icon={SearchX} title={`لا شارع تجاري نشط ينقصه «${studied.label}»`} body="النشاط موجود في الشوارع التجارية النشطة. جرّب «أين يتجمع»." />
+  if (status === 'error') return <LoadError what="فرص الشوارع" onRetry={() => setAttempt((n) => n + 1)} />
+  if (result?.understood === false) return <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />
+  if (result?.available === false) return <NotAvailable what="فرص الشوارع" where="هذه المدينة" body="جرّب «أين يتجمع» لترى الشوارع التي يتجمع فيها النشاط." />
+  if (!streets.length) return <NoResult title={`لا شارع تجاري نشط ينقصه «${studied.label}»`} body="النشاط موجود في الشوارع التجارية النشطة. جرّب «أين يتجمع»." />
 
   return (
     <>
