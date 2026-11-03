@@ -75,6 +75,16 @@ export function priceHref(listing: Priceable): string | null {
   return href('/price', query)
 }
 
+/** The price page started from what a page already knows (the city, one district, the deal and the type), the rest asked there. */
+export function priceStartHref(view: { city?: string; district?: string | null; deal?: string | null; type?: string | null }): string {
+  const query = new URLSearchParams()
+  if (view.city && view.city !== DEFAULT_CITY && CITY.test(view.city)) query.set('city', view.city)
+  if (view.district && ID.test(view.district)) query.set('district', view.district)
+  if (view.deal && view.deal !== 'rent_year' && (PRICE_DEALS as readonly string[]).includes(view.deal)) query.set('deal', view.deal)
+  if (view.type && view.type !== 'floor' && (PRICE_TYPES as readonly string[]).includes(view.type)) query.set('type', view.type)
+  return href('/price', query)
+}
+
 // ── «العقار» ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export type HomesKind = 'rent' | 'sale'

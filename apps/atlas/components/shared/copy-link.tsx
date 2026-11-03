@@ -29,9 +29,9 @@ async function copyText(text: string): Promise<boolean> {
  * so the link opens the same city, group, step, activity, districts and shading for whoever it is shared with inside
  * the platform (no export, docs/atlas-product-foundation.md).
  */
-export function CopyLinkButton({ className }: { className?: string }) {
+export function CopyLinkButton({ className, description = 'يفتح الخريطة على ما تراه الآن.' }: { className?: string; /** What the copied link reopens, said in the toast. */ description?: string }) {
   const copy = async () => {
-    if (await copyText(window.location.href)) toast.success('نُسخ الرابط', { description: 'يفتح الخريطة على ما تراه الآن.' })
+    if (await copyText(window.location.href)) toast.success('نُسخ الرابط', { description })
     else toast.error('تعذر نسخ الرابط', { description: 'انسخه من شريط العنوان.' })
   }
   return (

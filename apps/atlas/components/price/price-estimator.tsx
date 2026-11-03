@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Calculator, ExternalLink, Loader2, Pencil, SearchX } from 'lucide-react'
+import { Building2, Calculator, ExternalLink, Loader2, MapPinned, Pencil, SearchX } from 'lucide-react'
+import { CopyLinkButton } from '@/components/shared/copy-link'
+import { districtMapHref, homesHref, rememberView } from '@/lib/handoff'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ListingFace } from '@/components/shared/listing-face'
@@ -127,7 +130,7 @@ export function PriceEstimator() {
   const [furnished, setFurnished] = useState<string | null>(initial.furnished)
   const [result, setResult] = useState<Estimate | 'loading' | 'error' | null>(null)
   // the answers the shown price was worked out for: its heading names them, and a later change marks it out of date
-  const [asked, setAsked] = useState<{ key: string; kind: string; area: number; districtName?: string; deal: string } | null>(null)
+  const [asked, setAsked] = useState<{ key: string; kind: string; area: number; city: string; district: string; districtName?: string; deal: string } | null>(null)
   const answer = useRef<HTMLElement>(null)
   const questions = useRef<HTMLElement>(null)
   // on a phone the answer sits under the questions: bring it into view once it arrives
@@ -160,6 +163,8 @@ export function PriceEstimator() {
   useEffect(() => {
     const query = writeAnswers({ city, district, deal, kind, area, age, streets, width, furnished })
     const next = query ? `${window.location.pathname}?${query}` : window.location.pathname
+    // the main navigation comes back to these answers (lib/handoff.ts)
+    rememberView('/price', query ? `?${query}` : '')
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next)
   }, [city, district, deal, kind, area, age, streets, width, furnished])
   const areaNumber = Number(area.replace(/[^0-9]/g, ''))
@@ -174,7 +179,7 @@ export function PriceEstimator() {
     if (!ready) return
     const ask = ++sequence.current
     if (type !== kind) setKind(type)
-    setAsked({ key: keyFor(type), kind: type, area: areaNumber, districtName: districtList.find((item) => item.id === district)?.name, deal })
+    setAsked({ key: keyFor(type), kind: type, area: areaNumber, city, district, districtName: districtList.find((item) => item.id === district)?.name, deal })
     setResult('loading')
     postMarket<Estimate>('price-estimate', {
       city, district_id: district, deal, type, area_sqm: areaNumber,
@@ -200,6 +205,8 @@ export function PriceEstimator() {
         <header>
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Calculator className="size-6 text-primary" aria-hidden />سعّر عقارك</h1>
           <p className="mt-1 text-sm leading-7 text-muted-foreground">أجب عن الأسئلة، ونعطيك السعر المتوقع من أقرب العروض الحالية المشابهة لعقارك، مع سبب كل فرق.</p>
+          {/* the answers are in the address: the link reopens them and prices them again from today's listings */}
+          <CopyLinkButton className="mt-3 h-9 bg-background shadow-none" description="يفتح التسعير بالإجابات نفسها، ويحسبه من عروض اليوم." />
         </header>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
@@ -292,6 +299,7 @@ export function PriceEstimator() {
               </div>
             )}
             {result.examples && result.examples.length > 0 && <Comparables title="العروض المشابهة التي وجدناها" examples={result.examples} />}
+            {asked && <NextLinks asked={asked} />}
           </div>
         )}
         {stale && result && result !== 'error' && (
@@ -331,6 +339,7 @@ export function PriceEstimator() {
             </div>
 
             {result.examples && result.examples.length > 0 && <Comparables title="أقرب العروض المشابهة" examples={result.examples} />}
+            <NextLinks asked={asked} />
             {/* on a phone the questions are a long scroll above: one tap back to change an answer */}
             <Button variant="outline" className="lg:hidden" onClick={() => questions.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>
               <Pencil aria-hidden />عدّل الإجابات
@@ -339,6 +348,24 @@ export function PriceEstimator() {
         )}
       </section>
     </main>
+  )
+}
+
+/**
+ * Where a priced property leads next: the current listings like it in its district (the same deal and type), and the
+ * district itself on the map. Each opens on the answers already given, nothing typed again.
+ */
+const PLURAL: Record<string, string> = { apartment: 'الشقق', floor: 'الأدوار', villa: 'الفلل' }
+function NextLinks({ asked }: { asked: { city: string; district: string; districtName?: string; deal: string; kind: string } }) {
+  const name = asked.districtName ?? 'الحي'
+  const listings = homesHref({ city: asked.city, kind: asked.deal === 'sale' ? 'sale' : 'rent', rentDeal: asked.deal === 'sale' ? 'rent_year' : asked.deal, types: [asked.kind], districts: [asked.district] })
+  const map = districtMapHref(asked.city, asked.district)
+  const link = 'inline-flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 text-sm font-semibold outline-none transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring'
+  return (
+    <nav aria-label="بعد التسعير" className="grid gap-2 sm:grid-cols-2">
+      <Link href={listings} className={link}><Building2 className="size-5 shrink-0 text-primary" aria-hidden /><span>{PLURAL[asked.kind] ?? 'العروض'} {asked.deal === 'sale' ? 'للبيع' : 'للإيجار'} الآن في {name}</span></Link>
+      {map && <Link href={map} className={link}><MapPinned className="size-5 shrink-0 text-primary" aria-hidden /><span>تعرّف على {name} على الخريطة</span></Link>}
+    </nav>
   )
 }
 

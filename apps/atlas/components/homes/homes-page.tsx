@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -17,6 +17,8 @@ import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api
 import { LISTING_TYPES, shownPhotos, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
+import { CopyLinkButton } from '@/components/shared/copy-link'
+import { DEFAULT_CITY, districtMapHref, priceStartHref, readHomesQuery, rememberView, writeHomesQuery } from '@/lib/handoff'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
@@ -84,9 +86,49 @@ export function HomesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, typesKey, change])
   useEffect(() => { setFilters((current) => (current.minPrice == null && current.maxPrice == null ? current : { ...current, minPrice: null, maxPrice: null })) }, [deal])
-  useEffect(() => { setFilters((current) => (current.districts.length ? { ...current, districts: [] } : current)) }, [city])
+  // a new city starts with no district (a district belongs to the city it was picked in); the city the address opened
+  // on keeps the districts the address named
+  const lastCity = useRef(city)
+  useEffect(() => {
+    if (lastCity.current === city) return
+    lastCity.current = city
+    setFilters((current) => (current.districts.length ? { ...current, districts: [] } : current))
+  }, [city])
+  // the view lives in the address (lib/handoff.ts): the city, the deal, the types and the districts, so a link from the
+  // price page, the map or a person reopens the same listings, and the main navigation comes back to them
+  const [hydrated, setHydrated] = useState(false)
+  const presetCity = useRef<string | null>(null)
+  useEffect(() => {
+    const view = readHomesQuery(window.location.search, RENT_DEALS.map((item) => item.id), LISTING_TYPES)
+    if (view.city !== DEFAULT_CITY) { presetCity.current = view.city; lastCity.current = view.city; setCity(view.city) }
+    setFilters((current) => ({ ...current, kind: view.kind, rentDeal: view.rentDeal as HomeFilters['rentDeal'], types: view.types, districts: view.districts }))
+    setHydrated(true)
+  }, [])
+  // a city the address names that is not in the list falls back to the default
+  useEffect(() => {
+    const wanted = presetCity.current
+    if (!wanted || cities.length < 2) return
+    presetCity.current = null
+    if (!cities.some((item) => item.en === wanted)) setCity(DEFAULT_CITY)
+  }, [cities])
+  // districts the address names that the city does not have are dropped once its districts load
+  useEffect(() => {
+    if (data.status !== 'ready' || !data.rows.length) return
+    const known = new Set(data.rows.map((row) => row.id))
+    setFilters((current) => (current.districts.every((id) => known.has(id)) ? current : { ...current, districts: current.districts.filter((id) => known.has(id)) }))
+  }, [data.status, data.rows])
+  useEffect(() => {
+    if (!hydrated) return
+    const text = writeHomesQuery({ city, kind, rentDeal: filters.rentDeal, types, districts: filters.districts })
+    const next = text ? `?${text}` : ''
+    rememberView('/homes', next)
+    if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the ids, not the arrays
+  }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey])
 
   useEffect(() => {
+    // the first ask waits for the address, so a shared link does not first load (and flash) the default listings
+    if (!hydrated) return
     let live = true
     setResult((current) => ({ ...current, status: 'loading' }))
     setActive(null)
@@ -99,7 +141,7 @@ export function HomesPage() {
       .then((payload) => { if (live) setResult({ status: 'ready', available: payload.available !== false, total: payload.total ?? null, listings: payload.listings ?? [] }) })
       .catch(() => { if (live) setResult({ status: 'error', available: true, total: null, listings: [] }) })
     return () => { live = false }
-  }, [city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
+  }, [hydrated, city, kind, typesKey, deal, filters.maxPrice, districtsKey, attempt])
 
   // narrowing: the filters first, then (when asked) what the map shows
   const filtered = useMemo(() => applyFilters(result.listings, filters), [result.listings, filters])
@@ -147,11 +189,14 @@ export function HomesPage() {
             <SlidersHorizontal className="size-5" aria-hidden />
             {applied.length > 0 && <span className="absolute -top-1 -end-1 grid size-5 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{numberFormat.format(applied.length)}</span>}
           </button>
-          {/* the way from browsing listings to pricing one's own property */}
-          <Link href="/price" aria-label="سعّر عقارك"
+          {/* the way from browsing listings to pricing one's own property: the city, a single picked district, the deal
+              and the type go with it, so the price page asks only what it does not know yet */}
+          <Link href={priceStartHref({ city, district: filters.districts.length === 1 ? filters.districts[0] : null, deal, type: types.length === 1 ? types[0] : null })} aria-label="سعّر عقارك"
             className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full border bg-card px-3.5 text-sm font-semibold outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring">
             <Calculator className="size-5 text-primary" aria-hidden /><span className="hidden sm:inline">سعّر عقارك</span>
           </Link>
+          {/* the view is in the address, so its link reopens these listings for whoever it is shared with */}
+          <CopyLinkButton className="h-12 shrink-0 bg-card shadow-none" description="يفتح العروض نفسها: المدينة والصفقة والنوع والأحياء." />
         </div>
         {/* a row of toggles, not links: a group, not a navigation landmark */}
         {/* on a phone the row is wider than the screen: both edges fade, so a type cut in half reads as «more this way»
@@ -261,7 +306,7 @@ export function HomesPage() {
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
               onListing={(id) => { const listing = byId.get(id); if (listing) setActive(listing) }} onBounds={setBounds} />
             {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
-              compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }}
+              compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }} districtHref={districtMapHref(city, active.district_id)}
               className="bottom-20 max-h-[calc(100%-6rem)] lg:bottom-3 lg:max-h-[85%]" />}
           </div>
         </section>

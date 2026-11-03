@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
+import { priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
 
 const TYPES = [
   { id: 'room', kinds: ['rent'] }, { id: 'apartment', kinds: ['rent', 'sale'] }, { id: 'villa', kinds: ['rent', 'sale'] }, { id: 'land', kinds: ['sale'] },
@@ -78,4 +78,9 @@ test('the last view of a surface is kept for the tab, and a blocked storage open
   rememberView('/map', '?x=1')
   assert.equal(lastView('/map'), '/map')
   delete (globalThis as { sessionStorage?: unknown }).sessionStorage
+})
+
+test('the price page starts from what the page already knows', () => {
+  assert.equal(priceStartHref({ city: 'Riyadh', district: null, deal: 'rent_year', type: 'apartment' }), '/price?type=apartment')
+  assert.equal(priceStartHref({ city: 'Jeddah', district: '4', deal: 'sale', type: 'store' }), '/price?city=Jeddah&district=4&deal=sale', 'a type the page does not offer is left to ask')
 })
