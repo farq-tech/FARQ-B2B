@@ -5,7 +5,7 @@ import { ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-rea
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
-import { ChipRow, PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
+import { PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
 import { Chip } from '@/components/ui/chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
@@ -29,7 +29,7 @@ import { CorridorsTool } from './tools/corridors-tool'
 import { BusinessesPanel } from './businesses-panel'
 import { GapsTool } from './tools/gaps-tool'
 import { HomesTool } from './tools/homes-tool'
-import { LegendTitle, MapLegend } from './tools/map-legend'
+import { LayerPicker, LegendTitle, MapLegend } from './tools/map-legend'
 import type { Overlay } from './tools/overlay'
 import { TerritoriesTool } from './tools/territories-tool'
 
@@ -374,7 +374,8 @@ export function LensMap() {
 
   return (
     <main className="flex h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-4rem)]">
-      {/* from lg: one search pill and one chip row, as on «العقار»: the city, who is looking, and what they look for */}
+      {/* from lg: one search pill, as on «العقار»: the city, who is looking, and what they look for. What colours the
+          map is picked in the key on the map («طبقات»), beside the colours it changes */}
       <header className="hidden flex-col gap-3 border-b bg-background/70 px-4 py-3 backdrop-blur lg:flex">
         <SearchPill label="ابحث عن مورد أو نشاط" onSubmit={submit}>
           <PillField label="المدينة" className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:max-w-[11rem]">
@@ -397,11 +398,6 @@ export function LensMap() {
               placeholder="مثل: مورد قهوة" className={pillControl} />
           </PillField>
         </SearchPill>
-        {!toolColors && (
-          <ChipRow label="المقياس على الخريطة">
-            {active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)}>{METRICS[id].label}</Chip>)}
-          </ChipRow>
-        )}
       </header>
 
       <div className="relative min-h-0 flex-1 lg:flex lg:flex-row">
@@ -430,7 +426,8 @@ export function LensMap() {
               {city !== 'Riyadh' && <Chip onClick={() => setCity('Riyadh')}>اعرض الرياض</Chip>}
             </div>
           )}
-          {/* on a phone the controls float over the map: the search, then one scrolling row of city, who, and metric */}
+          {/* on a phone the controls float over the map: the search, then one row of city, district and who; the map's
+              colours are picked in its key («طبقات») */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3 lg:hidden">
             <form role="search" aria-label="ابحث عن مورد أو نشاط" onSubmit={(event) => { event.preventDefault(); submit() }}
               className="pointer-events-auto flex items-center gap-2 rounded-full border bg-card/95 p-1.5 ps-4 shadow-md backdrop-blur">
@@ -438,11 +435,10 @@ export function LensMap() {
                 placeholder="ابحث عن مورد أو نشاط" className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
               <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
             </form>
-            <ScrollRow label="المدينة والحي والفئة والمقياس" className="pointer-events-auto -mx-3 gap-2 px-3 pb-1">
+            <ScrollRow label="المدينة والحي والفئة" className="pointer-events-auto -mx-3 gap-2 px-3 pb-1">
               <ChipSelect label="المدينة" value={city} onChange={setCity} options={cities.map((item) => [item.en, item.ar || item.en])} />
               <ChipSelect label="الحي" value={districtValue} onChange={pickDistrict} options={districtOptions} />
               <ChipSelect label="الفئة" value={lens} onChange={(value) => setLens(value as LensId)} options={LENSES.map((item) => [item.id, item.label])} />
-              {!toolColors && active.metrics.map((id) => <Chip key={id} active={metric === id} onClick={() => setMetric(id)} className="shadow-sm">{METRICS[id].label}</Chip>)}
             </ScrollRow>
           </div>
           {/* the colour key, titled with what it colours: clear of the map's attribution (bottom corner) and of the
@@ -462,8 +458,11 @@ export function LensMap() {
                   {toolColors && !overlay.legend && <LegendTitle>{legendTitle}</LegendTitle>}
                   {!toolColors && overlay.legend && <span className="my-0.5 border-t" aria-hidden />}
                   {!toolColors && <>
-                  <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
-                  {metricMissing ? <p className="text-sm text-muted-foreground">غير متاح في {cityName}، اختر مقياساً آخر</p> : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
+                  <div className="flex items-center justify-between gap-2">
+                    <LegendTitle>ألوان الخريطة: {METRICS[metric].label}</LegendTitle>
+                    <LayerPicker options={active.metrics.map((id) => [id, METRICS[id].label])} value={metric} onChange={(id) => setMetric(id as MetricId)} />
+                  </div>
+                  {metricMissing ? <p className="text-sm text-muted-foreground">غير متاح في {cityName}، اختر طبقة أخرى من «طبقات»</p> : <Explained title="ألوان الخريطة" lines={EXPLAIN.shading(METRICS[metric].label)} className="flex items-center gap-1.5 text-sm no-underline">
                     <span className="text-muted-foreground">أقل</span>
                     <span className="flex gap-0.5" aria-hidden>{SHADES.map((shade) => <span key={shade} className="h-4 w-7 rounded-sm" style={{ background: shade }} />)}</span>
                     <span className="text-muted-foreground">أعلى</span>
