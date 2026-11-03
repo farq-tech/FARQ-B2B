@@ -81,7 +81,12 @@ export function PriceEstimator() {
   // a comparable whose photo fails to load shows its type's face instead of a broken image
   const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set())
   // on a phone the answer sits under the questions: bring it into view once it arrives
-  useEffect(() => { if (result && result !== 'loading') answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }) }, [result])
+  // (only there: on a wide screen it sits beside them, kept in view, and scrolling would pull the page away from the
+  // question the person was on)
+  useEffect(() => {
+    if (!result || result === 'loading' || window.matchMedia('(min-width: 64rem)').matches) return
+    answer.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+  }, [result])
 
   useEffect(() => {
     let live = true
@@ -124,12 +129,12 @@ export function PriceEstimator() {
         </header>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-semibold">المدينة
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl border border-input bg-background px-3 text-base font-normal">
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {cities.map((item) => <option key={item.en} value={item.en}>{item.ar || item.en}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold">الحي
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-xl border border-input bg-background px-3 text-base font-normal disabled:opacity-60">
+            <select value={district} onChange={(e) => setDistrict(e.target.value)} disabled={!districts?.length} className="h-11 rounded-lg border border-input bg-background px-3 text-base font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
               <option value="">{districts === null ? 'جارٍ التحميل…' : districts.length ? 'اختر الحي' : 'غير متاح'}</option>
               {districts?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -140,7 +145,7 @@ export function PriceEstimator() {
           {KINDS.map((id) => <Chip key={id} active={kind === id} onClick={() => setKind(id)}><Icon3D type={id} className="size-6" />{typeLabel(id)}</Chip>)}
         </Question>
         <label className="flex flex-col gap-1 text-base font-bold">المساحة
-          <span className="flex items-center gap-2 rounded-xl border border-input bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+          <span className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
             <input inputMode="numeric" dir="ltr" placeholder="مثل 180" value={area} onChange={(e) => setArea(e.target.value.replace(/[^0-9]/g, ''))}
               onKeyDown={(e) => { if (e.key === 'Enter' && ready && result !== 'loading') run() }} enterKeyHint="go"
               className="h-11 w-full bg-transparent text-end text-base font-semibold tabular-nums outline-none placeholder:font-normal" />
@@ -157,7 +162,7 @@ export function PriceEstimator() {
         {!ready && <p className="text-center text-xs text-muted-foreground">اختر الحي واكتب المساحة لتحسب السعر.</p>}
       </section>
 
-      <section ref={answer} aria-live="polite" aria-label="السعر المتوقع" className="flex scroll-mt-20 flex-col gap-4">
+      <section ref={answer} aria-live="polite" aria-label="السعر المتوقع" className="flex scroll-mt-20 flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pb-2">
         {result === null && <EmptyState icon={Calculator} title="السعر يظهر هنا" body="نقارن عقارك بأقرب العروض الحالية في حيه وما حوله، ونعدّل للفروق التي ثبت أثرها في البيانات." />}
         {result === 'loading' && (
           <SkeletonStatus label="جارٍ حساب السعر" className="flex flex-col gap-4">
