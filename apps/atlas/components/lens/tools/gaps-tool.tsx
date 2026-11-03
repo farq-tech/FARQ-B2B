@@ -10,7 +10,7 @@ import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
-import { gapsHoverLine, gapsSummary, isShortRow } from './gaps-summary'
+import { gapsHoverLine, gapsSummary, hiddenCaveatsLine, isShortRow } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 import { Icon3D } from '@/components/shared/icon-3d'
@@ -108,6 +108,16 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   // the bar only scales each row's shortfall, as the API returned it, against the largest in the list
   const widest = Math.max(0, ...gaps.map((row) => row.shortfall))
   const [limit, showMore] = useShowMore(20, `${city}|${label}`)
+  // the industrial and labour-housing districts come last, usually past the first 20 rows: a line under the visible
+  // rows counts them, and a click shows the list down to them
+  const [reveal, setReveal] = useState(false)
+  useEffect(() => { setReveal(false) }, [city, label])
+  const shownRows = reveal ? gaps.length : limit
+  const caveatsLine = firstCaveat >= shownRows ? hiddenCaveatsLine(gaps.length - firstCaveat, numberFormat) : null
+  const showCaveats = () => {
+    setReveal(true)
+    window.setTimeout(() => document.getElementById('gaps-caveats')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50)
+  }
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -156,7 +166,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
           {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
           {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}
           <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto" aria-label="الأحياء الأكثر نقصاً">
-            {gaps.slice(0, limit).map((row, index) => {
+            {gaps.slice(0, shownRows).map((row, index) => {
               const id = ids.get(row.district_ar)
               const need = Math.round(row.expected_businesses)
               const tag = row.caveat === 'industrial' ? 'منطقة صناعية'
@@ -164,7 +174,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
               return (
                 <Fragment key={row.district_ar}>
                   {index === firstCaveat && (
-                    <li className="pt-4 pb-1 text-sm text-muted-foreground">
+                    <li id="gaps-caveats" className="pt-4 pb-1 text-sm text-muted-foreground">
                       <span className="block font-semibold text-foreground">مناطق صناعية أو سكن عمال</span>
                       اسمها يدل على منطقة صناعية، أو 90% فأكثر من سكانها رجال كما في سكن العمال، فنقصها بعدد السكان لا يعني طلب أسر مقيمة. لذلك تأتي بعد الأحياء السكنية.
                     </li>
@@ -193,7 +203,11 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
               )
             })}
           </ol>
-          <MoreRows shown={Math.min(limit, gaps.length)} total={gaps.length} noun="district" onMore={showMore} />
+          {caveatsLine && (
+            <button type="button" onClick={showCaveats}
+              className="rounded-md pt-1.5 text-start text-sm font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60">{caveatsLine}</button>
+          )}
+          <MoreRows shown={Math.min(shownRows, gaps.length)} total={gaps.length} noun="district" onMore={showMore} />
         </>
       )}
     </section>

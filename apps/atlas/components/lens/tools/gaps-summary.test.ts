@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { counted } from '../../../lib/insights-api.ts'
-import { gapsHoverLine, gapsSummary } from './gaps-summary.ts'
+import { counted, numberFormat } from '../../../lib/insights-api.ts'
+import { gapsHoverLine, gapsSummary, hiddenCaveatsLine } from './gaps-summary.ts'
 
 const rows = [
   { district_ar: 'المدينة الصناعية الجديدة', shortfall: 122.4 },
@@ -41,4 +41,12 @@ test('a shortfall under half a business is not a gap, so the line counts what th
   const close = [{ district_ar: 'العليا', shortfall: 4.2 }, { district_ar: 'الملقا', shortfall: 0.4 }, { district_ar: 'النرجس', shortfall: 0.2 }]
   assert.equal(gapsSummary({ residents_per_business: 900, districts: close }, counted), 'الأعلى: العليا بنقص 4 منشآت · حي واحد فيه نقص')
   assert.equal(gapsSummary({ residents_per_business: 900, districts: close.slice(1) }, counted), 'لا نقص في أي حي')
+})
+
+test('the hidden industrial districts are counted in one line under the visible list', () => {
+  assert.equal(hiddenCaveatsLine(0, numberFormat), null)
+  assert.equal(hiddenCaveatsLine(1, numberFormat), 'ومنطقة واحدة صناعية أو سكن عمال في الأسفل')
+  assert.equal(hiddenCaveatsLine(2, numberFormat), 'ومنطقتان صناعيتان أو سكن عمال في الأسفل')
+  assert.equal(hiddenCaveatsLine(7, numberFormat), 'و7 مناطق صناعية أو سكن عمال في الأسفل')
+  assert.equal(hiddenCaveatsLine(1200, numberFormat), 'و1,200 منطقة صناعية أو سكن عمال في الأسفل')
 })
