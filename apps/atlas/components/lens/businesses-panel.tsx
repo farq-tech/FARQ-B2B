@@ -13,7 +13,7 @@ import { GUEST_PREVIEW, type GuestPreviewRow } from '@/lib/guest-preview'
 import { BusinessDetail } from './business-detail'
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
 import { useAppStore } from '@/lib/store'
-import { useStudiedActivity } from '@/lib/sticky-state'
+import { useStickyState, useStudiedActivity } from '@/lib/sticky-state'
 import { Icon3D } from '@/components/shared/icon-3d'
 import type { RequestType } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -42,17 +42,32 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
   const [message, setMessage] = useState('')
   // how many of the selected districts the last search covered (it reads the first MAX_DISTRICTS of them)
   const [searched, setSearched] = useState<number | null>(null)
-  // the poi_key of the business whose directory details are expanded, or null
-  const [openId, setOpenId] = useState<string | null>(null)
+  // the poi_key of the business whose directory details are expanded, or null; kept in the map's address
+  // (map-query.ts `biz`) with this list's own search (`bq`), so a reload opens the same list on the same card
+  const [openId, setOpenId] = useStickyState<string | null>('businesses.open', null)
+  const [kept, setKept] = useStickyState<{ q: string; scope: string | null } | null>('businesses.search', null)
   // a signed-out search: the match count and the first few names the server allows (lib/guest-preview.ts)
   const [preview, setPreview] = useState<GuestPreviewRow[]>([])
   const key = districts.join('|')
+  // the list a kept search belongs to: another city, other districts or another search from the top start afresh
+  const scope = `${city}|${key}|${query ?? ''}`
   // each search takes a number; an answer that is no longer the latest (another search, city or districts since) is dropped
   const latest = useRef(0)
 
-  useEffect(() => { latest.current++; setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle') }, [key, city])
-  // a search from the top of the map runs at once, over the selected districts or the whole city
-  useEffect(() => { if (query) void load() }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    latest.current++; setRows([]); setTotal(null); setPicked(new Set()); setStatus('idle')
+    // a search and a card kept for another list leave (and the address with them)
+    if (kept?.scope != null && kept.scope !== scope) { setKept(null); setOpenId(null) }
+  }, [key, city]) // eslint-disable-line react-hooks/exhaustive-deps
+  // a search from the top of the map runs at once, over the selected districts or the whole city; a search made in
+  // this same list before (a reload, or a step left and opened again) runs instead
+  useEffect(() => {
+    if (kept && (kept.scope == null || kept.scope === scope)) {
+      if (kept.scope == null) setKept({ q: kept.q, scope })
+      setActivity(kept.q)
+      void load(kept.q)
+    } else if (query) void load()
+  }, [query, city]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load(text: string = activity) {
     const typed = text.trim()
@@ -89,13 +104,17 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
         count += typeof body.total === 'number' ? body.total : (body.rows ?? []).length
       }
       if (stale()) return
-      if (guest) { setTotal(count); setSearched(districts.length ? scopes.length : null); setStatus('guest'); return }
+      if (guest) { setTotal(count); setSearched(districts.length ? scopes.length : null); setStatus('guest'); setKept(query && typed === query.trim() ? null : { q: typed, scope }); return }
       const unique = [...new Map(found.map((row) => [row.id, row])).values()]
       setRows(unique)
       setTotal(count)
       setSearched(districts.length ? scopes.length : null)
       setPicked(new Set())
       setStatus('ready')
+      // a search typed here is kept for this list; the top search's own is already in the address
+      setKept(query && typed === query.trim() ? null : { q: typed, scope })
+      // a card kept open on a business this list no longer holds closes
+      setOpenId((current) => (current && unique.some((row) => row.id === current) ? current : null))
     } catch (error) {
       if (stale()) return
       setMessage(error instanceof Error ? error.message : 'تعذر تحميل المنشآت.')
