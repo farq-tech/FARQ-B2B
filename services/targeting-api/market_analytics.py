@@ -538,11 +538,12 @@ class MarketAnalytics:
         tx = self._tx()
         if tx is None:
             if q or main_id:
-                return [], True
-            return sub_ids, False
+                return [], True, None
+            return sub_ids, False, None
         if sub_ids and not all(sid in tx.subs for sid in sub_ids):
             raise ValueError("unknown sub_id")
         resolved = None
+        understood = None
         if q:
             # Use the same commercial-direction resolver as directory search.
             # A marketing query for «شركات مقاولات» must count contractors,
@@ -560,11 +561,11 @@ class MarketAnalytics:
                 if not query_subs:
                     query_subs = tx.subs_in(q)[0]
             if not query_subs:
-                return [], True
+                return [], True, None
             resolved = set(query_subs)
         if main_id:
             if main_id not in {item.get("main_id") for item in tx.subs.values()}:
-                return [], True
+                return [], True, None
             main_subs = {sid for sid, item in tx.subs.items() if item.get("main_id") == main_id}
             resolved = main_subs if resolved is None else resolved & main_subs
         if sub_ids:
@@ -573,12 +574,17 @@ class MarketAnalytics:
         resolved = sorted(resolved) if resolved is not None else []
         if resolved and not all(sid in tx.subs for sid in resolved):
             raise ValueError("unknown sub_id")
-        return resolved, bool((main_id or q) and not resolved)
+        return resolved, bool((main_id or q) and not resolved), understood
 
     def _where(self, body):
         city, q, main_id, sub_ids, districts, objective, bounds = self._validate(body)
-        subs, empty_match = self._resolve_subs(q, main_id, sub_ids, objective)
+        subs, empty_match, understood = self._resolve_subs(q, main_id, sub_ids, objective)
         specialty_ids = list(dict.fromkeys(body.get("specialty_ids") or []))
+        # a typed specialty («حجامة») counts its own businesses, not its whole parent trades (owner 2026-11-03: accuracy
+        # first); the same rule as directory search (taxonomy_search.search): the specialty tag, or the specialty in the name
+        named_specs = []
+        if q and not specialty_ids and understood and understood.get("anchor") == "specialty" and objective != "marketing":
+            named_specs = [sid for sid in (understood.get("specialties") or []) if self._tx().specs.get(sid, {}).get("sub_id") in set(subs or [])]
         specialty_available = not specialty_ids or self._has_specialty_column()
         clauses = [
             self.tiles.search_sql,
@@ -615,6 +621,18 @@ class MarketAnalytics:
             else:
                 clauses.append("list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])")
                 params.append(specialty_ids)
+        elif named_specs:
+            terms = self._tx().specialty_name_terms(named_specs) if hasattr(self._tx(), "specialty_name_terms") else []
+            folded = ("' ' || regexp_replace(translate(lower(regexp_replace(concat_ws(' ', p.name_ar, p.name_en), '[\u064b-\u0652\u0640]', '', 'g')), 'أإآةىؤئ', 'اااهيوي'), "
+                      "'[^a-z0-9\u0621-\u064a]+', ' ', 'g') || ' '")
+            terms = type(self._tx()).name_patterns(terms) if terms else []
+            by_name = f"exists (select 1 from unnest(?::varchar[]) w(t) where regexp_matches({folded}, t))" if terms else "false"
+            by_tag = "list_has_any(string_split(coalesce(p.specialty_ids, ''), '|'), ?::varchar[])" if self._has_specialty_column() else "false"
+            clauses.append(f"({by_tag} or {by_name})")
+            if self._has_specialty_column():
+                params.append(named_specs)
+            if terms:
+                params.append(terms)
         return city, subs, " and ".join(clauses), params, specialty_available, bounds
 
     def competitors_within(self, body, geometry, centre=None, limit=8):
