@@ -170,8 +170,16 @@ export type VerdictText = { lead: string; why: string[]; caution?: string | null
  *   audience from 2.7% of the districts, 5.6 times); in a city of 29 districts the same top 5 need about 52%.
  * - `level`: two sites within 3 points of 100 are level.
  * - `rentSample`: a street median from under 10 ads (lenses.RELIABLE_LISTINGS).
+ * - `nextDoor`: a district with no competitor whose neighbours hold at least 10 is said to be served from next door
+ *   (وادي لبن: none inside, 240 in ظهرة لبن across its edge).
  */
-export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10 } as const
+export const THIN = { located: 0.9, thinGapShare: 0.1, perRep: 4, uneven: 0.25, focus: 3, level: 3, rentSample: 10, nextDoor: 10 } as const
+
+/** What the districts around one district hold, summed from the same answer as the list (its neighbours by outline). */
+export type Around = { districts: number; total: number; top: { name: string; n: number } | null }
+
+/** «سكان طويق تقدير…»: said where a decision rests on a population spread from a density grid, not counted. */
+const estimatedLine = (name: string, what: string) => `سكان ${name} تقدير من خرائط الكثافة لا عدّ مقاس، ف${what}.`
 
 const n = (value: number) => numberFormat.format(value)
 /** «النرجس، الملقا والياسمين». */
@@ -183,7 +191,7 @@ const areas = (count: number) => (count === 2 ? 'منطقتان' : `${n(count)} 
 /** A gap row as «أين ينقص نشاطي؟» reads it (market-gaps). */
 // expected and shortfall are null where the count does not follow the population (market-gaps); such a row is never
 // short, so it never reaches the verdict
-export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | null }
+export type GapVerdictRow = { district_ar: string; businesses: number; expected_businesses: number | null; shortfall: number | null; caveat?: 'industrial' | 'workers' | 'estimated' | null }
 
 /**
  * «أكبر نقص في «صيدلية»: النرجس», with what it has against what it needs at the city rate, and the next two
@@ -201,7 +209,9 @@ export function populationKind(source: string | null | undefined): 'measured' | 
   return 'grid'
 }
 
-export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerBusiness: number, topPopulation: 'measured' | 'buildings' | 'grid' | null = null): VerdictText | null {
+export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerBusiness: number, topPopulation: 'measured' | 'buildings' | 'grid' | null = null,
+  /** The top district's neighbours that hold more than they need at the city rate: their surplus, summed. */
+  around: Around | null = null): VerdictText | null {
   const top = short[0]
   if (!top) return null
   const need = Math.round(top.expected_businesses ?? 0)
@@ -210,14 +220,16 @@ export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerB
   const why = [
     `فيه ${counted(top.businesses, 'business')} ويحتاج ${n(need)} بمعدل المدينة (منشأة لكل ${n(residentsPerBusiness)} ساكن).`,
     ...(next.length ? [`يليه ${names(next.map((row) => `${row.district_ar} (ناقص ${n(Math.round(row.expected_businesses ?? 0) - row.businesses)})`))}.`] : []),
+    ...(around && around.total > 0 ? [`حوله فائض: ${counted(around.total, 'business')} فوق الحاجة في الأحياء المجاورة (${n(around.districts)})${around.top ? `، أكثرها ${around.top.name} (${n(around.top.n)})` : ''}.`] : []),
   ]
   const thin = missing <= 1 || missing < THIN.thinGapShare * need
   // a population spread from a density grid over a large district (Al Khobar's الظهران: 242,901 from 23% of its
   // area) makes a shortfall of hundreds out of a guess; the gap is only as sure as the people it is counted from
   const caution = top.caveat
-    ? 'كل الأحياء الناقصة مناطق صناعية أو سكن عمال، فنقصها بعدد السكان لا يعني طلب أسر مقيمة.'
+    ? 'كل الأحياء الناقصة مناطق صناعية أو سكن عمال أو بسكان مقدّرين، فنقصها بعدد السكان لا يعني طلب أسر مقيمة.'
     : topPopulation === 'grid' ? `سكان ${top.district_ar} تقدير من خرائط الكثافة لا عدّ مقاس، فنقصه قد يكون أكبر من الحقيقة. قارنه بما يليه قبل القرار.`
-    : thin ? `النقص في أعلى حي ${counted(missing, 'business')} فقط من ${n(need)}: الأحياء قريبة من معدل المدينة، فالفرصة ضعيفة.` : null
+    : thin ? `النقص في أعلى حي ${counted(missing, 'business')} فقط من ${n(need)}: الأحياء قريبة من معدل المدينة، فالفرصة ضعيفة.`
+    : around && around.total >= missing ? `فائض الأحياء المجاورة يعادل نقصه أو أكثر، فقد يُخدم سكانه من جواره. قارن الحي التالي قبل القرار.` : null
   return { lead: `أكبر نقص في «${label}»: ${top.district_ar}، ينقصه ${counted(missing, 'business')}`, why, caution }
 }
 
@@ -226,8 +238,10 @@ export function gapsVerdict(short: GapVerdictRow[], label: string, residentsPerB
  * populated district where it is lightest (none at all first). Thin data is said: a city count of which under nine in
  * ten fell in a known district, so the districts' counts are under the whole.
  */
-export function competitorsVerdict<T extends CompetitorRow & { row: { name: string; population: number | null }; residentsPer?: number | null }>(
+export function competitorsVerdict<T extends CompetitorRow & { row: { name: string; population: number | null; populationSource?: string | null }; residentsPer?: number | null }>(
   ranked: T[], order: 'dense' | 'light', label: string, cityTotal: number | null, located: number | null,
+  /** The top district's neighbours by outline: how many competitors they hold together, and the most. */
+  around: Around | null = null,
 ): VerdictText | null {
   const top = ranked[0]
   if (!top) return null
@@ -243,15 +257,24 @@ export function competitorsVerdict<T extends CompetitorRow & { row: { name: stri
   }
   const empty = ranked.filter((item) => item.competitors === 0).length
   const people = top.row.population != null ? `${n(top.row.population)} ساكن` : null
+  const nextDoor = top.competitors === 0 && around != null && around.total >= THIN.nextDoor
+  const cautions = [
+    caution,
+    nextDoor ? 'لا منافس داخل حدوده، لكن منافسي الأحياء المجاورة قريبون منه ويخدمون سكانه أيضاً.' : null,
+    populationKind(top.row.populationSource) === 'grid' ? estimatedLine(top.row.name, 'خفة المنافسة فيه بعدد سكانه تقريبية') : null,
+  ].filter(Boolean)
   return {
     lead: `أخف منافسة على «${label}»: ${top.row.name}`,
     why: [
       top.competitors === 0
         ? `لا منافس فيه${people ? `، وفيه ${people}` : ''}.`
         : [`${counted(top.competitors, 'business')} فقط`, density(top), people].filter(Boolean).join(' · ') + '.',
+      ...(around && around.districts > 0 ? [around.total
+        ? `حوله: ${counted(around.total, 'business')} في الأحياء المجاورة (${n(around.districts)})${around.top ? `، أكثرها ${around.top.name} (${n(around.top.n)})` : ''}.`
+        : `ولا منافس في الأحياء المجاورة له (${n(around.districts)}).`] : []),
       ...(empty > 1 ? [`${counted(empty, 'district')} مأهولة بلا أي منافس، والأكثر سكاناً أولاً.`] : []),
     ],
-    caution,
+    caution: cautions.length ? cautions.join(' ') : null,
   }
 }
 
@@ -287,7 +310,7 @@ export function pairsVerdict(pairs: Pair[], first: string, second: string): Verd
  * the sizes summed, each the service's figure), so a campaign knows whether a few districts carry it. `ranked` are
  * the districts in scope with a measured figure, largest first.
  */
-export function audienceVerdict(ranked: { name: string; size: number }[], unit: string, segment: string): VerdictText | null {
+export function audienceVerdict(ranked: { name: string; size: number; populationSource?: string | null }[], unit: string, segment: string): VerdictText | null {
   const top = ranked[0]
   if (!top || top.size <= 0) return null
   const total = ranked.reduce((sum, item) => sum + item.size, 0)
@@ -301,6 +324,8 @@ export function audienceVerdict(ranked: { name: string; size: number }[], unit: 
       `فيه ${n(Math.round(top.size))} ${unit}${ranked[1] ? `، ويليه ${names(ranked.slice(1, 3).map((item) => item.name))}` : ''}.`,
       ...(k >= 2 ? [`أعلى ${counted(k, 'district')} من ${n(ranked.length)} تجمع ${n(Math.round(share))}% من الجمهور، ${focused ? 'فحملة مركّزة عليها أجدى من توزيعها على المدينة' : 'فالجمهور موزّع، وحملة على المدينة كلها لا تضيّع كثيراً'}.`] : []),
     ],
+    // a people figure from a density grid: the size is a guess, and said where the campaign would be aimed
+    caution: unit !== 'منشأة' && populationKind(top.populationSource) === 'grid' ? estimatedLine(top.name, 'حجم جمهوره تقريبي') : null,
   }
 }
 
@@ -316,9 +341,10 @@ const FACTORS: Factor[] = ['audience', 'spending', 'density']
  * factors every site has (`factors`), so one district without a published income no longer leaves every site without
  * a score: the verdict says the score rests on the other two. It needs two sites and one shared factor.
  */
-export function attractionScores(sites: SiteFactors[]): { scores: Map<number, number>; factors: Factor[] } {
+export function attractionScores(sites: SiteFactors[], chosen: readonly Factor[] = FACTORS): { scores: Map<number, number>; factors: Factor[] } {
   const scores = new Map<number, number>()
-  const factors = FACTORS.filter((factor) => sites.every((site) => site[factor] != null))
+  // the factors the visitor kept (all three by default), of those every site has
+  const factors = FACTORS.filter((factor) => chosen.includes(factor) && sites.every((site) => site[factor] != null))
   if (sites.length < 2 || !factors.length) return { scores, factors: [] }
   const values = (factor: Factor) => sites.map((site) => site[factor]!)
   const top: Record<Factor, number> = {
@@ -337,7 +363,7 @@ export function attractionScores(sites: SiteFactors[]): { scores: Map<number, nu
   return { scores, factors }
 }
 
-const factorWord = (factor: Factor, byIncome: boolean) => (factor === 'audience' ? 'السكان' : factor === 'spending' ? (byIncome ? 'دخل الحي' : 'حصة الفلل') : 'المنافسة')
+export const factorWord = (factor: Factor, byIncome: boolean) => (factor === 'audience' ? 'السكان' : factor === 'spending' ? (byIncome ? 'دخل الحي' : 'حصة الفلل') : 'المنافسة')
 
 /**
  * «قارن المواقع» in one line: which site is the most attractive and on which factors it leads or trails, or that the
@@ -363,24 +389,40 @@ export function sitesVerdict(sites: (SiteFactors & { label: string; population: 
   if (gap <= THIN.level) {
     return { lead: `الموقعان ${best.label} و${second.label} متقاربان: ${n(scores.get(best.id)!)} و${n(scores.get(second.id)!)} من 100`, why: ['الفرق أصغر من أن يحسم وحده: قارن المنافسين في بطاقة كل موقع.'], caution }
   }
-  const others = scored.filter((site) => site !== best)
-  const leads: string[] = []
-  const lags: string[] = []
-  const versus = (value: number | null, pick: (site: (typeof others)[number]) => number | null) => {
-    const rival = others.map(pick).filter((v): v is number => v != null)
-    return value == null || !rival.length ? null : value >= Math.max(...rival) ? 'lead' : 'lag'
-  }
-  const people = factors.includes('audience') ? versus(best.population, (site) => site.population) : null
-  if (people) (people === 'lead' ? leads : lags).push(`${people === 'lead' ? 'سكان أكثر' : 'سكان أقل'} (${n(Math.round(best.population!))})`)
-  const spend = factors.includes('spending') ? versus(best.spending, (site) => site.spending) : null
-  if (spend) (spend === 'lead' ? leads : lags).push(byIncome ? `دخل حيه ${spend === 'lead' ? 'أعلى' : 'أقل'}` : `فلل ${spend === 'lead' ? 'أكثر' : 'أقل'} في حيه`)
-  const crowd = factors.includes('density') ? versus(best.density == null ? null : -best.density, (site) => (site.density == null ? null : -site.density)) : null
-  if (crowd) (crowd === 'lead' ? leads : lags).push(crowd === 'lead' ? 'منافسة أخف' : 'منافسة أكثف')
   return {
     lead: `الموقع ${best.label} هو الأجذب: ${n(scores.get(best.id)!)} من 100`,
-    why: [`${leads.length ? leads.join('، ') : 'لا يتقدم في عامل واحد'}${lags.length ? `، لكن ${lags.join('، ')}` : ''}.`],
+    why: [siteReasons(scored, factors, byIncome).get(best.id) ?? 'لا يتقدم في عامل واحد.'],
     caution,
   }
+}
+
+/**
+ * Each scored site's own reason, against the best of the other sites on each factor in the score: «سكان أكثر
+ * (48,210)، لكن منافسة أكثف». The population quoted is the service's figure in the table. A site with no other to
+ * compare with has none.
+ */
+export function siteReasons(sites: (SiteFactors & { population: number | null })[], factors: Factor[], byIncome: boolean): Map<number, string> {
+  const out = new Map<number, string>()
+  for (const site of sites) {
+    const others = sites.filter((other) => other !== site)
+    if (!others.length) continue
+    const leads: string[] = []
+    const lags: string[] = []
+    const versus = (value: number | null, pick: (other: (typeof others)[number]) => number | null) => {
+      const rival = others.map(pick).filter((v): v is number => v != null)
+      return value == null || !rival.length ? null : value >= Math.max(...rival) ? 'lead' : 'lag'
+    }
+    const people = factors.includes('audience') ? versus(site.population, (other) => other.population) : null
+    if (people) (people === 'lead' ? leads : lags).push(`${people === 'lead' ? 'سكان أكثر' : 'سكان أقل'} (${n(Math.round(site.population!))})`)
+    const spend = factors.includes('spending') ? versus(site.spending, (other) => other.spending) : null
+    if (spend) (spend === 'lead' ? leads : lags).push(byIncome ? `دخل حيه ${spend === 'lead' ? 'أعلى' : 'أقل'}` : `فلل ${spend === 'lead' ? 'أكثر' : 'أقل'} في حيه`)
+    const crowd = factors.includes('density') ? versus(site.density == null ? null : -site.density, (other) => (other.density == null ? null : -other.density)) : null
+    if (crowd) (crowd === 'lead' ? leads : lags).push(crowd === 'lead' ? 'منافسة أخف' : 'منافسة أكثف')
+    out.set(site.id, leads.length
+      ? `${leads.join('، ')}${lags.length ? `، لكن ${lags.join('، ')}` : ''}.`
+      : lags.length ? `${lags.join('، ')}.` : 'لا يتقدم في عامل واحد.')
+  }
+  return out
 }
 
 /** «بطاقة الموقع» in one line: how many competitors are in the range and how near the nearest is. */
@@ -492,7 +534,11 @@ export function listingVerdict(first: { type: string; district: string | null; p
 }
 
 /** One figure of a district pair: its label, the two raw values, and each as the comparison table shows it. */
-export type DistrictFigure = { label: string; a: number | null; b: number | null; shown: [string, string] }
+export type DistrictFigure = {
+  label: string; a: number | null; b: number | null; shown: [string, string]
+  /** A median from fewer listings than lenses.RELIABLE_LISTINGS on that side: shown in the table, never weighed here. */
+  thin?: [boolean, boolean]
+}
 
 /**
  * «قارن حيين» in one line: where the two districts differ most (the ratio of the larger figure to the smaller, among
@@ -501,14 +547,42 @@ export type DistrictFigure = { label: string; a: number | null; b: number | null
  */
 export function districtsVerdict([a, b]: [string, string], figures: DistrictFigure[]): VerdictText | null {
   if (!figures.length) return null
-  const both = figures.filter((item) => item.a != null && item.b != null && item.a > 0 && item.b > 0)
+  const solid = (item: DistrictFigure) => !item.thin?.[0] && !item.thin?.[1]
+  const both = figures.filter((item) => solid(item) && item.a != null && item.b != null && item.a > 0 && item.b > 0)
     .map((item) => ({ ...item, ratio: Math.max(item.a!, item.b!) / Math.min(item.a!, item.b!) }))
     .sort((x, y) => y.ratio - x.ratio)
   const lacking = (side: 'a' | 'b') => figures.filter((item) => item[side] == null).map((item) => item.label)
   const gaps = ([[a, lacking('a')], [b, lacking('b')]] as [string, string[]][]).filter(([, list]) => list.length).map(([name, list]) => `في ${name}: ${list.join('، ')}`)
-  const caution = gaps.length ? `غير متاح ${gaps.join('؛ ')}.` : null
+  const few = (side: 0 | 1) => figures.filter((item) => item.thin?.[side] && (side ? item.b : item.a) != null).map((item) => item.label)
+  const small = ([[a, few(0)], [b, few(1)]] as [string, string[]][]).filter(([, list]) => list.length).map(([name, list]) => `في ${name}: ${list.join('، ')}`)
+  const caution = [gaps.length ? `غير متاح ${gaps.join('؛ ')}.` : null, small.length ? `من عروض قليلة فلا تُوازن هنا ${small.join('؛ ')}.` : null].filter(Boolean).join(' ') || null
   const line = (item: DistrictFigure) => `${item.label}: ${item.shown[0]} في ${a} مقابل ${item.shown[1]} في ${b}.`
   if (!both.length) return { lead: 'لا رقم متاح للحيين معاً للمقارنة', why: [], caution }
   if (both[0].ratio < 1.15) return { lead: `${a} و${b} متقاربان في كل الأرقام المتاحة لهما`, why: [line(both[0])], caution }
   return { lead: `أكبر فرق بين ${a} و${b}: ${both[0].label}`, why: both.slice(0, 3).filter((item) => item.ratio >= 1.15).map(line), caution }
+}
+
+/**
+ * What a district's neighbours hold together, from the figure each one has in the same answer (`figure` gives a
+ * neighbour's name and its count, or null when the answer does not count it); a neighbour at 0 counts as a district
+ * and adds nothing. Null with no neighbour or no counted neighbour.
+ */
+export function aroundOf(id: string, neighbours: Map<string, Set<string>> | null, figure: (id: string) => { name: string; n: number } | null): Around | null {
+  const ids = [...(neighbours?.get(id) ?? [])]
+  const known = ids.map(figure).filter((item): item is { name: string; n: number } => item != null)
+  if (!known.length) return null
+  const total = known.reduce((sum, item) => sum + Math.max(0, item.n), 0)
+  const top = known.reduce<{ name: string; n: number } | null>((best, item) => (item.n > 0 && (!best || item.n > best.n) ? item : best), null)
+  return { districts: known.length, total, top }
+}
+
+/**
+ * The tag on a gap row the service lists after the residential ones: an industrial name, labour housing (with the
+ * measured share of men when there is one), or a population estimated from a grid over little of the district.
+ */
+export function caveatTag(row: { caveat?: 'industrial' | 'workers' | 'estimated' | null; male_pct?: number | null; population_coverage_pct?: number | null }): string | null {
+  if (row.caveat === 'industrial') return 'منطقة صناعية'
+  if (row.caveat === 'workers') return row.male_pct != null ? `${n(Math.round(row.male_pct))}% من سكانه رجال` : 'سكن عمال غالباً'
+  if (row.caveat === 'estimated') return row.population_coverage_pct != null ? `سكان مقدّرون من ${n(row.population_coverage_pct)}% من مساحته` : 'سكان مقدّرون'
+  return null
 }

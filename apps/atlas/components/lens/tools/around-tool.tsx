@@ -14,7 +14,7 @@ import { PALETTE, readableOn } from '@/lib/palette'
 import { areaKm2, containsPoint, districtAt } from '@/lib/geo-measure'
 import { stickyHas, useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/sticky-state'
 import { SiteCard, type SiteCardData, type SiteCardState } from './site-card'
-import { attractionScores, placeSite, sitesVerdict } from './tool-answers'
+import { attractionScores, factorWord, placeSite, siteReasons, sitesVerdict, type Factor } from './tool-answers'
 import { Verdict } from './verdict'
 import { useSlow } from './use-answer'
 import { trackDecisionMoment } from '@/lib/commercial-metrics'
@@ -102,6 +102,9 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
   // each site keeps its slot (its number and colour) while it is on the map; see placeSite
   const [sites, setSites] = useState<(Point & { id: number; slot: number })[]>([])
   const [reach, setReach] = useStickyState<Reach>('around.reach', REACHES[1])
+  // the factors the score weighs, all three until the visitor drops one (at least one stays)
+  const [weighed, setWeighed] = useStickyState<Factor[]>('around.factors', ['audience', 'spending', 'density'])
+  const toggleFactor = (factor: Factor) => setWeighed((current) => (current.includes(factor) ? (current.length > 1 ? current.filter((item) => item !== factor) : current) : [...current, factor]))
   const [results, setResults] = useState<Record<string, Result>>({})
   const nextId = useRef(1)
   const requested = useRef(new Set<string>())
@@ -209,7 +212,7 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
   // purchasing power (income where published, else villa share, of the حي the pin sits in), and lightness of
   // competition (fewest establishments per km²). Each factor is scaled to the best site, and the score is their mean,
   // over the factors every site has (attractionScores); a factor one site lacks is left out for all, and said.
-  const { scoreById, factors, topScore, byIncome, verdict, factored } = useMemo(() => {
+  const { scoreById, factors, topScore, byIncome, verdict, factored, reasons } = useMemo(() => {
     const byIncome = districts.some((row) => row.income != null)
     const districtById = new Map(districts.map((row) => [row.id, row]))
     const spendingOf = (point: Point): number | null => {
@@ -229,7 +232,7 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
           density: figures.businesses != null && area > 0 ? figures.businesses / area : null,
         }
       })
-    const attraction = attractionScores(factored)
+    const attraction = attractionScores(factored, weighed)
     const scoreById = attraction.scores
     const scores = [...scoreById.values()]
     // the answer in one line: the best site and the factors it leads or trails on, or that two are level; it waits for
@@ -238,8 +241,10 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
     const settled = labelled.every((site) => site.result?.status === 'ready')
     const label = new Map(labelled.map((site) => [site.id, site.label]))
     const verdict = settled ? sitesVerdict(factored.map((item) => ({ ...item, label: label.get(item.id) ?? '', population: item.audience })), attraction, byIncome) : null
-    return { scoreById, factors: attraction.factors, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict, factored }
-  }, [labelled, districts, features])
+    // each scored site's own reason, under its score: what it leads and trails on against the best of the others
+    const reasons = settled ? siteReasons(factored.filter((item) => scoreById.has(item.id)).map((item) => ({ ...item, population: item.audience })), attraction.factors, byIncome) : new Map<number, string>()
+    return { scoreById, factors: attraction.factors, topScore: scores.length ? Math.max(...scores) : null, byIncome, verdict, factored, reasons }
+  }, [labelled, districts, features, weighed])
   // the shop owner's decision moment (foundation §7): two or more sites scored side by side, once per set of sites and
   // reach; only how many, never where
   const scoredKey = `${[...scoreById.keys()].sort().join(',')}|${reachKey}`
@@ -316,6 +321,21 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
           detail={failed[0].result?.message} onRetry={retryFailed} />
       )}
       <Verdict lift verdict={verdict} next={verdict && scoreById.size ? next : undefined} />
+      {labelled.length > 1 && (
+        // which factors the score weighs: a shop that sells on foot traffic may drop income, a premium one keep it
+        <div role="group" aria-label="عوامل الجاذبية" className="flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">الدرجة من:</span>
+          {(['audience', 'spending', 'density'] as Factor[]).map((factor) => {
+            const on = weighed.includes(factor)
+            return (
+              <button key={factor} type="button" aria-pressed={on} onClick={() => toggleFactor(factor)} disabled={on && weighed.length === 1}
+                className={cn('rounded-full border px-3 py-1', on ? 'border-primary bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:border-primary', on && weighed.length === 1 && 'cursor-not-allowed')}>
+                {factorWord(factor, byIncome)}
+              </button>
+            )
+          })}
+        </div>
+      )}
       {labelled.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-base tabular-nums">
@@ -349,6 +369,7 @@ export function AroundTool({ city, onOverlay, districts, features, seed, next, s
                       <Explained title="جاذبية الموقع" lines={EXPLAIN.siteAttraction(byIncome, factors)} className={cn('text-lg font-bold', topScore != null && value === topScore && 'text-primary')}>
                         {value == null ? 'غير متاح' : `${numberFormat.format(value)}/100`}
                       </Explained>
+                      {reasons.get(site.id) && <span className="mt-0.5 block text-xs font-normal leading-5 text-muted-foreground">{reasons.get(site.id)}</span>}
                     </td>
                   )
                 })}

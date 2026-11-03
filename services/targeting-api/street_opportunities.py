@@ -11,13 +11,15 @@ For each street:
   total     shops of every activity that clusters on it (an activity with fewer than MIN_SHOPS there is not counted,
             so the figure is a floor);
   requested shops of the requested activity on it; when it has no run there, it has fewer than MIN_SHOPS on that
-            street, unless the activity hit the per-city cap of the build (MAX_PER_SUB), when the count is unknown;
+            street, unless the activity hit the per-city cap of the build (MAX_PER_SUB): the build then kept only
+            its strongest runs, so a street without one has fewer than the weakest kept run (`floor`), not none;
   expected  total × the activity's share of clustered shops in the city: what a street that size carries on average.
 
 Score, out of 100 within the city: log(1 + shops of other activities) × gap × demand, scaled so the top street is 100,
 where gap = 1 − requested ÷ expected (0 when the street already carries its share or more) and demand = 0.5 + 0.5 ×
 the population rank of the street's districts among the candidate streets (0.75 when none of its districts has a
-population). Evidence only: no street is called the answer.
+population). A capped activity's street without a kept run is scored on the most it may hold (floor − 1), never as a
+full gap from an unknown count, and reports requested_below = floor. Evidence only: no street is called the answer.
 """
 from __future__ import annotations
 
@@ -142,8 +144,15 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
     for r in rows:
         if is_requested(r[1], r[2]):
             runs_per_kind[r[1]] = runs_per_kind.get(r[1], 0) + 1
-    # the build keeps only the strongest MAX_PER_SUB runs per activity and city: past that, a missing run says nothing
-    capped = any(k >= MAX_PER_SUB for k in runs_per_kind.values())
+    # the build keeps only the strongest MAX_PER_SUB runs per activity and city: past that, a street without a run
+    # has fewer shops of it than the weakest run kept (the floor), which may be well above MIN_SHOPS
+    floors = {}
+    for r in rows:
+        if is_requested(r[1], r[2]) and runs_per_kind.get(r[1], 0) >= MAX_PER_SUB:
+            floors[r[1]] = min(floors.get(r[1], r[5]), r[5])
+    capped = bool(floors)
+    # what a street without a run of the capped activity may hold at most: scored on that, not on an unknown zero
+    unknown_most = max(floors.values()) - 1 if floors else 0
 
     # streets: runs of one name that share a district are one street
     parent = list(range(len(rows)))
@@ -202,7 +211,8 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         if s['others'] < MIN_OTHERS:
             continue
         expected = (s['others'] + s['requested']) * share
-        gap = 1.0 if share == 0 else max(0.0, 1.0 - s['requested'] / expected) if expected > 0 else 0.0
+        counted = s['requested'] if s['requested'] > 0 or not capped else unknown_most
+        gap = 1.0 if share == 0 else max(0.0, 1.0 - counted / expected) if expected > 0 else 0.0
         if gap <= 0:
             continue
         pops = [population[d]['population'] for d in s['districts'] if population and d in population and population[d].get('population')]
@@ -260,7 +270,7 @@ def opportunities(db, path, city, subs=None, main_id=None, population=None, limi
         if s['requested'] > 0:
             requested_n, below = s['requested'], None
         elif capped:
-            requested_n, below = None, None
+            requested_n, below = None, unknown_most + 1
         else:
             requested_n, below = None, MIN_SHOPS
         name = max(s['names'].items(), key=lambda kv: kv[1])[0]

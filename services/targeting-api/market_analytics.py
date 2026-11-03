@@ -79,14 +79,20 @@ UNCOVERED_MIN_POPULATION = 5000
 # الجديدة» is 98.6% men). Such districts keep their figures and go after the others in market_gaps.
 GAP_INDUSTRIAL_NAME = ("صناعي", "صناعيه", "صناعية", "مصانع")
 GAP_WORKERS_MALE_PCT = 90.0
+# A third mark, from the golden population row itself: a population spread from a satellite grid that covers under
+# half of the district's area. Al Khobar's الظهران (242,901 people from 23% of its cells) led every activity's gap
+# list on a guess; الدرة (48%) is the only other district under the line in the cities measured (2026-11-03).
+GAP_LOW_COVERAGE_PCT = 50.0
 
 
-def gap_caveat(district_ar, male_pct):
-    """«industrial», «workers» or None: why a district's shortfall is not a plain residential one."""
+def gap_caveat(district_ar, male_pct, method=None, coverage_pct=None):
+    """«industrial», «workers», «estimated» or None: why a district's shortfall is not a plain residential one."""
     if any(token in (district_ar or "") for token in GAP_INDUSTRIAL_NAME):
         return "industrial"
     if male_pct is not None and male_pct >= GAP_WORKERS_MALE_PCT:
         return "workers"
+    if method == "grid" and coverage_pct is not None and coverage_pct < GAP_LOW_COVERAGE_PCT:
+        return "estimated"
     return None
 
 
@@ -916,7 +922,9 @@ class MarketAnalytics:
                 "residents_per_business": round(people / present) if present else None,
                 "male_pct": male_pct,
                 "population_method": population_method(row.get("source")),
-                "caveat": gap_caveat(name, male_pct),
+                # how much of the district a grid population covers, said only for a grid figure
+                "population_coverage_pct": round(row["coverage_pct"]) if population_method(row.get("source")) == "grid" and row.get("coverage_pct") is not None else None,
+                "caveat": gap_caveat(name, male_pct, population_method(row.get("source")), row.get("coverage_pct")),
             })
         base = {
             "ok": True,

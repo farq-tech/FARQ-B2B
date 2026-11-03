@@ -250,7 +250,7 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </div>
       )}
       {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
-        <Verdict lift verdict={audienceVerdict(scope.map((item) => ({ name: item.row.name, size: item.size })), unit, segmentWord(ranked))} next={next} />
+        <Verdict lift verdict={audienceVerdict(scope.map((item) => ({ name: item.row.name, size: item.size, populationSource: item.row.populationSource })), unit, segmentWord(ranked))} next={next} />
       )}
       {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
         <div>

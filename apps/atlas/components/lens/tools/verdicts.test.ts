@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  attractionScores, audienceVerdict, brandsVerdict, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
+  aroundOf, attractionScores, audienceVerdict, brandsVerdict, caveatTag, siteReasons, competitorsVerdict, corridorVerdict, gapsVerdict, listingVerdict, opportunityVerdict,
   districtsVerdict, pairsVerdict, populationKind, siteCardVerdict, sitesVerdict, territoriesVerdict, weekFitHint, THIN, type VerdictText,
 } from './tool-answers.ts'
 
@@ -227,4 +227,75 @@ test('the district pair verdict names the widest difference, the next ones, and 
   assert.equal(districtsVerdict(['أ', 'ب'], [f('السكان', null, 10)])!.lead, 'لا رقم متاح للحيين معاً للمقارنة')
   assert.equal(districtsVerdict(['أ', 'ب'], []), null)
   clean(verdict)
+})
+
+test('a district\'s neighbours are summed from the same answer, and an uncounted neighbour adds nothing', () => {
+  const neighbours = new Map([['W', new Set(['D', 'N', 'X'])], ['D', new Set(['W'])]])
+  const counts: Record<string, { name: string; n: number } | null> = { D: { name: 'ظهرة لبن', n: 240 }, N: { name: 'نمار', n: 0 }, X: null }
+  assert.deepEqual(aroundOf('W', neighbours, (id) => counts[id] ?? null), { districts: 2, total: 240, top: { name: 'ظهرة لبن', n: 240 } })
+  assert.equal(aroundOf('Z', neighbours, () => null), null, 'no neighbour')
+  assert.equal(aroundOf('W', null, () => null), null, 'no outlines yet')
+  // a surplus (negative n is a district short itself) is never summed as competition next door
+  assert.deepEqual(aroundOf('W', neighbours, (id) => (id === 'D' ? { name: 'ظهرة لبن', n: -5 } : null)), { districts: 1, total: 0, top: null })
+})
+
+test('the lightest district with none inside and many next door is said to be served from next door', () => {
+  const row = (name: string, population: number, competitors: number, populationSource: string | null = '910ths.sa') => ({ row: { id: name, name, population, populationSource }, competitors, perKm2: null })
+  // وادي لبن as served: none inside, 11,900 people; ظهرة لبن across its edge holds 240
+  const wadi = competitorsVerdict([row('وادي لبن', 11900, 0)], 'light', 'صيدلية', 10856, 10010, { districts: 3, total: 252, top: { name: 'ظهرة لبن', n: 240 } })!
+  assert.equal(wadi.why[1], 'حوله: 252 منشأة في الأحياء المجاورة (3)، أكثرها ظهرة لبن (240).')
+  assert.match(wadi.caution!, /منافسي الأحياء المجاورة قريبون منه/)
+  // a quiet neighbourhood all round: said as good news, no caution
+  const quiet = competitorsVerdict([row('أ', 9000, 0)], 'light', 'صيدلية', 100, 100, { districts: 2, total: 0, top: null })!
+  assert.equal(quiet.why[1], 'ولا منافس في الأحياء المجاورة له (2).')
+  assert.equal(quiet.caution, null)
+  // a population spread from a grid is said
+  const grid = competitorsVerdict([row('الظهران', 242901, 0, 'WorldPop 2025')], 'light', 'صيدلية', 100, 100)!
+  assert.match(grid.caution!, /سكان الظهران تقدير من خرائط الكثافة/)
+  assert.doesNotMatch(JSON.stringify(grid), /WorldPop/)
+})
+
+test('a gap next to a surplus that covers it is said before the decision', () => {
+  const top = [{ district_ar: 'الملقا', businesses: 10, expected_businesses: 30, shortfall: 20 }]
+  const covered = gapsVerdict(top, 'صيدلية', 700, 'measured', { districts: 2, total: 25, top: { name: 'حطين', n: 18 } })!
+  assert.equal(covered.why[1], 'حوله فائض: 25 منشأة فوق الحاجة في الأحياء المجاورة (2)، أكثرها حطين (18).')
+  assert.match(covered.caution!, /فقد يُخدم سكانه من جواره/)
+  const partly = gapsVerdict(top, 'صيدلية', 700, 'measured', { districts: 2, total: 5, top: { name: 'حطين', n: 5 } })!
+  assert.equal(partly.caution, null, 'a surplus under the gap leaves it a gap')
+  assert.equal(gapsVerdict(top, 'صيدلية', 700, 'measured', { districts: 2, total: 0, top: null })!.why.length, 1)
+})
+
+test('the audience verdict says when its top district\'s people are a grid estimate', () => {
+  const ranked = [{ name: 'الظهران', size: 242901, populationSource: 'WorldPop 2025' }, { name: 'الجوهرة', size: 44300, populationSource: '910ths.sa' }]
+  assert.match(audienceVerdict(ranked, 'شخص', '')!.caution!, /سكان الظهران تقدير/)
+  assert.equal(audienceVerdict(ranked, 'منشأة', '')!.caution, null, 'businesses are counted, not estimated')
+  assert.equal(audienceVerdict(ranked.slice(1), 'شخص', '')!.caution, null)
+})
+
+test('the visitor chooses the factors, and each site carries its own reason', () => {
+  const sites = [{ id: 1, audience: 100000, spending: 9000, density: 10 }, { id: 2, audience: 50000, spending: 15000, density: 4 }]
+  const people = attractionScores(sites, ['audience'])
+  assert.deepEqual(people.factors, ['audience'])
+  assert.deepEqual([...people.scores.entries()], [[1, 100], [2, 50]])
+  const reasons = siteReasons(sites.map((site) => ({ ...site, population: site.audience })), ['audience', 'spending', 'density'], true)
+  assert.equal(reasons.get(1), 'سكان أكثر (100,000)، لكن دخل حيه أقل، منافسة أكثف.')
+  assert.equal(reasons.get(2), 'دخل حيه أعلى، منافسة أخف، لكن سكان أقل (50,000).')
+  assert.equal(siteReasons([{ ...sites[0], population: 1 }], ['audience'], true).size, 0, 'one site: nothing to lead or trail')
+})
+
+test('a listing median from few ads is never weighed in the district pair, and is named', () => {
+  const f = (label: string, a: number | null, b: number | null, thin?: [boolean, boolean]) => ({ label, a, b, shown: [String(a), String(b)] as [string, string], ...(thin ? { thin } : {}) })
+  const verdict = districtsVerdict(['أ', 'ب'], [f('السكان', 30000, 25000), f('وسيط إيجار السكن السنوي للمتر', 900, 300, [false, true])])!
+  // the rent would be the widest difference (3×) but rests on few ads in ب
+  assert.equal(verdict.lead, 'أكبر فرق بين أ وب: السكان')
+  assert.match(verdict.caution!, /من عروض قليلة فلا تُوازن هنا في ب: وسيط إيجار السكن السنوي للمتر/)
+  const solid = districtsVerdict(['أ', 'ب'], [f('السكان', 30000, 25000), f('وسيط إيجار السكن السنوي للمتر', 900, 300, [false, false])])!
+  assert.equal(solid.lead, 'أكبر فرق بين أ وب: وسيط إيجار السكن السنوي للمتر')
+})
+
+test('a gap row listed last for its estimated population is tagged with how little of it the estimate covers', () => {
+  assert.equal(caveatTag({ caveat: 'estimated', population_coverage_pct: 23 }), 'سكان مقدّرون من 23% من مساحته')
+  assert.equal(caveatTag({ caveat: 'workers', male_pct: 98.6 }), '99% من سكانه رجال')
+  assert.equal(caveatTag({ caveat: 'industrial' }), 'منطقة صناعية')
+  assert.equal(caveatTag({ caveat: null }), null)
 })

@@ -47,9 +47,10 @@ export function gapsHoverLine(
  * The line closing the visible part of the list while its industrial and labour-housing districts (listed last) are
  * still below the cut: «و3 مناطق صناعية أو سكن عمال في الأسفل». Null when none is hidden.
  */
-export function hiddenCaveatsLine(hidden: number, numberFormat: { format: (value: number) => string }): string | null {
+export function hiddenCaveatsLine(hidden: number, numberFormat: { format: (value: number) => string }, estimated = false): string | null {
   if (hidden <= 0) return null
   const areas = hidden === 1 ? 'منطقة واحدة صناعية' : hidden === 2 ? 'منطقتان صناعيتان'
     : `${numberFormat.format(hidden)} ${hidden % 100 >= 3 && hidden % 100 <= 10 ? 'مناطق صناعية' : 'منطقة صناعية'}`
-  return `و${areas} أو سكن عمال في الأسفل`
+  // a district listed last for its estimated population (market_analytics.GAP_LOW_COVERAGE_PCT) is named too
+  return `و${areas} أو سكن عمال${estimated ? ' أو بسكان مقدّرين' : ''} في الأسفل`
 }

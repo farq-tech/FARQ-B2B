@@ -11,9 +11,7 @@ import { EXPLAIN } from '@/lib/explanations'
 import { counted, formatDistance, numberFormat, percent, postMarket } from '@/lib/insights-api'
 import { isPublishable, priceLine, sar, toneColor, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { ListingCard } from '../listing-card'
-import { cn } from '@/lib/utils'
 import { OCHRE_STEPS } from '@/lib/palette'
-import { Icon3D } from '@/components/shared/icon-3d'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { waiting, type Overlay } from './overlay'
@@ -22,6 +20,7 @@ import { StreetOpportunities } from './street-opportunities'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 import { corridorVerdict } from './tool-answers'
+import { Examples } from './examples'
 import { Verdict } from './verdict'
 import { corridorFacts } from './district-facts'
 import type { DistrictRow } from '../city-data'
@@ -168,12 +167,7 @@ export function CorridorsTool({ city, rows = [], onOverlay, next }: {
       </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
-        {EXAMPLES.map((example) => (
-          <button key={example} onClick={() => { setQuery(example); study(example) }} aria-pressed={chosen && studied.q === example}
-            className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', chosen && studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
-        ))}
-      </div>
+      <Examples examples={EXAMPLES} active={chosen ? studied.q ?? null : null} collapse={chosen} onPick={(example) => { setQuery(example); study(example) }} />
       <Choice label="طريقة العرض" size="base" value={mode} onChange={setMode} options={[{ id: 'cluster', label: 'أين يتجمع' }, { id: 'gap', label: 'أين الفرصة' }]} />
       {!chosen && <p className="text-base text-muted-foreground">اختر النشاط لترى الشوارع التي يتجمع فيها، أو التي ينقصها.</p>}
       {mode === 'gap' && chosen && <StreetOpportunities city={city} rows={rows} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
