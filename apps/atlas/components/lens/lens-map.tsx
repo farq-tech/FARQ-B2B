@@ -28,6 +28,7 @@ import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { cleanQuery, readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
 import { districtAt } from '@/lib/geo-measure'
 import { PALETTE } from '@/lib/palette'
+import { priceLine, typeLabel, type Listing } from '@/lib/real-estate'
 import { useAppStore } from '@/lib/store'
 import { backIfReturning, historyGate, homesHref, priceStartHref, pushedState, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
@@ -758,6 +759,10 @@ export function LensMap() {
   const [bizPoint, setBizPoint] = useState<string | null>(null)
   // a group of close businesses that was clicked: its card names them, each opening its own card
   const [group, setGroup] = useState<BusinessGroup | null>(null)
+  // the rentals step's listings (the homes tool hands them over) and a group of them that was clicked
+  const [stepListings, setStepListings] = useState<Listing[]>([])
+  const [listingGroup, setListingGroup] = useState<BusinessGroup | null>(null)
+  useEffect(() => { setListingGroup(null) }, [stepListings, tool, city])
   useEffect(() => { setGroup(null) }, [biz.dots, tool, city])
   // what the map shows, for a list that follows it
   const [mapBounds, setMapBounds] = useState<[number, number, number, number] | null>(null)
@@ -1133,7 +1138,8 @@ export function LensMap() {
           <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={catchmentAreas ?? overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} businesses={bizDots} onBusiness={openBiz} onBusinessHover={setBizPoint} onBusinessGroup={(next) => { setCard(null); setLocated(null); setGroup(next) }} onBounds={setMapBounds} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} fit={catchmentFit} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setLocated(null); setCard(selected.includes(hit.id) ? null : hit) }}
-            pin={cardRow ? card : located ?? group} onPin={setCardAt} />
+            pin={cardRow ? card : located ?? group ?? (overlay.popup ? null : listingGroup)} onPin={setCardAt}
+            onListingGroup={tool === 'homes' ? (next) => { setCard(null); setLocated(null); setGroup(null); setListingGroup(next) } : null} />
           {overlay.popup}
           {cardRow && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
             <DistrictCard name={cardRow.name} lines={cardLines(cardRow)} at={cardAt} onDetails={openDetails} onClose={closeCard}
@@ -1164,6 +1170,17 @@ export function LensMap() {
           {!cardRow && !located && group && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
             <GroupCard count={group.count} noun="business" items={group.ids.map((id) => ({ id, title: biz.rows.find((row) => row.id === id)?.name ?? 'غير متاح' }))} at={cardAt}
               onOpen={openBiz} onClose={() => setGroup(null)} onExpand={() => { group.expand(); setGroup(null) }}
+              {...(window.matchMedia('(min-width: 64rem)').matches
+                ? { top: 8, bottom: cardAt.height - 8 }
+                : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
+          )}
+          {/* the rentals step: a group of price pins names its cheapest, each opening its card in the step */}
+          {!cardRow && !located && !group && !overlay.popup && listingGroup && cardAt && cardAt.x >= 0 && cardAt.y >= 0 && cardAt.x <= cardAt.width && cardAt.y <= cardAt.height && (
+            <GroupCard count={listingGroup.count} noun="listing" at={cardAt}
+              items={listingGroup.ids.flatMap((id) => { const listing = stepListings.find((item) => item.id === id); return listing ? [listing] : [] })
+                .sort((a, b) => (a.price_sar ?? Infinity) - (b.price_sar ?? Infinity)).slice(0, 5)
+                .map((listing) => ({ id: listing.id, title: priceLine(listing), sub: [typeLabel(listing.type), listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.district_ar].filter(Boolean).join(' · ') }))}
+              onOpen={(id) => { setListingGroup(null); overlay.onListing?.(id) }} onClose={() => setListingGroup(null)} onExpand={() => { listingGroup.expand(); setListingGroup(null) }}
               {...(window.matchMedia('(min-width: 64rem)').matches
                 ? { top: 8, bottom: cardAt.height - 8 }
                 : { top: 124, bottom: cardAt.height - 8 - (sheet === 'half' ? Math.max(0, HALF * (cardAt.height + peekPx) - peekPx) : 0) })} />
@@ -1310,7 +1327,7 @@ export function LensMap() {
                         {tool === 'corridors' && <CorridorsTool city={city} rows={data.rows} onOverlay={onOverlay} />}
                         {tool === 'around' && <AroundTool city={city} onOverlay={onOverlay} districts={data.rows} features={data.features} next={nextFor('around')} siteAction={siteAction} seed={trailNow?.leads.gaps ?? null} />}
                         {tool === 'territories' && <TerritoriesTool city={city} rows={data.rows} onOverlay={onOverlay} />}
-                        {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} />}
+                        {tool === 'homes' && <HomesTool key={lens} city={city} rows={data.rows} selected={chosen} onOverlay={onOverlay} onHover={setHovered} preset={lens === 'shops' ? { kind: 'rent', type: 'store', deal: 'all' } : undefined} next={nextFor('homes')} onListings={setStepListings} />}
                         {tool === 'compare' && <CompareTool rows={data.rows} selected={chosen} />}
                         {/* the comparison kept by name inside Atlas, and every saved one a tap away (foundation §3.4) */}
                         {tool === 'compare' && <SavedComparisons city={city} cityName={cityName} districts={chosen.map((row) => row.name)}
