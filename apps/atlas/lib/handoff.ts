@@ -51,6 +51,9 @@ type Priceable = {
   age?: number
   street_width?: number
   features?: Partial<Record<string, 0 | 1>>
+  /** The listing itself, when the price page is opened from it: «اطلب عروضاً مثل هذا العرض» names it there. */
+  id?: string
+  price_sar?: number | null
 }
 
 /**
@@ -72,7 +75,23 @@ export function priceHref(listing: Priceable): string | null {
   if (width) query.set('width', width)
   // furnishing is read from the ad's form only when it says so; unstated stays the page's default
   if (listing.features?.furnished === 1) query.set('furnished', 'yes')
+  // the listing the answers came from, and its asking price as advertised, kept while the answers stay its own
+  if (listing.id && LISTING_REF.test(listing.id)) query.set('from', listing.id)
+  if (listing.price_sar != null && Number.isFinite(listing.price_sar) && listing.price_sar > 0) query.set('ask', String(Math.round(listing.price_sar)))
   return href('/price', query)
+}
+
+const LISTING_REF = /^[A-Za-z0-9_:.-]{1,60}$/
+/**
+ * The listing a price page was opened from (`from`) and its asking price (`ask`), each checked; null without a well-formed
+ * id. The page keeps them while its district and type are still the listing's.
+ */
+export function readPriceOrigin(search: string): { id: string; ask: number | null } | null {
+  const query = new URLSearchParams(search)
+  const id = query.get('from')
+  if (!id || !LISTING_REF.test(id)) return null
+  const ask = Number(query.get('ask'))
+  return { id, ask: Number.isFinite(ask) && ask > 0 && ask < 1e10 ? Math.round(ask) : null }
 }
 
 /** The price page started from what a page already knows (the city, one district, the deal and the type), the rest asked there. */
