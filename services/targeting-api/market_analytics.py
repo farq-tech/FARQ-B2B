@@ -5,7 +5,6 @@ counts use the same high/medium row-level taxonomy confidence as map discovery.
 This module returns aggregates only, never contact or business-identifying fields.
 """
 import collections
-import contextlib
 import copy
 import json
 import os
@@ -425,12 +424,13 @@ def street_density_district_sql(columns):
 class MarketAnalytics:
     def __init__(self, directory_tiles, street_density=None):
         self.tiles = directory_tiles
-        # Each request thread queries through its own cursor on the shared in-memory database (duckdb: one cursor per
-        # thread), so aggregates run side by side instead of queueing behind one lock past Atlas's 12 s proxy limit.
-        # `lock` stays as a no-op so the query blocks read the same; the tiles keep their own lock for their caches.
+        # One query at a time on the shared database: run side by side (a cursor per thread, #739) they overran its
+        # 512MB memory limit (OutOfMemoryException) under a handful of visitors. Each thread keeps its own cursor so
+        # a result set is never swapped under another thread's fetch; repeated questions are answered from
+        # _remembered without queueing.
         self._root = directory_tiles.db
         self._local = threading.local()
-        self.lock = contextlib.nullcontext()
+        self.lock = directory_tiles.lock
         self._results = collections.OrderedDict()
         self._results_lock = threading.Lock()
         # Aggregates read the same (canonical) directory copy the tiles serve, never the mounted file directly.
