@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Check, MapPin, Scale, X } from 'lucide-react'
 import { NoResult, NotAvailable } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
@@ -22,6 +22,8 @@ import { Icon3D } from '@/components/shared/icon-3d'
 import { useStickyState } from '@/lib/sticky-state'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
+import { listingVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 import { homesFacts, homesMedianKey } from './district-facts'
 
 type Result = { status: 'loading' | 'ready' | 'error'; available: boolean; total: number | null; listings: Listing[] }
@@ -65,7 +67,7 @@ function Thumb({ src, type, comparing }: { src: string | null; type: string; com
  * price against their district (in the selected districts, or the whole city). A dot opens one card; the side list
  * puts the best value first; two listings, or two selected districts, go to the comparison assistant.
  */
-export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: {
+export function HomesTool({ city, rows, selected, onOverlay, preset, onHover, next }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
@@ -74,6 +76,8 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
   preset?: { kind: ListingKind; type: string; deal?: Deal | 'all' }
   /** The district of the listing a row points at, outlined on the map; null when it leaves. */
   onHover?: (id: string | null) => void
+  /** The step after the verdict (the listing's own page, a request), given by the map shell. */
+  next?: ReactNode
 }) {
   // the shops lens opens on store rents, so its choices are kept apart from the homes lens's
   const sticky = `homes.${preset ? 'preset' : 'plain'}`
@@ -221,6 +225,14 @@ export function HomesTool({ city, rows, selected, onOverlay, preset, onHover }: 
           </p>
           {result.listings.length === 0 && (
             <NoResult title={`لا عروض تطابق اختيارك ${where}`} body={budget ? 'جرّب ميزانية أعلى، أو نوعاً آخر، أو أحياء أكثر.' : 'جرّب نوعاً آخر أو مدة أخرى، أو أحياء أكثر.'} />
+          )}
+          {result.listings.length > 0 && shown[0] && (
+            // the first listing of the list as the answer, with why it comes first; a tap opens its card on the map
+            <Verdict next={next} verdict={listingVerdict({
+              type: typeLabel(shown[0].type), district: shown[0].district_ar ?? null, price: shown[0].price_sar == null ? null : priceLine(shown[0]),
+              versus: versusDistrict(shown[0])?.text ?? null, area: shown[0].area_sqm ?? null,
+              away: myPoint ? `${formatDistance(distanceKm(shown[0], myPoint) * 1000)} من نقطتك` : null,
+            }, nearest && Boolean(myPoint))} />
           )}
           {result.listings.length > 0 && (
             <div>

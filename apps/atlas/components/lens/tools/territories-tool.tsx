@@ -16,7 +16,8 @@ import { CATEGORICAL, PALETTE as TONE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { useMainActivities } from '@/lib/main-activities'
-import { duration, territoriesSummary, weekSummary } from './tool-answers'
+import { duration, territoriesSummary, territoriesVerdict, weekFitHint, weekSummary } from './tool-answers'
+import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { territoryFacts } from './district-facts'
 import { Choice, StillWorking } from './choice'
@@ -248,6 +249,8 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
         {groups && status !== 'loading' && groups.length === 0 && (
           <NoResult title="لا مناطق لهذا الاختيار" body={mainId ? 'لا منشآت من هذا النشاط في أحياء المدينة. اختر «كل المنشآت» أو نشاطاً آخر.' : 'أحياء المدينة بلا منشآت معروفة الموقع بعد.'} className="mt-2" />
         )}
+        {/* how even the split is, before the reps' rows: a spread over a quarter is said, with what evens it */}
+        {groups && status !== 'loading' && groups.length > 0 && <Verdict verdict={territoriesVerdict(groups.map((group) => group.weight), weight)} className="mt-2" />}
         {groups && status !== 'loading' && groups.length > 0 && (
           <ol className="mt-2 space-y-1.5 lg:max-h-56 lg:overflow-y-auto">
             {groups.map((group, index) => (
@@ -342,7 +345,11 @@ export function TerritoriesTool({ city, rows, onOverlay }: { city: string; rows:
                 </div>
               )}
               {plan.unplanned.length > 0 && (
-                <p className="mt-2 text-base"><strong>{numberFormat.format(plan.unplanned.length)}</strong> منشأة لا تتسع لها خطة هذا الأسبوع</p>
+                <div className="mt-2 text-base">
+                  <p><strong>{numberFormat.format(plan.unplanned.length)}</strong> منشأة لا تتسع لها خطة هذا الأسبوع</p>
+                  {/* the one number to change so every customer fits, instead of guessing */}
+                  {customers && <p className="text-sm text-muted-foreground">{weekFitHint(customers.length, plan.unplanned.length, days, perDay)}</p>}
+                </div>
               )}
             </>
           )}

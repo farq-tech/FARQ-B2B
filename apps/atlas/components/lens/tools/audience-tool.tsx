@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
 import { Skeleton, SkeletonStatus } from '@/components/ui/skeleton'
@@ -15,7 +15,8 @@ import { waiting, type Overlay } from './overlay'
 import { PALETTE } from '@/lib/palette'
 import { useStickyState, useStudiedMainId } from '@/lib/sticky-state'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
-import { audienceMissing, audienceSummary, audienceWhere } from './tool-answers'
+import { audienceMissing, audienceSummary, audienceVerdict, audienceWhere } from './tool-answers'
+import { Verdict } from './verdict'
 import { useAnswer } from './use-answer'
 import { Choice } from './choice'
 import { useMainActivities } from '@/lib/main-activities'
@@ -49,7 +50,7 @@ function score(rows: DistrictRow[], size: (row: DistrictRow) => number | null): 
  * nationality and income; a business marketer filters businesses by activity and WhatsApp reach. The map turns into
  * the best-matching districts and the card gives the audience size in the selected districts, or the whole city.
  */
-export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover }: {
+export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHover, next }: {
   city: string
   rows: DistrictRow[]
   selected: DistrictRow[]
@@ -57,6 +58,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   onSelect: (id: string) => void
   /** The district a row points at (pointer or keyboard), outlined on the map; null when it leaves. */
   onHover?: (id: string | null) => void
+  /** The step after the answer (a campaign to the top districts), under the verdict; given by the map shell. */
+  next?: ReactNode
 }) {
   const [mode, setMode] = useStickyState<Mode>('audience.mode', 'people')
   const [sex, setSex] = useStickyState<Sex>('audience.sex', 'all')
@@ -118,7 +121,8 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
   // the map hands a new array of the same districts on every render, so the overlay follows their ids, not the array
   const selectedKey = selected.map((row) => row.id).join('|')
   // the people figures of one segment wait for the measured shares; until then the map has no answer to give
-  const pending = status === 'loading' || (mode === 'people' && (sex !== 'all' || nationality !== 'all') && shares == null)
+  // and nothing is said before the city's districts arrive: an empty table is still loading, not «غير متاح»
+  const pending = rows.length === 0 || status === 'loading' || (mode === 'people' && (sex !== 'all' || nationality !== 'all') && shares == null)
   useEffect(() => {
     const colors = new Map<string, string>()
     for (const item of scored) colors.set(item.row.id, item.score > 0 ? SHADES[Math.min(4, Math.floor(item.score / 20))] : PALETTE.pebble)
@@ -233,13 +237,17 @@ export function AudienceTool({ city, rows, selected, onOverlay, onSelect, onHove
         </div>
       )}
       {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
+        <Verdict verdict={audienceVerdict(scope.map((item) => ({ name: item.row.name, size: item.size })), unit, segmentWord(ranked))} next={next} />
+      )}
+      {scored.length > 0 && !busy && status === 'idle' && !sharesError && (
         <div>
           <Explained title="درجة الحي" lines={EXPLAIN.audienceScore} className="mb-1 text-sm font-semibold text-muted-foreground">أعلى الأحياء مطابقةً</Explained>
           <ol className="divide-y text-base">
             {scored.slice(0, limit).map((item) => (
               <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={(on) => onHover?.(on ? item.row.id : null)} title={item.row.name}
                 active={selected.some((row) => row.id === item.row.id)}
-                value={`${numberFormat.format(item.score)}/100`} valueSub={`${show(item.size)} ${unit}`} />
+                // the audience itself leads; the score is its place against the top district
+                value={`${show(item.size)} ${unit}`} valueSub={`${numberFormat.format(item.score)}/100`} />
             ))}
           </ol>
           <MoreRows shown={Math.min(limit, scored.length)} total={scored.length} noun="district" onMore={showMore} />
