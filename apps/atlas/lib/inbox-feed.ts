@@ -22,7 +22,11 @@ export type ServerInboxMessage = {
 export type ServerDelivery = { requestId: string; poiKey: string; status: 'sent' | 'delivered' | 'read' | 'failed'; at: string | null }
 
 /** A request's reply figures from the service: recipients reached, how many replied, median seconds to a first reply. */
-export type ServerReplyStat = { requestId: string; sent: number; replied: number; medianReplySeconds: number | null }
+export type ServerReplyStat = {
+  requestId: string; sent: number; replied: number; medianReplySeconds: number | null
+  /** With its follow-ups (up to two steps): of this campaign's recipients reached, how many answered it or a follow-up. */
+  combined?: { sent: number; replied: number; viaFollowUps: number }
+}
 /** A recipient that has not answered this request but answered another of the person's campaigns lately. */
 export type ServerElsewhere = { requestId: string; poiKey: string; otherRequestId: string; messageId: string; at: string | null }
 
@@ -149,7 +153,10 @@ export function parseServerFeed(payload: unknown): ServerFeed {
   const requests = (Array.isArray(root.requests) ? root.requests : []).flatMap((item) => {
     const r = (item ?? {}) as Record<string, unknown>
     const sent = whole(r.sent); const replied = whole(r.replied)
-    return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: whole(r.medianReplySeconds) }] : []
+    const c = r.combined && typeof r.combined === 'object' ? r.combined as Record<string, unknown> : null
+    const cs = whole(c?.sent); const cr = whole(c?.replied); const cv = whole(c?.viaFollowUps)
+    const combined = cs != null && cr != null && cv != null ? { combined: { sent: cs, replied: Math.min(cr, cs), viaFollowUps: Math.min(cv, cr, cs) } } : {}
+    return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: whole(r.medianReplySeconds), ...combined }] : []
   })
   const elsewhere = (Array.isArray(root.elsewhere) ? root.elsewhere : []).flatMap((item) => {
     const e = (item ?? {}) as Record<string, unknown>
@@ -322,4 +329,49 @@ export const replyFilterKey = (requestId: string) => `atlas.replies|${requestId}
 export function openingReplyFilter(search: string, remembered: string | null | undefined): ReplyFilter {
   if (new URLSearchParams(search).has('replies')) return readReplyFilter(search)
   return remembered === 'waiting' || remembered === 'replied' ? remembered : 'all'
+}
+
+/** A follow-up chain stops after two follow-ups (the original, then two): a third would be chasing. */
+export const MAX_FOLLOW_UP_DEPTH = 2
+
+/** How many follow-ups deep a request is: 0 for an original. A loop in the links stops the count. */
+export function followUpDepth(requests: readonly Pick<RequestItem, 'id' | 'followUpOf'>[], request: Pick<RequestItem, 'id' | 'followUpOf'>): number {
+  const byId = new Map(requests.map((r) => [r.id, r]))
+  let depth = 0
+  let node = request
+  const seen = new Set([request.id])
+  while (node.followUpOf && byId.has(node.followUpOf) && !seen.has(node.followUpOf) && depth < 10) {
+    node = byId.get(node.followUpOf)!
+    seen.add(node.id)
+    depth += 1
+  }
+  return depth
+}
+
+/**
+ * The chain a request belongs to: its original first, then every follow-up of the chain (step 1, then step 2, each by
+ * creation), so every member shows the same chain. A request alone is a chain of one.
+ */
+export function followUpChain<T extends Pick<RequestItem, 'id' | 'followUpOf' | 'createdAt'>>(requests: readonly T[], request: T): { request: T; depth: number }[] {
+  const byId = new Map(requests.map((r) => [r.id, r]))
+  let root = request
+  const seen = new Set([request.id])
+  while (root.followUpOf && byId.has(root.followUpOf) && !seen.has(root.followUpOf)) {
+    root = byId.get(root.followUpOf)!
+    seen.add(root.id)
+  }
+  const out: { request: T; depth: number }[] = [{ request: root, depth: 0 }]
+  let level = [root]
+  for (let depth = 1; depth <= MAX_FOLLOW_UP_DEPTH + 1 && level.length; depth += 1) {
+    const ids = new Set(level.map((r) => r.id))
+    level = requests.filter((r) => r.followUpOf && ids.has(r.followUpOf) && r.id !== root.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    out.push(...level.map((r) => ({ request: r, depth })))
+  }
+  return out
+}
+
+/** A held-back recipient of a follow-up: still unticked at review, or ticked by the person afterwards. */
+export function heldBackState(campaign: Pick<NonNullable<RequestItem['campaign']>, 'heldBack' | 'included'> | undefined, id: string): 'held' | 'added' | null {
+  if (campaign?.heldBack?.[id] !== 'replied_elsewhere') return null
+  return campaign.included.includes(id) ? 'added' : 'held'
 }

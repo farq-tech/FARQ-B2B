@@ -216,7 +216,7 @@ class ReadStateTests(Base):
         import sqlite3
         path = os.path.join(self.dir.name, 'old.sqlite3')
         con = sqlite3.connect(path)
-        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text,\n  request_title text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
+        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text,\n  request_title text,\n  follow_up_of text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
         con.execute("insert into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values ('wamid.O','org-1','cmp-1','poi:1',?,?)", (NUMBER, T0))
         con.commit(); con.close()
         store = wa_inbox.InboxStore(path)
@@ -388,6 +388,30 @@ class ReplyTimingAndCacheTests(Base):
         answer = self.store.reply_stats('org-1', now=T0)
         answer['requests'].clear()
         self.assertEqual(len(self.store.reply_stats('org-1', now=T0 + 1)['requests']), 1)
+
+
+class CombinedRateTests(Base):
+    def test_an_original_counts_replies_to_any_follow_up_of_its_chain(self):
+        a, b, c = NUMBER, OTHER, '966500000003'
+        for message_id, request_id, poi, number, at, parent in [
+            ('wamid.O1', 'cmp-o', 'poi:1', a, T0, None), ('wamid.O2', 'cmp-o', 'poi:2', b, T0, None), ('wamid.O3', 'cmp-o', 'poi:3', c, T0, None),
+            ('wamid.F1', 'cmp-f1', 'poi:2', b, T0 + 86400, 'cmp-o'), ('wamid.F1b', 'cmp-f1', 'poi:3', c, T0 + 86400, 'cmp-o'),
+            ('wamid.F2', 'cmp-f2', 'poi:3', c, T0 + 2 * 86400, 'cmp-f1'),     # the second step
+        ]:
+            self.store.record_outbound(message_id, 'org-1', request_id, poi, number, sent_at=at, follow_up_of=parent)
+        self.post(body([text('wamid.R1', sender=a, at=T0 + 600, context='wamid.O1'),
+                        text('wamid.R2', sender=b, at=T0 + 86400 + 600, context='wamid.F1'),
+                        text('wamid.R3', sender=c, at=T0 + 2 * 86400 + 600, context='wamid.F2')]))
+        stats = {r['requestId']: r for r in self.store.reply_stats('org-1', now=T0 + 3 * 86400)['requests']}
+        self.assertEqual(stats['cmp-o']['replied'], 1)
+        self.assertEqual(stats['cmp-o']['combined'], {'sent': 3, 'replied': 3, 'viaFollowUps': 2, 'followUps': ['cmp-f1', 'cmp-f2']})
+        self.assertEqual(stats['cmp-f1']['combined'], {'sent': 2, 'replied': 2, 'viaFollowUps': 1, 'followUps': ['cmp-f2']})
+        self.assertNotIn('combined', stats['cmp-f2'], 'no follow-up of its own')
+
+    def test_a_request_is_never_its_own_follow_up(self):
+        self.store.record_outbound('wamid.S1', 'org-1', 'cmp-s', 'poi:1', NUMBER, sent_at=T0, follow_up_of='cmp-s')
+        [stat] = self.store.reply_stats('org-1', now=T0)['requests']
+        self.assertNotIn('combined', stat)
 
 
 if __name__ == '__main__':

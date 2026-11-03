@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { followUpChain, followUpDepth, heldBackState, MAX_FOLLOW_UP_DEPTH } from './inbox-feed.ts'
 import { answeredFollowUps, combinedRate, durationParts, elsewhereFor, openingReplyFilter, rateFor, readReplyFilter, replyFilterKey, replyWindow, statFor, writeReplyFilter } from './inbox-feed.ts'
 import { deliveryFor, freshReplies, healthState, replyGroups, replyRate, repliesFor, trackedFor, wasSent, deliveryLabel, kindNote, mergeServerInbox, parseServerFeed, previewText, requestFor, unreadCount } from './inbox-feed.ts'
 import { inboxAccounts } from './inbox-scope.ts'
@@ -202,4 +203,30 @@ test('a recipient who answered a follow-up is not silent on the original', () =>
   const flagged = answeredFollowUps(inbox, { id: 'cmp-1' }, [{ id: 'cmp-2' }])
   assert.deepEqual(Object.keys(flagged), ['b'])
   assert.deepEqual(flagged.b, { requestId: 'cmp-1', poiKey: 'b', otherRequestId: 'cmp-2', messageId: 'r-b', at: null })
+})
+
+test('a follow-up chain is the original, then its follow-ups by step; it stops at two', () => {
+  const r = (id: string, followUpOf?: string, createdAt = '2026-11-01') => ({ id, followUpOf, createdAt })
+  const requests = [r('o'), r('f1', 'o', '2026-11-02'), r('f1b', 'o', '2026-11-03'), r('f2', 'f1', '2026-11-04'), r('alone')]
+  assert.deepEqual(followUpChain(requests, requests[3]).map((m) => [m.request.id, m.depth]), [['o', 0], ['f1', 1], ['f1b', 1], ['f2', 2]], 'the same chain from any member')
+  assert.deepEqual(followUpChain(requests, requests[4]).map((m) => m.request.id), ['alone'])
+  assert.equal(followUpDepth(requests, requests[0]), 0)
+  assert.equal(followUpDepth(requests, requests[3]), 2)
+  assert.equal(followUpDepth(requests, requests[3]) < MAX_FOLLOW_UP_DEPTH, false, 'a second follow-up cannot be followed up')
+  const loop = [r('a', 'b'), r('b', 'a')]
+  assert.equal(followUpDepth(loop, loop[0]), 1, 'a loop in the links stops')
+})
+
+test('a held-back recipient reads as held until ticked, then as added at review', () => {
+  const campaign = { included: ['a', 'b'], heldBack: { b: 'replied_elsewhere' as const, c: 'replied_elsewhere' as const } }
+  assert.equal(heldBackState(campaign, 'a'), null)
+  assert.equal(heldBackState(campaign, 'b'), 'added')
+  assert.equal(heldBackState(campaign, 'c'), 'held')
+  assert.equal(heldBackState(undefined, 'b'), null)
+})
+
+test('the service’s combined figures are parsed and kept within bounds', () => {
+  const feed = parseServerFeed({ requests: [{ requestId: 'o', sent: 3, replied: 1, combined: { sent: 3, replied: 9, viaFollowUps: 5 } }, { requestId: 'p', sent: 1, replied: 0, combined: { sent: 'x' } }] })
+  assert.deepEqual(feed.requests[0].combined, { sent: 3, replied: 3, viaFollowUps: 3 })
+  assert.equal(feed.requests[1].combined, undefined)
 })

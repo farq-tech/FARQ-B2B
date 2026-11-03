@@ -13,10 +13,11 @@ import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '
 import { counted, numberFormat, useCities, percent } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
+import { cn } from '@/lib/utils'
 import { useBackClose } from '@/lib/use-back-close'
 import { businessName } from '@/lib/business-name'
 import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
-import { answeredFollowUps, combinedRate, durationParts, elsewhereFor, rateFor, repliesFor, replyRate, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
+import { MAX_FOLLOW_UP_DEPTH, followUpChain, followUpDepth, answeredFollowUps, combinedRate, durationParts, elsewhereFor, rateFor, repliesFor, replyRate, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -26,6 +27,17 @@ import { RfqEditor, rfqIssues } from './rfq-editor'
 
 /** One click sends one batch of at most this many, after its own confirmation (§11.3). */
 const SEND_BATCH_SIZE = 100
+
+/** Whether `candidate` follows up `ancestorId`, directly or through another follow-up. */
+function isBelow(requests: readonly RequestItem[], candidate: RequestItem, ancestorId: string): boolean {
+  const byId = new Map(requests.map((r) => [r.id, r]))
+  let node: RequestItem | undefined = candidate
+  for (let steps = 0; node?.followUpOf && steps < 10; steps += 1) {
+    if (node.followUpOf === ancestorId) return true
+    node = byId.get(node.followUpOf)
+  }
+  return false
+}
 
 export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
@@ -126,14 +138,23 @@ export function RequestDetailView({ id }: { id: string }) {
     ? rateFor(statFor(replyStats, request), replyRate(request.campaign.included, (id) => wasSent(id, tracked, request.campaign?.delivery), replied))
     : null
   const median = rate?.medianReplySeconds != null ? durationParts(rate.medianReplySeconds) : null
-  const followed = request.followUpOf ? requests.find((r) => r.id === request.followUpOf) : undefined
-  // the follow-ups made from this campaign, each with its own rate, and the campaign's result counting their replies
-  const followUps = requests.filter((r) => r.followUpOf === request.id && r.campaign)
-  const followUpRates = followUps.map((f) => {
+  // the follow-up chain this campaign belongs to (its original, then up to two follow-ups), the same on every member
+  const chain = request.campaign ? followUpChain(requests.filter((r) => r.campaign), request) : []
+  const depth = followUpDepth(requests, request)
+  const canFollowUp = depth < MAX_FOLLOW_UP_DEPTH
+  // this campaign's own follow-ups below it (every step), each with its rate, and its result counting their replies:
+  // the service's figure when it has one (every device the same), else this device's count
+  const mine = chain.find((m) => m.request.id === request.id)
+  const followUps = chain.filter((m) => mine && m.depth > mine.depth && isBelow(requests, m.request, request.id)).map((m) => m.request)
+  const rateOf = (f: typeof request) => {
     const t = trackedFor(deliveries, f)
-    return { request: f, rate: rateFor(statFor(replyStats, f), replyRate(f.campaign?.included ?? [], (id) => wasSent(id, t, f.campaign?.delivery), repliesFor(inbox, f))) }
-  })
-  const combined = request.campaign && followUps.length ? combinedRate(request, followUps, inbox, (id) => wasSent(id, tracked, request.campaign?.delivery)) : null
+    return rateFor(statFor(replyStats, f), replyRate(f.campaign?.included ?? [], (id) => wasSent(id, t, f.campaign?.delivery), repliesFor(inbox, f)))
+  }
+  const serverCombined = statFor(replyStats, request)?.combined
+  const localCombined = request.campaign && followUps.length ? combinedRate(request, followUps, inbox, (id) => wasSent(id, tracked, request.campaign?.delivery)) : null
+  const combined = serverCombined && serverCombined.sent > 0
+    ? { ...serverCombined, percent: Math.round((serverCombined.replied / serverCombined.sent) * 100) }
+    : localCombined
 
   const issues = request.rfq
     ? rfqIssues(request.rfq, request.businessIds.length)
@@ -144,7 +165,9 @@ export function RequestDetailView({ id }: { id: string }) {
         : ['القائمة فارغة.']
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 py-6 pb-28 lg:py-8">
+    // while the review bar is fixed over the foot of the page (a draft), the page ends below it on every width: the bar sits
+    // 4.5rem up on a phone (above the tab bar) and 1rem up from lg, and is about 4.5rem tall, so the last recipient stays clear
+    <main className={cn('mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 pt-6 lg:pt-8', editable ? 'pb-44 lg:pb-32' : 'pb-28 lg:pb-8')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link href="/requests" className="inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
           <ArrowRight className="size-4" aria-hidden />
@@ -194,10 +217,8 @@ export function RequestDetailView({ id }: { id: string }) {
             {median ? <span className="text-muted-foreground"> · وسيط زمن أول رد {counted(median.value, median.unit)}</span> : null}
           </p>
         ) : null}
-        {followed ? (
-          <p className="text-xs text-muted-foreground">متابعة لـ <Link href={`/requests/${followed.id}`} className="underline underline-offset-2 hover:text-foreground">«{followed.title}»</Link></p>
-        ) : null}
-        {followUps.length ? (
+        {chain.length > 1 ? (
+          // the whole chain on every member: the original, then each follow-up by step, this one marked
           <div className="flex flex-col gap-1 rounded-xl border px-3 py-2 text-sm">
             {combined ? (
               <p>
@@ -205,15 +226,22 @@ export function RequestDetailView({ id }: { id: string }) {
                 <span className="text-muted-foreground"> ({numberFormat.format(combined.replied)} من {numberFormat.format(combined.sent)}{combined.viaFollowUps ? `، منها ${numberFormat.format(combined.viaFollowUps)} بعد المتابعة` : ''})</span>
               </p>
             ) : null}
-            <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-              {followUpRates.map(({ request: f, rate: r }) => (
-                <li key={f.id}>
-                  <Link href={`/requests/${f.id}`} className="underline underline-offset-2 hover:text-foreground">«{f.title}»</Link>
-                  {' · '}{statusLabel(f.status, f.type)}
-                  {r ? ` · نسبة الرد ${percent(r.percent)} (${numberFormat.format(r.replied)} من ${numberFormat.format(r.sent)})` : ' · لم تُرسل بعد'}
-                </li>
-              ))}
-            </ul>
+            <ol aria-label="سلسلة المتابعة" className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+              {chain.map(({ request: f, depth: step }) => {
+                const r = rateOf(f)
+                return (
+                  <li key={f.id} style={{ paddingInlineStart: `${step}rem` }}>
+                    {step === 0 ? 'الأصل: ' : `متابعة ${numberFormat.format(step)}: `}
+                    {f.id === request.id
+                      ? <span className="font-semibold text-foreground" aria-current="page">«{f.title}» (هذه)</span>
+                      : <Link href={`/requests/${f.id}`} className="underline underline-offset-2 hover:text-foreground">«{f.title}»</Link>}
+                    {' · '}{statusLabel(f.status, f.type)}
+                    {r ? ` · نسبة الرد ${percent(r.percent)} (${numberFormat.format(r.replied)} من ${numberFormat.format(r.sent)})` : ' · لم تُرسل بعد'}
+                  </li>
+                )
+              })}
+            </ol>
+            {!canFollowUp ? <p className="text-xs text-muted-foreground">بلغت السلسلة حدها: متابعتان لكل حملة.</p> : null}
           </div>
         ) : null}
       </header>
@@ -248,7 +276,7 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
       {request.campaign ? (
         <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={tracked} replied={replied}
-          elsewhere={{ ...answeredFollowUps(inbox, request, followUps), ...elsewhereFor(repliedElsewhere, request) }} onFollowUp={followUp} filterKey={request.id} />
+          elsewhere={{ ...answeredFollowUps(inbox, request, followUps), ...elsewhereFor(repliedElsewhere, request) }} onFollowUp={canFollowUp ? followUp : undefined} filterKey={request.id} />
       ) : null}
 
       {/* once a campaign is reviewed its recipients list (with each one's send state) already names every business:
@@ -501,7 +529,7 @@ function WhatsAppSendPanel({ request, tracked, replied, onDeliveryUpdate, onBack
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           // the request id lets a reply to this message reach the inbox under this request (lib/inbox-feed.ts)
-          body: JSON.stringify({ poiKey: id, message: text, requestId: request.id, requestTitle: request.title }),
+          body: JSON.stringify({ poiKey: id, message: text, requestId: request.id, requestTitle: request.title, followUpOf: request.followUpOf }),
         })
         const result = await response.json().catch(() => null) as { ok?: boolean } | null
         if (response.ok && result?.ok) nextDelivery[id] = 'sent'
