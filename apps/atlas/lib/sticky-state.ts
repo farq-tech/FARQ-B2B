@@ -22,11 +22,31 @@ export function useStickyState<T>(key: string, initial: T) {
   const set = useCallback((next: SetStateAction<T>) => {
     const previous = (store.has(key) ? store.get(key) : initial) as T
     const resolved = typeof next === 'function' ? (next as (previous: T) => T)(previous) : next
-    store.set(key, resolved)
-    for (const hear of listeners.get(key) ?? []) hear(resolved)
+    setSticky(key, resolved)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
   return [value, set] as const
+}
+
+// hears every key: the map writes the choices it keeps in its address (components/lens/map-query.ts) as they change
+const watchers = new Set<(key: string) => void>()
+
+/** Sets a key from outside a step (the address read on arrival); every mounted user of it hears, as with its setter. */
+export function setSticky(key: string, value: unknown) {
+  store.set(key, value)
+  for (const hear of listeners.get(key) ?? []) hear(value)
+  for (const watch of watchers) watch(key)
+}
+
+/** A key's value, or undefined while it was never set (its users still hold their own default). */
+export function getSticky(key: string): unknown {
+  return store.get(key)
+}
+
+/** Calls `watch` after any key changes; returns the unsubscribe. */
+export function watchSticky(watch: (key: string) => void) {
+  watchers.add(watch)
+  return () => { watchers.delete(watch) }
 }
 
 /** Whether a key was ever set on this page (by a pick, a shared link or another step), as opposed to still holding

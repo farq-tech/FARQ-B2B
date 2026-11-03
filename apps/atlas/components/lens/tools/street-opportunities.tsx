@@ -12,6 +12,8 @@ import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
 import type { StudiedActivity } from '@/lib/sticky-state'
 import type { Overlay } from './overlay'
 import { useAnswer } from './use-answer'
+import { opportunityFacts } from './district-facts'
+import type { DistrictRow } from '../city-data'
 
 type Opportunity = {
   street_ar: string; districts_ar: string[]; road_class: 'main' | 'secondary' | null; total: number; others: number; activities: number
@@ -46,8 +48,8 @@ function requestedLine(item: Opportunity, kinds: number): string {
  * «أين الفرصة»: named streets with strong commercial life where the studied activity is absent or thin against the
  * street's size, scored out of 100 within the city. The evidence is shown; the choice stays with the viewer.
  */
-export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
-  city: string; studied: StudiedActivity; clusters: Cluster[]; onOverlay: (overlay: Overlay) => void
+export function StreetOpportunities({ city, rows = [], studied, clusters, onOverlay }: {
+  city: string; rows?: DistrictRow[]; studied: StudiedActivity; clusters: Cluster[]; onOverlay: (overlay: Overlay) => void
 }) {
   const [active, setActive] = useState<number | null>(null)
   // keyed by what is asked, not by the prop object: a new object for the same activity asks nothing again, and a new
@@ -76,13 +78,16 @@ export function StreetOpportunities({ city, studied, clusters, onOverlay }: {
     const summary = status !== 'idle' || !result || result.understood === false || result.available === false ? null
       : top ? `${counted(streets.length, 'street')} ${streets.length === 1 ? 'ينقصه' : 'ينقصها'} «${studied.label}» · الأعلى: ${top.street_ar} ${numberFormat.format(top.score)}/100`
         : `لا شارع تجاري نشط ينقصه «${studied.label}»`
+    // the card on a clicked district: the opportunity the service scores highest among the streets through it
+    const facts = streets.length ? opportunityFacts(streets.map((item) => item.properties), new Map(rows.map((row) => [row.name, row.id]))) : null
     onOverlay({
       summary,
+      facts,
       streets: [...reference, ...drawn],
       onStreet: (id) => { if (id.startsWith('o')) setActive(Number(id.slice(1))) },
       legend: drawn.length ? { from: 'فرصة أقل', to: 'فرصة أكبر', shades: SHADES, ...(reference.length ? { extra: { color: CLUSTER, label: 'يتجمع فيه النشاط الآن' } } : {}) } : null,
     })
-  }, [streets, clustersKey, active, onOverlay, status, result, studied.label])
+  }, [streets, clustersKey, active, onOverlay, status, result, studied.label, rows])
 
   // 30 streets at a time; one picked on the map further down is drawn so it can come into view
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}`)
