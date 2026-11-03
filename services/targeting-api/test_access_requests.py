@@ -262,6 +262,90 @@ class RoundETests(unittest.TestCase):
         self.assertNotIn('ريم', page)
 
 
+class RoundE2Tests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.a = access_requests.submit(self.folder, body(name='مها', contact='0552223333'), now=100.0)[1]['id']
+        access_requests.review(self.folder, self.a, 'rejected', 'لاحقاً', now=150.0)
+        self.b = access_requests.submit(self.folder, body(name='مها', contact='+966552223333'), now=100.0 + 2 * 86400)[1]['id']
+        self.other = access_requests.submit(self.folder, body(name='خالد', contact='0559990000'), now=300.0)[1]['id']
+        access_requests.request_deletion(self.folder, '0552223333', now=100.0 + 3 * 86400)
+
+    def rows(self):
+        return {row['id']: row for row in access_requests.with_reviews(self.folder)}
+
+    def test_delete_everything_needs_a_flag_and_the_owners_tick(self):
+        self.assertEqual(access_requests.redact_person(self.folder, self.other), (409, {'ok': False, 'error': 'NO_DELETION_ASK'}))
+        self.assertEqual(access_requests.redact_person(self.folder, self.b)[1]['error'], 'NOT_CONFIRMED')
+        self.assertEqual(access_requests.confirm_deletion(self.folder, self.other)[0], 409, 'only a flagged request can be ticked')
+        self.assertEqual(access_requests.confirm_deletion(self.folder, self.b, now=500.0)[0], 200)
+        self.assertTrue(self.rows()[self.a]['deletion_confirmed'], 'the tick covers every request of the person')
+        page = access_requests.render_html(access_requests.with_reviews(self.folder))
+        self.assertIn('احذف كل بيانات هذا الشخص (2)', page)
+        self.assertEqual(access_requests.redact_person(self.folder, self.b), (200, {'ok': True, 'cleared': 2}))
+        rows = self.rows()
+        self.assertTrue(rows[self.a]['redacted_at'] and rows[self.b]['redacted_at'])
+        self.assertEqual(rows[self.a]['note'], '')
+        self.assertFalse(rows[self.other].get('redacted_at'))
+        self.assertEqual(access_requests.read_deletions(self.folder), [], 'the ask goes too')
+
+    def test_the_tick_can_be_taken_back_and_hides_the_button(self):
+        access_requests.confirm_deletion(self.folder, self.b)
+        access_requests.confirm_deletion(self.folder, self.b, confirmed=False)
+        self.assertIsNone(self.rows()[self.b]['deletion_confirmed'])
+        page = access_requests.render_html(access_requests.with_reviews(self.folder))
+        self.assertNotIn('احذف كل بيانات هذا الشخص', page)
+        self.assertIn('تم التأكد من أن الطلب من صاحب البيانات', page)
+
+    def test_the_flag_filter(self):
+        rows = access_requests.with_reviews(self.folder)
+        page = access_requests.render_html(rows, flag='deletion')
+        self.assertIn('<strong aria-current="true">طلب حذف بياناته (2)</strong>', page)
+        self.assertNotIn('خالد', page)
+        self.assertIn('href="/access-requests?status=all&amp;flag=prior"', page)
+        self.assertIn('لا طلبات بهذه التصفية', access_requests.render_html(rows, flag='prior'))
+
+    def test_fifty_a_page_newest_first_with_the_filters_kept(self):
+        folder = tempfile.mkdtemp()
+        for i in range(120):
+            access_requests.submit(folder, body(name=f'رقم {i:03d}', contact=f'0560{i:06d}'), now=1000.0 + i)
+        rows = access_requests.with_reviews(folder)
+        first = access_requests.render_html(rows, query='رقم')
+        self.assertIn('رقم 119', first)
+        self.assertNotIn('رقم 069', first)
+        self.assertIn('الصفحة 1 من 3', first)
+        self.assertIn('href="/access-requests?status=all&amp;q=%D8%B1%D9%82%D9%85&amp;page=2"', first)
+        last = access_requests.render_html(rows, page='3')
+        self.assertIn('رقم 000', last)
+        self.assertNotIn('رقم 020', last)
+        self.assertIn('الطلبات 101 إلى 120 من 120', last)
+        self.assertIn('الصفحة 1 من 3', access_requests.render_html(rows, page='nonsense'))
+        self.assertIn('الصفحة 3 من 3', access_requests.render_html(rows, page='99'))
+
+    def test_seven_day_counts(self):
+        rows = access_requests.with_reviews(self.folder)
+        self.assertEqual(access_requests.week_counts(rows, now=100.0 + 3 * 86400), (3, 0))
+        self.assertEqual(access_requests.week_counts(rows, now=100.0 + 8.5 * 86400), (1, 2))
+        self.assertIn('طلبات آخر 7 أيام: <strong>1</strong>، أقل', access_requests.render_html(rows, now=100.0 + 8.5 * 86400))
+
+    def test_the_retention_metric_counts_runs_and_waiting_without_details(self):
+        import threading
+        stop, ran = threading.Event(), threading.Event()
+        before = dict(access_requests.RETENTION_STATS)
+        # a period long enough that this run clears nothing (the fixture's times are from 1970)
+        with patch.object(access_requests, 'retention_days', return_value=10 ** 6):
+            access_requests.start_retention(self.folder, every=60, first_after=0, stop=stop, log=lambda n: ran.set())
+            self.assertTrue(ran.wait(2))
+            stop.set()
+        text = '\n'.join(access_requests.metric_lines(self.folder))
+        self.assertIn(f'atlas_access_request_retention_runs_total {before["runs"] + 1}', text)
+        self.assertIn('atlas_access_requests_waiting{kind="deletion"} 1', text, 'one person, two requests')
+        self.assertIn('atlas_access_requests_waiting{kind="decision"} 2', text)
+        self.assertNotRegex(text, r'last_success_timestamp_seconds 0$')
+        self.assertNotIn('مها', text)
+        self.assertNotIn('555', text.replace('atlas', ''))
+
+
 class ReadOnlyTests(unittest.TestCase):
     def test_the_read_only_deployment_stores_no_request(self):
         with patch.dict(os.environ, {'ATLAS_READ_ONLY': '1'}, clear=False):
@@ -269,6 +353,8 @@ class ReadOnlyTests(unittest.TestCase):
             self.assertTrue(read_only_test.blocks_request('/access-requests/review'))
             self.assertTrue(read_only_test.blocks_request('/access-requests/redact'))
             self.assertTrue(read_only_test.blocks_request('/access-requests/deletion'))
+            self.assertTrue(read_only_test.blocks_request('/access-requests/redact-person'))
+            self.assertTrue(read_only_test.blocks_request('/access-requests/deletion-confirm'))
 
 
 if __name__ == '__main__':
