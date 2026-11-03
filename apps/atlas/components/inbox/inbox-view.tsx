@@ -118,7 +118,7 @@ export function InboxView() {
       {/* a first visit has no message to filter or open: one welcome that says what arrives here and where it comes
           from, instead of four «0» filters beside «لا رسائل هنا» and an «اختر رسالة» that has nothing to choose */}
       {inbox.length === 0 ? (
-        <EmptyState icon={InboxIcon} title="لا رسائل بعد"
+        <EmptyState heading="h2" icon={InboxIcon} title="لا رسائل بعد"
           body="ردود الموردين على طلبات التسعير وتفاعلات حملاتك تصل هنا، بعد أن ترسل الطلب أو الحملة بنفسك من صفحته."
           action={<Button nativeButton={false} render={<Link href="/requests" />}><ClipboardList data-icon="inline-start" />افتح الطلبات</Button>} />
       ) : (

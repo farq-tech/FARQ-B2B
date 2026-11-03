@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
  * `tone` picks the colour (neutral olive for «nothing here yet», destructive for a failure); `compact` lays it out as
  * one row for lists, panels and map overlays instead of the centred block.
  */
-export function StateMessage({ icon: Icon, title, body, action, tone = 'neutral', compact = false, role, className }: {
+export function StateMessage({ icon: Icon, title, body, action, tone = 'neutral', compact = false, role, heading = 'h3', className }: {
   icon: LucideIcon
   title: string
   body?: string
@@ -15,8 +15,13 @@ export function StateMessage({ icon: Icon, title, body, action, tone = 'neutral'
   tone?: 'neutral' | 'error'
   compact?: boolean
   role?: 'alert' | 'status'
+  /** the centred block's heading level: h3 inside a panel or card (the default), h2 when it is the page's own content
+   * right under its h1, h1 when it is all the page says (not found, a page that broke)
+   * so a screen reader's heading list neither skips a level nor misses the page's title */
+  heading?: 'h1' | 'h2' | 'h3'
   className?: string
 }) {
+  const Heading = heading
   const box = tone === 'error' ? 'border-destructive/25 bg-destructive/5' : 'border-dashed bg-card/70'
   const disc = tone === 'error' ? 'bg-destructive/10 text-destructive' : 'bg-accent text-primary'
   if (compact) {
@@ -34,7 +39,7 @@ export function StateMessage({ icon: Icon, title, body, action, tone = 'neutral'
   return (
     <div role={role} className={cn('flex flex-col items-center gap-3 rounded-2xl border px-6 py-10 text-center', box, className)}>
       <span className={cn('grid size-12 place-items-center rounded-full', disc)}><Icon className="size-6" aria-hidden /></span>
-      <h3 className="text-base font-bold">{title}</h3>
+      <Heading className="text-base font-bold">{title}</Heading>
       {body && <p className="max-w-xs text-sm leading-7 text-muted-foreground">{body}</p>}
       {action}
     </div>
@@ -42,8 +47,8 @@ export function StateMessage({ icon: Icon, title, body, action, tone = 'neutral'
 }
 
 /** Nothing here yet: what this place is for and the one step that fills it. */
-export function EmptyState({ icon, title, body, action, compact, className }: { icon: LucideIcon; title: string; body: string; action?: ReactNode; compact?: boolean; className?: string }) {
-  return <StateMessage icon={icon} title={title} body={body} action={action} compact={compact} className={className} />
+export function EmptyState({ icon, title, body, action, compact, heading, className }: { icon: LucideIcon; title: string; body: string; action?: ReactNode; compact?: boolean; heading?: 'h1' | 'h2' | 'h3'; className?: string }) {
+  return <StateMessage icon={icon} title={title} body={body} action={action} compact={compact} heading={heading} className={className} />
 }
 
 /**

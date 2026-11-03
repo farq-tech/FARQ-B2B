@@ -55,7 +55,7 @@ export function RequestsListView() {
       {/* a first visit has nothing to search or sort: one welcome that says what a request is and where it starts,
           instead of an empty search box, five «0» tabs and «لا شيء في مسودات» */}
       {none ? (
-        <EmptyState icon={ClipboardList} title="لا طلبات بعد"
+        <EmptyState heading="h2" icon={ClipboardList} title="لا طلبات بعد"
           body="الطلب قائمة منشآت تحفظها، أو طلب تسعير لموردين، أو مسودة حملة. يبدأ كل طلب من الخريطة، ويبقى هنا للمراجعة قبل أي إرسال."
           action={<Button nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (<>
@@ -80,11 +80,11 @@ export function RequestsListView() {
       </ChipRow>
 
       {visible.length === 0 && elsewhere ? (
-        <EmptyState icon={ClipboardList} title={`لا نتيجة في «${STATUS_LABEL[tab]}»`}
+        <EmptyState heading="h2" icon={ClipboardList} title={`لا نتيجة في «${STATUS_LABEL[tab]}»`}
           body={`بهذا العنوان في حالات أخرى: ${counted(matches.length, 'request')}.`}
           action={<Chip onClick={() => setTab(elsewhere)}>اعرض «{STATUS_LABEL[elsewhere]}» ({numberFormat.format(matches.filter((r) => r.status === elsewhere).length)})</Chip>} />
       ) : visible.length === 0 ? (
-        <EmptyState icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
+        <EmptyState heading="h2" icon={ClipboardList} title={`لا شيء في «${STATUS_LABEL[tab]}»`}
           body={q ? 'لا طلب بهذا العنوان هنا. جرّب حالة أخرى أو كلمة أقصر.' : 'اختر منشآت من الخريطة ثم «جهّز قائمة» أو «طلب تسعير»، فتظهر طلباتك هنا للمراجعة قبل أي إرسال.'}
           action={<Button size="sm" nativeButton={false} render={<Link href="/map" />}><MapPinned data-icon="inline-start" />ابدأ من الخريطة</Button>} />
       ) : (

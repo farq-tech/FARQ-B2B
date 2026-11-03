@@ -9,7 +9,7 @@ export const metadata = { title: 'الصفحة غير موجودة | فرق أط
 export default function NotFound() {
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-16">
-      <StateMessage icon={Compass} title="الصفحة غير موجودة"
+      <StateMessage heading="h1" icon={Compass} title="الصفحة غير موجودة"
         body="ربما تغيّر الرابط أو حُذف ما كان فيه. ابدأ من الخريطة أو من الصفحة الرئيسية."
         action={(
           <div className="flex flex-wrap justify-center gap-2">
