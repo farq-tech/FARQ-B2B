@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
+import { backIfReturning, pushedState, historyGate, addToRequestHref, readAddTarget, readListing, priceStartHref, ageBucket, cityKey, districtMapHref, homesHref, lastView, loginHref, mapHref, priceHref, readHomesQuery, rememberView, safeMapOrigin, widthBucket, writeHomesQuery } from './handoff.ts'
 
 const TYPES = [
   { id: 'room', kinds: ['rent'] }, { id: 'apartment', kinds: ['rent', 'sale'] }, { id: 'villa', kinds: ['rent', 'sale'] }, { id: 'land', kinds: ['sale'] },
@@ -123,4 +123,20 @@ test('a meaningful change pushes one history entry; settling and follow-on chang
   assert.equal(gate.push('e'), true)
   gate.reset()
   assert.equal(gate.push('f'), false, 'after Back the restored view is only recorded')
+})
+
+test('a pushed entry remembers the view it left, and closing back to that view steps back', () => {
+  let clock = 5000
+  const gate = historyGate(() => clock)
+  gate.step('a')
+  assert.equal(gate.step('b'), 'a')
+  assert.deepEqual(pushedState('a'), { atlasPrev: 'a' })
+  assert.deepEqual(pushedState(null), {})
+  let backs = 0
+  ;(globalThis as { history?: unknown }).history = { back: () => { backs++ }, state: null }
+  assert.equal(backIfReturning('a', { atlasPrev: 'a', __NA: true }), true)
+  assert.equal(backIfReturning('c', { atlasPrev: 'a' }), false, 'closing to another view pushes as usual')
+  assert.equal(backIfReturning('a', null), false)
+  assert.equal(backs, 1)
+  delete (globalThis as { history?: unknown }).history
 })

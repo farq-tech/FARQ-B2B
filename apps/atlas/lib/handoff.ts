@@ -240,14 +240,35 @@ export function historyGate(now: () => number = Date.now) {
     /** Forget the last key: the next write only records where the page is (after Back restored a view). */
     reset() { last = null },
     /** Whether writing `key` should push a new entry. */
-    push(key: string): boolean {
-      const changed = last !== null && key !== last
+    push(key: string): boolean { return this.step(key) !== null },
+    /** The same, answered with the key the new entry leaves behind (kept in the entry, so closing can step back). */
+    step(key: string): string | null {
+      const before = last
+      const changed = before !== null && key !== before
       last = key
-      if (!changed || now() < holdUntil) return false
+      if (!changed || now() < holdUntil) return null
       holdUntil = now() + 400
-      return true
+      return before
     },
   }
+}
+
+/** Where a pushed entry keeps the view it was pushed from (historyGate.step). */
+export const PREV_KEY = 'atlasPrev'
+
+/** The history state for a new entry pushed from the view `prev`. */
+export const pushedState = (prev: string | null) => (prev == null ? {} : { [PREV_KEY]: prev })
+
+/**
+ * Closing something (a listing, a search, a pick) that the entry before already shows without it goes Back instead of
+ * pushing a copy of that entry: one Back, not two, undoes «open then close». `nextKey` is the view after closing.
+ * Answers whether it went Back (the page's own Back handler then restores the view).
+ */
+export function backIfReturning(nextKey: string, state: unknown = globalThis.history?.state): boolean {
+  const prev = state && typeof state === 'object' ? (state as Record<string, unknown>)[PREV_KEY] : undefined
+  if (prev !== nextKey) return false
+  globalThis.history.back()
+  return true
 }
 
 /** The page's own address as a login's `next`, so signing in comes back to the same view. */

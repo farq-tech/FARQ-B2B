@@ -18,7 +18,7 @@ import { LISTING_TYPES, shownPhotos, RENT_DEALS, daysAgo, flattenSimilar, groupS
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
 import { CopyLinkButton } from '@/components/shared/copy-link'
-import { DEFAULT_CITY, districtMapHref, historyGate, priceStartHref, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
+import { DEFAULT_CITY, backIfReturning, districtMapHref, historyGate, pushedState, priceStartHref, readHomesQuery, readListing, rememberView, writeHomesQuery } from '@/lib/handoff'
 import { cn } from '@/lib/utils'
 import { AdvisorPanel } from '../lens/advisor-panel'
 import { useCityData } from '../lens/city-data'
@@ -139,6 +139,10 @@ export function HomesPage() {
     const known = new Set(data.rows.map((row) => row.id))
     setFilters((current) => (current.districts.every((id) => known.has(id)) ? current : { ...current, districts: current.districts.filter((id) => known.has(id)) }))
   }, [data.status, data.rows])
+  // what one history entry of this page shows (lib/handoff.ts historyGate)
+  const homesKey = (listing: string | null | undefined) => JSON.stringify([city, kind, filters.rentDeal, typesKey, districtsKey, listing ?? null])
+  // closing a listing opened from the entry before goes Back to it, so «open, close» is undone by one Back, not two
+  const closeListing = () => { if (!backIfReturning(homesKey(null))) setActive(null) }
   useEffect(() => {
     if (!hydrated) return
     // a listing still waiting for the listings keeps its place in the address
@@ -146,9 +150,9 @@ export function HomesPage() {
     const text = writeHomesQuery({ city, kind, rentDeal: filters.rentDeal, types, districts: filters.districts, listing })
     const next = text ? `?${text}` : ''
     rememberView('/homes', next)
-    const push = gate.push(JSON.stringify([city, kind, filters.rentDeal, typesKey, districtsKey, listing]))
+    const prev = gate.step(homesKey(listing))
     if (next === window.location.search) return
-    if (push) window.history.pushState({}, '', `${window.location.pathname}${next}`)
+    if (prev != null) window.history.pushState(pushedState(prev), '', `${window.location.pathname}${next}`)
     else window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}`)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the ids, not the arrays
   }, [hydrated, city, kind, filters.rentDeal, typesKey, districtsKey, active?.id, listingTick])
@@ -351,7 +355,7 @@ export function HomesPage() {
           <div className="relative h-full min-h-[60vh] overflow-hidden lg:rounded-2xl lg:border">
             <LensMapCanvas features={data.features} steps={NO_STEPS} selected={[]} onToggle={() => {}} listings={dots} focus={focus}
               onListing={(id) => { const listing = byId.get(id); if (listing) { presetListing.current = null; setActive(listing) } }} onBounds={setBounds} />
-            {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={() => setActive(null)}
+            {active && <ListingCard listing={active} comparing={compare.some((item) => item.id === active.id)} onCompare={() => toggleCompare(active)} onClose={closeListing}
               compareCount={compare.length} onCompareNow={() => { setActive(null); setSideBySide(true) }} districtHref={districtMapHref(city, active.district_id)}
               className="bottom-20 max-h-[calc(100%-6rem)] lg:bottom-3 lg:max-h-[85%]" />}
           </div>

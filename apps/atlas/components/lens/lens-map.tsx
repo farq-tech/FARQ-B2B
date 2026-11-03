@@ -21,7 +21,7 @@ import { LensMapCanvas, SHADES, shadeSteps } from './lens-map-canvas'
 import { MapOnboarding } from './map-onboarding'
 import { MoreRows, ResultRow, useShowMore } from './result-row'
 import { readMapOptions, readMapQuery, writeMapOptions, writeMapQuery } from './map-query'
-import { historyGate, rememberView } from '@/lib/handoff'
+import { backIfReturning, historyGate, pushedState, rememberView } from '@/lib/handoff'
 import { HALF, MapSheet, PEEK_PX, type SheetSnap } from './map-sheet'
 import { LENSES, METRICS, METRIC_TABLE, TOOL_INPUTS, lensById, metricAvailability, neededTables, nextStep, stepTables, type LensId, type MetricId, type ToolId } from './lenses'
 import { AroundTool } from './tools/around-tool'
@@ -375,9 +375,9 @@ function writeDone(city: string, done: ToolId[]) {
 // the choices made inside the lens's steps (sort orders, filters, the second activity, the open business), beside the view
 const withOptions = (search: string, lens: LensId) => writeMapOptions(search, lens, lensById(lens).steps.map((step) => step.tool), getSticky)
 /** A new history entry for a change Back should undo (a step, a district, the city, the group, a search). */
-const pushAddress = (search: string) => {
+const pushAddress = (search: string, prev: string | null = null) => {
   if (search === window.location.search) return
-  window.history.pushState({}, '', `${window.location.pathname}${search}${window.location.hash}`)
+  window.history.pushState(pushedState(prev), '', `${window.location.pathname}${search}${window.location.hash}`)
   rememberView('/map', search)
 }
 const replaceAddress = (search: string) => {
@@ -568,6 +568,13 @@ export function LensMap() {
     // flyTo only sets state; it is rebuilt each render and needs no dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.status, data.rows, city])
+  // what one history entry of the map shows (lib/handoff.ts historyGate), as it stands or with a pick or search closed
+  const mapKey = (change: { selected?: string[]; q?: string | null }) =>
+    JSON.stringify([city, lens, tool, change.selected ?? selected, change.q !== undefined ? change.q : search?.q ?? null])
+  // closing a search or a pick that the entry before already shows without it goes Back to that entry, so «open, close»
+  // is undone by one Back, not two
+  const closeSearch = () => { if (!backIfReturning(mapKey({ q: null }))) setSearch(null) }
+  const clearPick = () => { if (!backIfReturning(mapKey({ selected: [] }))) setSelected([]) }
   useEffect(() => {
     if (!hydrated) return
     // a main activity still waiting for its city's list keeps its place in the address
@@ -575,7 +582,8 @@ export function LensMap() {
     const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
     // a second activity still waiting for its name keeps its place too
     const address = presetRival.current ? next : withOptions(next, lens)
-    if (gate.push(JSON.stringify([city, lens, tool, selected, search?.q ?? null]))) pushAddress(address)
+    const prev = gate.step(mapKey({}))
+    if (prev != null) pushAddress(address, prev)
     else replaceAddress(address)
   }, [hydrated, city, lens, tool, selected, search, studied, metric])
   // Back or Forward onto another entry of the map: the view that entry's address names, read like a shared link
@@ -868,7 +876,7 @@ export function LensMap() {
                 placeholder="ابحث عن مورد أو نشاط" className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
               {/* one tap empties the field and closes its results, back to the steps */}
               {(draft || search) && (
-                <button type="button" aria-label="امسح البحث" onClick={() => { setDraft(''); setSearch(null); phoneSearch.current?.focus() }}
+                <button type="button" aria-label="امسح البحث" onClick={() => { setDraft(''); closeSearch(); phoneSearch.current?.focus() }}
                   className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"><X className="size-4" aria-hidden /></button>
               )}
               <button type="submit" aria-label="ابحث" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"><Search className="size-4" aria-hidden /></button>
@@ -948,7 +956,7 @@ export function LensMap() {
             <>
               {search && (
                 <div className="flex flex-col gap-2">
-                  <Chip onClick={() => { focusAfter.current = tabId(tool); setSearch(null) }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
+                  <Chip onClick={() => { focusAfter.current = tabId(tool); closeSearch() }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
                   <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} onLocate={locate} located={located?.id ?? null} />
                 </div>
               )}
@@ -964,7 +972,7 @@ export function LensMap() {
                   )}
                   {/* a tap answers first: the picked district leads, then the step's tool, then the full summary */}
                   {chosen.length > 0 && !['district', 'growth', 'compare', 'around', 'homes'].includes(tool) && (
-                    <PickedStrip chosen={chosen} onClear={() => { focusAfter.current = tabId(tool); setSelected([]) }}
+                    <PickedStrip chosen={chosen} onClear={() => { focusAfter.current = tabId(tool); clearPick() }}
                       onDetails={() => document.getElementById('picked-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
                   )}
                   {/* the open step's tool crossfades as the step changes — a short, gentle swap so the panel reads as one
@@ -995,7 +1003,7 @@ export function LensMap() {
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth' || (selected.length > 0 && tool !== 'around' && tool !== 'homes')) && (
                     <div id="picked-summary" className="scroll-mt-2">
                       <DistrictPanel city={city} cityName={cityName} lens={lens} rows={data.rows} selected={chosen} total={data.total} failed={data.failed} pending={data.pending}
-                        onClear={() => { focusAfter.current = tabId(tool); setSelected([]) }} />
+                        onClear={() => { focusAfter.current = tabId(tool); clearPick() }} />
                     </div>
                   )}
                   {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} onLocate={locate} located={located?.id ?? null} />}
