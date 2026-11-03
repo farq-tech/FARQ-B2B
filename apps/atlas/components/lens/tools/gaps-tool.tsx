@@ -18,6 +18,7 @@ import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
+import { useAnswer } from './use-answer'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
  * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
@@ -54,28 +55,16 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const [query, setQuery] = useState(chosen ? studied.q ?? '' : '')
   // an activity set from elsewhere (a shared link, another step) shows in the box too
   useEffect(() => { if (stickyHas('activity')) setQuery(studied.q ?? '') }, [studied.q])
-  const [result, setResult] = useState<Result | null>(null)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [attempt, setAttempt] = useState(0)
-
-  // the map is painted with the chosen activity; any other activity replaces it
-  useEffect(() => {
-    if (!chosen) { setResult(null); setStatus('idle'); return }
-    let live = true
-    // the previous activity's answer goes at once, so the map never paints it under the new activity's name
-    setResult(null)
-    setStatus('loading')
+  // the map is painted with the chosen activity; any other activity replaces it, and its answer goes at once
+  const answer = useAnswer<Result>(chosen ? `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}` : null, () => {
     const body: Record<string, unknown> = { city, min_population: MIN_POPULATION, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     // a shared link runs this while the page's first heavy requests still hold the service, and the proxy gives up
     // after 12 seconds: one quiet second try after a pause, then the error with «أعد المحاولة»
-    let pause: ReturnType<typeof setTimeout> | undefined
     const load = () => postMarket<Result>('market-gaps', body)
-    load()
-      .catch(() => new Promise<Result>((resolve, reject) => { pause = setTimeout(() => { if (live) load().then(resolve, reject) }, 2000) }))
-      .then((data) => { if (live) { setResult(data); setStatus('idle') } })
-      .catch(() => { if (live) setStatus('error') })
-    return () => { live = false; clearTimeout(pause) }
-  }, [city, studied, chosen, attempt])
+    return load().catch(() => new Promise<Result>((resolve, reject) => { setTimeout(() => { load().then(resolve, reject) }, 2000) }))
+  })
+  const result = answer.data
+  const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
 
   const label = studied.label
   // a city none of whose districts has a population (most small cities today): no activity can be worked out there,
@@ -146,7 +135,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
       {status === 'error' && (
         <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."
-          onRetry={() => setAttempt((value) => value + 1)} />
+          onRetry={answer.retry} />
       )}
       {/* the shape of the answer while it is worked out: district rows, each with its bar line */}
       {status === 'loading' && <ResultRowsSkeleton rows={5} sub label="جارٍ حساب النقص" />}
@@ -166,7 +155,7 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
           </p>
           {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
           {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}
-          <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
+          <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto" aria-label="الأحياء الأكثر نقصاً">
             {gaps.slice(0, limit).map((row, index) => {
               const id = ids.get(row.district_ar)
               const need = Math.round(row.expected_businesses)

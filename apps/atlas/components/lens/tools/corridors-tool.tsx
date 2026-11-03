@@ -19,6 +19,8 @@ import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import type { Overlay } from './overlay'
 import { useMainActivities } from '@/lib/main-activities'
 import { StreetOpportunities } from './street-opportunities'
+import { useAnswer } from './use-answer'
+import { Choice } from './choice'
 
 type Corridor = {
   sub_ar: string; street_ar: string; district_ar: string; /** Absent from a service older than the road-network corridors. */ districts_ar?: string[]; n: number; n_wholesale: number
@@ -50,31 +52,18 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
   const activities = useMainActivities(city)
   const [studied, setStudied] = useStudiedActivity()
   const [query, setQuery] = useState(studied.q ?? '')
-  const [result, setResult] = useState<Result | null>(null)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [active, setActive] = useState<number | null>(null)
-  // «أعد المحاولة» asks again for the streets, or for the picked street's units
-  const [attempt, setAttempt] = useState(0)
-  const [unitsAttempt, setUnitsAttempt] = useState(0)
-  const [units, setUnits] = useState<Units | null>(null)
   const [unit, setUnit] = useState<Unit | null>(null)
   const [focus, setFocus] = useState<{ lon: number; lat: number } | null>(null)
   // «أين يتجمع» lists the streets the activity lines; «أين الفرصة» the busy streets that lack it (street-opportunities.tsx)
   const [mode, setMode] = useState<'cluster' | 'gap'>('cluster')
 
-  useEffect(() => {
-    let live = true
-    setStatus('loading')
-    setActive(null)
-    // drop the last query's streets now, so the map never shows them beside the skeleton of a different query
-    setResult(null)
-    postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) })
-      .then((data) => { if (live) { setResult(data); setStatus('idle') } })
-      .catch(() => { if (live) setStatus('error') })
-    return () => { live = false }
-    // keyed by what is asked: the same activity set again (a step, a shared link) asks nothing again
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, studied.q, studied.main_id, attempt])
+  // the streets of one activity; a new activity clears the last one's streets at once, and its picked street with them
+  const streetsKey = `${city}|${studied.q ?? ''}|${studied.main_id ?? ''}`
+  const answer = useAnswer<Result>(streetsKey, () => postMarket<Result>('street-density', { city, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }))
+  const result = answer.data
+  const status = answer.status === 'loading' ? 'loading' : answer.status === 'error' ? 'error' : 'idle'
+  useEffect(() => { setActive(null) }, [streetsKey])
 
   const corridors = useMemo(() => result?.features ?? [], [result])
   const colors = useMemo(() => {
@@ -88,23 +77,19 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
 
   // the units for rent or sale along the picked street, nearest to it first
   const picked = active != null ? corridors[active] ?? null : null
-  useEffect(() => {
-    setUnit(null)
-    setFocus(null)
-    if (!picked) { setUnits(null); return }
-    let live = true
-    setUnits({ status: 'loading', available: true, total: 0, listings: [] })
-    postMarket<{ available?: boolean; total?: number; listings?: Unit[]; rent_summary?: RentSummary }>('real-estate-listings', {
-      city, types: UNIT_TYPES, near: { geometry: picked.geometry, meters: UNIT_METERS }, limit: 200,
-    })
-      .then((data) => {
-        if (!live) return
-        const listings = (data.listings ?? []).filter(isPublishable)
-        setUnits({ status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings, rent: data.rent_summary })
-      })
-      .catch(() => { if (live) setUnits({ status: 'error', available: true, total: 0, listings: [] }) })
-    return () => { live = false }
-  }, [city, picked, unitsAttempt])
+  // keyed by the street picked (its place in this answer), not by the feature object
+  const unitsAnswer = useAnswer<Units>(picked ? `${streetsKey}|${active}` : null, () => postMarket<{ available?: boolean; total?: number; listings?: Unit[]; rent_summary?: RentSummary }>('real-estate-listings', {
+    city, types: UNIT_TYPES, near: { geometry: picked!.geometry, meters: UNIT_METERS }, limit: 200,
+  }).then((data): Units => {
+    const listings = (data.listings ?? []).filter(isPublishable)
+    return { status: 'ready', available: data.available !== false, total: Math.max(data.total ?? 0, listings.length), listings, rent: data.rent_summary }
+  }))
+  // one object per answer, so the map's overlay is not handed a new one on every render
+  const hasPicked = picked != null
+  const units = useMemo<Units | null>(() => (!hasPicked ? null
+    : unitsAnswer.status === 'ready' && unitsAnswer.data ? unitsAnswer.data
+      : { status: unitsAnswer.status === 'error' ? 'error' : 'loading', available: true, total: 0, listings: [] }), [hasPicked, unitsAnswer.status, unitsAnswer.data])
+  useEffect(() => { setUnit(null); setFocus(null) }, [streetsKey, active])
 
   const clusters = useMemo(() => corridors.map((item) => ({ geometry: item.geometry, street_ar: item.properties.street_ar })), [corridors])
 
@@ -158,14 +143,9 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
             className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', studied.q === example ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="طريقة العرض">
-        {([['cluster', 'أين يتجمع'], ['gap', 'أين الفرصة']] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setMode(key)} aria-pressed={mode === key}
-            className={cn('h-10 rounded-md text-base font-semibold', mode === key ? 'bg-primary text-primary-foreground' : 'hover:text-primary')}>{label}</button>
-        ))}
-      </div>
+      <Choice label="طريقة العرض" size="base" value={mode} onChange={setMode} options={[{ id: 'cluster', label: 'أين يتجمع' }, { id: 'gap', label: 'أين الفرصة' }]} />
       {mode === 'gap' && <StreetOpportunities city={city} studied={studied} clusters={clusters} onOverlay={onOverlay} />}
-      {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={() => setAttempt((n) => n + 1)} />}
+      {mode === 'cluster' && status === 'error' && <LoadError what="الشوارع" onRetry={answer.retry} />}
       {mode === 'cluster' && status === 'idle' && result?.understood === false && <NoResult title={`لم نتعرف على «${studied.label}»`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
       {mode === 'cluster' && status === 'idle' && result && result.understood !== false && !corridors.length && (
         <NoResult title={`لا شارع يتجمع فيه «${studied.label}»`} body="يُحسب الشارع حين يكون عليه 5 محلات أو أكثر من النشاط. جرّب نشاطاً آخر أو «أين الفرصة»." />
@@ -179,7 +159,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
       {mode === 'cluster' && status !== 'loading' && corridors.length > 0 && (
         <>
           <p className="text-base">{counted(corridors.length, 'street')} يتجمع {corridors.length === 1 ? 'فيه' : 'فيها'} «{studied.label}»، مرتبة بعدد المحلات. اضغط شارعاً لتراه كاملاً على الخريطة.</p>
-          <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">
+          <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto">
             {corridors.slice(0, visible).map(({ properties: corridor }, index) => (
               <ResultRow key={index} id={`corridor-${index}`} active={index === active} onClick={() => setActive(index)}
                 leading={<span className="h-3 w-5 shrink-0 rounded-sm" style={{ background: colors[index] }} aria-hidden />}
@@ -196,7 +176,7 @@ export function CorridorsTool({ city, onOverlay }: { city: string; onOverlay: (o
             ))}
           </ol>
           <MoreRows shown={Math.min(visible, corridors.length)} total={corridors.length} noun="street" onMore={showMore} />
-          {picked && units && <StreetUnits street={picked.properties.street_ar} units={units} onRetry={() => setUnitsAttempt((n) => n + 1)} onOpen={(item) => { setUnit(item); setFocus({ lon: item.lon, lat: item.lat }) }} />}
+          {picked && units && <StreetUnits street={picked.properties.street_ar} units={units} onRetry={unitsAnswer.retry} onOpen={(item) => { setUnit(item); setFocus({ lon: item.lon, lat: item.lat }) }} />}
         </>
       )}
     </section>
