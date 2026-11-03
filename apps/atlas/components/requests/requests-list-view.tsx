@@ -7,8 +7,7 @@ import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { cityById } from '@/lib/mock-data'
-import { STATUS_LABEL, formatDate, nextStep, statusLabel } from '@/lib/format'
+import { STATUS_LABEL, cityOf, formatDate, nextStep, statusLabel } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { normalizeArabic } from '@/lib/search'
 import { useAppStore } from '@/lib/store'
@@ -93,6 +92,7 @@ export function RequestsListView() {
           {visible.map((r) => {
             const replies = inbox.filter((m) => m.requestId === r.id)
             const unread = replies.filter((m) => m.unread).length
+            const next = nextStep(r.status, r.type)
             return (
               <li key={r.id}>
                 <Link
@@ -105,9 +105,10 @@ export function RequestsListView() {
                       <StatusBadge status={r.status} label={statusLabel(r.status, r.type)} />
                     </div>
                     <h2 className="truncate font-semibold">{r.title}</h2>
-                    {nextStep(r.status, r.type) && <p className="text-sm font-medium text-primary">الخطوة التالية: {nextStep(r.status, r.type)}</p>}
+                    {next && <p className="text-sm font-medium text-primary">الخطوة التالية: {next}</p>}
                     <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                      <span>{cityById.get(r.cityId)?.name}</span>
+                      {/* a request saved from a city no longer listed still says where it was, never an empty gap */}
+                      <span>{cityOf(r) ?? 'المدينة غير متاحة'}</span>
                       <span>{counted(r.businessIds.length, 'business')}</span>
                       {replies.length ? (
                         <span className={cn(unread && 'font-semibold text-primary')}>

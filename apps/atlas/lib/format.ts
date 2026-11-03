@@ -1,4 +1,5 @@
-import type { RequestStatus, RequestType } from './types'
+import { cityById } from './mock-data'
+import type { RequestItem, RequestStatus, RequestType } from './types'
 
 const dateFmt = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
   day: 'numeric',
@@ -79,3 +80,6 @@ export function statusLabel(status: RequestStatus, type: RequestType): string {
 export function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
+
+/** The city a request was made in, in Arabic: the name saved with it, else the sample list's; undefined when neither knows it. */
+export const cityOf = (request: Pick<RequestItem, 'cityId' | 'cityName'>): string | undefined => request.cityName ?? cityById.get(request.cityId)?.name

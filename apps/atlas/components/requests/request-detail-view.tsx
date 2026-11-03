@@ -7,8 +7,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/shared/modal'
 import { Button } from '@/components/ui/button'
-import { TEMPLATES, businessById, cityById } from '@/lib/mock-data'
-import { formatDate, formatDateTime, nextStep, statusLabel } from '@/lib/format'
+import { TEMPLATES, businessById } from '@/lib/mock-data'
+import { cityOf, formatDate, formatDateTime, nextStep, statusLabel } from '@/lib/format'
 import { counted, numberFormat } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
@@ -116,7 +116,7 @@ export function RequestDetailView({ id }: { id: string }) {
         )}
         <p className="text-sm text-muted-foreground">
           <span className="font-semibold text-foreground">في القائمة: {counted(request.businessIds.length, 'business')}</span>
-          {cityById.get(request.cityId)?.name ? ` في ${cityById.get(request.cityId)?.name}` : ''} · أنشئ {formatDate(request.createdAt)}
+          {cityOf(request) ? ` في ${cityOf(request)}` : ''} · أنشئ {formatDate(request.createdAt)}
           {request.query ? ` · من البحث: «${request.query}»` : ''}
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

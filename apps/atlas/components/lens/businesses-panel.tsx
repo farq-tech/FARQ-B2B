@@ -7,7 +7,7 @@ import { ChevronDown, ClipboardList, ListPlus, Loader2, Megaphone, Search, Searc
 import { EmptyState, NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { toast } from 'sonner'
-import { counted, numberFormat } from '@/lib/insights-api'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import type { PublicDirectoryEntity } from '@/lib/live-directory'
 import { BusinessDetail } from './business-detail'
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton'
@@ -29,6 +29,7 @@ const MAX_DISTRICTS = 5
  */
 export function BusinessesPanel({ city, districts, query }: { city: string; districts: string[]; query?: string }) {
   const router = useRouter()
+  const cities = useCities()
   const { createDraft } = useAppStore()
   const [activity, setActivity] = useState(query ?? '')
   // the activity studied in the other steps, offered as a one-tap start before anything is shown
@@ -107,6 +108,7 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
       type,
       businessIds: ids,
       cityId: city.toLowerCase(),
+      cityName: cities.find((item) => item.en === city)?.ar ?? undefined,
       query: activity.trim() || undefined,
       categoryHint: activity.trim() || undefined,
       districtHint: districts.length === 1 ? districts[0] : undefined,
