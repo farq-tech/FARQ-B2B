@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { REMEMBERED, lastView, loginHref } from '@/lib/handoff'
 import { SignInLink } from '@/components/shared/sign-in-link'
 import { WhatsNew } from '@/components/shared/whats-new'
+import { ReplyNotice } from '@/components/inbox/reply-notice'
 import { buttonVariants } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
@@ -18,6 +19,8 @@ interface NavItem {
   label: string
   icon: LucideIcon
   count?: number
+  /** What the count is, for a screen reader («3 غير مقروءة»): the badge alone is only a number. */
+  countLabel?: string
 }
 
 type SessionUser = { email: string | null; displayName: string | null }
@@ -83,8 +86,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const items: NavItem[] = [
     { href: views['/map'] ?? '/map', label: 'الخريطة', icon: MapIcon },
     { href: views['/homes'] ?? '/homes', label: 'العقار', icon: House },
-    { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision },
-    { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread },
+    { href: '/requests', label: 'الطلبات', icon: ClipboardList, count: needsDecision, countLabel: 'بانتظار قرارك' },
+    { href: '/inbox', label: 'الوارد', icon: Inbox, count: unread, countLabel: 'غير مقروءة' },
   ]
   const isActive = (href: string) => { const path = href.split('?')[0]; return pathname === path || pathname.startsWith(`${path}/`) }
 
@@ -111,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <item.icon className={cn('size-[17px]', active && 'text-primary')} aria-hidden />
                 {item.label}
-                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{badge(item.count)}</span> : null}
+                {item.count ? <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-xs font-bold leading-5 text-primary-foreground">{badge(item.count)}<span className="sr-only"> {item.countLabel}</span></span> : null}
               </Link>
             )
           })}
@@ -149,6 +152,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <WhatsNew onMap={pathname === '/map'} />
+      <ReplyNotice />
 
       <nav aria-label="التنقل الرئيسي" className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         {items.map((item) => {
@@ -163,7 +167,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {/* the open page is marked by shape as well as colour: a filled pill behind its icon, its label bold */}
               <span className={cn('relative grid h-7 w-14 place-items-center rounded-full transition-colors', active ? 'bg-secondary text-primary' : 'text-current')}>
                 <item.icon className="size-5" strokeWidth={active ? 2.4 : 2} aria-hidden />
-                {item.count ? <span className="absolute -top-1.5 end-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}</span> : null}
+                {item.count ? <span className="absolute -top-1.5 end-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-xs leading-4 text-primary-foreground">{badge(item.count)}<span className="sr-only"> {item.countLabel}</span></span> : null}
               </span>
               {item.label}
             </Link>

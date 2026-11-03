@@ -183,5 +183,79 @@ class LinkingTests(Base):
         self.assertTrue(self.store.record_outbound('wamid.X', 'acct-1', 'cmp-1', 'poi:1', NUMBER))
 
 
+class ReadStateTests(Base):
+    def test_read_state_is_kept_per_account_and_cannot_touch_another_account(self):
+        self.store.record_outbound('wamid.OUT1', 'org-1', 'cmp-1', 'poi:1', NUMBER, sent_at=T0, sender_id='user-1')
+        self.store.record_outbound('wamid.OUT2', 'org-2', 'cmp-2', 'poi:2', OTHER, sent_at=T0)
+        self.post(body([text('wamid.IN1'), text('wamid.IN2', sender=OTHER)]))
+        self.assertEqual([m['read'] for m in self.store.feed('org-1')['messages']], [False])
+        self.assertEqual(self.store.set_read('org-1', ['wamid.IN1', 'wamid.IN2']), 1, "org-2's reply is not org-1's to mark")
+        self.assertTrue(self.store.feed('org-1')['messages'][0]['read'])
+        self.assertFalse(self.store.feed('org-2')['messages'][0]['read'])
+        self.assertEqual(self.store.set_read('org-1', ['wamid.IN1'], read=False), 1)
+        self.assertFalse(self.store.feed('org-1')['messages'][0]['read'])
+        self.assertEqual(self.store.set_read('bad id!', ['wamid.IN1']), 0)
+        self.assertEqual(self.store.set_read('org-1', ["x' or '1'='1"]), 0)
+        self.assertEqual(self.store.set_read('org-1', 'wamid.IN1'), 0, 'ids must be a list')
+
+    def test_a_person_reads_their_organisation_and_their_own_fallback_account_together(self):
+        self.store.record_outbound('wamid.OUT1', 'org-1', 'cmp-1', 'poi:1', NUMBER, sent_at=T0)
+        self.store.record_outbound('wamid.OUT2', 'user-7', 'cmp-2', 'poi:2', OTHER, sent_at=T0)
+        self.post(body([text('wamid.IN1'), text('wamid.IN2', sender=OTHER)]))
+        self.assertEqual(sorted(m['id'] for m in self.store.feed(['org-1', 'user-7'])['messages']), ['wamid.IN1', 'wamid.IN2'])
+        self.assertEqual(self.store.set_read(['org-1', 'user-7'], ['wamid.IN1', 'wamid.IN2']), 2)
+        self.assertEqual(self.store.feed(['bad id!']), {'messages': [], 'deliveries': []})
+
+    def test_deliveries_report_the_newest_message_per_recipient(self):
+        self.store.record_outbound('wamid.OLD', 'org-1', 'cmp-1', 'poi:1', NUMBER, sent_at=T0 - 100)
+        self.store.record_outbound('wamid.NEW', 'org-1', 'cmp-1', 'poi:1', NUMBER, sent_at=T0)
+        self.post(body(statuses=[{'id': 'wamid.OLD', 'status': 'read', 'timestamp': str(T0)}]))
+        self.assertEqual([(d['poiKey'], d['status']) for d in self.store.feed('org-1')['deliveries']], [('poi:1', 'sent')])
+
+    def test_a_store_from_the_first_release_gains_the_new_columns(self):
+        import sqlite3
+        path = os.path.join(self.dir.name, 'old.sqlite3')
+        con = sqlite3.connect(path)
+        con.executescript(wa_inbox.SCHEMA.replace(',\n  sender_id text', '').replace(',\n  read_at integer,\n  reviewed_at integer,\n  reviewed_by text', ''))
+        con.execute("insert into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values ('wamid.O','org-1','cmp-1','poi:1',?,?)", (NUMBER, T0))
+        con.commit(); con.close()
+        store = wa_inbox.InboxStore(path)
+        raw = body([text('wamid.IN1')])
+        self.assertEqual(wa_inbox.handle_post(raw, sign(raw), SECRET, store, PHONE_ID)[0], 200)
+        self.assertEqual(store.set_read('org-1', ['wamid.IN1']), 1)
+        self.assertTrue(store.feed('org-1')['messages'][0]['read'])
+
+
+class OwnerReviewTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.store.record_outbound('wamid.OLD', 'org-2', 'cmp-old', 'poi:1', NUMBER, sent_at=T0 - 60 * 86400)
+        self.store.record_outbound('wamid.ELSE', 'org-3', 'cmp-else', 'poi:2', OTHER, sent_at=T0)
+        self.post(body([text('wamid.IN1'), text('wamid.IN2', sender='966500000009')]))
+
+    def test_the_review_list_masks_the_number_and_offers_only_messages_sent_to_it(self):
+        listed = {m['id']: m for m in self.store.unlinked()}
+        self.assertEqual(set(listed), {'wamid.IN1', 'wamid.IN2'})
+        self.assertEqual(listed['wamid.IN1']['from'], '9665****01')
+        self.assertEqual([c['outboundId'] for c in listed['wamid.IN1']['candidates']], ['wamid.OLD'])
+        self.assertEqual(listed['wamid.IN2']['candidates'], [])
+        self.assertNotIn(NUMBER, json.dumps(listed))
+
+    def test_attach_places_a_reply_only_on_a_message_sent_to_the_same_number(self):
+        self.assertFalse(self.store.attach('wamid.IN1', 'wamid.ELSE', 'owner-1'), 'another number: refused')
+        self.assertFalse(self.store.attach('wamid.IN1', 'wamid.NOPE', 'owner-1'))
+        self.assertTrue(self.store.attach('wamid.IN1', 'wamid.OLD', 'owner-1'))
+        [message] = self.store.feed('org-2')['messages']
+        self.assertEqual((message['requestId'], message['poiKey'], message['link']), ('cmp-old', 'poi:1', 'manual'))
+        self.assertFalse(self.store.attach('wamid.IN1', 'wamid.OLD', 'owner-1'), 'only an unlinked reply can be placed')
+        self.assertEqual([m['id'] for m in self.store.unlinked()], ['wamid.IN2'])
+
+    def test_dismiss_takes_a_reply_off_the_list_and_out_of_every_inbox(self):
+        self.assertTrue(self.store.dismiss('wamid.IN2', 'owner-1'))
+        self.assertFalse(self.store.dismiss('wamid.IN2', 'owner-1'))
+        self.assertEqual([m['id'] for m in self.store.unlinked()], ['wamid.IN1'])
+        self.assertFalse(self.store.attach('wamid.IN2', 'wamid.OLD', 'owner-1'))
+
+
 if __name__ == '__main__':
     unittest.main()

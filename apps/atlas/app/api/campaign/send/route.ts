@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTrustedAtlasRequest } from '@/lib/same-origin'
-import { inboxAccount, isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
+import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
+import { accountsFor } from '@/lib/inbox-account'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -72,12 +73,14 @@ export async function POST(request: NextRequest) {
   const headers = targetingHeaders()
   if (!origin || !headers) return error('خدمة الإرسال عبر واتساب غير مهيأة.', 503)
 
+  // the organisation a reply to this message is filed under, so the team reads it (lib/inbox-account.ts)
+  const accounts = await accountsFor(auth.session)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 45_000)
   try {
     const upstream = await fetch(`${origin}/send-template`, {
       method: 'POST', headers,
-      body: JSON.stringify({ poi_key: poiKey, message, template: 'farq_outreach_ar', atlas_campaign: true, account_id: inboxAccount(auth.session), request_id: requestId }),
+      body: JSON.stringify({ poi_key: poiKey, message, template: 'farq_outreach_ar', atlas_campaign: true, account_id: accounts.send, sender_id: accounts.sender, request_id: requestId }),
       cache: 'no-store', signal: controller.signal,
     })
     const payload = await upstream.json().catch(() => null) as { ok?: unknown; message_id?: unknown; error?: unknown; code?: unknown } | null

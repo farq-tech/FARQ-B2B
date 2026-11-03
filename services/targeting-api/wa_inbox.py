@@ -12,7 +12,12 @@ is received and tied back to the campaign it answers:
 * A reply is linked to the outbound message it quotes (``context.id``) when it quotes one, else to the most recent
   campaign message sent to the same number within ``LINK_WINDOW_DAYS``; otherwise it is kept as unlinked and nobody's
   inbox shows it.
-* ``feed`` returns one account's messages with the request and poi_key they answer. Numbers never leave the service.
+* ``feed`` returns one account's messages with the request and poi_key they answer, whether the account has read
+  each one (``set_read``, so the state follows the person across devices), and the delivery state of its campaign
+  messages. The account is the Farq organisation the Atlas server names; ``sender_id`` keeps the person who sent.
+* ``unlinked`` / ``attach`` / ``dismiss`` let a Farq owner place a reply nobody could be matched to, but only onto a
+  campaign message that was sent to the same number (never onto an arbitrary account). Numbers leave the service only
+  masked, and only on that owner review.
 
 Storage is one SQLite file on the service's existing data volume (``FARQ_TARGETING_RUNTIME_DIR``), next to the send
 logs the service already keeps there: standard library only, no new server or vendor. Nothing here calls Meta.
@@ -48,7 +53,8 @@ create table if not exists wa_outbound (
   wa_id text not null,
   sent_at integer not null,
   status text not null default 'sent',
-  status_at integer
+  status_at integer,
+  sender_id text
 );
 create index if not exists wa_outbound_by_number on wa_outbound (wa_id, sent_at desc);
 create index if not exists wa_outbound_by_account on wa_outbound (account_id, sent_at desc);
@@ -63,10 +69,21 @@ create table if not exists wa_inbound (
   kind text not null,
   body text not null,
   received_at integer not null,
-  stored_at integer not null
+  stored_at integer not null,
+  read_at integer,
+  reviewed_at integer,
+  reviewed_by text
 );
 create index if not exists wa_inbound_by_account on wa_inbound (account_id, received_at desc);
+create index if not exists wa_inbound_by_link on wa_inbound (link, received_at desc);
+create table if not exists wa_source_cursor (
+  source text primary key,
+  value text not null,
+  updated_at integer not null
+);
 """
+# columns added after the first release of the file: added in place to a store created before them
+LATER_COLUMNS = {'wa_outbound': {'sender_id': 'text'}, 'wa_inbound': {'read_at': 'integer', 'reviewed_at': 'integer', 'reviewed_by': 'text'}}
 
 
 def digits(value) -> str:
@@ -76,6 +93,21 @@ def digits(value) -> str:
 
 def valid_id(value) -> bool:
     return isinstance(value, str) and bool(ID_RE.match(value))
+
+
+def mask(number) -> str:
+    d = digits(number)
+    return (d[:4] + '****' + d[-2:]) if len(d) >= 8 else '****'
+
+
+def accounts_of(value) -> list:
+    """One account id or a few (an organisation and its sender's own fallback account), each checked; at most 4."""
+    values = [value] if isinstance(value, str) else list(value or []) if isinstance(value, (list, tuple)) else []
+    return list(dict.fromkeys(v for v in values if valid_id(v)))[:4]
+
+
+def iso(seconds) -> str:
+    return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(int(seconds)))
 
 
 # ── signature and subscription ────────────────────────────────────────────────────────────────────────────────────────
@@ -196,13 +228,18 @@ class InboxStore:
                 if not self._ready:
                     con.execute('pragma journal_mode=wal')
                     con.executescript(SCHEMA)
+                    for table, columns in LATER_COLUMNS.items():
+                        have = {row[1] for row in con.execute(f'pragma table_info({table})')}
+                        for name, kind in columns.items():
+                            if name not in have:
+                                con.execute(f'alter table {table} add column {name} {kind}')
                     self._ready = True
                 with con:
                     yield con
             finally:
                 con.close()
 
-    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None) -> bool:
+    def record_outbound(self, message_id, account_id, request_id, poi_key, to, sent_at=None, sender_id=None) -> bool:
         """Remember one campaign message we sent, so its reply can be linked back. Returns False when an id is not
         usable (nothing stored); a repeated message id keeps the first record."""
         number = digits(to)
@@ -210,8 +247,8 @@ class InboxStore:
                 and isinstance(poi_key, str) and 1 <= len(poi_key) <= 200 and 8 <= len(number) <= 15):
             return False
         with self._connect() as con:
-            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at) values (?,?,?,?,?,?)',
-                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time())))
+            con.execute('insert or ignore into wa_outbound (message_id, account_id, request_id, poi_key, wa_id, sent_at, sender_id) values (?,?,?,?,?,?,?)',
+                        (message_id, account_id, request_id, poi_key, number, int(sent_at or time.time()), sender_id if valid_id(sender_id) else None))
         return True
 
     def _link(self, con, message):
@@ -226,7 +263,13 @@ class InboxStore:
         return (row, 'recent') if row else (None, 'unlinked')
 
     def ingest(self, payload: dict, phone_number_id: str | None = None, now: int | None = None) -> dict:
+        """One webhook body: its messages and its status updates."""
         messages, statuses = parse_events(payload, phone_number_id)
+        return self.ingest_events(messages, statuses, now)
+
+    def ingest_events(self, messages: list, statuses: list, now: int | None = None) -> dict:
+        """Incoming messages ({message_id, wa_id, kind, body, received_at, context_id}) and status updates
+        ({message_id, status, at}) from any source: each message once by its id, statuses forward only."""
         result = {'new': 0, 'duplicate': 0, 'unlinked': 0, 'statuses': 0}
         stored_at = int(now or time.time())
         with self._connect() as con:
@@ -254,22 +297,103 @@ class InboxStore:
                     result['statuses'] += 1
         return result
 
-    def feed(self, account_id: str, since: int | None = None, limit: int = 200) -> dict:
-        """One account's linked replies (newest first) and the delivery status of its campaign messages. No numbers."""
-        if not valid_id(account_id):
+    def known_numbers(self, numbers) -> set:
+        """Which of these numbers an Atlas campaign message was sent to. A message from any other number is not a
+        reply to Atlas, so a second source (the construction inbox) does not bring it in at all."""
+        wanted = sorted({digits(n) for n in numbers if 8 <= len(digits(n)) <= 15})
+        found = set()
+        with self._connect() as con:
+            for start in range(0, len(wanted), 200):
+                chunk = wanted[start:start + 200]
+                found.update(r[0] for r in con.execute(f"select distinct wa_id from wa_outbound where wa_id in ({','.join('?' * len(chunk))})", chunk))
+        return found
+
+    def open_outbound_ids(self, since: int, limit: int = 2000) -> list:
+        """Campaign messages sent since `since` whose delivery is not final yet (not read, not failed)."""
+        with self._connect() as con:
+            return [r[0] for r in con.execute("select message_id from wa_outbound where sent_at>=? and status not in ('read','failed') "
+                                              'order by sent_at desc limit ?', (int(since), int(limit)))]
+
+    def cursor(self, source: str) -> str | None:
+        with self._connect() as con:
+            row = con.execute('select value from wa_source_cursor where source=?', (source,)).fetchone()
+        return row[0] if row else None
+
+    def set_cursor(self, source: str, value: str, now: int | None = None) -> None:
+        with self._connect() as con:
+            con.execute('insert into wa_source_cursor (source, value, updated_at) values (?,?,?) '
+                        'on conflict(source) do update set value=excluded.value, updated_at=excluded.updated_at', (source, value, int(now or time.time())))
+
+    def feed(self, account_id, since: int | None = None, limit: int = 200) -> dict:
+        """One account's linked replies (newest first) and the delivery status of its campaign messages. No numbers.
+        `account_id` may list a few accounts of the same person (accounts_of)."""
+        accounts = accounts_of(account_id)
+        if not accounts:
             return {'messages': [], 'deliveries': []}
         limit = max(1, min(int(limit), 500))
+        marks = ','.join('?' * len(accounts))
         with self._connect() as con:
-            rows = con.execute('select message_id, request_id, poi_key, kind, body, received_at, link from wa_inbound '
-                               'where account_id=? and received_at>=? order by received_at desc, rowid desc limit ?',
-                               (account_id, int(since or 0), limit)).fetchall()
-            deliveries = con.execute('select request_id, poi_key, status, coalesce(status_at, sent_at) from wa_outbound '
-                                     'where account_id=? order by sent_at desc limit 1000', (account_id,)).fetchall()
-        iso = lambda seconds: time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(seconds))
+            rows = con.execute('select message_id, request_id, poi_key, kind, body, received_at, link, read_at from wa_inbound '
+                               f'where account_id in ({marks}) and received_at>=? order by received_at desc, rowid desc limit ?',
+                               (*accounts, int(since or 0), limit)).fetchall()
+            # the newest message per recipient of each request: its delivery state is the recipient's
+            deliveries = con.execute('select request_id, poi_key, status, coalesce(status_at, sent_at) from wa_outbound o '
+                                     f'where account_id in ({marks}) and sent_at = (select max(sent_at) from wa_outbound i where i.account_id=o.account_id '
+                                     'and i.request_id=o.request_id and i.poi_key=o.poi_key) order by sent_at desc limit 1000', accounts).fetchall()
         return {
-            'messages': [{'id': r[0], 'requestId': r[1], 'poiKey': r[2], 'kind': r[3], 'body': r[4], 'receivedAt': iso(r[5]), 'link': r[6]} for r in rows],
+            'messages': [{'id': r[0], 'requestId': r[1], 'poiKey': r[2], 'kind': r[3], 'body': r[4], 'receivedAt': iso(r[5]), 'link': r[6], 'read': r[7] is not None} for r in rows],
             'deliveries': [{'requestId': r[0], 'poiKey': r[1], 'status': r[2], 'at': iso(r[3])} for r in deliveries],
         }
+
+    def set_read(self, account_id, message_ids, read: bool = True, now: int | None = None) -> int:
+        """Marks the account's own replies read (or unread again). Ids of another account's replies change nothing."""
+        ids = [i for i in (message_ids or []) if isinstance(i, str) and MESSAGE_ID_RE.match(i)][:200] if isinstance(message_ids, list) else []
+        accounts = accounts_of(account_id)
+        if not accounts or not ids:
+            return 0
+        with self._connect() as con:
+            cursor = con.execute(f"update wa_inbound set read_at=? where account_id in ({','.join('?' * len(accounts))}) and message_id in ({','.join('?' * len(ids))})",
+                                 (int(now or time.time()) if read else None, *accounts, *ids))
+            return cursor.rowcount
+
+    # ── owner review of replies nobody could be matched to ────────────────────────────────────────────────────────
+
+    def unlinked(self, limit: int = 100) -> list:
+        """Unlinked replies, newest first, each with the campaign messages sent to the same number (any age, any
+        account) that it could be placed on. The number is masked; the caller adds business names from the directory."""
+        limit = max(1, min(int(limit), 200))
+        with self._connect() as con:
+            rows = con.execute('select message_id, wa_id, kind, body, received_at from wa_inbound where link=? '
+                               'order by received_at desc, rowid desc limit ?', ('unlinked', limit)).fetchall()
+            out = []
+            for message_id, wa_id, kind, body, received_at in rows:
+                candidates = con.execute('select message_id, account_id, request_id, poi_key, sent_at from wa_outbound where wa_id=? '
+                                         'order by sent_at desc limit 5', (wa_id,)).fetchall()
+                out.append({'id': message_id, 'from': mask(wa_id), 'kind': kind, 'body': body, 'receivedAt': iso(received_at),
+                            'candidates': [{'outboundId': c[0], 'accountId': c[1], 'requestId': c[2], 'poiKey': c[3], 'sentAt': iso(c[4])} for c in candidates]})
+        return out
+
+    def attach(self, message_id: str, outbound_id: str, reviewer: str, now: int | None = None) -> bool:
+        """Places an unlinked reply on a campaign message sent to the same number. Anything else is refused."""
+        if not (MESSAGE_ID_RE.match(str(message_id or '')) and MESSAGE_ID_RE.match(str(outbound_id or '')) and valid_id(reviewer)):
+            return False
+        with self._connect() as con:
+            row = con.execute('select o.message_id, o.account_id, o.request_id, o.poi_key from wa_inbound i join wa_outbound o on o.wa_id=i.wa_id '
+                              'where i.message_id=? and i.link=? and o.message_id=?', (message_id, 'unlinked', outbound_id)).fetchone()
+            if not row:
+                return False
+            con.execute('update wa_inbound set outbound_id=?, account_id=?, request_id=?, poi_key=?, link=?, reviewed_at=?, reviewed_by=? where message_id=?',
+                        (row[0], row[1], row[2], row[3], 'manual', int(now or time.time()), reviewer, message_id))
+        return True
+
+    def dismiss(self, message_id: str, reviewer: str, now: int | None = None) -> bool:
+        """Takes an unlinked reply off the review list; it stays stored and stays in nobody's inbox."""
+        if not (MESSAGE_ID_RE.match(str(message_id or '')) and valid_id(reviewer)):
+            return False
+        with self._connect() as con:
+            cursor = con.execute('update wa_inbound set link=?, reviewed_at=?, reviewed_by=? where message_id=? and link=?',
+                                 ('dismissed', int(now or time.time()), reviewer, message_id, 'unlinked'))
+            return cursor.rowcount == 1
 
 
 # ── the webhook request ───────────────────────────────────────────────────────────────────────────────────────────────

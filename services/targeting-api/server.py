@@ -859,6 +859,30 @@ WA_GRAPH = 'https://graph.facebook.com/v23.0'
 WA_APP_SECRET = os.environ.get('WHATSAPP_APP_SECRET'); WA_VERIFY_TOKEN = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
 INBOX = wa_inbox.InboxStore(os.path.join(RUNTIME_DIR, 'wa_inbox.sqlite3'))
 WEBHOOK_PATH = '/whatsapp/webhook'
+# Where incoming replies come from. `construction_db` (default): the construction API owns this number's Meta webhook
+# and stores every reply; they are read from its database, read only (wa_construction_source.py). `webhook`: Meta posts
+# to /whatsapp/webhook here instead (only if this service owns the callback). The webhook routes answer 404 otherwise.
+INBOX_SOURCE = (os.environ.get('FARQ_INBOX_SOURCE') or 'construction_db').strip().lower()
+def webhook_enabled(): return INBOX_SOURCE == 'webhook' and not read_only_test.enabled()
+
+def _poll_construction_inbox():
+    """Background reader of replies from the construction inbox; counts only in the log, never text or numbers."""
+    import wa_construction_source
+    source = wa_construction_source.postgres_source(DB_URL)
+    every = max(30, int(os.environ.get('FARQ_INBOX_POLL_SECONDS') or 60))
+    while True:
+        try:
+            result = source.poll(INBOX)
+            if result['new'] or result['statuses']: LOGGER.info('inbox_construction_poll %s', json.dumps(result))
+        except Exception as error:
+            LOGGER.warning('inbox_construction_poll failed: %s', type(error).__name__)
+        time.sleep(every)
+
+def start_inbox_source():
+    if INBOX_SOURCE == 'construction_db' and DB_URL and not read_only_test.enabled():
+        threading.Thread(target=_poll_construction_inbox, daemon=True, name='inbox-construction').start()
+        return 'construction_db'
+    return 'webhook' if webhook_enabled() else 'off'
 def graph(path, body=None, method=None):
     if not read_only_test.provider_calls_allowed():
         return {'error': {'message': 'READ_ONLY_TEST_ENV'}}
@@ -933,11 +957,26 @@ def _send_template(body):
     message_id = (r.get('messages') or [{}])[0].get('id')
     if ok and body.get('atlas_campaign') is True and message_id:
         # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
-        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to)
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to, sender_id=body.get('sender_id'))
         except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
+
+def directory_names(poi_keys):
+    """Business names for the owner's review of unlinked replies: name only, never a contact."""
+    keys = sorted({k for k in poi_keys if isinstance(k, str) and KEY_RE.match(k)})[:500]
+    if not keys: return {}
+    with LOCK:
+        rows = con.execute("select poi_key, name_ar, name_en from t where poi_key in (select unnest(?::varchar[]))", [keys]).fetchall()
+    return {k: (ar or en or None) for k, ar, en in rows}
+
+def unlinked_replies():
+    rows = INBOX.unlinked()
+    names = directory_names([c['poiKey'] for r in rows for c in r['candidates']])
+    for r in rows:
+        for c in r['candidates']: c['name'] = names.get(c['poiKey'])
+    return {'ok': True, 'messages': rows}
 
 def test_mobile(value):
     """Normalize a Saudi mobile supplied only for an owner test message."""
@@ -1047,7 +1086,7 @@ class H(BaseHTTPRequestHandler):
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
         if route.path == WEBHOOK_PATH:
             # Meta's subscription check: public by design, answered only with our verify token (wa_inbox.handle_verify)
-            if read_only_test.enabled(): self.send_response(404); self.end_headers(); return
+            if not webhook_enabled(): self.send_response(404); self.end_headers(); return
             status, text = wa_inbox.handle_verify(urllib.parse.parse_qs(route.query), WA_VERIFY_TOKEN)
             b = text.encode(); self.send_response(status); self.send_header('Content-Type', 'text/plain; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
         if route.path == '/metrics':
@@ -1117,11 +1156,16 @@ class H(BaseHTTPRequestHandler):
             self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
         elif self.path == '/templates':
             self._json(list_templates())
+        elif route.path == '/inbox/unlinked':
+            try: self._json(unlinked_replies())
+            except Exception as error:
+                log_map_api_failure('inbox-unlinked', error)
+                self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif route.path == '/inbox':
             # one Atlas account's WhatsApp replies; the Atlas server names the account from its own session
             query = urllib.parse.parse_qs(route.query)
-            account = query.get('account', [''])[0]
-            if not wa_inbox.valid_id(account): self._json({'error': 'INPUT'}, 400); return
+            account = wa_inbox.accounts_of(query.get('account', []))
+            if not account: self._json({'error': 'INPUT'}, 400); return
             try: since = int(query.get('since', ['0'])[0] or 0)
             except ValueError: self._json({'error': 'INPUT'}, 400); return
             try: self._json({'ok': True, **INBOX.feed(account, since)})
@@ -1152,7 +1196,7 @@ class H(BaseHTTPRequestHandler):
             return
         if urllib.parse.urlparse(self.path).path == WEBHOOK_PATH:
             # WhatsApp webhook: public by design, every body must carry Meta's signature (wa_inbox.handle_post)
-            if read_only_test.enabled(): self.send_response(404); self.end_headers(); return
+            if not webhook_enabled(): self.send_response(404); self.end_headers(); return
             try: n = int(self.headers.get('Content-Length', 0))
             except ValueError: n = -1
             if n < 0 or n > wa_inbox.MAX_WEBHOOK_BYTES: self._json({'ok': False, 'error': 'TOO_LARGE'}, 413); return
@@ -1443,6 +1487,17 @@ class H(BaseHTTPRequestHandler):
         elif self.path == '/send-farq':
             try: self._json(send_farq(body))
             except Exception as e: self._json({'ok': False, 'error': str(e)}, 500)
+        elif self.path == '/inbox/read':
+            # the account's own replies read or unread again, so the state follows the person across devices
+            try: self._json({'ok': True, 'changed': INBOX.set_read(body.get('account'), body.get('ids'), body.get('read') is not False)})
+            except Exception as error: log_map_api_failure('inbox-read', error); self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
+        elif self.path in ('/inbox/attach', '/inbox/dismiss'):
+            # Farq owner review (the Atlas server checks the owner); a reply is placed only on a message sent to its number
+            try:
+                done = INBOX.attach(body.get('message_id'), body.get('outbound_id'), body.get('reviewer')) if self.path == '/inbox/attach' \
+                    else INBOX.dismiss(body.get('message_id'), body.get('reviewer'))
+                self._json({'ok': done}, 200 if done else 409)
+            except Exception as error: log_map_api_failure('inbox-review', error); self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/log':
             new = not os.path.exists(LOG)
             with open(LOG, 'a', encoding='utf-8', newline='') as f:
@@ -1459,4 +1514,5 @@ if __name__ == '__main__':
     import startup_jobs
     for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): print(f"startup job running in background: {job}", flush=True)
     threading.Thread(target=_record_chain_history, daemon=True, name='chain-history').start()
+    print(f"inbox source: {start_inbox_source()}", flush=True)
     ThreadingHTTPServer(('0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT') else '127.0.0.1', PORT), H).serve_forever()

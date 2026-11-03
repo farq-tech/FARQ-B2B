@@ -23,12 +23,17 @@ pnpm dev
 - `FARQ_API_ORIGIN`
 - `ATLAS_TARGETING_ALLOWED_EMAILS`
 - `ATLAS_PUBLIC_ORIGINS`
+- `ATLAS_INBOX_OWNER_EMAILS` (optional; verified emails, comma separated, that may review WhatsApp replies no campaign matched at `/inbox/unlinked`. Empty: nobody)
 - `VALHALLA_ORIGIN` (optional; private Valhalla routing service used by distribution and coverage planning)
 - `VALHALLA_GATEWAY_TOKEN` (server-only bearer token for the authenticated Railway routing gateway)
 
 ## ردود واتساب في الوارد
 
-`GET /api/inbox` يقرأ ردود واتساب على حملات الحساب المسجّل من خدمة الاستهداف (`TARGETING_ORIGIN`)، والحساب يُؤخذ من جلسة الخادم لا من المتصفح. الاستقبال نفسه في خدمة الاستهداف (`services/targeting-api/README.md`، قسم WhatsApp replies)، ومتغيراته هناك. لا رقم هاتف يصل إلى الواجهة.
+`GET /api/inbox` يقرأ ردود واتساب على حملات منشأة المستخدم المسجّل (وحسابه الشخصي) من خدمة الاستهداف (`TARGETING_ORIGIN`)، مع حالة القراءة وحالة تسليم كل رسالة. `POST /api/inbox` يحفظ القراءة لتتبع الشخص على كل أجهزته. الحساب يُؤخذ من جلسة الخادم لا من المتصفح، ولا رقم هاتف يصل إلى الواجهة.
+
+`/inbox/unlinked` (و`/api/inbox/unlinked`) لمالك فرق فقط (`ATLAS_INBOX_OWNER_EMAILS`): يربط الرد الذي لم يُطابق حملة بحملة أُرسلت إلى الرقم نفسه بعد تأكيد، أو يستبعده. الرقم يظهر مخفياً.
+
+الاستقبال نفسه في خدمة الاستهداف (`services/targeting-api/README.md`، قسم WhatsApp replies)، ومتغيراته هناك.
 
 ## فحص الجاهزية
 

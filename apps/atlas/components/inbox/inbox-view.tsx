@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCheck, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, LogIn, MailOpen, Megaphone } from 'lucide-react'
+import { ArrowRight, CheckCheck, Unlink, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox as InboxIcon, LogIn, MailOpen, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { numberFormat } from '@/lib/insights-api'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -36,7 +36,7 @@ export function InboxView() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const { inbox, requests, markRead, refreshReplies } = useAppStore()
+  const { inbox, requests, markRead, refreshReplies, inboxOwner } = useAppStore()
   // new WhatsApp replies are asked for as soon as the inbox opens, not at the next minute check
   useEffect(() => { refreshReplies(true) }, [refreshReplies])
   // a signed-out visitor is told to sign in, not «لا رسائل بعد» as if their account were empty
@@ -126,11 +126,19 @@ export function InboxView() {
           </p>
         </div>
         {/* clearing a backlog took one open per message; this marks what the current filter shows, nothing hidden */}
-        {unreadVisible.length > 1 && (
-          <Button variant="outline" size="sm" onClick={() => unreadVisible.forEach((m) => markRead(m.id))}>
-            <CheckCheck data-icon="inline-start" />علّم المعروض كمقروء
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {unreadVisible.length > 1 && (
+            <Button variant="outline" size="sm" onClick={() => unreadVisible.forEach((m) => markRead(m.id))}>
+              <CheckCheck data-icon="inline-start" />علّم المعروض كمقروء
+            </Button>
+          )}
+          {/* a Farq owner places the replies no campaign matched; the page checks the owner again */}
+          {inboxOwner && (
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/inbox/unlinked" />}>
+              <Unlink data-icon="inline-start" />ردود غير مرتبطة
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* a first visit has no message to filter or open: one welcome that says what arrives here and where it comes

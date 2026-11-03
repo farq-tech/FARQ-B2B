@@ -5,7 +5,7 @@ import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType, RfqDetails } from './types'
 import { mergeCloudRequests } from './workspace-merge'
-import { mergeServerInbox, parseServerInbox, type ServerInboxMessage } from './inbox-feed'
+import { mergeServerInbox, parseServerFeed, type ServerDelivery, type ServerFeed } from './inbox-feed'
 import { safeMapOrigin } from './handoff'
 import { mergeIntoRequest, removeFromRequest } from './request-add'
 import { readView, saveView, type SavedView } from './saved-views'
@@ -19,6 +19,12 @@ interface State {
   selection: string[]
   /** Comparisons saved by name (lib/saved-views.ts), on this device with the requests. */
   views: SavedView[]
+  /** Delivery state of the account's WhatsApp campaign messages, per request and recipient (from /api/inbox; not stored). */
+  deliveries: ServerDelivery[]
+  /** Whether the signed-in person reviews unlinked replies (a Farq owner); only shows a link, the page checks again. */
+  inboxOwner: boolean
+  /** How many feeds of replies have arrived this visit (0 before the first), so a notice can tell new from loaded. */
+  repliesVersion: number
 }
 
 type CloudRequest = { id?: unknown; title?: unknown; payload?: unknown }
@@ -33,7 +39,7 @@ type Action =
   | { type: 'restore'; state: Pick<State, 'requests' | 'inbox' | 'views'> }
   | { type: 'set-views'; views: SavedView[] }
   | { type: 'add-cloud'; requests: RequestItem[] }
-  | { type: 'add-replies'; messages: ServerInboxMessage[] }
+  | { type: 'add-replies'; feed: ServerFeed; pending: ReadonlySet<string> }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -47,9 +53,10 @@ function reducer(state: State, action: Action): State {
       return requests === state.requests ? state : { ...state, requests }
     }
     case 'add-replies': {
-      // WhatsApp replies from the account's feed join the device's inbox; read state and drafts stay as they are
-      const inbox = mergeServerInbox(state.inbox, action.messages)
-      return inbox === state.inbox ? state : { ...state, inbox }
+      // WhatsApp replies from the account's feed join the device's inbox with the read state the service keeps;
+      // drafts and device-only items stay as they are (lib/inbox-feed.ts)
+      const inbox = mergeServerInbox(state.inbox, action.feed.messages, action.pending)
+      return { ...state, inbox, deliveries: action.feed.deliveries, inboxOwner: action.feed.owner, repliesVersion: state.repliesVersion + 1 }
     }
     case 'toggle-select':
       return {
@@ -265,6 +272,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     inbox: [],
     selection: [],
     views: [],
+    deliveries: [],
+    inboxOwner: false,
+    repliesVersion: 0,
   })
   const [workspaceReady, setWorkspaceReady] = useState(false)
   const requestsRef = useRef<RequestItem[]>([])
@@ -296,15 +306,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   // pause until the tab comes back or the inbox opens; the inbox stays as it is.
   const repliesPaused = useRef(false)
   const repliesInFlight = useRef(false)
+  // replies whose read state this device just changed: the next feed must not undo it before the service has it
+  const pendingRead = useRef(new Set<string>())
   const refreshReplies = useCallback((force = false) => {
     if (repliesInFlight.current || document.visibilityState !== 'visible' || (repliesPaused.current && !force)) return
     repliesInFlight.current = true
     fetch('/api/inbox', { cache: 'no-store' })
       .then(async (response) => {
         repliesPaused.current = response.status === 401 || response.status === 403 || response.status === 503
-        return response.ok ? parseServerInbox(await response.json().catch(() => null)) : []
+        return response.ok ? parseServerFeed(await response.json().catch(() => null)) : null
       })
-      .then((messages) => { if (messages.length) dispatch({ type: 'add-replies', messages }) })
+      .then((feed) => { if (feed) dispatch({ type: 'add-replies', feed, pending: new Set(pendingRead.current) }) })
       .catch(() => undefined)
       .finally(() => { repliesInFlight.current = false })
   }, [])
@@ -383,7 +395,32 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => { viewsRef.current = state.views }, [state.views])
   const saveComparison = useCallback((view: SavedView) => dispatch({ type: 'set-views', views: saveView(viewsRef.current, view) }), [])
   const removeComparison = useCallback((id: string) => dispatch({ type: 'set-views', views: viewsRef.current.filter((view) => view.id !== id) }), [])
-  const markRead = useCallback((id: string, unread?: boolean) => dispatch({ type: 'mark-read', id, unread }), [])
+  // a WhatsApp reply's read state is also kept by the service, so it follows the person to every device. Marks made
+  // together (one click on «علّم المعروض كمقروء») go in one request.
+  const inboxRef = useRef<InboxMessage[]>([])
+  useEffect(() => { inboxRef.current = state.inbox }, [state.inbox])
+  const readQueue = useRef<{ read: Set<string>; unread: Set<string>; timer: number | null }>({ read: new Set(), unread: new Set(), timer: null })
+  const flushRead = useCallback(() => {
+    const queue = readQueue.current
+    queue.timer = null
+    for (const [read, ids] of [[true, queue.read], [false, queue.unread]] as const) {
+      if (!ids.size) continue
+      const batch = [...ids]
+      ids.clear()
+      fetch('/api/inbox', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids: batch, read }) })
+        .catch(() => undefined)
+        .finally(() => { for (const id of batch) pendingRead.current.delete(id) })
+    }
+  }, [])
+  const markRead = useCallback((id: string, unread?: boolean) => {
+    dispatch({ type: 'mark-read', id, unread })
+    if (inboxRef.current.find((message) => message.id === id)?.origin !== 'whatsapp') return
+    const queue = readQueue.current
+    pendingRead.current.add(id)
+    ;(unread ? queue.unread : queue.read).add(id)
+    ;(unread ? queue.read : queue.unread).delete(id)
+    if (queue.timer == null) queue.timer = window.setTimeout(flushRead, 250)
+  }, [flushRead])
   const updateMessage = useCallback(
     (id: string, patch: Partial<InboxMessage>) => dispatch({ type: 'update-message', id, patch }),
     [],
