@@ -10,13 +10,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { TEMPLATES, businessById } from '@/lib/mock-data'
 import { formatDate, formatDateTime, requestCity, nextStep, statusLabel } from '@/lib/format'
-import { counted, numberFormat, useCities } from '@/lib/insights-api'
+import { counted, numberFormat, useCities, percent } from '@/lib/insights-api'
 import { trackDraftReviewed, trackManualHandoffCopied, trackQuoteAccepted } from '@/lib/commercial-metrics'
 import { useAppStore } from '@/lib/store'
 import { useBackClose } from '@/lib/use-back-close'
 import { businessName } from '@/lib/business-name'
 import { addToRequestHref, cityKey, mapHref, safeMapOrigin } from '@/lib/handoff'
-import { repliesFor, trackedFor } from '@/lib/inbox-feed'
+import { durationParts, elsewhereFor, rateFor, repliesFor, replyRate, statFor, trackedFor, wasSent } from '@/lib/inbox-feed'
 import type { RequestItem } from '@/lib/types'
 import { BusinessListEditor } from './business-list-editor'
 import { CampaignEditor, campaignIssues, eligibility, renderTemplate } from './campaign-editor'
@@ -29,7 +29,7 @@ const SEND_BATCH_SIZE = 100
 
 export function RequestDetailView({ id }: { id: string }) {
   const router = useRouter()
-  const { requests, inbox, deliveries, updateRequest, createDraft } = useAppStore()
+  const { requests, inbox, deliveries, replyStats, repliedElsewhere, updateRequest, createDraft } = useAppStore()
   const cities = useCities()
   // the phone's Back closes the review instead of leaving the request (lib/use-back-close.ts)
   const [reviewOpen, setReviewOpen] = useBackClose('review')
@@ -90,6 +90,40 @@ export function RequestDetailView({ id }: { id: string }) {
     router.push(`/requests/${newId}`)
   }
 
+  // a follow-up to the campaign's recipients who have not answered: a new draft of the same campaign, reviewed and
+  // confirmed like any other before anything is sent
+  const followUp = (ids: string[]) => {
+    const firstLiveBusiness = request.liveBusinesses?.find((business) => ids.includes(business.id))
+    const newId = createDraft({
+      type: 'campaign',
+      businessIds: ids,
+      cityId: request.cityId,
+      cityName: request.cityName,
+      goal: request.goal,
+      query: request.query,
+      liveBusinesses: request.liveBusinesses?.filter((business) => ids.includes(business.id)),
+      categoryHint: firstLiveBusiness?.category,
+      districtHint: firstLiveBusiness?.district,
+      origin: request.origin,
+    })
+    // the same message as the campaign it follows (template and filled values), to edit at review if wanted
+    updateRequest(newId, {
+      title: `متابعة: ${request.title}`.slice(0, 200), followUpOf: request.id,
+      ...(request.campaign ? { campaign: { templateId: request.campaign.templateId, variables: { ...request.campaign.variables }, included: [...ids] } } : {}),
+    })
+    router.push(`/requests/${newId}`)
+  }
+
+  // the campaign's reply rate and median time to a first reply: the service's figures (every device the same), else
+  // this device's own count from what it has received
+  const tracked = request.campaign ? trackedFor(deliveries, request) : {}
+  const replied = repliesFor(inbox, request)
+  const rate = request.campaign
+    ? rateFor(statFor(replyStats, request), replyRate(request.campaign.included, (id) => wasSent(id, tracked, request.campaign?.delivery), replied))
+    : null
+  const median = rate?.medianReplySeconds != null ? durationParts(rate.medianReplySeconds) : null
+  const followed = request.followUpOf ? requests.find((r) => r.id === request.followUpOf) : undefined
+
   const issues = request.rfq
     ? rfqIssues(request.rfq, request.businessIds.length)
     : request.campaign
@@ -142,6 +176,16 @@ export function RequestDetailView({ id }: { id: string }) {
           <StatusBadge status={request.status} label={statusLabel(request.status, request.type)} />
           {nextStep(request.status, request.type) && <p className="text-sm font-medium text-primary">الخطوة التالية: {nextStep(request.status, request.type)}</p>}
         </div>
+        {rate ? (
+          <p className="text-sm">
+            <span className="font-semibold">نسبة الرد {percent(rate.percent)}</span>
+            <span className="text-muted-foreground"> ({numberFormat.format(rate.replied)} من {numberFormat.format(rate.sent)} وصلتهم الرسالة)</span>
+            {median ? <span className="text-muted-foreground"> · وسيط زمن أول رد {counted(median.value, median.unit)}</span> : null}
+          </p>
+        ) : null}
+        {followed ? (
+          <p className="text-xs text-muted-foreground">متابعة لـ <Link href={`/requests/${followed.id}`} className="underline underline-offset-2 hover:text-foreground">«{followed.title}»</Link></p>
+        ) : null}
       </header>
 
       {request.status === 'needs_decision' || (quotes.length > 0 && request.status !== 'draft') ? (
@@ -164,8 +208,8 @@ export function RequestDetailView({ id }: { id: string }) {
       {request.campaign && (request.status === 'ready_manual' || request.status === 'awaiting') ? (
         <WhatsAppSendPanel
           request={request}
-          tracked={trackedFor(deliveries, request)}
-          replied={repliesFor(inbox, request)}
+          tracked={tracked}
+          replied={replied}
           onDeliveryUpdate={(campaign, complete) => patch({ campaign, status: complete ? 'awaiting' : 'ready_manual' })}
           onBackToDraft={() => patch({ status: 'draft', reviewedAt: undefined })}
         />
@@ -173,7 +217,8 @@ export function RequestDetailView({ id }: { id: string }) {
 
       {request.rfq ? <RfqEditor value={request.rfq} editable={editable} onChange={(rfq) => patch({ rfq })} /> : null}
       {request.campaign ? (
-        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={trackedFor(deliveries, request)} replied={repliesFor(inbox, request)} />
+        <CampaignEditor value={request.campaign} businessIds={request.businessIds} liveBusinesses={request.liveBusinesses} editable={editable} onChange={(campaign) => patch({ campaign })} tracked={tracked} replied={replied}
+          elsewhere={elsewhereFor(repliedElsewhere, request)} onFollowUp={followUp} />
       ) : null}
 
       {/* once a campaign is reviewed its recipients list (with each one's send state) already names every business:

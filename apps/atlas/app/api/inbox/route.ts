@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
     const upstream = await fetch(`${auth.origin}/inbox?${query}`, { headers: auth.headers, cache: 'no-store', signal: controller.signal })
-    const payload = await upstream.json().catch(() => null) as { ok?: unknown; messages?: unknown[]; deliveries?: unknown[] } | null
+    const payload = await upstream.json().catch(() => null) as { ok?: unknown; messages?: unknown[]; deliveries?: unknown[]; requests?: unknown[]; elsewhere?: unknown[] } | null
     if (!upstream.ok || payload?.ok !== true) return error('تعذر جلب الردود الآن.', 502)
     const messages = (Array.isArray(payload.messages) ? payload.messages : []).flatMap((item) => {
       const m = item as Record<string, unknown>
@@ -63,8 +63,21 @@ export async function GET(request: NextRequest) {
       return typeof d.requestId === 'string' && typeof d.poiKey === 'string' && typeof d.status === 'string' && STATUSES.has(d.status)
         ? [{ requestId: d.requestId, poiKey: d.poiKey, status: d.status, at: isoTime(d.at) }] : []
     })
+    // per request: recipients reached, replied, median seconds to a first reply (counts only)
+    const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
+    const requests = (Array.isArray(payload.requests) ? payload.requests : []).flatMap((item) => {
+      const r = item as Record<string, unknown>
+      const sent = count(r.sent); const replied = count(r.replied)
+      return typeof r.requestId === 'string' && sent != null && replied != null ? [{ requestId: r.requestId, sent, replied, medianReplySeconds: count(r.medianReplySeconds) }] : []
+    })
+    // a recipient that has not answered this request but answered another of the person's campaigns (the reply's id)
+    const elsewhere = (Array.isArray(payload.elsewhere) ? payload.elsewhere : []).flatMap((item) => {
+      const e = item as Record<string, unknown>
+      return typeof e.requestId === 'string' && typeof e.poiKey === 'string' && typeof e.otherRequestId === 'string' && typeof e.messageId === 'string' && ID.test(e.messageId)
+        ? [{ requestId: e.requestId, poiKey: e.poiKey, otherRequestId: e.otherRequestId, messageId: e.messageId, at: isoTime(e.at) }] : []
+    })
     // `owner` only shows the link to the review of unlinked replies; that page checks again on the server
-    const response = NextResponse.json({ ok: true, messages, deliveries, owner: isInboxOwner(auth.session) }, { headers: { 'cache-control': 'no-store' } })
+    const response = NextResponse.json({ ok: true, messages, deliveries, requests, elsewhere, owner: isInboxOwner(auth.session) }, { headers: { 'cache-control': 'no-store' } })
     if (auth.refreshed) setSession(response, auth.session)
     return response
   } catch {

@@ -1280,7 +1280,8 @@ class H(BaseHTTPRequestHandler):
             if not account: self._json({'error': 'INPUT'}, 400); return
             try: since = int(query.get('since', ['0'])[0] or 0)
             except ValueError: self._json({'error': 'INPUT'}, 400); return
-            try: self._json({'ok': True, **INBOX.feed(account, since)})
+            # replies, delivery states, and per request: reached, replied, median reply time; replied elsewhere (wa_inbox)
+            try: self._json({'ok': True, **INBOX.feed(account, since), **INBOX.reply_stats(account)})
             except Exception as error:
                 log_map_api_failure('inbox', error)
                 self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
