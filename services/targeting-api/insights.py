@@ -5,6 +5,7 @@ import glob
 import json
 import math
 import os
+import re
 import statistics
 
 import canonical_data
@@ -417,9 +418,10 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
     {'runs': near_lines(geometry), 'meters': m} of a street (sorted nearest first, each card with `distance_m`), a price range as
     advertised, an area range and a building no older than `max_age` years. An ad that does not state the figure a range asks about is left out of that range,
     never counted as zero. Only a publishable listing is served: one with a price, a stated period, at least one photo,
-    and figures that do not need checking. Sorted with the listings
-    furthest under their district's median price per m² first, then those without a comparison, then those marked
-    for checking; capped at `limit`, while `total` counts every match. Each served card carries `signal`, its district's
+    and figures that do not need checking. Sorted by best_order (under the district's median first, then the freshest
+    ad inside each band; without a comparison and marked for checking last); capped at `limit`, while `total` counts
+    every match. With `group_similar` near-identical ads (similar_key) come as one card carrying the others in
+    `similar`, and `limit` counts the ads in them. Each served card carries `signal`, its district's
     market signal for its type (market_signals.tag), or None. With `near` the answer also carries `rent_summary`, the
     street's rent level against the units within RENT_AROUND_M of its line (rent_summary), and `hidden`, the matching
     ads on the street left out, by reason. None when there is no file yet."""
@@ -449,12 +451,7 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
                and within(card.get('area_sqm'), filters.get('min_area'), filters.get('max_area'))
                and within(card.get('age'), None, filters.get('max_age'))]
     found = [card for card in matches if _publishable(card)]
-    # a card to check (its figures look wrong) goes after every other, then those without a district comparison
-    # best value first among believable prices: a discount past BEST_DISCOUNT_FLOOR is more often a typo than a bargain,
-    # so those follow the rest; an ad with photos goes before one without at the same price standing
-    floor = lambda card: (card.get('vs_district_pct') or 0) < BEST_DISCOUNT_FLOOR
-    found.sort(key=lambda card: (bool(card.get('check')), card.get('vs_district_pct') is None, floor(card), not card.get('photo'),
-                                 card.get('vs_district_pct') or 0))
+    found.sort(key=best_order)
     extra = {}
     if near:
         inside = lambda card: near_box[0] <= card['lon'] <= near_box[2] and near_box[1] <= card['lat'] <= near_box[3]
@@ -472,13 +469,70 @@ def real_estate_listings(city, filters, path=None, deals_path=None):
         # along a street the nearest unit comes first; the stable sort keeps the best-value order among equals
         measured = sorted([(d, card) for d, card in measured if d <= metres], key=lambda pair: round(pair[0]))
         found = [dict(card, distance_m=round(d)) for d, card in measured]
-    shown = found[:filters.get('limit') or LISTINGS_MAX]
+    limit = filters.get('limit') or LISTINGS_MAX
     signals = _market_signals(city, table, path or REAL_ESTATE_LISTINGS_PATH, deals_path)
     # the number stays out of a list of listings: a signed-in person asks for one listing's number (listing_phone);
     # a served card needs no checking, whatever an older file marked on it (_suspect)
-    shown = [{**{key: value for key, value in card.items() if key != 'phone'}, 'check': False, 'has_phone': bool(card.get('phone')),
-              'signal': market_signals.tag(card, signals)} for card in shown]
+    serve = lambda card: {**{key: value for key, value in card.items() if key != 'phone'}, 'check': False, 'has_phone': bool(card.get('phone')),
+                          'signal': market_signals.tag(card, signals)}
+    if filters.get('group_similar'):
+        # one card per set of near-identical ads (similar_groups); `limit` still counts ads, so the answer is no larger
+        shown, count = [], 0
+        for lead, others in similar_groups(found):
+            if count >= limit:
+                break
+            others = others[:max(0, limit - count - 1)]
+            shown.append({**serve(lead), 'similar': [serve(card) for card in others]})
+            count += 1 + len(others)
+        return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
+    shown = [serve(card) for card in found[:limit]]
     return {'retrieved': table.get('retrieved'), 'total': len(found), 'listings': shown, **extra}
+
+
+# how far under its district's median a listing must be to rank as clearly under it, and how close counts as «near»
+BEST_UNDER_PCT, BEST_NEAR_PCT = -10, 5
+
+
+def _day_number(card):
+    """The ad's last update (else its listing day) as a sortable number, 0 without one."""
+    day = card.get('updated_on') or card.get('listed_on') or ''
+    return int(day.replace('-', '')) if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day) else 0
+
+
+def best_order(card):
+    """The «أنسب» rank of a listing. A card to check (its figures look wrong) goes after every other, then those
+    without a district comparison, then those under BEST_DISCOUNT_FLOOR (more often a typo than a bargain). The rest go
+    in three bands by their price per m² against the district's median: clearly under it (BEST_UNDER_PCT or lower), near
+    it, then over it; inside a band the most recently updated ad first, a licensed one before one without, more photos
+    before fewer, and only then the larger discount. Ranking by the discount alone put every top card on the floor
+    itself, so the first screen read «30% under» on every card."""
+    pct = card.get('vs_district_pct')
+    band = 0 if pct is not None and pct <= BEST_UNDER_PCT else 1 if pct is not None and pct < BEST_NEAR_PCT else 2
+    return (bool(card.get('check')), pct is None, (pct or 0) < BEST_DISCOUNT_FLOOR, band, -_day_number(card),
+            not card.get('licensed'), -len(card.get('photos') or ([card['photo']] if card.get('photo') else [])), pct or 0)
+
+
+def similar_key(card):
+    """What makes two ads the same offer to a reader: city, deal, district, type, area, rooms and price, and the same
+    advertiser's number when the file has one. None for an ad without a district, an area or a price: it stays alone."""
+    if card.get('district_id') is None or card.get('area_sqm') is None or card.get('price_sar') is None:
+        return None
+    return (card.get('city'), card.get('deal') or card.get('kind'), card['district_id'], canonical_type(card.get('type')),
+            card['area_sqm'], card.get('beds'), card['price_sar'], card.get('phone'))
+
+
+def similar_groups(cards):
+    """The cards in their order, near-identical ads (similar_key) folded into the first of them: [(lead, others)]."""
+    groups, at = [], {}
+    for card in cards:
+        key = similar_key(card)
+        if key is not None and key in at:
+            groups[at[key]][1].append(card)
+            continue
+        if key is not None:
+            at[key] = len(groups)
+        groups.append((card, []))
+    return groups
 
 
 def listing_phone(listing_id, path=None):

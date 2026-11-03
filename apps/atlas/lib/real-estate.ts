@@ -65,6 +65,47 @@ export type Listing = {
   /** Its district's market signal for its type (market_signals.py), or null: rent against the nearest districts read
    * with the prices paid there. Only yearly rent carries one. */
   signal?: MarketSignal | null
+  /** Near-identical ads the service folded into this one (same district, type, area, rooms, price and advertiser),
+   * in rank order; sent only when asked with group_similar. */
+  similar?: Listing[]
+  /** Set by flattenSimilar on each folded ad: the id of the card it was folded into. */
+  similar_of?: string
+}
+
+/** A served list with each card's folded ads laid out after it, each marked with the card it belongs to, so every
+ * filter, sort and count reads one ad at a time; groupSimilar puts them back together for the cards. */
+export function flattenSimilar(listings: Listing[]): Listing[] {
+  return listings.flatMap(({ similar, ...lead }) => [lead, ...(similar ?? []).map((item) => ({ ...item, similar_of: lead.id }))])
+}
+
+/** The ads in their order as one entry per set of near-identical ads: the first of the set that survived the filters
+ * leads, the rest follow it. An ad the service did not fold stands alone. */
+export function groupSimilar(listings: Listing[]): { lead: Listing; others: Listing[] }[] {
+  const groups: { lead: Listing; others: Listing[] }[] = []
+  const at = new Map<string, number>()
+  for (const listing of listings) {
+    const key = listing.similar_of ?? listing.id
+    const index = at.get(key)
+    if (index != null) groups[index].others.push(listing)
+    else { at.set(key, groups.length); groups.push({ lead: listing, others: [] }) }
+  }
+  return groups
+}
+
+/** «عرضان متشابهان»، «6 عروض متشابهة»: a set of near-identical ads, counted the way it is said. */
+export function similarLabel(count: number): string {
+  if (count === 2) return 'عرضان متشابهان'
+  return `${numberFormat.format(count)} ${count % 100 >= 3 && count % 100 <= 10 ? 'عروض متشابهة' : 'عرضاً متشابهاً'}`
+}
+
+/** The one price tag a results card carries: the ad's own price against its district's median when there is one,
+ * else its district's market signal. Two tags read as a contradiction («أقل من وسيط الحي» beside «إيجار مرتفع مقابل
+ * سعر الحي»), though one measures the ad and the other the district; the signal stays in the listing's own card. */
+export function priceTag(listing: Pick<Listing, 'vs_district_pct' | 'district_ar' | 'signal'>):
+  { text: string; tone: 'good' | 'even' | 'high' | 'signal' } | null {
+  const versus = versusDistrict(listing)
+  if (versus) return versus
+  return listing.signal?.label ? { text: listing.signal.label, tone: 'signal' } : null
 }
 
 export type ListingKind = 'rent' | 'sale'
@@ -170,7 +211,9 @@ export function priceLine(listing: Pick<Listing, 'deal' | 'price_sar'>): string 
 export const perSqmLine = (listing: Pick<Listing, 'deal' | 'sar_per_sqm'>) =>
   listing.sar_per_sqm == null ? null : `${sar(listing.sar_per_sqm)} للمتر${listing.deal && PERIOD_WORD[listing.deal] ? ` ${PERIOD_WORD[listing.deal]}` : ''}`
 
-/** «أقل من وسيط الحي بـ 12%» / «أعلى …» / «قريب من …», or null when the district has no median. */
+/** «أقل من وسيط الحي بـ 12%» / «أعلى …» / «قريب من …», or null when the district has no median. The figure is the
+ * service's own (the ad's price per m² against the district's median for the same deal, period and group, rounded),
+ * never capped here. */
 export function versusDistrict(listing: Pick<Listing, 'vs_district_pct' | 'district_ar'>): { text: string; tone: 'good' | 'even' | 'high' } | null {
   const pct = listing.vs_district_pct
   if (pct == null) return null
