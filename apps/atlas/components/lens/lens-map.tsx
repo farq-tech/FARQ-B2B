@@ -393,6 +393,8 @@ export function LensMap() {
   const [peekPx, setPeekPx] = useState(PEEK_PX)
   // the district a step's list is pointing at, outlined on the map so a row and its place are seen together
   const [hovered, setHovered] = useState<string | null>(null)
+  // a business a list located on the map: the map flies to it and marks it, until the step, the city or the search changes
+  const [located, setLocated] = useState<{ id: string; lon: number; lat: number } | null>(null)
   // the district under the mouse, named beside the pointer with its figure, before any click
   const [pointer] = useState(createPointerStore)
   useEffect(() => { setHovered(null) }, [tool, city])
@@ -535,6 +537,13 @@ export function LensMap() {
     if (selected.length && !quiet) setSheet((current) => (current === 'peek' ? 'half' : current))
   }, [selected.length])
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
+  useEffect(() => { setLocated(null) }, [tool, city, search])
+  // a business card's «على الخريطة»: on a phone the sheet goes down so the marked place is in view
+  const locate = (row: { id: string; latitude: number | null; longitude: number | null }) => {
+    if (row.latitude == null || row.longitude == null) return
+    setLocated({ id: row.id, lon: row.longitude, lat: row.latitude })
+    if (!window.matchMedia('(min-width: 64rem)').matches) setSheet('peek')
+  }
 
   // shaded from the rows as they stand (each table joins as it answers), so the map colours as soon as its figure is in
   const steps = useMemo(() => shadeSteps(new Map(data.early.map((row) => [row.id, METRICS[metric].value(row)]))), [data.early, metric])
@@ -701,7 +710,7 @@ export function LensMap() {
             already ends at the peek): the key and the buttons at the map's bottom ride above it instead of under it */}
         <div className="absolute inset-x-0 top-0 bottom-[var(--peek)] max-lg:[--lift:var(--sheet-lift,0px)] lg:relative lg:inset-auto lg:flex-1"
           style={{ '--peek': `${peekPx}px`, ...(sheet === 'half' ? { '--sheet-lift': `calc(${HALF * 100}% - ${peekPx * (1 - HALF)}px)` } : {}) } as CSSProperties}>
-          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
+          <LensMapCanvas features={data.features} steps={steps} selected={selected} onToggle={toggle} colors={overlay.colors} circle={overlay.circle} onPick={overlay.onPick} points={overlay.points} lines={overlay.lines} start={overlay.start ?? located} areas={overlay.areas} sites={overlay.sites} listings={overlay.listings} onListing={overlay.onListing} streets={overlay.streets} onStreet={overlay.onStreet} focus={located ?? overlay.focus} zoomTo={zoomTo} hover={hovered} onPoint={pointer.set}
             onFailed={setMapFailed} errorClassName="max-lg:top-1/3" cover={sheet === 'half' ? HALF : 0} peek={peekPx}
             onDistrictClick={(hit) => { mapPick.current = true; setCard(selected.includes(hit.id) ? null : hit) }}
             pin={cardRow ? card : null} onPin={setCardAt} />
@@ -817,7 +826,7 @@ export function LensMap() {
               {search && (
                 <div className="flex flex-col gap-2">
                   <Chip onClick={() => { focusAfter.current = tabId(tool); setSearch(null) }} className="self-start"><X className="size-4" aria-hidden />إغلاق البحث والعودة للخطوات</Chip>
-                  <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} />
+                  <BusinessesPanel key={search.nonce} city={city} districts={chosen.map((row) => row.name)} query={search.q} onLocate={locate} located={located?.id ?? null} />
                 </div>
               )}
               {!search && (
@@ -857,7 +866,7 @@ export function LensMap() {
                         onClear={() => { focusAfter.current = tabId(tool); setSelected([]) }} />
                     </div>
                   )}
-                  {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} />}
+                  {showBusinesses && <BusinessesPanel key={`${tool}|${rival ?? ''}`} city={city} districts={chosen.map((row) => row.name)} query={tool === 'competitors' ? rival ?? undefined : undefined} onLocate={locate} located={located?.id ?? null} />}
                   {data.status !== 'loading' && (tool === 'district' || tool === 'growth') && <Ranking rows={data.rows} metric={metric} selected={selected} onToggle={toggleFromList} onHover={setHovered} full={lens === 'analysts' || tool === 'growth'} onRetry={metricFailed ? data.reload : null} loading={metricPending} />}
                   {/* once the step has answered, the journey goes on: the next step opens with the same activity and districts */}
                   {next && done.includes(tool) && (

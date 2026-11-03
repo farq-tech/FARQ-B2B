@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ClipboardList, ListPlus, Loader2, Megaphone, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ClipboardList, ListPlus, Loader2, MapPin, Megaphone, Search, SearchX } from 'lucide-react'
 import { EmptyState, NoResult } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { toast } from 'sonner'
@@ -28,7 +28,15 @@ const MAX_DISTRICTS = 5
  * activity, picked and turned into a request — a quote request, a WhatsApp campaign or a saved list. The request
  * opens in «الطلبات» for review; nothing is sent from here (docs/atlas-product-foundation.md §5).
  */
-export function BusinessesPanel({ city, districts, query }: { city: string; districts: string[]; query?: string }) {
+export function BusinessesPanel({ city, districts, query, onLocate, located }: {
+  city: string
+  districts: string[]
+  query?: string
+  /** Frames the map on one business and marks it (the map's own panel); absent where there is no map beside it. */
+  onLocate?: (row: PublicDirectoryEntity) => void
+  /** The business the map is marking now. */
+  located?: string | null
+}) {
   const router = useRouter()
   const cities = useCities()
   const { createDraft } = useAppStore()
@@ -177,6 +185,13 @@ export function BusinessesPanel({ city, districts, query }: { city: string; dist
                     <span className="block truncate font-medium">{row.name}</span>
                     <span className="block truncate text-sm text-muted-foreground">{row.category}{row.district ? ` · ${row.district}` : ''}</span>
                   </button>
+                  {/* where it is: the map flies to the business and marks it (only with a location on file) */}
+                  {onLocate && row.latitude != null && row.longitude != null && (
+                    <button type="button" onClick={() => onLocate(row)} aria-pressed={located === row.id} aria-label={`اعرض ${row.name} على الخريطة`} title="على الخريطة"
+                      className={cn('grid size-8 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-10', located === row.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-primary')}>
+                      <MapPin className="size-4" aria-hidden />
+                    </button>
+                  )}
                   <ChevronDown aria-hidden className={cn('size-4 shrink-0 text-muted-foreground transition-transform', openId === row.id && 'rotate-180')} />
                 </div>
                 {openId === row.id && <BusinessDetail row={row} />}
