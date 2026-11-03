@@ -10,8 +10,9 @@ import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
-import { gapsHoverLine, gapsSummary } from './gaps-summary'
+import { gapsHoverLine, gapsSummary, isShortRow } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
+import { cn } from '@/lib/utils'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
 import { Understood, type Understanding } from '@/components/shared/understood'
@@ -28,8 +29,8 @@ const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
 // districts with fewer residents are left out of the answer (a few people make any count look short or full)
 const MIN_POPULATION = 5000
 /** Short by at least one whole business, as the row reads it («ناقص 1» or more): a shortfall under half a business
- * would read «ناقص 0», so it counts as sufficient on the map and in the list alike. */
-const isShort = (row: Gap) => Math.round(row.shortfall) > 0
+ * would read «ناقص 0», so it counts as sufficient on the map, in the list and in the peek line alike. */
+const isShort = isShortRow
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
 export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover }: {
@@ -122,20 +123,26 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <h2 className="text-xl font-bold">أين ينقص نشاطي؟</h2>
-      <div className="flex gap-2">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') study(query.trim()) }}
+      {/* a search form like the other steps': a named field, the phone keyboard's «بحث» key, Enter submits */}
+      <form role="search" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); study(query.trim()) }}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="نشاطك" enterKeyHint="search"
           placeholder="اكتب نشاطك: صيدلية، مغسلة ملابس…" className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base" />
-        <button onClick={() => study(query.trim())} disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
+        <button type="submit" disabled={status === 'loading'} className="h-11 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">
           {status === 'loading' ? 'جارٍ الحساب' : 'احسب'}
         </button>
-      </div>
+      </form>
       <MainActivityPicker activities={activities} value={studied.main_id ?? ''} placeholder="أو اختر نشاطاً رئيسياً"
         onChange={(id) => { const item = activities.find((a) => a.main_id === id); if (item) { setQuery(''); setStudied({ main_id: item.main_id, label: item.main_ar }) } }} />
-      <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((example) => (
-            <button key={example} onClick={() => { setQuery(example); study(example) }} className="inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm hover:border-primary hover:text-primary"><Icon3D activity={example} />{example}</button>
-          ))}
-        </div>
+      {/* the example being studied is marked, as in «المنافسون» and «شوارع النشاط» */}
+      <div role="group" aria-label="أمثلة" className="flex flex-wrap gap-2">
+        {EXAMPLES.map((example) => {
+          const on = chosen && studied.q === example
+          return (
+            <button key={example} type="button" onClick={() => { setQuery(example); study(example) }} aria-pressed={on}
+              className={cn('inline-flex items-center gap-1.5 rounded-full border py-1 ps-1.5 pe-3 text-sm', on ? 'border-primary bg-primary/10 font-semibold text-primary' : 'hover:border-primary hover:text-primary')}><Icon3D activity={example} />{example}</button>
+          )
+        })}
+      </div>
       {!chosen && status === 'idle' && <p className="text-base text-muted-foreground">اختر نشاطك لتظهر الأحياء الناقصة.</p>}
       {status === 'error' && (
         <LoadError what="النقص" title="تعذر حساب النقص الآن." detail="الخدمة مشغولة أو انقطع الاتصال. أعد المحاولة بعد لحظات."
@@ -155,8 +162,10 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
           {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base">
             <span className="whitespace-nowrap">معدل المدينة: منشأة لكل <strong className="tabular-nums">{numberFormat.format(result.residents_per_business)}</strong> ساكن</span>
-            <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} فيها نقص</span>
+            {gaps.length > 0 && <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} {gaps.length === 1 ? 'فيه' : 'فيها'} نقص</span>}
           </p>
+          {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
+          {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}
           <ol className="max-h-[45vh] divide-y overflow-y-auto text-base" aria-label="الأحياء الأكثر نقصاً">
             {gaps.slice(0, limit).map((row, index) => {
               const id = ids.get(row.district_ar)

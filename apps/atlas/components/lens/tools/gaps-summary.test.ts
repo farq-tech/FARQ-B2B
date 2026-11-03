@@ -36,3 +36,9 @@ test("the pointer card says each district's part of the answer, in words", () =>
   assert.equal(gapsHoverLine(undefined, 3200, 5000, counted, format), 'لا يُحسب: أقل من 5,000 ساكن')
   assert.doesNotMatch(gapsHoverLine({ district_ar: 'x', shortfall: 12, businesses: 3 }, 1, 5000, counted, format), /[+٠-٩]/)
 })
+
+test('a shortfall under half a business is not a gap, so the line counts what the list shows', () => {
+  const close = [{ district_ar: 'العليا', shortfall: 4.2 }, { district_ar: 'الملقا', shortfall: 0.4 }, { district_ar: 'النرجس', shortfall: 0.2 }]
+  assert.equal(gapsSummary({ residents_per_business: 900, districts: close }, counted), 'الأعلى: العليا بنقص 4 منشآت · حي واحد فيه نقص')
+  assert.equal(gapsSummary({ residents_per_business: 900, districts: close.slice(1) }, counted), 'لا نقص في أي حي')
+})
