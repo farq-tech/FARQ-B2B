@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { useMainActivities } from '@/lib/main-activities'
 import { Explained } from '@/components/shared/explained'
 import { LoadError } from '@/components/shared/load-error'
@@ -19,6 +19,8 @@ import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { MoreRows, ResultRow, ResultRowsSkeleton, useShowMore } from '../result-row'
 import { useAnswer } from './use-answer'
+import { gapsVerdict } from './tool-answers'
+import { Verdict } from './verdict'
 
 /** caveat: the service marks a district that is industrial by its atlas name, or labour housing (nine in ten residents
  * men, measured), and lists it after the residential ones; null or absent is an ordinary district. */
@@ -34,7 +36,7 @@ const MIN_POPULATION = 5000
 const isShort = isShortRow
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
-export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover }: {
+export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover, next }: {
   city: string
   /** The city's Arabic name, for the line that says its districts have no population. */
   cityName?: string
@@ -45,6 +47,8 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   selected?: string[]
   /** The row under the pointer or keyboard focus, so the map can outline its district. */
   onHover?: (id: string | null) => void
+  /** The step after the answer (a request, a price, the competitors), under the verdict; given by the map shell. */
+  next?: ReactNode
 }) {
   const activities = useMainActivities(city)
   // the activity is shared with the other steps, so «المنافسون» opens on the one picked here
@@ -107,7 +111,9 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
   const firstCaveat = gaps.findIndex((row) => row.caveat)
   // the bar only scales each row's shortfall, as the API returned it, against the largest in the list
   const widest = Math.max(0, ...gaps.map((row) => row.shortfall))
-  const [limit, showMore] = useShowMore(20, `${city}|${label}`)
+  // a shortlist first: the verdict names the top three, the next rows are one tap away
+  const [limit, showMore] = useShowMore(10, `${city}|${label}`)
+  const verdict = result?.residents_per_business != null ? gapsVerdict(gaps, label, result.residents_per_business) : null
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -148,11 +154,11 @@ export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected =
       ) : <NoResult title={`لا توجد منشآت «${label}» في أحياء معروفة السكان`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />)}
       {status !== 'loading' && result && result.residents_per_business != null && (
         <>
-          {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}
-          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-base">
-            <span className="whitespace-nowrap">معدل المدينة: منشأة لكل <strong className="tabular-nums">{numberFormat.format(result.residents_per_business)}</strong> ساكن</span>
-            {gaps.length > 0 && <span className="whitespace-nowrap text-muted-foreground">{counted(gaps.length, 'district')} {gaps.length === 1 ? 'فيه' : 'فيها'} نقص</span>}
-          </p>
+          {/* the answer first (the district, what it has and needs at the city rate, the next two), then the evidence */}
+          <Verdict verdict={verdict} next={next} />
+          {gaps.length > 0 && (
+            <p className="text-sm font-semibold text-muted-foreground">{counted(gaps.length, 'district')} {gaps.length === 1 ? 'فيه' : 'فيها'} نقص، الأكبر أولاً</p>
+          )}
           {/* every district carries its share at the city rate: said once, never as «0 حي» over an empty list */}
           {gaps.length === 0 && <NoResult title={`لا حي ينقصه «${label}»`} body="كل حي معروف السكان فيه ما يكفيه بمعدل المدينة. جرّب نشاطاً آخر، أو «المنافسون» لترى أين المنافسة أخف." />}
           <ol className="divide-y text-base lg:max-h-[45vh] lg:overflow-y-auto" aria-label="الأحياء الأكثر نقصاً">
