@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { ChevronDown, MapPinOff, MousePointerClick, Search, X } from 'lucide-react'
+import { CopyLinkButton } from '@/components/shared/copy-link'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { PillField, SearchPill, pillControl } from '@/components/shared/search-pill'
@@ -255,9 +256,13 @@ export function LensMap() {
   useEffect(() => { setSelected([]) }, [city])
   // a link's ?tool= wins once over the lens's first step, when it is one of that lens's steps
   const presetTool = useRef<ToolId | null>(null)
+  // and its ?layer= over the lens's own shading figure, when it is one of that lens's figures
+  const presetLayer = useRef<MetricId | null>(null)
   useEffect(() => {
     const steps = lensById(lens).steps.map((step) => step.tool)
-    setMetric(lensById(lens).metric)
+    const layer = presetLayer.current
+    presetLayer.current = null
+    setMetric(layer && lensById(lens).metrics.includes(layer) ? layer : lensById(lens).metric)
     setTool(presetTool.current && steps.includes(presetTool.current) ? presetTool.current : steps[0])
     presetTool.current = null
   }, [lens])
@@ -277,15 +282,20 @@ export function LensMap() {
   const presetMain = useRef<string | null>(null)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
-    const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS)
+    const preset = readMapQuery(window.location.search, Object.fromEntries(LENSES.map((item) => [item.id, item.steps.map((s) => s.tool)])), GOAL_LENS,
+      Object.fromEntries(LENSES.map((item) => [item.id, item.metrics])))
     if (preset.city) { presetCity.current = preset.city; setCity(preset.city) }
     if (preset.activity) setStudied({ q: preset.activity, label: preset.activity })
     presetMain.current = preset.main
     if (preset.districts.length) presetDistricts.current = { city: preset.city ?? 'Riyadh', ids: preset.districts }
     if (preset.lens && preset.lens !== lens) {
       presetTool.current = preset.tool as ToolId | null
+      presetLayer.current = preset.layer as MetricId | null
       setLens(preset.lens as LensId)
-    } else if (preset.tool) setTool(preset.tool as ToolId)
+    } else {
+      if (preset.tool) setTool(preset.tool as ToolId)
+      if (preset.layer) setMetric(preset.layer as MetricId)
+    }
     if (preset.q) { setDraft(preset.q); setSearch({ q: preset.q, nonce: Date.now() }) }
     if (query.get('goal') === 'find-supplier' || query.get('search') != null) (window.matchMedia('(min-width: 64rem)').matches ? searchBox : phoneSearch).current?.focus()
     setHydrated(true)
@@ -318,9 +328,9 @@ export function LensMap() {
     if (!hydrated) return
     // a main activity still waiting for its city's list keeps its place in the address
     const main = presetMain.current ?? studied.main_id ?? null
-    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null }, lensById(lens).steps[0].tool)
+    const next = writeMapQuery(window.location.search, { city, lens, tool, districts: selected, q: search?.q ?? null, main, activity: main ? null : studied.q ?? null, layer: metric }, lensById(lens).steps[0].tool, lensById(lens).metric)
     if (next !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${next}${window.location.hash}`)
-  }, [hydrated, city, lens, tool, selected, search, studied])
+  }, [hydrated, city, lens, tool, selected, search, studied, metric])
   useEffect(() => { if (selected.length) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [selected.length])
   useEffect(() => { if (search) setSheet((current) => (current === 'peek' ? 'half' : current)) }, [search])
 
@@ -407,6 +417,8 @@ export function LensMap() {
           )}
           <MapOnboarding lens={lens} onLens={setLens} picked={selected.length > 0} paused={mapFailed || noDistricts} goalSlot={goalSlot} onAsk={raiseSheet}
             onShowMe={leadId ? () => pickFromList(leadId) : null} />
+          {/* the view is in the address, so its link reopens this work (above the «؟» on a phone, beside it from lg) */}
+          <CopyLinkButton className="absolute end-3 bottom-[6.5rem] z-10 lg:end-16 lg:top-3 lg:bottom-auto" />
           {noDistricts && (
             <div role="status" className="absolute inset-x-4 top-1/3 z-[15] mx-auto flex max-w-sm flex-col items-start gap-2 rounded-xl border bg-card/95 p-4 shadow-md backdrop-blur lg:top-1/4">
               <p className="flex items-center gap-2 font-bold"><MapPinOff className="size-5 text-muted-foreground" aria-hidden />حدود أحياء {cityName}: غير متاحة بعد</p>
