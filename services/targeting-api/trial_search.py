@@ -9,6 +9,9 @@ import re
 import threading
 import time
 import duckdb
+# the service box has 32 cores and 32GB; 2 threads/512MB left map aggregates queueing past Atlas's 12 s limit and
+# out of memory under a few visitors (2026-11-03). Overridable for a smaller box.
+DUCKDB_SETTINGS=f"SET threads={int(os.environ.get('FARQ_DUCKDB_THREADS','8'))}; SET memory_limit='{os.environ.get('FARQ_DUCKDB_MEMORY','4GB')}'"
 
 AR = str.maketrans({'أ':'ا','إ':'ا','آ':'ا','ة':'ه','ى':'ي','ؤ':'و','ئ':'ي'})
 def norm(value):
@@ -143,7 +146,7 @@ class Directory:
     def __init__(self, path):
         self.path=path; self.lock=threading.Lock(); self.cache=collections.OrderedDict()
         self.categories=None
-        self.db=duckdb.connect(); self.db.execute("SET threads=2; SET memory_limit='512MB'")
+        self.db=duckdb.connect(); self.db.execute(DUCKDB_SETTINGS)
         self._dir_cols={row[0] for row in self.db.execute('describe select * from read_parquet(?)',[path]).fetchall()}
         self.search_sql=status_policy.search_sql(self.db,path)
     def source_expr(self,*names):
