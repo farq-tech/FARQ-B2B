@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isTrustedAtlasRequest } from '@/lib/same-origin'
-import { isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
+import { inboxAccount, isTargetingAllowed, sessionForRequest, setSession, verifySession } from '@/lib/atlas-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,10 +58,12 @@ export async function POST(request: NextRequest) {
   const auth = await authorized(request)
   if (auth instanceof NextResponse) return auth
 
-  let input: { poiKey?: unknown; message?: unknown }
+  let input: { poiKey?: unknown; message?: unknown; requestId?: unknown }
   try { input = await request.json() } catch { return error('بيانات الإرسال غير صالحة.', 400) }
   const poiKey = typeof input.poiKey === 'string' ? input.poiKey.trim() : ''
   const message = typeof input.message === 'string' ? input.message.trim() : ''
+  // the request this message belongs to, so a reply reaches this account's inbox under it (lib/inbox-feed.ts)
+  const requestId = typeof input.requestId === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(input.requestId) ? input.requestId : undefined
   if (!/^[A-Za-z0-9:_\-.]{1,200}$/.test(poiKey) || !message || message.length > 1024) {
     return error('الجهة أو نص الرسالة غير صالح.', 400)
   }
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
   try {
     const upstream = await fetch(`${origin}/send-template`, {
       method: 'POST', headers,
-      body: JSON.stringify({ poi_key: poiKey, message, template: 'farq_outreach_ar', atlas_campaign: true }),
+      body: JSON.stringify({ poi_key: poiKey, message, template: 'farq_outreach_ar', atlas_campaign: true, account_id: inboxAccount(auth.session), request_id: requestId }),
       cache: 'no-store', signal: controller.signal,
     })
     const payload = await upstream.json().catch(() => null) as { ok?: unknown; message_id?: unknown; error?: unknown; code?: unknown } | null

@@ -26,6 +26,10 @@ pnpm dev
 - `VALHALLA_ORIGIN` (optional; private Valhalla routing service used by distribution and coverage planning)
 - `VALHALLA_GATEWAY_TOKEN` (server-only bearer token for the authenticated Railway routing gateway)
 
+## ردود واتساب في الوارد
+
+`GET /api/inbox` يقرأ ردود واتساب على حملات الحساب المسجّل من خدمة الاستهداف (`TARGETING_ORIGIN`)، والحساب يُؤخذ من جلسة الخادم لا من المتصفح. الاستقبال نفسه في خدمة الاستهداف (`services/targeting-api/README.md`، قسم WhatsApp replies)، ومتغيراته هناك. لا رقم هاتف يصل إلى الواجهة.
+
 ## فحص الجاهزية
 
 `GET /api/health` يعيد `200` عندما تكون خدمة بيانات السوق وتسجيل الدخول مهيأتين، و`503` عندما ينقص أي منهما. لا يعيد أسراراً أو بيانات مستخدمين.

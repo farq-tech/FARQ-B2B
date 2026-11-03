@@ -208,4 +208,8 @@ export interface InboxMessage {
   quote?: { lines: QuoteLine[]; validity: string; deliveryDays: number }
   sentiment?: 'مهتم' | 'استفسار' | 'غير مهتم'
   replyDraft?: string
+  /** Set on a reply received over WhatsApp from the account's server feed (lib/inbox-feed.ts); absent on device-only items. */
+  origin?: 'whatsapp'
+  /** A received reply that is not text (image, audio, document…): its kind, and `body` holds only its caption, if any. */
+  kind?: string
 }

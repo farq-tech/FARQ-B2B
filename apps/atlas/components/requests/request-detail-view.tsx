@@ -400,7 +400,8 @@ function WhatsAppSendPanel({ request, onDeliveryUpdate, onBackToDraft }: {
         const response = await fetch('/api/campaign/send', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ poiKey: id, message: text }),
+          // the request id lets a reply to this message reach the inbox under this request (lib/inbox-feed.ts)
+          body: JSON.stringify({ poiKey: id, message: text, requestId: request.id }),
         })
         const result = await response.json().catch(() => null) as { ok?: boolean } | null
         if (response.ok && result?.ok) nextDelivery[id] = 'sent'

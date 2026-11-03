@@ -9,13 +9,14 @@ import { Chip, ChipCount } from '@/components/ui/chip'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import { businessById } from '@/lib/mock-data'
+import { previewText, requestFor } from '@/lib/inbox-feed'
 import { formatDateTime } from '@/lib/format'
 import { useAppStore } from '@/lib/store'
 import { signInHref, useSignedIn } from '@/lib/use-signed-in'
 import type { InboxMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { MessageDetail } from './message-detail'
+import { messageBusiness } from './message-business'
 import { SourceLabel } from './source-label'
 
 export type InboxFilter = 'all' | 'unread' | 'rfq' | 'campaign'
@@ -35,7 +36,9 @@ export function InboxView() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const { inbox, markRead } = useAppStore()
+  const { inbox, requests, markRead, refreshReplies } = useAppStore()
+  // new WhatsApp replies are asked for as soon as the inbox opens, not at the next minute check
+  useEffect(() => { refreshReplies(true) }, [refreshReplies])
   // a signed-out visitor is told to sign in, not «لا رسائل بعد» as if their account were empty
   const signedIn = useSignedIn()
 
@@ -163,7 +166,7 @@ export function InboxView() {
           ) : (
             <ul onKeyDown={moveFocus} aria-describedby="inbox-keys" className="flex flex-col overflow-hidden rounded-2xl border bg-card">
               {visible.map((m) => {
-                const b = businessById.get(m.businessId)
+                const b = messageBusiness(m, requestFor(requests, m.requestId))
                 const active = m.id === selected?.id
                 const Icon = m.source === 'rfq' ? FileText : Megaphone
                 return (
@@ -195,7 +198,7 @@ export function InboxView() {
                           </time>
                         </span>
                         <SourceLabel message={m} compact />
-                        <span className={cn('line-clamp-1 text-xs', m.unread ? 'text-foreground' : 'text-muted-foreground')}>{m.body}</span>
+                        <span className={cn('line-clamp-1 text-xs', m.unread ? 'text-foreground' : 'text-muted-foreground')}>{previewText(m)}</span>
                       </span>
                       {m.unread ? (
                         <span className="mt-2 size-2 shrink-0 rounded-full bg-primary">

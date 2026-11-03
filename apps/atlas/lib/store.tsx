@@ -5,6 +5,7 @@ import { CATEGORIES, DEFAULT_VARIABLES, businessById } from './mock-data'
 import { makeId } from './format'
 import type { GoalId, InboxMessage, LiveBusinessSnapshot, RequestItem, RequestType } from './types'
 import { mergeCloudRequests } from './workspace-merge'
+import { mergeServerInbox, parseServerInbox, type ServerInboxMessage } from './inbox-feed'
 
 const LOCAL_STORAGE_KEY = 'farq-atlas-workspace-v3'
 const LEGACY_SESSION_STORAGE_KEY = 'farq-atlas-workspace-v2'
@@ -26,6 +27,7 @@ type Action =
   | { type: 'update-message'; id: string; patch: Partial<InboxMessage> }
   | { type: 'restore'; state: Pick<State, 'requests' | 'inbox'> }
   | { type: 'add-cloud'; requests: RequestItem[] }
+  | { type: 'add-replies'; messages: ServerInboxMessage[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -35,6 +37,11 @@ function reducer(state: State, action: Action): State {
       // the account's saved requests join what is on screen now; nothing local is replaced (lib/workspace-merge.ts)
       const requests = mergeCloudRequests(state.requests, action.requests)
       return requests === state.requests ? state : { ...state, requests }
+    }
+    case 'add-replies': {
+      // WhatsApp replies from the account's feed join the device's inbox; read state and drafts stay as they are
+      const inbox = mergeServerInbox(state.inbox, action.messages)
+      return inbox === state.inbox ? state : { ...state, inbox }
     }
     case 'toggle-select':
       return {
@@ -222,6 +229,8 @@ interface StoreValue extends State {
   updateRequest: (id: string, patch: Partial<RequestItem>) => void
   markRead: (id: string, unread?: boolean) => void
   updateMessage: (id: string, patch: Partial<InboxMessage>) => void
+  /** Asks the account's feed for new WhatsApp replies now (the inbox calls it when it opens). */
+  refreshReplies: (force?: boolean) => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -256,6 +265,31 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined)
       .finally(() => setWorkspaceReady(true))
   }, [])
+
+  // WhatsApp replies to the account's campaigns (app/api/inbox): on open, when the tab comes back, when the inbox
+  // opens, and every minute while the tab is in view. Signed out or not configured (401/403/503), the minute checks
+  // pause until the tab comes back or the inbox opens; the inbox stays as it is.
+  const repliesPaused = useRef(false)
+  const repliesInFlight = useRef(false)
+  const refreshReplies = useCallback((force = false) => {
+    if (repliesInFlight.current || document.visibilityState !== 'visible' || (repliesPaused.current && !force)) return
+    repliesInFlight.current = true
+    fetch('/api/inbox', { cache: 'no-store' })
+      .then(async (response) => {
+        repliesPaused.current = response.status === 401 || response.status === 403 || response.status === 503
+        return response.ok ? parseServerInbox(await response.json().catch(() => null)) : []
+      })
+      .then((messages) => { if (messages.length) dispatch({ type: 'add-replies', messages }) })
+      .catch(() => undefined)
+      .finally(() => { repliesInFlight.current = false })
+  }, [])
+  useEffect(() => {
+    refreshReplies(true)
+    const timer = window.setInterval(() => refreshReplies(), 60_000)
+    const back = () => refreshReplies(true)
+    document.addEventListener('visibilitychange', back)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', back) }
+  }, [refreshReplies])
 
   useEffect(() => {
     if (!workspaceReady) return
@@ -313,8 +347,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, markRead, updateMessage }),
-    [state, toggleSelect, setSelection, createDraft, updateRequest, markRead, updateMessage],
+    () => ({ ...state, toggleSelect, setSelection, createDraft, updateRequest, markRead, updateMessage, refreshReplies }),
+    [state, toggleSelect, setSelection, createDraft, updateRequest, markRead, updateMessage, refreshReplies],
   )
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

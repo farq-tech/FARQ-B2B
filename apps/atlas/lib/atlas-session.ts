@@ -171,3 +171,11 @@ export function isTargetingAllowed(session: StoredSession) {
   const configured = (process.env.ATLAS_TARGETING_ALLOWED_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean)
   return configured.length === 0 || (!!session.user.email && configured.includes(session.user.email.toLowerCase()))
 }
+
+/**
+ * The account a sent campaign message and its WhatsApp replies belong to: the signed-in Farq user. The same id is
+ * stored with each message the targeting service sends and is the only key the inbox feed is read by.
+ */
+export function inboxAccount(session: Pick<StoredSession, 'user'>) {
+  return session.user.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80)
+}

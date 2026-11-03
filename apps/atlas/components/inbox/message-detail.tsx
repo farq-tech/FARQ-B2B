@@ -1,45 +1,49 @@
 'use client'
 
-import { Check, ExternalLink, MailOpen, Mail, Scale } from 'lucide-react'
+import { Check, ExternalLink, MailOpen, Mail, MapPinned, Scale } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { businessById, districtById } from '@/lib/mock-data'
-import { formatDateTime, formatPhone, formatSar } from '@/lib/format'
-import { counted, numberFormat } from '@/lib/insights-api'
+import { formatDateTime, formatSar } from '@/lib/format'
+import { inboxMapHref, kindNote, requestFor } from '@/lib/inbox-feed'
+import { counted, numberFormat, useCities } from '@/lib/insights-api'
 import { useAppStore } from '@/lib/store'
 import type { InboxMessage } from '@/lib/types'
+import { messageBusiness } from './message-business'
 import { SourceLabel } from './source-label'
 
 export function MessageDetail({ message }: { message: InboxMessage }) {
   const { requests, markRead, updateMessage } = useAppStore()
   const [draft, setDraft] = useState(message.replyDraft ?? '')
   const [saved, setSaved] = useState(false)
-  const b = businessById.get(message.businessId)
-  const request = requests.find((r) => r.id === message.requestId)
+  const cities = useCities()
+  const request = requestFor(requests, message.requestId)
+  // the business as the request saved it from the map; no number is shown here, for a sample or a real reply
+  const b = messageBusiness(message, request)
+  const note = kindNote(message.kind)
   const total = message.quote?.lines.reduce((s, l) => s + l.unitPrice * l.qty, 0) ?? 0
 
   return (
     <article className="flex flex-col gap-4 rounded-2xl border bg-card p-4 lg:p-5">
       <header className="flex flex-col gap-2">
         <SourceLabel message={message} />
-        <h2 className="text-xl font-bold text-balance">{b?.name ?? 'غير متاح'}</h2>
-        <p className="text-xs text-muted-foreground">
-          {/* only the parts the directory has, so a missing district never leaves «·  ·» */}
-          {[b?.category, b ? districtById.get(b.districtId)?.name : null].filter(Boolean).map((part) => `${part} · `).join('')}
-          <span dir="ltr">{formatPhone(b?.whatsapp ?? null)}</span>
-        </p>
+        <h2 className="text-xl font-bold text-balance">{b.name ?? 'غير متاح'}</h2>
+        {/* only the parts the request knows, so a missing district never leaves «·  ·» */}
+        {b.category || b.district ? <p className="text-xs text-muted-foreground">{[b.category, b.district].filter(Boolean).join(' · ')}</p> : null}
       </header>
 
       {/* the thread reads like a chat: who wrote and when above the bubble, the message at reading size with its own
           line breaks, so a long supplier reply is not a grey block of small text */}
       <figure className="flex max-w-xl flex-col gap-1 self-start">
         <figcaption className="text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">{b?.name ?? 'غير متاح'}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+          <span className="font-semibold text-foreground">{b.name ?? 'غير متاح'}</span> · <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+          {message.origin === 'whatsapp' ? ' · واتساب' : null}
         </figcaption>
-        <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote>
+        {/* a photo, a voice note or a file is named, not shown: Atlas keeps only the words of a reply */}
+        {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
+        {message.body.trim() ? <blockquote className="whitespace-pre-line rounded-2xl rounded-ss-sm bg-muted px-4 py-3 text-base leading-7">{message.body}</blockquote> : null}
       </figure>
 
       {message.quote ? (
@@ -82,6 +86,12 @@ export function MessageDetail({ message }: { message: InboxMessage }) {
           <Button variant="outline" nativeButton={false} render={<Link href={`/requests/${request.id}`} />}>
             {message.quote ? <Scale data-icon="inline-start" /> : <ExternalLink data-icon="inline-start" />}
             {message.quote ? 'مقارنة العروض في الطلب' : 'فتح الطلب المرتبط'}
+          </Button>
+        ) : null}
+        {/* the business on the map, in the request's city: from the reply to the place it came from */}
+        {request && b.name ? (
+          <Button variant="outline" nativeButton={false} render={<Link href={inboxMapHref(request, b.name, cities)} />}>
+            <MapPinned data-icon="inline-start" />اعرضها على الخريطة
           </Button>
         ) : null}
         <Button variant="ghost" onClick={() => markRead(message.id, !message.unread)}>

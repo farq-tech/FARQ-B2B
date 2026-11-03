@@ -15,6 +15,7 @@ from market_analytics import MarketAnalytics
 import market_analytics
 import status_policy
 import read_only_test
+import wa_inbox
 from metrics import ServiceMetrics, route_label
 import contextvars
 from health import is_ready
@@ -853,6 +854,11 @@ def _send_farq(body):
 
 WA_TOKEN = os.environ.get('CONSTRUCTION_WHATSAPP_ACCESS_TOKEN'); WA_PHONE_ID = os.environ.get('CONSTRUCTION_WHATSAPP_PHONE_NUMBER_ID'); WA_WABA = os.environ.get('WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID')
 WA_GRAPH = 'https://graph.facebook.com/v23.0'
+# Incoming replies for the Atlas inbox (wa_inbox.py): the webhook checks every body against the app secret and answers
+# Meta's subscription check with the verify token. Unset either one and that half of the webhook stays closed.
+WA_APP_SECRET = os.environ.get('WHATSAPP_APP_SECRET'); WA_VERIFY_TOKEN = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
+INBOX = wa_inbox.InboxStore(os.path.join(RUNTIME_DIR, 'wa_inbox.sqlite3'))
+WEBHOOK_PATH = '/whatsapp/webhook'
 def graph(path, body=None, method=None):
     if not read_only_test.provider_calls_allowed():
         return {'error': {'message': 'READ_ONLY_TEST_ENV'}}
@@ -924,6 +930,11 @@ def _send_template(body):
     log_decision('send_template', None, row['poi_key'], 'accept', why)
     r = provider_send(payload)
     ok = bool(r.get('messages'))
+    message_id = (r.get('messages') or [{}])[0].get('id')
+    if ok and body.get('atlas_campaign') is True and message_id:
+        # the Atlas account and request this message belongs to, so its reply reaches that account's inbox
+        try: INBOX.record_outbound(message_id, body.get('account_id'), body.get('request_id'), row['poi_key'], to)
+        except Exception as error: LOGGER.warning('wa_inbox outbound not recorded: %s', type(error).__name__)
     with open(os.path.join(HERE, 'data', 'wa_template_log.jsonl'), 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'to': status_policy.mask(to), 'poi_key': row['poi_key'], 'template': name, 'ok': ok, 'error_code': (r.get('error') or {}).get('code')}, ensure_ascii=False) + '\n')
     return {'ok': ok, 'message_id': (r.get('messages') or [{}])[0].get('id'), 'error': (r.get('error') or {}).get('message') if not ok else None, 'code': (r.get('error') or {}).get('code')}
@@ -1034,6 +1045,11 @@ class H(BaseHTTPRequestHandler):
             self._json({'ok': ready, 'service': 'farq-targeting'}, 200 if ready else 503)
             return
         if route.path=='/logout': self.do_POST(); return   # same handling as POST /logout
+        if route.path == WEBHOOK_PATH:
+            # Meta's subscription check: public by design, answered only with our verify token (wa_inbox.handle_verify)
+            if read_only_test.enabled(): self.send_response(404); self.end_headers(); return
+            status, text = wa_inbox.handle_verify(urllib.parse.parse_qs(route.query), WA_VERIFY_TOKEN)
+            b = text.encode(); self.send_response(status); self.send_header('Content-Type', 'text/plain; charset=utf-8'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b); return
         if route.path == '/metrics':
             if not self._authed(): self._json({"error":"UNAUTHORIZED"},401); return
             body = METRICS.render_prometheus()
@@ -1101,6 +1117,17 @@ class H(BaseHTTPRequestHandler):
             self._json({'ai': bool(API_KEY), 'model': MODEL if API_KEY else None, 'pois': n[0], 'whatsapp': n[1], 'email': n[2]})
         elif self.path == '/templates':
             self._json(list_templates())
+        elif route.path == '/inbox':
+            # one Atlas account's WhatsApp replies; the Atlas server names the account from its own session
+            query = urllib.parse.parse_qs(route.query)
+            account = query.get('account', [''])[0]
+            if not wa_inbox.valid_id(account): self._json({'error': 'INPUT'}, 400); return
+            try: since = int(query.get('since', ['0'])[0] or 0)
+            except ValueError: self._json({'error': 'INPUT'}, 400); return
+            try: self._json({'ok': True, **INBOX.feed(account, since)})
+            except Exception as error:
+                log_map_api_failure('inbox', error)
+                self._json({'ok': False, 'error': 'UNAVAILABLE'}, 503)
         elif self.path == '/cities':
             self._json(cities())
         elif self.path.startswith('/template-status'):
@@ -1123,6 +1150,19 @@ class H(BaseHTTPRequestHandler):
                 import startup_jobs
                 for job in startup_jobs.start(DATA_DIR, AUX_DATA_DIR): LOGGER.info('startup job running in background after upload: %s', job)
             return
+        if urllib.parse.urlparse(self.path).path == WEBHOOK_PATH:
+            # WhatsApp webhook: public by design, every body must carry Meta's signature (wa_inbox.handle_post)
+            if read_only_test.enabled(): self.send_response(404); self.end_headers(); return
+            try: n = int(self.headers.get('Content-Length', 0))
+            except ValueError: n = -1
+            if n < 0 or n > wa_inbox.MAX_WEBHOOK_BYTES: self._json({'ok': False, 'error': 'TOO_LARGE'}, 413); return
+            raw = self.rfile.read(n)
+            try: status, result = wa_inbox.handle_post(raw, self.headers.get('X-Hub-Signature-256'), WA_APP_SECRET, INBOX, WA_PHONE_ID)
+            except Exception as error:
+                log_map_api_failure('whatsapp-webhook', error)
+                status, result = 500, {'ok': False, 'error': 'UNAVAILABLE'}
+            LOGGER.info('whatsapp_webhook status=%s new=%s duplicate=%s unlinked=%s statuses=%s', status, result.get('new'), result.get('duplicate'), result.get('unlinked'), result.get('statuses'))
+            self._json(result, status); return
         n = int(self.headers.get('Content-Length', 0)); raw = self.rfile.read(n)
         if self.path == '/login':
             if not login_allowed(self._client_ip()): self._json({'error': 'TOO_MANY_ATTEMPTS'}, 429); return
