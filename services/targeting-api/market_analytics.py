@@ -46,8 +46,21 @@ MARKET_BASIS = (
 )
 MARKET_GAPS_BASIS = (
     "النقص = عدد المنشآت المتوقع بمعدل المدينة (سكان لكل منشأة من النشاط نفسه) ناقص الموجود في الدليل. "
-    "السكان من 910ths حيث ينشر الحي، وإلا تقديرات WorldPop 2025. الدليل لا يغطي كل المنشآت الفعلية، فالنقص يدل على مكان البحث لا على طلب مؤكد."
+    "السكان رقم مقاس للحي حيث يتوفر، وإلا تقدير. الدليل لا يغطي كل المنشآت الفعلية، فالنقص يدل على مكان البحث لا على طلب مؤكد."
 )
+
+
+def population_method(source):
+    """How a district's population was arrived at, in a word the interface may show: «measured», «buildings»
+    (dwellings in the building layer) or «grid» (a satellite population grid); None when there is no figure. Atlas
+    never names an outside source (docs/atlas-product-foundation.md §5), so the source label stays in the service."""
+    if not source:
+        return None
+    if str(source).startswith("910ths"):
+        return "measured"
+    if str(source).startswith("farq_buildings"):
+        return "buildings"
+    return "grid"
 BUYER_BASIS = (
     "الشراء المتوقع مستنتج من علاقات التصنيف (يشتري عادةً)، وليس سجلاً لطلب أو شراء فعلي. "
     "عداد واتساب يتطلب علامة المصدر ورقماً سعودياً صالحاً للاستخدام."
@@ -788,7 +801,7 @@ class MarketAnalytics:
                 "shortfall": round(expected - present, 1),
                 "residents_per_business": round(people / present) if present else None,
                 "male_pct": male_pct,
-                "population_source": row.get("source"),
+                "population_method": population_method(row.get("source")),
                 "caveat": gap_caveat(name, male_pct),
             })
         # ordinary residential districts first, each group largest shortfall first

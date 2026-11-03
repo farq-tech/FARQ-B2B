@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
-  if (!origin || !headers) return error('خدمة الإرسال السحابي غير مهيأة.', 503)
+  if (!origin || !headers) return error('خدمة الإرسال عبر واتساب غير مهيأة.', 503)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     if (auth.refreshed) setSession(response, auth.session)
     return response
   } catch {
-    return error('تعذر التحقق من قالب واتساب السحابي.', 502)
+    return error('تعذر التحقق من جاهزية الإرسال عبر واتساب.', 502)
   } finally {
     clearTimeout(timeout)
   }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
   const origin = process.env.TARGETING_ORIGIN?.replace(/\/$/, '')
   const headers = targetingHeaders()
-  if (!origin || !headers) return error('خدمة الإرسال السحابي غير مهيأة.', 503)
+  if (!origin || !headers) return error('خدمة الإرسال عبر واتساب غير مهيأة.', 503)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 45_000)

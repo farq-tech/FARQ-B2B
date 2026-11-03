@@ -18,7 +18,7 @@ import { useStickyState, useStudiedActivity, type StudiedActivity } from '@/lib/
 import { Understood, type Understanding } from '@/components/shared/understood'
 import { MainActivityPicker } from '@/components/shared/main-activity-picker'
 import { ActivityCompare } from './activity-compare'
-import { competitorsSummary, densestDistrict } from './tool-answers'
+import { competitorsSummary, densestDistrict, rankCompetition } from './tool-answers'
 import { useMainActivities } from '@/lib/main-activities'
 
 // per_km2 (businesses ÷ km²) and residents_per (residents ÷ businesses) come ready from the service for the activity's
@@ -161,10 +161,7 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
   const idByName = useMemo(() => new Map(rows.map((row) => [row.name, row.id])), [rows])
   const hover = (id: string | undefined) => (on: boolean) => onHover?.(on && id ? id : null)
   // sorted once per answer and order, not on every render (a hover or a show-more re-renders the whole tool)
-  const ranked = useMemo(() => [...table].filter((item) => order === 'dense' ? item.competitors > 0 : item.row.population != null)
-    .sort((a, b) => (order === 'dense'
-      ? (b.perKm2 ?? -1) - (a.perKm2 ?? -1)
-      : (a.perKm2 ?? Infinity) - (b.perKm2 ?? Infinity) || (b.row.population ?? 0) - (a.row.population ?? 0))), [table, order])
+  const ranked = useMemo(() => rankCompetition(table, order), [table, order])
   const [limit, showMore] = useShowMore(30, `${city}|${studied.q ?? studied.main_id}|${order}`)
   // the two lists whose length is the service's: districts no chain reaches, and one chain's districts
   const [uncoveredLimit, showMoreUncovered] = useShowMore(15, `${city}|${studied.q ?? studied.main_id}`)
@@ -210,9 +207,12 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
       )}
       {studied && counts && status !== 'loading' && !noneFound && (
         <>
+          {/* one span: the trigger is a flex box, and loose parts became three side-by-side columns that wrapped apart */}
           <Explained title="المنافسون في المدينة" lines={EXPLAIN.competitors} className="text-base">
-            {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
-            {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
+            <span>
+              {cityTotal == null ? <>عدد منشآت «{studied.label}» في المدينة غير متاح</> : <><strong>{numberFormat.format(cityTotal)}</strong> منشأة «{studied.label}» في المدينة</>}
+              {located != null && cityTotal != null && located < cityTotal && <span className="text-muted-foreground"> · {numberFormat.format(located)} منها بحي معروف</span>}
+            </span>
           </Explained>
           {/* two views of one result, switched in place: pressed buttons, not tabs (there is no tab panel to move to) */}
           <div className="flex gap-1.5" role="group" aria-label="طريقة العرض">
@@ -233,8 +233,9 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
               {ranked.slice(0, limit).map((item) => (
                 <ResultRow key={item.row.id} onClick={() => onSelect(item.row.id)} onHover={hover(item.row.id)} title={item.row.name}
                   sub={item.residentsPer != null ? `ساكن لكل منافس: ${numberFormat.format(Math.round(item.residentsPer))}` : item.competitors ? 'السكان غير متاح' : 'لا منافس في الحي'}
-                  value={numberFormat.format(item.competitors)}
-                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : 'المساحة غير متاحة'} />
+                  value={counted(item.competitors, 'business')}
+                  // a district with none has no density to show, and its area is not what is missing
+                  valueSub={item.perKm2 != null ? `${numberFormat.format(Math.round(item.perKm2 * 10) / 10)} لكل كم²` : item.competitors ? 'المساحة غير متاحة' : undefined} />
               ))}
             </ol>
             <MoreRows shown={Math.min(limit, ranked.length)} total={ranked.length} noun="district" onMore={showMore} />
@@ -245,8 +246,10 @@ export function CompetitorsTool({ city, rows, onOverlay, onSelect, onActivity, o
           {view === 'brands' && brands && !brand && (
             <>
               <Explained title="السلاسل" lines={EXPLAIN.brands(brands.total, brands.in_chains)} className="text-base">
-                <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
-                {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
+                <span>
+                  <strong>{counted(brands.chains, 'chain')}</strong> {brands.chains === 1 ? 'تملك' : 'تملك معاً'} {numberFormat.format(brands.in_chains)} من {numberFormat.format(brands.total)} منشأة
+                  {brands.total ? ` (${percent(Math.round((100 * brands.in_chains) / brands.total))})` : ''}
+                </span>
               </Explained>
               {brands.brands.length === 0 && <NoResult title="لا سلسلة لهذا النشاط" body="السلسلة ثلاثة فروع أو أكثر، والسوق هنا كله محلات مستقلة. اعرض «الأحياء» بدلاً منها." />}
               <ol className="max-h-[45vh] divide-y overflow-y-auto text-base">

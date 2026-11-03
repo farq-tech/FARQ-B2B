@@ -15,13 +15,15 @@ export function populationMethod(source: string | null | undefined): string {
 }
 
 export const EXPLAIN = {
+  /** `sources` are those of the districts that have a figure; `total` is null when none has. A district every source
+   * puts at 0 has no figure (golden.py), so its card says that instead of naming the method of a number not shown. */
   population(sources: (string | null | undefined)[], total: number | null): string[] {
+    if (total == null || !sources.length) return ['لا رقم سكان لهذا النطاق في جرد فرق بعد، فيظهر «غير متاح» لا صفراً ولا تقديراً.']
     if (sources.length === 1) return [populationMethod(sources[0])]
     const measured = sources.filter((source) => source?.startsWith('910ths')).length
     return [
-      `مجموع سكان ${n(sources.length)} حياً.`,
+      `مجموع سكان ${counted(sources.length, 'district')}.`,
       measured === sources.length ? 'كل الأحياء أرقامها مقاسة.' : `${n(measured)} منها أرقامها مقاسة، والباقي تقدير من مباني الحي أو من خرائط الكثافة.`,
-      ...(total == null ? ['يظهر «غير متاح» إذا كان حي واحد على الأقل بلا رقم.'] : []),
     ]
   },
   businesses(scope: 'district' | 'districts' | 'city'): string[] {

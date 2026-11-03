@@ -1,5 +1,6 @@
-import { numberFormat, percent } from './insights-api'
-import { PALETTE } from '@/lib/palette'
+// with extensions, so node --test can load this file for lib/real-estate.test.ts
+import { numberFormat, percent } from './insights-api.ts'
+import { PALETTE } from './palette.ts'
 
 /** A deal as the ad states it: a sale, or a rent with its own period. Nothing is converted between periods. */
 export type Deal = 'sale' | 'rent_year' | 'rent_month' | 'rent_unstated'
@@ -87,7 +88,8 @@ export function daysAgo(day: string | undefined, now = new Date()) {
   if (days === 0) return 'اليوم'
   if (days === 1) return 'أمس'
   if (days < 30) return `منذ ${counted(days, 'يوم', 'يومين', 'أيام', 'يوماً')}`
-  if (days < 365) return `منذ ${counted(Math.max(1, Math.round(days / 30)), 'شهر', 'شهرين', 'أشهر', 'شهراً')}`
+  // 345 days and up round to twelve months, which is said as a year
+  if (days < 345) return `منذ ${counted(Math.max(1, Math.round(days / 30)), 'شهر', 'شهرين', 'أشهر', 'شهراً')}`
   return `منذ ${counted(Math.round(days / 365), 'سنة', 'سنتين', 'سنوات', 'سنة')}`
 }
 
@@ -102,6 +104,14 @@ function counted(n: number, one: string, two: string, few: string, many: string)
  * The service serves only these; the same test here keeps an older service answer to the same standard. */
 export const isPublishable = (listing: Listing) =>
   !listing.check && listing.price_sar != null && listing.deal !== 'rent_unstated' && ((listing.photos?.length ?? 0) > 0 || !!listing.photo)
+
+/** Whether Atlas shows the ads' own photos. The owner turned them off on 2026-11-02 (they carry the ad site's
+ * logo) and back on the same day; this one switch covers every screen that shows them. */
+export const SHOW_LISTING_PHOTOS = true
+
+/** The photos Atlas shows of a listing: none while SHOW_LISTING_PHOTOS is off. */
+export const shownPhotos = (listing: Pick<Listing, 'photos' | 'photo'>): string[] =>
+  !SHOW_LISTING_PHOTOS ? [] : listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
 
 export const PERIOD_WORD: Record<Deal, string> = { sale: '', rent_year: 'سنوياً', rent_month: 'شهرياً', rent_unstated: '' }
 export const RENT_DEALS: { id: Deal; label: string }[] = [

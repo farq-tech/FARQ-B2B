@@ -6,6 +6,7 @@ import threading
 import unittest
 
 import duckdb
+import json
 
 SERVICE_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVICE_DIR))
@@ -50,8 +51,24 @@ class MarketGapTests(unittest.TestCase):
         self.assertEqual((yasmin["businesses"], yasmin["shortfall"], yasmin["residents_per_business"]), (2, 6.0, 20000))
         self.assertEqual(nakheel["shortfall"], -6.0, "a surplus is a negative shortfall")
         self.assertEqual(nakheel["male_pct"], 55.0)
-        self.assertEqual((nakheel["population_source"], rabi["population_source"]), ("910ths.sa", None), "each figure names its source")
+        self.assertEqual((nakheel["population_method"], rabi["population_method"]), ("measured", None), "each figure says how it was found")
         self.assertIn("الدليل لا يغطي", result["basis"])
+
+    def test_no_response_field_names_an_outside_source(self):
+        # docs/atlas-product-foundation.md §5: the interface never names a source, so neither does what it is sent
+        population = {**self.population, "الربيع": {"population": 30000.0, "male": None, "female": None, "source": "WorldPop 2025"},
+                      "الياسمين": {"population": 40000.0, "male": 20000.0, "female": 20000.0, "source": "farq_buildings_v3"}}
+        for answer in (self.analytics.market_gaps({"city": "Riyadh"}, population), self.analytics.market_gaps({"city": "Riyadh"}, {})):
+            text = json.dumps(answer, ensure_ascii=False).lower()
+            for name in ("910ths", "worldpop", "world pop"):
+                self.assertNotIn(name, text)
+        # every explanation the analytics hand out, not only the gaps one
+        import market_analytics
+        for key, value in vars(market_analytics).items():
+            if key.endswith("_BASIS") and isinstance(value, str):
+                self.assertNotRegex(value.lower(), "910ths|worldpop|world pop", key)
+        methods = {row["district_ar"]: row["population_method"] for row in self.analytics.market_gaps({"city": "Riyadh"}, population)["districts"]}
+        self.assertEqual(methods, {"النخيل": "measured", "الياسمين": "buildings", "الربيع": "grid"})
 
     def test_industrial_and_labour_housing_districts_go_after_residential_ones(self):
         population = dict(self.population)

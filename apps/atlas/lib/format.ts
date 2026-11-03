@@ -55,7 +55,25 @@ export const NEXT_STEP: Record<RequestStatus, string | null> = {
 export const TYPE_LABEL: Record<RequestType, string> = {
   rfq: 'طلب تسعير',
   list: 'قائمة محفوظة',
-  campaign: 'مسودة حملة',
+  // the status says whether it is still a draft; the type says only what kind of request it is
+  campaign: 'حملة واتساب',
+}
+
+/**
+ * The next step for one request. A ready quote request is shared by the person (Atlas sends nothing for it), a ready
+ * campaign goes out one confirmed batch at a time, so «ready» does not read the same for both.
+ */
+export function nextStep(status: RequestStatus, type: RequestType): string | null {
+  if (status === 'ready_manual' && type === 'rfq') return 'انسخ نص الطلب وشاركه بنفسك'
+  if (status === 'ready_manual' && type === 'campaign') return 'أرسل الدفعة عبر واتساب بتأكيدك'
+  return NEXT_STEP[status]
+}
+
+/** The status badge's words for one request: a ready quote request is ready to share, not to send. */
+export function statusLabel(status: RequestStatus, type: RequestType): string {
+  if (status === 'ready_manual' && type === 'rfq') return 'جاهز للمشاركة'
+  if (status === 'ready_manual' && type === 'campaign') return 'جاهزة للإرسال عبر واتساب'
+  return STATUS_SINGULAR[status]
 }
 
 export function makeId(prefix: string) {

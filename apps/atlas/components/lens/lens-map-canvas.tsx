@@ -8,6 +8,7 @@ import { LoadError } from '@/components/shared/load-error'
 import { cn } from '@/lib/utils'
 import { PEEK_PX } from './map-sheet'
 import { OLIVE_STEPS, PALETTE } from '@/lib/palette'
+import { boundsOf } from './map-bounds'
 import { cityFrame, framePadding } from './map-framing'
 
 const STYLE_URL = 'mapbox://styles/mapbox/light-v11'
@@ -15,18 +16,6 @@ const STYLE_JSON = 'https://api.mapbox.com/styles/v1/mapbox/light-v11'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 // five steps from low to high; a district without the figure is left unshaded
 export const SHADES = OLIVE_STEPS   // Farq olive (--primary) for the highest districts
-
-function boundsOf(features: { geometry?: { coordinates?: unknown } | null }[]): [[number, number], [number, number]] | null {
-  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
-  const visit = (coords: unknown): void => {
-    if (Array.isArray(coords) && typeof coords[0] === 'number') {
-      const [x, y] = coords as [number, number]
-      west = Math.min(west, x); east = Math.max(east, x); south = Math.min(south, y); north = Math.max(north, y)
-    } else if (Array.isArray(coords)) coords.forEach(visit)
-  }
-  features.forEach((feature) => visit(feature.geometry?.coordinates))
-  return west < Infinity ? [[west, south], [east, north]] : null
-}
 
 /** Quantile step (0-4) of each district's value, so every lens reads as five even groups whatever the scale. */
 export function shadeSteps(values: Map<string, number | null>): Map<string, number> {
@@ -123,9 +112,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   streets?: StreetLine[] | null
   onStreet?: ((id: string) => void) | null
   focus?: { lon: number; lat: number } | null
-  /** A district picked from a list: the map flies to it. `cover` is the share of the screen a phone's sheet covers below
-   * the map's own peek, so the district lands in the part still visible; `nonce` repeats a pick of the same district. */
-  zoomTo?: { id: string; nonce: number; cover: number } | null
+  /** Districts picked from a list or named by a link: the map frames them. `cover` is the share of the screen a phone's
+   * sheet covers below the map's own peek, so they land in the part still visible; `nonce` repeats a pick of the same. */
+  zoomTo?: { ids: string[]; nonce: number; cover: number } | null
   /** The visible area [west, south, east, north] each time the map settles. */
   onBounds?: ((bounds: [number, number, number, number]) => void) | null
   /** Told when the map fails to open and when a retry brings it back, so the page can clear what would sit over the notice. */
@@ -166,6 +155,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
   const framed = useRef(false)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
+  // why the map did not open, in words that point the visitor the right way: a dropped connection is theirs to fix;
+  // a map the server cannot serve right now is not, and the panel's figures still work either way
+  const [errorDetail, setErrorDetail] = useState<string | undefined>(undefined)
   // a retry opens the map again in place, so the lens, the step and the picked districts stay as they were
   const [attempt, setAttempt] = useState(0)
   const failed = useRef(onFailed)
@@ -181,10 +173,13 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
       const response = await fetch('/api/mapbox-token', { cache: 'no-store' }).catch(() => null)
       const token = response?.ok ? await response.json().then((body) => body.token as string | undefined).catch(() => null) : null
       if (disposed) return
-      if (!token) { setError('الخريطة'); return }
+      if (!token) {
+        setErrorDetail(response ? 'الخريطة غير متاحة الآن من جهتنا، والأرقام والقوائم في اللوحة تعمل. أعد المحاولة بعد قليل.' : 'تحقق من الاتصال ثم أعد المحاولة. الأرقام في اللوحة تبقى كما هي.')
+        setError('الخريطة'); return
+      }
       const mapboxgl = await import('mapbox-gl').then((module) => module.default).catch(() => null)
       if (disposed || !container.current) return
-      if (!mapboxgl) { setError('الخريطة'); return }
+      if (!mapboxgl) { setErrorDetail(undefined); setError('الخريطة'); return }
       mapboxgl.accessToken = token
       const style = await dressedStyle(token)
       if (disposed || !container.current) return
@@ -393,8 +388,9 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
 
   useEffect(() => {
     const instance = map.current
-    const feature = zoomTo && features.find((item) => String(item.properties.id) === zoomTo.id)
-    const bounds = feature ? boundsOf([feature]) : null
+    const wanted = new Set(zoomTo?.ids ?? [])
+    const picked = features.filter((item) => wanted.has(String(item.properties.id)))
+    const bounds = picked.length ? boundsOf(picked) : null
     if (!ready || !instance || !bounds || !zoomTo) return
     const box = instance.getContainer()
     // the sheet covers `cover` of the whole screen, of which the map already ends above the peek
@@ -413,7 +409,7 @@ export function LensMapCanvas({ features, steps, selected, onToggle, colors, cir
           <span className="animate-pulse rounded-full border bg-card/95 px-4 py-2 text-sm font-medium text-muted-foreground shadow-sm">جارٍ تحميل الخريطة</span>
         </div>
       )}
-      {error && <LoadError what={error} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
+      {error && <LoadError what={error} detail={errorDetail} onRetry={retry} className={cn('absolute inset-x-4 top-4 z-[15] mx-auto max-w-sm bg-card/95 backdrop-blur', errorClassName)} />}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Building2, Calculator, List, Map as MapIcon, Scale, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { Icon3D } from '@/components/shared/icon-3d'
+import { ListingFace } from '@/components/shared/listing-face'
 import { EmptyState } from '@/components/shared/empty-state'
 import { LoadError } from '@/components/shared/load-error'
 import { ChipRow } from '@/components/shared/search-pill'
@@ -12,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat, postMarket, useCities } from '@/lib/insights-api'
-import { LISTING_TYPES, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
+import { LISTING_TYPES, shownPhotos, RENT_DEALS, priceLine, toneColor, typeLabel, versusDistrict, type Listing, ageLabel } from '@/lib/real-estate'
 import { DEFAULT_FILTERS, activeFilters, applyFilters, dealOf, offersLabel, type HomeFilters } from '@/lib/real-estate-filters'
 import { HomesFilters } from './homes-filters'
 import { cn } from '@/lib/utils'
@@ -306,14 +307,16 @@ const HomeCard = memo(function HomeCard({ listing, comparing, onOpen, onCompare,
   onHover: (id: string | null) => void
 }) {
   const versus = versusDistrict(listing)
-  const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  const photos = shownPhotos(listing)
   return (
     <li onMouseEnter={() => onHover(listing.id)} onMouseLeave={() => onHover(null)} className="group">
       <div className="relative overflow-hidden rounded-2xl bg-muted">
         {/* an ad without photos keeps the card's shape, so the compare button never lands on the text */}
-        {photos.length ? <Gallery photos={photos} className="aspect-[20/19]" /> : (
-          <span className="grid aspect-[20/19] place-items-center text-sm text-muted-foreground"><Building2 className="size-8 opacity-40" aria-hidden /><span className="sr-only">بلا صور</span></span>
-        )}
+        {/* a listing with no photo to show (none in the ad, or none that loads) gets its type's face in the same slot */}
+        <Gallery photos={photos} className="aspect-[20/19]" fallback={(
+          <ListingFace type={listing.type} url={listing.url} className="aspect-[20/19]"
+            facts={[listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null, listing.beds ? counted(listing.beds, 'room') : null]} />
+        )} />
         {versus?.tone === 'good' && <span className="absolute start-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm">{versus.text}</span>}
         <button onClick={() => onCompare(listing)} aria-pressed={comparing} aria-label={`${comparing ? 'أزل من المقارنة' : 'أضف للمقارنة'}: ${typeLabel(listing.type)}${listing.district_ar ? ` في ${listing.district_ar}` : ''}`}
           className={cn('absolute end-3 top-3 grid size-9 pointer-coarse:size-11 place-items-center rounded-full outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2', comparing ? 'bg-primary text-primary-foreground' : 'bg-background/80 hover:bg-background')}>

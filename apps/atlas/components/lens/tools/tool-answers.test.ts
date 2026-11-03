@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, weekSummary } from './tool-answers.ts'
+import { audienceSummary, audienceWhere, comparePairs, competitorsSummary, densestDistrict, rankCompetition, territoriesSummary, weekSummary } from './tool-answers.ts'
 
 const district = (id: string, name: string) => ({ id, name })
 
@@ -52,4 +52,30 @@ test('the week line agrees with the number of days', () => {
   assert.equal(weekSummary(96, 5), 'خطة الأسبوع: 96 زيارة على 5 أيام')
   assert.equal(weekSummary(18, 1), 'خطة الأسبوع: 18 زيارة على يوم واحد')
   assert.equal(weekSummary(40, 2), 'خطة الأسبوع: 40 زيارة على يومين')
+})
+
+test('«الأقل تنافساً» puts a populated district with no competitor first, and an unknown density last', () => {
+  const at = (id: string, population: number | null, competitors: number, perKm2: number | null) => ({ row: { id, name: id, population }, competitors, perKm2 })
+  const table = [at('a', 9000, 4, 2.5), at('b', 3000, 0, null), at('c', 12000, 0, null), at('d', 5000, 2, null), at('e', 7000, 1, 0.4), at('f', null, 0, null)]
+  assert.deepEqual(rankCompetition(table, 'light').map((item) => item.row.id), ['c', 'b', 'e', 'a', 'd'])
+  assert.deepEqual(rankCompetition(table, 'dense').map((item) => item.row.id), ['a', 'e', 'd'])
+})
+
+test('businesses over the whole city read the service city count, not the sum of its districts', () => {
+  // 9,616 of 10,405 fell in a known district: the sum is part of the city, the line gives the city's count
+  assert.equal(audienceSummary({ selected: 0, scope: 186, segment: '', sizes: [9000, 616], unit: 'منشأة', top: 'العليا', cityTotal: 10405 }), 'حجم الجمهور في المدينة: 10,405 منشأة · الأعلى: العليا')
+  assert.equal(audienceSummary({ selected: 0, scope: 186, segment: '', sizes: [9000], unit: 'منشأة', top: null, cityTotal: null }), 'حجم الجمهور: غير متاح')
+  // selected districts are summed as before: every business in them has a district
+  assert.equal(audienceSummary({ selected: 2, scope: 2, segment: '', sizes: [40, 60], unit: 'منشأة', top: null, cityTotal: 10405 }), 'حجم الجمهور في حيّان محددة: 100 منشأة')
+})
+
+test('the territories peek line never reads 0: nothing while loading or empty, «تعذر التقسيم» on failure', () => {
+  assert.equal(territoriesSummary('loading', null, 'businesses'), null)
+  assert.equal(territoriesSummary('loading', 5, 'businesses'), null, 'the last split is not shown as the new one')
+  assert.equal(territoriesSummary('idle', 0, 'businesses'), null)
+  assert.equal(territoriesSummary('idle', null, 'businesses'), null)
+  assert.equal(territoriesSummary('error', null, 'businesses'), 'تعذر التقسيم')
+  assert.equal(territoriesSummary('error', 5, 'population'), 'تعذر التقسيم')
+  assert.equal(territoriesSummary('idle', 5, 'businesses'), '5 مناطق متوازنة بالمنشآت')
+  assert.equal(territoriesSummary('idle', 4, 'population'), '4 مناطق متوازنة بالسكان')
 })

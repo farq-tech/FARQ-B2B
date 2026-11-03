@@ -10,6 +10,7 @@ import { counted, numberFormat, postMarket } from '@/lib/insights-api'
 import type { DistrictRow } from '../city-data'
 import { SHADES } from '../lens-map-canvas'
 import type { Overlay } from './overlay'
+import { gapsHoverLine, gapsSummary } from './gaps-summary'
 import { PALETTE } from '@/lib/palette'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { stickyHas, useStudiedActivity } from '@/lib/sticky-state'
@@ -24,13 +25,17 @@ type Result = { residents_per_business: number | null; districts: Gap[]; underst
 
 const EXAMPLES = ['صيدلية', 'مغسلة ملابس', 'بقالة', 'مطعم', 'صالون حلاقة', 'مخبز']
 const SURPLUS = PALETTE.pebble   // more businesses than the city rate carries
+// districts with fewer residents are left out of the answer (a few people make any count look short or full)
+const MIN_POPULATION = 5000
 /** Short by at least one whole business, as the row reads it («ناقص 1» or more): a shortfall under half a business
  * would read «ناقص 0», so it counts as sufficient on the map and in the list alike. */
 const isShort = (row: Gap) => Math.round(row.shortfall) > 0
 
 /** «أين ينقص نشاطي؟»: districts with fewer businesses of an activity than their people carry at the city's rate. */
-export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHover }: {
+export function GapsTool({ city, cityName, rows, onOverlay, onSelect, selected = [], onHover }: {
   city: string
+  /** The city's Arabic name, for the line that says its districts have no population. */
+  cityName?: string
   rows: DistrictRow[]
   onOverlay: (overlay: Overlay) => void
   onSelect: (id: string) => void
@@ -59,7 +64,7 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
     // the previous activity's answer goes at once, so the map never paints it under the new activity's name
     setResult(null)
     setStatus('loading')
-    const body: Record<string, unknown> = { city, min_population: 5000, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
+    const body: Record<string, unknown> = { city, min_population: MIN_POPULATION, limit: 200, ...(studied.q ? { q: studied.q } : { main_id: studied.main_id }) }
     // a shared link runs this while the page's first heavy requests still hold the service, and the proxy gives up
     // after 12 seconds: one quiet second try after a pause, then the error with «أعد المحاولة»
     let pause: ReturnType<typeof setTimeout> | undefined
@@ -72,8 +77,15 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
   }, [city, studied, chosen, attempt])
 
   const label = studied.label
+  // a city none of whose districts has a population (most small cities today): no activity can be worked out there,
+  // so the panel says why instead of «not enough data for this activity», which sent the visitor trying others
+  const noPeople = rows.length > 0 && rows.every((row) => row.population == null)
   useEffect(() => {
     if (!result) { onOverlay({}); return }
+    if (noPeople && result.residents_per_business == null) { onOverlay({ summary: 'سكان الأحياء غير متاحين هنا، فالنقص لا يُحسب' }); return }
+    // no city rate, no shortfall anywhere: the map keeps its own shading instead of a blank city under «نقص …» while
+    // the panel says there is not enough data
+    if (result.residents_per_business == null) { onOverlay({ summary: `لا توجد بيانات كافية لـ«${label}»` }); return }
     const ids = new Map(rows.map((row) => [row.name, row.id]))
     const short = result.districts.filter((row) => isShort(row))
     const largest = Math.max(1, ...short.map((row) => row.shortfall))
@@ -83,11 +95,10 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
       if (!id) continue
       colors.set(id, isShort(row) ? SHADES[Math.min(4, Math.floor((5 * row.shortfall) / (largest + 1e-9)))] : SURPLUS)
     }
-    // the API returns the districts largest shortfall first, so the first short one is the top of the list; the
-    // figure is isolated left to right so its «+» stays in front of it inside the Arabic line
     const top = short[0]
-    const summary = result.residents_per_business == null ? null
-      : top ? `${counted(short.length, 'district')} فيها نقص · الأعلى: ${top.district_ar} \u2066+${numberFormat.format(Math.round(top.shortfall))}\u2069` : 'لا نقص في أي حي'
+    const summary = gapsSummary(result, counted)
+    const answered = new Map(result.districts.map((row) => [row.district_ar, row]))
+    const hover = new Map(rows.map((row) => [row.id, gapsHoverLine(answered.get(row.name), row.population, MIN_POPULATION, counted, numberFormat)]))
     // the card on a clicked district reads its row as the list does: «ناقص N» (needed at the city rate − present), or
     // «مكتفٍ» as the map colours it; a district the answer does not list stays out («غير متاح»)
     const facts = new Map<string, string>()
@@ -95,8 +106,8 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
       const id = ids.get(row.district_ar)
       if (id) facts.set(id, isShort(row) ? `ناقص ${numberFormat.format(Math.round(row.expected_businesses) - row.businesses)} ${label}` : 'مكتفٍ')
     }
-    onOverlay({ summary, facts, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
-  }, [result, rows, onOverlay, label])
+    onOverlay({ summary, hover, facts, lead: top ? ids.get(top.district_ar) ?? null : null, colors, legend: { title: `نقص «${label}» في الأحياء`, from: 'نقص قليل', to: 'نقص كبير', shades: SHADES, extra: { color: SURPLUS, label: 'مكتفٍ' } } })
+  }, [result, rows, onOverlay, label, noPeople])
 
   const study = (text: string) => { if (text) setStudied({ q: text, label: text }) }
 
@@ -133,7 +144,12 @@ export function GapsTool({ city, rows, onOverlay, onSelect, selected = [], onHov
       {/* the shape of the answer while it is worked out: district rows, each with its bar line */}
       {status === 'loading' && <ResultRowsSkeleton rows={5} sub label="جارٍ حساب النقص" />}
       {status !== 'loading' && chosen && studied.q && result && <Understood value={result.understood} />}
-      {status !== 'loading' && result && result.residents_per_business == null && <NoResult title={`لا توجد منشآت «${label}» في أحياء معروفة السكان`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />}
+      {status !== 'loading' && result && result.residents_per_business == null && (noPeople ? (
+        <div role="status" className="flex flex-col gap-1 rounded-xl bg-muted/40 p-3 text-base">
+          <p className="font-semibold">سكان أحياء {cityName ?? 'هذه المدينة'}: غير متاح بعد</p>
+          <p className="text-sm text-muted-foreground">النقص يُحسب من سكان كل حي، فلا يُحسب هنا لأي نشاط. «المنافسون» و«شوارع النشاط» يعملان فيها من المنشآت.</p>
+        </div>
+      ) : <NoResult title={`لا توجد منشآت «${label}» في أحياء معروفة السكان`} body="جرّب اسماً آخر للنشاط، أو اختر نشاطاً رئيسياً." />)}
       {status !== 'loading' && result && result.residents_per_business != null && (
         <>
           {/* two facts, each kept whole: on a phone the one line used to break inside «فيها نقص» */}

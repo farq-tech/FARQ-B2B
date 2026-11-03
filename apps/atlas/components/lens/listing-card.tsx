@@ -1,24 +1,53 @@
 'use client'
 
-import { useState } from 'react'
-import { BadgeCheck, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { BadgeCheck, Building2, Check, ChevronDown, ExternalLink, MessageCircle, Phone, Scale } from 'lucide-react'
 import { Explained } from '@/components/shared/explained'
 import { EXPLAIN } from '@/lib/explanations'
 import { counted, numberFormat } from '@/lib/insights-api'
-import { FEATURES, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
+import { FEATURES, LISTING_TYPES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo, perSqmLine, priceLine, signalLines, typeLabel, versusDistrict, type Listing } from '@/lib/real-estate'
 import { cn } from '@/lib/utils'
 import { ListingSurroundings, type MyPoint } from './listing-surroundings'
 import { Lightbox } from '@/components/shared/lightbox'
 import { MapWindow } from '@/components/shared/map-window'
+import { Icon3D } from '@/components/shared/icon-3d'
+import { ListingFace } from '@/components/shared/listing-face'
 
 const TONE = { good: 'text-primary', even: 'text-muted-foreground', high: 'text-warning' } as const
 
-/** Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out. */
-export function Gallery({ photos, className = 'h-40' }: { photos: string[]; className?: string }) {
+/**
+ * What stands where an ad's photo would: the property type's own icon on a quiet tile, so a listing without photos
+ * reads as one by design, not as a picture that failed. `caption` adds the words for a tile large enough to hold them.
+ */
+export function NoPhoto({ type, caption = false, className }: { type: string; caption?: boolean; className?: string }) {
+  return (
+    <span className={cn('flex flex-col items-center justify-center gap-1 bg-gradient-to-b from-muted/60 to-muted text-muted-foreground', className)}>
+      {/* a type outside the search's list (an «other» ad) has no 3D icon of its own */}
+      {LISTING_TYPES.some((item) => item.id === type)
+        ? <Icon3D type={type} className={caption ? 'size-12' : 'size-8'} />
+        : <Building2 className={cn('opacity-50', caption ? 'size-10' : 'size-6')} aria-hidden />}
+      {caption ? <span className="text-xs">لا صورة متاحة</span> : <span className="sr-only">لا صورة متاحة</span>}
+    </span>
+  )
+}
+
+/**
+ * Every photo of the ad, swiped sideways, each once (some ads repeat one); a photo that fails to load drops out.
+ * With `type`, an ad with no photo left shows the type's tile at the same height, so cards side by side stay level.
+ */
+export function Gallery({ photos, className = 'h-40', type, fallbackClassName, fallback }: {
+  photos: string[]
+  className?: string
+  /** What takes the slot when no photo is left (a ListingFace); wins over `type`. */
+  fallback?: ReactNode
+  type?: string
+  /** The tile's height when it differs from the photos' (a card gives a missing photo less room). */
+  fallbackClassName?: string
+}) {
   const [broken, setBroken] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<number | null>(null)
   const shown = [...new Set(photos)].filter((photo) => !broken.has(photo))
-  if (!shown.length) return null
+  if (!shown.length) return fallback ? <>{fallback}</> : type ? <NoPhoto type={type} caption className={cn('w-full', fallbackClassName ?? className)} /> : null
   return (
     <div className="relative">
       <div className={cn('flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)} dir="ltr">
@@ -103,15 +132,17 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
     listing.beds ? counted(listing.beds, 'room') : null,
     listing.wc ? counted(listing.wc, 'bathroom') : null,
   ].filter(Boolean)
-  const photos = listing.photos?.length ? listing.photos : listing.photo ? [listing.photo] : []
+  const photos = shownPhotos(listing)
   // what the property has, as the ad's form records it; what it lacks shows in the comparison
   const has = FEATURES.filter(([key]) => listing.features?.[key] === 1).map(([, label]) => label)
   const listed = daysAgo(listing.listed_on)
+  // an ad up for a year may have been touched last week: its last update says whether it is still current
+  const updated = listing.updated_on && listing.updated_on !== listing.listed_on ? daysAgo(listing.updated_on) : null
 
   const tab = (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {photos[0] && <img src={photos[0]} alt="" className="size-9 shrink-0 rounded-full object-cover" />}
+      {photos[0] ? <img src={photos[0]} alt="" className="size-9 shrink-0 rounded-full object-cover" /> : <NoPhoto type={listing.type} className="size-9 shrink-0 rounded-full [&_img]:size-6" />}
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="truncate text-sm font-bold">{priceLine(listing)}</span>
         <span className="truncate text-xs text-muted-foreground">{typeLabel(listing.type)}{listing.district_ar ? ` · ${listing.district_ar}` : ''}</span>
@@ -121,7 +152,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
 
   return (
     <MapWindow label="العرض المختار" onClose={onClose} tab={tab} className={className}>
-      <Gallery photos={photos} />
+      <Gallery photos={photos} fallback={<ListingFace size="band" type={listing.type} url={listing.url} facts={[listing.district_ar, listing.area_sqm ? `${numberFormat.format(listing.area_sqm)} م²` : null]} />} />
       <div className="flex flex-col gap-1.5 p-3">
         <p className="text-sm text-muted-foreground">
           {typeLabel(listing.type)} {listing.kind === 'rent' ? 'للإيجار' : listing.kind === 'sale' ? 'للبيع' : ''}{listing.district_ar ? ` · ${listing.district_ar}` : ''}
@@ -136,7 +167,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         {rooms.length > 0 && <p className="text-base">{rooms.join(' · ')}</p>}
         <p className="text-sm">
           <Explained title="عمر العقار" lines={EXPLAIN.listingAge(listing.age_source)} className="text-sm">
-            عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span>
+            <span>عمر العقار: <span className="font-semibold">{ageLabel(listing.age)}</span></span>
           </Explained>
         </p>
         {(listing.tenants || has.length > 0) && (
@@ -145,9 +176,10 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
             {has.map((label) => <li key={label} className="rounded-full border px-2.5 py-0.5 text-sm">{label}</li>)}
           </ul>
         )}
-        {(listed || listing.licensed) && (
+        {(listed || updated || listing.licensed) && (
           <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
             {listed && <span>نُشر {listed}</span>}
+            {updated && updated !== listed && <span>· حُدّث {updated}</span>}
             {listing.licensed && <span className="inline-flex items-center gap-1"><BadgeCheck className="size-4 text-primary" aria-hidden /> إعلان مرخّص</span>}
           </p>
         )}
@@ -169,6 +201,12 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
         </button>
         {around && <ListingSurroundings listing={listing} myPoint={myPoint} density={density} />}
         {listing.has_phone && <ListingPhone key={listing.id} id={listing.id} />}
+        {/* with the number on file the main button asks for it, and the ad itself stays one tap away */}
+        {listing.has_phone && listing.url && (
+          <a href={listing.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 pointer-coarse:min-h-11 rounded-lg px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary/5">
+            <ExternalLink className="size-4" aria-hidden /> شاهد الإعلان<span className="sr-only">، يفتح في نافذة جديدة</span>
+          </a>
+        )}
         {(onCompare || (!listing.has_phone && listing.url)) && (
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             {listing.has_phone ? null : listing.url ? (
