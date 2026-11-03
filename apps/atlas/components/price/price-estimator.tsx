@@ -7,6 +7,8 @@ import { Building2, Calculator, ExternalLink, Loader2, MapPinned, Pencil, Search
 import { CopyLinkButton } from '@/components/shared/copy-link'
 import { districtMapHref, homesHref, readPriceOrigin } from '@/lib/handoff'
 import { askVsRange } from '@/lib/ask-vs-range'
+import { ESTIMATE_CACHE, estimateKey, keepEstimate } from '@/lib/estimate-key'
+import { answerCache } from '@/components/lens/tools/answer-cache'
 import { OfficesRequest, VALUERS } from '@/components/shared/offices-request'
 import { Icon3D } from '@/components/shared/icon-3d'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -213,10 +215,13 @@ export function PriceEstimator() {
     if (type !== kind) setKind(type)
     setAsked({ key: keyFor(type), kind: type, area: areaNumber, city, district, districtName: districtList.find((item) => item.id === district)?.name, deal })
     setResult('loading')
-    postMarket<Estimate>('price-estimate', {
+    const body = {
       city, district_id: district, deal, type, area_sqm: areaNumber,
       ...(age ? { age } : {}), ...(streets ? { streets } : {}), ...(width ? { street_width: width } : {}), ...(furnished ? { furnished } : {}),
-    }).then((estimate) => { if (ask === sequence.current) setResult(estimate) })
+    }
+    // the same visit cache as a listing card's estimate (lib/estimate-key.ts): the same answers are priced once
+    answerCache.run<Estimate>(`${ESTIMATE_CACHE}|${estimateKey(body)}`, () => postMarket<Estimate>('price-estimate', body), keepEstimate)
+      .then((estimate) => { if (ask === sequence.current) setResult(estimate) })
       .catch(() => { if (ask === sequence.current) setResult('error') })
   }
   // a link that carries a district and an area prices itself once the district list confirms the district

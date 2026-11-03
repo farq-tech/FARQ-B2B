@@ -10,6 +10,7 @@ import { FEATURES, LISTING_TYPES, shownPhotos, TENANTS_LABEL, ageLabel, daysAgo,
 import { cn } from '@/lib/utils'
 import { loginHref, priceAsk, priceHref } from '@/lib/handoff'
 import { askVsRange } from '@/lib/ask-vs-range'
+import { ESTIMATE_CACHE, estimateKey, keepEstimate } from '@/lib/estimate-key'
 import { postMarket, useCities } from '@/lib/insights-api'
 import { useAnswer } from './tools/use-answer'
 import { OfficesRequest, VALUERS } from '@/components/shared/offices-request'
@@ -163,8 +164,9 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
   const priced = priceHref(listing)
   // the ad's price read against what Atlas expects for the same answers (the price page's estimate), asked once per listing
   const ask = listing.check || listing.price_sar == null ? null : priceAsk(listing)
-  const estimate = useAnswer<{ available: boolean; price?: { low: number; mid: number; high: number } }>(ask ? `listing-estimate|${listing.id}` : null,
-    () => postMarket('price-estimate', ask!), { cache: 'listing-estimate' })
+  // one cache with «سعّر عقارك» (lib/estimate-key.ts): the price page opened from this card shows the same estimate at once
+  const estimate = useAnswer<{ available: boolean; price?: { low: number; mid: number; high: number } }>(ask ? estimateKey(ask) : null,
+    () => postMarket('price-estimate', ask!), { cache: ESTIMATE_CACHE, keep: keepEstimate })
   const versusExpected = estimate.data?.available && estimate.data.price ? askVsRange(listing.price_sar, estimate.data.price) : null
   const cities = useCities()
   const cityName = cities.find((item) => item.en === listing.city)?.ar || listing.city
@@ -241,7 +243,7 @@ export function ListingCard({ listing, comparing, onCompare, compareCount = 0, o
             <span className="text-muted-foreground">مقارنة بالسعر المتوقع:</span>
             {estimate.status === 'loading' ? <Skeleton className="h-4 w-28" aria-label="جارٍ حساب السعر المتوقع" />
               : estimate.status === 'error' ? <>تعذّر التحميل <Chip onClick={estimate.retry}>أعد المحاولة</Chip></>
-                : versusExpected ? <Explained title="مقارنة بالسعر المتوقع" lines={[`المدى المتوقع لعقار مثله في حيه: ${numberFormat.format(estimate.data!.price!.low)} – ${numberFormat.format(estimate.data!.price!.high)} ريال.`, 'من أقرب العروض الحالية المشابهة، كما في «سعّر عقارك».']}
+                : versusExpected ? <Explained title="مقارنة بالسعر المتوقع" lines={EXPLAIN.listingVersusExpected(estimate.data!.price!.low, estimate.data!.price!.high)}
                   className={cn('font-semibold', versusExpected.tone === 'inside' ? '' : versusExpected.tone === 'below' ? 'text-primary' : 'text-warning')}>{versusExpected.text}</Explained>
                   : <span className="text-muted-foreground">غير متاح</span>}
           </div>
