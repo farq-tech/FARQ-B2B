@@ -211,6 +211,16 @@ export function RequestAccessForm() {
           {pending ? 'جارٍ الإرسال…' : 'أرسل الطلب'}
         </Button>
         <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">لا يُرسل إليك شيء تلقائياً. يراجع فريق فرق الطلب ثم يتواصل معك.</p>
+        {/* what is kept, who sees it, for how long, and how to have it deleted: before sending, in one place */}
+        <section aria-labelledby="access-privacy" className="mt-4 rounded-xl bg-muted/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+          <h2 id="access-privacy" className="mb-1 font-semibold text-foreground">بياناتك</h2>
+          <p>
+            نحفظ ما تكتبه هنا لمراجعة طلبك والتواصل معك بخصوصه فقط. لا يراه أحد غير فريق فرق، ولا نشاركه مع أي جهة.
+            يُحذف تلقائياً بعد مدة محددة، ولك أن{' '}
+            <Link href={DELETE_DETAILS_PATH} className="font-semibold text-primary underline-offset-4 hover:underline">تطلب حذفه</Link>
+            {' '}في أي وقت.
+          </p>
+        </section>
         <p className="mt-5 border-t pt-4 text-center text-sm text-muted-foreground">
           لديك حساب؟{' '}
           <Link href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} className="font-semibold text-primary underline-offset-4 hover:underline">سجّل الدخول</Link>

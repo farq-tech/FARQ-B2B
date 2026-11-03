@@ -22,6 +22,8 @@ READ_ONLY_PATHS = frozenset({
     "/inbox/dismiss",
     "/access-requests/redact",
     "/access-requests/deletion",
+    "/access-requests/deletion-confirm",
+    "/access-requests/redact-person",
 })
 
 

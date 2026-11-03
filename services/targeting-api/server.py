@@ -1210,6 +1210,8 @@ class H(BaseHTTPRequestHandler):
                 extra = inbox_metric_lines()
                 if extra: body += ('\n'.join(extra) + '\n').encode()
             except Exception: pass   # the HTTP metrics stay readable whatever the inbox store does
+            try: body += ('\n'.join(access_requests.metric_lines(RUNTIME_DIR)) + '\n').encode()
+            except Exception: pass   # nor does the account-request store break them
             self.send_response(200); self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
         if route.path=="/districts":
             # official district outlines (MOMRAH atlas, 6 cities) for the map's district picker (owner 2026-10-16)
@@ -1299,12 +1301,15 @@ class H(BaseHTTPRequestHandler):
             # the owner's list of «اطلب حساباً» requests (access_requests.py): the console login only, never the service token
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
             query = urllib.parse.parse_qs(route.query)
-            saved = 'حُذفت بيانات التواصل.' if query.get('redacted') == ['1'] else 'حُفظ القرار.' if query.get('saved') == ['1'] else ''
+            notices = {'redacted': 'حُذفت بيانات التواصل.', 'person': 'حُذفت كل بيانات هذا الشخص، وحُذف طلب الحذف.',
+                       'confirmed': 'حُفظت علامة التأكد.', 'saved': 'حُفظ القرار.'}
+            saved = next((text for key, text in notices.items() if query.get(key) == ['1']), '')
             access_requests.apply_retention(RUNTIME_DIR)   # details past the retention period are emptied before anyone sees them
             try: names = {row['en']: row['ar'] for row in cities() if row.get('ar')}
             except Exception: names = {}
             b = access_requests.render_html(access_requests.with_reviews(RUNTIME_DIR), saved=saved, status=query.get('status', ['all'])[0],
-                                            query=query.get('q', [''])[0], city_names=names).encode()
+                                            query=query.get('q', [''])[0], city_names=names, flag=query.get('flag', [''])[0],
+                                            page=query.get('page', ['1'])[0]).encode()
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
         elif route.path == '/access-requests/count':
             # the console's badge: how many requests wait for a decision (a number only, no contact)
@@ -1365,17 +1370,22 @@ class H(BaseHTTPRequestHandler):
                 'message': 'بيئة الاختبار للقراءة فقط: لا يتم إرسال رسائل أو حفظ تغييرات أو الاتصال بميتا.',
             }, 403)
             return
-        if self.path in ('/access-requests/review', '/access-requests/redact'):
+        if self.path in ('/access-requests/review', '/access-requests/redact', '/access-requests/deletion-confirm', '/access-requests/redact-person'):
             # the owner's decision on a request, or removing its personal details on the person's request, from the
             # list's own forms (console login only; the cookie is SameSite=Strict)
             if not self._console_session(): self._json({'error': 'UNAUTHORIZED'}, 401); return
             form = urllib.parse.parse_qs(raw.decode(errors='replace'), keep_blank_values=True)
             field = lambda name: form.get(name, [''])[0]
-            if self.path.endswith('/review'):
+            action = self.path.rsplit('/', 1)[-1]
+            if action == 'review':
                 status, answer = access_requests.review(RUNTIME_DIR, field('id'), field('status'), field('note')); done = 'saved'
-            else:
+            elif action == 'redact':
                 status, answer = access_requests.redact(RUNTIME_DIR, field('id')); done = 'redacted'
-            LOGGER.info('access_request_%s status=%s', 'review' if done == 'saved' else 'redact', status)
+            elif action == 'deletion-confirm':
+                status, answer = access_requests.confirm_deletion(RUNTIME_DIR, field('id'), field('confirmed') == '1'); done = 'confirmed'
+            else:
+                status, answer = access_requests.redact_person(RUNTIME_DIR, field('id')); done = 'person'
+            LOGGER.info('access_request_%s status=%s', action.replace('-', '_'), status)
             if status != 200: self._json(answer, status); return
             back = field('back') if field('back') in access_requests.FILTERS else 'all'
             self.send_response(303); self.send_header('Location', f'/access-requests?status={back}&{done}=1'); self.end_headers(); return
