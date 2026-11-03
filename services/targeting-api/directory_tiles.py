@@ -12,6 +12,9 @@ import os
 import duckdb
 import mapbox_vector_tile
 from trial_search import norm, contains
+# the service box has 32 cores and 32GB; 2 threads/512MB left map aggregates queueing past Atlas's 12 s limit and
+# out of memory under a few visitors (2026-11-03). Overridable for a smaller box.
+DUCKDB_SETTINGS=f"SET threads={int(os.environ.get('FARQ_DUCKDB_THREADS','8'))}; SET memory_limit='{os.environ.get('FARQ_DUCKDB_MEMORY','4GB')}'"
 
 LABELS={'Corporate':'شركات وأعمال','Shopping':'تسوق وتجارة','Restaurants':'مطاعم','Hotels and Accommodations':'فنادق وإقامة','Home Goods':'تجهيزات المنزل','Grocery':'مواد غذائية','Education':'تعليم','Beauty and Spa':'تجميل وعناية','Automotive Services':'خدمات السيارات','Transportation':'نقل','Health':'صحة','Medical':'طب','Mosques':'مساجد','decor_carpentry_furniture':'أثاث ونجارة','غير مصنف':'غير مصنف'}
 def main_category(value): return (value or '').split('|')[0].strip() or 'غير مصنف'
@@ -121,7 +124,7 @@ class DirectoryTiles:
         self.path=path;self.lock=threading.RLock();self.contexts=collections.OrderedDict();self.tiles=collections.OrderedDict();self.facets_cache={};self.area_options_cache={};self.fingerprints={}
         identity_path=os.path.join(os.path.dirname(path),'identity','source_to_farq_atlas_id.parquet')
         self.identity_path=identity_path if os.path.isfile(identity_path) else None
-        self.db=duckdb.connect();self.db.execute("SET threads=2; SET memory_limit='512MB'")
+        self.db=duckdb.connect();self.db.execute(DUCKDB_SETTINGS)
         # Directory assets are refreshed independently from this service.  Optional
         # enrichment columns must degrade to empty values when an older asset is live.
         self.columns={row[0] for row in self.db.execute("describe select * from read_parquet(?)", [path]).fetchall()}
