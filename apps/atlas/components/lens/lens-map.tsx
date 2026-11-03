@@ -609,14 +609,14 @@ export function LensMap() {
     // a second activity still waiting for its name keeps its place too
     replaceAddress(presetRival.current ? next : withOptions(next, lens))
   }, [hydrated, city, lens, tool, selected, search, studied, metric])
-  // a city still being checked against the list is not saved until it is known (presetCity clears once it is)
+  // saved as it changes; a city that turns out unknown is checked again on the next visit, as an address would be
   useEffect(() => {
-    if (!hydrated || !cities.some((item) => item.en === city)) return
+    if (!hydrated) return
     const picked = stickyHas('activity')
     // a main activity still waiting for its city's list is kept, as in the address
     const main = presetMain.current ?? (picked ? studied.main_id : undefined)
     writeLast({ city, lens, main, activity: !main && picked ? studied.q : undefined })
-  }, [hydrated, city, lens, cities, studied])
+  }, [hydrated, city, lens, studied])
   // a choice made inside a step goes to the address as it is made
   useEffect(() => {
     if (!hydrated) return
